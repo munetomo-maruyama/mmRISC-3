@@ -42,7 +42,12 @@ CoreMark/MHz = 10^6 / (cycles per iteration) = 10^6 × IPC / (instructions per i
 | Build | Instructions / iteration | mmRISC-2 (measured) | IPC for 5.0 /MHz | IPC for 6.0 /MHz |
 |---|---|---|---|---|
 | `-O2`, Zba / Zbb | 318.6k (measured, SIM_SYS) | 2.794 /MHz, CPI 1.123 | **1.59** | **1.91** |
-| Most optimization (sf), Zba / Zbb | about 295k (estimate, measured in Phase 0) | 3.034 /MHz | 1.48 | **1.77** |
+| Most optimization (sf), Zba / Zbb | 294.5k (measured, Spike) | 3.034 /MHz | 1.47 | **1.77** |
+| `-O2`, GCC 14.2, Zba / Zbb / Zbs / Zicond | 311.9k (measured, Spike) | — | **1.56** | 1.87 |
+| Most optimization (sf + `-flto`), GCC 14.2, same | 281.0k (measured, Spike) | — | 1.40 | **1.69** |
+
+The measurement of the instruction counts is in `Plan/ICOUNT.md` (2026-10-24). With GCC 14.2 + Zicond the IPC needed
+goes down to 1.56 for 5.0 with `-O2` and 1.69 for 6.0 with the most optimization.
 
 - A well-made 2-wide core sustains an IPC of about 1.3 to 1.6 (NaxRiscv RV32 with 2 decoders, 5.02 /MHz, is thought
   to be in this range).
