@@ -33,7 +33,7 @@ and the phases with their gates.
 | File | Content |
 |---|---|
 | [`Doc/STRATEGY.md`](Doc/STRATEGY.md) / [`_J`](Doc/STRATEGY_J.md) | Development strategy (CoreMark first) |
-| [`Doc/PROMPT.md`](Doc/PROMPT.md) | Every prompt the author gave Claude Code, with date and time (Japanese, as typed) |
+| [`Doc/PROMPT.md`](Doc/PROMPT.md) / [`_J`](Doc/PROMPT_J.md) | Every prompt the author gave Claude Code, with date and time (the Japanese original as typed, and its translation) |
 | [`Plan/`](Plan/README.md) | Preliminary studies: the [study made during mmRISC-2](Plan/PRESTUDY_MMRISC2.md), and the performance studies of Phase 0 with their working files ([CoreMark instruction counts](Plan/ICOUNT.md), [trace analysis](Plan/TRACE.md)) |
 
 ## Branches
