@@ -1,0 +1,311 @@
+{
+ "build": "g13-o2-zb",
+ "iterations": 10,
+ "instructions_per_iteration": 318597.3,
+ "mix": {
+  "instructions": 3185973,
+  "per1000": {
+   "alu": 551.675108357792,
+   "br": 182.98491544027524,
+   "jal": 13.245561089186882,
+   "jalr": 6.709410280626986,
+   "load": 170.63044790398413,
+   "mul": 29.491775354028423,
+   "store": 45.26215382239586,
+   "sys": 0.0006277517103880039
+  },
+  "sub_per1000": {
+   "shift": 51.01047623441881,
+   "zba": 51.04876908875248,
+   "zbb": 29.14086214792153
+  },
+  "rvc_share": 0.4728775165389035,
+  "cond_branches": 582985,
+  "cond_taken_rate": 0.5663387565717815,
+  "cond_backward_share": 0.5959244234414265,
+  "calls_per1000": 5.708460178413314,
+  "returns_per1000": 5.708460178413314,
+  "taken_per1000": 123.58642085165191,
+  "run_mean_instr": 8.091496229774243,
+  "run_mean_bytes": 24.713404428777146,
+  "instr_in_runs_le": {
+   "2": 0.014630709014836926,
+   "4": 0.05421457201417465,
+   "8": 0.33769652570488734,
+   "16": 0.8809907186822223
+  }
+ },
+ "dependences": {
+  "src_distance_share": {
+   "1": 0.1917164187106754,
+   "2": 0.1988562245935403,
+   "3": 0.12873819872206177,
+   "4": 0.083855001417687,
+   "5": 0.06105031529508463,
+   "6": 0.014858656481597624,
+   "7": 0.01548009465211557,
+   "8": 0.011496107408056701,
+   "9": 0.293948982719181
+  },
+  "load_first_use_share": {
+   "1": 0.3773049019175018,
+   "2": 0.13496644739746588,
+   "3": 0.3223772313216488,
+   "4": 0.16305019645931748
+  },
+  "load_never_used_share": 0.0023012229040660914,
+  "load_from_store_within_64_share": 0.10729290833370124
+ },
+ "jalr_other": {
+  "count": 3189,
+  "mispredicted": 20
+ },
+ "sfb": {
+  "k<=1": {
+   "branches_per1000": 0.012555034207760078,
+   "share_of_cond": 6.861239997598565e-05,
+   "extra_uops_per1000": 0.006277517103880039
+  },
+  "k<=2": {
+   "branches_per1000": 4.720692862117789,
+   "share_of_cond": 0.02579826239097061,
+   "extra_uops_per1000": 4.613975071351828
+  },
+  "k<=4": {
+   "branches_per1000": 4.78660679170853,
+   "share_of_cond": 0.026158477490844535,
+   "extra_uops_per1000": 4.72697037922167
+  }
+ },
+ "pred": {
+  "bimodal-4K": {
+   "kbits": 8.0,
+   "miss_rate": 0.0784754324725336,
+   "mpki": 14.35982037512559,
+   "miss_rate_2nd_half": 0.07835737688045696,
+   "mpki_2nd_half": 14.33784906526201,
+   "sfb_k<=1_share_of_misses": 0.0008743169398907104,
+   "mpki_after_sfb_k<=1": 14.34726534091783,
+   "sfb_k<=2_share_of_misses": 0.0056830601092896175,
+   "mpki_after_sfb_k<=2": 14.27821265277515,
+   "sfb_k<=4_share_of_misses": 0.007715846994535519,
+   "mpki_after_sfb_k<=4": 14.249022198242107
+  },
+  "gshare-m2": {
+   "kbits": 16.0,
+   "miss_rate": 0.04946610976268686,
+   "mpki": 9.051551912084628,
+   "miss_rate_2nd_half": 0.04853079918349143,
+   "mpki_2nd_half": 8.880175695148703,
+   "sfb_k<=1_share_of_misses": 3.4676468548443023e-05,
+   "mpki_after_sfb_k<=1": 9.051238036229435,
+   "sfb_k<=2_share_of_misses": 0.011928705180664401,
+   "mpki_after_sfb_k<=2": 8.943578617897892,
+   "sfb_k<=4_share_of_misses": 0.016401969623413552,
+   "mpki_after_sfb_k<=4": 8.903088632577866
+  },
+  "TAGE-S": {
+   "kbits": 62.0,
+   "miss_rate": 0.007350103347427464,
+   "mpki": 1.3449580395062983,
+   "miss_rate_2nd_half": 0.0055920544796473235,
+   "mpki_2nd_half": 1.0232352879324464,
+   "sfb_k<=1_share_of_misses": 0.0004667444574095683,
+   "mpki_after_sfb_k<=1": 1.3443302877959105,
+   "sfb_k<=2_share_of_misses": 0.030105017502917154,
+   "mpki_after_sfb_k<=2": 1.304468054186272,
+   "sfb_k<=4_share_of_misses": 0.033138856476079344,
+   "mpki_after_sfb_k<=4": 1.30038766806875
+  },
+  "TAGE-M": {
+   "kbits": 196.0,
+   "miss_rate": 0.004981260238256559,
+   "mpki": 0.9114954834833817,
+   "miss_rate_2nd_half": 0.002946978403691442,
+   "mpki_2nd_half": 0.5392387192232954,
+   "sfb_k<=1_share_of_misses": 0.0006887052341597796,
+   "mpki_after_sfb_k<=1": 0.9108677317729936,
+   "sfb_k<=2_share_of_misses": 0.02134986225895317,
+   "mpki_after_sfb_k<=2": 0.8920351804613535,
+   "sfb_k<=4_share_of_misses": 0.022727272727272728,
+   "mpki_after_sfb_k<=4": 0.8907796770405776
+  },
+  "TAGE-L": {
+   "kbits": 560.0,
+   "miss_rate": 0.004994982718251756,
+   "mpki": 0.9140064903249338,
+   "miss_rate_2nd_half": 0.002933255570612553,
+   "mpki_2nd_half": 0.5367277123817433,
+   "sfb_k<=1_share_of_misses": 0.0006868131868131869,
+   "mpki_after_sfb_k<=1": 0.9133787386145457,
+   "sfb_k<=2_share_of_misses": 0.020947802197802196,
+   "mpki_after_sfb_k<=2": 0.8948600631580996,
+   "sfb_k<=4_share_of_misses": 0.024381868131868132,
+   "mpki_after_sfb_k<=4": 0.8917213046061596
+  }
+ },
+ "functions_instr_share": {
+  "core_state_transition": 0.21017127263790372,
+  "core_bench_list": 0.20286738148753927,
+  "matrix_mul_matrix_bitextract": 0.13894656357728077,
+  "matrix_mul_matrix": 0.09318346388999531,
+  "matrix_test": 0.0808544202979749,
+  "crc16": 0.07907160544047297,
+  "crcu32": 0.0751293246992363,
+  "core_bench_state": 0.03936003224132784,
+  "core_list_mergesort": 0.02476825760921389,
+  "crcu16": 0.01760843547638351
+ },
+ "functions_mpki": {
+  "gshare-m2": {
+   "core_state_transition": 5.06187591671367,
+   "core_bench_list": 1.5417582007129376,
+   "core_list_mergesort": 1.123361685739333,
+   "matrix_test": 0.632459848215914,
+   "core_bench_state": 0.15379916904506097,
+   "matrix_mul_matrix_bitextract": 0.1418718865476889,
+   "matrix_mul_matrix": 0.1274335972087648,
+   "crcu32": 0.12492259036721277
+  },
+  "TAGE-L": {
+   "core_list_mergesort": 0.5681152979011436,
+   "core_bench_list": 0.10075414951727463,
+   "core_state_transition": 0.06936656399787443,
+   "core_bench_state": 0.053045019527786334,
+   "matrix_test": 0.03829285433366824,
+   "calc_func": 0.029504330388236185,
+   "matrix_mul_matrix": 0.021343558153192135,
+   "matrix_mul_matrix_bitextract": 0.02071580644280413
+  }
+ },
+ "fusion": {
+  "pairs_per1000": {
+   "alu+alu": 58.01367431550738,
+   "alu+branch": 38.577225858474,
+   "alu+load(addr)": 29.921785275644208,
+   "load+load(pair)": 1.3948643004821446,
+   "store+store(pair)": 0.8141939683732411,
+   "auipc+x": 0.010357903221402065
+  },
+  "same_rd_share": {
+   "auipc+x": 0.9090909090909091,
+   "store+store(pair)": 0.0,
+   "alu+load(addr)": 0.20392321409839506,
+   "alu+branch": 0.0,
+   "alu+alu": 0.8888167505275117,
+   "load+load(pair)": 0.0
+  },
+  "uops_per_instr_conservative": 0.968169535648921,
+  "uops_per_instr_all": 0.8912862726708607
+ },
+ "limit_model": {
+  "W2 R32 perfect": {
+   "ipc": 1.8540065152645502,
+   "coremark_per_mhz": 5.819278805139121
+  },
+  "W2 R64 perfect": {
+   "ipc": 1.8540065152645502,
+   "coremark_per_mhz": 5.819278805139121
+  },
+  "W2 R128 perfect": {
+   "ipc": 1.8540065152645502,
+   "coremark_per_mhz": 5.819278805139121
+  },
+  "W2 R64 perfect, no group break": {
+   "ipc": 1.9438683429876766,
+   "coremark_per_mhz": 6.101333385398045
+  },
+  "W2 R64 perfect, load-use 3": {
+   "ipc": 1.798280950760212,
+   "coremark_per_mhz": 5.644369712989445
+  },
+  "W2 R64 perfect, ALU x3": {
+   "ipc": 1.8540065152645502,
+   "coremark_per_mhz": 5.819278805139121
+  },
+  "W2 R64 perfect, LSU x2": {
+   "ipc": 1.8540065152645502,
+   "coremark_per_mhz": 5.819278805139121
+  },
+  "W3 R64 perfect": {
+   "ipc": 2.3273879487619666,
+   "coremark_per_mhz": 7.305108827858763
+  },
+  "W4 R96 perfect": {
+   "ipc": 2.8482069821891685,
+   "coremark_per_mhz": 8.939834023041529
+  },
+  "W2 R64 gshare-m2 P8": {
+   "ipc": 1.6302257467326131,
+   "coremark_per_mhz": 5.116885004149794
+  },
+  "W2 R64 TAGE-M P8": {
+   "ipc": 1.8289913079120905,
+   "coremark_per_mhz": 5.740762109133036
+  },
+  "W2 R64 TAGE-L P6": {
+   "ipc": 1.8350349500516072,
+   "coremark_per_mhz": 5.75973164258331
+  },
+  "W2 R64 TAGE-L P8": {
+   "ipc": 1.8288999641794335,
+   "coremark_per_mhz": 5.740475403210993
+  },
+  "W2 R64 TAGE-L P10": {
+   "ipc": 1.8228058632369095,
+   "coremark_per_mhz": 5.72134749176126
+  },
+  "W2 R64 TAGE-L+SFB2 P8": {
+   "ipc": 1.8293788327706195,
+   "coremark_per_mhz": 5.741978456096834
+  },
+  "W3 R64 TAGE-L+SFB2 P8": {
+   "ipc": 2.2882049433115044,
+   "coremark_per_mhz": 7.182122834410413
+  },
+  "W2 R64 TAGE-L P8 fusion-cons": {
+   "ipc": 1.8966642596011256,
+   "coremark_per_mhz": 5.953171164982019
+  },
+  "W2 R64 TAGE-L P8 fusion-cons+alu+branch": {
+   "ipc": 1.9652343034369686,
+   "coremark_per_mhz": 6.168395976478672
+  },
+  "W2 R64 TAGE-L P8 fusion-all": {
+   "ipc": 2.0718864861912083,
+   "coremark_per_mhz": 6.503151427181613
+  },
+  "W2 R64 perfect fusion-all": {
+   "ipc": 2.10395932046689,
+   "coremark_per_mhz": 6.603820310049364
+  },
+  "W2 R64 TAGE-L P8 fusion-all, load-use 3": {
+   "ipc": 1.983823544062925,
+   "coremark_per_mhz": 6.226743114467465
+  },
+  "W2 R64 TAGE-L P8 fusion-all, ALU x3": {
+   "ipc": 2.0723312167536325,
+   "coremark_per_mhz": 6.504547329037731
+  },
+  "W2 R64 TAGE-L P8, conservative memory": {
+   "ipc": 1.8288999641794335,
+   "coremark_per_mhz": 5.740475403210993
+  },
+  "W2 R64 TAGE-L P8 fusion-all, conservative memory": {
+   "ipc": 2.0718864861912083,
+   "coremark_per_mhz": 6.503151427181613
+  },
+  "W2 R64 TAGE-L P8, taken bubble 1": {
+   "ipc": 1.4932367892418548,
+   "coremark_per_mhz": 4.686909742304328
+  },
+  "W2 R64 TAGE-L P8 fusion-all, taken bubble 1": {
+   "ipc": 1.6512782743632988,
+   "coremark_per_mhz": 5.182963805290562
+  },
+  "W2 R64 TAGE-L P8 fusion-all, LSU x2": {
+   "ipc": 2.0721330859240092,
+   "coremark_per_mhz": 6.5039254442018475
+  }
+ }
+}

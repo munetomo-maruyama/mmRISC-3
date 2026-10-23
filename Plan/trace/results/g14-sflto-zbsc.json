@@ -1,0 +1,301 @@
+{
+ "build": "g14-sflto-zbsc",
+ "iterations": 10,
+ "instructions_per_iteration": 280958.1,
+ "mix": {
+  "instructions": 2809581,
+  "per1000": {
+   "alu": 531.0350546932086,
+   "br": 174.89227041327513,
+   "jal": 13.638688473477005,
+   "jalr": 4.44407902815402,
+   "load": 192.09554734318036,
+   "mul": 33.442709072989885,
+   "store": 50.45093912579847,
+   "sys": 0.0007118499164110235
+  },
+  "sub_per1000": {
+   "shift": 49.043611841053874,
+   "zba": 57.873398204216215,
+   "zbb": 30.571106510187818,
+   "zbs": 18.100919674499508,
+   "zicond": 16.62881404736151
+  },
+  "rvc_share": 0.2300047587166912,
+  "cond_branches": 491374,
+  "cond_taken_rate": 0.34969900727348213,
+  "cond_backward_share": 0.34255373707196557,
+  "calls_per1000": 4.44407902815402,
+  "returns_per1000": 4.44407902815402,
+  "taken_per1000": 79.24242084495873,
+  "run_mean_instr": 12.61892848480493,
+  "run_mean_bytes": 44.67067616489548,
+  "instr_in_runs_le": {
+   "2": 0.012707099923009923,
+   "4": 0.03302956127046795,
+   "8": 0.20982340690518758,
+   "16": 0.4736124790128185
+  }
+ },
+ "dependences": {
+  "src_distance_share": {
+   "1": 0.2159806308914953,
+   "2": 0.1323836702227866,
+   "3": 0.08169828566644106,
+   "4": 0.06995960117498483,
+   "5": 0.07087084237480899,
+   "6": 0.05727757969871826,
+   "7": 0.03644797343027191,
+   "8": 0.024294834671820597,
+   "9": 0.31108658186867244
+  },
+  "load_first_use_share": {
+   "1": 0.372860880327881,
+   "2": 0.11355770157196113,
+   "3": 0.21182935957962454,
+   "4": 0.2997676521378227
+  },
+  "load_never_used_share": 0.0019844063827106906,
+  "load_from_store_within_64_share": 0.1033558887398371
+ },
+ "jalr_other": {
+  "count": 0,
+  "mispredicted": 0
+ },
+ "sfb": {
+  "k<=1": {
+   "branches_per1000": 0.0,
+   "share_of_cond": 0.0,
+   "extra_uops_per1000": 0.0
+  },
+  "k<=2": {
+   "branches_per1000": 0.0,
+   "share_of_cond": 0.0,
+   "extra_uops_per1000": 0.0
+  },
+  "k<=4": {
+   "branches_per1000": 0.07474424122315747,
+   "share_of_cond": 0.0004273730396805692,
+   "extra_uops_per1000": 0.09609973871548819
+  }
+ },
+ "pred": {
+  "bimodal-4K": {
+   "kbits": 8.0,
+   "miss_rate": 0.07906197723119253,
+   "mpki": 13.827328701325927,
+   "miss_rate_2nd_half": 0.07868452114453173,
+   "mpki_2nd_half": 13.761482584057907,
+   "sfb_k<=1_share_of_misses": 0.0,
+   "mpki_after_sfb_k<=1": 13.827328701325927,
+   "sfb_k<=2_share_of_misses": 0.0,
+   "mpki_after_sfb_k<=2": 13.827328701325927,
+   "sfb_k<=4_share_of_misses": 0.002393884012458493,
+   "mpki_after_sfb_k<=4": 13.794227680212815
+  },
+  "gshare-m2": {
+   "kbits": 16.0,
+   "miss_rate": 0.054821785442453204,
+   "mpki": 9.587906524140076,
+   "miss_rate_2nd_half": 0.053050592209695144,
+   "mpki_2nd_half": 9.278251810501281,
+   "sfb_k<=1_share_of_misses": 0.0,
+   "mpki_after_sfb_k<=1": 9.587906524140076,
+   "sfb_k<=2_share_of_misses": 0.0,
+   "mpki_after_sfb_k<=2": 9.587906524140076,
+   "sfb_k<=4_share_of_misses": 0.0034523721137426685,
+   "mpki_after_sfb_k<=4": 9.554805503026964
+  },
+  "TAGE-S": {
+   "kbits": 62.0,
+   "miss_rate": 0.006825757976612519,
+   "mpki": 1.1937723098212865,
+   "miss_rate_2nd_half": 0.00446904635923318,
+   "mpki_2nd_half": 0.7816112082193039,
+   "sfb_k<=1_share_of_misses": 0.0,
+   "mpki_after_sfb_k<=1": 1.1937723098212865,
+   "sfb_k<=2_share_of_misses": 0.0,
+   "mpki_after_sfb_k<=2": 1.1937723098212865,
+   "sfb_k<=4_share_of_misses": 0.005068574836016696,
+   "mpki_after_sfb_k<=4": 1.1877215855317929
+  },
+  "TAGE-M": {
+   "kbits": 196.0,
+   "miss_rate": 0.005950660800123735,
+   "mpki": 1.0407245777929164,
+   "miss_rate_2nd_half": 0.003398591721274777,
+   "mpki_2nd_half": 0.5943946802032046,
+   "sfb_k<=1_share_of_misses": 0.0,
+   "mpki_after_sfb_k<=1": 1.0407245777929164,
+   "sfb_k<=2_share_of_misses": 0.0,
+   "mpki_after_sfb_k<=2": 1.0407245777929164,
+   "sfb_k<=4_share_of_misses": 0.0030779753761969904,
+   "mpki_after_sfb_k<=4": 1.0375212531690667
+  },
+  "TAGE-L": {
+   "kbits": 560.0,
+   "miss_rate": 0.005808203120230212,
+   "mpki": 1.0158098307185306,
+   "miss_rate_2nd_half": 0.0031869428955187433,
+   "mpki_2nd_half": 0.5573784845498314,
+   "sfb_k<=1_share_of_misses": 0.0,
+   "mpki_after_sfb_k<=1": 1.0158098307185306,
+   "sfb_k<=2_share_of_misses": 0.0,
+   "mpki_after_sfb_k<=2": 1.0158098307185306,
+   "sfb_k<=4_share_of_misses": 0.002452697967764541,
+   "mpki_after_sfb_k<=4": 1.013318356011092
+  }
+ },
+ "functions_instr_share": {
+  "calc_func": 0.4705925901406651,
+  "core_bench_list": 0.29238203134204,
+  "core_state_transition": 0.2361063802752083,
+  "main": 0.0009189982420866314
+ },
+ "functions_mpki": {
+  "gshare-m2": {
+   "core_state_transition": 5.464871808287428,
+   "core_bench_list": 3.1627491786141775,
+   "calc_func": 0.9595736873220597,
+   "main": 0.0007118499164110235
+  },
+  "TAGE-L": {
+   "core_bench_list": 0.7275106145720661,
+   "calc_func": 0.17547100439531732,
+   "core_state_transition": 0.11211636183473621,
+   "main": 0.0007118499164110235
+  }
+ },
+ "fusion": {
+  "pairs_per1000": {
+   "alu+alu": 130.03647163046733,
+   "alu+branch": 41.64001678542103,
+   "alu+load(addr)": 11.88255472969101,
+   "load+load(pair)": 0.8218307284965267,
+   "store+store(pair)": 0.617529802486563,
+   "lui+addi": 0.21355497492330708,
+   "auipc+x": 0.0017796247910275588
+  },
+  "same_rd_share": {
+   "auipc+x": 0.6,
+   "store+store(pair)": 0.0,
+   "alu+branch": 0.0,
+   "alu+load(addr)": 0.22644900404373222,
+   "alu+alu": 0.05879326012459354,
+   "lui+addi": 0.0,
+   "load+load(pair)": 0.0
+  },
+  "uops_per_instr_conservative": 0.9865720191017806,
+  "uops_per_instr_all": 0.8533589172193291
+ },
+ "limit_model": {
+  "W2 R32 perfect": {
+   "ipc": 1.8417274439959253,
+   "coremark_per_mhz": 6.555167635301938
+  },
+  "W2 R64 perfect": {
+   "ipc": 1.861121728226431,
+   "coremark_per_mhz": 6.624196733343624
+  },
+  "W2 R128 perfect": {
+   "ipc": 1.874068495745697,
+   "coremark_per_mhz": 6.670277510225536
+  },
+  "W2 R64 perfect, no group break": {
+   "ipc": 1.9300470012488786,
+   "coremark_per_mhz": 6.8695189825418055
+  },
+  "W2 R64 perfect, load-use 3": {
+   "ipc": 1.78960473137594,
+   "coremark_per_mhz": 6.369649892193676
+  },
+  "W2 R64 perfect, ALU x3": {
+   "ipc": 1.8687707773782491,
+   "coremark_per_mhz": 6.6514216083403515
+  },
+  "W2 R64 perfect, LSU x2": {
+   "ipc": 1.8611710432790112,
+   "coremark_per_mhz": 6.624372257923909
+  },
+  "W3 R64 perfect": {
+   "ipc": 2.373219503171381,
+   "coremark_per_mhz": 8.446880524787794
+  },
+  "W4 R96 perfect": {
+   "ipc": 3.020635847285699,
+   "coremark_per_mhz": 10.751196876992331
+  },
+  "W2 R64 gshare-m2 P8": {
+   "ipc": 1.6288417555851227,
+   "coremark_per_mhz": 5.797454337800272
+  },
+  "W2 R64 TAGE-M P8": {
+   "ipc": 1.8337506118852593,
+   "coremark_per_mhz": 6.526776098945927
+  },
+  "W2 R64 TAGE-L P6": {
+   "ipc": 1.8410998706450838,
+   "coremark_per_mhz": 6.552933945115247
+  },
+  "W2 R64 TAGE-L P8": {
+   "ipc": 1.8343061175724007,
+   "coremark_per_mhz": 6.5287532823307135
+  },
+  "W2 R64 TAGE-L P10": {
+   "ipc": 1.827532599652782,
+   "coremark_per_mhz": 6.504644641506268
+  },
+  "W2 R64 TAGE-L+SFB2 P8": {
+   "ipc": 1.8343061175724007,
+   "coremark_per_mhz": 6.5287532823307135
+  },
+  "W3 R64 TAGE-L+SFB2 P8": {
+   "ipc": 2.3289488408643098,
+   "coremark_per_mhz": 8.289310188474046
+  },
+  "W2 R64 TAGE-L P8 fusion-cons": {
+   "ipc": 1.8553379959229306,
+   "coremark_per_mhz": 6.603610986559671
+  },
+  "W2 R64 TAGE-L P8 fusion-cons+alu+branch": {
+   "ipc": 1.9191494099613926,
+   "coremark_per_mhz": 6.830731735306413
+  },
+  "W2 R64 TAGE-L P8 fusion-all": {
+   "ipc": 2.1089910463356634,
+   "coremark_per_mhz": 7.506425500228195
+  },
+  "W2 R64 perfect fusion-all": {
+   "ipc": 2.143595796399748,
+   "coremark_per_mhz": 7.629592442430911
+  },
+  "W2 R64 TAGE-L P8 fusion-all, load-use 3": {
+   "ipc": 2.0154278544974056,
+   "coremark_per_mhz": 7.173410748782134
+  },
+  "W2 R64 TAGE-L P8 fusion-all, ALU x3": {
+   "ipc": 2.1100110548023805,
+   "coremark_per_mhz": 7.5100559649370515
+  },
+  "W2 R64 TAGE-L P8, conservative memory": {
+   "ipc": 1.834085790569696,
+   "coremark_per_mhz": 6.527969083538421
+  },
+  "W2 R64 TAGE-L P8 fusion-all, conservative memory": {
+   "ipc": 2.1085905984862414,
+   "coremark_per_mhz": 7.505000206387506
+  },
+  "W2 R64 TAGE-L P8, taken bubble 1": {
+   "ipc": 1.6046092850485223,
+   "coremark_per_mhz": 5.711204927170715
+  },
+  "W2 R64 TAGE-L P8 fusion-all, taken bubble 1": {
+   "ipc": 1.8107555585918342,
+   "coremark_per_mhz": 6.444930965121968
+  },
+  "W2 R64 TAGE-L P8 fusion-all, LSU x2": {
+   "ipc": 2.1094502448378334,
+   "coremark_per_mhz": 7.508059902305126
+  }
+ }
+}

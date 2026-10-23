@@ -103,6 +103,9 @@ Before arguing about performance, the conditions are fixed, taken over from mmRI
 | 8 | Fewer instructions | Zicond / Zbs, compiler and options (a `-mtune` that emits fusible sequences) | Hardware exists |
 | 9 | Memory-dependence speculation | Issue loads before older store addresses are known (a simple store-set) | Medium to large; only after the model shows the gain |
 
+**Added 2026-10-24**: the trace analysis (`Plan/TRACE.md`) proposes a new order (TAGE, a zero-bubble front end and
+fusion at the top; SFB dropped). See its section 4.
+
 More execution units quickly give diminishing returns (NaxRiscv's notes). **For CoreMark, prediction and short
 latencies matter more than the number of units.**
 
