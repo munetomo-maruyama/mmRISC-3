@@ -106,14 +106,14 @@
 
 ---
 
-## 4. ここから決めること(提案)
+## 4. ここから決めること(2026-10-24、測定用コンパイラとZicondは決定)
 
 | 項目 | 提案 | 理由 |
 |---|---|---|
-| 測定用コンパイラ | **GCC 14.2(Debian 13)に固定** | 命令数が最少。ボード上のgccと同じで、ボード上でもホスト(qemu-user)でも同じバイナリを作れる |
-| `-O2`の定義 | `-O2 -march=rv64imafdc_zicsr_zifencei_zba_zbb_zbs_zicond` | ハードが持つ拡張をすべて使う(`STRATEGY_J.md` 1.3節) |
+| 測定用コンパイラ | **GCC 14.2(Debian 13)に固定**(決定) | 命令数が最少。ボード上のgccと同じで、ボード上でもホスト(qemu-user)でも同じバイナリを作れる |
+| `-O2`の定義 | `-O2 -march=rv64imafdc_zicsr_zifencei_zba_zbb_zbs_zicond`(決定) | ハードが持つ拡張をすべて使う(`STRATEGY_J.md` 1.3節) |
 | 最大最適化の候補 | sf + `-flto`(命令数最少)と sf(コードが小さい) | 最終的にはサイクル数で決める |
-| Zicond | **ハードに入れる**(mmRISC-2も実装済み) | GCC 14で−1.5% |
+| Zicond | **ハードに入れる**(決定。mmRISC-2も実装済み) | GCC 14で−1.5% |
 | 性能モデルの入力 | g14 / o2 / zbsc と g14 / sflto / zbsc、比較用に g13 / o2 / zb(mmRISC-2での校正用) | |
 
 注意: ボード上の測定はLinux上のposixポート(glibc、時間関数が異なる)なので、命令数はここと完全には一致しない。計測区間はCoreMark本体だけなので、差は小さいはず(mmRISC-2ではSIM_SYSとボードのCoreMark/MHzが一致していた)。

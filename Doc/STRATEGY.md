@@ -1,7 +1,7 @@
 # mmRISC-3 Development Strategy (CoreMark first)
 
 - Date: 2026-10-23
-- Inputs: `mmRISC-OoO_検討メモ.md` (2026-10-13), the mmRISC-2 white paper, `LitexSystem/docs/BENCH.md` and `TIMING.md`
+- Inputs: `Plan/PRESTUDY_MMRISC2.md` (the study memo of 2026-10-13), the mmRISC-2 white paper, `LitexSystem/docs/BENCH.md` and `TIMING.md`
 - Status: the strategy that sets the direction. Numbers marked "measured" are mmRISC-2 records; the rest are estimates to be checked in Phase 0
 
 ---
@@ -82,9 +82,9 @@ Before arguing about performance, the conditions are fixed, taken over from mmRI
 | Item | Rule |
 |---|---|
 | Where | On the board, under Linux, 50 MHz (`bench.sh` as in mmRISC-2's BENCH) |
-| `-O2` | `-O2` only; `-march` with every extension the hardware has (Zba / Zbb / Zbs / Zicond and so on) |
+| `-O2` | `-O2` only; `-march=rv64imafdc_zicsr_zifencei_zba_zbb_zbs_zicond` (**Zicond included, and implemented in the hardware**; decided 2026-10-24) |
 | Most optimization | Any options within CoreMark's run rules (source unchanged); every option recorded |
-| Compiler | Version fixed and recorded (GCC 13.2 today); GCC 14 / 15 and LLVM compared in Phase 0 |
+| Compiler | **Fixed at GCC 14.2 (Debian 13, the same as the gcc on the board)** (decided 2026-10-24, reasons in `Plan/ICOUNT.md`) |
 | Bitstream | **The same bitstream that runs Linux** (no CoreMark-only configuration) |
 
 ---
@@ -238,4 +238,4 @@ non-speculative MMIO loads are already in the Phase 1 spec.
 
 - mmRISC-2: https://github.com/munetomo-maruyama/mmRISC-2 (BENCH.md sections 13 / 17 / 28, TIMING.md)
 - NaxRiscv Performance and Area: https://spinalhdl.github.io/NaxRiscv-Rtd/main/NaxRiscv/performance/index.html
-- `mmRISC-OoO_検討メモ.md` (this directory)
+- `Plan/PRESTUDY_MMRISC2.md` (the study made during mmRISC-2)

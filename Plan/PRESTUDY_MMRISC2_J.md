@@ -3,6 +3,7 @@
 - 対象: mmRISC-2(single issue / in-order / RV64GC)の後継として、同一ボードでdual issue / OoOのRV64GCコアを作り、Linuxを動作させる
 - 作成日: 2026-10-13
 - 位置づけ: 課題の洗い出しと対策・妥協案の整理(数値の多くは粗い見積りで、実測による確認が前提)
+- 経緯: mmRISC-2の開発中(Rev.01の時点)に行った事前検討。2026-10-24に`Doc/mmRISC-OoO_検討メモ.md`から本ファイルへ移した(内容は当時のまま)。mmRISC-3の方針は`Doc/STRATEGY_J.md`が優先する。英訳は`PRESTUDY_MMRISC2.md`
 
 ---
 

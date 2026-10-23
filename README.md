@@ -33,8 +33,7 @@ and the phases with their gates.
 | File | Content |
 |---|---|
 | [`Doc/STRATEGY.md`](Doc/STRATEGY.md) / [`_J`](Doc/STRATEGY_J.md) | Development strategy (CoreMark first) |
-| [`Doc/mmRISC-OoO_検討メモ.md`](Doc/mmRISC-OoO_検討メモ.md) | Earlier study of an out-of-order RV64GC on the Arty A7-100T (Japanese) |
-| [`Plan/`](Plan/README.md) | Preliminary performance studies (Phase 0), with their working files: [CoreMark instruction counts](Plan/ICOUNT.md) |
+| [`Plan/`](Plan/README.md) | Preliminary studies: the [study made during mmRISC-2](Plan/PRESTUDY_MMRISC2.md), and the performance studies of Phase 0 with their working files ([CoreMark instruction counts](Plan/ICOUNT.md)) |
 
 ## Branches
 

@@ -1,7 +1,7 @@
 # mmRISC-3 開発戦略(CoreMark最優先)
 
 - 作成日: 2026-10-23
-- 前提資料: `mmRISC-OoO_検討メモ.md`(2026-10-13)、mmRISC-2のホワイトペーパー、`LitexSystem/docs/BENCH.md`、`TIMING.md`
+- 前提資料: `Plan/PRESTUDY_MMRISC2_J.md`(2026-10-13の検討メモ)、mmRISC-2のホワイトペーパー、`LitexSystem/docs/BENCH.md`、`TIMING.md`
 - 位置づけ: 方向性を固めるための戦略。数値のうち「実測」とあるものはmmRISC-2の記録、それ以外は見積りで、Phase 0で検証する
 
 ---
@@ -61,9 +61,9 @@ CoreMark/MHz = 10^6 / (1回あたりのサイクル数) = 10^6 × IPC / (1回あ
 | 項目 | 方針 |
 |---|---|
 | 測定場所 | ボード上、Linux上、50MHz(mmRISC-2のBENCHと同じ`bench.sh`) |
-| `-O2`の定義 | `-O2`のみ。`-march`はハードが持つ拡張すべて(Zba/Zbb/Zbs/Zicondなど) |
+| `-O2`の定義 | `-O2`のみ。`-march=rv64imafdc_zicsr_zifencei_zba_zbb_zbs_zicond`(**Zicondを含む。ハードもZicondを実装する**。2026-10-24決定) |
 | 最大最適化の定義 | CoreMarkの実行規則の範囲で任意のオプション(ソースは変更しない)。使ったオプションをすべて記録 |
-| コンパイラ | バージョンを固定して記録(現状GCC 13.2)。GCC 14 / 15、LLVMの比較はPhase 0で行う |
+| コンパイラ | **GCC 14.2(Debian 13、ボード上のgccと同じ)に固定**(2026-10-24決定、根拠は`Plan/ICOUNT_J.md`) |
 | ビットストリーム | Linux動作版と**同じビットストリーム**で測る(CoreMark専用の構成は作らない) |
 
 ---
@@ -201,4 +201,4 @@ mmRISC-2の資産(SIM_CORE / SIM_SYS / SIM_BIOS、riscv-tests、バグ注入)に
 
 - mmRISC-2: https://github.com/munetomo-maruyama/mmRISC-2(BENCH.md 13 / 17 / 28章、TIMING.md)
 - NaxRiscv Performance and Area: https://spinalhdl.github.io/NaxRiscv-Rtd/main/NaxRiscv/performance/index.html
-- `mmRISC-OoO_検討メモ.md`(本ディレクトリ)
+- `Plan/PRESTUDY_MMRISC2_J.md`(mmRISC-2開発時の事前検討)

@@ -116,14 +116,14 @@ Bold: mmRISC-2's condition (g13 / o2 / zb), and the fewest with `-O2` and with t
 
 ---
 
-## 4. Decisions to take (proposal)
+## 4. Decisions to take (2026-10-24: the compiler and Zicond decided)
 
 | Item | Proposal | Reason |
 |---|---|---|
-| Compiler for measurements | **Fixed at GCC 14.2 (Debian 13)** | Fewest instructions; the same as the gcc on the board, so the same binary can be built on the board or on the host (qemu-user) |
-| Definition of `-O2` | `-O2 -march=rv64imafdc_zicsr_zifencei_zba_zbb_zbs_zicond` | Every extension the hardware has (`STRATEGY.md` section 1.3) |
+| Compiler for measurements | **Fixed at GCC 14.2 (Debian 13)** (decided) | Fewest instructions; the same as the gcc on the board, so the same binary can be built on the board or on the host (qemu-user) |
+| Definition of `-O2` | `-O2 -march=rv64imafdc_zicsr_zifencei_zba_zbb_zbs_zicond` (decided) | Every extension the hardware has (`STRATEGY.md` section 1.3) |
 | Candidates for the most optimization | sf + `-flto` (fewest instructions) and sf (smaller code) | Chosen in the end by cycles |
-| Zicond | **In the hardware** (mmRISC-2 has it too) | −1.5 % with GCC 14 |
+| Zicond | **In the hardware** (decided; mmRISC-2 has it too) | −1.5 % with GCC 14 |
 | Input of the performance model | g14 / o2 / zbsc and g14 / sflto / zbsc, plus g13 / o2 / zb for the calibration against mmRISC-2 | |
 
 Note: on the board CoreMark is the posix port under Linux (glibc, other timing functions), so the counts do not match

@@ -31,8 +31,7 @@ Arty A7-100T(50 MHz)で Linux(BusyBox、Debian 13)を動かす。周辺回路は
 | ファイル | 内容 |
 |---|---|
 | [`Doc/STRATEGY_J.md`](Doc/STRATEGY_J.md) / [英語版](Doc/STRATEGY.md) | 開発戦略(CoreMark 先行) |
-| [`Doc/mmRISC-OoO_検討メモ.md`](Doc/mmRISC-OoO_検討メモ.md) | Arty A7-100T での OoO RV64GC の事前検討 |
-| [`Plan/`](Plan/README_J.md) | 性能評価の事前検討(Phase 0)と作業ファイル: [CoreMark の命令数](Plan/ICOUNT_J.md) |
+| [`Plan/`](Plan/README_J.md) | 事前検討: [mmRISC-2 開発時の事前検討](Plan/PRESTUDY_MMRISC2_J.md)、Phase 0 の性能評価と作業ファイル([CoreMark の命令数](Plan/ICOUNT_J.md)) |
 
 ## ブランチ
 
