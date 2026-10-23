@@ -74,3 +74,9 @@ In this development project, I want the prompts I type recorded, going back to t
 ```text
 Thank you. Please keep an English translation of PROMPT as well.
 ```
+
+## 10. 2026-10-24 01:21:12 JST
+
+```text
+Please sort out here the items to study next, including the problems and their countermeasures.
+```

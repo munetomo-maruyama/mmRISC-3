@@ -9,6 +9,7 @@ working files and documents.
 |---|---|
 | [`PRESTUDY_MMRISC2.md`](PRESTUDY_MMRISC2.md) / [`_J`](PRESTUDY_MMRISC2_J.md) | The study memo made during mmRISC-2 (2026-10-13): an out-of-order RV64GC on the Arty A7-100T; resources, NaxRiscv, Linux and non-speculative execution, compromises |
 | [`ICOUNT.md`](ICOUNT.md) / [`_J`](ICOUNT_J.md) | Phase 0-1: CoreMark instructions per iteration by compiler, options and ISA extensions; the IPC the goals need |
+| [`ISSUES.md`](ISSUES.md) / [`_J`](ISSUES_J.md) | Remaining study items of Phase 0 up to G0, with problems and countermeasures; the measured resources of mmRISC-2 Rev.02 and the revised budget; decisions for the author |
 | [`TRACE.md`](TRACE.md) / [`_J`](TRACE_J.md) | Phase 0-2: trace analysis of CoreMark: instruction mix, branch predictors (gshare of mmRISC-2, TAGE), SFB and fusion candidates, an uncalibrated limit model |
 
 | Directory | Content |

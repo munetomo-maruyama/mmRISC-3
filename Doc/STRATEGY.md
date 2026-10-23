@@ -126,6 +126,10 @@ The parts of mmRISC-2 needed regardless of out-of-order execution (CSR about 3.3
 MDU about 1.1k, debug) take about 15k LUTs. **About 15k to 16k LUTs remain for the out-of-order engine, the front end
 and the LSU.** NaxRiscv RV64 (integer only) is about 18k LUTs for the whole core, so this is **tight**.
 
+**Added 2026-10-24**: the measurement of mmRISC-2 Rev.02 by hierarchy shows LiteX at 4.8k LUTs and the FPU at 8.8k LUTs.
+The estimate above is corrected in `Plan/ISSUES.md` section 2 (about 34.6k left for the core, about 12.9k for the
+out-of-order parts).
+
 What follows:
 - **Design on the assumption that 3-wide decode does not fit** (IPC comes from 2-wide + fusion + SFB).
 - **The FPU does nothing for CoreMark, so its LUTs go to the integer side.** First candidates: option 3 of the memo
