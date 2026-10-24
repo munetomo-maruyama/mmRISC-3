@@ -697,3 +697,26 @@ In the prompt log, entries 19 and 20 were the same prompt (sent again). I noted 
 ```text
 I reran OOC_RENAME; please check it.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I checked the rerun of OOC_RENAME. It is a fresh result (22:34), the log has no errors, and it closes at 50 MHz.
+
+| Run | LUT | FF | Worst register to register |
+|---|---|---|---|
+| OOO_RENAME (no harness, last time) | 2,271 | 2,151 | +9.598 ns |
+| **OOC_RENAME (with the harness, now)** | **2,267** | 2,296 | **+8.912 ns** (4 levels) |
+
+- **LUTs**: about the same as without the harness; the difference of 4 is placement. The 145 more FFs are the harness's flip-flops on the inputs and outputs.
+- **Worst path**: the restore (`restore_id` → checkpoint select → RAT), with +8.9 ns of slack.
+- **The input-to-output path that was the concern last time** (the RAT and busy reads): inside the harness it is a register-to-register path and is not even among the 10 worst (+9 ns or more). As expected last time, it closes with ample margin.
+
+I added the row with the harness to 10.8 of OOC_J.md / OOC.md and updated the total to **15,304 LUTs** with this value. The prompt log (answer 20 and the English of 21) is updated too. Pushed to dev as `16f28c5`.
+<!-- /answer -->
+
+## 22. 2026-10-24 22:39:35 JST
+
+```text
+Please go on to the G0 specification. Put together the freeze of the micro-architecture and the budget revision including the ROB, LSU and decode (and the FPU of D3).
+```

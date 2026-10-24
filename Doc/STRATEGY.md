@@ -154,12 +154,12 @@ What follows:
 |---|---|---|
 | Fetch | 16 B per cycle, decoupled by an FTQ, zero-bubble next-line predictor (LUTRAM) + BTB (BRAM) + TAGE (BRAM) + RAS | 16 B per cycle, decoupled by a 16-instruction fetch buffer; uBTB 16 (partial tags, next PC in F0; `Plan/OOC.md` 7.6), TAGE-S (62 kbit) + BTB + 16-entry RAS override in F2 |
 | Decode / rename / commit | 2 µops per cycle (up to 4 instructions with fusion) | **4-wide decode + fusion** (address calculation + load, load / store pairs, lui / auipc, ALU + branch, ALU + ALU); rename, dispatch and commit 2 µops per cycle; a fused pair reads at most 2 registers and writes at most 1 (`Plan/OOC.md` 7.4) |
-| ROB | 48 to 64 entries (payload in LUTRAM / BRAM) | 32 entries |
+| ROB | 48 to 64 entries (payload in LUTRAM / BRAM) | 32 entries; **24 at G0** (`Doc/UARCH.md`) |
 | PRF | about 96 integer registers (LUTRAM, banked by write port + LVT) | 64 integer registers (32 + ROB 32 × 1), LUTRAM, 3 writes / 6 reads, banked by write port + LVT (`Plan/OOC.md` 7.4) |
-| Issue queue | unified 16 to 24, or distributed; 1-cycle wakeup-select | unified 16 entries, 2 sources (fused pairs also at most 2, `Plan/OOC.md` 7.4), 1-cycle wakeup-select, oldest first (age matrix), 3 issues per cycle |
+| Issue queue | unified 16 to 24, or distributed; 1-cycle wakeup-select | unified 16 entries (**12 at G0**), 2 sources (fused pairs also at most 2, `Plan/OOC.md` 7.4), 1-cycle wakeup-select, oldest first (age matrix), 3 issues per cycle |
 | Execution units | ALU0 (full + branch), ALU1 (simple + branch), MUL/DIV, LSU (1 load + 1 store), FPU (reduced) | 2 ALU ports, each two stages chained (full → narrowed, `Plan/OOC.md` 8: a fused ALU + ALU / ALU + branch in one cycle), MUL / DIV sharing ALU0's port, 1 LSU, FPU (pipelined, decision D3) |
 | Load-use | 2 cycles (speculative wakeup by hit prediction) | 2 cycles (required; 3 costs −6 %) |
-| Memory | — | conservative memory dependence, LQ / SQ 16, forwarding from the SQ (required), 8 checkpoints |
+| Memory | — | conservative memory dependence, LQ / SQ 16 (**12 at G0**), forwarding from the SQ (required), 8 checkpoints (**6 at G0**) |
 | Misprediction penalty | 10 cycles or less | 9 cycles from EX to EX (depth hardly matters) |
 | Reused | L1 / L2, MMU, CSR, debug, FPU, LiteX integration, SIM_BIOS, bug injection | same |
 | Frequency | 50 MHz | 50 MHz |
@@ -233,7 +233,7 @@ Decided by the author on 2026-10-24 (`Doc/PROMPT.md` entry 11).
 |---|---|---|---|
 | D1 | The goal | 5.0 with `-O2`, 6.0 with the most optimization; confirmed by the model at G0 (6.0 with `-O2` is not a 2-wide target) | As recommended; **the goal is to exceed 6.0 with the most optimization** |
 | D2 | Width | Fixed at 2 µops + fusion + SFB; 3-wide reconsidered only if G0 shows plenty of resources | As recommended (SFB was dropped by the trace analysis, `Plan/TRACE.md`) |
-| D3 | FPU | Reduced multi-cycle FPU or in-order side pipe (LUTs to the integer side) | **Start with the pipelined FPU (mmRISC-2's FPU_PIPE)**; reconsidered depending on the logic size |
+| D3 | FPU | Reduced multi-cycle FPU or in-order side pipe (LUTs to the integer side) | **Start with the pipelined FPU (mmRISC-2's FPU_PIPE)**; reconsidered depending on the logic size. **G0 (2026-10-24, `Doc/UARCH.md` section 5): the multi-cycle FPU of mmRISC-2 was larger than the pipelined one (9,757 against 9,060 LUTs), so FPU_PIPE stays; the levers are the breakdown (C1), then C2 / C3** |
 | D4 | Frequency | Fixed at 50 MHz; CoreMark/MHz is the metric, so the slack goes into fewer stages | Fixed at 50 MHz |
 | D5 | Ethernet | Kept in the Linux configuration; the first candidate to cut if LUTs run out | **Kept**; logic is reduced by other means (`Plan/REDUCE.md`) |
 | D6 | Repository | Same shape as mmRISC-2 (Apache-2.0, main / dev, documents in English and Japanese) | As recommended |

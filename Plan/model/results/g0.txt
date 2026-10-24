@@ -1,0 +1,18 @@
+| configuration | -O2 | max | g13 |
+|---|---|---|---|
+| before G0 (rob 32, iq 16, ckpt 8)                    |  6.588 |  6.839 |  6.363 |
+| G0                                                   |  6.564 |  6.801 |  6.348 |
+| G0 pessimistic                                       |  5.847 |  6.143 |  5.690 |
+| G0 + W5 (2 writes per pair, buy back)                |  6.865 |  7.401 |  6.644 |
+| G0 + LQ / SQ 8                                       |  6.520 |  6.770 |  6.318 |
+| G0 + uBTB 8                                          |  6.525 |  6.796 |  6.337 |
+| G0 + fetch buffer 8                                  |  6.545 |  6.796 |  6.336 |
+| G0 + all three small-loss levers                     |  6.447 |  6.753 |  6.283 |
+| G0 + all three, pessimistic                          |  5.651 |  5.967 |  5.525 |
+| G0 without ALU + ALU (fusion 2)                      |  6.338 |  6.751 |  6.159 |
+| G0 without fusion (2-wide decode)                    |  6.052 |  6.511 |  5.898 |
+| G0 without fusion, pessimistic                       |  5.513 |  5.971 |  5.402 |
+| G0 + one checkpoint a cycle (ck1)                    |  6.477 |  6.676 |  6.265 |
+| G0 + 3-cycle load-use                                |  6.048 |  6.267 |  5.851 |
+| G0 + one more stage issue to EX                      |  6.489 |  6.741 |  6.275 |
+| G0 + gshare instead of TAGE-S                        |  5.613 |  5.905 |  5.454 |

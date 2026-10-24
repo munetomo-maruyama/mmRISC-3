@@ -55,7 +55,7 @@ estimated from the structure.
 | C1 | **Get the FPU's breakdown** | — | — | Split FPU_PIPE (8.8k in Vivado) into multiply, add, alignment, normalization, rounding, conversion and iterative divide by OOC synthesis. The rounder (FPU_ROUND) is about 23 % (measured, about 2.1k in Vivado terms). The basis for C2 onwards |
 | C2 | Share the multiplier between MDU and FPU | 0.5 to 1k (+ 16 DSPs) | Estimate | Out-of-order can put MUL / DIV and the FPU on the same issue port; the sums of partial products of the 64 × 64 integer and 53 × 53 significand multiplies become one. Multiply throughput drops (CoreMark has 30 multiplies per 1000 instructions; checked in the model) |
 | C3 | Keep only FMA pipelined; conversions, compares, sign operations and so on in a separate small iterative unit | Depends on C1 | — | FMA / add / multiply still accepted every cycle (the ones that matter for performance); less logic for the rare operations |
-| C4 | Multi-cycle FPU (the original recommendation) | several k | Estimate | The last resort; floating-point performance drops a lot; no effect on CoreMark |
+| C4 | Multi-cycle FPU (the original recommendation) | several k | Estimate | The last resort; floating-point performance drops a lot; no effect on CoreMark. **G0: mmRISC-2's multi-cycle FPU was 9,757 LUTs against 9,060 for FPU_PIPE; only a new narrow design would be smaller (`Doc/UARCH.md` section 5)** |
 
 ### 1.4 Group D: SoC side
 
