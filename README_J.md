@@ -31,7 +31,7 @@ Arty A7-100T(50 MHz)で Linux(BusyBox、Debian 13)を動かす。周辺回路は
 | ファイル | 内容 |
 |---|---|
 | [`Doc/STRATEGY_J.md`](Doc/STRATEGY_J.md) / [英語版](Doc/STRATEGY.md) | 開発戦略(CoreMark 先行) |
-| [`Doc/PROMPT_J.md`](Doc/PROMPT_J.md) / [英語版](Doc/PROMPT.md) | 作者が Claude Code に入力したプロンプトの全記録(日時つき、入力のまま) |
+| [`Doc/PROMPT_J.md`](Doc/PROMPT_J.md) / [英語版](Doc/PROMPT.md) | 作者が Claude Code に入力したプロンプトと、Claude Code の回答の全記録(日時つき) |
 | [`Plan/`](Plan/README_J.md) | 事前検討: [mmRISC-2 開発時の事前検討](Plan/PRESTUDY_MMRISC2_J.md)、Phase 0 の性能評価と作業ファイル([CoreMark の命令数](Plan/ICOUNT_J.md)、[トレース解析](Plan/TRACE_J.md)) |
 
 ## ブランチ

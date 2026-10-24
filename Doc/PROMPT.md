@@ -1,15 +1,21 @@
-# mmRISC-3 prompt log
+# mmRISC-3 log of prompts and answers
 
-The prompts the author gave Claude Code, in order, with the date and time they were typed (JST), from the first one at
-2026-10-23 23:23. This is the English translation of `PROMPT_J.md`, the original in Japanese as typed.
+The prompts the author gave Claude Code and Claude Code's answers to them, in the order they were typed, with the date
+and time (JST), from the first prompt at 2026-10-23 23:23. This is the English translation of `PROMPT_J.md`, the
+original in Japanese.
 
-- Entries 1 to 8 (up to 2026-10-24 01:01) were written out from the session log. Later ones are appended to
-  `PROMPT_J.md` by a Claude Code hook (`.claude/hooks/record_prompt.py`) at every prompt, and translated here by
-  Claude Code in the same turn.
-- The text is translated as it is (an attached file stays as `@path`). Messages of the system (background jobs
-  finishing and so on) are not included.
+- Prompts: entries 1 to 8 (up to 2026-10-24 01:01) were written out from the session log; later ones are appended to
+  `PROMPT_J.md` by a Claude Code hook (`.claude/hooks/record_prompt.py`) at every prompt. The text is translated as
+  it is (an attached file stays as `@path`). Messages of the system (background jobs finishing and so on) are not
+  included.
+- Answers: the last answer Claude Code wrote in the turn of that prompt. Up to entry 13 they were written out from the
+  session log; later ones are written into `PROMPT_J.md` by the same script at the end of each turn (Stop hook).
+  Headings are two levels down and links are relative to this file. Short progress notes during the work and tool
+  output are not included.
 - "(button)" marks a prompt sent from the next-step choices Claude Code offered (the wording was prepared by Claude
   Code).
+- Claude Code translates a prompt here in the same turn, and an answer at the start of the next turn (the answer is the
+  last thing written in a turn).
 
 ## 1. 2026-10-23 23:23:47 JST
 
@@ -23,11 +29,72 @@ I want to start the development project of mmRISC-3.
 (5) The work is done in this directory mmRISC-3. Early on, I want to create a repository mmRISC-3 on GitHub https://github.com/munetomo-maruyama and work there.
 ```
 
+<!-- answer -->
+**Claude Code's answer**
+
+Based on the white paper, the earlier study memo and the measurements in mmRISC-2's BENCH.md / TIMING.md, I put the strategy together in [STRATEGY_J.md](../Doc/STRATEGY_J.md) (English: [STRATEGY.md](../Doc/STRATEGY.md)).
+
+#### Key points
+
+**1. Splitting the goal into "instruction count × IPC" shows how hard it is**
+mmRISC-2's `-O2` (Zba/Zbb) runs 318.6k instructions per CoreMark iteration (measured). At that count, the IPC needed is:
+- 5.0 /MHz: IPC 1.59
+- 6.0 /MHz: IPC 1.91
+
+The limit of 2-wide is IPC 2.0, so **6.0 with `-O2` is not realistic for 2-wide**. I recommend the goals "5.0 with `-O2`, 6.0 with the most optimization". The earlier memo's expectation (about 4.9 /MHz) does not reach this, so the design's center of gravity has to change.
+
+**2. The main enemy is branch misprediction**
+Today there are 13 mispredictions per 1000 instructions (measured). At about 10 cycles each in an out-of-order core, that is 130 cycles lost per 1000 instructions, while the budget for losses at 5.0 /MHz is only 128 cycles: this alone uses it up. Three things to make work first:
+- A large TAGE-like predictor in block RAM (CoreMark has the same input every time, so long histories work well)
+- Use the slack of 50 MHz for fewer stages, keeping a misprediction at 10 cycles or less
+- Short-forward-branch predication (SFB) to remove mispredictions altogether
+
+**3. Get past the IPC-2 wall by means other than width**
+About 30k LUTs are available for the core on the Arty. About 15k remain for the out-of-order engine, less than NaxRiscv RV64 (about 18k, integer only), so 3-wide decode hardly fits. Make up for it with:
+- Macro-op fusion
+- SFB
+- Fewer instructions (compiler and ISA extensions)
+- The FPU does nothing for CoreMark, so shrink it and give its LUTs to the integer side
+
+**4. To "measure before building", a performance model in Phase 0**
+- Take CoreMark traces with Spike and build a trace-driven C++ model.
+- Calibrate it to reproduce mmRISC-2's CPI 1.103, then compare widths, predictors and fusion.
+- Freeze the micro-architecture once the predicted CoreMark/MHz and the LUT budget are in numbers (gate G0).
+
+**5. CoreMark first**
+Build only the integer out-of-order core first and reach the CoreMark goal in simulation; then add MMU / FPU / Linux. So that nothing breaks later, the hooks for non-speculative execution and precise exceptions are in the spec from the start. Commit-level comparison with Spike is used for correctness from day one.
+
+**Realistic expectation**: 4.5 to 5.0 with `-O2`, 5.0 to 5.5 with the most optimization. These are estimates, to be checked in Phase 0. 6.0 or more with the most optimization is the upside if fusion, SFB and fewer instructions all work.
+
+Section 8 of the document lists the points for your decision with recommendations (D1 to D6: the goal, width, FPU, frequency, Ethernet, repository).
+
+GitHub is authenticated and the name `mmRISC-3` is still free. Once created, I will make the first commit in the same form as mmRISC-2 (Apache-2.0, main / dev, README in English and Japanese) and push it.
+<!-- /answer -->
+
 ## 2. 2026-10-23 23:32:00 JST (button)
 
 ```text
 Create the mmRISC-3 repository in the same form as mmRISC-2 (public, Apache-2.0, main/dev, README in English and Japanese), make the first commit of Doc and push it.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I created the public mmRISC-3 repository on GitHub and pushed the first commit.
+
+- **URL**: https://github.com/munetomo-maruyama/mmRISC-3 (default branch main)
+- **Branches**: main and dev point to the same first commit `bb7e952`. dev is checked out locally, and work goes on there.
+- **Content of the first commit**:
+  - Doc: `STRATEGY.md` / `STRATEGY_J.md` and the earlier study memo
+  - `README.md` / `README_J.md`: the goals (5.0 CoreMark/MHz with `-O2`, 6.0 with the most optimization), status (Phase 0), list of documents, branch policy
+  - `LICENSE` (Apache-2.0 as mmRISC-2) and `NOTICE`
+  - `.gitignore`: Spec/ and .DS_Store excluded (as in mmRISC-2)
+- **Repository description**: set in English as "2-wide OoO RV64GC, Linux on Arty A7, aiming at 5-6 CoreMark/MHz, designed by Claude Code, successor of mmRISC-2".
+
+The note at the top of the README about the design by Claude Code does not copy mmRISC-2's "designed entirely" but says "is to be written".
+
+This session's working directory is still mmRISC-2. From Phase 0 on, opening a new session with mmRISC-3 as the working directory will make paths simpler.
+<!-- /answer -->
 
 ## 3. 2026-10-23 23:37:15 JST
 
@@ -36,11 +103,53 @@ Please gather the working files and documents of the performance evaluation, as 
 Please start the instruction-count measurement of Phase 0.
 ```
 
+<!-- answer -->
+**Claude Code's answer**
+
+(No answer in this turn: it stopped on a tool search that took too long. The result is in the answer to entry 4.)
+<!-- /answer -->
+
 ## 4. 2026-10-23 23:58:41 JST
 
 ```text
 Please try again.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I finished counting CoreMark's instructions. GCC 14.2 + Zicond gives the fewest instructions, and the IPC the goals need goes down from the first estimate. The results are in [Plan/ICOUNT_J.md](../Plan/ICOUNT_J.md) (English: [ICOUNT.md](../Plan/ICOUNT.md)), pushed to dev in commit `8b52ea7`.
+
+#### Results
+
+| Goal | Fewest with | Instructions per iteration | IPC needed (first estimate) |
+|---|---|---|---|
+| 5.0 /MHz with `-O2` | GCC 14.2, Zba/Zbb/Zbs/Zicond | 311,890 | **1.56** (1.59) |
+| 6.0 /MHz with the most optimization | GCC 14.2, sf + `-flto` | 280,958 | **1.69** (1.77) |
+
+- **Reliability**: Spike's count agrees with mmRISC-2's SIM_SYS measurement within 7 instructions (0.0002 %). crcfinal is right in every build, and the count per iteration does not change from 10 to 20 iterations.
+- **Compiler**: GCC 14.2 gives the fewest. clang 18 gives 19 to 29 % more, so it should not be used for measuring CoreMark. Ubuntu's 13.3 gives exactly the same count as 13.2.
+- **ISA extensions**:
+  - Zba/Zbb: −11 to 13 %, the largest effect
+  - Zicond: −1.5 % with GCC 14 (GCC 13 and older do not use it)
+  - Zbs: almost no effect
+- **Most optimization**: `-flto` reduces the count with GCC 14 but increases it by 7 to 8 % with GCC 12/13. And fewer instructions do not always mean fewer cycles (the code grows to 34 KB, the I$ is 16 KB). The final options are chosen by the cycles of the performance model.
+
+#### What was built
+
+- **Plan/icount/**: `icount.sh` (builds compiler × options × `-march` and counts on Spike), the bare-metal port for Spike (`port/`), all data (`results/icount.csv`)
+- **Tools outside the repository**:
+  - Spike built into `~/RISCV/toolchain/spike-install`.
+  - Debian 13's gcc 14.2 (the same as the gcc on the board) runs under qemu-user, from mmRISC-2's Debian root fs unpacked into `~/RISCV/toolchain/debian13-rootfs`. Where and how are in Plan/README.
+- **Existing documents updated**: the estimates of §1.1 of Doc/STRATEGY replaced by the measurements, links from the README to Plan/ added.
+
+#### For your decision (ICOUNT §4)
+
+- Fix the compiler for measurements at GCC 14.2 (Debian 13)
+- Include Zicond in the definition of `-O2`, and put Zicond in the hardware
+
+Doc/ still holds STRATEGY and the earlier study memo. If you want the preliminary memo moved to Plan/ too, please say so.
+<!-- /answer -->
 
 ## 5. 2026-10-24 00:20:03 JST
 
@@ -51,11 +160,31 @@ Please move the preliminary study memo in Doc to Plan, give it a file name meani
 * Include Zicond in the definition of `-O2`, and put Zicond in the hardware too
 ```
 
+<!-- answer -->
+**Claude Code's answer**
+
+(No closing answer: the author switched to the next question during the turn. The work is in commit 9d79414 (the study memo moved and translated, the decisions recorded) and 34a0dcd (the trace analysis), the document in `Plan/TRACE.md`.)
+<!-- /answer -->
+
 ## 6. 2026-10-24 00:47:09 JST
 
 ```text
 In the left pane of this screen, "mmRISC-3開発戦略" (mmRISC-3 development strategy) under Code is inside the light-colored mmRISC-2. Can it be placed under the light-colored mmRISC-3?
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Yes, it can be moved. I changed this session's working folder to mmRISC-3, so when this turn ends "mmRISC-3開発戦略" will appear under the mmRISC-3 heading of the sidebar. The sidebar groups sessions by working folder, and the cause was that the working folder was still mmRISC-2.
+
+**Copying the memory**: Claude Code's memory is kept per working folder, so after the move the notes made on the mmRISC-2 side would no longer be loaded. So I copied them to mmRISC-3's memory: the warning about make on the shared folder, documents in two languages, the policy of mmRISC-3 and so on. Only the note about mmRISC-2's GF180 was left out as unrelated.
+
+**Interrupted work**: the results and documents of the trace analysis are pushed to dev in commit `34a0dcd`. But the check that `trace.sh` run from scratch reproduces the same results was interrupted and is not done yet.
+
+Which do you want next?
+- Run the interrupted reproduction check of `trace.sh` (about 5 minutes for one build)
+- Leave the check for later and go on to the next work (the cycle model calibrated against mmRISC-2's measurements)
+<!-- /answer -->
 
 ## 7. 2026-10-24 00:48:24 JST (button)
 
@@ -63,11 +192,38 @@ In the left pane of this screen, "mmRISC-3開発戦略" (mmRISC-3 development st
 Run the interrupted reproduction check of trace.sh (run it end to end with g13-o2-zb and see whether it matches the committed results).
 ```
 
+<!-- answer -->
+**Claude Code's answer**
+
+I ran `trace.sh` from scratch with g13-o2-zb, and the rebuilt results match the committed ones byte for byte.
+
+- **Run**: build → trace on Spike → analysis went through without errors, in 2 minutes 32 seconds.
+- **Match**: `results/g13-o2-zb.json` (all analyses) and `results/g13-o2-zb.limit.txt` (the limit model) were both rebuilt now, and git shows no difference. The procedure is reproducible.
+- **Cleanup**: on the way `icount.sh` rewrote `icount.csv`, but only the order of the rows changed and the values are the same, so I restored it. The working tree is clean, with no extra commit.
+<!-- /answer -->
+
 ## 8. 2026-10-24 01:01:12 JST
 
 ```text
 In this development project, I want the prompts I type recorded, going back to the very first one and continuing with the ones to come. Please append them, with the date and time, in a file Doc/PROMPT.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I made [Doc/PROMPT.md](../Doc/PROMPT.md) and recorded the 8 prompts from the first one to this request, with the date and time (JST) they were typed. Pushed to dev in commit `c931a77`.
+
+- **The past ones**: written out as they are from this session's log.
+  - The first one keeps the attached white paper as `@path`.
+  - The two sent from the next-step buttons (creating the repository, and the reproduction check of trace.sh) are marked "(button)", because I prepared their wording.
+  - Messages of the system, such as background jobs finishing, are not included.
+- **The ones to come**: I set up a mechanism (a Claude Code hook) that appends every prompt you type automatically.
+  - The script that appends is `.claude/hooks/record_prompt.py`, put in the repository.
+  - The hook is registered in `.claude/settings.local.json`, which is not committed, so that someone else who gets the repository does not have their own prompts appended to this file.
+- **Not yet checked**: whether the hook actually works. When you type your next prompt I will check that it was appended as entry 9. If not (for example if a new session is needed to load the settings), I will append it myself in the same form. This arrangement is also in my memory.
+- **File name**: I added `.md` to the `Doc/PROMPT` you named, making `Doc/PROMPT.md`, so that GitHub shows the headings and text as they are. If you prefer no extension, I will change it.
+- **README**: the English and Japanese READMEs link to this record.
+<!-- /answer -->
 
 ## 9. 2026-10-24 01:05:02 JST
 
@@ -75,11 +231,55 @@ In this development project, I want the prompts I type recorded, going back to t
 Thank you. Please keep an English translation of PROMPT as well.
 ```
 
+<!-- answer -->
+**Claude Code's answer**
+
+I put an English translation of the prompt log in place. Pushed to dev in commit `875fa8c`.
+
+- **File names**: following this project's rule for documents (English `XXXX.md`, Japanese `XXXX_J.md`).
+  - Original: [Doc/PROMPT_J.md](../Doc/PROMPT_J.md) (as typed)
+  - Translation: [Doc/PROMPT.md](../Doc/PROMPT.md)
+- **Scope of the translation**: all 9 entries, with numbers, times and button marks the same as the original.
+- **The hook checked**: the hook appended this prompt automatically as entry 9, so what could not be checked last time is now confirmed. It now appends to `PROMPT_J.md`.
+- **Translations from now on**: a hook cannot translate. I append the translation of each new prompt to `PROMPT.md` within the same turn. This arrangement is also in my memory.
+- **README**: the links of both READMEs now point to both files.
+<!-- /answer -->
+
 ## 10. 2026-10-24 01:21:12 JST
 
 ```text
 Please sort out here the items to study next, including the problems and their countermeasures.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I sorted out the items to study before G0, as problems and countermeasures, in [Plan/ISSUES_J.md](../Plan/ISSUES_J.md) (English: [ISSUES.md](../Plan/ISSUES.md)). With this prompt's record and translation, pushed to dev in commit `c986141`.
+
+#### New this time (resources measured)
+
+A post-placement report of utilization by hierarchy was left in mmRISC-2's build results, and I used it.
+
+- **Where the estimate was off**: I had estimated LiteX's peripherals at 11 to 13k LUTs; they are actually **4.8k LUTs**. What is left for the core grows to about 34.6k LUTs.
+- **The FPU is the largest block**: the FPU takes 27 % of the core (**8.8k LUTs**).
+  - The parts needed regardless of out-of-order execution (CSR, MMU, multiply/divide, FPU and so on) take 21.7k LUTs.
+  - So about 12.9k LUTs remain for the out-of-order engine itself, less than NaxRiscv's integer core (about 18k): **whether to make the FPU smaller is the largest lever of the resource allocation**.
+  - The correction is added to the resource-budget section of Doc/STRATEGY.
+
+#### Main items, problems and countermeasures
+
+| Item | Problem | Countermeasure |
+|---|---|---|
+| ① Calibrated cycle model (first priority) | The limit model so far is idealized; the loss of a real core is unknown | Calibrate by reproducing mmRISC-2's 8-stage in-order core (CPI 1.103, 5.4 % mispredictions), then compare out-of-order configurations |
+| ② Front end | One empty cycle per taken branch costs −19 %; a TAGE in block RAM takes 2 cycles to read | A small predictor that gives the next PC in one cycle (uBTB), with TAGE overriding later: two levels. In CoreMark a 64-entry uBTB covers 87 to 93 % of taken branches, 128 entries 98 to 99.6 % (measured this time) |
+| ③ Instruction fusion | Whether two ALU stages close at 50 MHz, the need to decode 4 instructions a cycle, exceptions in the middle of a fused pair | Synthesize small blocks first and measure the delay; on an exception, split the pair and re-execute one at a time; if it does not close, narrow the fusion (the gain drops to about +8 %) |
+| ④ Timing at 50 MHz | Several things must close in one cycle: wakeup-select, renaming, next PC, two ALU stages | Synthesize each as a small RTL before freezing the spec |
+| ⑤ Others | LSU (speculative use of load results, passing values from stores), the non-speculative hooks for Linux, verification by commit-level comparison with Spike, measuring on the board | Sorted out in ISSUES 3.6 to 3.9 |
+
+**For your decision**: D-1 to D-6, six points with recommendations (FPU style, L2 size, Ethernet, fusion scope, TAGE size, most-optimization options). All assume decisions after the model and the early syntheses; nothing needs deciding now.
+
+**How to proceed**: the cycle model (me) and early synthesis of small blocks (RTL by me, synthesis in Vivado by you) are independent and can run in parallel. Their results go into the G0 specification.
+<!-- /answer -->
 
 ## 11. 2026-10-24 17:08:53 JST
 
@@ -92,6 +292,58 @@ Please sort out here the items to study next, including the problems and their c
 (D6) Repository: as recommended, OK.
 ```
 
+<!-- answer -->
+**Claude Code's answer**
+
+I recorded the decisions D1 to D6 and put the options for reducing the logic in [Plan/REDUCE_J.md](../Plan/REDUCE_J.md) (English: [REDUCE.md](../Plan/REDUCE.md)). Pushed to dev in commit `b8385d6`.
+
+#### Decisions recorded
+
+A column "Decision (2026-10-24)" added to section 8 of STRATEGY, and written into D-1 (FPU) and D-3 (Ethernet) of ISSUES.
+
+- The goal is to exceed 6.0 CoreMark/MHz with the most optimization
+- The FPU stays pipelined at first, reconsidered at G0 depending on the logic size
+- Ethernet is kept
+
+#### Reduction options
+
+The savings were measured by synthesizing mmRISC-2's RTL with Yosys, with parameters changed, and converting the differences to Vivado terms (Vivado is only on your machine).
+
+**Group A: no effect on CoreMark or on Linux performance (recommended from G0)**
+
+| Option | Saving (LUT) | Basis |
+|---|---|---|
+| A1 Triggers 4 → 2 | about 0.3k (0.1 to 0.55k) | Measured |
+| A2 PMP 8 → 4 entries | about 0.95k | Measured |
+| A3 D$ 512-bit line buffers from FFs to LUTRAM | 0.8 to 1.5k | Estimate |
+| A4 TLBs as set-associative LUTRAM (same capacity) | about 1k | Estimate |
+| A5 Rarely written CSRs in LUTRAM | 0.5 to 1k | Estimate |
+| **Total** | **about 3.5 to 5k** (FFs about 7 to 8k) | |
+
+- A2 needs a simulation check that 4 entries are enough for OpenSBI.
+- With group A, even with the pipelined FPU kept, the LUTs for the out-of-order engine grow from about 12.9k to **about 16 to 18k**, close to NaxRiscv's integer core (about 18k).
+
+**Group B: trades Linux features or performance (no effect on CoreMark)**
+- HPM counters 4 → 2 (about 0.65k): `perf` counts fewer events at once, so measurements take twice the runs.
+- Remove Zbc (clmul) (0.3 to 0.6k): Linux's crc32 gets slower. Not in CoreMark's `-march`.
+- TLBs back to Rev.01's size (about 1.2k): user-mode loads 11 to 20 % slower.
+- No PMP (about 1.9k): no M-mode protection.
+
+**Group C: the FPU (reconsidered at G0)**
+- First get the FPU's breakdown; this time the rounder was about 23 % of the FPU.
+- Options: share the multiplier with the MDU (0.5 to 1k), keep only FMA pipelined, and so on.
+
+Also included: removing unneeded LiteX peripherals (group D) and principles for building the out-of-order parts small (group E). As an example of E, decoders are cheap, so 4-wide decode for fusion is expected to add only about 0.7k.
+
+**Reliability of the measurement**
+- CSR LUTs varied by about ±0.2k between syntheses of the same conditions, so they are given as ranges. FF and MMU values were stable every time.
+- The PLIC gave an unnatural result (no fewer LUTs with fewer interrupt sources), so it is not counted. The PLIC itself is only 0.46k, so it does not matter.
+
+#### The prompt log
+
+This input is recorded as three entries, 11, 12 and 13. 11 and 12 seem to be partial submissions of the same content as 13. I kept all three as typed, with translations. If they are not needed, I will delete them.
+<!-- /answer -->
+
 ## 12. 2026-10-24 17:24:45 JST ("11 and 12" in the text are the numbers before deletion: the two partial submissions of entry 11)
 
 ```text
@@ -99,8 +351,88 @@ Prompts 11 and 12 are not needed.
 When that is done, let's go on to the cycle model.
 ```
 
+<!-- answer -->
+**Claude Code's answer**
+
+After deleting entries 11 and 12 of the prompt log, I built the framework of the cycle model and calibrated it against mmRISC-2's 8-stage in-order core. It reproduces all five measured CoreMark points within ±0.3 %. Pushed to dev in commit `e1a8ecb`.
+
+#### Prompt log
+
+- Entries 11 and 12 deleted; the old 13 is now 11.
+- This input is entry 12; its heading notes that "11 and 12" in the text are the numbers before the deletion.
+- The numbers in STRATEGY and REDUCE that referred to the decisions were corrected too.
+
+#### Cycle model (step 1)
+
+The calibration uses five points left in mmRISC-2's BENCH. Each measured CoreMark in simulation, with one change in the hardware from point to point.
+
+| Point | Change in mmRISC-2 | Measured (cycles) | Model | Difference |
+|---|---|---|---|---|
+| P1 | Start (multiply wait 3, 2-bit counters) | 4,312,829 | 4,314,572 | +0.04 % |
+| P2 | Multiply wait 1 | 4,124,913 | 4,126,652 | +0.04 % |
+| P3 | + gshare | 4,033,497 | 4,044,524 | +0.27 % |
+| P4 | + branches waiting for a load value resolved in MR | 3,908,766 | 3,911,568 | +0.07 % |
+| P5 | The Zba/Zbb build | 3,513,870 | 3,518,805 | +0.14 % |
+
+- **Only one parameter was tuned** (2 cycles from resolving a misprediction to refetch), and with it the five points fit at once.
+- **The breakdown of the waits agrees too**: the multiply waits exactly, the load-use waits 203,282 / 67,982 (measured 203,281 / 67,982). A misprediction costs 4.16 cycles (measured 4.12).
+- **What is off**: the split of mispredictions between `jal` and `jalr`. The totals are close, so the effect on cycles is small; I think the cause is the simplified details of the predictor (handling of branches across words).
+
+The model is in `Plan/model/`: the conversion of traces to fixed records, mmRISC-2's predictor, the in-order timing, and `calib.sh`, which reproduces the table above. The description is in [Plan/MODEL_J.md](../Plan/MODEL_J.md) and its English version.
+
+#### Limits
+
+Only the in-order parts could be calibrated: fetch, predictor, dependences, multiply. The parts specific to out-of-order (renaming, issue queues, TAGE, fusion) have no real core to compare with. So in step 2 the timing of each part is stated as a specification, in a form that explains part by part the difference to TRACE's limit model.
+<!-- /answer -->
+
 ## 13. 2026-10-24 17:34:44 JST (button)
 
 ```text
 Go on to step 2 of MODEL_J.md section 5, the 2-wide out-of-order model.
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I built the 2-wide out-of-order cycle model and put the results in section 6 of [Plan/MODEL_J.md](../Plan/MODEL_J.md) (English: [MODEL.md](../Plan/MODEL.md)). By the model, **2-wide reaches the goals even without fusion**. Pushed to dev in commit `d7c53e3`.
+
+#### Results (CoreMark/MHz)
+
+| Configuration | -O2 | Most optimization |
+|---|---|---|
+| Baseline (TAGE-S, 16 B fetch, load-use 2, no fusion) | **6.07** | **6.57** |
+| Pessimistic (small structures + 1 more cycle per part + load-use 3) | 5.61 | 6.05 |
+| Baseline + fusion (up to ALU+ALU) | 7.06 | 7.59 |
+| Pessimistic + fusion (up to ALU+ALU) | 6.41 | 6.88 |
+| Reference: gshare like mmRISC-2 | 5.27 | 5.73 |
+
+The goal of exceeding 6.0 with the most optimization is just met even by the pessimistic configuration; fusion gives margin.
+
+#### How the model was checked
+
+- With perfect prediction and the limits removed, IPC is 1.9507, matching TRACE's limit model (1.951).
+- The C++ TAGE gives exactly the mispredictions of the Python trace analysis.
+- A configuration close to NaxRiscv (gshare, load-use 3) gives 4.83, close to NaxRiscv RV64's published 4.94. Compiler and ISA differ, so only as a rough comparison.
+
+#### Findings (that bear on the policy)
+
+- **One correction to TRACE.** "−19 % for one empty cycle per taken branch" was the estimate of a limit model tying fetch directly to dispatch. With 16-byte fetch decoupled by a buffer, these empty cycles are almost all absorbed: even without a uBTB the loss is −0.9 %, and fetch width matters instead (8 bytes: −3.8 %). ISSUES 3.2 notes the correction.
+- **What matters**: the branch predictor (gshare: −13 %), keeping load-use at 2 cycles (3: −5.9 %), store-to-load forwarding (none: −4.3 %), the 4-wide decode fusion needs (with 2-wide decode fusion gives only +3 %).
+- **Structures that can be small**: ROB 32, issue queue 16, LQ/SQ 12 to 16, 8 checkpoints are enough (−0.3 %); the freed LUTs can go elsewhere.
+- **What hardly matters**: pipeline depth (about −0.3 % per stage), uBTB size, multiply latency, limiting issue to 3 per cycle.
+
+#### Limits (when reading the results)
+
+- Caches always hit. In mmRISC-2 the board was about 2 % below the simulation; read the numbers with about that subtracted.
+- Wrong-path instructions are not executed, so reality is a little worse.
+- Whether the timing assumptions of the stages (1-cycle wakeup-select, chaining two ALU stages, the TAGE override in the second cycle) close at 50 MHz is not checked yet; the next OOC synthesis must confirm it.
+<!-- /answer -->
+
+## 14. 2026-10-24 18:49:10 JST
+
+```text
+Before going on: I had PROMPT record only what I type, but I also want Claude's answers recorded. They contain very valuable insights. Please change PROMPT (English and Japanese) that way.
+
+After that, reflecting the policy,
+please create the RTL in the "fusion" configuration.
 ```
