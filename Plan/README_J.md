@@ -6,6 +6,7 @@ mmRISC-3の事前検討(`Doc/STRATEGY_J.md`のPhase 0)。RTLより先に行う�
 
 | 文書 | 内容 |
 |---|---|
+| [`MODEL_J.md`](MODEL_J.md) / [英語版](MODEL.md) | Phase 0-3: トレース駆動のC++サイクルモデル。(1) 枠組みとmmRISC-2による校正(5点で±0.3%以内) |
 | [`PRESTUDY_MMRISC2_J.md`](PRESTUDY_MMRISC2_J.md) / [英語版](PRESTUDY_MMRISC2.md) | mmRISC-2開発時の事前検討メモ(2026-10-13): Arty A7-100TでのOoO RV64GC。資源、NaxRiscv、Linuxと非投機化、妥協案 |
 | [`ICOUNT_J.md`](ICOUNT_J.md) / [英語版](ICOUNT.md) | Phase 0-1: CoreMark 1回あたりの命令数(コンパイラ・オプション・拡張命令別)と、目標に必要なIPC |
 | [`ISSUES_J.md`](ISSUES_J.md) / [英語版](ISSUES.md) | G0までの残りの検討項目(課題と対策)、mmRISC-2 Rev.02の資源の実測と予算の見直し、作者が決めること |
@@ -16,6 +17,7 @@ mmRISC-3の事前検討(`Doc/STRATEGY_J.md`のPhase 0)。RTLより先に行う�
 |---|---|
 | `icount/` | `icount.sh`(CoreMarkをビルドしてSpikeで数える)、`port/`(ベアメタルのポート)、`results/icount.csv`。`work/`は出力で、リポジトリには入れない |
 | `trace/` | `trace.sh`(ビルド、Spikeでのトレース、解析)、`capture.py`(Spikeのログから計測区間を切り出す)、`analyze.py`(すべての解析と限界モデル)、`results/`(`<build>.json`、`<build>.limit.txt`)。`work/`は入れない |
+| `model/` | `mktrace.py`(トレース → 32バイトのレコード)、`model.h`、`pred_mm2.h`、`inorder.h`、`model.cpp`、`calib.sh`、`results/calib.txt`。`work/`(実行ファイル、トレース)は入れない |
 | `reduce/` | `synth.sh`(mmRISC-2のモジュールをパラメータを変えて、sv2v + YosysでArtix-7向けに合成)、`deps.py`、`sweep.sh`、`results/sweep.txt`。`work/`は入れない |
 
 ## リポジトリ外のツール

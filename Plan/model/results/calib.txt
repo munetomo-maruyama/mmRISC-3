@@ -1,0 +1,15 @@
+P1  mul_wait=3 gshare=0 late=0 redirect=2 measured   4312829  model   4314572   +0.04 %
+    stalls: mdu 281880  load-use 203282  mispredict 240165  fetch 30
+    mispredicted: branch 52069 / 582985  jal 2691 / 43640  jalr 2962 / 21376  (late branches 0, wrong 0)
+P2  mul_wait=1 gshare=0 late=0 redirect=2 measured   4124913  model   4126652   +0.04 %
+    stalls: mdu 93960  load-use 203282  mispredict 240165  fetch 30
+    mispredicted: branch 52069 / 582985  jal 2691 / 43640  jalr 2962 / 21376  (late branches 0, wrong 0)
+P3  mul_wait=1 gshare=1 late=0 redirect=2 measured   4033497  model   4044524   +0.27 %
+    stalls: mdu 93960  load-use 203282  mispredict 158047  fetch 20
+    mispredicted: branch 32529 / 582985  jal 2691 / 43640  jalr 2962 / 21376  (late branches 0, wrong 0)
+P4  mul_wait=1 gshare=1 late=1 redirect=2 measured   3908766  model   3911568   +0.07 %
+    stalls: mdu 93960  load-use 67982  mispredict 160391  fetch 20
+    mispredicted: branch 32529 / 582985  jal 2691 / 43640  jalr 2962 / 21376  (late branches 135300, wrong 2344)
+P5  mul_wait=1 gshare=1 late=1 redirect=2 measured   3513870  model   3518805   +0.14 %
+    stalls: mdu 93960  load-use 69812  mispredict 168812  fetch 248
+    mispredicted: branch 33639 / 582985  jal 2673 / 42200  jalr 4339 / 21376  (late branches 135300, wrong 2172)
