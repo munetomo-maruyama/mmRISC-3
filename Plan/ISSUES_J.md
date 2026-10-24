@@ -105,7 +105,7 @@ mmRISC-2の`LitexSystem/build/gateware/digilent_arty_utilization_hierarchical_pl
 |---|---|
 | 課題 | OoOのエンジンに残るのは約12.9k LUT(FPUそのまま)。NaxRiscv RV64の整数コア(約18k)より小さい。D$も7.5kと大きく、OoOのLSUとつなぐと増える |
 | 対策 | **FPUを縮小する**(マルチサイクル、またはインオーダーのサイドパイプ。`PRESTUDY_MMRISC2_J.md` 5.A節の案3 / 案4): 数k LUT空く見込み(規模はOOC合成で確認)。CoreMarkは浮動小数点を使わない。Debianのlp64dにはF/Dが必要なので、機能は残す。その他の削減候補はPMP 16 → 8(OpenSBIの挙動を確認)、トリガ4 → 2、MDUのZbc(clmul)の共有。大きな表はBRAM / LUTRAMに置き、FFでは作らない |
-| 決めること | FPUの方式(D-1)、L2の容量(D-2)、Ethernetを残すか(D-3) |
+| 決めること | FPUの方式(D-1)、L2の容量(D-2)、Ethernetを残すか(D-3)。**削減案の一覧は`REDUCE_J.md`**(2026-10-24。機能も性能も失わない案だけで約3.5〜5k LUT) |
 | 確認 | 主要ブロックのOOC合成でLUTを積み上げ、G0で予算表にする |
 
 ### 3.5 50MHz(-1グレード)のタイミングの急所
@@ -160,9 +160,9 @@ mmRISC-2の`LitexSystem/build/gateware/digilent_arty_utilization_hierarchical_pl
 
 | # | 項目 | 選択肢 | 推奨 | 決める時期 |
 |---|---|---|---|---|
-| D-1 | FPUの方式 | 現行のパイプラインのまま / マルチサイクル / インオーダーのサイドパイプ | マルチサイクル(LUTを整数側へ。CoreMarkに影響なし) | G0(OOC合成の結果を見て) |
+| D-1 | FPUの方式 | 現行のパイプラインのまま / マルチサイクル / インオーダーのサイドパイプ | マルチサイクル(LUTを整数側へ。CoreMarkに影響なし) | **2026-10-24決定: 当初はパイプラインのまま**。論理規模の状況で再検討 |
 | D-2 | L2の容量 | 256KB / 128KB | 256KBのまま。BRAMが足りなくなったら128KB | G0 |
-| D-3 | Ethernet | 残す / 外す | 残す。LUTが足りなければ最初の削減候補 | G0 |
+| D-3 | Ethernet | 残す / 外す | 残す。LUTが足りなければ最初の削減候補 | **2026-10-24決定: 残す**。削減は`REDUCE_J.md`の案で |
 | D-4 | 融合の範囲 | アドレス計算 + ロードのみ / + ALU + 分岐 / + ALU + ALU | サイクルモデルとOOC合成の結果で決める | G0 |
 | D-5 | TAGEの大きさ | S(62 kbit)/ M(196 kbit) | Sから始め、BRAMに余裕があればM | G0 |
 | D-6 | 最大最適化のオプション | sf + `-flto` / sf | サイクルで決める | Phase 1 |

@@ -118,7 +118,7 @@ placement). This answers the open item "utilization by hierarchy" of Phase 0.
 |---|---|
 | Problem | About 12.9k LUTs remain for the out-of-order engine (with the FPU as it is), less than NaxRiscv RV64's integer core (about 18k). The D$ is also large (7.5k) and grows when connected to an out-of-order LSU |
 | Countermeasure | **Make the FPU smaller** (multi-cycle, or an in-order side pipe: options 3 / 4 of `PRESTUDY_MMRISC2.md` 5.A): several k LUTs expected (size checked by OOC synthesis). CoreMark uses no floating point; F / D stay for Debian's lp64d. Other candidates: PMP 16 → 8 (check OpenSBI), triggers 4 → 2, sharing the Zbc (clmul) of the MDU. Large tables in block RAM / LUTRAM, never in FFs |
-| To decide | FPU style (D-1), L2 size (D-2), keeping Ethernet (D-3) |
+| To decide | FPU style (D-1), L2 size (D-2), keeping Ethernet (D-3). **The list of reduction options is `REDUCE.md`** (2026-10-24; about 3.5k to 5k LUTs from options that lose no feature or performance) |
 | Check | Add up LUTs from OOC synthesis of the main blocks into a budget table at G0 |
 
 ### 3.5 Timing crux points at 50 MHz (grade -1)
@@ -173,9 +173,9 @@ placement). This answers the open item "utilization by hierarchy" of Phase 0.
 
 | # | Item | Options | Recommendation | When |
 |---|---|---|---|---|
-| D-1 | FPU style | Pipelined as now / multi-cycle / in-order side pipe | Multi-cycle (LUTs to the integer side; no effect on CoreMark) | G0 (after OOC synthesis) |
+| D-1 | FPU style | Pipelined as now / multi-cycle / in-order side pipe | Multi-cycle (LUTs to the integer side; no effect on CoreMark) | **Decided 2026-10-24: pipelined at first**; reconsidered depending on the logic size |
 | D-2 | L2 size | 256 KB / 128 KB | Keep 256 KB; 128 KB if block RAM runs out | G0 |
-| D-3 | Ethernet | Keep / remove | Keep; the first candidate to cut if LUTs run out | G0 |
+| D-3 | Ethernet | Keep / remove | Keep; the first candidate to cut if LUTs run out | **Decided 2026-10-24: kept**; reduce by the options of `REDUCE.md` |
 | D-4 | Fusion scope | Address calculation + load only / + ALU + branch / + ALU + ALU | Decided by the cycle model and OOC synthesis | G0 |
 | D-5 | TAGE size | S (62 kbit) / M (196 kbit) | Start with S; M if block RAM allows | G0 |
 | D-6 | Most-optimization options | sf + `-flto` / sf | Decided by cycles | Phase 1 |

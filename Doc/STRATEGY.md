@@ -218,14 +218,16 @@ non-speculative MMIO loads are already in the Phase 1 spec.
 
 ## 8. Decisions for the author
 
-| # | Item | Recommendation |
-|---|---|---|
-| D1 | The goal | 5.0 with `-O2`, 6.0 with the most optimization; confirmed by the model at G0 (6.0 with `-O2` is not a 2-wide target) |
-| D2 | Width | Fixed at 2 µops + fusion + SFB; 3-wide reconsidered only if G0 shows plenty of resources |
-| D3 | FPU | Reduced multi-cycle FPU or in-order side pipe (LUTs to the integer side) |
-| D4 | Frequency | Fixed at 50 MHz; CoreMark/MHz is the metric, so the slack goes into fewer stages |
-| D5 | Ethernet | Kept in the Linux configuration; the first candidate to cut if LUTs run out |
-| D6 | Repository | Same shape as mmRISC-2 (Apache-2.0, main / dev, documents in English and Japanese) |
+Decided by the author on 2026-10-24 (`Doc/PROMPT.md` entry 13).
+
+| # | Item | Recommendation | **Decision (2026-10-24)** |
+|---|---|---|---|
+| D1 | The goal | 5.0 with `-O2`, 6.0 with the most optimization; confirmed by the model at G0 (6.0 with `-O2` is not a 2-wide target) | As recommended; **the goal is to exceed 6.0 with the most optimization** |
+| D2 | Width | Fixed at 2 µops + fusion + SFB; 3-wide reconsidered only if G0 shows plenty of resources | As recommended (SFB was dropped by the trace analysis, `Plan/TRACE.md`) |
+| D3 | FPU | Reduced multi-cycle FPU or in-order side pipe (LUTs to the integer side) | **Start with the pipelined FPU (mmRISC-2's FPU_PIPE)**; reconsidered depending on the logic size |
+| D4 | Frequency | Fixed at 50 MHz; CoreMark/MHz is the metric, so the slack goes into fewer stages | Fixed at 50 MHz |
+| D5 | Ethernet | Kept in the Linux configuration; the first candidate to cut if LUTs run out | **Kept**; logic is reduced by other means (`Plan/REDUCE.md`) |
+| D6 | Repository | Same shape as mmRISC-2 (Apache-2.0, main / dev, documents in English and Japanese) | As recommended |
 
 ---
 
