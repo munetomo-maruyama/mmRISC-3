@@ -48,7 +48,8 @@
 8. **The issue queue and renaming rebuilt (section 10)**: 2 sources and 1 destination per µop, 64 physical registers.
    In Yosys, renaming about 9.0k → 3.2k and the issue queue about 15.5k → 5.0k. The checkpoints are copied a cycle late
    (no performance lost). In Vivado the ALU (3,133, +0.51 ns), the uBTB (910, +5.10 ns) and fusion (215) all close. The
-   measured blocks total about 16k to 18k, the upper end of the out-of-order budget.
+   register file is 2,503 with 64 registers (about half of 96). The measured blocks total about 14k to 16k, inside the
+   out-of-order budget (16k to 18k; the ROB, LSU, decode and so on are not counted yet).
 
 ---
 
@@ -471,7 +472,7 @@ test keep them too.
 | OOC_ALU2 | 7,879 / −0.696 ns | **3,133 / +0.512 ns** (36 levels) | Closes |
 | OOO_UBTB | 3,132 / −24.524 ns | **910 / +5.100 ns** (13 levels) | Closes; within the target (at most 1k) |
 | OOC_FUSE | 172 / +10.606 ns | **215 / +10.125 ns** | Fine |
-| OOC_PRF (64 registers, 3 writes / 6 reads) | 4,942 (96 registers) | not run yet | — |
+| OOC_PRF (64 registers, 3 writes / 6 reads) | 4,942 (96 registers) / +2.697 ns | **2,503 / +7.917 ns** (LUT RAM 1,548) | Closes; about half of 96 registers |
 
 - **The two-stage ALU closes at 50 MHz.** The worst path runs into the adder of the second stage (19 CARRY4).
 - **The ALU's size is 0.6k over the target (at most 2.5k per port for both stages).** About 1k of the 3,133 is
@@ -481,6 +482,8 @@ test keep them too.
 - The OOC_FUSE harness did not connect the `alu2ok` input added in section 8. It was fixed before this run (the 215
   LUTs include `alu2ok`).
 - Vivado / Yosys: OOC_ALU2 0.68, OOO_UBTB 0.41, OOC_FUSE 0.75.
+- The 64-register file is about half of the 96-register one because it fits the 64-deep LUT RAM in one level (96 is
+  64 + 32, two levels), and the select behind them goes away.
 
 ### 10.6 Outlook for the budget (updated)
 
@@ -491,10 +494,10 @@ test keep them too.
 | Renaming | 6,098 | about 2k to 2.5k | Yosys 3,216 × ratio 0.67 to 0.76 |
 | uBTB | 3,132 | **910** | Vivado |
 | Fusion | 172 | **215** | Vivado |
-| Register file | 4,942 to 8,350 | at most 4,942 (64 registers not run yet) | Vivado |
-| Total | 36.3k to 39.7k | **about 16k to 18k** | |
+| Register file | 4,942 to 8,350 | **2,503** | Vivado |
+| Total | 36.3k to 39.7k | **about 14k to 16k** | |
 
-- The measured blocks are now down to the upper end of the out-of-order budget (16k to 18k). The budget also has to
+- The measured blocks now fit in the out-of-order budget (16k to 18k). The budget also has to
   hold the ROB, the LSU, the LQ / SQ, decode and the front end, none of which is written yet. Revisiting the budget at
   G0 (7.7) is still needed.
 
@@ -506,4 +509,3 @@ synth_ooo.bat OOO_IQ
 synth_ooo.bat OOC_RENAME
 ```
 
-The 64-register file of 8.4 too, if it has not run yet.

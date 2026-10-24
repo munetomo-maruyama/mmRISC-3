@@ -1,0 +1,457 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Sat Oct 24 22:15:12 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_timing -max_paths 10 -nworst 1 -path_type full -from [all_registers] -to [all_registers] -file ./output/OOC_PRF_NREG64_NW3_NR6/timing_reg2reg.rpt
+| Design       : OOC_PRF
+| Device       : 7a100t-csg324
+| Speed File   : -1  PRODUCTION 1.23 2018-06-13
+| Design State : Routed
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             7.917ns  (required time - arrival time)
+  Source:                 waq_reg[2][2]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_prf/g_bank[2].mem_reg_r1_0_63_27_29/RAMA/WADR2
+                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        11.978ns  (logic 0.456ns (3.807%)  route 11.522ns (96.193%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X32Y34         FDRE                         0.000     0.973 r  waq_reg[2][2]/C
+    SLICE_X32Y34         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  waq_reg[2][2]/Q
+                         net (fo=691, routed)        11.522    12.951    u_prf/g_bank[2].mem_reg_r1_0_63_27_29/ADDRD2
+    SLICE_X2Y65          RAMD64E                                      r  u_prf/g_bank[2].mem_reg_r1_0_63_27_29/RAMA/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X2Y65          RAMD64E (Setup_ramd64e_CLK_WADR2)
+                                                     -0.021    20.868    u_prf/g_bank[2].mem_reg_r1_0_63_27_29/RAMA
+  -------------------------------------------------------------------
+                         required time                         20.868    
+                         arrival time                         -12.951    
+  -------------------------------------------------------------------
+                         slack                                  7.917    
+
+Slack (MET) :             7.917ns  (required time - arrival time)
+  Source:                 waq_reg[2][2]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_prf/g_bank[2].mem_reg_r1_0_63_27_29/RAMB/WADR2
+                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        11.978ns  (logic 0.456ns (3.807%)  route 11.522ns (96.193%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X32Y34         FDRE                         0.000     0.973 r  waq_reg[2][2]/C
+    SLICE_X32Y34         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  waq_reg[2][2]/Q
+                         net (fo=691, routed)        11.522    12.951    u_prf/g_bank[2].mem_reg_r1_0_63_27_29/ADDRD2
+    SLICE_X2Y65          RAMD64E                                      r  u_prf/g_bank[2].mem_reg_r1_0_63_27_29/RAMB/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X2Y65          RAMD64E (Setup_ramd64e_CLK_WADR2)
+                                                     -0.021    20.868    u_prf/g_bank[2].mem_reg_r1_0_63_27_29/RAMB
+  -------------------------------------------------------------------
+                         required time                         20.868    
+                         arrival time                         -12.951    
+  -------------------------------------------------------------------
+                         slack                                  7.917    
+
+Slack (MET) :             7.917ns  (required time - arrival time)
+  Source:                 waq_reg[2][2]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_prf/g_bank[2].mem_reg_r1_0_63_27_29/RAMC/WADR2
+                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        11.978ns  (logic 0.456ns (3.807%)  route 11.522ns (96.193%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X32Y34         FDRE                         0.000     0.973 r  waq_reg[2][2]/C
+    SLICE_X32Y34         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  waq_reg[2][2]/Q
+                         net (fo=691, routed)        11.522    12.951    u_prf/g_bank[2].mem_reg_r1_0_63_27_29/ADDRD2
+    SLICE_X2Y65          RAMD64E                                      r  u_prf/g_bank[2].mem_reg_r1_0_63_27_29/RAMC/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X2Y65          RAMD64E (Setup_ramd64e_CLK_WADR2)
+                                                     -0.021    20.868    u_prf/g_bank[2].mem_reg_r1_0_63_27_29/RAMC
+  -------------------------------------------------------------------
+                         required time                         20.868    
+                         arrival time                         -12.951    
+  -------------------------------------------------------------------
+                         slack                                  7.917    
+
+Slack (MET) :             7.917ns  (required time - arrival time)
+  Source:                 waq_reg[2][2]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_prf/g_bank[2].mem_reg_r1_0_63_27_29/RAMD/WADR2
+                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        11.978ns  (logic 0.456ns (3.807%)  route 11.522ns (96.193%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X32Y34         FDRE                         0.000     0.973 r  waq_reg[2][2]/C
+    SLICE_X32Y34         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  waq_reg[2][2]/Q
+                         net (fo=691, routed)        11.522    12.951    u_prf/g_bank[2].mem_reg_r1_0_63_27_29/ADDRD2
+    SLICE_X2Y65          RAMD64E                                      r  u_prf/g_bank[2].mem_reg_r1_0_63_27_29/RAMD/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X2Y65          RAMD64E (Setup_ramd64e_CLK_WADR2)
+                                                     -0.021    20.868    u_prf/g_bank[2].mem_reg_r1_0_63_27_29/RAMD
+  -------------------------------------------------------------------
+                         required time                         20.868    
+                         arrival time                         -12.951    
+  -------------------------------------------------------------------
+                         slack                                  7.917    
+
+Slack (MET) :             8.057ns  (required time - arrival time)
+  Source:                 waq_reg[2][2]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_prf/g_bank[2].mem_reg_r4_0_63_27_29/RAMA/WADR2
+                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        11.838ns  (logic 0.456ns (3.852%)  route 11.382ns (96.148%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X32Y34         FDRE                         0.000     0.973 r  waq_reg[2][2]/C
+    SLICE_X32Y34         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  waq_reg[2][2]/Q
+                         net (fo=691, routed)        11.382    12.811    u_prf/g_bank[2].mem_reg_r4_0_63_27_29/ADDRD2
+    SLICE_X6Y65          RAMD64E                                      r  u_prf/g_bank[2].mem_reg_r4_0_63_27_29/RAMA/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X6Y65          RAMD64E (Setup_ramd64e_CLK_WADR2)
+                                                     -0.021    20.868    u_prf/g_bank[2].mem_reg_r4_0_63_27_29/RAMA
+  -------------------------------------------------------------------
+                         required time                         20.868    
+                         arrival time                         -12.811    
+  -------------------------------------------------------------------
+                         slack                                  8.057    
+
+Slack (MET) :             8.057ns  (required time - arrival time)
+  Source:                 waq_reg[2][2]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_prf/g_bank[2].mem_reg_r4_0_63_27_29/RAMB/WADR2
+                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        11.838ns  (logic 0.456ns (3.852%)  route 11.382ns (96.148%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X32Y34         FDRE                         0.000     0.973 r  waq_reg[2][2]/C
+    SLICE_X32Y34         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  waq_reg[2][2]/Q
+                         net (fo=691, routed)        11.382    12.811    u_prf/g_bank[2].mem_reg_r4_0_63_27_29/ADDRD2
+    SLICE_X6Y65          RAMD64E                                      r  u_prf/g_bank[2].mem_reg_r4_0_63_27_29/RAMB/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X6Y65          RAMD64E (Setup_ramd64e_CLK_WADR2)
+                                                     -0.021    20.868    u_prf/g_bank[2].mem_reg_r4_0_63_27_29/RAMB
+  -------------------------------------------------------------------
+                         required time                         20.868    
+                         arrival time                         -12.811    
+  -------------------------------------------------------------------
+                         slack                                  8.057    
+
+Slack (MET) :             8.057ns  (required time - arrival time)
+  Source:                 waq_reg[2][2]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_prf/g_bank[2].mem_reg_r4_0_63_27_29/RAMC/WADR2
+                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        11.838ns  (logic 0.456ns (3.852%)  route 11.382ns (96.148%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X32Y34         FDRE                         0.000     0.973 r  waq_reg[2][2]/C
+    SLICE_X32Y34         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  waq_reg[2][2]/Q
+                         net (fo=691, routed)        11.382    12.811    u_prf/g_bank[2].mem_reg_r4_0_63_27_29/ADDRD2
+    SLICE_X6Y65          RAMD64E                                      r  u_prf/g_bank[2].mem_reg_r4_0_63_27_29/RAMC/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X6Y65          RAMD64E (Setup_ramd64e_CLK_WADR2)
+                                                     -0.021    20.868    u_prf/g_bank[2].mem_reg_r4_0_63_27_29/RAMC
+  -------------------------------------------------------------------
+                         required time                         20.868    
+                         arrival time                         -12.811    
+  -------------------------------------------------------------------
+                         slack                                  8.057    
+
+Slack (MET) :             8.057ns  (required time - arrival time)
+  Source:                 waq_reg[2][2]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_prf/g_bank[2].mem_reg_r4_0_63_27_29/RAMD/WADR2
+                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        11.838ns  (logic 0.456ns (3.852%)  route 11.382ns (96.148%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X32Y34         FDRE                         0.000     0.973 r  waq_reg[2][2]/C
+    SLICE_X32Y34         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  waq_reg[2][2]/Q
+                         net (fo=691, routed)        11.382    12.811    u_prf/g_bank[2].mem_reg_r4_0_63_27_29/ADDRD2
+    SLICE_X6Y65          RAMD64E                                      r  u_prf/g_bank[2].mem_reg_r4_0_63_27_29/RAMD/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X6Y65          RAMD64E (Setup_ramd64e_CLK_WADR2)
+                                                     -0.021    20.868    u_prf/g_bank[2].mem_reg_r4_0_63_27_29/RAMD
+  -------------------------------------------------------------------
+                         required time                         20.868    
+                         arrival time                         -12.811    
+  -------------------------------------------------------------------
+                         slack                                  8.057    
+
+Slack (MET) :             8.174ns  (required time - arrival time)
+  Source:                 waq_reg[1][0]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_prf/g_bank[1].mem_reg_r6_0_63_27_29/RAMA/WADR0
+                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        11.802ns  (logic 0.456ns (3.864%)  route 11.346ns (96.136%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X36Y39         FDRE                         0.000     0.973 r  waq_reg[1][0]/C
+    SLICE_X36Y39         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  waq_reg[1][0]/Q
+                         net (fo=702, routed)        11.346    12.775    u_prf/g_bank[1].mem_reg_r6_0_63_27_29/ADDRD0
+    SLICE_X8Y56          RAMD64E                                      r  u_prf/g_bank[1].mem_reg_r6_0_63_27_29/RAMA/WADR0
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X8Y56          RAMD64E (Setup_ramd64e_CLK_WADR0)
+                                                      0.060    20.949    u_prf/g_bank[1].mem_reg_r6_0_63_27_29/RAMA
+  -------------------------------------------------------------------
+                         required time                         20.949    
+                         arrival time                         -12.775    
+  -------------------------------------------------------------------
+                         slack                                  8.174    
+
+Slack (MET) :             8.174ns  (required time - arrival time)
+  Source:                 waq_reg[1][0]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_prf/g_bank[1].mem_reg_r6_0_63_27_29/RAMB/WADR0
+                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        11.802ns  (logic 0.456ns (3.864%)  route 11.346ns (96.136%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X36Y39         FDRE                         0.000     0.973 r  waq_reg[1][0]/C
+    SLICE_X36Y39         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  waq_reg[1][0]/Q
+                         net (fo=702, routed)        11.346    12.775    u_prf/g_bank[1].mem_reg_r6_0_63_27_29/ADDRD0
+    SLICE_X8Y56          RAMD64E                                      r  u_prf/g_bank[1].mem_reg_r6_0_63_27_29/RAMB/WADR0
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X8Y56          RAMD64E (Setup_ramd64e_CLK_WADR0)
+                                                      0.060    20.949    u_prf/g_bank[1].mem_reg_r6_0_63_27_29/RAMB
+  -------------------------------------------------------------------
+                         required time                         20.949    
+                         arrival time                         -12.775    
+  -------------------------------------------------------------------
+                         slack                                  8.174    
+
+
+
+
