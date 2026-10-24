@@ -436,3 +436,54 @@ Before going on: I had PROMPT record only what I type, but I also want Claude's 
 After that, reflecting the policy,
 please create the RTL in the "fusion" configuration.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I changed PROMPT to record "prompt and answer", then wrote the RTL of the fusion configuration reflecting the policy. Pushed to dev in commit `b88fd90` and others.
+
+#### 1. Answers recorded in PROMPT
+
+- **Entries so far**: to every entry 1 to 13 I attached the last answer I wrote in that turn, transcribed from the session record, in both the Japanese and English versions. Headings are lowered by two levels and links rewritten to work from Doc/.
+- **Two entries without an answer**: entry 3 (a turn that stopped) and entry 5 (a turn that moved on to the next instruction midway) have no summarizing answer. They carry a note saying so, and where the results are (commits and documents).
+- **From now on**: I added a hook (Stop) that writes the answer automatically at the end of a turn. This answer also goes into entry 14. The English translation can only be made after the answer is written, so I add it at the start of the next turn.
+
+#### 2. Reflecting the policy
+
+I added a "fusion configuration" column to section 4 of STRATEGY and made it the baseline. Its main points: 4-instruction decode with fusion up to ALU+ALU, ROB 32, issue queue 16, 96 physical registers, TAGE-S. D-4 (go with the fusion configuration) and D-5 (TAGE-S) of ISSUES are also recorded as decisions.
+
+#### 3. RTL of the fusion configuration (`RTL/CPU/OOO/`)
+
+Six blocks: the two-stage ALU, fusion, issue queue, renaming, physical registers and uBTB, in a form usable as they are in Phase 1.
+
+- **Verification**: all six unit tests PASS. Each test checks against an independently written reference, and state without a reset starts at random values. All 21 deliberately injected bugs were detected, and the results were checked line by line.
+- **Fusion matches the model**: streaming CoreMark's instructions through the 4-instruction window forms 99.99 % of the pairs the model forms (415,297 / 415,337).
+- **What the tests found**:
+  - One RTL bug: the checkpoint number advanced even for requests of invalid µops.
+  - A coding problem: tables indexed by run-time values were written as packed arrays, and the logic grew to tens of thousands of LUTs. Fixed by rewriting them as arrays.
+  - One hole in the tests: whether x0 returns zero was missed by relying on memory starting at 0.
+
+**The biggest finding is the number of register-file ports.** If a fused pair uses 3 reads and 2 writes, 8 to 9 read and 5 to 6 write ports are needed. In Yosys' estimate that alone is 17k to 19k LUTs, using up the whole out-of-order budget. The model sweep:
+
+| Fusion limit | -O2 | Most optimization | Read / write ports |
+|---|---|---|---|
+| No limit | 7.06 | 7.59 | 8 to 9 / 5 to 6 |
+| **Up to 2 sources** | **6.94** (−1.7%) | **7.51** (−1.1%) | **6 / 5** |
+| Up to 1 write | 6.75 (−4.4%) | 6.90 (−9.1%) | 8 to 9 / 3 |
+
+I recommend adopting the 2-source limit. The number of write ports is decided from the Vivado results. Details in [Plan/OOC.md](../Plan/OOC.md).
+
+#### Request (Vivado)
+
+`FPGA\OOO_OOC\synth_ooo.bat` synthesizes each block and five register-file configurations out of context at 50 MHz through place and route. The results go to `output\<top>\summary.txt`. With them I want to settle three points:
+
+- Whether chaining the two-stage ALU closes at 50 MHz
+- The size of the issue queue (Yosys puts it large, at 15.6k LUTs)
+- The number of write ports
+<!-- /answer -->
+
+## 15. 2026-10-24 21:03:00 JST
+
+```text
+I ran synth_ooo.bat of FPGA/OOO_OOC in Vivado. Please read the results under output and make the decisions of section 6 of OOC_J.md.
+```

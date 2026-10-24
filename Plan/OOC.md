@@ -32,8 +32,14 @@
 5. **Recommendation (fixed at G0)**: fuse pairs of at most 2 sources (6 read ports). Write ports: 5 (2 per pair) as the
    base, down to 3 (1 per pair) if Vivado shows the file too heavy. Every combination stays above the goals in the
    model: 6.6 to 6.9 with `-O2`, 6.9 to 7.5 with the most optimization.
-6. Next: out-of-context synthesis in the author's Vivado (section 6), to fix the timing of the two-stage ALU, the size
-   of the issue queue, and the LUTs and timing of each register-file port configuration.
+6. **The Vivado results (section 7)**:
+   - The issue queue, renaming and fusion closed in one cycle at 50 MHz.
+   - The two-stage ALU missed by −0.70 ns and the uBTB by −24.5 ns.
+   - The register files had not run, because of a mistake in the batch file.
+   - **In size, the measured blocks alone were about twice the budget of the out-of-order part.**
+   - Decisions: keep ALU + ALU fusion. Rewrite the ALU and narrow its second stage to the operations that appear in
+     CoreMark (no loss). Give the uBTB 16 entries and a parallel choice. The limit of 2 sources is fixed.
+   - The number of write ports is decided by rerunning the register files.
 
 ---
 
@@ -136,12 +142,148 @@ It runs `OOC_ALU2`, `OOC_FUSE`, `OOC_RENAME`, `OOO_IQ`, `OOO_UBTB` and five regi
 
 ---
 
-## 7. Next
+## 7. Vivado results and decisions (2026-10-24)
 
-1. With the author's Vivado results, decide the details of D-4 (2 sources, write ports, operations of the second
-   stage) and put the limit into `OOO_FUSE` (counting sources as `fuse_2src` of `Plan/model/ooo.h` does).
-2. If the issue queue is too large: read the issued µop with a one-hot AND-OR instead of encoding to a number and
-   multiplexing; fewer wakeup tag buses (port 1 never issues latency-2 µops, so it needs no delayed bus; two
-   destinations only on the ALU ports); split the queue (ALU 12 + LSU 6 and so on).
-3. The G0 specification: freeze the micro-architecture including the scope of this RTL (step 5 of `ISSUES.md`
-   section 5).
+The results of `synth_ooo.bat` in the author's Vivado (`FPGA/OOO_OOC/output/<top>/summary.txt`, `timing_reg2reg.rpt`,
+`utilization.rpt`). 50 MHz (20 ns), out of context, after place and route.
+
+### 7.1 Results
+
+| Block | LUT (Vivado) | FF | Register-to-register slack | Logic levels | Ratio to Yosys | Verdict |
+|---|---|---|---|---|---|---|
+| OOC_ALU2 | 8,248 | 705 | **−0.696 ns** | 25 | 1.00 | Does not close; large |
+| OOC_FUSE | 186 | 158 | +10.606 ns | 11 | 0.90 | Closes |
+| OOC_RENAME | 6,934 | 2,830 | +4.793 ns | 9 | 0.76 | Closes; large |
+| OOO_IQ | 6,783 | 1,056 | +2.370 ns | 16 | 0.43 | Closes; large |
+| OOO_UBTB | 3,194 | 2,642 | **−24.524 ns** | 65 | 0.63 | Does not close |
+| OOC_PRF (5 configurations) | — | — | — | — | — | **Not run** |
+
+- **The register files did not run because of a mistake in `synth_ooo.bat`.** `vivado` is itself a batch file, so
+  calling it without `call` ends the calling batch after the first call outside a loop. Fixed with `call`, and
+  `synth_ooo.bat prf` added to run the register files only.
+- OOO_IQ's WNS (+0.085 ns) is on a path through the input / output delays the harness assumes (6 ns each), not a real
+  path. Register to register it is +2.37 ns.
+- The ratio to Yosys differs a lot between blocks, 0.43 to 1.00 (the same tendency as 0.4 to 1.4 in `REDUCE.md`).
+
+### 7.2 Two-stage ALU (OOC_ALU2)
+
+**Worst path**: the second stage's result register → bypass → first stage (a shift, about 8.7 ns with the bypass) →
+the second stage's comparison (8 CARRY4) → a 64-bit select with fan-out 129 (min / max) → the result select → the
+second stage's result register. The second stage alone takes about 10.8 ns.
+
+**Size**: the first OOO_ALU is 4,663 LUTs and the second 3,095. That is 2 to 3 times the whole of mmRISC-2's CORE_EXU
+(1,670). OOO_ALU writes a separate unit for each operation: add and subtract, the comparisons (slt / min / max), the
+left and right shifts and the rotates, and clz / ctz / cpop are all independent, and became circuits as they are.
+
+**The operations that appear as the second half of fused pairs in CoreMark** (fused pairs counted on the instruction
+streams of `Plan/trace`):
+
+| Build | ALU + ALU pairs | Second-half operations (most frequent first) |
+|---|---|---|
+| `-O2` | 193,884 | bexti, xor, andi, addw, addiw, sh2add.uw, or, srliw, sh1add.uw, zext.h, sext.h, mv, add, subw |
+| Most optimization | 268,882 | xor, andi, czero.eqz, addw, sh2add.uw, sh1add.uw, srliw, or, sext.h, zext.h, bexti, mv, addiw, subw |
+
+slt / sltu, min / max, clz / ctz / cpop, the rotates and orc.b / rev8 never appear in the second stage. slt and
+czero.eqz do appear in the first stage, so the first stage stays full.
+
+**Decisions**:
+
+1. **Keep ALU + ALU fusion (chain = 1).** Going down to fusion 2 (up to ALU + branch) costs −6 %.
+2. **Narrow the second stage.** It keeps only add / subtract (with the .w forms), sh1add to sh3add (with .uw), the
+   logic operations (with immediates), bext / bexti, zext.h / sext.h / sext.b, czero.eqz / czero.nez and the shifts by
+   an immediate. Every second half in CoreMark is in this set, so nothing is lost. Fusion does not put an operation
+   outside the set in the second stage (`OOO_FUSE` gets a "can be second" flag from the decoder).
+3. **Rewrite OOO_ALU.** As CORE_EXU does, one adder is shared by subtraction, the comparisons and min / max, and one
+   shifter (a funnel shifter) does the left and right shifts, the rotates and bext. A comparison then comes from the
+   adder's carry, which also removes the compare-then-select in series. The target is at most 2.5k LUTs per port for
+   both stages.
+4. After the rewrite, the timing and size are checked again in Vivado.
+
+### 7.3 Issue queue (OOO_IQ)
+
+**Decisions**:
+
+- **Wakeup-select of 16 entries closes in one cycle** (+2.37 ns, 16 levels). Go on with this scheme.
+- **Its 6.8k is large for the budget.** Reduce it to around 4k with the means of section 8: reading the issued µop by
+  a one-hot AND-OR, fewer wakeup tag buses, and splitting the queue.
+
+### 7.4 Register file (OOC_PRF)
+
+**Decisions**:
+
+- **Fused pairs of at most 2 sources is fixed.** That is 6 read ports, at a cost of −1.7 % / −1.1 % (section 5).
+- **The number of write ports (5 or 3) is decided from the rerun.** The budget is tight (7.7), so 3 is the likelier
+  choice. With a 16-entry uBTB, 1 write per pair gives 6.61 / 6.87 and 2 writes give 6.92 / 7.50. Both are above the
+  goals.
+
+### 7.5 Renaming (OOC_RENAME) and fusion (OOC_FUSE)
+
+- **Renaming closes in one cycle** (+4.79 ns). **It is large at 6.9k.** Its breakdown (checkpoints of 8 × 32 × 7 bits
+  and their restore select, the free list, busy bits) is not measured separately yet; it is measured by hierarchy, then
+  reduced. Fewer checkpoints cost −0.9 % / −0.9 % for 8 → 6 and −4.3 % / −4.1 % for 8 → 4 (16-entry uBTB, at most 2
+  sources). The number stays 8; the reduction comes from the coding.
+- **Fusion is fine at +10.6 ns and 186 LUTs.**
+
+### 7.6 uBTB (OOO_UBTB)
+
+**Why it missed so badly**: choosing, among the entries that hit, the first one in the block that is taken was written
+as a loop over the 32 entries in turn, each comparing its offset with the best so far. The tool made it a chain of 32
+comparisons in series (65 levels).
+
+**Correcting an earlier judgment**: "without a uBTB it is only −0.9 %, so drop it if heavy" was a number without
+fusion. With fusion the back end is faster, and the front end weighs more. The model rerun with at most 2 sources:
+
+| uBTB | `-O2` | Most optimization |
+|---|---|---|
+| None | 6.61 (−4.8 %) | 7.35 (−2.1 %) |
+| 4 | 6.78 | 7.45 |
+| 8 | 6.87 (−1.0 %) | 7.47 |
+| **16** | **6.92 (−0.2 %)** | **7.50 (−0.1 %)** |
+| 32 | 6.94 | 7.51 |
+
+**Decisions**:
+
+- **Keep the uBTB, with 16 entries.**
+- **Make the choice parallel.** For each of the 8 positions in the block, OR the "hit and taken" of the entries;
+  choose the position with an 8-bit priority select; read the target with a one-hot AND-OR.
+- **Use partial tags (about 12 bits).** The prediction is checked at F2, so a partial tag is enough.
+- The size target is at most 1k LUTs.
+
+### 7.7 Outlook for the budget
+
+| Block | Vivado (this run) | Target after the decisions |
+|---|---|---|
+| ALUs, 2 ports (2 stages each) | 16,496 | at most 5k |
+| Issue queue | 6,783 | around 4k |
+| Renaming | 6,934 | after measuring (around 5k) |
+| uBTB | 3,194 | at most 1k |
+| Fusion | 186 | 0.2k |
+| Register file | not measured (estimate 4k to 6.5k) | 4k (3 writes) to 6.5k (5 writes) |
+| Total | 33.6k + register file | **about 19k to 22k** |
+
+- **The budget of the out-of-order part is 16k to 18k** (up to group A of `REDUCE.md` section 2). It also has to hold
+  the ROB, the LSU, the LQ / SQ, decode and the front end. The blocks measured this time were already about twice the
+  budget by themselves.
+- Even reduced to the targets, the measured blocks alone go a little over the budget. **G0 will probably have to
+  revisit the budget itself.** The main candidates:
+  - Return the FPU to multi-cycle (D3, "to be reconsidered depending on logic size"; the FPU is 8.8k)
+  - Groups B / C of `REDUCE.md`
+  - 3 register-file write ports
+- The OOC numbers are for each block alone; built into the whole, optimization across boundaries can make them larger
+  or smaller.
+
+---
+
+## 8. Next
+
+1. **Author**: run only the five register files with `synth_ooo.bat prf`, to decide the number of write ports.
+2. **RTL**: put in the decisions of section 7.
+   - Rewrite OOO_ALU and narrow the second stage.
+   - Give `OOO_FUSE` the "can be second" flag and the limit of 2 sources (counting sources as `fuse_2src` of
+     `Plan/model/ooo.h` does).
+   - Make the uBTB 16 entries, with a parallel choice and partial tags.
+   - Reduce the issue queue (one-hot AND-OR read, fewer wakeup buses, consider splitting the queue).
+   - Measure the breakdown of renaming, then reduce it.
+   - Redo the unit tests and bug injection for each, and check in Vivado again.
+3. **The G0 specification**: freeze the micro-architecture including the scope of this RTL (step 5 of `ISSUES.md`
+   section 5). The budget revision (including D3) is decided there too.
