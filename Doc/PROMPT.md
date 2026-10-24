@@ -604,3 +604,67 @@ They should settle three things:
 ```text
 I will run the Vivado runs of 8.4 (OOC_ALU2, OOO_UBTB, OOC_FUSE, the 64-register OOC_PRF). Meanwhile, please go ahead with rebuilding the issue queue and renaming of section 9 of OOC_J.md (2 sources and 1 destination per µop, 64 physical registers).
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I rebuilt the issue queue and renaming: 2 sources and 1 destination per µop, 64 physical registers (6-bit tags). All six unit tests PASS and all 39 injected bugs are detected. The Vivado runs of 8.4 that I asked for all close too. The record is in section 10 of OOC_J.md (English: OOC.md), pushed to dev as `f4af1b8` and `1198110`.
+
+**The rebuilt blocks** (Yosys)
+
+| Block | Before | Now | Main change |
+|---|---|---|---|
+| Renaming | about 9.0k | **3,216** | The checkpoints are copied a cycle late from the RAT flip-flops |
+| Issue queue | about 15.5k | **5,009** | Wakeup tag buses from 14 to 6; comparators from 672 to 192 |
+
+- **Checkpoints**: before, each of the 1,792 bits chose between the RAT "after µop 0" and "after µop 1". Now the RAT after the group is copied into every bit as it is, and a checkpoint of µop 0 keeps an undo of µop 1 (11 bits). No performance is lost.
+  - The condition is that a checkpoint is not restored in the cycle after the renaming, which the pipeline always meets.
+  - The alternative "at most one checkpoint a cycle" was −1.7% / −2.0% in the model, so it was not taken.
+- **The rules that allow fewer wakeup buses**: they go into the specification as rules of dispatch.
+  - ALU1 issues latency 1 only; a multiply is dispatched as "ALU0 only".
+  - The LSU writes a register only for a load.
+
+**The Vivado results of 8.4** (physical LUTs)
+
+| Block | Before | Now |
+|---|---|---|
+| Two-stage ALU | 7,879 / −0.696 ns | **3,133 / +0.512 ns** (closes) |
+| uBTB | 3,132 / −24.5 ns | **910 / +5.10 ns** |
+| Fusion | 172 | **215 / +10.1 ns** |
+| Register file | 4,942 (96 registers) | **2,503 / +7.92 ns** (64 registers) |
+
+- The 64-register file is about half because it fits the 64-deep LUT RAM in one level.
+- **The measured blocks total about 14k to 16k, inside the out-of-order budget (16k to 18k)** (36k to 40k last time). The issue queue and renaming are estimates from Yosys. The ROB, LSU and decode are not counted yet, so the budget revision at G0 is still needed.
+- The ALU is 3.1k per port, 0.6k over the 2.5k target. The next candidate is an asymmetric ALU with a simpler ALU1, but the first halves of fused pairs are often Zbb-type operations, so the model checks the effect first.
+
+**Noticed along the way**
+
+- **A gap in the fusion harness**: the OOC_FUSE harness did not connect the `alu2ok` input added last time. It was fixed before this OOC_FUSE run started, so the 215 LUTs include `alu2ok`.
+- **Swapping the RTL in**: Vivado reads all the RTL at every run, so the work was done on a copy and swapped in after the tests passed.
+
+The next Vivado runs (issue queue and renaming):
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_RENAME
+```
+<!-- /answer -->
+
+## 19. 2026-10-24 22:19:04 JST
+
+```text
+I ran synth_ooo.bat OOO_IQ and synth_ooo.bat OOC_RENAME. Please read the results and record them in section 10 of OOC_J.md.
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+(No answer in this turn. The same prompt was sent again as entry 20, and the answer is there.)
+<!-- /answer -->
+
+## 20. 2026-10-24 22:28:40 JST
+
+```text
+I ran synth_ooo.bat OOO_IQ and synth_ooo.bat OOC_RENAME. Please read the results and record them in section 10 of OOC_J.md.
+```

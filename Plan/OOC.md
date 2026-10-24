@@ -47,8 +47,9 @@
    mutations are detected. Vivado still to confirm.
 8. **The issue queue and renaming rebuilt (section 10)**: 2 sources and 1 destination per µop, 64 physical registers.
    In Yosys, renaming about 9.0k → 3.2k and the issue queue about 15.5k → 5.0k. The checkpoints are copied a cycle late
-   (no performance lost). In Vivado the ALU (3,133, +0.51 ns), the uBTB (910, +5.10 ns) and fusion (215) all close. The
-   register file is 2,503 with 64 registers (about half of 96). The measured blocks total about 14k to 16k, inside the
+   (no performance lost). In Vivado the ALU (3,133, +0.51 ns), the uBTB (910, +5.10 ns), fusion (215), the issue queue (3,143, +5.07 ns)
+   and renaming (2,271, +9.60 ns) all close. The
+   register file is 2,503 with 64 registers (about half of 96). The measured blocks total 15,308, inside the
    out-of-order budget (16k to 18k; the ROB, LSU, decode and so on are not counted yet).
 
 ---
@@ -490,16 +491,16 @@ test keep them too.
 | Block | At 7.7 | Now | From |
 |---|---|---|---|
 | ALUs, 2 ports | 15,758 | **6,266** | Vivado |
-| Issue queue | 6,200 | about 2k to 3.5k | Yosys 5,009 × ratio 0.40 to 0.68 |
-| Renaming | 6,098 | about 2k to 2.5k | Yosys 3,216 × ratio 0.67 to 0.76 |
+| Issue queue | 6,200 | **3,143** | Vivado (10.8) |
+| Renaming | 6,098 | **2,271** | Vivado (10.8) |
 | uBTB | 3,132 | **910** | Vivado |
 | Fusion | 172 | **215** | Vivado |
 | Register file | 4,942 to 8,350 | **2,503** | Vivado |
-| Total | 36.3k to 39.7k | **about 14k to 16k** | |
+| Total | 36.3k to 39.7k | **15,308** | all Vivado |
 
-- The measured blocks now fit in the out-of-order budget (16k to 18k). The budget also has to
-  hold the ROB, the LSU, the LQ / SQ, decode and the front end, none of which is written yet. Revisiting the budget at
-  G0 (7.7) is still needed.
+- The measured blocks total 15.3k, inside the out-of-order budget (16k to 18k).
+- But the budget also has to hold the ROB, the LSU, the LQ / SQ, decode and the front end, none of which is written yet,
+  and only 0.7k to 2.7k is left for them. Revisiting the budget at G0 (7.7) is still needed.
 
 ### 10.7 The Vivado runs asked of the author
 
@@ -508,4 +509,25 @@ cd FPGA\OOO_OOC
 synth_ooo.bat OOO_IQ
 synth_ooo.bat OOC_RENAME
 ```
+
+### 10.8 The Vivado results of the issue queue and renaming
+
+| Block | Before (LUT / register-to-register slack) | Now | Verdict |
+|---|---|---|---|
+| OOO_IQ | 6,200 / +2.370 ns (16 levels) | **3,143 / +5.065 ns** (12 levels) | Closes; within the target (around 4k) |
+| OOO_RENAME | 6,098 / +4.793 ns (9 levels, with the harness) | **2,271 / +9.598 ns** (2 levels), 2,151 FF | Closes; within the target (at most 5k) |
+
+- **Issue queue**: the worst wakeup-select path (from one entry's ready bit to another's) has 12 levels and +5.07 ns
+  of slack, 2.7 ns more than the previous version. The WNS (+0.201 ns) is on a path through the input / output delays
+  the harness assumes (6 ns each), not a real path.
+- **Renaming ran without its harness** (`OOO_RENAME`; 10.7 asked for `OOC_RENAME`, which registers the inputs and
+  outputs).
+  - The LUT count holds as it is: the harness adds only flip-flops.
+  - The worst register-to-register path is +9.60 ns (the write enable of a checkpoint, 2 levels).
+  - The worst path overall (+0.896 ns) is combinational from input to output (`in_src` → RAT → busy → `out_rdy`, 7
+    levels). It fits in the 8 ns left after the 6 ns input and output delays. In the core this path sits between
+    flip-flops and has a whole cycle (20 ns), so it closes with ample margin.
+- Vivado / Yosys: OOO_IQ 0.63, OOO_RENAME 0.71.
+- Against the first versions: the issue queue 6,200 → 3,143 (−49 %), renaming 6,098 → 2,271 (−63 %). Most of it comes
+  from 2 sources and 1 destination per µop and from 64 physical registers.
 
