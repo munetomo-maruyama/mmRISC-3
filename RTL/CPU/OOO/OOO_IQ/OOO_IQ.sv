@@ -2,8 +2,9 @@
 // OOO_IQ.sv
 //
 // The issue queue of mmRISC-3 in the fusion configuration (STRATEGY.md 4):
-// unified, N entries, up to 3 sources per µop (a fused pair), 2 µops
-// written a cycle, 3 issued a cycle:
+// unified, N entries, up to 2 sources and 1 destination per µop (a fused
+// pair too: OOO_FUSE SRC2 / W1, Plan/OOC.md 7.4), 2 µops written a cycle,
+// 3 issued a cycle:
 //   port 0  ALU0 (and MUL / DIV, which only go here)
 //   port 1  ALU1
 //   port 2  LSU
@@ -17,6 +18,18 @@
 // ext_*. Entries are freed when issued (a µop that has to be issued again
 // waits outside, in the replay path of the LSU).
 //
+// The wakeup has 4 + NEXT tag buses, one per result that can come
+// (Plan/OOC.md 10), by what each port issues:
+//   port 0 now      ALU0, latency 1
+//   port 1 now      ALU1 (latency 1 only: a latency-2 µop is dispatched
+//                   as ALU0 only or to the LSU, never as "any ALU")
+//   port 0 delayed  a multiply, a cycle after its issue
+//   port 2 delayed  a load, a cycle after its issue (port 2 writes a
+//                   register only with latency 2; a store writes none)
+//   external        NEXT
+// The issued µops are read by an AND-OR of the one-hot grants, not through
+// their encoded entry numbers (iss_entry is only for the payload).
+//
 // The payload of a µop (operation, immediates, ROB index) is not here: it
 // sits in a LUTRAM indexed by the entry, and iss_entry says which.
 //---------------------------------------------------------------------------
@@ -26,7 +39,7 @@
 module OOO_IQ
     #(
         parameter int N    = 16,
-        parameter int TAGW = 7,      // physical registers: 96
+        parameter int TAGW = 6,      // physical registers: 64
         parameter int NEXT = 2       // external wakeup ports
     )
     (
@@ -38,11 +51,11 @@ module OOO_IQ
         output logic [1:0]            disp_ready, // room for this many
         input  logic [1:0]            disp_valid,
         input  logic [1:0][1:0]       disp_port,  // 0 any ALU, 1 ALU0 only, 2 LSU
-        input  logic [1:0][2:0]       disp_use,   // the sources the µop reads
-        input  logic [1:0][2:0][TAGW-1:0] disp_src,
-        input  logic [1:0][2:0]       disp_rdy,   // already ready at rename
-        input  logic [1:0][1:0]       disp_wr,    // the destinations it writes (a pair: 2)
-        input  logic [1:0][1:0][TAGW-1:0] disp_dst,
+        input  logic [1:0][1:0]       disp_use,   // the sources the µop reads
+        input  logic [1:0][1:0][TAGW-1:0] disp_src,
+        input  logic [1:0][1:0]       disp_rdy,   // already ready at rename
+        input  logic [1:0]            disp_wr,    // it writes its destination
+        input  logic [1:0][TAGW-1:0]  disp_dst,
         input  logic [1:0]            disp_lat2,  // results after 2 cycles (load, multiply)
 
         // external wakeups
@@ -52,30 +65,30 @@ module OOO_IQ
         // issue
         output logic [2:0]            iss_valid,
         output logic [2:0][$clog2(N)-1:0] iss_entry,
-        output logic [2:0][2:0][TAGW-1:0] iss_src,
-        output logic [2:0][1:0]       iss_wr,
-        output logic [2:0][1:0][TAGW-1:0] iss_dst
+        output logic [2:0][1:0][TAGW-1:0] iss_src,
+        output logic [2:0]            iss_wr,
+        output logic [2:0][TAGW-1:0]  iss_dst
     );
 
     localparam int EW = $clog2(N);
-    localparam int NB = 3 * 2 + 3 * 2 + NEXT;   // broadcast tags: now (3 ports x 2), delayed (3 x 2), external
+    localparam int NB = 4 + NEXT;    // broadcast tags (above)
 
     // per entry; arrays (not packed vectors) where an entry is chosen at run time
     logic [N-1:0]                 v;
     logic [N-1:0]                 lat2;
     logic [1:0]                   port  [N];
-    logic [2:0]                   use_s [N];
-    logic [2:0][TAGW-1:0]         src   [N];
-    logic [2:0]                   rdy   [N];
-    logic [1:0]                   wr    [N];
-    logic [1:0][TAGW-1:0]         dst   [N];
+    logic [1:0]                   use_s [N];
+    logic [1:0][TAGW-1:0]         src   [N];
+    logic [1:0]                   rdy   [N];
+    logic [N-1:0]                 wr;
+    logic [TAGW-1:0]              dst   [N];
     logic [N-1:0]                 older [N];  // older[i][j]: entry j is older than entry i
 
     // ---- select
     logic [N-1:0] ready_all, req0, req1, req2, g0, g1, g2;
     always @(*) begin
         for (int i = 0; i < N; i++) begin
-            ready_all[i] = v[i] && ((rdy[i] | ~use_s[i]) == 3'b111);
+            ready_all[i] = v[i] && ((rdy[i] | ~use_s[i]) == 2'b11);
             req0[i] = ready_all[i] && (port[i] == 2'd0 || port[i] == 2'd1);
             req1[i] = ready_all[i] && (port[i] == 2'd0);
             req2[i] = ready_all[i] && (port[i] == 2'd2);
@@ -96,35 +109,40 @@ module OOO_IQ
         return e;
     endfunction
 
+    // the issued µops, by an AND-OR of the grants (one-hot); only port 0
+    // issues both latencies
+    logic lat2_0;
     always @(*) begin
         logic [N-1:0] g [3];
         g[0] = g0; g[1] = g1; g[2] = g2;
         for (int p = 0; p < 3; p++) begin
             iss_valid[p] = |g[p];
             iss_entry[p] = enc(g[p]);
-            iss_src[p]   = src[iss_entry[p]];
-            iss_wr[p]    = iss_valid[p] ? wr[iss_entry[p]] : 2'b00;
-            iss_dst[p]   = dst[iss_entry[p]];
+            iss_src[p]   = '0;
+            iss_dst[p]   = '0;
+            iss_wr[p]    = |(g[p] & wr);
+            lat2_0       = |(g0 & lat2);
+            for (int i = 0; i < N; i++) begin
+                iss_src[p] = iss_src[p] | ({2*TAGW{g[p][i]}} & src[i]);
+                iss_dst[p] = iss_dst[p] | ({TAGW{g[p][i]}} & dst[i]);
+            end
         end
     end
 
-    // ---- wakeup tags: those of the µops issued now (latency 1), those
-    // issued one cycle ago with latency 2, and the external ones
-    logic [2:0][1:0]            d_wr;
-    logic [2:0][1:0][TAGW-1:0]  d_dst;
-    logic [NB-1:0]              bv;
-    logic [NB-1:0][TAGW-1:0]    bt;
+    // ---- wakeup tags: the µops issued now with latency 1, those issued one
+    // cycle ago with latency 2, and the external ones
+    logic                 d_v0, d_v2;
+    logic [TAGW-1:0]      d_t0, d_t2;
+    logic [NB-1:0]        bv;
+    logic [NB-1:0][TAGW-1:0] bt;
     always @(*) begin
-        for (int p = 0; p < 3; p++)
-            for (int k = 0; k < 2; k++) begin
-                bv[p*2+k]     = iss_wr[p][k] && !lat2[iss_entry[p]];
-                bt[p*2+k]     = iss_dst[p][k];
-                bv[6+p*2+k]   = d_wr[p][k];
-                bt[6+p*2+k]   = d_dst[p][k];
-            end
+        bv[0] = iss_wr[0] && !lat2_0;       bt[0] = iss_dst[0];
+        bv[1] = iss_wr[1];                  bt[1] = iss_dst[1];
+        bv[2] = d_v0;                       bt[2] = d_t0;
+        bv[3] = d_v2;                       bt[3] = d_t2;
         for (int e = 0; e < NEXT; e++) begin
-            bv[12+e] = ext_valid[e];
-            bt[12+e] = ext_tag[e];
+            bv[4+e] = ext_valid[e];
+            bt[4+e] = ext_tag[e];
         end
     end
 
@@ -150,13 +168,16 @@ module OOO_IQ
     // the latency-2 results issued now wake their dependents next cycle
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            d_wr <= '0;
+            d_v0 <= 1'b0;
+            d_v2 <= 1'b0;
         end else begin
-            for (int p = 0; p < 3; p++) begin
-                d_wr[p]  <= (iss_valid[p] && lat2[iss_entry[p]]) ? iss_wr[p] : 2'b00;
-                d_dst[p] <= iss_dst[p];
-            end
+            d_v0 <= iss_wr[0] && lat2_0;
+            d_v2 <= iss_wr[2];
         end
+    end
+    always_ff @(posedge clk) begin
+        d_t0 <= iss_dst[0];
+        d_t2 <= iss_dst[2];
     end
 
     // which entries are written and which issue this cycle
@@ -171,12 +192,11 @@ module OOO_IQ
 
     // every entry keeps its own fields
     for (genvar i = 0; i < N; i++) begin : g_ent
-        logic                vq, lq;
-        logic [1:0]          pq, wq;
-        logic [2:0]          uq, rq;
-        logic [2:0][TAGW-1:0] sq;
-        logic [1:0][TAGW-1:0] dq;
-        logic [N-1:0]        oq;
+        logic                 vq, lq, wq;
+        logic [1:0]           pq, uq, rq;
+        logic [1:0][TAGW-1:0] sq;
+        logic [TAGW-1:0]      dq;
+        logic [N-1:0]         oq;
         assign v[i]     = vq;
         assign lat2[i]  = lq;
         assign port[i]  = pq;
@@ -198,7 +218,7 @@ module OOO_IQ
                 pq <= disp_port[d];
                 uq <= disp_use[d];
                 sq <= disp_src[d];
-                for (int s = 0; s < 3; s++) rq[s] <= disp_rdy[d][s] || woken(disp_src[d][s]);
+                for (int s = 0; s < 2; s++) rq[s] <= disp_rdy[d][s] || woken(disp_src[d][s]);
                 wq <= disp_wr[d];
                 dq <= disp_dst[d];
                 lq <= disp_lat2[d];
@@ -208,7 +228,7 @@ module OOO_IQ
                 if (disp1[i] && disp_valid[0] && fev[0]) oq[fe[0]] <= 1'b1;
             end else begin
                 if (issued[i]) vq <= 1'b0;
-                for (int s = 0; s < 3; s++) if (woken(sq[s])) rq[s] <= 1'b1;
+                for (int s = 0; s < 2; s++) if (woken(sq[s])) rq[s] <= 1'b1;
                 // an entry written now is younger than this one
                 for (int j = 0; j < N; j++) if (disp0[j] || disp1[j]) oq[j] <= 1'b0;
             end

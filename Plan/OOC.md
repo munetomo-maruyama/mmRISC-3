@@ -45,6 +45,10 @@
    in Yosys), fusion limited to 2 sources and 1 write with the second-stage flag (pairs equal to the model's on
    CoreMark), and the uBTB at 16 entries with a parallel choice (5,041 → about 2.3k). All unit tests PASS and all 34
    mutations are detected. Vivado still to confirm.
+8. **The issue queue and renaming rebuilt (section 10)**: 2 sources and 1 destination per µop, 64 physical registers.
+   In Yosys, renaming about 9.0k → 3.2k and the issue queue about 15.5k → 5.0k. The checkpoints are copied a cycle late
+   (no performance lost). In Vivado the ALU (3,133, +0.51 ns), the uBTB (910, +5.10 ns) and fusion (215) all close. The
+   measured blocks total about 16k to 18k, the upper end of the out-of-order budget.
 
 ---
 
@@ -55,8 +59,8 @@
 | `OOO_ALU` | Integer ALU: RV64I + Zba / Zbb / Zbs / Zicond (operations and encoding of mmRISC-2's CORE_EXU) | — |
 | `OOO_ALU2` | An issue port's ALU: a full OOO_ALU and a narrowed one (section 8) in series (a fused ALU + ALU in one cycle) + the branch comparison (alone, or against the first result for ALU + branch) | — |
 | `OOO_FUSE` | 4 decoded instructions → the next 2 µops (paired greedily from the oldest) | `LEVEL` (1 to 3), `SRC2` (section 8) |
-| `OOO_IQ` | Unified issue queue: 3 sources, 2 in / 3 out, 1-cycle wakeup-select, age matrix, latency-2 and external wakeups | `N`=16, `TAGW`=7 |
-| `OOO_RENAME` | 2 µops per cycle, 3 sources and 2 destinations, RAT, free list, busy bits, in-group dependences, checkpoints | `NREG`=96, `NCKPT`=8 |
+| `OOO_IQ` | Unified issue queue: 3 sources (2 and 1 destination from section 10), 2 in / 3 out, 1-cycle wakeup-select, age matrix, latency-2 and external wakeups | `N`=16, `TAGW`=7 (6 from section 10) |
+| `OOO_RENAME` | 2 µops per cycle, 3 sources and 2 destinations (2 and 1 from section 10), RAT, free list, busy bits, in-group dependences, checkpoints | `NREG`=96 (64 from section 10), `NCKPT`=8 |
 | `OOO_PRF` | 96 × 64, LUTRAM per write bank + LVT | `NW`, `NR` |
 | `OOO_UBTB` | Fully associative next-line predictor, next fetch address in one cycle | `NE`=32 (16 from section 8, partial tag `TW`=12) |
 
@@ -387,13 +391,119 @@ What the runs should show:
 
 ## 9. Next
 
-1. **Author**: rerun the three blocks of 8.4 (the register file is settled in 7.4).
+1. **Author**: rerun the three blocks of 8.4 (the register file is settled in 7.4). → 10.5
 2. **RTL**:
    - Give renaming and the issue queue 2 sources and 1 destination per µop (what at most 2 sources and 1 write per pair
      imply; the issue queue is built with 3 sources now), with 64 physical
-     registers (6-bit tags), and build the register file with 3 write ports.
+     registers (6-bit tags), and build the register file with 3 write ports. → section 10
    - Reduce the issue queue (one-hot AND-OR read, fewer wakeup buses, consider splitting the queue).
    - Measure the breakdown of renaming by hierarchy, then reduce it.
    - Redo the unit tests and bug injection for each, and check them in Vivado.
 3. **The G0 specification**: freeze the micro-architecture including the scope of this RTL (step 5 of `ISSUES.md`
    section 5). The budget revision (including D3) is decided there too.
+
+---
+
+## 10. The issue queue and renaming rebuilt (2026-10-24)
+
+What 7.4 implies (a pair reads at most 2 sources and writes at most 1 register) is now in the issue queue and
+renaming: 2 sources and 1 destination per µop, and 64 physical registers (6-bit tags).
+
+### 10.1 Renaming (OOO_RENAME)
+
+| | Before | Now |
+|---|---|---|
+| µop | 3 sources, 2 destinations | 2 sources, 1 destination |
+| Physical registers / tag | 96 / 7 bits | 64 / 6 bits |
+| RAT reads / writes | 6 + 4 / 4 | 4 + 2 / 2 |
+| Free list | 64; 4 taken and 4 given back a cycle | 32; 2 taken and 2 given back |
+| Write-backs that clear busy bits | 5 | 3 (the register-file write ports) |
+| Checkpoints | 8 × 224 bits, each written with a choice between the RAT after µop 0 and after µop 1 | 8 × 192 bits, copied a cycle late from the RAT flip-flops (no choice), plus 11 bits to undo µop 1 |
+
+**The checkpoints are copied differently**:
+
+- **Before**: each of the 1,792 checkpoint bits chose between the RAT after µop 0 and the RAT after µop 1.
+- **Now**: the RAT after the group (what the RAT flip-flops hold in the next cycle) is copied a cycle late. Every bit
+  takes the same data, so an enable is enough. A checkpoint of µop 0 also keeps µop 1's destination and its old
+  mapping, and a restore undoes it.
+- **Condition**: a checkpoint is not restored in the cycle right after its µop is renamed. The pipeline always meets
+  this, with dispatch, issue and execution in between.
+  - The test resolves many transfers at that earliest point, 2 cycles after renaming (22,916 times).
+  - It was also checked that the test fails if a transfer may be resolved 1 cycle after (68,492 mismatches).
+- **Not taken**: "at most one checkpoint a cycle". In the model it costs −1.7 % / −2.0 % (`ck1` of `Plan/model`).
+  Taking no checkpoint for jal does not change that (`ck_jal`; CoreMark's inner loops have hardly any jal).
+
+### 10.2 Issue queue (OOO_IQ)
+
+| | Before | Now |
+|---|---|---|
+| µop | 3 sources, 2 destinations | 2 sources, 1 destination |
+| Wakeup tag buses | 14 (3 ports × 2 × now and delayed, external 2) | 6 (port 0 now, port 1 now, port 0 delayed, port 2 delayed, external 2) |
+| Source comparators | 16 × 3 × 14 = 672 | 16 × 2 × 6 = 192 |
+| Reading the issued µop | encode to a number, then select | AND-OR of the one-hot grants |
+
+**Why fewer buses are enough**: the two rules below go into the specification as rules of dispatch. The µops of the
+test keep them too.
+
+- Port 1 (ALU1) issues latency 1 only. A latency-2 µop (a multiply) is dispatched as "ALU0 only".
+- Port 2 (LSU) writes a register only for a load (latency 2). A store writes none.
+
+### 10.3 Verification
+
+- **Unit tests**: all six PASS.
+  - tb_rename and tb_iq were rewritten for 2 sources, 1 destination and 6-bit tags.
+  - With only 64 tags, tb_iq gives a tag out again 4 cycles after its µop leaves the queue (counted from the
+    announcement for a µop answered from outside), longer than the delayed wakeup bus (1 cycle).
+- **Bug injection**: the 8 existing mutations of renaming and the queue moved to the new RTL, and 5 added for the new
+  parts. All 13 are detected (39 in all).
+
+### 10.4 Size (Yosys)
+
+| Block | Before | Now |
+|---|---|---|
+| OOC_RENAME | about 9.0k LUT / 2,884 FF (Vivado 6,098) | **3,216 LUT / 2,289 FF** |
+| OOO_IQ | about 15.5k LUT / 1,056 FF (Vivado 6,200) | **5,009 LUT / 702 FF** |
+
+### 10.5 The Vivado results of 8.4
+
+| Block | Before (LUT / register-to-register slack) | Now | Verdict |
+|---|---|---|---|
+| OOC_ALU2 | 7,879 / −0.696 ns | **3,133 / +0.512 ns** (36 levels) | Closes |
+| OOO_UBTB | 3,132 / −24.524 ns | **910 / +5.100 ns** (13 levels) | Closes; within the target (at most 1k) |
+| OOC_FUSE | 172 / +10.606 ns | **215 / +10.125 ns** | Fine |
+| OOC_PRF (64 registers, 3 writes / 6 reads) | 4,942 (96 registers) | not run yet | — |
+
+- **The two-stage ALU closes at 50 MHz.** The worst path runs into the adder of the second stage (19 CARRY4).
+- **The ALU's size is 0.6k over the target (at most 2.5k per port for both stages).** About 1k of the 3,133 is
+  outside the ALUs (bypass, operand selection, branch comparison; estimated from the Yosys ratio). The next candidate
+  is E3 of REDUCE.md (an asymmetric ALU, a simpler first stage in ALU1). But the first halves of fused pairs are often
+  Zbb / Zbs / Zicond (srliw, bexti, zext.h, czero.eqz and so on), so the model decides first.
+- The OOC_FUSE harness did not connect the `alu2ok` input added in section 8. It was fixed before this run (the 215
+  LUTs include `alu2ok`).
+- Vivado / Yosys: OOC_ALU2 0.68, OOO_UBTB 0.41, OOC_FUSE 0.75.
+
+### 10.6 Outlook for the budget (updated)
+
+| Block | At 7.7 | Now | From |
+|---|---|---|---|
+| ALUs, 2 ports | 15,758 | **6,266** | Vivado |
+| Issue queue | 6,200 | about 2k to 3.5k | Yosys 5,009 × ratio 0.40 to 0.68 |
+| Renaming | 6,098 | about 2k to 2.5k | Yosys 3,216 × ratio 0.67 to 0.76 |
+| uBTB | 3,132 | **910** | Vivado |
+| Fusion | 172 | **215** | Vivado |
+| Register file | 4,942 to 8,350 | at most 4,942 (64 registers not run yet) | Vivado |
+| Total | 36.3k to 39.7k | **about 16k to 18k** | |
+
+- The measured blocks are now down to the upper end of the out-of-order budget (16k to 18k). The budget also has to
+  hold the ROB, the LSU, the LQ / SQ, decode and the front end, none of which is written yet. Revisiting the budget at
+  G0 (7.7) is still needed.
+
+### 10.7 The Vivado runs asked of the author
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_RENAME
+```
+
+The 64-register file of 8.4 too, if it has not run yet.

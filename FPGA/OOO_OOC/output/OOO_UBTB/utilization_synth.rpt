@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Sat Oct 24 20:55:30 2026
+| Date         : Sat Oct 24 22:07:16 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOO_UBTB/utilization_synth.rpt
 | Design       : OOO_UBTB
@@ -19,10 +19,10 @@ Table of Contents
 1. Utilization by Hierarchy
 ---------------------------
 
-+----------+--------+------------+------------+---------+------+------+--------+--------+------------+
-| Instance | Module | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
-+----------+--------+------------+------------+---------+------+------+--------+--------+------------+
-| OOO_UBTB |  (top) |       3023 |       3023 |       0 |    0 | 2642 |      0 |      0 |          0 |
-+----------+--------+------------+------------+---------+------+------+--------+--------+------------+
++----------+--------+------------+------------+---------+------+-----+--------+--------+------------+
+| Instance | Module | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs | RAMB36 | RAMB18 | DSP Blocks |
++----------+--------+------------+------------+---------+------+-----+--------+--------+------------+
+| OOO_UBTB |  (top) |        922 |        922 |       0 |    0 | 970 |      0 |      0 |          0 |
++----------+--------+------------+------------+---------+------+-----+--------+--------+------------+
 
 

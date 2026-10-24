@@ -10,7 +10,7 @@
 //       issue_w, fetch_bytes, fb, fe_depth, dec_depth, iss_to_ex, redirect,
 //       override_at, rob, iq, lq, sq, ckpt, alu, lsu, mul, mul_shared,
 //       lat_load, lat_mul, ubtb, pred (perfect / gshare / S / M / L),
-//       fusion (0-3), chain, mem_cons, fwd, iters
+//       fusion (0-3), chain, fuse_1w, fuse_2src, ck1, ck_jal, mem_cons, fwd, iters
 //   model tage <trace.bin>
 //       the conditional branches through TAGE-S / M / L (to hold against
 //       ../trace/analyze.py)
@@ -78,6 +78,8 @@ int main(int argc, char** argv)
         c.chain = (int)o.get("chain", c.chain);
         c.fuse_1w = o.get("fuse_1w", c.fuse_1w);
         c.fuse_2src = o.get("fuse_2src", c.fuse_2src);
+        c.ck1 = o.get("ck1", c.ck1);
+        c.ck_jal = o.get("ck_jal", c.ck_jal);
         c.mem_cons = o.get("mem_cons", c.mem_cons);
         c.fwd = o.get("fwd", c.fwd);
         auto it = o.kv.find("pred");

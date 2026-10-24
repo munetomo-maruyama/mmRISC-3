@@ -2,27 +2,37 @@
 // OOO_RENAME.sv
 //
 // Register renaming of mmRISC-3 in the fusion configuration (STRATEGY.md
-// 4): 2 µops a cycle, each with up to 3 sources and 2 destinations (a fused
-// pair; the decoder drops the first destination when both halves write the
-// same register, so a µop never names one register twice).
+// 4): 2 µops a cycle, each with up to 2 sources and 1 destination (a fused
+// pair reads at most 2 registers and writes at most 1, OOO_FUSE SRC2 / W1,
+// Plan/OOC.md 7.4).
 //
-//   RAT        32 x TAGW in flip-flops (6 source reads, 4 old-mapping reads
-//              and 4 writes a cycle are too many ports for distributed RAM;
-//              224 bits)
-//   free list  a ring of NREG - 32 tags (a power of two): up to 4 taken a
-//              cycle at rename, up to 4 given back a cycle at commit (the
-//              old mappings). head / tail carry one wrap bit, so the number
-//              of free registers is tail - head and stays right across a
-//              restore
+//   RAT        32 x TAGW in flip-flops (4 source reads, 2 old-mapping reads
+//              and 2 writes a cycle are too many ports for distributed RAM;
+//              192 bits)
+//   free list  a ring of NREG - 32 tags (a power of two; with one register
+//              per µop and a ROB of 32, 64 registers never run out): up to 2
+//              taken a cycle at rename, up to 2 given back a cycle at commit
+//              (the old mappings). head / tail carry one wrap bit, so the
+//              number of free registers is tail - head and stays right
+//              across a restore
 //   busy bits  NREG: set when a register is given out, cleared when its
 //              value is written (wb_*); rename reads them to tell the issue
 //              queue which sources are ready already
-//   in-group   a source of µop 1 that is a destination of µop 0 takes µop
-//              0's new tag (and is not ready)
-//   checkpoints NCKPT copies of the RAT and of the free list's head, taken
-//              after a µop with a control transfer; a misprediction restores
-//              one (the registers given out after it come back by moving the
+//   in-group   a source of µop 1 that is µop 0's destination takes µop 0's
+//              new tag (and is not ready)
+//   checkpoints NCKPT copies of the RAT and of the free list's head, for a
+//              µop with a control transfer; a misprediction restores one
+//              (the registers given out after it come back by moving the
 //              head back: the ring order makes them the right ones)
+//
+// A checkpoint copies the RAT one cycle late, from the RAT flip-flops: the
+// state after both µops of the group. A checkpoint of µop 0 also keeps what
+// undoes µop 1's destination (its register and old mapping), applied on a
+// restore. So every checkpoint bit takes the same data with an enable,
+// instead of a choice between the state after µop 0 and after µop 1 (Plan/
+// OOC.md 10). It needs a checkpoint not to be restored in the cycle right
+// after its µop is renamed, which the pipeline guarantees (dispatch, issue
+// and execution come between).
 //
 // x0 maps to physical register 0 forever, is never given out and is always
 // ready. Rename stalls (ready = 0) when the free list cannot cover the
@@ -33,10 +43,10 @@
 
 module OOO_RENAME
     #(
-        parameter int NREG  = 96,
-        parameter int TAGW  = 7,
+        parameter int NREG  = 64,
+        parameter int TAGW  = 6,
         parameter int NCKPT = 8,
-        parameter int NWB   = 5      // write-back ports that clear busy bits
+        parameter int NWB   = 3      // write-back ports that clear busy bits
     )
     (
         input  logic                        clk,
@@ -45,25 +55,25 @@ module OOO_RENAME
         // the 2 µops of this cycle (0 the older)
         output logic                        ready,
         input  logic [1:0]                  in_valid,
-        input  logic [1:0][2:0]             in_use,      // sources used
-        input  logic [1:0][2:0][4:0]        in_src,      // architectural
-        input  logic [1:0][1:0]             in_wr,       // destinations written
-        input  logic [1:0][1:0][4:0]        in_dst,
+        input  logic [1:0][1:0]             in_use,      // sources used
+        input  logic [1:0][1:0][4:0]        in_src,      // architectural
+        input  logic [1:0]                  in_wr,       // the destination is written
+        input  logic [1:0][4:0]             in_dst,
         input  logic [1:0]                  in_ckpt,     // take a checkpoint after this µop
         output logic [1:0][$clog2(NCKPT)-1:0] out_ckpt_id,
 
-        output logic [1:0][2:0][TAGW-1:0]   out_src,     // physical
-        output logic [1:0][2:0]             out_rdy,
-        output logic [1:0][1:0][TAGW-1:0]   out_dst,
-        output logic [1:0][1:0][TAGW-1:0]   out_old,     // the previous mapping, freed at commit
+        output logic [1:0][1:0][TAGW-1:0]   out_src,     // physical
+        output logic [1:0][1:0]             out_rdy,
+        output logic [1:0][TAGW-1:0]        out_dst,
+        output logic [1:0][TAGW-1:0]        out_old,     // the previous mapping, freed at commit
 
         // write-back: the value of a register is there
         input  logic [NWB-1:0]              wb_valid,
         input  logic [NWB-1:0][TAGW-1:0]    wb_tag,
 
-        // commit: old mappings back to the free list (up to 4 a cycle)
-        input  logic [3:0]                  free_valid,
-        input  logic [3:0][TAGW-1:0]        free_tag,
+        // commit: old mappings back to the free list (up to 2 a cycle)
+        input  logic [1:0]                  free_valid,
+        input  logic [1:0][TAGW-1:0]        free_tag,
 
         // misprediction: back to a checkpoint
         input  logic                        restore,
@@ -86,60 +96,45 @@ module OOO_RENAME
     logic [NREG-1:0]         busy;
     logic [TAGW-1:0]         ck_rat [NCKPT][32];
     logic [FW:0]             ck_head[NCKPT];
+    logic [NCKPT-1:0]        fx_v;        // undo µop 1's destination on a restore
+    logic [4:0]              fx_a   [NCKPT];
+    logic [TAGW-1:0]         fx_t   [NCKPT];
     logic [CW-1:0]           ck_next;
+    logic [1:0]              pk_v;        // the checkpoints to copy the RAT into this cycle
+    logic [1:0][CW-1:0]      pk_id;
 
     assign nfree = tail - head;
 
-    // which of the next four free registers each destination takes
-    logic [2:0] need;
-    logic [1:0][1:0][2:0] nth;
-    logic [1:0][1:0]      alloc;
+    // allocation: µop 0 takes the register at the head, µop 1 the next one
+    // (or the head, when µop 0 writes none)
+    logic [1:0]           alloc;
+    logic [1:0]           need;
+    logic [1:0][TAGW-1:0] new_tag;
     always @(*) begin
-        logic [2:0] n;
-        n = 3'd0;
-        for (int u = 0; u < 2; u++)
-            for (int k = 0; k < 2; k++) begin
-                nth[u][k]   = n;
-                alloc[u][k] = in_valid[u] && in_wr[u][k] && in_dst[u][k] != 5'd0;
-                if (alloc[u][k]) n = n + 3'd1;
-            end
-        need = n;
+        for (int u = 0; u < 2; u++) alloc[u] = in_valid[u] && in_wr[u] && in_dst[u] != 5'd0;
+        need       = 2'(alloc[0]) + 2'(alloc[1]);
+        new_tag[0] = alloc[0] ? fl[head[FW-1:0]] : '0;
+        new_tag[1] = alloc[1] ? fl[FW'(head + (FW + 1)'(alloc[0]))] : '0;
     end
     assign ready = (nfree >= (FW + 1)'(need)) && !restore;
 
     // rename
-    logic [1:0][1:0][TAGW-1:0] new_tag;
-    logic [TAGW-1:0] ck_val [2][32];      // the RAT after µop 0, after µop 1
     always @(*) begin
-        for (int u = 0; u < 2; u++)
-            for (int k = 0; k < 2; k++)
-                new_tag[u][k] = alloc[u][k] ? fl[FW'(head + (FW + 1)'(nth[u][k]))] : '0;
         for (int u = 0; u < 2; u++) begin
-            for (int s = 0; s < 3; s++) begin
+            for (int s = 0; s < 2; s++) begin
                 out_src[u][s] = rat[in_src[u][s]];
                 out_rdy[u][s] = !in_use[u][s] || in_src[u][s] == 5'd0 || !busy[out_src[u][s]];
-                if (u == 1)
-                    for (int k = 0; k < 2; k++)
-                        if (alloc[0][k] && in_dst[0][k] == in_src[1][s]) begin
-                            out_src[1][s] = new_tag[0][k];
-                            out_rdy[1][s] = 1'b0;
-                        end
             end
-            for (int k = 0; k < 2; k++) begin
-                out_dst[u][k] = new_tag[u][k];
-                out_old[u][k] = rat[in_dst[u][k]];
-            end
+            out_dst[u] = new_tag[u];
+            out_old[u] = rat[in_dst[u]];
         end
-        // µop 1's old mapping of a register µop 0 just renamed is µop 0's new one
-        for (int k = 0; k < 2; k++)
-            for (int j = 0; j < 2; j++)
-                if (alloc[0][j] && in_dst[0][j] == in_dst[1][k])
-                    out_old[1][k] = new_tag[0][j];
-        // the RAT after each µop, for the checkpoints
-        for (int a = 0; a < 32; a++) ck_val[0][a] = rat[a];
-        for (int k = 0; k < 2; k++) if (alloc[0][k]) ck_val[0][in_dst[0][k]] = new_tag[0][k];
-        for (int a = 0; a < 32; a++) ck_val[1][a] = ck_val[0][a];
-        for (int k = 0; k < 2; k++) if (alloc[1][k]) ck_val[1][in_dst[1][k]] = new_tag[1][k];
+        // µop 1 sees µop 0's destination
+        for (int s = 0; s < 2; s++)
+            if (alloc[0] && in_dst[0] == in_src[1][s]) begin
+                out_src[1][s] = new_tag[0];
+                out_rdy[1][s] = 1'b0;
+            end
+        if (alloc[0] && in_dst[0] == in_dst[1]) out_old[1] = new_tag[0];
         out_ckpt_id[0] = ck_next;
         out_ckpt_id[1] = ck_next + CW'(in_valid[0] && in_ckpt[0]);
     end
@@ -155,35 +150,49 @@ module OOO_RENAME
             tail    <= (FW + 1)'(NF);                          // all NF free
             busy    <= '0;
             ck_next <= '0;
+            pk_v    <= '0;
         end else begin
             logic [FW:0] t;
             // write-back clears busy
             for (int w = 0; w < NWB; w++) if (wb_valid[w]) busy[wb_tag[w]] <= 1'b0;
             // commit returns registers at the tail
             t = tail;
-            for (int k = 0; k < 4; k++)
+            for (int k = 0; k < 2; k++)
                 if (free_valid[k]) begin fl[t[FW-1:0]] <= free_tag[k]; t = t + (FW + 1)'(1); end
             tail <= t;
+            pk_v <= '0;
             if (restore) begin
-                for (int a = 0; a < 32; a++) rat[a] <= ck_rat[restore_id][a];
+                for (int a = 0; a < 32; a++)
+                    rat[a] <= (fx_v[restore_id] && fx_a[restore_id] == 5'(a)) ? fx_t[restore_id]
+                                                                               : ck_rat[restore_id][a];
                 head    <= ck_head[restore_id];
                 ck_next <= restore_id + CW'(1);
             end else if (go) begin
                 for (int u = 0; u < 2; u++)
-                    for (int k = 0; k < 2; k++)
-                        if (alloc[u][k]) begin
-                            rat[in_dst[u][k]]   <= new_tag[u][k];
-                            busy[new_tag[u][k]] <= 1'b1;
-                        end
+                    if (alloc[u]) begin
+                        rat[in_dst[u]]   <= new_tag[u];
+                        busy[new_tag[u]] <= 1'b1;
+                    end
                 head <= head + (FW + 1)'(need);
                 for (int u = 0; u < 2; u++)
                     if (in_valid[u] && in_ckpt[u]) begin
-                        for (int a = 0; a < 32; a++) ck_rat[out_ckpt_id[u]][a] <= ck_val[u][a];
-                        ck_head[out_ckpt_id[u]] <= head + ((u == 0) ? (FW + 1)'(nth[1][0]) : (FW + 1)'(need));
+                        ck_head[out_ckpt_id[u]] <= head + ((u == 0) ? (FW + 1)'(alloc[0]) : (FW + 1)'(need));
+                        fx_v[out_ckpt_id[u]]    <= (u == 0) && alloc[1];
+                        fx_a[out_ckpt_id[u]]    <= in_dst[1];
+                        fx_t[out_ckpt_id[u]]    <= out_old[1];
                     end
+                pk_v    <= in_valid & in_ckpt;
+                pk_id   <= out_ckpt_id;
                 ck_next <= ck_next + CW'(in_valid[0] && in_ckpt[0]) + CW'(in_valid[1] && in_ckpt[1]);
             end
         end
+    end
+
+    // the copies of the RAT, a cycle late: the same data for every checkpoint
+    for (genvar c = 0; c < NCKPT; c++) begin : g_ck
+        always_ff @(posedge clk)
+            if ((pk_v[0] && pk_id[0] == CW'(c)) || (pk_v[1] && pk_id[1] == CW'(c)))
+                for (int a = 0; a < 32; a++) ck_rat[c][a] <= rat[a];
     end
 
 endmodule : OOO_RENAME

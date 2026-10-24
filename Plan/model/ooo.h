@@ -49,6 +49,8 @@ struct OooCfg {
     int chain = 1;
     bool fuse_1w = false;       // fuse only pairs that write at most one register
     bool fuse_2src = false;     // fuse only pairs that read at most two registers
+    bool ck1 = false;           // at most one checkpoint taken a cycle (Plan/OOC.md 10)
+    bool ck_jal = true;         // a jal takes a checkpoint too (it cannot mispredict in the back end)
     bool mem_cons = true, fwd = true;
 };
 
@@ -166,6 +168,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     bool new_blk = true; long next_f0 = 0;
     int blk_cause = 0, next_cause = 0;          // 0 other, 1 misprediction, 2 override
     long first_ds = -1;
+    long last_ck = -1;          // the dispatch cycle of the last µop that took a checkpoint
 
     auto bp = [&](size_t i) -> long {           // fetch back-pressure from the fetch buffer
         return i >= (size_t)c.fb ? disp_i[i - c.fb] - (c.fe_depth + c.dec_depth) : 0;
@@ -211,9 +214,10 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             while (!iqh.empty() && iqh.top() < d) iqh.pop();
         }
         int nld = 0, nst = 0;
-        bool has_cti = false;
+        bool has_cti = false;     // the µop takes a checkpoint
         for (size_t k = i; k <= last; k++) {
-            nld += t[k].cls == C_LOAD; nst += t[k].cls == C_STORE; has_cti |= is_cti(t[k]);
+            nld += t[k].cls == C_LOAD; nst += t[k].cls == C_STORE;
+            has_cti |= is_cti(t[k]) && (c.ck_jal || t[k].cls != C_JAL);
         }
         for (int q = 0; q < nld; q++) {
             size_t j = ld_cm.size() + q;
@@ -223,6 +227,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             size_t j = st_cm.size() + q;
             if (j >= (size_t)c.sq && st_cm[j - c.sq] + 2 > d) { res.st_lsq += st_cm[j - c.sq] + 2 - d; d = st_cm[j - c.sq] + 2; }
         }
+        if (has_cti && c.ck1 && last_ck >= d) { res.st_ckpt += last_ck + 1 - d; d = last_ck + 1; }
         if (has_cti && c.ckpt) {
             while (!ckh.empty() && ckh.top() < d) ckh.pop();
             if ((int)ckh.size() >= c.ckpt) {
@@ -231,6 +236,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 while (!ckh.empty() && ckh.top() < d) ckh.pop();
             }
         }
+        if (has_cti) last_ck = d;
         if (first_ds < 0) first_ds = d;
         ds.push_back(d);
         for (size_t k = i; k <= last; k++) disp_i[k] = d;
@@ -305,7 +311,8 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             const Rec& r = t[k];
             if (!is_cti(r)) continue;
             bool tk = r.flags & F_TAKEN;
-            if (c.ckpt) ckh.push(is + c.iss_to_ex);     // a checkpoint until it is resolved
+            if (c.ckpt && (c.ck_jal || r.cls != C_JAL))
+                ckh.push(is + c.iss_to_ex);             // a checkpoint until it is resolved
             uint64_t next = k + 1 < n ? t[k + 1].pc : r.pc + r.size;
             uint64_t ras_top = ras_n ? ras[(ras_n - 1) % ras.size()] : 0;
             // the main prediction (F2)

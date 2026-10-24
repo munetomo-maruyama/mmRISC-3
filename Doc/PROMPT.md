@@ -546,3 +546,61 @@ This runs only the five register-file configurations, which take place and route
 ```text
 I will run synth_ooo.bat prf myself. Meanwhile, please go ahead with the RTL changes of section 8 of OOC_J.md (rewriting the ALU and narrowing its second stage, the limits in OOO_FUSE, and the 16-entry parallel uBTB).
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The RTL changes of section 8 of OOC_J.md (the ALU, the fusion limits, the uBTB) are done. All six unit tests PASS and all 34 injected bugs are detected. The `synth_ooo.bat prf` results also came in during the work, so I decided the number of write ports too. Pushed to dev as `d1af292`.
+
+**RTL changes**
+
+- **ALU**: one adder and one shifter, shared between operations, and the second stage narrowed to the operations CoreMark puts there. The only shift in a second stage is srliw, so sll and sra are out too. In Yosys, one port goes from 8.2k to about 4.6k.
+- **Fusion**: three limits added. On the CoreMark stream the number of pairs equals the model's exactly (276,058 / 276,058 at `-O2`), and the second-stage flag loses no pair.
+  - whether the operation can be a second stage (`alu2ok`)
+  - at most 2 sources
+  - at most 1 write
+- **uBTB**: 16 entries, 12-bit partial tags, the hit chosen in parallel. In Yosys, 5,041 → about 2.3k LUTs, and 2,635 → 970 FFs.
+
+**Register file: 3 write ports decided**
+
+| Writes / reads | Physical LUTs | Register-to-register slack |
+|---|---|---|
+| **3 / 6** | **4,942** | +2.70 ns |
+| 5 / 6 | 8,350 | +2.21 ns |
+
+- Every configuration closes at 50 MHz.
+- The difference from 5 ports is 3.4k LUTs, about a fifth of the out-of-order budget. Performance is −4.7% / −8.2% (6.59 / 6.84), but 3 ports still exceed the goals.
+- 5 ports became the first thing to buy back if G0 finds room in the budget.
+- With one write per pair, 64 physical registers are enough. The issue queue and renaming also need only 2 sources and 1 destination per µop, so they can shrink further.
+
+**A correction to how sizes were read**
+
+The "LUT" of the earlier `summary.txt` was the number of LUT cells and did not include LUT RAM. Counted again in physical LUTs, as the budget is, the measured blocks total 31.4k + the register file. From now on `synth_ooo.tcl` also gives physical LUTs.
+
+**The next Vivado runs** (OOC_J.md 8.4)
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_ALU2
+synth_ooo.bat OOO_UBTB
+synth_ooo.bat OOC_FUSE
+synth_ooo.bat OOC_PRF 20.0 1 "NREG=64 NW=3 NR=6"
+```
+
+They should settle three things:
+
+- whether the two-stage chain closes at 50 MHz with the rewritten ALU
+- whether the uBTB closes in one cycle
+- the size of the 64-register file
+
+**Noticed along the way**
+
+- **Batch file**: I edited `synth_ooo.bat` once during the work, but rewriting a batch file while it runs can make it misbehave, so I put it back at once. The PRF runs finished normally at 21:35. The change that keeps a separate log for a single run went in again afterwards.
+- **Prompt log**: answer 15 was missing. The hook had taken the summary of a context compaction for the prompt; I fixed the hook and filled the answer in. My previous two answers were in English, so the Japanese versions were translated and put in. From now on I answer in Japanese.
+<!-- /answer -->
+
+## 18. 2026-10-24 21:58:40 JST
+
+```text
+I will run the Vivado runs of 8.4 (OOC_ALU2, OOO_UBTB, OOC_FUSE, the 64-register OOC_PRF). Meanwhile, please go ahead with rebuilding the issue queue and renaming of section 9 of OOC_J.md (2 sources and 1 destination per µop, 64 physical registers).
+```

@@ -81,10 +81,11 @@ module OOC_FUSE
         input  logic [3:0][4:0]  rd, rs1, rs2,
         input  logic [3:0][11:0] imm,
         input  logic [3:0][1:0]  msize,
+        input  logic [3:0]       alu2ok,
         output logic [15:0]      out
     );
     logic             nf;
-    logic [3:0]       va, sq, u1, u2;
+    logic [3:0]       va, sq, u1, u2, ok2;
     logic [3:0][2:0]  cl, opq;
     logic [3:0][4:0]  d, a, b;
     logic [3:0][11:0] im;
@@ -95,12 +96,12 @@ module OOC_FUSE
     logic [2:0]       cn;
     always_ff @(posedge clk) begin
         nf <= no_fuse; va <= valid; sq <= seq; u1 <= use_rs1; u2 <= use_rs2;
-        cl <= cls; opq <= op; d <= rd; a <= rs1; b <= rs2; im <= imm; ms <= msize;
+        cl <= cls; opq <= op; d <= rd; a <= rs1; b <= rs2; im <= imm; ms <= msize; ok2 <= alu2ok;
         out <= {v0, s0, k0, v1, s1, k1, cn[1:0]};
     end
     OOO_FUSE u_fuse
         (.no_fuse(nf), .valid(va), .seq(sq), .cls(cl), .op(opq), .rd(d), .rs1(a), .rs2(b),
-         .use_rs1(u1), .use_rs2(u2), .imm(im), .msize(ms),
+         .use_rs1(u1), .use_rs2(u2), .imm(im), .msize(ms), .alu2ok(ok2),
          .u0_valid(v0), .u0_slot(s0), .u0_kind(k0), .u1_valid(v1), .u1_slot(s1), .u1_kind(k1),
          .consumed(cn));
 endmodule : OOC_FUSE
@@ -136,41 +137,39 @@ module OOC_RENAME
         input  logic              clk,
         input  logic              rst_n,
         input  logic [1:0]        in_valid,
-        input  logic [1:0][2:0]   in_use,
-        input  logic [1:0][2:0][4:0] in_src,
-        input  logic [1:0][1:0]   in_wr,
-        input  logic [1:0][1:0][4:0] in_dst,
+        input  logic [1:0][1:0]   in_use,
+        input  logic [1:0][1:0][4:0] in_src,
+        input  logic [1:0]        in_wr,
+        input  logic [1:0][4:0]   in_dst,
         input  logic [1:0]        in_ckpt,
-        input  logic [4:0]        wb_valid,
-        input  logic [4:0][6:0]   wb_tag,
-        input  logic [3:0]        free_valid,
-        input  logic [3:0][6:0]   free_tag,
+        input  logic [2:0]        wb_valid,
+        input  logic [2:0][5:0]   wb_tag,
+        input  logic [1:0]        free_valid,
+        input  logic [1:0][5:0]   free_tag,
         input  logic              restore,
         input  logic [2:0]        restore_id,
-        output logic [126:0]      out
+        output logic [58:0]       out
     );
-    logic [1:0]        iv, ick;
-    logic [1:0][2:0]   iu;
-    logic [1:0][2:0][4:0] is;
-    logic [1:0][1:0]   iw;
-    logic [1:0][1:0][4:0] id;
-    logic [4:0]        wv;
-    logic [4:0][6:0]   wt;
-    logic [3:0]        fv;
-    logic [3:0][6:0]   ft;
+    logic [1:0]        iv, ick, iw, fv;
+    logic [1:0][1:0]   iu;
+    logic [1:0][1:0][4:0] is;
+    logic [1:0][4:0]   id;
+    logic [2:0]        wv;
+    logic [2:0][5:0]   wt;
+    logic [1:0][5:0]   ft;
     logic              rs;
     logic [2:0]        rid;
     logic              rdy;
     logic [1:0][2:0]   ckid;
-    logic [1:0][2:0][6:0] os;
-    logic [1:0][2:0]   ordy;
-    logic [1:0][1:0][6:0] od, oo;
+    logic [1:0][1:0][5:0] os;
+    logic [1:0][1:0]   ordy;
+    logic [1:0][5:0]   od, oo;
     always_ff @(posedge clk) begin
         iv <= in_valid; iu <= in_use; is <= in_src; iw <= in_wr; id <= in_dst; ick <= in_ckpt;
         wv <= wb_valid; wt <= wb_tag; fv <= free_valid; ft <= free_tag; rs <= restore; rid <= restore_id;
-        out <= {rdy, ckid, os, ordy, od, oo, 16'd0};
+        out <= {rdy, ckid, os, ordy, od, oo};
     end
-    OOO_RENAME #(.NREG(96), .TAGW(7), .NCKPT(8), .NWB(5)) u_ren
+    OOO_RENAME #(.NREG(64), .TAGW(6), .NCKPT(8), .NWB(3)) u_ren
         (.clk(clk), .rst_n(rst_n), .ready(rdy), .in_valid(iv), .in_use(iu), .in_src(is),
          .in_wr(iw), .in_dst(id), .in_ckpt(ick), .out_ckpt_id(ckid), .out_src(os), .out_rdy(ordy),
          .out_dst(od), .out_old(oo), .wb_valid(wv), .wb_tag(wt), .free_valid(fv), .free_tag(ft),
