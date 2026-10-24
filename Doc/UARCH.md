@@ -317,7 +317,7 @@ Block RAM and DSP are not the limit: 26.5 tiles are free, TAGE-S and the BTB nee
 
 | Step | Work | Who |
 |---|---|---|
-| 1 | The lock-step framework (Spike at commit, commit-trace port) | Claude Code |
+| 1 | The lock-step framework (Spike at commit, commit-trace port) | Claude Code. **Done 2026-10-25: `SIM/LOCKSTEP`** (175 riscv-tests and CoreMark; all 3,520 injected mismatches caught) |
 | 2 | RTL of the front end, decode, ROB, LSU (with their unit tests and bug injection), each out of context in Vivado | Claude Code, Vivado by the author |
 | 2' | FPU breakdown (C1), in parallel | The author's Vivado |
 | 2'' | The model gets the operation class per instruction, for L7 (asymmetric ALUs) | Claude Code |

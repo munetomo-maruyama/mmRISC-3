@@ -1,7 +1,8 @@
 //---------------------------------------------------------------------------
 // selftest.cc : the lock-step checker (lockstep.h) tested without a core
 //
-//   selftest [-isa <isa>] [-n <mutations per file>] <elf> ...
+//   selftest [-isa <isa>] [-n <mutations per file>] [-v] <elf> ...
+//   (-v: print what each program printed through HTIF)
 //
 // A second reference instance stands in for the DUT and produces the commit
 // stream of a correct core. For every ELF file:
@@ -88,11 +89,13 @@ int main(int argc, char** argv)
 {
     LockstepCfg base;
     int nmut = 40;
+    bool verbose = false;
     std::vector<std::string> elfs;
     for (int i = 1; i < argc; i++) {
         std::string a = argv[i];
         if (a == "-isa" && i + 1 < argc) base.isa = argv[++i];
         else if (a == "-n" && i + 1 < argc) nmut = atoi(argv[++i]);
+        else if (a == "-v") verbose = true;
         else elfs.push_back(a);
     }
     std::mt19937_64 rng(2026);
@@ -146,6 +149,7 @@ int main(int argc, char** argv)
         printf("%-28s %9zu insns  exit %d  clean %s  fused %s (%ld pairs)  mutations %d/%d caught%s\n",
                name.c_str(), v.size(), code, clean ? "PASS" : "FAIL", atf < 0 ? "PASS" : "FAIL", npair,
                caught, nmut, ok ? "" : "  <-- FAIL");
+        if (verbose && !out.empty()) printf("%s", out.c_str());
         if (at >= 0) printf("    clean run: mismatch at commit %ld: %s\n", at, why.c_str());
         if (code != 0) {
             nonzero.push_back(name + " (" + std::to_string(code) + ")");

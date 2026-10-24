@@ -59,6 +59,8 @@ si from mmRISC-2's build, and the two g14 CoreMark builds of `Plan/trace`.
 
 The results are in `results/selftest.txt`.
 
-**Open (2026-10-25)**: the two CoreMark builds pass the comparison (no mismatch, all mutations caught), but on this
-reference CoreMark prints only "2" and exits with 37, so `run_selftest.sh` still reports them. To be investigated
-(probably a CSR or device the bare reference lacks, compared with the `spike` run of `Plan/trace`).
+**CoreMark (resolved 2026-10-25)**: the exit code 37 was the checker's HTIF, not CoreMark: a character write
+(device 1, command 1) with an odd character code was taken for an exit, because bit 0 was tested before the device.
+The device is checked first now. On the reference both builds run to the end with exit code 0 and print what the
+`spike` runs of `Plan/icount` print (crcfinal 0xfcaf; "Errors detected" only because a 10-iteration run is shorter
+than CoreMark's 10 seconds).

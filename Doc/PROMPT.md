@@ -778,3 +778,32 @@ I want to keep Zbc of L2. As a principle I want to keep the instruction set. Eve
 ```text
 The PC was behaving strangely, so I rebooted it. Please continue the work.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I resumed the work after the reboot. But **the usage limit was reached, so I stop here**.
+
+**Done**
+
+- **The G0 decisions recorded**: Zbc stays, and as a principle the instruction set is kept. Everything else is as recommended, and G0 passed with a condition (commit `634b9c4`).
+- **Step 1 of Phase 1: lock-step comparison (`SIM/LOCKSTEP`)**. Pushed as commit `87cbbc6`.
+  - Every instruction the core commits is compared with Spike, one at a time. Spike is used as a library, set to the instruction set and PMP of mmRISC-2.
+  - Compared: PC, instruction, the register written and its value, stores, traps and their cause
+  - The first half of a fused pair whose result is not written is compared by its PC and instruction only.
+  - Self-test: with a second Spike standing in for the core, on 175 riscv-tests. No mismatch, and all 3,500 deliberately injected errors were caught at the very place they were injected. Only ma_data and amocas end with a nonzero exit code, as expected in mmRISC-2 too.
+- Prompt log: a note on entry 23, cut off by the reboot, and the English of entry 24.
+
+**Left**
+
+- **CoreMark, open**: the two CoreMark builds pass the comparison. But on this reference CoreMark prints only "2" and exits with 37, and the cause is not known yet. I think a CSR or device missing from the reference is the cause. It is recorded as open in the README.
+- After that, step 2 of Phase 1: the RTL and Vivado measurements of the front end, decode, ROB and LSU. In parallel I ask the author for the Vivado run of the FPU breakdown (C1).
+
+Also: the `find /` (a search of the whole file system) I ran in the previous turn reached into the shared folder and may have caused the PC's trouble. From now on I search in named places only, and recorded that in memory.
+<!-- /answer -->
+
+## 25. 2026-10-25 02:01:28 JST
+
+```text
+I was reset, so please continue.
+```

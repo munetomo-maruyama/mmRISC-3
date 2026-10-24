@@ -163,14 +163,18 @@ struct Lockstep::Impl {
         uint32_t w; std::memcpy(&w, m, 4); return w;
     }
 
-    // HTIF on a store to tohost: answered at once
+    // HTIF on a store to tohost: answered at once. Device 0 command 0 with
+    // bit 0 set is the exit (code in the payload above bit 0), device 1
+    // command 1 a character; the device must be checked first, since a
+    // character's payload can have bit 0 set too
     void htif()
     {
         uint64_t* t = (uint64_t*)mem->addr_to_mem(tohost);
         if (!t || !*t) return;
         uint64_t v = *t;
-        if (v & 1) { exited = true; code = (int)(v >> 1); }
-        else if ((v >> 48) == 0x0101) out += (char)(v & 0xff);
+        unsigned dev = (unsigned)(v >> 56), cmd = (unsigned)(v >> 48) & 0xff;
+        if (dev == 0 && cmd == 0 && (v & 1)) { exited = true; code = (int)((v << 16) >> 17); }   // exit
+        else if (dev == 1 && cmd == 1) out += (char)(v & 0xff);                                // a character
         *t = 0;
     }
 

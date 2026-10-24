@@ -175,9 +175,7 @@ rv64uzicond-p-czero_eqz            464 insns  exit 0  clean PASS  fused PASS (12
 rv64uzicond-p-czero_nez            463 insns  exit 0  clean PASS  fused PASS (10 pairs)  mutations 20/20 caught
 programs with a nonzero exit code: rv64ua-p-amocas_d (669) rv64ua-p-amocas_q (2) rv64ua-p-amocas_w (669) rv64ui-p-ma_data (668)
 lockstep selftest: 175 files, 3500 of 3500 mutations caught, 0 failures: PASS
-g14-o2-zbsc.elf                3133237 insns  exit 37  clean PASS  fused PASS (122983 pairs)  mutations 10/10 caught
-    output: 2
-g14-sflto-zbsc.elf             2821286 insns  exit 37  clean PASS  fused PASS (28907 pairs)  mutations 10/10 caught
-    output: 2
-programs with a nonzero exit code: g14-o2-zbsc.elf (37) g14-sflto-zbsc.elf (37)
+g14-o2-zbsc.elf                3146593 insns  exit 0  clean PASS  fused PASS (123373 pairs)  mutations 10/10 caught
+g14-sflto-zbsc.elf             2837136 insns  exit 0  clean PASS  fused PASS (29276 pairs)  mutations 10/10 caught
+programs with a nonzero exit code: none
 lockstep selftest: 2 files, 20 of 20 mutations caught, 0 failures: PASS

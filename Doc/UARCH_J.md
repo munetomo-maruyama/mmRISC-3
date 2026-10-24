@@ -275,7 +275,7 @@ L1 / L2キャッシュ(D$はアダプタつき)、MMU(TLB、PTW、PMP)、CSR、�
 
 | 手順 | 作業 | 担当 |
 |---|---|---|
-| 1 | ロックステップの仕組み(コミットでのSpikeとの比較、コミットトレースのポート) | Claude Code |
+| 1 | ロックステップの仕組み(コミットでのSpikeとの比較、コミットトレースのポート) | Claude Code。**2026-10-25に完了: `SIM/LOCKSTEP`**(riscv-tests 175本とCoreMark。わざと入れた不一致3,520件をすべて検出) |
 | 2 | フロントエンド、デコード、ROB、LSUのRTL(単体テストとバグ注入つき)。それぞれVivadoで単体合成 | Claude Code、Vivadoは作者 |
 | 2' | FPUの内訳(C1)、並行して | 作者のVivado |
 | 2'' | モデルに命令ごとの操作の種類を持たせる(L7の非対称ALUのため) | Claude Code |
