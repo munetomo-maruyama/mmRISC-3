@@ -756,3 +756,21 @@ G0の仕様書を [Doc/UARCH_J.md](../Doc/UARCH_J.md)(英語版は [Doc/UARCH.md
 ```text
 L2のZbcは残したい。原則として命令セットは維持したい。それ以外は推奨通りで進めよう。
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+(このターンは、作業の途中でPCがリブートされたため、まとめの回答がない。決定はUARCH 9章などに記録してcommit `634b9c4`でpushし、Phase 1の手順1(ロックステップの仕組み)に入ったところだった。作業は次の24番で続けた)
+<!-- /answer -->
+
+## 24. 2026-10-25 00:07:41 JST
+
+```text
+PCの挙動がおかしいのでリブートした。作業を継続してほしい。
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+The self-test is still running; I'll continue when it finishes.
+<!-- /answer -->

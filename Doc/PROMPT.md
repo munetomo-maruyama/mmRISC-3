@@ -766,3 +766,15 @@ The model runs are reproduced by `Plan/model/g0.sh` (results in `results/g0.txt`
 ```text
 I want to keep Zbc of L2. As a principle I want to keep the instruction set. Everything else, let's go as recommended.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+(No summarizing answer in this turn: the PC was rebooted in the middle of the work. The decisions had been recorded in UARCH section 9 and elsewhere and pushed in commit `634b9c4`, and step 1 of Phase 1 (the lock-step framework) had just begun. The work continued in entry 24.)
+<!-- /answer -->
+
+## 24. 2026-10-25 00:07:41 JST
+
+```text
+The PC was behaving strangely, so I rebooted it. Please continue the work.
+```
