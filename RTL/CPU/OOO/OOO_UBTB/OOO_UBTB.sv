@@ -4,7 +4,10 @@
 // The next-line predictor of mmRISC-3 (F0, STRATEGY.md 4): it gives the
 // fetch address of the next cycle from the one of this cycle, a 1-cycle
 // loop. NE entries, fully associative, one control transfer each:
-//   block   the 16-byte block of the transfer (address / 16)
+//   tag     a partial tag of the 16-byte block of the transfer: the block
+//           address (address / 16) folded to TW bits (its low TW bits XOR
+//           the next TW). Two blocks may share a tag; the prediction is
+//           checked at F2 anyway, so an alias costs an override only
 //   off     its parcel in the block (0 .. 7, the parcel of its last half,
 //           which is where fetch must stop)
 //   target, cnt (2 bits, a conditional branch is taken from 2 up), ret (the
@@ -15,19 +18,25 @@
 // block that is predicted taken decides: next = its target, else the next
 // block. A redirect (the override of F2, or the back end) wins over the
 // prediction. The table is written by upd_* (after the F2 predictors or at
-// resolution), replacing round robin when the transfer has no entry.
+// resolution), replacing round robin when the transfer has no entry, so no
+// two entries have the same tag and parcel.
 //
-// The model (Plan/MODEL.md 6) found the uBTB worth little in CoreMark with
-// a decoupled front end (no uBTB: -0.9 %); the loop is kept small so that it
-// closes at 50 MHz, or can be left out.
+// The choice is parallel (Plan/OOC.md 7.6: written as a loop over the
+// entries, each comparing its parcel with the best so far, it became 32
+// comparisons in series, 65 logic levels): for each of the 8 parcels the OR
+// of the entries that hit there, the first parcel by an 8-bit priority, and
+// the target read by an AND-OR of the one entry that hit at that parcel.
+// 16 entries (Plan/OOC.md 7.6: -0.2 % / -0.1 % against 32 with fusion; none
+// would be -4.8 % / -2.1 %).
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
 
 module OOO_UBTB
     #(
-        parameter int NE = 32,
-        parameter int VA = 39          // Sv39
+        parameter int NE = 16,
+        parameter int VA = 39,         // Sv39
+        parameter int TW = 12          // partial tag
     )
     (
         input  logic          clk,
@@ -53,10 +62,19 @@ module OOO_UBTB
     localparam int BW = VA - 4;               // block address bits
     localparam int EW = $clog2(NE);
 
+    // (the parcel bits and the block bits above 2 TW are not in the tag)
+    /* verilator lint_off UNUSEDSIGNAL */
+    function automatic logic [TW-1:0] tag_of(input logic [VA-1:1] a);
+        logic [BW-1:0] b;
+        b = a[VA-1:4];
+        return b[TW-1:0] ^ b[2*TW-1:TW];
+    endfunction
+    /* verilator lint_on UNUSEDSIGNAL */
+
     // arrays (not packed vectors) where an entry is chosen at run time
     logic [NE-1:0]          v;
     logic [NE-1:0]          cond, ret;
-    logic [BW-1:0]          blk [NE];
+    logic [TW-1:0]          tag [NE];
     logic [2:0]             off [NE];
     logic [VA-1:1]          tgt [NE];
     logic [1:0]             cnt [NE];
@@ -66,21 +84,30 @@ module OOO_UBTB
     assign fetch_pc = pc_q;
 
     // prediction
-    logic [VA-1:1] next_pc;
+    logic [TW-1:0] ptag;
+    logic [NE-1:0] hit, sel;
+    logic [7:0]    at, first;           // a hit at parcel o; the first of them, one-hot
+    logic [VA-1:1] next_pc, t_sel;
     always @(*) begin
-        logic [NE-1:0] hit;
-        logic [3:0]    best;            // 8: none
-        logic [EW-1:0] bi;
+        ptag = tag_of(pc_q);
         for (int e = 0; e < NE; e++)
-            hit[e] = v[e] && blk[e] == pc_q[VA-1:4] && off[e] >= pc_q[3:1]
-                     && (!cond[e] || cnt[e][1]);
-        best = 4'd8; bi = '0;
+            hit[e] = v[e] && tag[e] == ptag && off[e] >= pc_q[3:1] && (!cond[e] || cnt[e][1]);
+        at = 8'd0;
         for (int e = 0; e < NE; e++)
-            if (hit[e] && {1'b0, off[e]} < best) begin best = {1'b0, off[e]}; bi = EW'(e); end
-        pred_taken = !best[3];
-        pred_off   = best[3] ? 3'd7 : best[2:0];
-        if (pred_taken) next_pc = ret[bi] ? ras_top : tgt[bi];
-        else            next_pc = {pc_q[VA-1:4] + BW'(1), 3'd0};
+            at = at | ({7'd0, hit[e]} << off[e]);
+        first = at & (~at + 8'd1);      // the lowest bit that is set
+        for (int e = 0; e < NE; e++)
+            sel[e] = hit[e] && first[off[e]];
+        // the target of the entry chosen, or the stack for a return (chosen
+        // after the AND-OR, not in every entry)
+        t_sel = '0;
+        for (int e = 0; e < NE; e++)
+            t_sel = t_sel | ({(VA-1){sel[e]}} & tgt[e]);
+        if ((sel & ret) != '0) t_sel = ras_top;
+        pred_taken = at != 8'd0;
+        pred_off   = 3'd7;
+        for (int o = 7; o >= 0; o--) if (first[o]) pred_off = 3'(o);
+        next_pc = pred_taken ? t_sel : {pc_q[VA-1:4] + BW'(1), 3'd0};
     end
 
     always_ff @(posedge clk or negedge rst_n) begin
@@ -89,33 +116,44 @@ module OOO_UBTB
         else if (!stall)   pc_q <= next_pc;
     end
 
-    // update
+    // update: the entry of the transfer (at most one), else a new one
+    logic [TW-1:0] utag;
+    logic [NE-1:0] match;
+    logic          found;
+    always @(*) begin
+        utag = tag_of(upd_pc);
+        for (int e = 0; e < NE; e++)
+            match[e] = v[e] && tag[e] == utag && off[e] == upd_pc[3:1];
+        found = match != '0;
+    end
+
     always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            v  <= '0;
-            rr <= '0;
-        end else if (upd_valid) begin
-            logic          found;
-            logic [EW-1:0] fe;
-            found = 1'b0; fe = '0;
-            for (int e = 0; e < NE; e++)
-                if (v[e] && blk[e] == upd_pc[VA-1:4] && off[e] == upd_pc[3:1]) begin found = 1'b1; fe = EW'(e); end
-            if (found) begin
+        if (!rst_n)                                rr <= '0;
+        else if (upd_valid && !found && upd_taken) rr <= rr + EW'(1);
+    end
+
+    for (genvar e = 0; e < NE; e++) begin : g_ent
+        logic fill;
+        assign fill = upd_valid && !found && upd_taken && rr == EW'(e);
+        always_ff @(posedge clk or negedge rst_n) begin
+            if (!rst_n) v[e] <= 1'b0;
+            else if (fill) v[e] <= 1'b1;
+        end
+        always_ff @(posedge clk) begin
+            if (fill) begin
+                tag[e]  <= utag;
+                off[e]  <= upd_pc[3:1];
+                tgt[e]  <= upd_target;
+                cnt[e]  <= 2'd2;
+                cond[e] <= upd_cond;
+                ret[e]  <= upd_ret;
+            end else if (upd_valid && match[e]) begin
                 if (upd_taken) begin
-                    tgt[fe] <= upd_target;
-                    if (cnt[fe] != 2'd3) cnt[fe] <= cnt[fe] + 2'd1;
-                end else if (cnt[fe] != 2'd0) begin
-                    cnt[fe] <= cnt[fe] - 2'd1;
+                    tgt[e] <= upd_target;
+                    if (cnt[e] != 2'd3) cnt[e] <= cnt[e] + 2'd1;
+                end else if (cnt[e] != 2'd0) begin
+                    cnt[e] <= cnt[e] - 2'd1;
                 end
-            end else if (upd_taken) begin
-                v[rr]    <= 1'b1;
-                blk[rr]  <= upd_pc[VA-1:4];
-                off[rr]  <= upd_pc[3:1];
-                tgt[rr]  <= upd_target;
-                cnt[rr]  <= 2'd2;
-                cond[rr] <= upd_cond;
-                ret[rr]  <= upd_ret;
-                rr       <= rr + EW'(1);
             end
         end
     end

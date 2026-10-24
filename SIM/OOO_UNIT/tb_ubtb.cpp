@@ -1,8 +1,11 @@
 //---------------------------------------------------------------------------
-// tb_ubtb.cpp : OOO_UBTB (32 entries) against a reference table
+// tb_ubtb.cpp : OOO_UBTB (16 entries, 12-bit partial tags) against a
+// reference table
 //
 // Addresses come from a small region so that blocks hold several entries
-// and the fetch address often starts in the middle of a block. Every cycle,
+// and the fetch address often starts in the middle of a block; a quarter of
+// them are moved to a block with the same partial tag, so that aliases meet
+// in the table. Every cycle,
 // at random: an update (taken or not, conditional or not, a return), a
 // redirect, a stall. The fetch address of every cycle and the prediction
 // (taken, the parcel the block ends at) are compared with the reference:
@@ -17,20 +20,25 @@
 #include <random>
 #include <vector>
 
-struct E { bool v = false; uint64_t blk = 0; int off = 0; uint64_t tgt = 0; int cnt = 0; bool cond = false, ret = false; };
+struct E { bool v = false; uint64_t tag = 0; int off = 0; uint64_t tgt = 0; int cnt = 0; bool cond = false, ret = false; };
 
 int main(int argc, char** argv)
 {
     Verilated::commandArgs(argc, argv);
     VOOO_UBTB d;
     std::mt19937_64 rng(9);
-    const int NE = 32;
+    const int NE = 16;
+    // the partial tag: the block address (half words / 8) folded to 12 bits
+    auto tagof = [](uint64_t pc) { uint64_t b = pc >> 3; return (b ^ (b >> 12)) & 0xfff; };
     std::vector<E> T(NE);
     int rr = 0;
     uint64_t pc = 0;          // in half words (address / 2)
     d.clk = 0; d.rst_n = 1; d.redirect = 0; d.upd_valid = 0; d.stall = 0; d.eval();
     d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
-    auto rpc = [&]() { return (uint64_t)(0x40000000ull / 2 + (rng() % 256)); };   // a 512-byte region
+    auto rpc = [&]() {        // a 512-byte region, or the blocks that alias with it
+        uint64_t a = 0x40000000ull / 2 + (rng() % 256);
+        return rng() % 4 == 0 ? a ^ (0x1001ull << 3) : a;
+    };
     long bad = 0, n = 0, taken = 0;
     for (long cyc = 0; cyc < 500000; cyc++) {
         uint64_t ras = rpc();
@@ -41,10 +49,10 @@ int main(int argc, char** argv)
         d.upd_valid = upd; d.upd_pc = upc; d.upd_taken = utk; d.upd_target = utgt; d.upd_cond = ucond; d.upd_ret = uret;
         d.eval();
         // the reference prediction for this cycle's fetch address
-        uint64_t blk = pc >> 3; int start = (int)(pc & 7);
+        uint64_t blk = pc >> 3, tg = tagof(pc); int start = (int)(pc & 7);
         int best = 8, bi = -1;
         for (int e = 0; e < NE; e++)
-            if (T[e].v && T[e].blk == blk && T[e].off >= start && (!T[e].cond || T[e].cnt >= 2) && T[e].off < best) {
+            if (T[e].v && T[e].tag == tg && T[e].off >= start && (!T[e].cond || T[e].cnt >= 2) && T[e].off < best) {
                 best = T[e].off; bi = e;
             }
         bool pt = bi >= 0;
@@ -60,12 +68,12 @@ int main(int argc, char** argv)
         if (redirect) pc = rpcv; else if (!stall) pc = next;
         if (upd) {
             int f = -1;
-            for (int e = 0; e < NE; e++) if (T[e].v && T[e].blk == (upc >> 3) && T[e].off == (int)(upc & 7)) f = e;
+            for (int e = 0; e < NE; e++) if (T[e].v && T[e].tag == tagof(upc) && T[e].off == (int)(upc & 7)) f = e;
             if (f >= 0) {
                 if (utk) { T[f].tgt = utgt; if (T[f].cnt < 3) T[f].cnt++; }
                 else if (T[f].cnt > 0) T[f].cnt--;
             } else if (utk) {
-                T[rr] = E{true, upc >> 3, (int)(upc & 7), utgt, 2, (bool)ucond, (bool)uret};
+                T[rr] = E{true, tagof(upc), (int)(upc & 7), utgt, 2, (bool)ucond, (bool)uret};
                 rr = (rr + 1) % NE;
             }
         }

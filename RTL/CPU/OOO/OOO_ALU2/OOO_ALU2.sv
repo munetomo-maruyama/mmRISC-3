@@ -2,15 +2,17 @@
 // OOO_ALU2.sv
 //
 // The ALU of one issue port of mmRISC-3 in the fusion configuration
-// (STRATEGY.md 4): two full ALUs in series, so that a fused pair finishes
-// in one cycle (Plan/MODEL.md 6, `chain` = 1). Combinational; the operands
+// (STRATEGY.md 4): a full ALU and a narrowed one in series, so that a fused
+// pair finishes in one cycle (Plan/MODEL.md 6, `chain` = 1). Combinational; the operands
 // come from the register file or the bypass, chosen in front of it.
 //
 //   first  : res1 = op1(a1, b1)    a1 = s1 / pc / 0, b1 = s2 / imm1
 //   second : res2 = op2(a2, b2)    a2 = res1 / s3, b2 = res1 / s3 / imm2
-//            (only for a fused ALU + ALU; the trace analysis shows the second
-//            halves are add, and, xor, or, sh*add.uw, bexti, zext.h, sext.h
-//            and so on, so the second ALU is a full one too)
+//            (only for a fused ALU + ALU). A narrowed ALU (OOO_ALU FULL = 0):
+//            the second halves CoreMark has are add, and, xor, or, sh*add.uw,
+//            bexti, zext.h, sext.h, czero.eqz, srliw and so on, never a
+//            comparison, min / max, a count or a rotate (Plan/OOC.md 7.2);
+//            the full second stage was the path that missed 50 MHz
 //   branch : the comparison of a branch. Alone: s1 against s2. Fused after
 //            an ALU operation (ALU + branch): one side is res1, the other s3
 //            (x0 reads as zero, so beqz / bnez are s3 = 0).
@@ -81,12 +83,17 @@ module OOO_ALU2
         endcase
     end
 
-    OOO_ALU u_alu2
+    OOO_ALU #(.FULL(1'b0)) u_alu2
         (.op_a(a2), .op_b(b2), .alu_op(op2), .a_uw(uw2), .a_shift(shift2), .word_op(word2),
          .result(res2));
 
-    // the comparison: alone s1 / s2, fused res1 / s3 in either order
-    logic eq, lt, ltu;
+    // the comparison: alone s1 / s2, fused res1 / s3 in either order; one
+    // subtraction gives both orders of "less than" (its carry is ca >= cb
+    // unsigned, the signs turn that into the signed one)
+    logic        eq, lt, ltu;
+    /* verilator lint_off UNUSEDSIGNAL */
+    logic [64:0] diff;            // only its carry is used
+    /* verilator lint_on UNUSEDSIGNAL */
     always @(*) begin
         if (br_fused) begin
             ca = br_res1_a ? res1 : s3;
@@ -95,10 +102,11 @@ module OOO_ALU2
             ca = s1;
             cb = s2;
         end
+        diff = {1'b0, ca} + {1'b0, ~cb} + 65'd1;
+        ltu  = !diff[64];
+        lt   = ltu ^ ca[63] ^ cb[63];
+        eq   = (ca == cb);
     end
-    assign eq  = (ca == cb);
-    assign lt  = ($signed(ca) < $signed(cb));
-    assign ltu = (ca < cb);
 
     always @(*) begin
         case (br_op)

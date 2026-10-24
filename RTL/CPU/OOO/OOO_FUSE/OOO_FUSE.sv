@@ -15,8 +15,22 @@
 //                              the first does not overwrite the base
 //            store + store     same base and size, offsets one access apart
 //   level 2  ALU + branch      the branch reads the ALU's rd
-//   level 3  ALU + ALU         the second reads the first's rd
-// The first's rd is never x0 for the pairs that pass a value on. The model
+//   level 3  ALU + ALU         the second reads the first's rd, and its
+//                              operation is one of the narrowed second stage
+//                              of OOO_ALU2 (alu2ok, from the decoder)
+// The first's rd is never x0 for the pairs that pass a value on.
+//
+// SRC2 (Plan/OOC.md 7.4): a pair reads at most 2 registers from outside,
+// so that a µop needs no more than 2 register-file reads (6 ports for the
+// 2 ALU ports and the LSU instead of 8 to 9). Counted as fuse_2src of
+// Plan/model/ooo.h: the distinct registers the two read, without x0 and
+// without the second's reads of the first's rd. It applies to every kind
+// (a store pair with two data registers and a base is 3).
+//
+// W1 (Plan/OOC.md 7.4): a pair writes at most one register (both halves
+// write none, one, or the same register), so that a µop needs one
+// register-file write (3 write ports) and renaming one destination. As
+// fuse_1w of Plan/model/ooo.h; a load pair (two destinations) is not fused. The model
 // pairs loads and stores by their dynamic addresses (within 8 bytes); here
 // it can only be the offsets, which is what Plan/OOC.md measures.
 //
@@ -33,7 +47,9 @@
 
 module OOO_FUSE
     #(
-        parameter int LEVEL = 3
+        parameter int LEVEL = 3,
+        parameter bit SRC2  = 1'b1,
+        parameter bit W1    = 1'b1
     )
     (
         input  logic        no_fuse,
@@ -50,6 +66,7 @@ module OOO_FUSE
         input  logic [3:0]       use_rs2,
         input  logic [3:0][11:0] imm,       // offset of a load / store
         input  logic [3:0][1:0]  msize,     // 0 byte .. 3 double
+        input  logic [3:0]       alu2ok,    // can be the second of ALU + ALU (OOO_ALU FULL = 0)
 
         output logic             u0_valid,
         output logic [1:0]       u0_slot,   // first instruction of the µop
@@ -67,7 +84,28 @@ module OOO_FUSE
                            K_ALU_LD = 4'd4, K_LD_LD = 4'd5, K_ST_ST = 4'd6,
                            K_ALU_BR = 4'd7, K_ALU_ALU = 4'd8;
 
-    // the kind of pair slot k + slot k+1 would make (k = 0 .. 2)
+    // more than 2 registers read from outside by slot k + slot k+1
+    function automatic logic over2(input int k);
+        logic [4:0] c [4];
+        logic [3:0] v;
+        logic [2:0] n;
+        c[0] = rs1[k];   v[0] = use_rs1[k]   && rs1[k]   != 5'd0;
+        c[1] = rs2[k];   v[1] = use_rs2[k]   && rs2[k]   != 5'd0;
+        c[2] = rs1[k+1]; v[2] = use_rs1[k+1] && rs1[k+1] != 5'd0 && rs1[k+1] != rd[k];
+        c[3] = rs2[k+1]; v[3] = use_rs2[k+1] && rs2[k+1] != 5'd0 && rs2[k+1] != rd[k];
+        n = 3'd0;
+        for (int i = 0; i < 4; i++) begin
+            logic dup;
+            dup = 1'b0;
+            for (int j = 0; j < i; j++) dup = dup || (v[j] && c[j] == c[i]);
+            n = n + 3'(v[i] && !dup);
+        end
+        return n > 3'd2;
+    endfunction
+
+    // the kind of pair slot k + slot k+1 would make (k = 0 .. 2), by the
+    // rules alone (the source limit is applied where it is called: Yosys
+    // does not take a function called from a function)
     function automatic logic [3:0] pair_kind(input int k);
         logic [4:0]  d;
         logic        rd_b;      // the second reads the first's rd
@@ -93,7 +131,7 @@ module OOO_FUSE
             return K_ST_ST;
         if (LEVEL >= 2 && cls[k] == C_ALU && cls[k+1] == C_BR && rd_b)
             return K_ALU_BR;
-        if (LEVEL >= 3 && cls[k] == C_ALU && cls[k+1] == C_ALU && rd_b)
+        if (LEVEL >= 3 && cls[k] == C_ALU && cls[k+1] == C_ALU && rd_b && alu2ok[k+1])
             return K_ALU_ALU;
         return K_NONE;
     endfunction
@@ -101,7 +139,8 @@ module OOO_FUSE
     logic [2:0][3:0] pk;      // pair kind of k + k+1, when both are there
     always @(*) begin
         for (int k = 0; k < 3; k++)
-            pk[k] = (!no_fuse && valid[k] && valid[k+1] && seq[k+1]) ? pair_kind(k) : K_NONE;
+            pk[k] = (!no_fuse && valid[k] && valid[k+1] && seq[k+1] && !(SRC2 && over2(k)) &&
+                     !(W1 && rd[k] != 5'd0 && rd[k+1] != 5'd0 && rd[k] != rd[k+1])) ? pair_kind(k) : K_NONE;
     end
 
     always @(*) begin

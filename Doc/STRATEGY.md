@@ -152,12 +152,12 @@ What follows:
 
 | Item | Hypothesis (first) | **Fusion configuration (revised 2026-10-24, `Plan/MODEL.md` section 6)** |
 |---|---|---|
-| Fetch | 16 B per cycle, decoupled by an FTQ, zero-bubble next-line predictor (LUTRAM) + BTB (BRAM) + TAGE (BRAM) + RAS | 16 B per cycle, decoupled by a 16-instruction fetch buffer; uBTB 32 (LUTRAM, next PC in F0), TAGE-S (62 kbit) + BTB + 16-entry RAS override in F2 |
-| Decode / rename / commit | 2 µops per cycle (up to 4 instructions with fusion) | **4-wide decode + fusion** (address calculation + load, load / store pairs, lui / auipc, ALU + branch, ALU + ALU); rename, dispatch and commit 2 µops per cycle; a fused pair writes up to 2 registers |
+| Fetch | 16 B per cycle, decoupled by an FTQ, zero-bubble next-line predictor (LUTRAM) + BTB (BRAM) + TAGE (BRAM) + RAS | 16 B per cycle, decoupled by a 16-instruction fetch buffer; uBTB 16 (partial tags, next PC in F0; `Plan/OOC.md` 7.6), TAGE-S (62 kbit) + BTB + 16-entry RAS override in F2 |
+| Decode / rename / commit | 2 µops per cycle (up to 4 instructions with fusion) | **4-wide decode + fusion** (address calculation + load, load / store pairs, lui / auipc, ALU + branch, ALU + ALU); rename, dispatch and commit 2 µops per cycle; a fused pair reads at most 2 registers and writes at most 1 (`Plan/OOC.md` 7.4) |
 | ROB | 48 to 64 entries (payload in LUTRAM / BRAM) | 32 entries |
-| PRF | about 96 integer registers (LUTRAM, banked by write port + LVT) | 96 integer registers (32 + ROB 32 × up to 2 per pair), LUTRAM, banked by write port + LVT |
-| Issue queue | unified 16 to 24, or distributed; 1-cycle wakeup-select | unified 16 entries, 3 sources (fused pairs), 1-cycle wakeup-select, oldest first (age matrix), 3 issues per cycle |
-| Execution units | ALU0 (full + branch), ALU1 (simple + branch), MUL/DIV, LSU (1 load + 1 store), FPU (reduced) | 2 ALU ports, each two stages chained (full → full: a fused ALU + ALU / ALU + branch in one cycle), MUL / DIV sharing ALU0's port, 1 LSU, FPU (pipelined, decision D3) |
+| PRF | about 96 integer registers (LUTRAM, banked by write port + LVT) | 64 integer registers (32 + ROB 32 × 1), LUTRAM, 3 writes / 6 reads, banked by write port + LVT (`Plan/OOC.md` 7.4) |
+| Issue queue | unified 16 to 24, or distributed; 1-cycle wakeup-select | unified 16 entries, 2 sources (fused pairs also at most 2, `Plan/OOC.md` 7.4), 1-cycle wakeup-select, oldest first (age matrix), 3 issues per cycle |
+| Execution units | ALU0 (full + branch), ALU1 (simple + branch), MUL/DIV, LSU (1 load + 1 store), FPU (reduced) | 2 ALU ports, each two stages chained (full → narrowed, `Plan/OOC.md` 8: a fused ALU + ALU / ALU + branch in one cycle), MUL / DIV sharing ALU0's port, 1 LSU, FPU (pipelined, decision D3) |
 | Load-use | 2 cycles (speculative wakeup by hit prediction) | 2 cycles (required; 3 costs −6 %) |
 | Memory | — | conservative memory dependence, LQ / SQ 16, forwarding from the SQ (required), 8 checkpoints |
 | Misprediction penalty | 10 cycles or less | 9 cycles from EX to EX (depth hardly matters) |

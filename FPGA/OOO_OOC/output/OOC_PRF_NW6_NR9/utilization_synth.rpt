@@ -1,0 +1,30 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Sat Oct 24 21:26:08 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_PRF_NW6_NR9/utilization_synth.rpt
+| Design       : OOC_PRF
+| Device       : xc7a100tcsg324-1
+| Speed File   : -1
+| Design State : Synthesized
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++-------------+---------+------------+------------+---------+------+------+--------+--------+------------+
+|   Instance  |  Module | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++-------------+---------+------------+------------+---------+------+------+--------+--------+------------+
+| OOC_PRF     |   (top) |      14273 |       4985 |    9288 |    0 | 1668 |      0 |      0 |          0 |
+|   (OOC_PRF) |   (top) |         18 |         18 |       0 |    0 | 1383 |      0 |      0 |          0 |
+|   u_prf     | OOO_PRF |      14255 |       4967 |    9288 |    0 |  285 |      0 |      0 |          0 |
++-------------+---------+------------+------------+---------+------+------+--------+--------+------------+
+
+

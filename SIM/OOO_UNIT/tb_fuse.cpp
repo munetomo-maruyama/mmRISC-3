@@ -2,11 +2,12 @@
 // tb_fuse.cpp : OOO_FUSE
 //
 // 1. random: groups of 4 with registers from a small pool (so that pairs
-//    happen often), against a reference of the rules of OOO_FUSE.sv
+//    happen often), against a reference of the rules of OOO_FUSE.sv (with
+//    the second-stage flag, the limit of 2 sources, SRC2, and of 1 write, W1)
 // 2. trace (FUSE_TRACE=<file of mkfuse.py>): the CoreMark stream through
 //    the window of 4 as the decoder would feed it (the window moves by
 //    `consumed`); the pairs formed are counted against the pairs the model
-//    forms on the same stream (Plan/MODEL.md 6, fusion 3)
+//    forms on the same stream (Plan/MODEL.md 6, fusion 3, fuse_2src, fuse_1w)
 //---------------------------------------------------------------------------
 #include "VOOO_FUSE.h"
 #include <cstdint>
@@ -15,14 +16,14 @@
 #include <random>
 #include <vector>
 
-struct Ins { int seq, cls, op, rd, rs1, rs2, u1, u2, imm, ms; };
+struct Ins { int seq, cls, op, rd, rs1, rs2, u1, u2, imm, ms, ok2; };
 
 static VOOO_FUSE d;
 
 static void put(const Ins* g, int nvalid)
 {
     d.no_fuse = 0;
-    d.valid = 0; d.seq = 0; d.cls = 0; d.op = 0; d.use_rs1 = 0; d.use_rs2 = 0; d.msize = 0;
+    d.valid = 0; d.seq = 0; d.cls = 0; d.op = 0; d.use_rs1 = 0; d.use_rs2 = 0; d.msize = 0; d.alu2ok = 0;
     for (int k = 0; k < 4; k++) {
         const Ins& x = g[k];
         if (k < nvalid) d.valid |= 1u << k;
@@ -32,6 +33,7 @@ static void put(const Ins* g, int nvalid)
         d.use_rs1 |= (unsigned)x.u1 << k;
         d.use_rs2 |= (unsigned)x.u2 << k;
         d.msize |= (unsigned)x.ms << (2 * k);
+        d.alu2ok |= (unsigned)x.ok2 << k;
     }
     d.rd = 0; d.rs1 = 0; d.rs2 = 0;
     for (int k = 0; k < 4; k++) {
@@ -44,8 +46,30 @@ static void put(const Ins* g, int nvalid)
     d.eval();
 }
 
+// the registers the pair reads from outside (x0 and the second's reads of
+// the first's rd not counted), as fuse_2src of Plan/model/ooo.h
+static int ref_nsrc(const Ins& a, const Ins& b)
+{
+    int r[4], n = 0;
+    auto add = [&](int use, int x, bool second) {
+        if (!use || x == 0 || (second && x == a.rd)) return;
+        for (int i = 0; i < n; i++) if (r[i] == x) return;
+        r[n++] = x;
+    };
+    add(a.u1, a.rs1, false); add(a.u2, a.rs2, false); add(b.u1, b.rs1, true); add(b.u2, b.rs2, true);
+    return n;
+}
+
 // the rules, written again from the comment of OOO_FUSE.sv
+static int ref_rule(const Ins& a, const Ins& b);
 static int ref_kind(const Ins& a, const Ins& b)
+{
+    int k = ref_rule(a, b);
+    bool two_writes = a.rd != 0 && b.rd != 0 && a.rd != b.rd;
+    return (k && (ref_nsrc(a, b) > 2 || two_writes)) ? 0 : k;
+}
+
+static int ref_rule(const Ins& a, const Ins& b)
 {
     int dd = a.rd;
     bool rdb = dd != 0 && ((b.u1 && b.rs1 == dd) || (b.u2 && b.rs2 == dd));
@@ -58,7 +82,7 @@ static int ref_kind(const Ins& a, const Ins& b)
     if (a.cls == 4 && b.cls == 4 && a.rs1 == b.rs1 && dd != a.rs1 && adj) return 5;
     if (a.cls == 5 && b.cls == 5 && a.rs1 == b.rs1 && adj) return 6;
     if (a.cls == 0 && b.cls == 1 && rdb) return 7;
-    if (a.cls == 0 && b.cls == 0 && rdb) return 8;
+    if (a.cls == 0 && b.cls == 0 && rdb && b.ok2) return 8;
     return 0;
 }
 
@@ -79,6 +103,7 @@ static int random_test()
             x.u1 = rng() % 4 != 0; x.u2 = rng() & 1;
             x.imm = ((rng() % 5) * 4 + (rng() % 3 == 0 ? 0xff0 : 0)) & 0xfff;
             x.ms = rng() % 4;
+            x.ok2 = rng() % 4 != 0;
         }
         put(g, nv);
         // the reference: greedy from slot 0
@@ -115,7 +140,7 @@ static int trace_test(const char* path)
     for (long i = 0; i < n; i++) {
         Ins& x = t[i];
         if (fscanf(f, "%d %d %d %d %d %d %d %d %d %d", &x.seq, &x.cls, &x.op, &x.rd, &x.rs1, &x.rs2, &x.u1, &x.u2,
-                   &x.imm, &x.ms) != 10) return 1;
+                   &x.imm, &x.ms) != 10 || fscanf(f, "%d", &x.ok2) != 1) return 1;
     }
     fclose(f);
     long p = 0, pairs = 0, cycles = 0;

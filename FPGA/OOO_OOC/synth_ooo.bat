@@ -11,7 +11,7 @@ REM the first run outside a loop (the register files did not run, 2026-10-24)
 if not exist output mkdir output
 if /i "%~1"=="prf" goto :prf
 if not "%~1"=="" (
-    call vivado -mode batch -source synth_ooo.tcl -log output\vivado.log -journal output\vivado.jou -tclargs %*
+    call vivado -mode batch -source synth_ooo.tcl -log output\vivado_%~1.log -journal output\vivado_%~1.jou -tclargs %*
     goto :done
 )
 for %%t in (OOC_ALU2 OOC_FUSE OOC_RENAME OOO_IQ OOO_UBTB) do (

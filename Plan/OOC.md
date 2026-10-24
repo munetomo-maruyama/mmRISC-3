@@ -39,7 +39,12 @@
    - **In size, the measured blocks alone were about twice the budget of the out-of-order part.**
    - Decisions: keep ALU + ALU fusion. Rewrite the ALU and narrow its second stage to the operations that appear in
      CoreMark (no loss). Give the uBTB 16 entries and a parallel choice. The limit of 2 sources is fixed.
-   - The number of write ports is decided by rerunning the register files.
+   - The number of write ports is decided by rerunning the register files. → **3 write ports** (4,942 physical LUTs,
+     against 8,350 for 5), with 5 ports the first thing to buy back if G0 finds room (7.4).
+7. **The decisions in the RTL (section 8)**: the ALU rewritten with a narrowed second stage (OOC_ALU2 8,225 → about 4.6k
+   in Yosys), fusion limited to 2 sources and 1 write with the second-stage flag (pairs equal to the model's on
+   CoreMark), and the uBTB at 16 entries with a parallel choice (5,041 → about 2.3k). All unit tests PASS and all 34
+   mutations are detected. Vivado still to confirm.
 
 ---
 
@@ -48,12 +53,12 @@
 | Block | What it is | Main parameters |
 |---|---|---|
 | `OOO_ALU` | Integer ALU: RV64I + Zba / Zbb / Zbs / Zicond (operations and encoding of mmRISC-2's CORE_EXU) | — |
-| `OOO_ALU2` | An issue port's ALU: two OOO_ALU in series (a fused ALU + ALU in one cycle) + the branch comparison (alone, or against the first result for ALU + branch) | — |
-| `OOO_FUSE` | 4 decoded instructions → the next 2 µops (paired greedily from the oldest) | `LEVEL` (1 to 3) |
+| `OOO_ALU2` | An issue port's ALU: a full OOO_ALU and a narrowed one (section 8) in series (a fused ALU + ALU in one cycle) + the branch comparison (alone, or against the first result for ALU + branch) | — |
+| `OOO_FUSE` | 4 decoded instructions → the next 2 µops (paired greedily from the oldest) | `LEVEL` (1 to 3), `SRC2` (section 8) |
 | `OOO_IQ` | Unified issue queue: 3 sources, 2 in / 3 out, 1-cycle wakeup-select, age matrix, latency-2 and external wakeups | `N`=16, `TAGW`=7 |
 | `OOO_RENAME` | 2 µops per cycle, 3 sources and 2 destinations, RAT, free list, busy bits, in-group dependences, checkpoints | `NREG`=96, `NCKPT`=8 |
 | `OOO_PRF` | 96 × 64, LUTRAM per write bank + LVT | `NW`, `NR` |
-| `OOO_UBTB` | 32-entry fully associative next-line predictor, next fetch address in one cycle | `NE`=32 |
+| `OOO_UBTB` | Fully associative next-line predictor, next fetch address in one cycle | `NE`=32 (16 from section 8, partial tag `TW`=12) |
 
 The registered harnesses for OOC synthesis (`FPGA/OOO_OOC/rtl/OOC_WRAP.sv`): `OOC_ALU2` builds the 1-cycle loop as it is
 (result registers → 5-input bypass → two-stage ALU → result registers); `OOC_FUSE`, `OOC_PRF` and `OOC_RENAME` put
@@ -151,19 +156,24 @@ The results of `synth_ooo.bat` in the author's Vivado (`FPGA/OOO_OOC/output/<top
 
 | Block | LUT (Vivado) | FF | Register-to-register slack | Logic levels | Ratio to Yosys | Verdict |
 |---|---|---|---|---|---|---|
-| OOC_ALU2 | 8,248 | 705 | **−0.696 ns** | 25 | 1.00 | Does not close; large |
-| OOC_FUSE | 186 | 158 | +10.606 ns | 11 | 0.90 | Closes |
-| OOC_RENAME | 6,934 | 2,830 | +4.793 ns | 9 | 0.76 | Closes; large |
-| OOO_IQ | 6,783 | 1,056 | +2.370 ns | 16 | 0.43 | Closes; large |
-| OOO_UBTB | 3,194 | 2,642 | **−24.524 ns** | 65 | 0.63 | Does not close |
-| OOC_PRF (5 configurations) | — | — | — | — | — | **Not run** |
+| OOC_ALU2 | 7,879 | 705 | **−0.696 ns** | 25 | 0.96 | Does not close; large |
+| OOC_FUSE | 172 | 158 | +10.606 ns | 11 | 0.83 | Closes |
+| OOC_RENAME | 6,098 | 2,830 | +4.793 ns | 9 | 0.67 | Closes; large |
+| OOO_IQ | 6,200 | 1,056 | +2.370 ns | 16 | 0.40 | Closes; large |
+| OOO_UBTB | 3,132 | 2,648 | **−24.524 ns** | 65 | 0.62 | Does not close |
+| OOC_PRF (5 configurations) | 4,942 to 14,271 | 946 to 1,668 | +1.77 to +6.23 ns | 0 to 1 | 0.64 to 0.84 | Closes (7.4) |
+
+- **The LUTs are physical LUTs**: "Total LUTs" of the hierarchical utilization report, LUT RAM included, two LUTs packed
+  in one LUT6_2 counted once. This is how mmRISC-2's budget (`ISSUES.md` section 2) counts. The "LUT" of `summary.txt`
+  is the number of LUT cells and leaves LUT RAM out, which matters for the register files (3,619 against 8,350 for 5
+  writes / 6 reads). `synth_ooo.tcl` gives physical LUTs too from the next run on.
 
 - **The register files did not run because of a mistake in `synth_ooo.bat`.** `vivado` is itself a batch file, so
   calling it without `call` ends the calling batch after the first call outside a loop. Fixed with `call`, and
   `synth_ooo.bat prf` added to run the register files only.
 - OOO_IQ's WNS (+0.085 ns) is on a path through the input / output delays the harness assumes (6 ns each), not a real
   path. Register to register it is +2.37 ns.
-- The ratio to Yosys differs a lot between blocks, 0.43 to 1.00 (the same tendency as 0.4 to 1.4 in `REDUCE.md`).
+- The ratio to Yosys differs a lot between blocks, 0.40 to 0.96 (the same tendency as 0.4 to 1.4 in `REDUCE.md`).
 
 ### 7.2 Two-stage ALU (OOC_ALU2)
 
@@ -209,12 +219,37 @@ czero.eqz do appear in the first stage, so the first stage stays full.
 
 ### 7.4 Register file (OOC_PRF)
 
+The rerun with `synth_ooo.bat prf` (physical LUTs):
+
+| Writes / reads | LUT | of it LUT RAM | FF | Register-to-register slack | Estimate of section 4 |
+|---|---|---|---|---|---|
+| 3 / 8 | 6,455 | 4,128 | 1,116 | +6.23 ns | — |
+| 5 / 8 | 10,657 | 6,880 | 1,456 | +2.18 ns | — |
+| 6 / 9 | 14,271 | 9,288 | 1,668 | +1.77 ns | about 11.5k |
+| **3 / 6** | **4,942** | 3,096 | 946 | +2.70 ns | about 4k |
+| 5 / 6 | 8,350 | 5,160 | 1,246 | +2.21 ns | about 6.5k |
+
+- Every configuration closes at 50 MHz. The worst path goes into a LUT RAM write address (0 to 1 logic levels).
+- 20 to 30 % above the estimates of section 4. The amount of LUT RAM is set by the number of write banks and by one copy
+  for every 3 read ports.
+- Going from 8 reads to 6 saves 2.3k with 5 writes and 1.5k with 3 writes. That alone more than pays for the limit of 2
+  sources (−1.7 % / −1.1 %).
+
 **Decisions**:
 
 - **Fused pairs of at most 2 sources is fixed.** That is 6 read ports, at a cost of −1.7 % / −1.1 % (section 5).
-- **The number of write ports (5 or 3) is decided from the rerun.** The budget is tight (7.7), so 3 is the likelier
-  choice. With a 16-entry uBTB, 1 write per pair gives 6.61 / 6.87 and 2 writes give 6.92 / 7.50. Both are above the
-  goals.
+- **3 write ports (1 write per pair).**
+  - The difference from 5 ports is 3.4k LUTs, about a fifth of the out-of-order budget (16k to 18k).
+  - The performance difference is −4.7 % / −8.2 % (with the sizes of the fusion configuration: ROB 32, IQ 16, LQ / SQ
+    12, 8 checkpoints, 16-entry uBTB, at most 2 sources: 6.91 / 7.45 → 6.59 / 6.84). With 3 ports the goals (5.0 / 6.0)
+    are still exceeded.
+  - With one write per pair, renaming and the issue queue need only one destination per µop, and both can shrink
+    further for it (section 9).
+  - **64 physical registers are then enough**: 32 architectural + ROB 32 × one per µop, instead of the 96 needed with 2
+    writes per pair. 64 fits the 64-deep LUT RAM exactly (96 splits into 64 + 32), and the tags go from 7 to 6 bits. The
+    register file should shrink further; 8.4 measures it.
+- **5 ports become the first thing to buy back if G0 finds room in the budget.** At about +1.4 % / +2.6 % per 1k LUTs (compared
+  at 96 physical registers) it is the most efficient of the remaining options. Room freed by a multi-cycle FPU (D3) or similar goes here first.
 
 ### 7.5 Renaming (OOC_RENAME) and fusion (OOC_FUSE)
 
@@ -253,13 +288,13 @@ fusion. With fusion the back end is faster, and the front end weighs more. The m
 
 | Block | Vivado (this run) | Target after the decisions |
 |---|---|---|
-| ALUs, 2 ports (2 stages each) | 16,496 | at most 5k |
-| Issue queue | 6,783 | around 4k |
-| Renaming | 6,934 | after measuring (around 5k) |
-| uBTB | 3,194 | at most 1k |
-| Fusion | 186 | 0.2k |
-| Register file | not measured (estimate 4k to 6.5k) | 4k (3 writes) to 6.5k (5 writes) |
-| Total | 33.6k + register file | **about 19k to 22k** |
+| ALUs, 2 ports (2 stages each) | 15,758 | at most 5k |
+| Issue queue | 6,200 | around 4k (less with one destination) |
+| Renaming | 6,098 | after measuring (at most 5k with one destination) |
+| uBTB | 3,132 | at most 1k |
+| Fusion | 172 | 0.2k |
+| Register file | 4,942 (3 writes) to 8,350 (5 writes) | **at most 4.9k (3 writes; less with 64 registers)** |
+| Total | 31.4k + register file (36.3k to 39.7k) | **about 20k** |
 
 - **The budget of the out-of-order part is 16k to 18k** (up to group A of `REDUCE.md` section 2). It also has to hold
   the ROB, the LSU, the LQ / SQ, decode and the front end. The blocks measured this time were already about twice the
@@ -268,22 +303,97 @@ fusion. With fusion the back end is faster, and the front end weighs more. The m
   revisit the budget itself.** The main candidates:
   - Return the FPU to multi-cycle (D3, "to be reconsidered depending on logic size"; the FPU is 8.8k)
   - Groups B / C of `REDUCE.md`
-  - 3 register-file write ports
 - The OOC numbers are for each block alone; built into the whole, optimization across boundaries can make them larger
   or smaller.
 
 ---
 
-## 8. Next
+## 8. The decisions put into the RTL (2026-10-24)
 
-1. **Author**: run only the five register files with `synth_ooo.bat prf`, to decide the number of write ports.
-2. **RTL**: put in the decisions of section 7.
-   - Rewrite OOO_ALU and narrow the second stage.
-   - Give `OOO_FUSE` the "can be second" flag and the limit of 2 sources (counting sources as `fuse_2src` of
-     `Plan/model/ooo.h` does).
-   - Make the uBTB 16 entries, with a parallel choice and partial tags.
+Of the decisions of section 7, three are in the RTL: the ALU, fusion (2 sources, 1 write) and the uBTB. The reductions of the issue queue and
+of renaming are not in yet.
+
+### 8.1 Changes
+
+| Block | Change |
+|---|---|
+| OOO_ALU | Rewritten. One adder (used by add / sub / sh*add; slt / sltu / min / max come from its carry). One funnel shifter for the right shifts, the rotates and bext; the left shifts and rol go through the same shifter with the bits reversed. clz / ctz as a tree over bytes (clz is ctz after a reversal), cpop as a tree of adders. The result is chosen by an AND-OR of the units. The parameter `FULL` = 0 gives the narrowed form for the second stage |
+| OOO_ALU2 | The second stage is `FULL = 0`. The branch comparison comes from one subtraction (signed and unsigned both) |
+| OOO_FUSE | An input `alu2ok` (whether the operation can be the second half of ALU + ALU; the decoder gives it) a parameter `SRC2` (a pair reads at most 2 sources) and `W1` (a pair writes at most 1 register, 7.4) |
+| OOO_UBTB | 16 entries, a 12-bit partial tag (the low 12 bits of the block address XOR the next 12), and a parallel choice. Different blocks with the same partial tag share an entry. An update looks for the existing entry before it inserts one, so no two entries ever have the same tag and position |
+
+**The second stage is narrowed further than the plan of 7.2.** It keeps add / subtract (with .w), sh1add to sh3add
+(with .uw), the logic operations, srl, sext.b / sext.h / zext.h, czero.eqz / czero.nez and bext. The only shift
+CoreMark puts in the second stage is srliw, so sll and sra are out too. That takes the bit reversal and the sign fill
+of the shifter out of the second stage.
+
+### 8.2 Verification
+
+- **Unit tests**: all six PASS.
+  - tb_alu2 gives the second stage only its narrowed operations.
+  - tb_fuse's reference has the second-stage flag and the rules of at most 2 sources and at most 1 write.
+  - tb_ubtb's reference uses the partial tag. A quarter of the addresses are moved to another block with the same
+    partial tag, so that aliases meet in the table.
+- **Fusion matches the model.** On the CoreMark streams the number of pairs matches the model:
+  - at most 2 sources: `-O2` 363,593 / 363,633, most optimization 382,436 / 382,436
+  - at most 2 sources and 1 write: `-O2` 276,058 / 276,058, most optimization 135,776 / 135,776
+  - These are also the numbers of pairs that the cycle model's `fuse_2src` and `fuse_1w` (`Plan/model`) form. The
+    second-stage flag loses no pair.
+- **Bug injection**: 13 mutations added for the new parts, 34 in all, every one detected. One (M6) first came out NOT
+  APPLIED, because adding `alu2ok` changed the text it rewrites; its text was fixed and it was run again.
+
+### 8.3 Size (Yosys)
+
+| Block | Before | Now |
+|---|---|---|
+| OOC_ALU2 | 8,225 (Vivado 7,879) | **about 4.6k** |
+| 　of it the full OOO_ALU (alone) | (Vivado 4,663) | about 2.2k |
+| 　of it the second-stage OOO_ALU (alone) | (Vivado 3,095) | about 0.9k |
+| OOO_UBTB | 5,041 LUT / 2,635 FF (Vivado 3,132 LUT) | **about 2.2k to 2.3k LUT / 970 FF** |
+| OOC_FUSE | 207 (Vivado 172) | about 0.28k |
+
+- **Yosys's numbers vary by 5 to 7 % between runs of the same RTL** (uBTB 2,197 and 2,344, renaming 9,304 and 8,917).
+  They are taken as rough figures.
+
+- About 1.4k of OOC_ALU2's 4.6k are outside the ALUs (the bypass, the operand selection, the branch comparison).
+- For reference, mmRISC-2's CORE_EXU is about 3.8k in Yosys (1,670 in Vivado, ratio 0.44). The full OOO_ALU is smaller
+  than that in Yosys.
+- The uBTB's Yosys number probably includes a feedback select for each of the 912 bits of its table (Vivado uses clock
+  enables). For the previous version, Vivado came to 0.63 times Yosys.
+- **Yosys's "longest path" means nothing for blocks with loops (OOC_ALU2, OOO_UBTB, OOO_IQ).** After `synth_xilinx`,
+  `ltp` does not take the flip-flops (FDRE / FDCE) as flip-flops and follows the loops (it warns "Detected loop").
+  Timing is judged from Vivado only.
+
+### 8.4 The Vivado runs asked of the author
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_ALU2
+synth_ooo.bat OOO_UBTB
+synth_ooo.bat OOC_FUSE
+synth_ooo.bat OOC_PRF 20.0 1 "NREG=64 NW=3 NR=6"
+```
+
+What the runs should show:
+
+| Result | What it decides |
+|---|---|
+| Register-to-register slack and LUTs of OOC_ALU2 | Whether the rewritten ALU closes the two-stage chain at 50 MHz, and fits the size target (at most 2.5k per port for both stages) |
+| Register-to-register slack and LUTs of OOO_UBTB | Whether the parallel choice closes in one cycle, and fits the size target (at most 1k) |
+| LUTs and slack of OOC_FUSE | That counting the sources and the writes costs nothing that matters |
+| LUTs of OOC_PRF (64 registers, 3 writes / 6 reads) | The size of the register file with 64 physical registers (4,942 with 96) |
+
+---
+
+## 9. Next
+
+1. **Author**: rerun the three blocks of 8.4 (the register file is settled in 7.4).
+2. **RTL**:
+   - Give renaming and the issue queue 2 sources and 1 destination per µop (what at most 2 sources and 1 write per pair
+     imply; the issue queue is built with 3 sources now), with 64 physical
+     registers (6-bit tags), and build the register file with 3 write ports.
    - Reduce the issue queue (one-hot AND-OR read, fewer wakeup buses, consider splitting the queue).
-   - Measure the breakdown of renaming, then reduce it.
-   - Redo the unit tests and bug injection for each, and check in Vivado again.
+   - Measure the breakdown of renaming by hierarchy, then reduce it.
+   - Redo the unit tests and bug injection for each, and check them in Vivado.
 3. **The G0 specification**: freeze the micro-architecture including the scope of this RTL (step 5 of `ISSUES.md`
    section 5). The budget revision (including D3) is decided there too.

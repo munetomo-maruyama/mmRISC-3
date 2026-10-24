@@ -58,11 +58,25 @@ write_checkpoint -force $outdir/post_synth.dcp
 report_utilization -hierarchical -file $outdir/utilization_synth.rpt
 
 proc count {filter} { return [llength [get_cells -quiet -hier -filter $filter]] }
+# the slice LUTs of the top (physical LUTs: logic + LUT RAM, two LUT cells
+# packed in one LUT6_2 counted once), the "Total LUTs" of the hierarchical
+# report, the number mmRISC-2's budget is in (Plan/ISSUES.md 2). The count of
+# LUT cells alone leaves out LUT RAM (Plan/OOC.md 7.1)
+proc slice_luts {} {
+    foreach line [split [report_utilization -hierarchical -return_string] "\n"] {
+        if {[regexp {^\|\s*\S+\s*\|\s*\(top\)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|} $line -> t l m]} {
+            return [list $t $l $m]
+        }
+    }
+    return {-1 -1 -1}
+}
 set n_lut  [count {PRIMITIVE_GROUP == LUT}]
 set n_ff   [count {PRIMITIVE_GROUP == FLOP_LATCH}]
 set n_dsp  [count {REF_NAME =~ DSP48*}]
 set n_lram [count {REF_NAME =~ RAM32* || REF_NAME =~ RAM64* || REF_NAME =~ RAM128* || REF_NAME =~ RAM256*}]
-set synth_msg [format "after synthesis: %d LUT, %d FF, %d DSP, %d LUT RAM cells" $n_lut $n_ff $n_dsp $n_lram]
+lassign [slice_luts] s_tot s_log s_ram
+set synth_msg [format "after synthesis: %d LUTs (%d logic + %d LUT RAM; %d LUT cells), %d FF, %d DSP, %d LUT RAM cells" \
+                   $s_tot $s_log $s_ram $n_lut $n_ff $n_dsp $n_lram]
 puts "INFO: $synth_msg"
 
 set fh [open $outdir/summary.txt w]
@@ -85,8 +99,9 @@ if {$impl} {
     set p   [get_timing_paths -max_paths 1 -nworst 1 -setup -from [all_registers] -to [all_registers]]
     set lv  [get_property LOGIC_LEVELS $p]
     set n_lut [count {PRIMITIVE_GROUP == LUT}]
-    set impl_msg [format "after place and route: %d LUT, WNS %.3f ns, register to register %.3f ns (%d logic levels)" \
-                      $n_lut $wns $r2r $lv]
+    lassign [slice_luts] s_tot s_log s_ram
+    set impl_msg [format "after place and route: %d LUTs (%d logic + %d LUT RAM; %d LUT cells), WNS %.3f ns, register to register %.3f ns (%d logic levels)" \
+                      $s_tot $s_log $s_ram $n_lut $wns $r2r $lv]
     puts "INFO: $impl_msg"
     puts $fh $impl_msg
 }

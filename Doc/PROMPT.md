@@ -14,6 +14,7 @@ original in Japanese.
   output are not included.
 - "(button)" marks a prompt sent from the next-step choices Claude Code offered (the wording was prepared by Claude
   Code).
+- "(shell)" marks a command typed in the shell mode (`!`), with its output.
 - Claude Code translates a prompt here in the same turn, and an answer at the start of the next turn (the answer is the
   last thing written in a turn).
 
@@ -486,4 +487,62 @@ I recommend adopting the 2-source limit. The number of write ports is decided fr
 
 ```text
 I ran synth_ooo.bat of FPGA/OOO_OOC in Vivado. Please read the results under output and make the decisions of section 6 of OOC_J.md.
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I made the section 6 decisions from the Vivado results. Two blocks miss 50 MHz: the 2-stage ALU and the uBTB. The size is the bigger problem: the blocks measured so far come to about twice the out-of-order budget by themselves. The details are in section 7 of [Plan/OOC_J.md](../Plan/OOC_J.md) (English: [OOC.md](../Plan/OOC.md)) and in ISSUES D-4, pushed to dev as `4f683c3`.
+
+**The register-file runs did not happen.** `vivado` is itself a batch file. Without `call`, `synth_ooo.bat` stopped after the five block runs. I fixed it with `call` and added `synth_ooo.bat prf`, which runs only the five register-file configurations.
+
+| Block | LUT | Register-to-register slack | Decision |
+|---|---|---|---|
+| 2-stage ALU | 8,248 | **−0.70 ns** | Keep ALU + ALU fusion (dropping it costs −6%). Narrow the second stage and rewrite the ALU. |
+| Issue queue | 6,783 | +2.37 ns | One-cycle wakeup-select works; keep it. Reduce the size to about 4k. |
+| Renaming | 6,934 | +4.79 ns | Closes; keep 8 checkpoints. Measure the breakdown before reducing it. |
+| Fusion | 186 | +10.6 ns | No problem. |
+| uBTB | 3,194 | **−24.5 ns** | Keep it with 16 entries, choose the hit in parallel, and use partial tags. |
+| Register file | not run | — | Pairs are fixed at 2 sources at most (6 read ports). Write ports (5 or 3) after the rerun. |
+
+**The ALU:**
+- **Why it misses:** in the worst path, the second stage alone takes about 10.8 ns, and it ends in the min/max compare and select.
+- **Narrowing the second stage costs nothing:** I counted the operations that appear in the second half of ALU + ALU pairs in the CoreMark traces. slt, min/max, clz/ctz/cpop, rotates and orc.b/rev8 never appear there, so removing them from the second stage loses no performance.
+- **Why rewrite it:** a single OOO_ALU is 3–4.7k LUTs, 2–3 times mmRISC-2's whole CORE_EXU (1,670). It has a separate circuit for every operation. The rewrite shares one adder and one shifter across operations, as CORE_EXU does.
+
+**The uBTB:** it misses because picking the first taken hit was written as a loop, which Vivado built as 32 comparisons in series (65 logic levels). I also had to correct an earlier statement. "No uBTB costs only −0.9%" was measured without fusion. With fusion, no uBTB costs −4.8% at -O2, and 16 entries cost only −0.2%.
+
+**Budget:** the measured blocks total 33.6k LUTs plus the register file. The out-of-order part has a budget of 16–18k, and that also has to cover the ROB, LSU and decode. Even if every reduction hits its target, these blocks alone come to about 19–22k. So at G0 we will probably need to revisit the budget itself. The main option is D3, going back to a multi-cycle FPU (8.8k LUTs now).
+
+For your next Vivado run:
+```
+synth_ooo.bat prf
+```
+
+The prompt log is up to date: the English for answer 14 and prompt 15 is in Doc/PROMPT.md. I committed the Vivado reports but not the .dcp checkpoints.
+<!-- /answer -->
+
+## 16. 2026-10-24 21:17:19 JST (shell)
+
+```text
+<bash-input>synth_ooo.bat prf</bash-input><bash-stdout>synth_ooo.bat: command not found</bash-stdout><bash-stderr></bash-stderr>
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+That command ran in this Linux VM's shell, where `synth_ooo.bat` can't run. It's a Windows batch file, and Vivado runs on your Windows side. It also only works from inside its own folder. Run it from a Windows Command Prompt the same way you ran the first batch:
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat prf
+```
+
+This runs only the five register-file configurations, which take place and route at 50 MHz. The results go to `output\OOC_PRF_NW3_NR8\summary.txt` and so on. When it finishes, tell me and I'll read them and decide between 5 and 3 write ports.
+<!-- /answer -->
+
+## 17. 2026-10-24 21:18:04 JST
+
+```text
+I will run synth_ooo.bat prf myself. Meanwhile, please go ahead with the RTL changes of section 8 of OOC_J.md (rewriting the ALU and narrowing its second stage, the limits in OOO_FUSE, and the 16-entry parallel uBTB).
 ```

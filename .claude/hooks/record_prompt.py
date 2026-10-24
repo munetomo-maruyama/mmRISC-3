@@ -9,7 +9,8 @@
 #                              under the entry of the prompt it answers
 #
 # Both read the hook's JSON from stdin (.claude/settings.local.json).
-# Messages of the system (task notifications, reminders) are skipped. A turn
+# Messages of the system (task notifications, reminders, the summary of a
+# compaction) are skipped; a command typed in the shell mode (!) is marked. A turn
 # that is continued by a background job ends again later; its entry then
 # gets the newer answer, so it always holds the last thing said for that
 # prompt. Never blocks anything: any error is ignored.
@@ -34,6 +35,7 @@ HEADER = """# mmRISC-3 プロンプトと回答の記録
 - プロンプト: 8番(2026-10-24 01:01)まではセッションの記録から書き起こし、それ以降はClaude Codeのフック(`.claude/hooks/record_prompt.py`)が入力のたびに追記する。本文は入力のまま(添付ファイルは`@パス`の形で残る)。システムからの通知(バックグラウンド処理の完了など)は含めない。
 - 回答: そのプロンプトへのターンでClaude Codeが最後に書いた回答。13番まではセッションの記録から書き起こし、それ以降は同じスクリプトがターンの終わりに書き込む(Stopフック)。見出しは2段下げ、リンクはこのファイルからの相対パスに直してある。作業途中の短い経過報告やツールの出力は含めない。
 - 「(ボタン)」は、Claude Codeが提示した次の作業の選択肢から送信したもの(文面はClaude Codeが用意したもの)。
+- 「(シェル)」は、シェルモード(`!`)で入力したコマンドとその出力。
 - 英訳は`PROMPT.md`。プロンプトは同じターンのうちに、回答は次のターンの初めに、Claude Codeが訳して追記する。
 """
 ANS_LABEL = '**Claude Codeの回答**'
@@ -124,7 +126,9 @@ def last_turn(transcript):
             except ValueError:
                 continue
             c = e.get('message', {}).get('content')
-            if e.get('type') == 'user' and not e.get('isMeta'):
+            # the summary written when the conversation is compacted is not a
+            # prompt: the turn it falls in still answers the prompt before it
+            if e.get('type') == 'user' and not e.get('isMeta') and not e.get('isCompactSummary'):
                 texts = [c] if isinstance(c, str) else \
                     [b.get('text', '') for b in (c or []) if isinstance(b, dict) and b.get('type') == 'text']
                 for t in texts:
@@ -150,7 +154,8 @@ def main():
         text = data.get('prompt') or ''
         if skip(text):
             return
-        append_entry(path, datetime.datetime.now(JST), text)
+        note = ' (シェル)' if text.lstrip().startswith('<bash-input>') else ''
+        append_entry(path, datetime.datetime.now(JST), text, note)
     except Exception:
         pass
 

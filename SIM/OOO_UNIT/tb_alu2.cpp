@@ -1,7 +1,7 @@
 //---------------------------------------------------------------------------
 // tb_alu2.cpp : OOO_ALU2 against a reference written from the RISC-V
-// specification (RV64I, Zba, Zbb, Zbs, Zicond), random operations, operand
-// selections and values (values biased to the edges: 0, -1, sign bits,
+// specification (RV64I, Zba, Zbb, Zbs, Zicond), random operations (the
+// second stage only those it has), operand selections and values (values biased to the edges: 0, -1, sign bits,
 // small shifts)
 //---------------------------------------------------------------------------
 #include "VOOO_ALU2.h"
@@ -75,9 +75,13 @@ static uint64_t ref_alu(int op, uint64_t a, uint64_t b, bool uw, int shift, bool
 }
 
 // the operand forms the decoder produces (word forms, .uw, sh*add only where RISC-V has them)
-static void rand_op(int& op, bool& uw, int& shift, bool& word)
+// the operations of the narrowed second stage (OOO_ALU FULL = 0, SECOND_OPS)
+static const int OPS2[] = {0, 1, 5, 6, 8, 9, 10, 11, 12, 22, 23, 24, 27, 28, 32};
+
+static void rand_op(int& op, bool& uw, int& shift, bool& word, bool second = false)
 {
-    op = rng() % 33; uw = false; shift = 0; word = false;
+    op = second ? OPS2[rng() % (sizeof(OPS2) / sizeof(OPS2[0]))] : (int)(rng() % 33);
+    uw = false; shift = 0; word = false;
     if (op == 0) { int k = rng() % 6; if (k == 1) word = true; else if (k == 2) uw = true;
                    else if (k >= 3) { shift = (int)(rng() % 3) + 1; uw = rng() & 1; } }
     else if (op == 1 || op == 6 || op == 7 || op == 17 || op == 18 || op == 19 || op == 20 || op == 21) word = rng() & 1;
@@ -92,7 +96,7 @@ int main(int argc, char** argv)
     for (long it = 0; it < 2000000; it++) {
         uint64_t s1 = rval(), s2 = rval(), s3 = rval(), i1 = rval(), i2 = rval(), pc = rng() & ~1ull;
         int op1, sh1, op2, sh2; bool uw1, w1, uw2, w2;
-        rand_op(op1, uw1, sh1, w1); rand_op(op2, uw2, sh2, w2);
+        rand_op(op1, uw1, sh1, w1); rand_op(op2, uw2, sh2, w2, true);
         int a1 = rng() % 3, b1i = rng() & 1, a2s3 = rng() & 1, b2 = rng() % 3;
         int isbr = rng() & 1, brop = (int[]){0, 1, 4, 5, 6, 7}[rng() % 6], brf = rng() & 1, bra = rng() & 1;
         if (rng() % 4 == 0) s2 = s1;                       // equal operands for the branches
