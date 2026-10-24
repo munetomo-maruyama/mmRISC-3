@@ -7,7 +7,7 @@ working files and documents.
 
 | Document | Content |
 |---|---|
-| [`MODEL.md`](MODEL.md) / [`_J`](MODEL_J.md) | Phase 0-3: the trace-driven C++ cycle model; (1) framework and calibration against mmRISC-2 (5 points within ±0.3 %) |
+| [`MODEL.md`](MODEL.md) / [`_J`](MODEL_J.md) | Phase 0-3: the trace-driven C++ cycle model; (1) framework and calibration against mmRISC-2 (5 points within ±0.3 %); (2) the 2-wide out-of-order core: 6.07 / 6.57 CoreMark/MHz without fusion, 7.06 / 7.59 with it |
 | [`PRESTUDY_MMRISC2.md`](PRESTUDY_MMRISC2.md) / [`_J`](PRESTUDY_MMRISC2_J.md) | The study memo made during mmRISC-2 (2026-10-13): an out-of-order RV64GC on the Arty A7-100T; resources, NaxRiscv, Linux and non-speculative execution, compromises |
 | [`ICOUNT.md`](ICOUNT.md) / [`_J`](ICOUNT_J.md) | Phase 0-1: CoreMark instructions per iteration by compiler, options and ISA extensions; the IPC the goals need |
 | [`ISSUES.md`](ISSUES.md) / [`_J`](ISSUES_J.md) | Remaining study items of Phase 0 up to G0, with problems and countermeasures; the measured resources of mmRISC-2 Rev.02 and the revised budget; decisions for the author |
@@ -18,7 +18,7 @@ working files and documents.
 |---|---|
 | `icount/` | `icount.sh` (builds CoreMark and counts on Spike), `port/` (the bare-metal port), `results/icount.csv`. `work/` is output and not kept |
 | `trace/` | `trace.sh` (build, trace on Spike, analyze), `capture.py` (the timed part of Spike's log as a compact trace), `analyze.py` (all the analyses and the limit model), `results/` (`<build>.json`, `<build>.limit.txt`). `work/` is not kept |
-| `model/` | `mktrace.py` (trace → 32-byte records), `model.h`, `pred_mm2.h`, `inorder.h`, `model.cpp`, `calib.sh`, `results/calib.txt`. `work/` (binaries, traces) is not kept |
+| `model/` | `mktrace.py` (trace → 32-byte records), `model.h`, `pred_mm2.h`, `inorder.h`, `tage.h`, `ooo.h`, `model.cpp`, `calib.sh`, `sweep.sh`, `results/` (`calib.txt`, `sweep.txt`). `work/` (binaries, traces) is not kept |
 | `reduce/` | `synth.sh` (one module of mmRISC-2 with changed parameters, sv2v + Yosys for the Artix-7), `deps.py`, `sweep.sh`, `results/sweep.txt`. `work/` is not kept |
 
 ## Tools outside the repository

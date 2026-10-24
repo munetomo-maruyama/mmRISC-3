@@ -96,6 +96,10 @@ placement). This answers the open item "utilization by hierarchy" of Phase 0.
 
 ### 3.2 Front end: zero bubbles together with TAGE
 
+**Added 2026-10-24**: in the out-of-order cycle model (`MODEL.md` section 6), 16-byte fetch decoupled from dispatch
+by a buffer absorbs almost all bubbles at taken transfers (−0.9 % even without a uBTB); fetch width is what matters
+(8 bytes: −3.8 %). Read the weight of the problem below in that light.
+
 | | Content |
 |---|---|
 | Problem | There are 125 taken branches per 1000 instructions, and one bubble each costs −19 %. A TAGE and BTB in block RAM take 2 cycles to read, so they cannot give the next PC in one cycle. With 46 % RVC, instruction boundaries and 32-bit instructions across 16 B fetch blocks (3 to 9 %) also need handling |

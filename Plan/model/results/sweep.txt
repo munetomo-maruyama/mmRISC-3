@@ -1,0 +1,60 @@
+| configuration (changes from the baseline) | -O2 | max | g13 | IPC | g14 -O2 |
+|---|---|---|---|---|---|
+| baseline (see MODEL.md 6.2)                  |  6.071 |  6.571 |  5.935 | 1.8934 | MPKI 1.44 ovr 44946 |
+| pred=perfect                                 |  6.238 |  6.712 |  6.089 | 1.9454 | MPKI 0.00 ovr 0 |
+| pred=gshare (mmRISC-2-like, 8K)              |  5.265 |  5.733 |  5.157 | 1.6422 | MPKI 9.28 ovr 28525 |
+| pred=M (TAGE-M)                              |  6.124 |  6.588 |  5.982 | 1.9099 | MPKI 0.97 ovr 46344 |
+| pred=L (TAGE-L)                              |  6.118 |  6.591 |  5.981 | 1.9082 | MPKI 1.02 ovr 46263 |
+| ubtb=0 (every taken via override)            |  6.018 |  6.556 |  5.883 | 1.8770 | MPKI 1.44 ovr 388769 |
+| ubtb=16                                      |  6.068 |  6.570 |  5.933 | 1.8926 | MPKI 1.44 ovr 59727 |
+| ubtb=32                                      |  6.070 |  6.571 |  5.934 | 1.8932 | MPKI 1.44 ovr 47013 |
+| ubtb=128                                     |  6.071 |  6.571 |  5.936 | 1.8936 | MPKI 1.44 ovr 42920 |
+| override_at=3                                |  6.062 |  6.564 |  5.925 | 1.8906 | MPKI 1.44 ovr 44946 |
+| fusion=1 (address + load, pairs, lui/auipc)  |  6.381 |  6.658 |  6.214 | 1.9902 | MPKI 1.44 ovr 44946 |
+| fusion=2 (+ ALU + branch)                    |  6.645 |  6.927 |  6.457 | 2.0725 | MPKI 1.44 ovr 44946 |
+| fusion=3 (+ ALU + ALU chained)               |  7.062 |  7.593 |  6.717 | 2.2025 | MPKI 1.44 ovr 44946 |
+| fusion=3 chain=2 (ALU + ALU not chained)     |  6.846 |  6.889 |  6.607 | 2.1353 | MPKI 1.44 ovr 44946 |
+| fusion=3 dec_w=2                             |  6.239 |  6.888 |  6.115 | 1.9459 | MPKI 1.44 ovr 44946 |
+| iq=12                                        |  6.057 |  6.521 |  5.912 | 1.8891 | MPKI 1.44 ovr 44946 |
+| iq=16                                        |  6.069 |  6.551 |  5.927 | 1.8928 | MPKI 1.44 ovr 44946 |
+| iq=32                                        |  6.072 |  6.580 |  5.941 | 1.8938 | MPKI 1.44 ovr 44946 |
+| iq=48                                        |  6.076 |  6.584 |  5.943 | 1.8950 | MPKI 1.44 ovr 44946 |
+| rob=32                                       |  6.071 |  6.562 |  5.934 | 1.8934 | MPKI 1.44 ovr 44946 |
+| rob=48                                       |  6.071 |  6.571 |  5.935 | 1.8934 | MPKI 1.44 ovr 44946 |
+| rob=96                                       |  6.071 |  6.571 |  5.935 | 1.8934 | MPKI 1.44 ovr 44946 |
+| lq=8 sq=8                                    |  6.015 |  6.486 |  5.885 | 1.8759 | MPKI 1.44 ovr 44946 |
+| lq=12 sq=12                                  |  6.057 |  6.544 |  5.910 | 1.8891 | MPKI 1.44 ovr 44946 |
+| lq=24 sq=24                                  |  6.078 |  6.576 |  5.935 | 1.8955 | MPKI 1.44 ovr 44946 |
+| fetch_bytes=8                                |  5.842 |  6.259 |  5.801 | 1.8222 | MPKI 1.44 ovr 44946 |
+| fetch_bytes=32                               |  6.073 |  6.574 |  5.938 | 1.8941 | MPKI 1.44 ovr 44946 |
+| fb=8                                         |  6.070 |  6.571 |  5.934 | 1.8932 | MPKI 1.44 ovr 44946 |
+| fb=32                                        |  6.071 |  6.571 |  5.935 | 1.8934 | MPKI 1.44 ovr 44946 |
+| fe_depth=2                                   |  6.087 |  6.586 |  5.950 | 1.8986 | MPKI 1.44 ovr 44946 |
+| fe_depth=4                                   |  6.054 |  6.557 |  5.920 | 1.8883 | MPKI 1.44 ovr 44946 |
+| dec_depth=1                                  |  6.087 |  6.586 |  5.950 | 1.8986 | MPKI 1.44 ovr 44946 |
+| dec_depth=3                                  |  6.054 |  6.557 |  5.920 | 1.8883 | MPKI 1.44 ovr 44946 |
+| iss_to_ex=1                                  |  6.094 |  6.586 |  5.950 | 1.9007 | MPKI 1.44 ovr 44946 |
+| iss_to_ex=3                                  |  6.054 |  6.553 |  5.920 | 1.8883 | MPKI 1.44 ovr 44946 |
+| redirect=2                                   |  6.054 |  6.557 |  5.920 | 1.8883 | MPKI 1.44 ovr 44946 |
+| lat_load=3                                   |  5.713 |  6.154 |  5.594 | 1.7819 | MPKI 1.44 ovr 44946 |
+| lat_mul=3                                    |  6.071 |  6.571 |  5.935 | 1.8935 | MPKI 1.44 ovr 44946 |
+| alu=1                                        |  3.883 |  4.507 |  3.786 | 1.2110 | MPKI 1.44 ovr 44946 |
+| alu=3                                        |  6.077 |  6.573 |  5.940 | 1.8952 | MPKI 1.44 ovr 44946 |
+| lsu=2                                        |  6.166 |  6.648 |  6.026 | 1.9232 | MPKI 1.44 ovr 44946 |
+| mem_cons=0 (perfect disambiguation)          |  6.073 |  6.574 |  5.936 | 1.8941 | MPKI 1.44 ovr 44946 |
+| fwd=0 (no store-to-load forwarding)          |  5.809 |  6.294 |  5.698 | 1.8118 | MPKI 1.44 ovr 44946 |
+| ckpt=4                                       |  5.962 |  6.420 |  5.828 | 1.8593 | MPKI 1.44 ovr 44946 |
+| ckpt=8                                       |  6.071 |  6.558 |  5.935 | 1.8934 | MPKI 1.44 ovr 44946 |
+| issue_w=2                                    |  6.014 |  6.463 |  5.875 | 1.8756 | MPKI 1.44 ovr 44946 |
+| issue_w=4 mul_shared=0 (4 ports at once)     |  6.071 |  6.571 |  5.935 | 1.8935 | MPKI 1.44 ovr 44946 |
+| small: rob=32 iq=16 lq=12 sq=12 ckpt=8 ubtb=32 |  6.055 |  6.534 |  5.905 | 1.8885 | MPKI 1.44 ovr 47013 |
+| small + fusion=2                             |  6.615 |  6.879 |  6.442 | 2.0632 | MPKI 1.44 ovr 47013 |
+| small + fusion=3                             |  7.045 |  7.538 |  6.706 | 2.1971 | MPKI 1.44 ovr 47013 |
+| slow: fe 4, dec 3, iss_to_ex 3, override 3   |  6.013 |  6.517 |  5.879 | 1.8753 | MPKI 1.44 ovr 44946 |
+| slow + lat_load=3                            |  5.662 |  6.110 |  5.542 | 1.7659 | MPKI 1.44 ovr 44946 |
+| small + slow + lat_load=3 (pessimistic)      |  5.610 |  6.052 |  5.496 | 1.7497 | MPKI 1.44 ovr 47013 |
+| pessimistic + fusion=2                       |  6.088 |  6.351 |  5.936 | 1.8988 | MPKI 1.44 ovr 47013 |
+| pessimistic + fusion=3                       |  6.412 |  6.875 |  6.154 | 1.9999 | MPKI 1.44 ovr 47013 |
+| NaxRiscv-like: gshare, lat_load=3, iq=32     |  4.918 |  5.333 |  4.827 | 1.5340 | MPKI 9.28 ovr 28525 |
+| w=3 dec_w=6 alu=3 (3-wide, reference)        |  7.468 |  8.121 |  7.240 | 2.3291 | MPKI 1.44 ovr 44946 |
+| w=1 dec_w=2 (1-wide out-of-order, reference) |  3.169 |  3.525 |  3.104 | 0.9884 | MPKI 1.44 ovr 44946 |

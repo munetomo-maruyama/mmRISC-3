@@ -98,3 +98,9 @@ Please sort out here the items to study next, including the problems and their c
 Prompts 11 and 12 are not needed.
 When that is done, let's go on to the cycle model.
 ```
+
+## 13. 2026-10-24 17:34:44 JST (button)
+
+```text
+Go on to step 2 of MODEL_J.md section 5, the 2-wide out-of-order model.
+```
