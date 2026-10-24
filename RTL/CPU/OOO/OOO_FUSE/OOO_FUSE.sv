@@ -1,0 +1,121 @@
+//---------------------------------------------------------------------------
+// OOO_FUSE.sv
+//
+// Instruction fusion of mmRISC-3 (STRATEGY.md 4, Plan/MODEL.md 6): out of a
+// group of 4 decoded instructions, form the next 2 µops; a µop is one
+// instruction or a fused pair of two adjacent ones. Combinational, between
+// decode and rename.
+//
+// Pairs (the rules of fusion_level in Plan/model/ooo.h; LEVEL enables them):
+//   level 1  lui + addi        addi reads the lui's rd
+//            auipc + x         x reads the auipc's rd
+//            slli + srli/srai  the shift right reads the shift left's rd
+//            ALU + load        the load's base is the ALU's rd (address)
+//            load + load       same base and size, offsets one access apart,
+//                              the first does not overwrite the base
+//            store + store     same base and size, offsets one access apart
+//   level 2  ALU + branch      the branch reads the ALU's rd
+//   level 3  ALU + ALU         the second reads the first's rd
+// The first's rd is never x0 for the pairs that pass a value on. The model
+// pairs loads and stores by their dynamic addresses (within 8 bytes); here
+// it can only be the offsets, which is what Plan/OOC.md measures.
+//
+// Pairing is greedy from the oldest slot, as in the model: slot 0 pairs
+// with slot 1 if it can, and the second µop starts after the first. A pair
+// needs both slots valid and the second to follow the first in program
+// order without a predicted taken transfer between them (seq). A µop that
+// would pair with an instruction beyond slot 3 goes alone. no_fuse (debug
+// single step, triggers, a pair being replayed after an exception) turns
+// fusion off.
+//---------------------------------------------------------------------------
+
+`timescale 1ns/1ps
+
+module OOO_FUSE
+    #(
+        parameter int LEVEL = 3
+    )
+    (
+        input  logic        no_fuse,
+
+        // the 4 decoded instructions, slot 0 the oldest
+        input  logic [3:0]       valid,
+        input  logic [3:0]       seq,       // slot k follows slot k-1 directly
+        input  logic [3:0][2:0]  cls,       // 0 ALU 1 BR 2 JAL 3 JALR 4 LOAD 5 STORE 6 MUL/DIV 7 other
+        input  logic [3:0][2:0]  op,        // 0 other 1 lui 2 auipc 3 slli 4 srli/srai 5 add 6 addi
+        input  logic [3:0][4:0]  rd,        // 0 when it writes no register
+        input  logic [3:0][4:0]  rs1,
+        input  logic [3:0][4:0]  rs2,
+        input  logic [3:0]       use_rs1,
+        input  logic [3:0]       use_rs2,
+        input  logic [3:0][11:0] imm,       // offset of a load / store
+        input  logic [3:0][1:0]  msize,     // 0 byte .. 3 double
+
+        output logic             u0_valid,
+        output logic [1:0]       u0_slot,   // first instruction of the µop
+        output logic [3:0]       u0_kind,   // 0 alone, else the kind of pair (below)
+        output logic             u1_valid,
+        output logic [1:0]       u1_slot,
+        output logic [3:0]       u1_kind,
+        output logic [2:0]       consumed   // instructions taken out of the group
+    );
+
+    localparam logic [2:0] C_ALU = 3'd0, C_BR = 3'd1, C_LOAD = 3'd4, C_STORE = 3'd5;
+    localparam logic [2:0] O_LUI = 3'd1, O_AUIPC = 3'd2, O_SLLI = 3'd3, O_SRLI = 3'd4, O_ADDI = 3'd6;
+
+    localparam logic [3:0] K_NONE = 4'd0, K_LUI = 4'd1, K_AUIPC = 4'd2, K_SHIFT = 4'd3,
+                           K_ALU_LD = 4'd4, K_LD_LD = 4'd5, K_ST_ST = 4'd6,
+                           K_ALU_BR = 4'd7, K_ALU_ALU = 4'd8;
+
+    // the kind of pair slot k + slot k+1 would make (k = 0 .. 2)
+    function automatic logic [3:0] pair_kind(input int k);
+        logic [4:0]  d;
+        logic        rd_b;      // the second reads the first's rd
+        logic        adj;       // offsets one access apart
+        logic [12:0] diff;
+        logic [12:0] step;
+        d    = rd[k];
+        rd_b = (d != 5'd0) && ((use_rs1[k+1] && rs1[k+1] == d) || (use_rs2[k+1] && rs2[k+1] == d));
+        step = 13'd1 << msize[k];
+        diff = {imm[k+1][11], imm[k+1]} - {imm[k][11], imm[k]};
+        adj  = (msize[k] == msize[k+1]) && (diff == step || diff == -step);
+        if (op[k] == O_LUI && op[k+1] == O_ADDI && d != 5'd0 && rs1[k+1] == d)
+            return K_LUI;
+        if (op[k] == O_AUIPC && rd_b)
+            return K_AUIPC;
+        if (op[k] == O_SLLI && op[k+1] == O_SRLI && d != 5'd0 && rs1[k+1] == d)
+            return K_SHIFT;
+        if (cls[k] == C_ALU && cls[k+1] == C_LOAD && d != 5'd0 && rs1[k+1] == d)
+            return K_ALU_LD;
+        if (cls[k] == C_LOAD && cls[k+1] == C_LOAD && rs1[k] == rs1[k+1] && d != rs1[k] && adj)
+            return K_LD_LD;
+        if (cls[k] == C_STORE && cls[k+1] == C_STORE && rs1[k] == rs1[k+1] && adj)
+            return K_ST_ST;
+        if (LEVEL >= 2 && cls[k] == C_ALU && cls[k+1] == C_BR && rd_b)
+            return K_ALU_BR;
+        if (LEVEL >= 3 && cls[k] == C_ALU && cls[k+1] == C_ALU && rd_b)
+            return K_ALU_ALU;
+        return K_NONE;
+    endfunction
+
+    logic [2:0][3:0] pk;      // pair kind of k + k+1, when both are there
+    always @(*) begin
+        for (int k = 0; k < 3; k++)
+            pk[k] = (!no_fuse && valid[k] && valid[k+1] && seq[k+1]) ? pair_kind(k) : K_NONE;
+    end
+
+    always @(*) begin
+        logic [2:0] s1;       // where the second µop starts
+        u0_valid = valid[0];
+        u0_slot  = 2'd0;
+        u0_kind  = pk[0];
+        s1       = (pk[0] != K_NONE) ? 3'd2 : 3'd1;
+        u1_valid = valid[0] && (s1 < 3'd4) && valid[s1[1:0]];
+        u1_slot  = s1[1:0];
+        u1_kind  = (s1 < 3'd3) ? pk[s1[1:0]] : K_NONE;
+        if (!u0_valid)      consumed = 3'd0;
+        else if (!u1_valid) consumed = s1;
+        else                consumed = s1 + ((u1_kind != K_NONE) ? 3'd2 : 3'd1);
+    end
+
+endmodule : OOO_FUSE

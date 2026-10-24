@@ -426,3 +426,9 @@ OoO 2幅のサイクルモデルを作り、結果を [Plan/MODEL_J.md](../Plan/
 その後、方針を反映して、
 「融合」の構成でRTLを作成してほしい。
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+The Yosys run is still going. Once it finishes I'll write `Plan/OOC.md` with the final numbers, then commit and push.
+<!-- /answer -->

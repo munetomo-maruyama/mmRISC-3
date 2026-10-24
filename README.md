@@ -24,7 +24,7 @@ Measured on the board under Linux at 50 MHz, with the same bitstream that runs L
 
 ## Status (2026-10-23)
 
-**Phase 0: strategy.** No RTL yet. The strategy is in [`Doc/STRATEGY.md`](Doc/STRATEGY.md): the goal split into
+**Phase 0: strategy and the first RTL blocks.** The blocks of the fusion configuration are in `RTL/CPU/OOO` (tested in `SIM/OOO_UNIT`, out-of-context synthesis in `FPGA/OOO_OOC`; `Plan/OOC.md`). The strategy is in [`Doc/STRATEGY.md`](Doc/STRATEGY.md): the goal split into
 instruction count × IPC, the CPI budget, the LUT budget of the Arty, a trace-driven performance model before any RTL,
 and the phases with their gates.
 

@@ -48,6 +48,7 @@ struct OooCfg {
     int fusion = 0;             // 0 none, 1 conservative, 2 + ALU + branch, 3 + ALU + ALU
     int chain = 1;
     bool fuse_1w = false;       // fuse only pairs that write at most one register
+    bool fuse_2src = false;     // fuse only pairs that read at most two registers
     bool mem_cons = true, fwd = true;
 };
 
@@ -124,6 +125,18 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         for (size_t i = 0; i + 1 < n;) {
             int lv = fusion_level(t[i], t[i + 1]);
             if (lv && c.fuse_1w && t[i].dst != NOREG && t[i + 1].dst != NOREG && t[i].dst != t[i + 1].dst) lv = 0;
+            if (lv && c.fuse_2src) {     // the registers the pair reads from outside
+                uint8_t seen[6]; int ns = 0;
+                for (int k = 0; k < 2; k++)
+                    for (int s2 = 0; s2 < 3; s2++) {
+                        uint8_t r = t[i + k].src[s2];
+                        if (r == NOREG || (k == 1 && r == t[i].dst)) continue;
+                        bool dup = false;
+                        for (int q = 0; q < ns; q++) dup |= seen[q] == r;
+                        if (!dup) seen[ns++] = r;
+                    }
+                if (ns > 2) lv = 0;
+            }
             if (lv && lv <= c.fusion) { second[i + 1] = 1; i += 2; res.fused++; } else i++;
         }
     }

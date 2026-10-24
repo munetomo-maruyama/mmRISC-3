@@ -192,7 +192,7 @@ by a buffer absorbs almost all bubbles at taken transfers (−0.9 % even without
 |---|---|---|---|
 | 1 | Cycle model: framework, calibration with the 8-stage in-order core | Claude Code | `Plan/model/`, `Plan/MODEL.md` |
 | 2 | Cycle model: 2-wide out-of-order, front end (uBTB + TAGE), fusion, LSU | Claude Code | CoreMark/MHz per configuration and a table of factors |
-| 3 | OOC synthesis of small blocks: two ALU stages, wakeup-select, uBTB next PC, renaming, PRF (LVT), multi-cycle FPU | RTL by Claude Code, Vivado by the author | Table of delays and LUTs |
+| 3 | OOC synthesis of small blocks: two ALU stages, wakeup-select, uBTB next PC, renaming, PRF (LVT), multi-cycle FPU | RTL by Claude Code, Vivado by the author | Table of delays and LUTs. **2026-10-24: the six RTL blocks of the fusion configuration, verified, with Yosys estimates (`OOC.md`); waiting for the Vivado runs** |
 | 4 | Resource budget table and decisions D-1 to D-5 | Claude Code proposes, the author decides | — |
 | 5 | **G0: micro-architecture specification** (the Phase 1 spec, with the lock-step verification framework and the non-speculative list) | Claude Code | `Spec/` or `Doc/` |
 

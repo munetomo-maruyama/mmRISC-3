@@ -177,7 +177,7 @@ mmRISC-2の`LitexSystem/build/gateware/digilent_arty_utilization_hierarchical_pl
 |---|---|---|---|
 | 1 | サイクルモデル: 枠組み、インオーダー8段での校正 | Claude Code | `Plan/model/`、`Plan/MODEL_J.md` |
 | 2 | サイクルモデル: OoO 2幅、フロントエンド(uBTB + TAGE)、融合、LSU | Claude Code | 構成ごとのCoreMark/MHzと要因の表 |
-| 3 | 小さなブロックのOOC合成: 2段ALU、wakeup-select、uBTBの次PC、リネーム、PRF(LVT)、マルチサイクルFPU | RTLはClaude Code、Vivadoは作者 | 遅延とLUTの表 |
+| 3 | 小さなブロックのOOC合成: 2段ALU、wakeup-select、uBTBの次PC、リネーム、PRF(LVT)、マルチサイクルFPU | RTLはClaude Code、Vivadoは作者 | 遅延とLUTの表。**2026-10-24: 融合構成のRTL 6ブロックと検証、Yosysの見積りまで済み(`OOC_J.md`)。Vivadoの実行待ち** |
 | 4 | 資源の予算表とD-1〜D-5の決定 | Claude Codeが案、作者が決定 | — |
 | 5 | **G0: マイクロアーキテクチャ仕様書**(Phase 1の仕様: lock-step検証の枠組み、非投機化の一覧を含む) | Claude Code | `Spec/`または`Doc/` |
 

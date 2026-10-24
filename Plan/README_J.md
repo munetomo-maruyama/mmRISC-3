@@ -7,6 +7,7 @@ mmRISC-3の事前検討(`Doc/STRATEGY_J.md`のPhase 0)。RTLより先に行う�
 | 文書 | 内容 |
 |---|---|
 | [`MODEL_J.md`](MODEL_J.md) / [英語版](MODEL.md) | Phase 0-3: トレース駆動のC++サイクルモデル。(1) 枠組みとmmRISC-2による校正(5点で±0.3%以内)、(2) OoO 2幅: 融合なしで6.07 / 6.57、融合込みで7.06 / 7.59 CoreMark/MHz |
+| [`OOC_J.md`](OOC_J.md) / [英語版](OOC.md) | Phase 0-4: 融合構成のRTLブロック(RTL/CPU/OOO)、単体テストとバグ注入、Yosysの見積り、レジスタファイルのポートと性能、VivadoのOOC合成 |
 | [`PRESTUDY_MMRISC2_J.md`](PRESTUDY_MMRISC2_J.md) / [英語版](PRESTUDY_MMRISC2.md) | mmRISC-2開発時の事前検討メモ(2026-10-13): Arty A7-100TでのOoO RV64GC。資源、NaxRiscv、Linuxと非投機化、妥協案 |
 | [`ICOUNT_J.md`](ICOUNT_J.md) / [英語版](ICOUNT.md) | Phase 0-1: CoreMark 1回あたりの命令数(コンパイラ・オプション・拡張命令別)と、目標に必要なIPC |
 | [`ISSUES_J.md`](ISSUES_J.md) / [英語版](ISSUES.md) | G0までの残りの検討項目(課題と対策)、mmRISC-2 Rev.02の資源の実測と予算の見直し、作者が決めること |

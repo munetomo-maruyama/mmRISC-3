@@ -23,7 +23,7 @@ Arty A7-100T(50 MHz)で Linux(BusyBox、Debian 13)を動かす。周辺回路は
 
 ## 現状(2026-10-23)
 
-**Phase 0: 戦略。** RTL はまだない。戦略は [`Doc/STRATEGY_J.md`](Doc/STRATEGY_J.md) にある: 目標の命令数 × IPC への
+**Phase 0: 戦略と最初の RTL ブロック。** 融合構成のブロックが `RTL/CPU/OOO` にある(テストは `SIM/OOO_UNIT`、OOC 合成は `FPGA/OOO_OOC`。`Plan/OOC_J.md`)。戦略は [`Doc/STRATEGY_J.md`](Doc/STRATEGY_J.md) にある: 目標の命令数 × IPC への
 分解、CPI の予算、Arty の LUT 予算、RTL より先に作るトレース駆動の性能モデル、フェーズとゲート。
 
 ## 文書

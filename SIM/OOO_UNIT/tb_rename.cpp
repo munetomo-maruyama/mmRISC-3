@@ -1,0 +1,178 @@
+//---------------------------------------------------------------------------
+// tb_rename.cpp : OOO_RENAME (96 registers, 8 checkpoints) against a
+// reference of renaming written separately
+//
+// Every cycle: 2 random µops (sources and destinations from a small set of
+// registers, so that the in-group cases happen), some with a checkpoint;
+// write-backs of registers given out; commits in order that give the old
+// mappings back (up to 4 a cycle); now and then a misprediction that
+// restores a pending checkpoint and drops the µops younger than it. The
+// outputs (ready, physical sources, ready bits, new and old destinations,
+// checkpoint numbers) are compared every cycle.
+//---------------------------------------------------------------------------
+#include "VOOO_RENAME.h"
+#include <cstdint>
+#include <cstdio>
+#include <deque>
+#include <random>
+#include <vector>
+
+struct Ref {
+    int rat[32];
+    int fl[64];
+    long head = 0, tail = 64;
+    bool busy[96] = {false};
+    struct Ck { int rat[32]; long head; };
+    Ck ck[8];
+    int ck_next = 0;
+    Ref() { for (int a = 0; a < 32; a++) rat[a] = a; for (int f = 0; f < 64; f++) fl[f] = 32 + f; }
+    long nfree() const { return tail - head; }
+};
+
+struct Uop { int old[2]; bool wr[2]; int ck; bool has_ck; };
+
+static std::mt19937 rng(11);
+static VOOO_RENAME d;
+
+static void tick() { d.clk = 1; d.eval(); d.clk = 0; d.eval(); }
+
+int main(int argc, char** argv)
+{
+    Verilated::commandArgs(argc, argv);
+    Ref R;
+    // rst_n starts at 0 in Verilator: raise it first so that the fall is an edge
+    d.clk = 0; d.rst_n = 1; d.eval(); d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
+    std::deque<Uop> inflight;          // renamed, not committed, oldest first
+    std::vector<int> pending_ck;       // checkpoint ids of unresolved transfers, oldest first
+    std::vector<int> given;            // registers given out (for write-backs)
+    long bad = 0, cyc = 0, renamed = 0, restores = 0;
+    for (cyc = 0; cyc < 400000; cyc++) {
+        // ---- inputs
+        int valid = 0, use[2][3], src[2][3], wr[2][2], dst[2][2], ckp[2];
+        for (int u = 0; u < 2; u++) {
+            if (rng() % 5) valid |= 1 << u;
+            for (int s = 0; s < 3; s++) { use[u][s] = rng() % 3 != 0; src[u][s] = rng() % 8; }
+            for (int k = 0; k < 2; k++) { wr[u][k] = rng() % 3 != 0; dst[u][k] = rng() % 8; }
+            if (wr[u][0] && wr[u][1] && dst[u][0] == dst[u][1]) wr[u][0] = 0;   // as the decoder does
+            ckp[u] = (rng() % 4 == 0) && pending_ck.size() + (u ? ckp[0] : 0) < 7;
+        }
+        // write-backs: up to 5 registers given out
+        int wbv = 0; uint64_t wbt = 0;
+        for (int w = 0; w < 5; w++)
+            if (!given.empty() && rng() % 2) {
+                int k = rng() % given.size();
+                wbv |= 1 << w; wbt |= (uint64_t)given[k] << (7 * w);
+                given.erase(given.begin() + k);
+            }
+        // commits: the oldest µops, while their old mappings fit in 4
+        int frv = 0, nfr = 0; uint64_t frt = 0;
+        int ncommit = 0;
+        while (!inflight.empty() && rng() % 3) {
+            Uop& o = inflight.front();
+            int need = o.wr[0] + o.wr[1];
+            if (nfr + need > 4) break;
+            if (o.has_ck && !pending_ck.empty() && pending_ck.front() == o.ck) break;  // resolve first
+            for (int k = 0; k < 2; k++) if (o.wr[k]) { frv |= 1 << nfr; frt |= (uint64_t)o.old[k] << (7 * nfr); nfr++; }
+            inflight.pop_front(); ncommit++;
+        }
+        // resolve the oldest pending transfer: right (drop the checkpoint) or wrong (restore)
+        int restore = 0, rid = 0;
+        if (!pending_ck.empty() && rng() % 4 == 0) {
+            int id = pending_ck.front();
+            if (rng() % 3 == 0) {
+                restore = 1; rid = id; restores++;
+                // drop the µops younger than the transfer
+                while (!inflight.empty() && !(inflight.back().has_ck && inflight.back().ck == id)) inflight.pop_back();
+                pending_ck.clear();
+            } else {
+                pending_ck.erase(pending_ck.begin());
+            }
+            for (auto& o : inflight) if (o.has_ck && o.ck == id) o.has_ck = false;
+        }
+        // drive
+        d.in_valid = valid; d.restore = restore; d.restore_id = rid;
+        uint32_t iu = 0, is = 0, iw = 0, id = 0, ic = 0;
+        for (int u = 0; u < 2; u++) {
+            for (int s = 0; s < 3; s++) { iu |= use[u][s] << (u * 3 + s); is |= src[u][s] << (5 * (u * 3 + s)); }
+            for (int k = 0; k < 2; k++) { iw |= wr[u][k] << (u * 2 + k); id |= dst[u][k] << (5 * (u * 2 + k)); }
+            ic |= ckp[u] << u;
+        }
+        d.in_use = iu; d.in_src = is; d.in_wr = iw; d.in_dst = id; d.in_ckpt = ic;
+        d.wb_valid = wbv; d.wb_tag = wbt; d.free_valid = frv; d.free_tag = frt;
+        d.eval();
+
+        // ---- the reference: outputs from the state before the clock
+        int need = 0, nth[2][2], alloc[2][2], nt[2][2];
+        for (int u = 0; u < 2; u++)
+            for (int k = 0; k < 2; k++) {
+                nth[u][k] = need;
+                alloc[u][k] = ((valid >> u) & 1) && wr[u][k] && dst[u][k] != 0;
+                if (alloc[u][k]) need++;
+            }
+        bool ready = R.nfree() >= need && !restore;
+        for (int u = 0; u < 2; u++) for (int k = 0; k < 2; k++)
+            nt[u][k] = alloc[u][k] ? R.fl[(R.head + nth[u][k]) % 64] : 0;
+        bool ok = (bool)d.ready == ready;
+        char why[200] = "ready";
+        if (ready && valid) {
+            for (int u = 0; u < 2; u++) {
+                if (!((valid >> u) & 1)) continue;
+                for (int s = 0; s < 3; s++) {
+                    int p = R.rat[src[u][s]];
+                    bool r = !use[u][s] || src[u][s] == 0 || !R.busy[p];
+                    if (u == 1) for (int k = 0; k < 2; k++) if (alloc[0][k] && dst[0][k] == src[1][s]) { p = nt[0][k]; r = false; }
+                    int gp = (int)((d.out_src >> (7 * (u * 3 + s))) & 0x7f);
+                    int gr = (d.out_rdy >> (u * 3 + s)) & 1;
+                    if (use[u][s] && (gp != p || gr != r)) { ok = false; snprintf(why, sizeof why, "u%d src%d (x%d): p%d/%d ready %d/%d", u, s, src[u][s], gp, p, gr, r); }
+                }
+                for (int k = 0; k < 2; k++) {
+                    if (!alloc[u][k]) continue;
+                    int old = R.rat[dst[u][k]];
+                    if (u == 1) for (int j = 0; j < 2; j++) if (alloc[0][j] && dst[0][j] == dst[1][k]) old = nt[0][j];
+                    int gd = (int)((d.out_dst >> (7 * (u * 2 + k))) & 0x7f);
+                    int go = (int)((d.out_old >> (7 * (u * 2 + k))) & 0x7f);
+                    if (gd != nt[u][k] || go != old) { ok = false; snprintf(why, sizeof why, "u%d dst%d (x%d): new p%d/%d old p%d/%d", u, k, dst[u][k], gd, nt[u][k], go, old); }
+                }
+                int gck = (d.out_ckpt_id >> (3 * u)) & 7;
+                int eck = (R.ck_next + (u == 1 && (valid & 1) && ckp[0])) % 8;
+                if (ckp[u] && gck != eck) { ok = false; snprintf(why, sizeof why, "u%d ckpt %d/%d", u, gck, eck); }
+            }
+        }
+        if (!ok && bad++ < 10) printf("MISMATCH at cycle %ld: %s (rtl/ref)\n", cyc, why);
+
+        // ---- the reference: the state after the clock
+        for (int w = 0; w < 5; w++) if ((wbv >> w) & 1) R.busy[(wbt >> (7 * w)) & 0x7f] = false;
+        for (int k = 0; k < nfr; k++) { R.fl[R.tail % 64] = (int)((frt >> (7 * k)) & 0x7f); R.tail++; }
+        if (restore) {
+            for (int a = 0; a < 32; a++) R.rat[a] = R.ck[rid].rat[a];
+            R.head = R.ck[rid].head;
+            R.ck_next = (rid + 1) % 8;
+        } else if (ready && valid) {
+            int cknext = R.ck_next;
+            for (int u = 0; u < 2; u++) {
+                if (!((valid >> u) & 1)) continue;
+                Uop o; o.has_ck = false; o.ck = 0;
+                for (int k = 0; k < 2; k++) {
+                    o.wr[k] = alloc[u][k];
+                    o.old[k] = R.rat[dst[u][k]];
+                    if (alloc[u][k]) { R.rat[dst[u][k]] = nt[u][k]; R.busy[nt[u][k]] = true; given.push_back(nt[u][k]); }
+                }
+                if (ckp[u]) {
+                    int idc = cknext % 8; cknext++;
+                    for (int a = 0; a < 32; a++) R.ck[idc].rat[a] = R.rat[a];
+                    R.ck[idc].head = R.head + (u == 0 ? nth[1][0] : need);
+                    o.has_ck = true; o.ck = idc;
+                    pending_ck.push_back(idc);
+                }
+                inflight.push_back(o);
+                renamed++;
+            }
+            R.head += need;
+            R.ck_next = cknext % 8;
+        }
+        tick();
+    }
+    printf("tb_rename: %ld cycles, %ld µops renamed, %ld restores, %ld mismatches: %s\n", cyc, renamed, restores, bad,
+           bad ? "FAIL" : "PASS");
+    return bad ? 1 : 0;
+}
