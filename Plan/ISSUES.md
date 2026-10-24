@@ -180,8 +180,8 @@ by a buffer absorbs almost all bubbles at taken transfers (−0.9 % even without
 | D-1 | FPU style | Pipelined as now / multi-cycle / in-order side pipe | Multi-cycle (LUTs to the integer side; no effect on CoreMark) | **Decided 2026-10-24: pipelined at first**; reconsidered depending on the logic size |
 | D-2 | L2 size | 256 KB / 128 KB | Keep 256 KB; 128 KB if block RAM runs out | G0 |
 | D-3 | Ethernet | Keep / remove | Keep; the first candidate to cut if LUTs run out | **Decided 2026-10-24: kept**; reduce by the options of `REDUCE.md` |
-| D-4 | Fusion scope | Address calculation + load only / + ALU + branch / + ALU + ALU | Decided by the cycle model and OOC synthesis | G0 |
-| D-5 | TAGE size | S (62 kbit) / M (196 kbit) | Start with S; M if block RAM allows | G0 |
+| D-4 | Fusion scope | Address calculation + load only / + ALU + branch / + ALU + ALU | Decided by the cycle model and OOC synthesis | **2026-10-24: by the author's instruction, the fusion configuration (up to ALU + ALU)**; the timing of two ALU stages and the cost of 2 writes per pair checked by OOC synthesis (`MODEL.md` section 6, `OOC.md`) |
+| D-5 | TAGE size | S (62 kbit) / M (196 kbit) | Start with S; M if block RAM allows | 2026-10-24: S (0.9 % below M in the model) |
 | D-6 | Most-optimization options | sf + `-flto` / sf | Decided by cycles | Phase 1 |
 
 ---

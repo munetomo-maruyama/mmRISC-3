@@ -47,6 +47,7 @@ struct OooCfg {
     std::string pred = "S";     // perfect, gshare, S, M, L (TAGE)
     int fusion = 0;             // 0 none, 1 conservative, 2 + ALU + branch, 3 + ALU + ALU
     int chain = 1;
+    bool fuse_1w = false;       // fuse only pairs that write at most one register
     bool mem_cons = true, fwd = true;
 };
 
@@ -122,6 +123,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     if (c.fusion) {
         for (size_t i = 0; i + 1 < n;) {
             int lv = fusion_level(t[i], t[i + 1]);
+            if (lv && c.fuse_1w && t[i].dst != NOREG && t[i + 1].dst != NOREG && t[i].dst != t[i + 1].dst) lv = 0;
             if (lv && lv <= c.fusion) { second[i + 1] = 1; i += 2; res.fused++; } else i++;
         }
     }

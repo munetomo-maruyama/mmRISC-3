@@ -30,6 +30,12 @@
 7. Realistic expectation (to be checked): **4.5 to 5.0 /MHz** with `-O2`, **5.0 to 5.5 /MHz** with the most
    optimization. **6.0 or more with the most optimization is the upside** if fusion, SFB and the instruction-count
    reduction all work. The Phase 0 model turns this into numbers.
+8. **Revised 2026-10-24 (results of the cycle model, `Plan/MODEL.md` section 6)**: 2-wide out-of-order gives 6.07 with
+   `-O2` and 6.57 with the most optimization even without fusion, and 5.61 / 6.05 in a pessimistic configuration.
+   **By the author's instruction the "fusion configuration" (4-wide decode, fusion up to chained ALU + ALU) is the
+   baseline** (7.06 / 7.59). Limiting a fused pair to one register write drops it to 6.75 / 6.90, so two writes per
+   pair are assumed and their cost is checked by OOC synthesis. The configuration is the right column of the table in
+   section 4.
 
 ---
 
@@ -103,8 +109,10 @@ Before arguing about performance, the conditions are fixed, taken over from mmRI
 | 8 | Fewer instructions | Zicond / Zbs, compiler and options (a `-mtune` that emits fusible sequences) | Hardware exists |
 | 9 | Memory-dependence speculation | Issue loads before older store addresses are known (a simple store-set) | Medium to large; only after the model shows the gain |
 
-**Added 2026-10-24**: the trace analysis (`Plan/TRACE.md`) proposes a new order (TAGE, a zero-bubble front end and
-fusion at the top; SFB dropped). See its section 4.
+**Added 2026-10-24**: after the trace analysis (`Plan/TRACE.md` section 4) and the cycle model (`Plan/MODEL.md` 6.4) the
+order becomes: 1 predictor (TAGE-S), 2 fusion and 4-wide decode, 3 2-cycle load-use, 4 store-to-load forwarding,
+5 16-byte fetch decoupled from dispatch. SFB dropped. The misprediction penalty (depth) and the uBTB hardly matter in
+out-of-order.
 
 More execution units quickly give diminishing returns (NaxRiscv's notes). **For CoreMark, prediction and short
 latencies matter more than the number of units.**
@@ -142,18 +150,19 @@ What follows:
 
 ## 4. Initial configuration (hypothesis, fixed in Phase 0)
 
-| Item | Hypothesis |
-|---|---|
-| Fetch | 16 B per cycle, decoupled by an FTQ, zero-bubble next-line predictor (LUTRAM) + BTB (BRAM) + TAGE (BRAM) + RAS |
-| Decode / rename / commit | 2 µops per cycle (up to 4 instructions with fusion) |
-| ROB | 48 to 64 entries (payload in LUTRAM / BRAM) |
-| PRF | about 96 integer registers (LUTRAM, banked by write port + LVT) |
-| Issue queue | unified 16 to 24, or distributed; 1-cycle wakeup-select |
-| Execution units | ALU0 (full + branch), ALU1 (simple + branch), MUL/DIV, LSU (1 load + 1 store), FPU (reduced) |
-| Load-use | 2 cycles (speculative wakeup by hit prediction) |
-| Misprediction penalty | 10 cycles or less |
-| Reused | L1 / L2, MMU, CSR, debug, FPU, LiteX integration, SIM_BIOS, bug injection |
-| Frequency | 50 MHz |
+| Item | Hypothesis (first) | **Fusion configuration (revised 2026-10-24, `Plan/MODEL.md` section 6)** |
+|---|---|---|
+| Fetch | 16 B per cycle, decoupled by an FTQ, zero-bubble next-line predictor (LUTRAM) + BTB (BRAM) + TAGE (BRAM) + RAS | 16 B per cycle, decoupled by a 16-instruction fetch buffer; uBTB 32 (LUTRAM, next PC in F0), TAGE-S (62 kbit) + BTB + 16-entry RAS override in F2 |
+| Decode / rename / commit | 2 µops per cycle (up to 4 instructions with fusion) | **4-wide decode + fusion** (address calculation + load, load / store pairs, lui / auipc, ALU + branch, ALU + ALU); rename, dispatch and commit 2 µops per cycle; a fused pair writes up to 2 registers |
+| ROB | 48 to 64 entries (payload in LUTRAM / BRAM) | 32 entries |
+| PRF | about 96 integer registers (LUTRAM, banked by write port + LVT) | 96 integer registers (32 + ROB 32 × up to 2 per pair), LUTRAM, banked by write port + LVT |
+| Issue queue | unified 16 to 24, or distributed; 1-cycle wakeup-select | unified 16 entries, 3 sources (fused pairs), 1-cycle wakeup-select, oldest first (age matrix), 3 issues per cycle |
+| Execution units | ALU0 (full + branch), ALU1 (simple + branch), MUL/DIV, LSU (1 load + 1 store), FPU (reduced) | 2 ALU ports, each two stages chained (full → full: a fused ALU + ALU / ALU + branch in one cycle), MUL / DIV sharing ALU0's port, 1 LSU, FPU (pipelined, decision D3) |
+| Load-use | 2 cycles (speculative wakeup by hit prediction) | 2 cycles (required; 3 costs −6 %) |
+| Memory | — | conservative memory dependence, LQ / SQ 16, forwarding from the SQ (required), 8 checkpoints |
+| Misprediction penalty | 10 cycles or less | 9 cycles from EX to EX (depth hardly matters) |
+| Reused | L1 / L2, MMU, CSR, debug, FPU, LiteX integration, SIM_BIOS, bug injection | same |
+| Frequency | 50 MHz | 50 MHz |
 
 ---
 

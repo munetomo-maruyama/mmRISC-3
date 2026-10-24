@@ -76,6 +76,7 @@ int main(int argc, char** argv)
         c.ubtb = (int)o.get("ubtb", c.ubtb);
         c.fusion = (int)o.get("fusion", c.fusion);
         c.chain = (int)o.get("chain", c.chain);
+        c.fuse_1w = o.get("fuse_1w", c.fuse_1w);
         c.mem_cons = o.get("mem_cons", c.mem_cons);
         c.fwd = o.get("fwd", c.fwd);
         auto it = o.kv.find("pred");
