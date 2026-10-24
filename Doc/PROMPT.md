@@ -668,3 +668,32 @@ I ran synth_ooo.bat OOO_IQ and synth_ooo.bat OOC_RENAME. Please read the results
 ```text
 I ran synth_ooo.bat OOO_IQ and synth_ooo.bat OOC_RENAME. Please read the results and record them in section 10 of OOC_J.md.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I read the Vivado results of the issue queue and renaming and recorded them in 10.8 of OOC_J.md section 10 (English: OOC.md). Both close at 50 MHz and fit their size targets. Pushed to dev as `925552b`.
+
+| Block | First version | Now | Register-to-register slack |
+|---|---|---|---|
+| Issue queue | 6,200 | **3,143** (−49%) | +5.07 ns (12 levels) |
+| Renaming | 6,098 | **2,271** (−63%) | +9.60 ns (2 levels) |
+
+- **Issue queue**: the worst wakeup-select path is 2.7 ns faster than in the previous version.
+- **Renaming ran without its harness.** What ran was `OOO_RENAME`; what I asked for was `OOC_RENAME`, which puts flip-flops on the inputs and outputs (sorry for the confusing names). The result can be used as it is anyway.
+  - The harness adds only flip-flops, so the LUT count is the same.
+  - The worst path overall (+0.90 ns) is combinational from input to output, and it fits in the 8 ns left after the 6 ns input and output delays. In the core it gets a whole cycle (20 ns), so it closes with ample margin.
+
+**Budget**: all measured blocks now have Vivado numbers, totalling **15,308 LUTs** (36k to 40k at first).
+
+- Breakdown: ALUs (2 ports) 6,266, issue queue 3,143, renaming 2,271, register file 2,503, uBTB 910, fusion 215
+- The out-of-order budget is 16k to 18k. But only 0.7k to 2.7k is left for the ROB, LSU, LQ / SQ, decode and front end, not written yet, so the budget revision at G0 (including the FPU of D3) is needed.
+
+In the prompt log, entries 19 and 20 were the same prompt (sent again). I noted in 19 that its answer is in 20, and added the English for answer 18 and prompts 19 and 20.
+<!-- /answer -->
+
+## 21. 2026-10-24 22:37:08 JST
+
+```text
+I reran OOC_RENAME; please check it.
+```

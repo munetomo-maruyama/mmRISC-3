@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Sat Oct 24 20:50:13 2026
+| Date         : Sat Oct 24 22:34:13 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOC_RENAME/utilization.rpt
 | Design       : OOC_RENAME
@@ -22,9 +22,9 @@ Table of Contents
 +----------------+------------+------------+------------+---------+------+------+--------+--------+------------+
 |    Instance    |   Module   | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
 +----------------+------------+------------+------------+---------+------+------+--------+--------+------------+
-| OOC_RENAME     |      (top) |       6098 |       6098 |       0 |    0 | 2830 |      0 |      0 |          0 |
-|   (OOC_RENAME) |      (top) |          0 |          0 |       0 |    0 |  260 |      0 |      0 |          0 |
-|   u_ren        | OOO_RENAME |       6098 |       6098 |       0 |    0 | 2570 |      0 |      0 |          0 |
+| OOC_RENAME     |      (top) |       2267 |       2267 |       0 |    0 | 2296 |      0 |      0 |          0 |
+|   (OOC_RENAME) |      (top) |          0 |          0 |       0 |    0 |  145 |      0 |      0 |          0 |
+|   u_ren        | OOO_RENAME |       2267 |       2267 |       0 |    0 | 2151 |      0 |      0 |          0 |
 +----------------+------------+------------+------------+---------+------+------+--------+--------+------------+
 * Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
 
