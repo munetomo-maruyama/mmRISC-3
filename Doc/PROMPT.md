@@ -81,24 +81,7 @@ Thank you. Please keep an English translation of PROMPT as well.
 Please sort out here the items to study next, including the problems and their countermeasures.
 ```
 
-## 11. 2026-10-24 17:05:17 JST
-
-```text
-D1, target performance: basically the recommendation is OK. With the most optimization I want to exceed 6 cm/mhz (CoreMark/MHz).
-D2, width: the recommendation is OK.
-```
-
-## 12. 2026-10-24 17:07:52 JST
-
-```text
-(D1) Target performance: basically the recommendation is OK. With the most optimization I want to exceed 6 cm/mhz.
-(D2) Width: the recommendation is OK.
-(D3) FPU: at first I want to think of it as pipelined. To be reconsidered depending on the logic size.
-(D4) Frequency: fixed at 50 MHz.
-(D5) Ether: go ahead with it. The logic-size problem is shared with D3, but please put forward various ideas, such as making the triggers 2.
-```
-
-## 13. 2026-10-24 17:08:53 JST
+## 11. 2026-10-24 17:08:53 JST
 
 ```text
 (D1) Target performance: basically the recommendation is OK. With the most optimization I want to exceed 6 cm/mhz.
@@ -107,4 +90,11 @@ D2, width: the recommendation is OK.
 (D4) Frequency: fixed at 50 MHz.
 (D5) Ethernet: go ahead with it. The logic-size problem is shared with D3, but please put forward various ideas, such as making the triggers 2.
 (D6) Repository: as recommended, OK.
+```
+
+## 12. 2026-10-24 17:24:45 JST ("11 and 12" in the text are the numbers before deletion: the two partial submissions of entry 11)
+
+```text
+Prompts 11 and 12 are not needed.
+When that is done, let's go on to the cycle model.
 ```

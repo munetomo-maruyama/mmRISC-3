@@ -1,7 +1,7 @@
 # Options to reduce the logic
 
 - Date: 2026-10-24
-- Status: following the author's decisions (2026-10-24, `Doc/PROMPT.md` entry 13), Ethernet stays and the FPU starts
+- Status: following the author's decisions (2026-10-24, `Doc/PROMPT.md` entry 11), Ethernet stays and the FPU starts
   pipelined, and these are the options that free LUTs. Every option concerns a block reused from mmRISC-2 or one built
   for mmRISC-3.
 - Working files: `Plan/reduce/` (`synth.sh`, `sweep.sh`, `results/sweep.txt`)

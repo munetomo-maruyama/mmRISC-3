@@ -218,7 +218,7 @@ non-speculative MMIO loads are already in the Phase 1 spec.
 
 ## 8. Decisions for the author
 
-Decided by the author on 2026-10-24 (`Doc/PROMPT.md` entry 13).
+Decided by the author on 2026-10-24 (`Doc/PROMPT.md` entry 11).
 
 | # | Item | Recommendation | **Decision (2026-10-24)** |
 |---|---|---|---|
