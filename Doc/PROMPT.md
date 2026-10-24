@@ -720,3 +720,49 @@ I added the row with the harness to 10.8 of OOC_J.md / OOC.md and updated the to
 ```text
 Please go on to the G0 specification. Put together the freeze of the micro-architecture and the budget revision including the ROB, LSU and decode (and the FPU of D3).
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I put the G0 specification together in [Doc/UARCH_J.md](../Doc/UARCH_J.md) (English: [Doc/UARCH.md](../Doc/UARCH.md)). The micro-architecture is frozen, but the budget does not close yet, so the proposed verdict is "a conditional pass, with the budget decided at G0b inside Phase 1". Pushed to dev as `c878b09`.
+
+**Performance (the goals are met)**
+
+| Configuration | `-O2` | Most optimization |
+|---|---|---|
+| **G0** | **6.56** | **6.80** |
+| G0, pessimistic pipeline | 5.85 | 6.14 |
+| G0 without fusion, pessimistic | 5.51 | 5.97 |
+
+Only without fusion and with the pessimistic pipeline does the most optimization fall below 6.0. What keeps "above 6.0" safe against a slower pipeline is fusion.
+
+**The frozen configuration**: 2-wide, 4-wide decode with fusion (2 sources and 1 write per pair), uBTB 16 + TAGE-S, ROB 24, issue queue 12, 64 physical registers, LQ / SQ 12, 6 checkpoints. The changes from before G0 (ROB 32 → 24, issue queue 16 → 12, checkpoints 8 → 6) cost −0.4% / −0.6% and save about 1k LUTs.
+
+**Budget (does not close yet)**
+
+| | LUT |
+|---|---|
+| Blocks measured in Vivado (with the G0 changes) | about 14.0k |
+| Estimate of what is not written yet (front end, TAGE, decode, ROB, LSU, control) | 9.3k to 14.5k |
+| Needed | 23.3k to 28.5k |
+| Room (52k ceiling, group A included) | 16.4k to 17.9k |
+| **Over** | **5.4k to 12.1k (about 8.8k in the middle)** |
+
+**Reconsidering D3 (FPU) found a wrong premise.** In mmRISC-2's measurements the multi-cycle FPU (9,757 LUTs) is larger than the pipelined one (9,060), so going back to multi-cycle frees nothing. FPU_PIPE stays; its breakdown (C1) is measured first, then sharing the multiplier (C2) and moving the rare operations to an iterative unit (C3) are considered (1.5k to 3k).
+
+**Closing the gap** (section 6, in the recommended order)
+
+- Without touching fusion, Ethernet or the ceiling: 4.4k to 7.1k: Linux-side reductions, the FPU, three small structures (−0.7% or less each), asymmetric ALUs. At the low end of the estimate this is enough.
+- In the middle of the estimate, fusion level 2 (only ALU + ALU out, −3.4% / −0.7%) and raising the ceiling to 54k are needed as well.
+- No fusion (−7.8% / −4.3%) and no Ethernet are the last resort. Fusion is efficient in performance per 1k LUTs, so it comes last.
+
+The spread of the estimate for the blocks not yet written (±2.6k) is as large as most levers, so measuring it first is the point of G0b. Phase 1 starts with the lock-step framework and the RTL and Vivado measurements of the front end, decode, ROB and LSU. What I ask of the author is to measure the FPU breakdown (C1) in parallel.
+
+The model runs are reproduced by `Plan/model/g0.sh` (results in `results/g0.txt`). STRATEGY, ISSUES, REDUCE and the READMEs are updated for G0.
+<!-- /answer -->
+
+## 23. 2026-10-24 23:38:35 JST
+
+```text
+I want to keep Zbc of L2. As a principle I want to keep the instruction set. Everything else, let's go as recommended.
+```

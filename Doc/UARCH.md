@@ -2,8 +2,8 @@
 
 - Date: 2026-10-24
 - Status: the G0 specification of `STRATEGY.md` section 7 (step 5 of `Plan/ISSUES.md` section 5): the
-  micro-architecture of Phase 1 frozen, the predicted CoreMark/MHz and the LUT budget in numbers. The author's
-  decisions on it are in section 9.
+  micro-architecture of Phase 1 frozen, the predicted CoreMark/MHz and the LUT budget in numbers. **Passed with a
+  condition on 2026-10-24** (the author's decisions in section 9; the budget is decided at G0b).
 - Basis: the cycle model (`Plan/MODEL.md`, `Plan/model/g0.sh` → `Plan/model/results/g0.txt`), the RTL blocks and
   their Vivado runs (`Plan/OOC.md`), mmRISC-2 Rev.02 measured by hierarchy (`Plan/ISSUES.md` section 2), the reduction
   options (`Plan/REDUCE.md`).
@@ -28,7 +28,7 @@
    frees several k LUTs" has no basis. The FPU levers are its breakdown (C1) and then sharing the multiplier (C2) and
    moving the rare operations to a small iterative unit (C3): 1.5k to 3k, to be measured.
 5. **Closing the gap** (section 6): without touching fusion, Ethernet or the ceiling, the listed levers give about
-   4.4k to 7.1k (Linux-side options, the FPU, three small structures at −0.3 to −0.7 % each, an asymmetric ALU). That
+   4.1k to 6.5k (Linux-side options, the FPU, three small structures at −0.3 to −0.7 % each, an asymmetric ALU). That
    closes the low end of the estimate, not the middle. The remaining choices are fusion level 2 (−3.4 % / −0.7 %,
    about −1.2k), a 54k ceiling (+2k, a timing risk) and, last, no fusion (−7.8 % / −4.3 %) or no Ethernet.
 6. **G0 verdict (proposed): a conditional pass.** The performance and the micro-architecture are fixed; the budget is
@@ -270,14 +270,14 @@ Block RAM and DSP are not the limit: 26.5 tiles are free, TAGE-S and the BTB nee
 | # | Lever | LUT | `-O2` | Most optimization | What is lost |
 |---|---|---|---|---|---|
 | L1 | HPM counters 4 → 2 (`REDUCE.md` B1) | −0.65k | 0 | 0 | `perf` counts 2 events at once |
-| L2 | No Zbc (B2) | −0.3k to −0.6k | 0 | 0 | Linux's crc32 slower |
+| ~~L2~~ | ~~No Zbc (B2)~~ | — | | | **Not taken (author, 2026-10-24): the instruction set is kept** |
 | L3 | FPU C2 + C3 (after C1) | −1.5k to −3k | 0 | 0 | Rare floating-point operations slower |
 | L4 | LQ / SQ 12 → 8 | −0.4k to −0.6k | −0.7 % | −0.5 % | |
 | L5 | uBTB 16 → 8 | about −0.4k | −0.6 % | −0.1 % | |
 | L6 | Fetch buffer 16 → 8 | about −0.3k | −0.3 % | −0.1 % | |
 | L7 | Asymmetric ALUs (`REDUCE.md` E3: ALU1 with a simple first stage) | −0.7k to −1.0k | to be modelled | | The model needs the operation class per instruction first |
 | L8 | Unneeded LiteX peripherals (D1) | −0.2k to −0.5k | 0 | 0 | |
-| | **L1 to L8** | **−4.4k to −7.1k** | about −1.8 % | about −0.7 % | (L7 not included in the performance) |
+| | **L1, L3 to L8** | **−4.1k to −6.5k** | about −1.8 % | about −0.7 % | (L7 not included in the performance) |
 | L9 | Fusion level 2 (no ALU + ALU; ALU + branch and 4-wide decode stay) | about −1.2k | −3.4 % | −0.7 % | The second ALU stages go |
 | L10 | Ceiling 52k → 54k | +2k of room | 0 | 0 | Timing and slice congestion; needs an early whole-chip trial |
 | L11 | No fusion (2-wide decode) | −2.5k to −3k | −7.8 % | −4.3 % | Pessimistic most optimization 5.97, below 6.0 |
@@ -286,8 +286,8 @@ Block RAM and DSP are not the limit: 26.5 tiles are free, TAGE-S and the BTB nee
 
 - Per 1k LUTs, fusion (L11) is worth about 3 % with `-O2`, more than most of the small levers; that is why it comes
   last.
-- **Middle of the estimate (8.8k over)**: L1 to L8 (about 5.8k) + L9 (1.2k) leave about 1.8k, which needs L10 or
-  more. **Low end (5.4k)**: L1 to L8 are enough. **High end (12.1k)**: even L1 to L11 fall short, and the FPU or
+- **Middle of the estimate (8.8k over)**: L1 and L3 to L8 (about 5.3k) + L9 (1.2k) leave about 2.3k, which needs
+  L10 or more. **Low end (5.4k)**: L1 and L3 to L8 are enough or nearly so. **High end (12.1k)**: even L1 to L11 fall short, and the FPU or
   Ethernet has to be reconsidered.
 
 ---
@@ -329,10 +329,13 @@ Block RAM and DSP are not the limit: 26.5 tiles are free, TAGE-S and the BTB nee
 
 ## 9. Decisions for the author
 
-| # | Item | Recommendation |
-|---|---|---|
-| D-7 | The G0 verdict | Conditional pass; the budget decided at G0b (section 8) |
-| D-8 | Linux-side reductions L1 and L2 (2 HPM counters, no Zbc) | Take them (no effect on CoreMark) |
-| D-9 | FPU (D3 reconsidered) | Keep FPU_PIPE; C1 now; C2 and C3 at G0b if needed. Not the multi-cycle FPU (it is larger) |
-| D-10 | The order of the levers when the gap remains | L3 → L4 to L6 → L7 → L9 → L10 → L11 / L12 (section 6.2) |
-| D-2 | L2 size | Keep 256 KB (block RAM is not the limit) |
+Decided by the author on 2026-10-24 (`Doc/PROMPT.md` entry 23): **Zbc stays, and as a principle the instruction set
+is kept** (that of mmRISC-2 Rev.02); everything else as recommended.
+
+| # | Item | Recommendation | **Decision (2026-10-24)** |
+|---|---|---|---|
+| D-7 | The G0 verdict | Conditional pass; the budget decided at G0b (section 8) | As recommended: **G0 passed with the condition; Phase 1 starts** |
+| D-8 | Linux-side reductions L1 and L2 (2 HPM counters, no Zbc) | Take them (no effect on CoreMark) | **L1 taken; L2 not taken** (Zbc stays) |
+| D-9 | FPU (D3 reconsidered) | Keep FPU_PIPE; C1 now; C2 and C3 at G0b if needed. Not the multi-cycle FPU (it is larger) | As recommended (C2 / C3 keep the instruction set) |
+| D-10 | The order of the levers when the gap remains | L3 → L4 to L6 → L7 → L9 → L10 → L11 / L12 (section 6.2) | As recommended; no lever may remove instructions |
+| D-2 | L2 size | Keep 256 KB (block RAM is not the limit) | As recommended |

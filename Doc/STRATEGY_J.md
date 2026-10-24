@@ -191,6 +191,8 @@ mmRISC-2の資産(SIM_CORE / SIM_SYS / SIM_BIOS、riscv-tests、バグ注入)に
 | D5 | Ethernet | Linux構成として残す。LUTが足りない場合の削減候補の1番目 | **残す**。論理規模の削減は別の案で行う(`Plan/REDUCE_J.md`) |
 | D6 | リポジトリ | mmRISC-2と同じ形(Apache-2.0、main / dev、文書は英日2言語) | 推奨どおり |
 
+**G0(2026-10-24)**: 条件付きで通過。決定は`Doc/UARCH_J.md` 9章にある。原則として、mmRISC-2 Rev.02の命令セットを維持する。命令を減らす削減はしない(Zbcは残す)。
+
 ---
 
 ## 9. リスク

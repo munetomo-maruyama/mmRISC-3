@@ -178,7 +178,7 @@ by a buffer absorbs almost all bubbles at taken transfers (−0.9 % even without
 | # | Item | Options | Recommendation | When |
 |---|---|---|---|---|
 | D-1 | FPU style | Pipelined as now / multi-cycle / in-order side pipe | Multi-cycle (LUTs to the integer side; no effect on CoreMark) | **Decided 2026-10-24: pipelined at first**; reconsidered depending on the logic size. **G0: FPU_PIPE stays (the multi-cycle FPU is larger, `Doc/UARCH.md` section 5)** |
-| D-2 | L2 size | 256 KB / 128 KB | Keep 256 KB; 128 KB if block RAM runs out | G0 |
+| D-2 | L2 size | 256 KB / 128 KB | Keep 256 KB; 128 KB if block RAM runs out | G0 **Decided at G0 (2026-10-24): 256 KB** |
 | D-3 | Ethernet | Keep / remove | Keep; the first candidate to cut if LUTs run out | **Decided 2026-10-24: kept**; reduce by the options of `REDUCE.md` |
 | D-4 | Fusion scope | Address calculation + load only / + ALU + branch / + ALU + ALU | Decided by the cycle model and OOC synthesis | **2026-10-24: by the author's instruction, the fusion configuration (up to ALU + ALU)**; the timing of two ALU stages and the cost of 2 writes per pair checked by OOC synthesis (`MODEL.md` section 6, `OOC.md`). **2026-10-24 (Vivado, `OOC.md` section 7): ALU + ALU kept; at most 2 sources per pair (6 read ports) fixed; the second ALU stage narrowed to the operations CoreMark puts there (no loss) and the ALU rewritten with a shared adder and shifter (the chain missed by −0.70 ns); 3 write ports (1 write per pair; physical LUTs 4,942 against 8,350 for 5, −4.6 % / −8.4 %), 5 ports the first to buy back at G0** |
 | D-5 | TAGE size | S (62 kbit) / M (196 kbit) | Start with S; M if block RAM allows | 2026-10-24: S (0.9 % below M in the model) |
@@ -194,7 +194,7 @@ by a buffer absorbs almost all bubbles at taken transfers (−0.9 % even without
 | 2 | Cycle model: 2-wide out-of-order, front end (uBTB + TAGE), fusion, LSU | Claude Code | CoreMark/MHz per configuration and a table of factors |
 | 3 | OOC synthesis of small blocks: two ALU stages, wakeup-select, uBTB next PC, renaming, PRF (LVT), multi-cycle FPU | RTL by Claude Code, Vivado by the author | Table of delays and LUTs. **2026-10-24: the six RTL blocks of the fusion configuration, verified, with Yosys estimates (`OOC.md`); waiting for the Vivado runs** |
 | 4 | Resource budget table and decisions D-1 to D-5 | Claude Code proposes, the author decides | — |
-| 5 | **G0: micro-architecture specification** (the Phase 1 spec, with the lock-step verification framework and the non-speculative list) | Claude Code | `Spec/` or `Doc/` **2026-10-24: `Doc/UARCH.md` (conditional pass proposed; the budget at G0b)** |
+| 5 | **G0: micro-architecture specification** (the Phase 1 spec, with the lock-step verification framework and the non-speculative list) | Claude Code | `Spec/` or `Doc/` **2026-10-24: `Doc/UARCH.md`; G0 passed with a condition (the budget at G0b)** |
 
 Steps 1 and 3 are independent and can run in parallel. The RTL pieces of step 3 are written so that Phase 1 can use
 them as they are.

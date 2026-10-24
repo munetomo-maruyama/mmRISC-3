@@ -43,7 +43,7 @@ estimated from the structure.
 | # | Option | LUT | FF | Basis | What is lost |
 |---|---|---|---|---|---|
 | B1 | HPM counters 4 → 2 | about 0.65k (0.4 to 0.9k) | 0.15k | Measured | `perf` counts 2 events at once; measurements take twice the runs (mmRISC-2's `perf.sh` / `workload.sh`) |
-| B2 | Remove Zbc (clmul) | 0.3 to 0.6k | small | Estimate | Linux's crc32 gets slower. CoreMark's `-march` (Zba / Zbb / Zbs / Zicond) does not include it, so no effect on CoreMark |
+| B2 | Remove Zbc (clmul) | 0.3 to 0.6k | small | Estimate | Linux's crc32 gets slower. CoreMark's `-march` (Zba / Zbb / Zbs / Zicond) does not include it, so no effect on CoreMark **Not taken (author, 2026-10-24): the instruction set is kept** |
 | B3 | TLBs 16 / 32 → 8 / 16 entries | about 1.2k | about 2.2k | Measured | Back to mmRISC-2 Rev.01's size; user-mode loads 11 to 20 % slower (BENCH.md section 26). Not needed if A4 is taken |
 | B4 | No PMP (0 entries) | about 1.9k | 0.9k | Measured | No M-mode protection; OpenSBI booting without PMP needs checking |
 | B5 | No HPM counters (no Sscofpmf) | about 1.2k | 0.33k | Measured | Linux `perf` is lost. It was the basis of the performance work in mmRISC-2, so not recommended |

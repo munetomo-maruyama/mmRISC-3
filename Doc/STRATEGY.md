@@ -238,6 +238,9 @@ Decided by the author on 2026-10-24 (`Doc/PROMPT.md` entry 11).
 | D5 | Ethernet | Kept in the Linux configuration; the first candidate to cut if LUTs run out | **Kept**; logic is reduced by other means (`Plan/REDUCE.md`) |
 | D6 | Repository | Same shape as mmRISC-2 (Apache-2.0, main / dev, documents in English and Japanese) | As recommended |
 
+**G0 (2026-10-24)**: passed with a condition; the decisions are in `Doc/UARCH.md` section 9. As a principle the
+instruction set of mmRISC-2 Rev.02 is kept: no reduction removes instructions (Zbc stays).
+
 ---
 
 ## 9. Risks

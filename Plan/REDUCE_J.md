@@ -35,7 +35,7 @@ LUTとFFはVivado相当に換算した値。「実測」はYosysの差分から�
 | # | 案 | LUT | FF | 根拠 | 失うもの |
 |---|---|---|---|---|---|
 | B1 | HPMカウンタ 4 → 2本 | 約0.65k(0.4〜0.9k) | 0.15k | 実測 | `perf`で同時に数えられるイベントが2つになり、測定の回数が倍になる(mmRISC-2の`perf.sh` / `workload.sh`) |
-| B2 | Zbc(clmul)を外す | 0.3〜0.6k | 小 | 見積り | Linuxのcrc32が遅くなる。CoreMarkの`-march`(Zba / Zbb / Zbs / Zicond)には入っていないので、CoreMarkには影響しない |
+| B2 | Zbc(clmul)を外す | 0.3〜0.6k | 小 | 見積り | Linuxのcrc32が遅くなる。CoreMarkの`-march`(Zba / Zbb / Zbs / Zicond)には入っていないので、CoreMarkには影響しない **採らない(作者、2026-10-24): 命令セットは維持する** |
 | B3 | TLB 16 / 32 → 8 / 16エントリ | 約1.2k | 約2.2k | 実測 | mmRISC-2 Rev.01の大きさに戻る。ユーザーモードの負荷が11〜20%遅くなる(BENCH.md 26章)。A4を採るなら不要 |
 | B4 | PMPなし(0エントリ) | 約1.9k | 0.9k | 実測 | M-modeの保護がなくなる。OpenSBIがPMPなしで起動するかの確認が要る |
 | B5 | HPMカウンタなし(Sscofpmfなし) | 約1.2k | 0.33k | 実測 | Linuxの`perf`が使えなくなる。mmRISC-2で性能の議論の土台だったので、勧めない |

@@ -163,7 +163,7 @@ mmRISC-2の`LitexSystem/build/gateware/digilent_arty_utilization_hierarchical_pl
 | # | 項目 | 選択肢 | 推奨 | 決める時期 |
 |---|---|---|---|---|
 | D-1 | FPUの方式 | 現行のパイプラインのまま / マルチサイクル / インオーダーのサイドパイプ | マルチサイクル(LUTを整数側へ。CoreMarkに影響なし) | **2026-10-24決定: 当初はパイプラインのまま**。論理規模の状況で再検討。**G0: FPU_PIPEを残す(多サイクルのFPUの方が大きい、`Doc/UARCH_J.md` 5章)** |
-| D-2 | L2の容量 | 256KB / 128KB | 256KBのまま。BRAMが足りなくなったら128KB | G0 |
+| D-2 | L2の容量 | 256KB / 128KB | 256KBのまま。BRAMが足りなくなったら128KB | G0 **G0で決定(2026-10-24): 256 KB** |
 | D-3 | Ethernet | 残す / 外す | 残す。LUTが足りなければ最初の削減候補 | **2026-10-24決定: 残す**。削減は`REDUCE_J.md`の案で |
 | D-4 | 融合の範囲 | アドレス計算 + ロードのみ / + ALU + 分岐 / + ALU + ALU | サイクルモデルとOOC合成の結果で決める | **2026-10-24: 作者の指示で融合構成(ALU + ALUまで)で進める**。2段ALUのタイミングと、組あたり2本の書き込みのコストをOOC合成で確認(`MODEL_J.md` 6章、`OOC_J.md`)。**2026-10-24(Vivado、`OOC_J.md` 7章): ALU + ALUは残す。組のソースは2本まで(読み出し6ポート)で確定。2段目のALUはCoreMarkが置く操作に絞り(損失0)、ALUは加算器とシフタを共有する形に書き直す(連結は −0.70 nsで閉じなかった)。書き込みは3ポート(組あたり1本。物理LUTは4,942で、5ポートなら8,350。−4.6% / −8.4%)。5ポートはG0で最初に買い戻す候補** |
 | D-5 | TAGEの大きさ | S(62 kbit)/ M(196 kbit) | Sから始め、BRAMに余裕があればM | 2026-10-24: Sとする(Mとの差はモデルで0.9%) |
@@ -179,7 +179,7 @@ mmRISC-2の`LitexSystem/build/gateware/digilent_arty_utilization_hierarchical_pl
 | 2 | サイクルモデル: OoO 2幅、フロントエンド(uBTB + TAGE)、融合、LSU | Claude Code | 構成ごとのCoreMark/MHzと要因の表 |
 | 3 | 小さなブロックのOOC合成: 2段ALU、wakeup-select、uBTBの次PC、リネーム、PRF(LVT)、マルチサイクルFPU | RTLはClaude Code、Vivadoは作者 | 遅延とLUTの表。**2026-10-24: 融合構成のRTL 6ブロックと検証、Yosysの見積りまで済み(`OOC_J.md`)。Vivadoの実行待ち** |
 | 4 | 資源の予算表とD-1〜D-5の決定 | Claude Codeが案、作者が決定 | — |
-| 5 | **G0: マイクロアーキテクチャ仕様書**(Phase 1の仕様: lock-step検証の枠組み、非投機化の一覧を含む) | Claude Code | `Spec/`または`Doc/` **2026-10-24: `Doc/UARCH_J.md`(条件付き通過の案。予算はG0bで)** |
+| 5 | **G0: マイクロアーキテクチャ仕様書**(Phase 1の仕様: lock-step検証の枠組み、非投機化の一覧を含む) | Claude Code | `Spec/`または`Doc/` **2026-10-24: `Doc/UARCH_J.md`。条件付きでG0通過(予算はG0bで)** |
 
 1と3は独立なので並行して進められる。3のRTL断片は、Phase 1でもそのまま使える形で書く。
 
