@@ -1403,3 +1403,61 @@ The English of the prompt log (answer 40 and prompt 41) is added but not committ
 ```text
 As recommended, please go on next with the front end (PC generation, the I$ interface, predecode, TAGE-S, BTB, RAS). Prepare the unit tests and Vivado scripts too.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I wrote the front end: PC generation, the I$ interface, predecode, TAGE-S, BTB and RAS. All 15 unit tests PASS, and all 42 mutations added are detected (122 in all). The Vivado script is ready, and everything is pushed to dev (299588c). Vivado has not been run yet.
+
+#### Measured first: TAGE-S per block
+The block-RAM tables are read in F1 with the fetch address only, before predecode has found the branches. So predicting one branch at a time as the model does cannot be built. I compared per-block forms on CoreMark's conditional branches.
+
+| Predictor | -O2 | max. optimization |
+|---|---|---|
+| The model (per branch) | 0.761 % | 0.683 % |
+| Per block, 2 slots | 0.808 % | **1.303 %** |
+| **Per block, 3 slots** (the realistic case, history lagging 2 blocks) | 0.821 % | 0.845 % |
+
+- With 2 slots, the maximum-optimization build has many blocks with a third branch, and accuracy drops. 3 slots fix it, and no branch ever reaches a 4th slot.
+- Against the model, the cost is estimated at about −0.2 % / −0.5 %.
+- The periodic halving of the useful counters has no effect, so it is left out: no scan of every row is needed.
+
+#### The blocks
+- **`OOO_PREDEC`**: instruction boundaries and the kind of control transfers; the targets of branches and jal from 8 adders in parallel.
+- **`OOO_BTB`**: since predecode gives the direct targets, it holds **indirect jumps only**; 256 rows in block RAM.
+- **`OOO_TAGE`**: 4 tables of 1024 rows, each row with direction counters for 3 slots; updated at commit from 270 bits of metadata kept in the FTQ.
+- **`OOO_RAS`**: 16 entries, recovered from per-block snapshots.
+- **`OOO_FETCH`**: the F0–F2 control, with the uBTB inside.
+  - The I$ is handled with the timing of mmRISC-2's ICACHE.
+  - Requests go out only as far as the fetch buffer and the FTQ have room (credit).
+  - When F2's decision differs from the uBTB, F0 starts again (override) and the uBTB is trained.
+  - A 32-bit instruction across two lines is carried to the next block for predecode.
+
+#### Found in verification
+- Bug injection left 2 mutations undetected. Tracing them showed that the counter predicting a block's 4th or later conditional branch was never trained, so it was in effect "always taken".
+- So a 4th or later branch is now predicted **not taken**, constantly. No branch in CoreMark gets that far. The test program got places with compressed branches packed densely.
+- `tb_fetch` runs a random program along its true path. Every fetch address of every cycle and every block's decision (end, taken, next address, 270 bits of metadata, RAS snapshot) are checked against mirrors of the predictors. PASS on 11 programs.
+
+#### Size (Yosys)
+- `OOC_FRONT`: 5,884 LUTs + 116 LUTRAM, 6 block RAMs.
+- Yosys has given 1.6 to 2.4 times Vivado's LUTs so far, so about 3k to 3.7k are expected in Vivado. The G0 estimate for this part is 3.0k to 4.8k.
+- What worries me most is the timing of the F2 path (I$ data → predecode → first taken → compare with the next address → redirect).
+
+#### Left for the core's assembly
+- The state the FTQ keeps grows from 32 to 312 bits a block (about +0.2k), and it must also hold the outcomes of the slot branches.
+- The I$ (mmRISC-2's ICACHE) is widened to 16 bytes; no kill is used.
+
+Recorded in `Plan/OOC.md` section 14 (and the Japanese version), 3.2 and 4.3 of `Doc/UARCH`, the RTL READMEs, and `Plan/model/results/tageblk.txt`.
+
+**Request**: please run this in Vivado.
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_FRONT
+```
+<!-- /answer -->
+
+## 43. 2026-10-25 17:28:39 JST
+
+```text
+I ran synth_ooo.bat OOC_FRONT.
+```

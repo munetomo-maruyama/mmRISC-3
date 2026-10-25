@@ -1045,3 +1045,37 @@ Decisions made while writing them:
 cd FPGA\OOO_OOC
 synth_ooo.bat OOC_FRONT
 ```
+
+### 14.5 The Vivado result, and the override path shortened (2026-10-25)
+
+| Run | LUT | of it LUTRAM | FF | Block RAM | Register-to-register slack | Logic levels |
+|---|---|---|---|---|---|---|
+| OOC_FRONT | **2,968** | 106 | 2,538 | 5.5 tiles | **−0.162 ns** | 25 |
+
+| Instance (Vivado's hierarchy) | LUT |
+|---|---|
+| u_ubtb | 1,565 |
+| u_tage | 710 |
+| u_ras | 338 |
+| u_btb | 298 |
+| the rest of OOO_FETCH (control; predecode was merged into its neighbours) | 57 |
+
+- **The size is at the bottom of the estimate**: 2,968 LUTs for all of it with the uBTB (estimate 3.0k to 4.8k;
+  Vivado / Yosys 0.50). Vivado moved predecode's and fetch's logic into the instances next to it (u_ubtb grew from
+  910 alone to 1,565, u_btb and u_ras hold the target select and the compare), so only the total counts.
+  5.5 block RAM tiles (TAGE 4 + base 0.5, BTB 1).
+- **The timing missed by 0.162 ns** (20.1 ns, 25 levels, 75 % of it routing): the override path of 14.4. From the
+  queue's head pointer `qh`, the head request's address read from the queue's LUTRAM (1.4 ns), predecode (the
+  boundaries from the start parcel), the slots, TAGE's prediction, the first taken transfer, the target select, then
+  a 38-bit compare of the next address with where fetch went on (a carry chain, 1.7 ns), and the redirect into the
+  uBTB's fetch address.
+- **Fixed**, in two places:
+  - The head request's address is kept in a register of its own (loaded when the head moves on), so the path starts
+    at a flip-flop and not at a LUTRAM read.
+  - The compare is no longer after the select: every candidate (8 predecode targets, the RAS top, the BTB target, the
+    next line) is compared with where fetch went on in parallel (the targets come from the adders long before the
+    choice), and the one-hot of the first taken transfer selects the result.
+- The test gives the same numbers as before (the same blocks, cycle for cycle) and PASSes on 11 programs; 3
+  mutations added for the new logic (M129–M131), all 17 of fetch detected (125 in all). Yosys: 5,797 LUTs + 88
+  LUTRAM (no more than before).
+- **Please rerun `synth_ooo.bat OOC_FRONT`** (about 3 ns more slack expected, the size about the same).

@@ -25,5 +25,5 @@ mmRISC-3のOoOコアを**融合構成**(`Doc/STRATEGY_J.md` 4章)で作るため
 
 - 書き方はmmRISC-2に合わせた(`logic`、負論理の非同期リセットの`always_ff`、何を・なぜを書くコメント)。
 - すべてのブロックをVerilator(`-Wall`)でlintした。単体テストでは、リセットのない状態をすべてランダムな値で始める。
-- `SIM/OOO_UNIT/mutate.py`で、RTLをわざと壊す(122件)。すべて検出された。
+- `SIM/OOO_UNIT/mutate.py`で、RTLをわざと壊す(125件)。すべて検出された。
 - VivadoのOOC合成: `FPGA/OOO_OOC`(`synth_ooo.bat`)。作者が実行する。

@@ -28,5 +28,5 @@ to be used as they are in Phase 1, and are measured alone first (Phase 0, step 3
 
 - Coding follows mmRISC-2 (`logic`, `always_ff` with active-low asynchronous reset, comments on what and why).
 - Every block is linted by Verilator (`-Wall`); the unit tests start everything that has no reset at random values.
-- `SIM/OOO_UNIT/mutate.py` breaks the RTL on purpose (122 mutations); all are detected.
+- `SIM/OOO_UNIT/mutate.py` breaks the RTL on purpose (125 mutations); all are detected.
 - Out-of-context synthesis in Vivado: `FPGA/OOO_OOC` (`synth_ooo.bat`), run by the author.

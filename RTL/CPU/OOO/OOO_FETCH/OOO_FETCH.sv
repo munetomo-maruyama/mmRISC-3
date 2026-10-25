@@ -132,12 +132,15 @@ module OOO_FETCH
     assign ic_req_pc    = pc_q;
     assign acc          = ic_req_valid && ic_req_ready;
 
+    // where fetch went on after the oldest request: the next one in flight, or F0
+    logic [VA-1:1] expect_pc;
+    assign expect_pc = (qn >= 3'd2) ? qpc[qh + 2'd1] : pc_q;
+
     // ---- F2
     logic          f2;                  // a block to use in this cycle
-    logic [VA-1:1] hpc;
-    logic          carry_v;
+    logic [VA-1:1] hpc;                 // the oldest request's address, in a register of its own
+    logic          carry_v;              // (not read from the queue: it starts the longest path, Plan/OOC.md 14.5)
     logic [15:0]   carry;
-    assign hpc = qpc[qh];
     assign f2  = ic_resp_valid && qlive[qh] && !be_redirect;
 
     logic [7:0]          iv, br, jal, jalr, call, ret;
@@ -174,7 +177,7 @@ module OOO_FETCH
 
     // the first transfer predicted taken, the end of the block, the next address
     logic [7:0]    tk, first;
-    logic          taken;
+    logic          taken, same;
     logic [2:0]    e_end;
     logic [VA-1:1] nxt;
     always @(*) begin
@@ -188,15 +191,17 @@ module OOO_FETCH
         nxt = {hpc[VA-1:4] + (VA-4)'(1), 3'd0};
         for (int e = 0; e < 8; e++)
             if (first[e]) nxt = (br[e] || jal[e]) ? tgt[e] : ret[e] ? ras_top : b_tgt;
+        // whether it is where fetch went on: every candidate compared in parallel
+        // (the targets are ready long before the choice), the result chosen as nxt is
+        same = {hpc[VA-1:4] + (VA-4)'(1), 3'd0} == expect_pc;
+        for (int e = 0; e < 8; e++)
+            if (first[e]) same = (br[e] || jal[e]) ? tgt[e] == expect_pc : ret[e] ? ras_top == expect_pc : b_tgt == expect_pc;
         // the slot predictions up to the end go into the history
         hn = '0;
         for (int s = 0; s < 3; s++) if (sv[s] && par[s] <= e_end) hn = hn + 2'd1;
     end
 
-    // where fetch went on after this block: the next request in flight, or F0
-    logic [VA-1:1] expect_pc;
-    assign expect_pc = (qn >= 3'd2) ? qpc[qh + 2'd1] : pc_q;
-    assign ovr    = f2 && nxt != expect_pc;
+    assign ovr    = f2 && !same;
     assign ovr_pc = nxt;
 
     // train the uBTB with F2's decision when they differed: its transfer, or
@@ -276,6 +281,13 @@ module OOO_FETCH
             quoff[t] <= ub_off;
         end
         if (f2) carry <= ic_resp_data[127:112];
+        // the oldest request after this cycle's answer and request
+        if (ic_resp_valid) begin
+            if (qn >= 3'd2) hpc <= qpc[qh + 2'd1];
+            else if (acc)   hpc <= pc_q;
+        end else if (qn == 3'd0 && acc) begin
+            hpc <= pc_q;
+        end
     end
 
 endmodule : OOO_FETCH

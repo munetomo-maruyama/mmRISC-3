@@ -1,0 +1,36 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Sun Oct 25 17:26:07 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_FRONT/utilization.rpt
+| Design       : OOC_FRONT
+| Device       : xc7a100tcsg324-1
+| Speed File   : -1
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++---------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
+|    Instance   |   Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++---------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
+| OOC_FRONT     |     (top) |       2968 |       2862 |     106 |    0 | 2538 |      5 |      1 |          0 |
+|   (OOC_FRONT) |     (top) |          0 |          0 |       0 |    0 | 1150 |      0 |      0 |          0 |
+|   u_fetch     | OOO_FETCH |       2968 |       2862 |     106 |    0 | 1388 |      5 |      1 |          0 |
+|     (u_fetch) | OOO_FETCH |         66 |         12 |      54 |    0 |   30 |      0 |      0 |          0 |
+|     u_btb     |   OOO_BTB |        298 |        298 |       0 |    0 |   51 |      1 |      0 |          0 |
+|     u_ras     |   OOO_RAS |        338 |        286 |      52 |    0 |    4 |      0 |      0 |          0 |
+|     u_tage    |  OOO_TAGE |        710 |        710 |       0 |    0 |  333 |      4 |      1 |          0 |
+|     u_ubtb    |  OOO_UBTB |       1565 |       1565 |       0 |    0 |  970 |      0 |      0 |          0 |
++---------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
+
+
