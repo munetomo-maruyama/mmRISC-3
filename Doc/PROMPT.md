@@ -949,3 +949,44 @@ synth_ooo.bat OOC_LSU
 ```text
 I reran synth_ooo.bat OOC_LSU. Please read the result and record it.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I read the result of the rerun and recorded it in 11.7 of OOC_J.md / OOC.md. The previous rewrite took the shortfall from 4 ns down to 0.35 ns. It is still a little short, so I fixed the remaining path as well. Pushed to dev as `96d9f5f`.
+
+| Run | LUT | Register-to-register slack | Logic levels |
+|---|---|---|---|
+| First version | 2,912 | −4.019 ns | 29 |
+| Previous rewrite (this run) | **2,943** | **−0.352 ns** | 25 |
+
+The size is about the same and stays inside the estimate.
+
+**The remaining path**: from an LQ valid bit to a store's write into the SQ.
+
+1. The choice of the load to try again was once more a loop keeping "the oldest so far", in series
+2. Its result chose E's address (a new µop, or a load tried again)
+3. A store's misaligned check waited for that choice
+
+A store never comes from a retry, so this was a path with no need to wait.
+
+**What was fixed**
+
+- **The retry choice a cycle ahead**: a waiting entry is chosen by a parallel priority select and put in a register. E only checks with bits that it is still valid and waiting. Retries are rare and any order is correct, so there is no effect on performance.
+- **The misaligned check per source**: the issued µop's straight from its address, a retried load's from the LQ, chosen afterwards.
+
+The test PASSes on 7 seeds. One bug injection was added for the new mechanism, and all 15 LSU ones are detected (54 in all).
+
+The next Vivado run (checking the fixed LSU):
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_LSU
+```
+<!-- /answer -->
+
+## 30. 2026-10-25 12:07:09 JST
+
+```text
+I reran synth_ooo.bat OOC_LSU. Please read the result and record it.
+```

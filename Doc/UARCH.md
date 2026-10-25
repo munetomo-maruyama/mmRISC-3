@@ -216,7 +216,7 @@ of the slices).
 | Decode × 4 and RVC × 4 | 1.0k to 1.6k | mmRISC-2's CORE_DEC 278 and CORE_DECOMP 78 each; `REDUCE.md` E2 |
 | ROB 24 | 0.7k to 1.2k | Payload in LUTRAM (two banks), status in flip-flops, commit 2 a cycle, flush |
 | Issue-queue payload | 0.4k to 0.7k | LUTRAM, 2 writes / 3 reads (two banks + LVT) |
-| LSU: address calculation, alignment, LQ 12, SQ 12 with forwarding, D$ adapter, hit speculation and replay | 2.5k to 3.5k | mmRISC-2's CORE_LSU is 946 (alignment); the SQ's address compares and data select; the adapter. **2026-10-25: `OOO_LSU` without the adapter is 4,768 LUTs in Yosys (about 2.9k to 3.6k in Vivado terms; `Plan/OOC.md` 11.3)** |
+| LSU: address calculation, alignment, LQ 12, SQ 12 with forwarding, D$ adapter, hit speculation and replay | 2.5k to 3.5k | mmRISC-2's CORE_LSU is 946 (alignment); the SQ's address compares and data select; the adapter. **2026-10-25: `OOO_LSU` without the adapter measured in Vivado, 2,969 LUTs, +6.265 ns (`Plan/OOC.md` 11.8)** |
 | Dispatch, branch resolution, redirects, commit and exceptions, the ports to CSR / MDU / FPU / MMU | 1.5k to 2.5k | mmRISC-2's pipeline itself is 2,511 |
 | **Not yet written** | **9.3k to 14.5k** | Estimates |
 | **The out-of-order engine** | **23.3k to 28.5k** | |
@@ -228,6 +228,8 @@ of the slices).
 | Needed | 23.3k | 25.9k | 28.5k |
 | Room (with group A) | 17.9k | 17.1k | 16.4k |
 | **Over** | **5.4k** | **8.8k** | **12.1k** |
+| Needed, 2026-10-25 (LSU measured 2,969 + adapter 0.3k to 0.6k; committed-state RAT 0.3k, 3.4) | 24.4k | 26.6k | 28.9k |
+| **Over, 2026-10-25** | **6.5k** | **9.5k** | **12.5k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8).

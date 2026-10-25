@@ -692,3 +692,18 @@ register to register, as in mmRISC-2's measurement. Per group of register names,
      chosen afterwards.
 - All PASS on 7 seeds. One mutation added (a stale candidate tried again); all 15 LSU mutations detected (54 in all).
 - **Please rerun `synth_ooo.bat OOC_LSU`.**
+
+### 11.8 The LSU closes at 50 MHz (2026-10-25)
+
+| Run | LUT | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|
+| OOC_LSU (first version) | 2,912 | 2,943 | −4.019 ns | 29 |
+| OOC_LSU (rewritten in 11.5) | 2,943 | 3,157 | −0.352 ns | 25 |
+| **OOC_LSU (fixed in 11.7)** | **2,969** | 3,162 | **+6.265 ns** | 13 |
+
+- **The LSU closes at 50 MHz.** The worst path runs from the load in M to `wb_data` (alignment and sign extension, 13
+  levels with 4 CARRY4).
+- 2,969 LUTs. With the D$ adapter (tagged requests and fills, `dc_kill`, the write port; about 0.3k to 0.6k expected)
+  about 3.3k to 3.6k, at the top of the G0 estimate (2.5k to 3.5k, adapter included).
+- The effect on the budget is recorded in `Doc/UARCH.md` 4.4 (with the LSU measured and the committed-state RAT of
+  11.4, the gap is about 9.5k in the middle).
