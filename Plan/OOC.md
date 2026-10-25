@@ -1079,3 +1079,22 @@ synth_ooo.bat OOC_FRONT
   mutations added for the new logic (M129–M131), all 17 of fetch detected (125 in all). Yosys: 5,797 LUTs + 88
   LUTRAM (no more than before).
 - **Please rerun `synth_ooo.bat OOC_FRONT`** (about 3 ns more slack expected, the size about the same).
+
+### 14.6 The front end rerun (2026-10-25)
+
+| Run | LUT | of it LUTRAM | FF | Block RAM | Register-to-register slack | Logic levels |
+|---|---|---|---|---|---|---|
+| OOC_FRONT (first version) | 2,968 | 106 | 2,538 | 5.5 tiles | −0.162 ns | 25 |
+| **OOC_FRONT (fixed in 14.5)** | **3,076** | 82 | 2,576 | 5.5 tiles | **+0.959 ns** | 16 |
+
+- **It closes at 50 MHz.** The override path lost its LUTRAM read and its compare after the select (25 → 16 levels);
+  108 LUTs more (the parallel compares).
+- The worst path now runs from the head request's address through predecode, the slots, TAGE, the first taken
+  transfer and the uBTB's training (the match of the update against the 16 entries) into the write enable of a uBTB
+  entry. If the core needs more margin, the training can be registered and applied a cycle later (no effect on the
+  predictions to speak of); not done now.
+- **The budget** (`Doc/UARCH.md` 4.4): the fetch buffer, the FTQ and the front end measured (940 + 148 + 3,076 less
+  the uBTB counted before), with the FTQ widened for the front end's state (+0.15k to 0.25k) and the I$ to 16 bytes
+  (+0.05k to 0.2k), in place of the estimates of fetch, TAGE-S, BTB and RAS (3.2k to 5.0k): the gap is **7.5k / 9.5k
+  / 11.4k** (it was 7.2k / 9.9k / 12.7k). The spread narrows; what is left unwritten is decode, the issue-queue
+  payload, the D$ adapter and the control (about ±1.4k).

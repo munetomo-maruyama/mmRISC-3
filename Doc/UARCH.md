@@ -210,8 +210,8 @@ of the slices).
 | uBTB (`OOO_UBTB`) | 910 | Measured |
 | Fusion (`OOC_FUSE`) | 215 | Measured |
 | **Measured blocks** | 15,304 → **about 14.0k** | |
-| Fetch: PC generation, FTQ, I$ interface, predecode, fetch buffer, 4 instructions out | 2.0k to 2.8k | mmRISC-2's IFU without its BTB is 2,893 for a narrower fetch; the buffer (8 parcels in at any place, 4 instructions out at variable places) about 1.3k to 1.8k. **2026-10-25: measured in Vivado, `OOO_FBUF` 940 LUTs (+3.541 ns after its loop was shortened) and `OOO_FTQ` 148, about 1.09k together (`Plan/OOC.md` 13.6, 13.7)** |
-| TAGE-S logic (tables in block RAM) | 0.8k to 1.5k | Folded histories, tag compares, provider / alternate choice, update and allocation through the FTQ. **2026-10-25: `OOO_TAGE` written; the whole front end with the uBTB (`OOC_FRONT`) is 2,968 LUTs in Vivado, at the bottom of its estimate of 3.0k to 4.8k (`Plan/OOC.md` 14.5)** |
+| Fetch: PC generation, FTQ, I$ interface, predecode, fetch buffer, 4 instructions out | 2.0k to 2.8k | mmRISC-2's IFU without its BTB is 2,893 for a narrower fetch; the buffer (8 parcels in at any place, 4 instructions out at variable places) about 1.3k to 1.8k. **2026-10-25: measured in Vivado, `OOO_FBUF` 940 LUTs (+3.541 ns after its loop was shortened) and `OOO_FTQ` 148, about 1.09k together (`Plan/OOC.md` 13.6, 13.7); PC generation, the I$ interface and predecode in `OOC_FRONT` (next rows)** |
+| TAGE-S logic (tables in block RAM) | 0.8k to 1.5k | Folded histories, tag compares, provider / alternate choice, update and allocation through the FTQ. **2026-10-25: the whole front end with the uBTB (`OOC_FRONT`: uBTB, predecode, TAGE-S, BTB, RAS, fetch control) measured in Vivado, 3,076 LUTs, 5.5 BRAM tiles, +0.959 ns (`Plan/OOC.md` 14.6), at the bottom of its estimate of 3.0k to 4.8k** |
 | BTB (block RAM) and RAS 16 | 0.4k to 0.7k | Tag compare and target; RAS in LUTRAM. **2026-10-25: `OOO_BTB` (indirect jumps only) and `OOO_RAS` written; the direct targets are predecode's 8 adders, in the fetch row** |
 | Decode × 4 and RVC × 4 | 1.0k to 1.6k | mmRISC-2's CORE_DEC 278 and CORE_DECOMP 78 each; `REDUCE.md` E2 |
 | ROB 24 | 0.7k to 1.2k | Payload in LUTRAM (two banks), status in flip-flops, commit 2 a cycle, flush. **2026-10-25: `OOO_ROB` written; Vivado first gave 5,173 LUTs with the payload in flip-flops (two write statements per bank), fixed to one write per bank: 1,073 LUTs (160 LUTRAM), +11.060 ns (`Plan/OOC.md` 12.7)** |
@@ -232,9 +232,12 @@ of the slices).
 | **Over, 2026-10-25** | **6.5k** | **9.5k** | **12.5k** |
 | Needed, 2026-10-25 later (ROB measured 1,073; renaming with its committed state measured 2,624, 8 checkpoints) | 25.1k | 27.1k | 29.1k |
 | **Over, 2026-10-25 later** | **7.2k** | **9.9k** | **12.7k** |
+| Needed, 2026-10-25 evening (the front end measured: fetch buffer 940, FTQ 148, OOC_FRONT 3,076 less the uBTB already counted, + FTQ widened 0.15k to 0.25k, + I$ to 16 bytes 0.05k to 0.2k, in place of the fetch, TAGE-S, BTB and RAS rows) | 25.4k | 26.6k | 27.8k |
+| **Over, 2026-10-25 evening** | **7.5k** | **9.5k** | **11.4k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
-written (±2.6k) is as large as most levers, so it is measured first (section 8).
+written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is
+left unwritten is decode, the issue-queue payload, the D$ adapter and the control (about ±1.4k).
 
 Block RAM and DSP are not the limit: 26.5 tiles are free, TAGE-S and the BTB need about 4 to 6, so the L2 stays at
 256 KB (D-2); 32 of 240 DSPs are used.

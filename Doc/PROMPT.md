@@ -1461,3 +1461,38 @@ synth_ooo.bat OOC_FRONT
 ```text
 I ran synth_ooo.bat OOC_FRONT.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The whole front end is **2,968 LUTs**, at the bottom of its estimate (3.0k to 4.8k) even with the uBTB. But the timing missed by **−0.162 ns (25 levels)**, so I fixed it. Pushed to dev (56e266a); whether it closes now waits for the rerun.
+
+| Run | LUT | of it LUTRAM | FF | Block RAM | Register-to-register slack | Levels |
+|---|---|---|---|---|---|---|
+| OOC_FRONT | **2,968** | 106 | 2,538 | 5.5 tiles | **−0.162 ns** | 25 |
+
+- **Size**: Vivado / Yosys was 0.50.
+  - Vivado moved the logic of predecode and control into the instances next to it (u_ubtb grew from 910 alone to 1,565). So the breakdown by module means nothing; only the total counts.
+  - Block RAM: 4.5 tiles for TAGE, 1 for the BTB.
+- **Timing**: the worst path was the F2 override path I was worried about.
+  - Path: the head request's address read from the queue's LUTRAM (1.4 ns) → predecode → slots → TAGE → first taken → target select → 38-bit compare with the next address (a carry chain, 1.7 ns) → into the uBTB's fetch address. 75 % of the delay is routing.
+
+**Fixed** (two places)
+- The head request's address is kept in a register of its own. The path now starts at a flip-flop, not at a LUTRAM read.
+- The compare is taken out from behind the select. Every candidate (8 targets, the RAS top, the BTB, the next line) is compared in parallel, and the one-hot of the first taken transfer selects the result. The targets come out of the adders long before the decision, so the compares are not on the path.
+
+**Checked**
+- `tb_fetch` gives the same results as before, cycle for cycle, and PASSes on 11 programs.
+- 3 mutations added for the new logic (M129–M131); all 17 of the fetch control are detected (125 in all).
+- Yosys: 5,797 LUTs + 88 LUTRAM, no larger.
+
+Recorded in `Plan/OOC.md` 14.5 (and the Japanese version), the TAGE-S row of `Doc/UARCH`, the RTL READMEs and the prompt log (answer 42 and the English of 43).
+
+**Request**: please rerun `synth_ooo.bat OOC_FRONT`. About 3 ns more slack is expected, with about the same size.
+<!-- /answer -->
+
+## 44. 2026-10-25 17:42:54 JST
+
+```text
+I reran it.
+```
