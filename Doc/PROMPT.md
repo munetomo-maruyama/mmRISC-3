@@ -1616,3 +1616,36 @@ Next is either decode × 4 and RVC expansion (A2), in the order laid out, or fir
 ```text
 First, please look at whether the IQ with selective replay can be made smaller.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The IQ got smaller: in Yosys, 7,288 → **6,172 LUTs** at 16 entries (−15 %). The issue is the same, cycle for cycle; all 15 tests PASS and all 146 mutations are detected. Pushed to dev (7d93d41); not yet checked in Vivado.
+
+**How**: each part was taken out and measured in Yosys. But the same logic moves by hundreds of LUTs with how it is written, so I checked against a count of the structure before deciding.
+
+**Changes taken**
+- **Freeing the cancelled load's entry**: it was compared with all 6 wakeup buses; now with the 2 external ones only. The late answer always comes on the external buses.
+- **Load slots from 4 to 3**: a load is open for 3 cycles after its issue, so the masks only ever hold the last 3 loads.
+  - The 4th slot was there because the next load takes the slot in the cycle it is decided.
+  - With 3, a load's own bit is kept out of that cycle's decision and out of the mask for the units.
+  - Every mask bit is a quarter fewer.
+- **Redundant logic removed**: with 3 slots, clearing confirmed bits in a load's delayed wakeup became unnecessary; bug injection found it, so it was removed.
+
+**Considered and not taken**
+- **Waiting at dispatch for the producer's confirmation**: hardly any loss in the model (−0.06 % / 0.00 % / −0.14 %). But every source needs an entry number and a 16-to-1 select, more than the logic it replaces.
+- **Stopping dispatch until the confirmation**: cheap logic, but −1.5 % / −5.9 % in performance.
+- **The per-source masks themselves**: the largest part, but needed to handle the cancels correctly; they cannot go.
+
+**Expected**: with last time's Vivado / Yosys of 0.68, 4,974 → about 4.2k at 16 entries, about 3.3k at 12. The increase over the version without replay (about 2.45k at 12) would shrink from +1.4k to about +0.85k. The budget table is updated once Vivado gives the number.
+
+Recorded in `Plan/OOC.md` 15.6 (and the Japanese version) and the prompt log (answer 46 and the English of 47).
+
+**Request**: please run `synth_ooo.bat OOO_IQ` once more.
+<!-- /answer -->
+
+## 48. 2026-10-25 21:29:43 JST
+
+```text
+I ran synth_ooo.bat OOO_IQ. Please check it.
+```

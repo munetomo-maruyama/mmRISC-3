@@ -204,7 +204,7 @@ of the slices).
 | Block | LUT | Basis |
 |---|---|---|
 | ALUs, 2 ports (`OOC_ALU2` × 2) | 6,266 → **about 5.9k** | Measured; about −0.2k a port without the third source |
-| Issue queue (`OOO_IQ`) | 3,143 → **about 2.45k** | Measured at 16 entries; about 0.78 × at 12. **2026-10-25: with the selective replay measured in Vivado, 4,974 LUTs at 16 entries (+1,831), +3.309 ns; about 3.9k at 12 (+1.4k) (`Plan/OOC.md` 15.5)** |
+| Issue queue (`OOO_IQ`) | 3,143 → **about 2.45k** | Measured at 16 entries; about 0.78 × at 12. **2026-10-25: with the selective replay measured in Vivado, 4,974 LUTs at 16 entries (+1,831), +3.309 ns; about 3.9k at 12 (+1.4k) (`Plan/OOC.md` 15.5); after the reductions of 15.6, 4,977 LUTs, +2.857 ns (15.7): no change** |
 | Renaming (`OOC_RENAME`) | 2,267 → **about 2.0k** | Measured with 8 checkpoints; 6 checkpoints |
 | Register file (`OOC_PRF`, 64, 3 / 6) | 2,503 | Measured |
 | uBTB (`OOO_UBTB`) | 910 | Measured |

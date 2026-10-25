@@ -1227,3 +1227,22 @@ LUTs between variants of the same logic, so they were checked against a count of
 cd FPGA\OOO_OOC
 synth_ooo.bat OOO_IQ
 ```
+
+### 15.7 The Vivado rerun (2026-10-25)
+
+| Run (16 entries) | LUT | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|
+| OOO_IQ before the replay (10.x) | 3,143 | 702 | +5.065 ns | 12 |
+| With selective replay (15.5) | 4,974 | 975 | +3.309 ns | 13 |
+| **After the reductions of 15.6** | **4,977** | **924** | **+2.857 ns** | 12 |
+
+- **No gain in Vivado.** The Yosys estimate fell by 15 % (7,288 → 6,172), but Vivado's LUTs did not move (4,974 →
+  4,977); only the flip-flops fell (975 → 924, the 4th mask bit). Vivado had evidently already built the parts Yosys
+  counted twice (the compare of the cancelled load's tag with buses that never carry it, the 4th mask bit), and its
+  count moves by a few percent from run to run anyway. The Yosys / Vivado gap of this block (0.68 → 0.81) shows again
+  that Yosys cannot judge small structural changes (Plan/OOC.md 7.1).
+- It still closes at 50 MHz with 2.9 ns to spare (the wakeup-select loop, 87 % routing).
+- **The budget stays at 8.9k / 10.9k / 12.8k** (`Doc/UARCH.md` 4.4): the selective replay costs about +1.4k at 12
+  entries. The RTL changes of 15.6 stay (fewer flip-flops, simpler: the same behavior).
+- What is left to reduce it is not a detail: the per-source masks are the bulk and cannot go while the replay is
+  selective. The real lever is the policy itself (the replay trap at commit, about −1.4k, 15.5), for G0b.
