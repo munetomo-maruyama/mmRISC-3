@@ -28,6 +28,8 @@ echo "| configuration | -O2 | max | g13 |"
 echo "|---|---|---|---|"
 row "before G0 (rob 32, iq 16, ckpt 8)"            ubtb=16 rob=32 iq=16 lq=12 sq=12 ckpt=8 $F
 row "G0"                                             $G $F
+row "G0, entries kept for open loads until c + 3 (OOO_IQ)" $G $F keep_spec=3
+row "G0, kept until c + 4 (a registered cancel)"       $G $F keep_spec=4
 row "G0 pessimistic"                                 $G $F $P
 row "G0 + W5 (2 writes per pair, buy back)"          $G fusion=3 fuse_2src=1
 row "G0 + LQ / SQ 8"                                 $G $F lq=8 sq=8

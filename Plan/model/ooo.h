@@ -52,6 +52,8 @@ struct OooCfg {
     bool ck1 = false;           // at most one checkpoint taken a cycle (Plan/OOC.md 10)
     bool ck_jal = true;         // a jal takes a checkpoint too (it cannot mispredict in the back end)
     bool mem_cons = true, fwd = true;
+    int keep_spec = 0;          // a µop issued on an open load keeps its issue-queue entry until the load
+                                // is decided, keep_spec cycles after its issue (OOO_IQ: 4, Plan/OOC.md 15)
 };
 
 struct OooResult {
@@ -159,6 +161,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     std::vector<long> ld_cm, st_cm;             // commit cycles of loads / stores, in order
     std::priority_queue<long, std::vector<long>, std::greater<long>> iqh, ckh;
     std::unordered_map<int, long> ready;        // register -> cycle a dependent may issue
+    std::unordered_map<int, long> spec;         // register -> cycle its open loads are decided (keep_spec)
     std::unordered_map<long, int> use_alu, use_lsu, use_mul, use_all;
     struct StInfo { long data_ready, commit; };
     std::unordered_map<uint64_t, StInfo> st_word;   // latest store per 8-byte word
@@ -267,7 +270,20 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         use[is]++;
         use_all[is]++;
         if (pr.cls == C_DIV) for (int q = 1; q < c.lat_div; q++) use[is + q] = cap;   // not pipelined
-        iqh.push(is);
+        // the open loads it issues on: its entry stays until they are decided
+        long sp = 0;
+        if (c.keep_spec) {
+            for (size_t k = i; k <= last; k++)
+                for (int s = 0; s < 3; s++) {
+                    uint8_t r = t[k].src[s];
+                    if (r == NOREG || (k == last && pair && r == t[i].dst)) continue;
+                    if (t[k].cls == C_STORE && r != t[k].base) continue;
+                    auto it = spec.find(r);
+                    if (it != spec.end() && it->second > is) sp = std::max(sp, it->second);
+                }
+            if (any_load) sp = std::max(sp, is + c.keep_spec);
+        }
+        iqh.push(std::max(is, sp));
 
         // ---- results
         long done = is;
@@ -288,7 +304,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 rd = std::max(rd, dr);
                 st_addr_known = std::max(st_addr_known, is);
             }
-            if (r.dst != NOREG) ready[r.dst] = rd;
+            if (r.dst != NOREG) { ready[r.dst] = rd; if (c.keep_spec) spec[r.dst] = sp; }
             done = std::max(done, rd + c.iss_to_ex - 1);
         }
         long cmt = done + 1;

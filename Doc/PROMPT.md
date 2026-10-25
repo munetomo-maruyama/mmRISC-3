@@ -1496,3 +1496,36 @@ Recorded in `Plan/OOC.md` 14.5 (and the Japanese version), the TAGE-S row of `Do
 ```text
 I reran it.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The front end closes at 50 MHz.
+
+| Run | LUT | of it LUTRAM | FF | Block RAM | Register-to-register slack | Levels |
+|---|---|---|---|---|---|---|
+| OOC_FRONT (first version) | 2,968 | 106 | 2,538 | 5.5 tiles | −0.162 ns | 25 |
+| **OOC_FRONT (fixed)** | **3,076** | 82 | 2,576 | 5.5 tiles | **+0.959 ns** | 16 |
+
+- **The slack grew by 1.1 ns and it closes.** Not the 3 ns or so expected: with the override path shortened, another path became the worst. 25 levels went to 16, and the parallel compares cost 108 LUTs.
+- **The worst path now** runs from the head address through F2's decision and the uBTB's training (the match against its 16 entries) into the write enable of a uBTB entry.
+  - If the core lacks margin later, registering the training and applying it a cycle late shortens it, with hardly any effect on the predictions. Not done now.
+- **The budget** (a row added to UARCH 4.4): the estimates of the fetch buffer, the FTQ and the front end are replaced with the measured values, with the FTQ widened and the I$ to 16 bytes added.
+
+| | Low | Middle | High |
+|---|---|---|---|
+| After the ROB and renaming were measured | 7.2k | 9.9k | 12.7k |
+| **After the front end was measured** | **7.5k** | **9.5k** | **11.4k** |
+
+The spread narrows and the middle drops by 0.4k. What is left unwritten is decode, the issue-queue payload, the D$ adapter and the control, about ±1.4k together.
+
+Recorded in `Plan/OOC.md` 14.6 (and the Japanese version), 4.3 and 4.4 of `Doc/UARCH`, and the prompt log (answer 43 and the English of 44); pushed to dev (5f1663d).
+
+Next, in the order laid out before, I recommend deciding how to hold back the dependents of a missing load (the replay policy, B1).
+<!-- /answer -->
+
+## 45. 2026-10-25 17:47:09 JST
+
+```text
+As recommended, next please decide how to hold back the dependents of a missing load (the replay policy, B1), and add the cancellation to OOO_IQ. Prepare the unit tests and Vivado scripts too.
+```

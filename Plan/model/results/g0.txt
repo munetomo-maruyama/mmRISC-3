@@ -2,6 +2,8 @@
 |---|---|---|---|
 | before G0 (rob 32, iq 16, ckpt 8)                    |  6.588 |  6.839 |  6.363 |
 | G0                                                   |  6.564 |  6.801 |  6.348 |
+| G0, entries kept for open loads until c + 3 (OOO_IQ) |  6.550 |  6.786 |  6.340 |
+| G0, kept until c + 4 (a registered cancel)           |  6.491 |  6.766 |  6.305 |
 | G0 pessimistic                                       |  5.847 |  6.143 |  5.690 |
 | G0 + W5 (2 writes per pair, buy back)                |  6.865 |  7.401 |  6.644 |
 | G0 + LQ / SQ 8                                       |  6.520 |  6.770 |  6.318 |

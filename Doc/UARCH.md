@@ -122,7 +122,7 @@ the free list; renaming gets them (about 0.3k LUTs).
 | Item | Specification |
 |---|---|
 | ROB | 24 µops; payload in LUTRAM banked by the parity of the index (one write port each), done and exception bits in flip-flops; commit 2 a cycle |
-| Issue queue | `OOO_IQ`: unified, 12 entries, 2 sources and 1 destination, oldest first (age matrix), 3 issues a cycle, 6 wakeup buses; payload in LUTRAM |
+| Issue queue | `OOO_IQ`: unified, 12 entries, 2 sources and 1 destination, oldest first (age matrix), 3 issues a cycle, 6 wakeup buses with load masks, selective replay of µops issued on a load that misses (3.7); payload in LUTRAM |
 | Ports | P0: ALU0 + MUL / DIV; P1: ALU1; P2: LSU |
 | **Dispatch rules** (the wakeup relies on them) | A latency-2 µop (multiply) is "ALU0 only"; an any-ALU µop has latency 1; an LSU µop writes a register only as a load |
 | Physical registers | `OOO_PRF`: 64 × 64, 3 writes / 6 reads, LUTRAM per write bank + LVT |
@@ -148,7 +148,7 @@ the free list; renaming gets them (about 0.3k LUTs).
 | D$ | mmRISC-2's (non-blocking, 2 MSHRs) behind an adapter with tagged requests and responses |
 | Misaligned | Trap, as in mmRISC-2 |
 | Block | `OOO_LSU` (2026-10-25, `Plan/OOC.md` 11): LQ / SQ, forwarding, `lsu_st_known` for the issue queue, `ld_cancel` for a load that misses its expected cycle, late results, `dc_kill` for the D$ adapter |
-| **Open: holding back dependents** | The dependents of a load are woken before its result is known (2-cycle load-use). When it cannot give its result (a miss, a wait), the dependents already woken must be held back; candidate: the issue queue cancels speculative wakeups and keeps the entries of µops issued in the shadow until confirmed. Decided before the core is put together |
+| **Holding back dependents** (decided 2026-10-25, `Plan/OOC.md` 15) | Selective replay in the issue queue: a load is decided 3 cycles after its issue (`ld_cancel` of M); wakeups carry the mask of the open loads they depend on; a µop issued on an open load keeps its entry until the load is confirmed, and goes back to waiting if it is cancelled; the cancelled load waits for its late answer. Units drop µops in RR / EX whose mask meets `ld_kill`. About +1.0k LUTs, −0.2 % / −0.2 % in the model (the kept entries) |
 
 ### 3.8 Commit, exceptions and fused pairs
 
@@ -204,7 +204,7 @@ of the slices).
 | Block | LUT | Basis |
 |---|---|---|
 | ALUs, 2 ports (`OOC_ALU2` × 2) | 6,266 → **about 5.9k** | Measured; about −0.2k a port without the third source |
-| Issue queue (`OOO_IQ`) | 3,143 → **about 2.45k** | Measured at 16 entries; about 0.78 × at 12 |
+| Issue queue (`OOO_IQ`) | 3,143 → **about 2.45k** | Measured at 16 entries; about 0.78 × at 12. **2026-10-25: the selective replay added, about +1.0k expected (Yosys +2.0k at 16 entries); Vivado to come (`Plan/OOC.md` 15.4)** |
 | Renaming (`OOC_RENAME`) | 2,267 → **about 2.0k** | Measured with 8 checkpoints; 6 checkpoints |
 | Register file (`OOC_PRF`, 64, 3 / 6) | 2,503 | Measured |
 | uBTB (`OOO_UBTB`) | 910 | Measured |

@@ -1098,3 +1098,79 @@ synth_ooo.bat OOC_FRONT
   (+0.05k to 0.2k), in place of the estimates of fetch, TAGE-S, BTB and RAS (3.2k to 5.0k): the gap is **7.5k / 9.5k
   / 11.4k** (it was 7.2k / 9.9k / 12.7k). The spread narrows; what is left unwritten is decode, the issue-queue
   payload, the D$ adapter and the control (about ±1.4k).
+
+## 15. Loads that miss: selective replay in the issue queue (2026-10-25)
+
+The open item of 11.4 (B1 of the work plan): the dependents of a load are woken before its result is known (2-cycle
+load-use), so when the LSU finds in M that the load gives no result in WB (`ld_cancel`: a D$ miss, a wait), what was
+issued on that guess has to be taken back.
+
+### 15.1 Measured first, and the author's decision
+
+- **How often in CoreMark** (the raw traces, a 16 KB 4-way D$ model, stores in flight over 32 instructions): in 10
+  iterations, **26 D$ misses of loads (all cold) and no partial overlap** with a store in flight (33,914 / 33,168
+  loads are forwarded in full). With conservative ordering (`lsu_st_known`) there are no other waits. So the mechanism
+  hardly matters for CoreMark; it matters for code that misses (Linux).
+- Two options were put to the author: a replay trap at commit (a cancelled load is marked in the ROB and everything
+  younger is refetched when it commits; about +0.05k LUTs, no change to the issue queue, but every D$ miss would cost a
+  refetch and the work done under it) or **selective replay in the issue queue** (about +0.7k to 1.2k LUTs).
+  **The author chose selective replay.**
+
+### 15.2 The design (`RTL/CPU/OOO/OOO_IQ`)
+
+| Item | Content |
+|---|---|
+| Load slots | A load issued in cycle c owns slot c mod 4 (4 slots: a load is open from its wakeup until c + 3). It is decided in c + 3 by `ld_cancel` of M in that cycle: cancelled or confirmed |
+| Masks | Every wakeup bus carries the mask of the open loads its value depends on (a load adds its own slot); every source keeps the mask it was woken with; a µop issues with the OR of its sources' masks (`iss_ldm`) |
+| Kept entries | A µop issued with a mask stays in the queue, not selectable, until its loads are confirmed, then its entry is freed. If one is cancelled, it goes back to waiting, and every source woken through that load is not ready any more |
+| The cancelled load | Not issued again by the queue (the LSU tries it again from the LQ and answers late on `ext_*`): its entry waits, never selected, until that answer |
+| Dispatch | A source whose producer is in the queue and not issued (taken back, or a cancelled load) is not ready, whatever renaming says; one whose producer is still unconfirmed gets the producer's mask. This looks at the queue's 12 producers instead of a table of 64 registers with masks (about 1k LUTs) |
+| `ld_cancel` is late | It comes from the LSU's M at the end of its cycle, so it only acts on the next state of the entries, never on the select of the cycle: a µop selected on the cancelled slot in that cycle is taken back as if not issued, and its delayed wakeup does not go out |
+| Units | `ld_kill` (the slot cancelled in the cycle before) and `iss_ldm`: a µop in RR or EX whose mask meets `ld_kill` is dropped (no write-back, no completion, no branch resolution; in the LSU no SQ write and no D$ request) |
+
+- **Why decide in c + 3 and not a cycle later through a register**: the entries of µops issued on a load are kept
+  until it is decided, which takes issue-queue room. In the model (`keep_spec`, 15.3) keeping them until c + 4 costs
+  −1.1 % / −0.5 %, until c + 3 −0.2 % / −0.2 %.
+- **For the core's assembly**:
+  - every unit drops by `iss_ldm` and `ld_kill` (above); the LSU's port-2 pipeline has no stall between issue and M
+    (as it is), and its `ld_cancel` goes to the issue queue as it is
+  - renaming's ready bits (`disp_rdy`) follow the wakeup buses (a tag is ready from its broadcast), including the
+    broadcasts in the cycle between renaming and dispatch, as `tb_iq` assumes; this was needed before as well (with
+    the bits cleared at write-back, a µop dispatched between the wakeup and the write would never be woken); the queue
+    corrects them after a cancel
+  - loads are still to be held in the queue until `lsu_st_known` (11.1)
+
+### 15.3 The cost in the model
+
+| Configuration (G0) | -O2 | max. optimization |
+|---|---|---|
+| Entries freed at issue (the model so far) | 6.564 | 6.801 |
+| Kept until c + 4 (a registered cancel) | 6.491 (−1.1 %) | 6.766 (−0.5 %) |
+| **Kept until c + 3 (as built)** | **6.550 (−0.2 %)** | **6.786 (−0.2 %)** |
+| Kept until c + 4, issue queue 14 | 6.556 | 6.795 |
+| Kept until c + 4, issue queue 16 | 6.564 | 6.801 |
+
+(`Plan/model`, `keep_spec`; the model has no misses, so this is the cost of the kept entries alone.)
+
+### 15.4 Verification, size, and the Vivado run asked of the author
+
+- **`tb_iq` (rewritten)**: the account of when values are usable now keeps, for every value, the open loads it depends
+  on. A quarter of the loads are cancelled (`ld_cancel` 3 cycles after their issue); a cancel makes every value
+  depending on the load unusable, sends the µops issued on it back to waiting (also one issued in the cycle of the
+  cancel), and the load waits for a late answer; a confirmation drops it from the sets. Renaming's ready bits are
+  given as renaming would know them (set by a wakeup, not taken back by a cancel), so the queue's correction is
+  tested. Checked every cycle: every issue (oldest first, nothing early or twice), its load mask, `ld_kill`, and
+  `disp_ready` (the kept and waiting entries). PASS on 12 seeds; on one: 173,765 µops issued, 73,508 kept, 10,988 loads
+  cancelled, 10,134 µops taken back.
+- The test's own errors on the way: the second of a pair reading the first got renaming's old ready bit; tags of
+  flushed producers were read by new µops, and the late answer of a flushed cancelled load was announced (neither can
+  happen after renaming's recovery and the LSU's flush).
+- **Bug injection**: 21 for the issue queue (16 new for the replay, 5 for its late-cancel form; M132–M152), all
+  detected (146 in all).
+- **Size (Yosys, 16 entries)**: 7,288 LUTs (5,255 before, +2.0k). With the ratios so far (Vivado / Yosys 0.6, 12 entries
+  0.78 times) about **+1.0k** in the core.
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOO_IQ
+```
