@@ -143,17 +143,24 @@ module OOO_ROB
     assign disp_rob[0] = tail[ROBW-1:0];
     assign disp_rob[1] = t1[ROBW-1:0];
 
-    always_ff @(posedge clk) begin
-        // the entries tail and tail + 1 have different parities
-        if (disp_valid[0]) begin
-            if (tail[0]) bank1[HW'(tail[ROBW-1:1])] <= pack(0);
-            else         bank0[HW'(tail[ROBW-1:1])] <= pack(0);
-        end
-        if (disp_valid[1]) begin
-            if (t1[0]) bank1[HW'(t1[ROBW-1:1])] <= pack(1);
-            else       bank0[HW'(t1[ROBW-1:1])] <= pack(1);
-        end
+    // one write a bank, its slot chosen first: tail and tail + 1 have
+    // different parities, so bank 0 takes slot 0 when the tail is even and
+    // slot 1 when it is odd (and bank 1 the other). Written as two writes
+    // into one bank, Vivado took them for two write ports and built the
+    // payload of flip-flops (Plan/OOC.md 12.6)
+    logic          we0, we1;
+    logic [HW-1:0] wa0, wa1;
+    pay_t          wd0, wd1;
+    always @(*) begin
+        we0 = tail[0] ? disp_valid[1] : disp_valid[0];
+        wa0 = tail[0] ? HW'(t1[ROBW-1:1]) : HW'(tail[ROBW-1:1]);
+        wd0 = tail[0] ? pack(1) : pack(0);
+        we1 = tail[0] ? disp_valid[0] : disp_valid[1];
+        wa1 = tail[0] ? HW'(tail[ROBW-1:1]) : HW'(t1[ROBW-1:1]);
+        wd1 = tail[0] ? pack(0) : pack(1);
     end
+    always_ff @(posedge clk) if (we0) bank0[wa0] <= wd0;
+    always_ff @(posedge clk) if (we1) bank1[wa1] <= wd1;
 
     // ---- status
     logic [NROB-1:0] done, exc;

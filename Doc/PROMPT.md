@@ -1022,3 +1022,48 @@ The blocks not written yet are the front end, TAGE, BTB / RAS, decode, the ROB a
 ```text
 As the next block of step 2, please go on with the ROB and renaming with the committed-state RAT added. Prepare the unit tests and Vivado scripts too.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+As the second block of step 2, I made the ROB and the committed state of renaming (the committed-state RAT), with unit tests and Vivado scripts. The record is in section 12 of OOC_J.md (English: OOC.md), pushed to dev as `f7435e5`.
+
+**ROB (`RTL/CPU/OOO/OOO_ROB`)**
+
+- **Structure**: 24 µops, 2 in and 2 committed a cycle.
+  - The payload (pc, destination, new and old physical registers and so on) is in LUTRAM split in two by the parity of the index. Two consecutive entries always fall in different banks, so each bank needs one write and one read.
+  - Done and exception are flip-flops, written by 4 completion ports.
+- **Branch mispredictions**: with two in a cycle the older is chosen; `restore` is given and the tail cut back to just after that branch.
+- **The head**: an exception at the head becomes a trap with a full flush. A µop that runs only at the head, such as a CSR instruction, is told by `head_ns` that it may run.
+
+**The committed state of renaming**: a RAT written at commit and the committed head of the free list are added; `flush_all` goes back to that state. This was missing from the G0 specification.
+
+**Verification**
+
+- **`tb_rob` (new)**: checked against a reference ROB every cycle, with out-of-order completion, two mispredictions at once, completions for indices not in the ROB, and dispatch in cycles of trap or restore. All PASS on 4 seeds (1.6 million cycles in all).
+- **`tb_rename`**: commits and `flush_all` added; PASS (909 flushes).
+- **Bug injection**: of the 12 added, 4 were not detected at first. All four turned out to be redundant logic, so they were taken out of the RTL. For example, clearing every busy bit on a flush is not needed, since the registers of the committed state have busy at 0 already. The remaining 8 are all detected (62 in all).
+
+**Size** (Yosys)
+
+| Block | Yosys | Expected in Vivado | G0 estimate |
+|---|---|---|---|
+| ROB | 1,446 LUTs + 80 LUTRAM | about 1.0k to 1.2k | 0.7k to 1.2k |
+| Renaming | 3,216 → 3,769 | about 2.6k to 2.7k (about +0.4k) | +0.3k for the committed state |
+
+The number of checkpoints is 6 at G0, but the RTL's renaming keeps 8, because its ring of numbers assumes a power of two. Whether to go to 6 is decided when the core is put together; in the model 8 → 6 is −0.3% / −0.5%.
+
+**Vivado runs asked**:
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_ROB
+synth_ooo.bat OOC_RENAME
+```
+<!-- /answer -->
+
+## 32. 2026-10-25 14:04:50 JST
+
+```text
+I ran synth_ooo.bat OOC_ROB and synth_ooo.bat OOC_RENAME. Please read the results and record them.
+```

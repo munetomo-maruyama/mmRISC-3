@@ -1,0 +1,30 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Sun Oct 25 13:46:36 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_ROB/utilization_synth.rpt
+| Design       : OOC_ROB
+| Device       : xc7a100tcsg324-1
+| Speed File   : -1
+| Design State : Synthesized
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++-------------+---------+------------+------------+---------+------+------+--------+--------+------------+
+|   Instance  |  Module | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++-------------+---------+------------+------------+---------+------+------+--------+--------+------------+
+| OOC_ROB     |   (top) |       5179 |       5179 |       0 |    0 | 2061 |      0 |      0 |          0 |
+|   (OOC_ROB) |   (top) |          0 |          0 |       0 |    0 |  366 |      0 |      0 |          0 |
+|   u_rob     | OOO_ROB |       5179 |       5179 |       0 |    0 | 1695 |      0 |      0 |          0 |
++-------------+---------+------------+------------+---------+------+------+--------+--------+------------+
+
+

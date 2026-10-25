@@ -775,3 +775,19 @@ cd FPGA\OOO_OOC
 synth_ooo.bat OOC_ROB
 synth_ooo.bat OOC_RENAME
 ```
+
+### 12.6 The Vivado results, and the ROB's payload fixed (2026-10-25)
+
+| Block | LUT | LUTRAM | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|---|
+| OOC_RENAME (with the committed state) | **2,624** | 0 | 2,530 | +9.905 ns | 6 |
+| OOC_ROB | **5,173** | **0** | 2,061 | +7.018 ns | 2 |
+
+- **Renaming**: 2,267 → 2,624 (+357), as expected for the committed state (+0.3k to 0.4k). It closes at 50 MHz with
+  plenty of margin.
+- **The ROB closes, but its payload became flip-flops** (0 LUTRAM, 5,173 LUTs). Each bank was written by two
+  statements, slot 0's and slot 1's, so Vivado took them for two write ports and did not use LUTRAM (one write port).
+  The two never write the same bank in the same cycle, but Vivado cannot see that (Yosys did, and used 80 LUTRAM).
+- **Fixed**: one write per bank, with the writing slot chosen first (bank 0 takes slot 0 when the tail is even, slot 1
+  when it is odd). The test PASSes on 4 seeds; all 8 ROB mutations (one added for the choice) are detected (63 in all).
+- **Please rerun `synth_ooo.bat OOC_ROB`** (about 1.0k to 1.2k expected).

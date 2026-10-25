@@ -87,6 +87,7 @@ M = [
     ('M63', 'OOO_ROB/OOO_ROB.sv', 'rob', "(c0 ? (p0[1] ? 3'd2 : 3'd1) : 3'd0)", "(c0 ? 3'd1 : 3'd0)", 'a fused pair counted once in instret'),
     ('M64', 'OOO_ROB/OOO_ROB.sv', 'rob', "head_ns    = used != '0 && p0[0] && !done[hi0];", "head_ns    = used != '0 && p0[0];", 'head_ns stays after the µop ran'),
     ('M67', 'OOO_RENAME/OOO_RENAME.sv', 'rename', "+ (FW + 1)'(cmt_valid[1] && cmt_wr[1]);", ";", 'the committed head misses slot 1'),
+    ('M69', 'OOO_ROB/OOO_ROB.sv', 'rob', 'we0 = tail[0] ? disp_valid[1] : disp_valid[0];', 'we0 = disp_valid[0];', 'bank 0 written only by slot 0'),
     ('M33', 'OOO_UBTB/OOO_UBTB.sv', 'ubtb', "else if (upd_valid && !found && upd_taken) rr <= rr + EW'(1);", "else if (upd_valid && upd_taken) rr <= rr + EW'(1);", 'replacement moves on a hit'),
 ]
 
