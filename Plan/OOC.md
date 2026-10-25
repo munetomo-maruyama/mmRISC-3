@@ -791,3 +791,17 @@ synth_ooo.bat OOC_RENAME
 - **Fixed**: one write per bank, with the writing slot chosen first (bank 0 takes slot 0 when the tail is even, slot 1
   when it is odd). The test PASSes on 4 seeds; all 8 ROB mutations (one added for the choice) are detected (63 in all).
 - **Please rerun `synth_ooo.bat OOC_ROB`** (about 1.0k to 1.2k expected).
+
+### 12.7 The ROB rerun (2026-10-25)
+
+| Run | LUT | of it LUTRAM | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|---|
+| OOC_ROB (first version) | 5,173 | 0 | 2,061 | +7.018 ns | 2 |
+| **OOC_ROB (fixed in 12.6)** | **1,073** | 160 | 538 | **+11.060 ns** | 3 |
+
+- **The payload is in LUTRAM now: 5,173 → 1,073 LUTs** (913 logic + 160 LUTRAM), inside the G0 estimate (0.7k to
+  1.2k). Without the harness's flip-flops it has very few FFs.
+- It closes at 50 MHz with plenty of margin (the worst path runs from a completion port to the write of an exception
+  cause, 3 levels).
+- The effect on the budget is recorded in `Doc/UARCH.md` 4.4 (with the ROB and the renaming with its committed state
+  measured, the gap is about 9.9k in the middle).

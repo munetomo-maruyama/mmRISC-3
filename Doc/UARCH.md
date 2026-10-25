@@ -214,7 +214,7 @@ of the slices).
 | TAGE-S logic (tables in block RAM) | 0.8k to 1.5k | Folded histories, tag compares, provider / alternate choice, update and allocation through the FTQ |
 | BTB (block RAM) and RAS 16 | 0.4k to 0.7k | Tag compare and target; RAS in LUTRAM |
 | Decode × 4 and RVC × 4 | 1.0k to 1.6k | mmRISC-2's CORE_DEC 278 and CORE_DECOMP 78 each; `REDUCE.md` E2 |
-| ROB 24 | 0.7k to 1.2k | Payload in LUTRAM (two banks), status in flip-flops, commit 2 a cycle, flush. **2026-10-25: `OOO_ROB` written; Vivado first gave 5,173 LUTs with the payload in flip-flops (two write statements per bank), fixed to one write per bank, rerun pending (`Plan/OOC.md` 12.6)** |
+| ROB 24 | 0.7k to 1.2k | Payload in LUTRAM (two banks), status in flip-flops, commit 2 a cycle, flush. **2026-10-25: `OOO_ROB` written; Vivado first gave 5,173 LUTs with the payload in flip-flops (two write statements per bank), fixed to one write per bank: 1,073 LUTs (160 LUTRAM), +11.060 ns (`Plan/OOC.md` 12.7)** |
 | Issue-queue payload | 0.4k to 0.7k | LUTRAM, 2 writes / 3 reads (two banks + LVT) |
 | LSU: address calculation, alignment, LQ 12, SQ 12 with forwarding, D$ adapter, hit speculation and replay | 2.5k to 3.5k | mmRISC-2's CORE_LSU is 946 (alignment); the SQ's address compares and data select; the adapter. **2026-10-25: `OOO_LSU` without the adapter measured in Vivado, 2,969 LUTs, +6.265 ns (`Plan/OOC.md` 11.8)** |
 | Dispatch, branch resolution, redirects, commit and exceptions, the ports to CSR / MDU / FPU / MMU | 1.5k to 2.5k | mmRISC-2's pipeline itself is 2,511 |
@@ -230,6 +230,8 @@ of the slices).
 | **Over** | **5.4k** | **8.8k** | **12.1k** |
 | Needed, 2026-10-25 (LSU measured 2,969 + adapter 0.3k to 0.6k; committed-state RAT 0.3k, 3.4) | 24.4k | 26.6k | 28.9k |
 | **Over, 2026-10-25** | **6.5k** | **9.5k** | **12.5k** |
+| Needed, 2026-10-25 later (ROB measured 1,073; renaming with its committed state measured 2,624, 8 checkpoints) | 25.1k | 27.1k | 29.1k |
+| **Over, 2026-10-25 later** | **7.2k** | **9.9k** | **12.7k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8).

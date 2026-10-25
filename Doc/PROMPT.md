@@ -1067,3 +1067,31 @@ synth_ooo.bat OOC_RENAME
 ```text
 I ran synth_ooo.bat OOC_ROB and synth_ooo.bat OOC_RENAME. Please read the results and record them.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I read the two results and recorded them in 12.6 of OOC_J.md / OOC.md. Renaming came out as expected, but the ROB came out large because of how it was written, so I fixed it. Pushed to dev as `3e7384c`.
+
+| Block | LUT | LUTRAM | Register-to-register slack |
+|---|---|---|---|
+| Renaming (with the committed state) | **2,624** (+357) | 0 | +9.905 ns |
+| ROB | **5,173** | **0** | +7.018 ns |
+
+- **Renaming**: the committed state added 357 LUTs, as expected (+0.3k to 0.4k). It has plenty of margin at 50 MHz.
+- **The ROB closes, but its payload became flip-flops instead of LUTRAM.** Each bank was written by two statements, "slot 0 writes" and "slot 1 writes", so Vivado took them for two write ports and did not use LUTRAM, which has one write. In fact the two never write the same bank in the same cycle, but Vivado cannot see that (Yosys could, which is why the estimate had LUTRAM).
+- **What was fixed**: one write per bank, with the writing slot chosen first. The test PASSes on 4 seeds. One bug injection that breaks this choice was added, and all 8 ROB ones are detected (63 in all).
+
+The next Vivado run (checking the fixed ROB; about 1.0k to 1.2k expected):
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_ROB
+```
+<!-- /answer -->
+
+## 33. 2026-10-25 14:20:56 JST
+
+```text
+I reran synth_ooo.bat OOC_ROB. Please read the result and record it.
+```
