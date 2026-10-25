@@ -207,8 +207,7 @@ int main(int argc, char** argv)
                 if (ok && v) {
                     int m = 0;
                     for (long l : deps_of(*exp[p])) m |= 1 << slot_of.at(l);
-                    if (exp[p]->load()) m |= 1 << (int)(cyc % 4);
-                    int g = (int)((d.iss_ldm >> (4 * p)) & 15);
+                    int g = (int)((d.iss_ldm >> (3 * p)) & 7);
                     if (g != m) MM("port %d (p%d): iss_ldm %x, expected %x", p, t, g, m);
                 }
             }
@@ -242,7 +241,7 @@ int main(int argc, char** argv)
             for (auto& kv : loads) if (kv.first >= cyc - 2) kv.second.cancel = false;
             // (the one reported in this cycle is decided below, with nothing left in the queue)
             // a load the queue chose in this cycle is decided like any other (never cancelled)
-            if (load_now) { long id = next_id++; loads[cyc] = Load{id, (int)(cyc % 4), false, 0}; slot_of[id] = (int)(cyc % 4); }
+            if (load_now) { long id = next_id++; loads[cyc] = Load{id, (int)(cyc % 3), false, 0}; slot_of[id] = (int)(cyc % 3); }
         } else {
             for (int p = 0; p < 3; p++) {
                 if (!((issued_now >> p) & 1) || !exp[p]) continue;
@@ -251,7 +250,7 @@ int main(int argc, char** argv)
                 x.deps = deps_of(x);
                 x.issued = cyc;
                 if (x.load()) {
-                    Load L{next_id++, (int)(cyc % 4), rng() % 4 == 0, x.dst};
+                    Load L{next_id++, (int)(cyc % 3), rng() % 4 == 0, x.dst};
                     loads[cyc] = L; slot_of[L.id] = L.slot;
                     x.deps.insert(L.id);
                 }

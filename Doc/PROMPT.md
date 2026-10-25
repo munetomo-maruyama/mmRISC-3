@@ -1582,3 +1582,37 @@ synth_ooo.bat OOO_IQ
 ```text
 I have finished running OOO_IQ.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The issue queue with selective replay closes at 50 MHz, but came out larger than estimated.
+
+| Run | LUT | FF | Register-to-register slack | Levels |
+|---|---|---|---|---|
+| OOO_IQ, 16 entries (previous version) | 3,143 | 702 | +5.065 ns | 12 |
+| **With selective replay, 16 entries** | **4,974** | 975 | **+3.309 ns** | 13 |
+
+- **Timing**: it closes with 3.3 ns to spare. The worst path is still the wakeup-select loop; `ld_cancel` is not on it. The 1.8 ns lost is mostly longer routing in a larger block (83 % of the delay is routing).
+- **Size**: +1,831 LUTs at 16 entries, about **+1.4k** at G0's 12 entries.
+  - The estimate was +1.0k, and the range shown when you decided was +0.7k to 1.2k; it is above even its top.
+  - Two causes: the per-source masks (32 sources × 4 bits, chosen from 6 buses and cleared by confirm and cancel) and the dispatch compares against the 16 producers.
+- **Budget** (a row added to UARCH 4.4):
+
+| | Low | Middle | High |
+|---|---|---|---|
+| After the front end was measured | 7.5k | 9.5k | 11.4k |
+| **After the IQ (with replay) was measured** | **8.9k** | **10.9k** | **12.8k** |
+
+- **A lever for G0b**: going back to the replay trap at commit saves about 1.4k and gains 0.2 % on CoreMark (no kept entries). In exchange, code that misses refetches on every D$ miss. It is listed in the levers, but the policy stays as you decided; whether to change it is yours at G0b.
+
+Recorded in `Plan/OOC.md` 15.5 (and the Japanese version), 4.3 and 4.4 of `Doc/UARCH`, and the prompt log (answer 45 and the English of 46). The English of 45 notes the question I asked about the policy. Pushed to dev (adf12c8).
+
+Next is either decode × 4 and RVC expansion (A2), in the order laid out, or first looking at whether this IQ can be made smaller.
+<!-- /answer -->
+
+## 47. 2026-10-25 19:50:21 JST
+
+```text
+First, please look at whether the IQ with selective replay can be made smaller.
+```

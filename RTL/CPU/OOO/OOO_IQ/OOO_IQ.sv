@@ -33,8 +33,11 @@
 // before its result is known, so that they issue 2 cycles after it; when
 // the LSU finds in M that the load gives no result in WB (ld_cancel: a
 // miss, a wait), what was issued on that guess is taken back, selectively:
-//   - a load issued in cycle c owns load slot c mod 4; it is decided in
-//     cycle c + 3, by ld_cancel of M in that cycle: cancelled or confirmed
+//   - a load issued in cycle c owns load slot c mod 3; it is decided in
+//     cycle c + 3, by ld_cancel of M in that cycle: cancelled or confirmed;
+//     the load issued in that cycle takes the same slot, so a load's own
+//     bit is never decided in the cycle it is set (it is not in iss_ldm:
+//     a load is not dropped by its own cancel, the LSU keeps it)
 //   - every wakeup carries the mask of the open loads its value depends on
 //     (a load adds its own slot), every source keeps the mask it was woken
 //     with, and a µop issues with the OR of its sources' masks (iss_ldm,
@@ -103,27 +106,25 @@ module OOO_IQ
         output logic [2:0][1:0][TAGW-1:0] iss_src,
         output logic [2:0]            iss_wr,
         output logic [2:0][TAGW-1:0]  iss_dst,
-        output logic [2:0][3:0]       iss_ldm,    // the open loads it depends on (load slots)
-        output logic [3:0]            ld_kill     // the load slot cancelled in this cycle
+        output logic [2:0][2:0]       iss_ldm,    // the open loads it depends on (load slots)
+        output logic [2:0]            ld_kill     // the load slot cancelled in the cycle before
     );
 
     localparam int EW = $clog2(N);
     localparam int NB = 4 + NEXT;    // broadcast tags (above)
-    localparam int NS = 4;           // load slots
+    localparam int NS = 3;           // load slots (Plan/OOC.md 15.6: 3, not 4)
 
     // ---- the open loads: slots, and the decision 3 cycles after the issue
     logic [1:0]    lslot;            // the slot of a load issued in this cycle
     logic [2:0]    lvh;              // lvh[k]: a load issued k + 1 cycles ago
     logic [NS-1:0] kill_m, conf_m;   // the slot decided in this cycle (late in it: next state only)
     logic [NS-1:0] kill_q;
-    always @(*) begin
-        logic [1:0] sl;
-        sl = lslot + 2'd1;           // that of the load issued 3 cycles ago
+    always @(*) begin                // (the slot of the load issued 3 cycles ago is this cycle's)
         kill_m = '0;
         conf_m = '0;
         if (lvh[2]) begin
-            if (ld_cancel) kill_m[sl] = 1'b1;
-            else           conf_m[sl] = 1'b1;
+            if (ld_cancel) kill_m[lslot] = 1'b1;
+            else           conf_m[lslot] = 1'b1;
         end
     end
     assign ld_kill = kill_q;
@@ -168,11 +169,13 @@ module OOO_IQ
         return e;
     endfunction
 
-    // the mask a µop issues with: its sources', and a load's own slot
+    // the mask a µop issues with: its sources'; a load adds its own slot
+    // to what it keeps and to its wakeup
     logic [NS-1:0] emn [N];
+    logic [NS-1:0] own;
     always @(*) begin
-        for (int i = 0; i < N; i++)
-            emn[i] = sm[i][0] | sm[i][1] | ((port[i] == 2'd2 && wr[i]) ? NS'(1) << lslot : '0);
+        own = NS'(1) << lslot;
+        for (int i = 0; i < N; i++) emn[i] = sm[i][0] | sm[i][1];
     end
 
     // the issued µops, by an AND-OR of the grants (one-hot); only port 0
@@ -222,6 +225,12 @@ module OOO_IQ
         logic w;
         w = 1'b0;
         for (int b = 0; b < NB; b++) if (bv[b] && bt[b] == t) w = 1'b1;
+        return w;
+    endfunction
+    function automatic logic xwoken(input logic [TAGW-1:0] t);   // by an external wakeup
+        logic w;
+        w = 1'b0;
+        for (int e = 0; e < NEXT; e++) if (ext_valid[e] && ext_tag[e] == t) w = 1'b1;
         return w;
     endfunction
     function automatic logic [NS-1:0] wmask(input logic [TAGW-1:0] t);
@@ -285,7 +294,7 @@ module OOO_IQ
         end else begin
             d_v0   <= iss_wr[0] && lat2_0 && (iss_ldm[0] & kill_m) == '0;
             d_v2   <= iss_wr[2] && (iss_ldm[2] & kill_m) == '0;
-            lslot  <= lslot + 2'd1;
+            lslot  <= (lslot == 2'd2) ? 2'd0 : lslot + 2'd1;
             lvh    <= {lvh[1:0], iss_wr[2]};
             kill_q <= kill_m;
         end
@@ -294,7 +303,7 @@ module OOO_IQ
         d_t0 <= iss_dst[0];
         d_t2 <= iss_dst[2];
         d_m0 <= iss_ldm[0] & ~conf_m;
-        d_m2 <= iss_ldm[2] & ~conf_m;
+        d_m2 <= iss_ldm[2] | own;            // (a bit confirmed now is this slot: the load's own)
     end
 
     // which entries are written and which issue this cycle
@@ -374,11 +383,11 @@ module OOO_IQ
                 if (issued[i] && (emn[i] & kill_m) != '0) begin
                     // selected on the load cancelled now: as if not issued
                 end else if (issued[i]) begin
-                    // freed now, or kept until its loads are decided
-                    if ((emn[i] & ~conf_m) == '0) vq <= 1'b0;
+                    // freed now, or kept until its loads are decided (a load at least until itself)
+                    if ((emn[i] & ~conf_m) == '0 && !(pq == 2'd2 && wq)) vq <= 1'b0;
                     else begin
                         iq   <= 1'b1;
-                        emq  <= emn[i] & ~conf_m;
+                        emq  <= (emn[i] & ~conf_m) | ((pq == 2'd2 && wq) ? own : '0);
                         oslq <= lslot;
                     end
                 end else if (iq) begin
@@ -391,8 +400,8 @@ module OOO_IQ
                     end else begin
                         emq <= emq & ~conf_m;
                     end
-                end else if (phq && woken(dq)) begin
-                    vq  <= 1'b0;                    // its late answer
+                end else if (phq && xwoken(dq)) begin
+                    vq  <= 1'b0;                    // its late answer (only ever on ext_*)
                     phq <= 1'b0;
                 end
                 // an entry written now is younger than this one

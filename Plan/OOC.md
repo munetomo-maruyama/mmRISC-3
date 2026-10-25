@@ -1193,3 +1193,37 @@ synth_ooo.bat OOO_IQ
 - **For G0b**: going back to the replay trap at commit (15.1) would save about 1.4k and gain 0.2 % on CoreMark (no
   kept entries), at the cost of a refetch on every D$ miss in code that misses. It is listed with the levers; the
   decision stays with the author.
+
+### 15.6 Making it smaller (2026-10-25)
+
+What each part costs was first measured by taking it out in Yosys (16 entries); the numbers move by several hundred
+LUTs between variants of the same logic, so they were checked against a count of the structure.
+
+| Taken out (Yosys, from 7,541) | LUT | | Kept? |
+|---|---|---|---|
+| The cancelled load's entry freed by a compare with every wakeup bus → with the external ones only | 6,791 | −750 | **Changed**: its late answer only ever comes on `ext_*` |
+| The producer's mask taken at dispatch | 6,707 | −830 | Kept (see below) |
+| The source masks altogether | 6,408 | −1,130 | Needed |
+| The dispatch correction altogether | 6,244 | −1,300 | Needed |
+
+- **Instead of taking the producer's mask at dispatch, wait for its confirmation?** In the model it costs little
+  (−0.06 % / 0.00 % / −0.14 %), but in the RTL every source then keeps the producer's entry number (4 bits) and a
+  16-to-1 select of the entries freed by confirmation: by the structure about 0.3k, against about 0.1k for the mask
+  OR it replaces (Yosys gave −0.46k for the two changes together, i.e. it ate most of the first one). Dropped. Stopping
+  dispatch until the confirmation instead is cheap but costs −1.5 % / −5.9 %.
+- **3 load slots instead of 4.** A load is open from its wakeup until c + 3, so masks only ever hold the loads issued
+  in the last 3 cycles; the 4th slot was there because the load issued in c + 3 takes the slot decided in that cycle.
+  With 3, a load's own bit is kept out of what is decided in the cycle it is set (it is added to its kept mask and its
+  wakeup after the decision) and out of `iss_ldm` (a load is never dropped by its own cancel: the LSU keeps it).
+  Every mask bit is a quarter fewer.
+- **Logic removed by bug injection**: clearing the confirmed bits in a load's delayed wakeup. With 3 slots the bit
+  confirmed in the cycle of the load's issue is the load's own slot, which the wakeup carries anyway.
+- **Result**: the same issue, cycle for cycle (`tb_iq`: identical counts), PASS on 12 seeds; the mutations follow the
+  new code (M134, M142, M151 retargeted), all 27 of the issue queue detected (146 in all). Yosys 7,288 → **6,172 LUTs**
+  (−15 %), 975 → 924 FFs. With Vivado / Yosys at 0.68 as measured in 15.5, about 4.2k at 16 entries (from 4,974),
+  about 3.3k at 12.
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOO_IQ
+```
