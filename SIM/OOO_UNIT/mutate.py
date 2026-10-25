@@ -89,6 +89,23 @@ M = [
     ('M67', 'OOO_RENAME/OOO_RENAME.sv', 'rename', "+ (FW + 1)'(cmt_valid[1] && cmt_wr[1]);", ";", 'the committed head misses slot 1'),
     ('M69', 'OOO_ROB/OOO_ROB.sv', 'rob', 'we0 = tail[0] ? disp_valid[1] : disp_valid[0];', 'we0 = disp_valid[0];', 'bank 0 written only by slot 0'),
     ('M33', 'OOO_UBTB/OOO_UBTB.sv', 'ubtb', "else if (upd_valid && !found && upd_taken) rr <= rr + EW'(1);", "else if (upd_valid && upd_taken) rr <= rr + EW'(1);", 'replacement moves on a hit'),
+    # 2026-10-25: the fetch buffer and the fetch target queue
+    ('M70', 'OOO_FBUF/OOO_FBUF.sv', 'fbuf', "jb = 4'(bs[ib]) + 4'(k) - na;", "jb = 4'(k) - na;", 'the next block read from parcel 0, not its start'),
+    ('M71', 'OOO_FBUF/OOO_FBUF.sv', 'fbuf', "wv[k]   = av && bv && jb <= 4'(be[ib]) && !jb[3];", "wv[k]   = av && bv && !jb[3];", 'parcels past the end of the next block used'),
+    ('M72', 'OOO_FBUF/OOO_FBUF.sv', 'fbuf', 'wend[k] = btk[hb] && ja == be[hb];', 'wend[k] = btk[hb];', 'every parcel of a taken head block is its end'),
+    ('M73', 'OOO_FBUF/OOO_FBUF.sv', 'fbuf', "(!len2 || (s < 4'd7 && wv[s[2:0] + 3'd1]))", "(!len2 || s < 4'd7)", 'a 32-bit instruction given without its second half'),
+    ('M74', 'OOO_FBUF/OOO_FBUF.sv', 'fbuf', 'out_ftq[i]   = wb[s[2:0]] ? bftq[ib] : bftq[hb];', 'out_ftq[i]   = bftq[hb];', 'the FTQ index of the head block for all'),
+    ('M75', 'OOO_FBUF/OOO_FBUF.sv', 'fbuf', "out_taken[i] = len2 ? wend[s[2:0] + 3'd1] : wend[s[2:0]];", 'out_taken[i] = wend[s[2:0]];', 'a 32-bit taken transfer seen at its first half'),
+    ('M76', 'OOO_FBUF/OOO_FBUF.sv', 'fbuf', "hoff_n = bs[ib] + 3'(used - na);", "hoff_n = 3'(used - na);", 'into the next block without its start'),
+    ('M77', 'OOO_FBUF/OOO_FBUF.sv', 'fbuf', "hoff <= bs[hb + BW'(npop)];", "hoff <= bs[hb];", 'the new head starts where the old one did'),
+    ('M78', 'OOO_FBUF/OOO_FBUF.sv', 'fbuf', "if (!av)                           hoff <= in_start;", "if (1'b0)                          hoff <= in_start;", 'a block into an empty buffer from a stale parcel'),
+    ('M79', 'OOO_FBUF/OOO_FBUF.sv', 'fbuf', "assign in_ready = nblk != (BW + 1)'(NB);", "assign in_ready = 1'b1;", 'a full buffer takes a block'),
+    ('M80', 'OOO_FBUF/OOO_FBUF.sv', 'fbuf', "+ 4'd1 || !bv) begin", " || !bv) begin", 'a next block used up exactly not popped'),
+    ('M81', 'OOO_FTQ/OOO_FTQ.sv', 'ftq', "assign push_ready = used != (FTQW + 1)'(NFTQ);", "assign push_ready = 1'b1;", 'a full FTQ takes a block'),
+    ('M82', 'OOO_FTQ/OOO_FTQ.sv', 'ftq', "{(restore_idx >= head[FTQW-1:0]) ? head[FTQW] : ~head[FTQW], restore_idx}", "{head[FTQW], restore_idx}", 'restored tail with the wrong lap'),
+    ('M83', 'OOO_FTQ/OOO_FTQ.sv', 'ftq', 'if (flush_all)    tail <= h;', 'if (flush_all)    tail <= head;', 'flush_all without the pops of that cycle'),
+    ('M84', 'OOO_FTQ/OOO_FTQ.sv', 'ftq', 'rd_pc[r] = e[EW-1 -: VA-1];', 'rd_pc[r] = e[EW-2 -: VA-1];', 'decode reads the pc a bit off'),
+    ('M85', 'OOO_FTQ/OOO_FTQ.sv', 'ftq', "h = head + (FTQW + 1)'(pop);", "h = head + (FTQW + 1)'(pop[0]);", 'only one block popped a cycle'),
 ]
 
 

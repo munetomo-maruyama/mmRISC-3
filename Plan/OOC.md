@@ -805,3 +805,82 @@ synth_ooo.bat OOC_RENAME
   cause, 3 levels).
 - The effect on the budget is recorded in `Doc/UARCH.md` 4.4 (with the ROB and the renaming with its committed state
   measured, the gap is about 9.9k in the middle).
+
+## 13. The fetch buffer and the FTQ (step 2 of Phase 1, 2026-10-25)
+
+The third block of step 2: between the I$ (F2) and decode (D1). Both blocks are verified by unit tests and bug
+injection, with Vivado scripts. PC generation, the I$ interface, predecode and the predictors' override (TAGE-S, BTB,
+RAS) come with those blocks.
+
+### 13.1 The fetch buffer (`RTL/CPU/OOO/OOO_FBUF`)
+
+| Item | Content |
+|---|---|
+| Storage | A queue of **4 whole 16-byte blocks**, not a ring of parcels. A block goes into its slot as it is, with its first and last parcel to use (fetch starts in the middle of a block after a taken transfer; a block ends at the last half of a predicted-taken transfer), taken, and its FTQ index. The data is in LUTRAM (one write, two reads: the head block and the next one) |
+| Window | 8 parcels: the rest of the head block from the current parcel, then the used part of the next block. The parcels between a taken transfer and its target are skipped by construction |
+| Out | Up to 4 instructions a cycle, RVC (one parcel) or 32-bit (two), from the instruction lengths of the window (a prefix sum of 4 steps). For each: bits, RVC, FTQ index and parcel of its first half, predicted-taken (its last half is the end of a taken block), and whether it follows the one before directly (for fusion). A 32-bit instruction whose second half is not there yet waits |
+| In / out | One block a cycle in (`in_ready` while a slot is free); decode takes the first `consume`; up to 2 blocks are freed a cycle; `flush` (a redirect) empties it |
+
+- **Why blocks and not parcels**: a parcel ring (`Doc/UARCH.md` 3.2, 16 parcels) needs a select in front of every
+  parcel to put 8 parcels in at any place; a block queue writes a block as it is and needs only the window's select
+  on the way out (two 8-to-1 selects per parcel of the window, then the 4 instructions out of it). The storage is
+  32 parcels, but in LUTRAM.
+- **Limit**: only two blocks feed the window, so when the head block and the next are both short (a taken transfer
+  near the start of the next block), a third block could have given more that cycle. The cycle model counts the
+  buffer in instructions; its size hardly matters there (16 → 8 is −0.3 %, `MODEL.md` 6).
+
+### 13.2 The fetch target queue (`RTL/CPU/OOO/OOO_FTQ`)
+
+| Item | Content |
+|---|---|
+| Entries | 8, one per fetch block, from F2 until the block's last instruction commits |
+| Fields | Fetch address, predicted next address, taken and its parcel, and 32 bits of predictor state (TAGE's provider and tags, the history; opaque here). LUTRAM, one write a cycle |
+| Reads | Two for decode (the window spans up to two blocks; the pc of an instruction is its block's address with its parcel), one for a branch's resolution |
+| Recovery | `pop` (up to 2 blocks a cycle, at commit), `restore` (a misprediction: its block stays, the younger ones go), `flush_all` (empty) |
+
+### 13.3 Verification
+
+- **`tb_fbuf.cpp` (new)**: an execution model. A random program (about a quarter of the parcels start a 32-bit
+  instruction) runs with random taken transfers to random targets; the run is cut into fetch blocks as fetch would
+  (to the end of the block or to the last half of a taken transfer; a 32-bit instruction starting at parcel 7 ends
+  its block there and finishes in the next one, also when it is the taken transfer). Blocks are pushed when
+  `in_ready` (now and then not), decode takes a random number of what is given, and now and then a flush makes fetch
+  start again at the oldest instruction not taken. Every cycle, for every slot: the bits, RVC, parcel offset, FTQ
+  index, taken and seq, and **the exact number given** (as many complete instructions as lie in the window, up to 4).
+  PASS on 9 seeds (400,000 cycles each). On one seed: 708,445 instructions taken, 101,522 taken transfers, 17,333
+  instructions across blocks, 1,313 flushes.
+- **`tb_ftq.cpp` (new)**: against a reference queue: random pushes, pops, restores to an entry in the queue (also
+  with the queue full, across the wrap), flush_all with pops in the same cycle; the three read ports, `push_ready` and
+  `push_idx` every cycle. PASS on 4 seeds.
+- **Bugs found by the tests**: the buffer popped from an empty queue (stale block values decided it), and did not set
+  the head parcel when a block went into an empty queue. Both fixed.
+- **Bug injection**: 11 for the buffer and 7 for the FTQ. Two were not detected, both redundant logic (13.4); the
+  other 16 are all detected (79 in all).
+
+### 13.4 Logic removed by bug injection
+
+| Logic | Why it was redundant |
+|---|---|
+| Buffer: no block written in a cycle of flush | The pointers are reset by the flush, so the block goes into a slot that is free |
+| FTQ: no entry written in a cycle of restore or flush_all | The tail is set by the restore or flush_all, so the entry goes into a slot beyond the new tail |
+
+### 13.5 Size (Yosys), and the Vivado runs asked of the author
+
+| Block | Yosys | G0 estimate |
+|---|---|---|
+| OOC_FBUF | 1,381 LUTs + 176 LUTRAM (about 1.56k physical), 359 FFs (about 310 of the harness) | the buffer 1.3k to 1.8k |
+| OOC_FTQ | 15 LUTs + 224 LUTRAM (about 0.24k), 329 FFs (all of the harness) | in the fetch's 2.0k to 2.8k |
+
+- In OOC_FBUF, decode takes all the instructions given unless it is stalled, so the path measured runs from the
+  buffer's state through the window and the instruction lengths to the count taken, and back into the head pointer
+  and parcel: the loop the core will have.
+- The buffer is in its estimate. The fetch row of `Doc/UARCH.md` 4.3 (2.0k to 2.8k) also holds PC generation, the I$
+  interface and predecode, not written yet.
+- L6 (fetch buffer 16 → 8) is worth less now: the storage is LUTRAM, and the window's selects do not depend on the
+  number of blocks.
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_FBUF
+synth_ooo.bat OOC_FTQ
+```

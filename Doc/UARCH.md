@@ -73,7 +73,7 @@ most optimization (sf + `-flto`). From `Plan/model/results/g0.txt`:
 | F0 | Next fetch address: uBTB (16 entries, partial tags) in one cycle; redirects from F2 and from the back end win |
 | F1 | I$ read (block RAM), TAGE-S and BTB read (block RAM) |
 | F2 | I$ way select, predecode (RVC boundaries), override by TAGE-S / BTB / RAS (a disagreement redirects F0, 2 cycles lost); 16 bytes into the fetch buffer |
-| D1 | Up to 4 instructions out of the fetch buffer (16 parcels), RVC expansion, decode |
+| D1 | Up to 4 instructions out of the fetch buffer (a window of 8 parcels), RVC expansion, decode |
 | D2 | Fusion (4 instructions → 2 µops), renaming (RAT, free list, busy bits, checkpoints) |
 | DS | Dispatch: issue queue, ROB, LQ / SQ, payload |
 | IS | Wakeup-select (one cycle with the wakeup of latency 1) |
@@ -90,11 +90,11 @@ A misprediction costs 9 cycles from EX to EX. The model is the reference for the
 | Item | Specification |
 |---|---|
 | Fetch | 16 bytes a cycle (aligned), the next block after a taken transfer |
-| Fetch buffer | 16 parcels (16 bits); up to 4 instructions a cycle out to decode; 32-bit instructions across blocks handled in the buffer |
+| Fetch buffer | `OOO_FBUF`: 4 whole 16-byte blocks in LUTRAM (decided at step 2 instead of a ring of 16 parcels, `Plan/OOC.md` 13.1); a window of 8 parcels over the head block and the next; up to 4 instructions a cycle out to decode; 32-bit instructions across blocks handled in the window |
 | uBTB | `OOO_UBTB`: 16 entries, fully associative, 12-bit partial tags, the first taken hit of the block in parallel, round-robin replacement, returns from the RAS top |
 | TAGE-S | 62 kbit in block RAM (`Plan/model/tage.h`, as measured in `TRACE.md`); updated at resolution through the FTQ |
 | BTB, RAS | BTB in block RAM; RAS 16 entries, its pointer kept per fetch block for recovery |
-| FTQ | One entry per fetch block: PC and prediction state for the update and the recovery (LUTRAM) |
+| FTQ | `OOO_FTQ`: 8 entries, one per fetch block: PC, next address and prediction state (32 bits) for the update and the recovery (LUTRAM) |
 
 ### 3.3 Decode and fusion
 
@@ -210,7 +210,7 @@ of the slices).
 | uBTB (`OOO_UBTB`) | 910 | Measured |
 | Fusion (`OOC_FUSE`) | 215 | Measured |
 | **Measured blocks** | 15,304 → **about 14.0k** | |
-| Fetch: PC generation, FTQ, I$ interface, predecode, fetch buffer, 4 instructions out | 2.0k to 2.8k | mmRISC-2's IFU without its BTB is 2,893 for a narrower fetch; the buffer (8 parcels in at any place, 4 instructions out at variable places) about 1.3k to 1.8k |
+| Fetch: PC generation, FTQ, I$ interface, predecode, fetch buffer, 4 instructions out | 2.0k to 2.8k | mmRISC-2's IFU without its BTB is 2,893 for a narrower fetch; the buffer (8 parcels in at any place, 4 instructions out at variable places) about 1.3k to 1.8k. **2026-10-25: `OOO_FBUF` about 1.56k and `OOO_FTQ` about 0.24k in Yosys; Vivado to come (`Plan/OOC.md` 13.5)** |
 | TAGE-S logic (tables in block RAM) | 0.8k to 1.5k | Folded histories, tag compares, provider / alternate choice, update and allocation through the FTQ |
 | BTB (block RAM) and RAS 16 | 0.4k to 0.7k | Tag compare and target; RAS in LUTRAM |
 | Decode × 4 and RVC × 4 | 1.0k to 1.6k | mmRISC-2's CORE_DEC 278 and CORE_DECOMP 78 each; `REDUCE.md` E2 |

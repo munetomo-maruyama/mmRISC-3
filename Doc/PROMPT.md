@@ -1095,3 +1095,36 @@ synth_ooo.bat OOC_ROB
 ```text
 I reran synth_ooo.bat OOC_ROB. Please read the result and record it.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**The fixed ROB is inside the estimate.** Recorded in 12.7 of OOC_J.md / OOC.md and pushed to dev as `67e6150`.
+
+| Run | LUT | of it LUTRAM | Register-to-register slack |
+|---|---|---|---|
+| First version | 5,173 | 0 | +7.018 ns |
+| **Fixed version** | **1,073** | 160 | **+11.060 ns** |
+
+The payload is in LUTRAM now, 4,100 LUTs fewer. It is within the G0 estimate (0.7k to 1.2k), with plenty of margin at 50 MHz.
+
+**Effect on the budget** (a row added to UARCH 4.4)
+
+With the ROB and the renaming with its committed state (2,624) replaced by measurements, the gap becomes:
+
+| | Low | Middle | High |
+|---|---|---|---|
+| At G0 | 5.4k | 8.8k | 12.1k |
+| After the LSU was measured | 6.5k | 9.5k | 12.5k |
+| **After the ROB and renaming were measured** | **7.2k** | **9.9k** | **12.7k** |
+
+It widened mainly because the committed state of renaming came in, and because the checkpoints were measured at 8. G0 counted 6; going to 6 saves about 0.25k.
+
+Every block measured so far (ALU, uBTB, fusion, register file, issue queue, renaming, LSU, ROB) closes at 50 MHz. What remains is the front end (fetch, fetch buffer, TAGE, BTB / RAS), decode and control, where the spread of the estimates still lies.
+<!-- /answer -->
+
+## 34. 2026-10-25 14:32:31 JST
+
+```text
+As the next block of step 2, please go on with fetch and the fetch buffer. Prepare the unit tests and Vivado scripts too.
+```

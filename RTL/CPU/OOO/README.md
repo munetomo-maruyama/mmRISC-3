@@ -11,6 +11,8 @@ to be used as they are in Phase 1, and are measured alone first (Phase 0, step 3
 |---|---|---|
 | `OOO_ALU` | One integer ALU: RV64I + Zba / Zbb / Zbs / Zicond, the operation set and encoding of mmRISC-2's CORE_EXU; the adder and the shifter are shared between operations; `FULL = 0` is the narrowed one for the second stage of fusion | through OOO_ALU2 |
 | `OOO_ALU2` | The ALU of one issue port: a full `OOO_ALU` and a narrowed one in series, so that a fused ALU + ALU pair finishes in one cycle, and the branch comparison (alone, or on the first result for a fused ALU + branch) | `tb_alu2`: 2,000,000 random vectors against the specification |
+| `OOO_FBUF` | Fetch buffer: a queue of 4 whole 16-byte blocks (start / end parcel, taken, FTQ index), a window of 8 parcels over the head block and the next, up to 4 instructions a cycle (RVC or 32-bit, also across blocks) | `tb_fbuf`: an execution model with random taken transfers, flushes and partial takes; the exact count given, 9 seeds |
+| `OOO_FTQ` | Fetch target queue: 8 entries (fetch address, next address, taken parcel, predictor state) in LUTRAM, 2 reads for decode and 1 for resolution, pop / restore / flush_all | `tb_ftq`: against a reference queue, 4 seeds |
 | `OOO_FUSE` | Fusion: 4 decoded instructions → the next 2 µops (lui + addi, auipc + x, slli + srli, ALU + load, load / store pairs, ALU + branch, ALU + ALU); a pair reads at most 2 sources and writes at most 1 register, and the second half of ALU + ALU is an operation of the second stage | `tb_fuse`: random against the rules; the CoreMark stream gives at least 99.99 % of the model's pairs |
 | `OOO_IQ` | Issue queue: 16 entries, 2 sources and 1 destination per µop, 6 wakeup buses, 2 in / 3 out per cycle (ALU0 + MUL/DIV, ALU1, LSU), 1-cycle wakeup-select, oldest first by an age matrix, latency-2 and external wakeups | `tb_iq`: every issue against an independent account of when values are usable |
 | `OOO_RENAME` | Renaming: 2 µops per cycle with 2 sources and 1 destination, 64 physical registers, RAT, free list, busy bits, in-group dependences, 8 checkpoints copied a cycle late, the committed-state RAT for `flush_all` | `tb_rename`: against a reference with commits, write-backs and restores |
@@ -21,5 +23,5 @@ to be used as they are in Phase 1, and are measured alone first (Phase 0, step 3
 
 - Coding follows mmRISC-2 (`logic`, `always_ff` with active-low asynchronous reset, comments on what and why).
 - Every block is linted by Verilator (`-Wall`); the unit tests start everything that has no reset at random values.
-- `SIM/OOO_UNIT/mutate.py` breaks the RTL on purpose (63 mutations); all are detected.
+- `SIM/OOO_UNIT/mutate.py` breaks the RTL on purpose (79 mutations); all are detected.
 - Out-of-context synthesis in Vivado: `FPGA/OOO_OOC` (`synth_ooo.bat`), run by the author.
