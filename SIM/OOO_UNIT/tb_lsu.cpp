@@ -228,7 +228,9 @@ int main(int argc, char** argv)
         // ld_cancel in M for the load from port 2 issued last cycle
         bool canc = d.ld_cancel;
         if (m_iss.v) {
-            if (canc && (int)d.ld_cancel_tag != find(m_iss.seq)->tag) FAIL("ld_cancel tag %d, expected %d", (int)d.ld_cancel_tag, find(m_iss.seq)->tag);
+            Uop* M = find(m_iss.seq);
+            if (!M) FAIL("load %ld in M is no longer in flight", m_iss.seq);
+            else if (canc && (int)d.ld_cancel_tag != M->tag) FAIL("ld_cancel tag %d, expected %d", (int)d.ld_cancel_tag, M->tag);
         } else if (canc) FAIL("ld_cancel without a load from port 2 in M");
         if (canc) ncancel++;
         // WB: the result register (from last cycle's M or a fill)

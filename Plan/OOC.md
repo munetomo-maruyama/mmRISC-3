@@ -622,3 +622,53 @@ synth_fpu_c1.bat
    until confirmed. Decided before the core is put together.
 
 (Added to the G0 specification, `Doc/UARCH.md` 3.4 and 3.7.)
+
+### 11.5 The LSU in Vivado, and the M stage rewritten (2026-10-25)
+
+| Run | LUT | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|
+| OOC_LSU (first version) | **2,912** | 2,943 | **−4.019 ns** | 29 |
+
+- **The size is inside the estimate** (2,912; the G0 estimate of 2.5k to 3.5k included the D$ adapter). Vivado /
+  Yosys is 0.61.
+- **The timing missed by 4 ns.** The worst path: the LQ number of the load in M → the entry's state and boundary
+  (about 5 ns) → the boundary arithmetic and compare for every SQ entry → the youngest match chosen by a loop that
+  compares with the best so far (a chain of compares, about 15 ns) → the choice of the write port between the load and a
+  fill, made on whether the load succeeded (`m_ok`) → `wb_data`. As with the uBTB, a serial choice was the cause.
+- **Rewritten**:
+  1. **Mask of older stores**: every LQ entry keeps the mask (12 bits) of the SQ entries older than it, taken at
+     dispatch and cleared as stores drain. The boundary arithmetic goes, and `lsu_st_known` becomes an AND of masks.
+  2. **Age matrix of the SQ**: the youngest matching store comes out as a one-hot select in two levels; its data and
+     mask are read by an AND-OR.
+  3. **Write-port priority**: whenever a load is in M the write port is M's, whether or not it succeeds, so the choice
+     is a register and does not wait for the search (in a cycle where the load in M fails, a fill waits one cycle).
+- All PASS on 7 seeds. 14 LSU mutations (3 added for the new parts, 3 retargeted after the rewrite), all detected. One
+  place where the test bench crashed on an RTL error now reports it instead.
+- Yosys 4,768 → 4,292 LUTs, FFs 2,939 → 3,167 (about 230 more for the age matrix and the masks). About 2.6k expected
+  in Vivado. **Please rerun `synth_ooo.bat OOC_LSU`.**
+
+### 11.6 The FPU breakdown (C1, 2026-10-25)
+
+The result of `FPGA/FPU_C1` (`output/FPU_C1/breakdown.txt`). FPU_PIPE is 9,060 LUTs (cells), 2,631 FFs, 16 DSPs, +3.76 ns
+register to register, as in mmRISC-2's measurement. Per group of register names, the LUTs in the group's fan-in cone
+("only this group": in no other group's cone):
+
+| Function | Groups | LUTs only of this function |
+|---|---|---|
+| FMA datapath | P3 product (`pp`, `prod`, 16 DSPs), P4 alignment (`al` 1,506), P5 add (`sum` 766), P6 normalization (`q` 1,239), the addend (`c` 464) | **about 4.3k** |
+| Rounder | `u_round` | 1,032 |
+| Divide / square root (iterative) | `dv` / `sq` / `ds` (much shared; the cone of `dv` is 1,127) | about 1.3k |
+| Other operations | P2 (`p2`: compares, min / max, sign injection, classification, moves and so on) | 862 |
+| Second half of the float-to-integer conversion | `r` | 340 |
+| Unpacking (`a` / `b`), output, the rest | | Mostly shared |
+
+- 990 LUTs feed more than one group, and 918 feed no group and no output (the SRLs of the waiting bundles and the DSP
+  inputs: the script does not count SRLs and DSPs as group endpoints).
+- **The FMA datapath (about 4.3k) is the bulk.** It is the double-precision FMA itself, kept for performance (also the
+  part C3 keeps).
+- **Sharing the multiplier (C2) is about 0.3k**: the multiply is mostly DSPs; its LUTs are about the sum of partial
+  products (`prod` 316). Less than the G0 estimate (0.5k to 1k).
+- **Moving the rare operations to an iterative unit (C3) is about 0.7k to 0.9k**: P2 (862) and the second half of the
+  conversion (340) replaced by a small iterative unit (0.3k to 0.5k expected).
+- **The FPU levers (L3) are about 1.0k to 1.3k together** (1.5k to 3k at G0). The gap is that much harder to close
+  (`Doc/UARCH.md` 6.2 updated).

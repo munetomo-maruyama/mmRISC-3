@@ -1,0 +1,26 @@
+FPU_PIPE breakdown (post-synthesis LUT cells; 9060 in all)
+group        regs     cone  exclusive  CARRY4   MUXF  DSP
+al            260     1540       1506      27      0    0
+q             227     1242       1239      19      1    0
+dv            249     1127        252      33      0    0
+u_round        84     1033       1032      38      0    0
+p2            130      863        862      45     26    0
+sum           130      766        766      82      0    0
+sq            195      743        189      31      0    0
+a              70      500          6       4      0    0
+c              70      465        464       9      0    0
+b              70      461          8       4      0    0
+r              71      341        340      48      0    0
+prod          132      316        316      72      0    8
+ds             23      138         19       2      0    0
+p1            213      117          1       2      0    0
+is              1      116          0       2      0    0
+out            79      111        110      14      0    0
+p4             15       49         14       9      0    0
+pp            136       23         23       0      0    8
+p0            217        3          2       0      0    0
+p3             86        1          0       0      0    0
+p5            171        1          0       0      0    0
+o               1        0          0       0      0    0
+stick           1        0          0       0      0    0
+LUTs feeding more than one group: 990; feeding only the outputs: 3; neither: 918

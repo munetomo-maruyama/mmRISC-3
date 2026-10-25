@@ -838,9 +838,61 @@ Next is step 2 (RTL and Vivado measurements of the front end, decode, ROB and LS
 Please go on to step 2 of Phase 1. Start with the LSU (LQ / SQ and forwarding), whose estimate has the widest spread, and prepare its unit test and Vivado scripts. If you also make the OOC script for the FPU breakdown (C1), I will run it in Vivado.
 ```
 
+<!-- answer -->
+**Claude Code's answer**
+
+As the first part of step 2 of Phase 1, I prepared the LSU's RTL, unit test and Vivado scripts, and the OOC script for the FPU breakdown (C1). Pushed to dev as `d44b69a`. The instruction given midway, "instruction tests with riscv-arch-test from now on", is recorded in UARCH and STRATEGY. riscv-arch-test is fetched to `~/RISCV/riscv-arch-test`; setting it up is a separate piece of work after the LSU.
+
+**LSU (`RTL/CPU/OOO/OOO_LSU`)**
+
+- **Structure**: LQ 12 / SQ 12. A load forwards from the youngest older matching store when that store covers its data. Ordering is conservative, with `lsu_st_known` given out for the issue queue. On a miss or a wait it raises `ld_cancel` and returns the result later. Recovery works both to a checkpoint (`restore`) and to the committed state (`flush_all`).
+- **D$**: the port is abstract; the adapter to mmRISC-2's D$ sits outside.
+
+**Verification (`tb_lsu.cpp`)**
+
+The test bench plays the rest of the core. It makes a random instruction stream with reordered issue, D$ misses, branch mispredictions and exceptions, and checks every load's value against the program-order answer.
+
+- **Result**: 2.1 million cycles over 7 seeds, all PASS.
+- **Three RTL bugs found by the test** (all fixed):
+  1. Counting from the SQ head wrapped at 16 (the queue is 12)
+  2. A load in M in a cycle of recovery was lost
+  3. The D$ fill of a flushed load was taken by a later owner of the same LQ entry. Fixed by adding `dc_kill`
+- **Bug injection**: 11 added, all detected (50 in all). The injection showed the epoch bit redundant, so it was removed. One that was at first not detected was a hole in the test, so the D$ model was fixed.
+
+**Size**: the LSU is 4,768 LUTs in Yosys, about 2.9k to 3.6k expected in Vivado. Even without the D$ adapter it is near the top of the G0 estimate (2.5k to 3.5k, adapter included). Putting the SQ data and LQ addresses in LUTRAM should save a few hundred LUTs.
+
+**What the specification was missing** (found writing the LSU; recorded in UARCH)
+
+- **Going back to the committed state**: a full flush for exceptions and the like needs the committed RAT and the committed head of the free list. Renaming gets them (about 0.3k LUTs).
+- **Holding back dependents when a load misses**: the way to hold back dependents already woken (replay) must be decided before the core is put together.
+
+**Vivado runs asked**
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_LSU
+cd ..\FPU_C1
+synth_fpu_c1.bat
+```
+
+`synth_fpu_c1.bat` reads the neighbouring mmRISC-2 tree as `..\..\..\mmRISC-2`. If it is elsewhere, set `MMRISC2=<path>` first. The result goes to `output\FPU_C1\breakdown.txt`, as LUT counts per register group.
+<!-- /answer -->
+
 ## 27. 2026-10-25 10:18:39 JST
 
 ```text
 Also, from now on please do the instruction tests with riscv-arch-test.
 https://github.com/riscv/riscv-arch-test
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+(A prompt sent in the middle of the turn of entry 26. Its answer is part of the answer of entry 26.)
+<!-- /answer -->
+
+## 28. 2026-10-25 11:09:39 JST
+
+```text
+I ran synth_ooo.bat OOC_LSU and synth_fpu_c1.bat. Please read the results and record them.
 ```

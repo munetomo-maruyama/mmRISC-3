@@ -63,10 +63,10 @@ M = [
     ('M38', 'OOO_IQ/OOO_IQ.sv', 'iq', 'd_v2 <= iss_wr[2];', "d_v2 <= 1'b0;", 'loads never wake their dependents'),
     ('M39', 'OOO_IQ/OOO_IQ.sv', 'iq', 'bv[1] = iss_wr[1];', "bv[1] = 1'b0;", 'ALU1 never wakes its dependents'),
     # 2026-10-25: the load / store unit (Doc/UARCH.md 3.7)
-    ('M40', 'OOO_LSU/OOO_LSU.sv', 'lsu', "sdist(SW'(i), sq_head[SW-1:0]) >= best)) begin", "sdist(SW'(i), sq_head[SW-1:0]) < best)) begin", 'forwarding from the oldest matching store'),
-    ('M41', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'm_cover = (smask[m_fwd_e] & m_lmask) == m_lmask;', "m_cover = 1'b1;", 'a partial overlap forwarded'),
-    ('M42', 'OOO_LSU/OOO_LSU.sv', 'lsu', "if (older[i] && !sknown[i]) m_unknown = 1'b1;", "if (1'b0) m_unknown = 1'b1;", 'an older store without an address ignored'),
-    ('M43', 'OOO_LSU/OOO_LSU.sv', 'lsu', "(SW + 1)'(sdist(SW'(i), sq_head[SW-1:0])) < nb;", "(SW + 1)'(sdist(SW'(i), sq_head[SW-1:0])) <= nb;", 'the store after the boundary counted as older'),
+    ('M40', 'OOO_LSU/OOO_LSU.sv', 'lsu', "fsel[i] = hit_st[i] && (hit_st & syoung[i]) == '0;", 'fsel[i] = hit_st[i];', 'every matching store forwarded, not the youngest'),
+    ('M41', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'm_cover = (f_mask & m_lmask) == m_lmask;', "m_cover = 1'b1;", 'a partial overlap forwarded'),
+    ('M42', 'OOO_LSU/OOO_LSU.sv', 'lsu', "m_unknown = (older & ~sknown) != '0;", "m_unknown = 1'b0;", 'an older store without an address ignored'),
+    ('M43', 'OOO_LSU/OOO_LSU.sv', 'lsu', "lold[e]   <= (sv & ~s_free) |", "lold[e]   <= (sv & ~s_free) | (s_new[1] ? (NSQ'(1) << st1[SW-1:0]) : '0) |", 'the store of slot 1 counted as older'),
     ('M44', 'OOO_LSU/OOO_LSU.sv', 'lsu', "e_wdata = iss_data << {e_sum[2:0], 3'b000};", 'e_wdata = iss_data;', 'store data not aligned'),
     ('M45', 'OOO_LSU/OOO_LSU.sv', 'lsu', "2'd1:    return uns ? {48'd0, s[15:0]} : {{48{s[15]}}, s[15:0]};", "2'd1:    return {48'd0, s[15:0]};", 'halfword loads never sign extended'),
     ('M46', 'OOO_LSU/OOO_LSU.sv', 'lsu', "sknown[sq_head[SW-1:0]] && !(e_v && e_ld);", "sknown[sq_head[SW-1:0]];", 'a store drained while a load reads the D$'),
@@ -74,6 +74,9 @@ M = [
     ('M48', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'assign dc_kill[e] = lv[e] && !keep;', "assign dc_kill[e] = 1'b0;", 'pending fills of freed entries not dropped'),
     ('M50', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'lq_tail_n = restore_lq_tail;', 'lq_tail_n = lq_tail;', 'restore keeps the LQ tail'),
     ('M51', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'sq_cmt_n  = snext(sq_cmt, sq_commit);', "sq_cmt_n  = snext(sq_cmt, {1'b0, sq_commit[0]});", 'only one store committed a cycle'),
+    ('M53', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'lold[e] <= lold[e] & ~s_free;', 'lold[e] <= lold[e];', 'a drained store stays in the older mask'),
+    ('M54', 'OOO_LSU/OOO_LSU.sv', 'lsu', "syoung[i][j] <= a0 && s_new[1] && st1[SW-1:0] == SW'(j);", "syoung[i][j] <= 1'b0;", 'slot 1 not younger than slot 0'),
+    ('M55', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'f_v    = (fb_v || dc_fill_valid) && f_live && !m_v && !restore && !flush_all;', 'f_v    = (fb_v || dc_fill_valid) && f_live && !restore && !flush_all;', 'a fill writes over the load in M'),
     ('M33', 'OOO_UBTB/OOO_UBTB.sv', 'ubtb', "else if (upd_valid && !found && upd_taken) rr <= rr + EW'(1);", "else if (upd_valid && upd_taken) rr <= rr + EW'(1);", 'replacement moves on a hit'),
 ]
 

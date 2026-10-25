@@ -30,6 +30,12 @@
 // older store has its address; the issue queue is expected to hold loads
 // until then (lsu_st_known), and the LSU checks again in M.
 //
+// The search in M is kept shallow (Plan/OOC.md 11.5: written with boundary
+// arithmetic and a loop keeping the youngest match so far, it missed 50 MHz
+// by 4 ns): every LQ entry keeps the mask of the SQ entries older than it
+// (taken at dispatch, cleared as they drain), and an age matrix of the SQ
+// gives the youngest matching store as a one-hot select.
+//
 // Queues: the LQ and the SQ are allocated in program order at dispatch (up
 // to 2 a cycle) and freed in order: the LQ at commit, the SQ when a
 // committed store has been written to the D$. What is in flight for an LQ
@@ -181,7 +187,7 @@ module OOO_LSU
     logic [NLQ-1:0]       lv, lretry;
     logic [1:0]           lst  [NLQ];
     logic [ROBW-1:0]      lrob [NLQ];
-    sptr_t                lbnd [NLQ];          // the SQ tail at the load's dispatch
+    logic [NSQ-1:0]       lold [NLQ];          // the SQ entries older than the load
     logic [PAW-1:0]       laddr[NLQ];
     logic [1:0]           lsize[NLQ];
     logic [NLQ-1:0]       luns;
@@ -189,6 +195,7 @@ module OOO_LSU
 
     // SQ entries
     logic [NSQ-1:0]       sv, sknown;
+    logic [NSQ-1:0]       syoung [NSQ];        // syoung[i][j]: entry j is younger than entry i
     logic [ROBW-1:0]      srob [NSQ];
     logic [WAW-1:0]       swa  [NSQ];
     logic [7:0]           smask[NSQ];
@@ -222,22 +229,9 @@ module OOO_LSU
     end
 
     // ---- which older stores have addresses: per LQ entry
-    logic [SW:0] s_head_known;                 // stores from the head with an address, in a row
     always @(*) begin
-        logic stop;
-        stop = 1'b0;
-        s_head_known = '0;
-        for (int k = 0; k < NSQ; k++) begin
-            logic [SW:0]   ik;                 // one bit more: head + k reaches 2 NSQ - 2
-            logic [SW-1:0] i;
-            ik = (SW + 1)'(sq_head[SW-1:0]) + (SW + 1)'(k);
-            i  = (ik >= (SW + 1)'(NSQ)) ? SW'(ik - (SW + 1)'(NSQ)) : SW'(ik);
-            if (!stop && (SW + 1)'(k) < s_used && sknown[i]) s_head_known = s_head_known + (SW + 1)'(1);
-            else stop = 1'b1;
-        end
         for (int e = 0; e < NLQ; e++)
-            lsu_st_known[e] = lv[e] && (scount(sq_head, lbnd[e]) > (SW + 1)'(NSQ) ||   // all older ones drained
-                                        scount(sq_head, lbnd[e]) <= s_head_known);
+            lsu_st_known[e] = lv[e] && (lold[e] & sv & ~sknown) == '0;
     end
 
     // ---- E: a new µop from port 2, or a load tried again from the LQ
@@ -318,32 +312,31 @@ module OOO_LSU
     // ---- M: the search of the SQ
     logic          m_live;                     // the entry is still the one that was issued
     logic [7:0]    m_lmask;
-    logic [NSQ-1:0] older, hit_st;
+    logic [NSQ-1:0] older, hit_st, fsel;
     logic          m_unknown;                  // an older store without an address
     logic          m_fwd_any, m_cover;
-    logic [SW-1:0] m_fwd_e;
+    logic [7:0]    f_mask;
+    logic [63:0]   f_data;
     logic [63:0]   m_word;                     // the 8-byte word the load reads
     always @(*) begin
-        logic [SW:0]   nb;                     // older stores still in the SQ
-        logic [SW-1:0] best;
         m_live  = m_v && lv[m_lq];
         m_lmask = bmask(m_size, m_addr[2:0]);
-        nb = scount(sq_head, lbnd[m_lq]);
-        if (nb > (SW + 1)'(NSQ)) nb = '0;     // the head has passed the boundary
-        m_unknown = 1'b0;
-        for (int i = 0; i < NSQ; i++) begin
-            older[i]  = sv[i] && (SW + 1)'(sdist(SW'(i), sq_head[SW-1:0])) < nb;
-            hit_st[i] = older[i] && sknown[i] && swa[i] == m_addr[PAW-1:3] && (smask[i] & m_lmask) != 8'd0;
-            if (older[i] && !sknown[i]) m_unknown = 1'b1;
-        end
-        // the youngest older matching store: the one farthest from the head
-        m_fwd_any = 1'b0; m_fwd_e = '0; best = '0;
+        older   = lold[m_lq] & sv;
         for (int i = 0; i < NSQ; i++)
-            if (hit_st[i] && (!m_fwd_any || sdist(SW'(i), sq_head[SW-1:0]) >= best)) begin
-                m_fwd_any = 1'b1; m_fwd_e = SW'(i); best = sdist(SW'(i), sq_head[SW-1:0]);
-            end
-        m_cover = (smask[m_fwd_e] & m_lmask) == m_lmask;
-        m_word  = m_fwd_any ? sdata[m_fwd_e] : dc_rdata;
+            hit_st[i] = older[i] && sknown[i] && swa[i] == m_addr[PAW-1:3] && (smask[i] & m_lmask) != 8'd0;
+        m_unknown = (older & ~sknown) != '0;
+        // the youngest older matching store: no other match younger than it
+        for (int i = 0; i < NSQ; i++)
+            fsel[i] = hit_st[i] && (hit_st & syoung[i]) == '0;
+        m_fwd_any = hit_st != '0;
+        f_mask = '0;
+        f_data = '0;
+        for (int i = 0; i < NSQ; i++) begin
+            f_mask = f_mask | ({8{fsel[i]}} & smask[i]);
+            f_data = f_data | ({64{fsel[i]}} & sdata[i]);
+        end
+        m_cover = (f_mask & m_lmask) == m_lmask;
+        m_word  = m_fwd_any ? f_data : dc_rdata;
     end
 
     function automatic logic [63:0] align(input logic [63:0] w, input logic [2:0] off,
@@ -385,9 +378,11 @@ module OOO_LSU
         f_e    = f_from_buf ? fb_tag : dc_fill_tag;
         f_word = f_from_buf ? fb_data : dc_fill_data;
         f_live = lv[f_e] && lst[f_e] == L_MISS;
-        // no completion in a cycle of recovery: an entry that stays keeps its
+        // the write port is the load in M's whenever there is one (whatever
+        // its outcome, so that the choice does not wait for the search); no
+        // completion in a cycle of recovery: an entry that stays keeps its
         // fill (in the buffer) and takes it afterwards
-        f_v    = (fb_v || dc_fill_valid) && f_live && !m_ok && !m_exc && !restore && !flush_all;
+        f_v    = (fb_v || dc_fill_valid) && f_live && !m_v && !restore && !flush_all;
         dc_fill_ready = !fb_v;
     end
 
@@ -408,7 +403,7 @@ module OOO_LSU
         end
     end
     always_ff @(posedge clk) begin
-        if (m_ok || m_exc) begin
+        if (m_v) begin
             wb_late    <= m_retry;
             wb_tag     <= m_dst;
             wb_data    <= align(m_word, m_addr[2:0], m_size, m_uns);
@@ -479,6 +474,12 @@ module OOO_LSU
     logic st_event;                            // a store got its address or left: waiting loads may try again
     assign st_event = e_st_w || s_drain;
 
+    logic [NSQ-1:0] s_free, s_onehot0;         // the SQ entry drained now; slot 0's new store
+    always @(*) begin
+        s_free    = s_drain ? (NSQ'(1) << sq_head[SW-1:0]) : '0;
+        s_onehot0 = NSQ'(1) << sq_tail[SW-1:0];
+    end
+
     // ---- LQ entries
     for (genvar e = 0; e < NLQ; e++) begin : g_lq
         logic a0, a1, keep;
@@ -499,9 +500,12 @@ module OOO_LSU
             if ((a0 || a1) && !restore && !flush_all) begin
                 lst[e]    <= L_IDLE;
                 lrob[e]   <= a1 ? disp_rob[1] : disp_rob[0];
-                lbnd[e]   <= a1 ? st1 : sq_tail;
+                // the stores there now (but the one leaving), and the store
+                // of slot 0 for a load in slot 1
+                lold[e]   <= (sv & ~s_free) | ((a1 && s_new[0]) ? s_onehot0 : '0);
                 lretry[e] <= 1'b0;
             end else begin
+                lold[e] <= lold[e] & ~s_free;              // a store gone is no longer older
                 if (iss_valid && iss_ld && iss_lq == LW'(e) && !restore && !flush_all) begin
                     laddr[e] <= e_sum[PAW-1:0];
                     lsize[e] <= iss_size;
@@ -535,6 +539,17 @@ module OOO_LSU
                 sv[i]  <= 1'b1;
             end else begin
                 sv[i]  <= sv[i] && keep;
+            end
+        end
+        // the age matrix: a new entry is younger than every entry there, and
+        // the store of slot 1 younger than the one of slot 0
+        always_ff @(posedge clk) begin
+            for (int j = 0; j < NSQ; j++) begin
+                if ((a0 || a1) && !restore && !flush_all)
+                    syoung[i][j] <= a0 && s_new[1] && st1[SW-1:0] == SW'(j);
+                else if (((s_new[0] && sq_tail[SW-1:0] == SW'(j)) || (s_new[1] && st1[SW-1:0] == SW'(j))) &&
+                         !restore && !flush_all)
+                    syoung[i][j] <= 1'b1;
             end
         end
         always_ff @(posedge clk) begin
