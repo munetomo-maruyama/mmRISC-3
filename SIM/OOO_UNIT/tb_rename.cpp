@@ -10,6 +10,10 @@
 // The outputs (ready, physical sources, ready bits, new and old
 // destinations, checkpoint numbers) are compared every cycle.
 //
+// Commits also update the committed-state RAT and head (a µop commits only
+// after its value is written back, as in the core), and now and then a
+// flush_all goes back to them (RAT, free-list head, busy bits all clear).
+//
 // The reference takes a checkpoint at once, as the RAT right after its µop;
 // the RTL copies the RAT a cycle late and undoes µop 1 on a restore. A
 // transfer is resolved 2 cycles after its rename at the earliest, as in the
@@ -17,6 +21,7 @@
 // copy is used as soon as it may be.
 //---------------------------------------------------------------------------
 #include "VOOO_RENAME.h"
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <deque>
@@ -31,11 +36,12 @@ struct Ref {
     struct Ck { int rat[32]; long head; };
     Ck ck[8];
     int ck_next = 0;
-    Ref() { for (int a = 0; a < 32; a++) rat[a] = a; for (int f = 0; f < 32; f++) fl[f] = 32 + f; }
+    int arat[32]; long chead = 0;       // the committed state
+    Ref() { for (int a = 0; a < 32; a++) rat[a] = arat[a] = a; for (int f = 0; f < 32; f++) fl[f] = 32 + f; }
     long nfree() const { return tail - head; }
 };
 
-struct Uop { int old; bool wr; int ck; bool has_ck; };
+struct Uop { int old; bool wr; int ck; bool has_ck; int arch; int nt; };
 struct Pend { int id; long cyc; };   // a checkpoint and the cycle of its rename
 
 static std::mt19937 rng(11);
@@ -52,7 +58,7 @@ int main(int argc, char** argv)
     std::deque<Uop> inflight;          // renamed, not committed, oldest first
     std::vector<Pend> pending_ck;      // checkpoints of unresolved transfers, oldest first
     std::vector<int> given;            // registers given out (for write-backs)
-    long bad = 0, cyc = 0, renamed = 0, restores = 0, early = 0;
+    long bad = 0, cyc = 0, renamed = 0, restores = 0, early = 0, nflush = 0;
     for (cyc = 0; cyc < 400000; cyc++) {
         // ---- inputs
         int valid = 0, use[2][2], src[2][2], wr[2], dst[2], ckp[2];
@@ -70,20 +76,25 @@ int main(int argc, char** argv)
                 wbv |= 1 << w; wbt |= (uint32_t)given[k] << (6 * w);
                 given.erase(given.begin() + k);
             }
-        // commits: up to the 2 oldest µops
+        // commits: up to the 2 oldest µops (written back first); now and then
+        // a flush_all instead
         int frv = 0, nfr = 0; uint32_t frt = 0;
-        while (!inflight.empty() && rng() % 3) {
+        int cv = 0, cw = 0; uint32_t carch = 0, cnew = 0; int ncm = 0;
+        std::vector<Uop> cm;
+        int flush_all = rng() % 400 == 0;
+        while (!flush_all && !inflight.empty() && ncm < 2 && rng() % 3) {
             Uop& o = inflight.front();
-            if (nfr + o.wr > 2) break;
             if (o.has_ck && !pending_ck.empty() && pending_ck.front().id == o.ck) break;  // resolve first
+            if (o.wr && std::find(given.begin(), given.end(), o.nt) != given.end()) break;  // not written back yet
             if (o.wr) { frv |= 1 << nfr; frt |= (uint32_t)o.old << (6 * nfr); nfr++; }
+            cv |= 1 << ncm; cw |= (o.wr ? 1 : 0) << ncm; carch |= (uint32_t)o.arch << (5 * ncm); cnew |= (uint32_t)o.nt << (6 * ncm);
+            cm.push_back(o); ncm++;
             inflight.pop_front();
-            if (nfr == 2) break;
         }
         // resolve the oldest pending transfer, 2 cycles after its rename at
         // the earliest: right (drop the checkpoint) or wrong (restore)
         int restore = 0, rid = 0;
-        if (!pending_ck.empty() && cyc >= pending_ck.front().cyc + 2 &&
+        if (!flush_all && !pending_ck.empty() && cyc >= pending_ck.front().cyc + 2 &&
             (cyc == pending_ck.front().cyc + 2 ? rng() % 2 == 0 : rng() % 4 == 0)) {
             int id = pending_ck.front().id;
             if (cyc == pending_ck.front().cyc + 2) early++;
@@ -107,6 +118,7 @@ int main(int argc, char** argv)
         }
         d.in_use = iu; d.in_src = is; d.in_wr = iw; d.in_dst = id; d.in_ckpt = ic;
         d.wb_valid = wbv; d.wb_tag = wbt; d.free_valid = frv; d.free_tag = frt;
+        d.cmt_valid = cv; d.cmt_wr = cw; d.cmt_arch = carch; d.cmt_new = cnew; d.flush_all = flush_all;
         d.eval();
 
         // ---- the reference: outputs from the state before the clock
@@ -115,7 +127,7 @@ int main(int argc, char** argv)
         int need = alloc[0] + alloc[1];
         nt[0] = alloc[0] ? R.fl[R.head % 32] : 0;
         nt[1] = alloc[1] ? R.fl[(R.head + alloc[0]) % 32] : 0;
-        bool ready = R.nfree() >= need && !restore;
+        bool ready = R.nfree() >= need && !restore && !flush_all;
         bool ok = (bool)d.ready == ready;
         char why[200] = "ready";
         if (ready && valid) {
@@ -146,7 +158,14 @@ int main(int argc, char** argv)
         // ---- the reference: the state after the clock
         for (int w = 0; w < 3; w++) if ((wbv >> w) & 1) R.busy[(wbt >> (6 * w)) & 0x3f] = false;
         for (int k = 0; k < nfr; k++) { R.fl[R.tail % 32] = (int)((frt >> (6 * k)) & 0x3f); R.tail++; }
-        if (restore) {
+        for (auto& o : cm) if (o.wr) { R.arat[o.arch] = o.nt; R.chead++; }
+        if (flush_all) {
+            for (int a = 0; a < 32; a++) R.rat[a] = R.arat[a];
+            R.head = R.chead;
+            for (int t = 0; t < 64; t++) R.busy[t] = false;
+            inflight.clear(); pending_ck.clear(); given.clear();
+            nflush++;
+        } else if (restore) {
             for (int a = 0; a < 32; a++) R.rat[a] = R.ck[rid].rat[a];
             R.head = R.ck[rid].head;
             R.ck_next = (rid + 1) % 8;
@@ -155,7 +174,7 @@ int main(int argc, char** argv)
             for (int u = 0; u < 2; u++) {
                 if (!((valid >> u) & 1)) continue;
                 Uop o; o.has_ck = false; o.ck = 0;
-                o.wr = alloc[u];
+                o.wr = alloc[u]; o.arch = dst[u]; o.nt = nt[u];
                 o.old = R.rat[dst[u]];
                 if (alloc[u]) { R.rat[dst[u]] = nt[u]; R.busy[nt[u]] = true; given.push_back(nt[u]); }
                 if (ckp[u]) {
@@ -173,7 +192,7 @@ int main(int argc, char** argv)
         }
         tick();
     }
-    printf("tb_rename: %ld cycles, %ld µops renamed, %ld restores, %ld resolved at the earliest, %ld mismatches: %s\n",
-           cyc, renamed, restores, early, bad, bad ? "FAIL" : "PASS");
+    printf("tb_rename: %ld cycles, %ld µops renamed, %ld restores, %ld resolved at the earliest, %ld flushes, %ld mismatches: %s\n",
+           cyc, renamed, restores, early, nflush, bad, bad ? "FAIL" : "PASS");
     return bad ? 1 : 0;
 }

@@ -184,7 +184,7 @@ L1 / L2キャッシュ(D$はアダプタつき)、MMU(TLB、PTW、PMP)、CSR、�
 | TAGE-Sの論理(表はブロックRAM) | 0.8k〜1.5k | 畳み込んだ履歴、タグの比較、provider / alternateの選択、FTQを通した更新と割り当て |
 | BTB(ブロックRAM)とRAS 16 | 0.4k〜0.7k | タグの比較とターゲット。RASはLUTRAM |
 | デコード × 4とRVC × 4 | 1.0k〜1.6k | mmRISC-2のCORE_DECが278、CORE_DECOMPが78(それぞれ)。`REDUCE_J.md` E2 |
-| ROB 24 | 0.7k〜1.2k | ペイロードはLUTRAM(2バンク)、状態はフリップフロップ、1サイクルに2コミット、フラッシュ |
+| ROB 24 | 0.7k〜1.2k | ペイロードはLUTRAM(2バンク)、状態はフリップフロップ、1サイクルに2コミット、フラッシュ。**2026-10-25: `OOO_ROB`を書いた。YosysでLUT 1,446 + LUTRAM 80(Vivadoで約1.0k〜1.2kの見込み。`Plan/OOC_J.md` 12)** |
 | 発行キューのペイロード | 0.4k〜0.7k | LUTRAM、書き込み2 / 読み出し3(2バンク + LVT) |
 | LSU: アドレス計算、整列、LQ 12、フォワーディングつきSQ 12、D$のアダプタ、ヒットの予測と再実行 | 2.5k〜3.5k | mmRISC-2のCORE_LSUは946(整列)。SQのアドレス比較とデータの選択、アダプタ。**2026-10-25: アダプタを除く`OOO_LSU`をVivadoで実測、2,969 LUT、+6.265 ns(`Plan/OOC_J.md` 11.8)** |
 | dispatch、分岐の解決、リダイレクト、コミットと例外、CSR / MDU / FPU / MMUとの接続 | 1.5k〜2.5k | mmRISC-2のパイプライン本体は2,511 |

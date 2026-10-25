@@ -78,6 +78,15 @@ M = [
     ('M54', 'OOO_LSU/OOO_LSU.sv', 'lsu', "syoung[i][j] <= a0 && s_new[1] && st1[SW-1:0] == SW'(j);", "syoung[i][j] <= 1'b0;", 'slot 1 not younger than slot 0'),
     ('M55', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'f_v    = (fb_v || dc_fill_valid) && f_live && !m_v && !restore && !flush_all;', 'f_v    = (fb_v || dc_fill_valid) && f_live && !restore && !flush_all;', 'a fill writes over the load in M'),
     ('M56', 'OOO_LSU/OOO_LSU.sv', 'lsu', "r_any = r_qv && lv[r_q] && lst[r_q] == L_WAIT && lretry[r_q];", 'r_any = r_qv;', 'a stale retry candidate tried'),
+    # 2026-10-25: the reorder buffer, and the committed state of renaming
+    ('M57', 'OOO_ROB/OOO_ROB.sv', 'rob', "if (r0 && (!r1 || rdist(br_rob[0], hi0) <= rdist(br_rob[1], hi0))) begin", "if (r0) begin", 'port 0 restores even when younger'),
+    ('M59', 'OOO_ROB/OOO_ROB.sv', 'rob', 'r0 = br_valid[0] && br_mispred[0] && live(br_rob[0]);', 'r0 = br_valid[0] && br_mispred[0];', 'a stale misprediction restores'),
+    ('M60', 'OOO_ROB/OOO_ROB.sv', 'rob', "tail_n = nxt({(restore_rob >= hi0) ? head[ROBW] : ~head[ROBW], restore_rob}, 2'd1);", "tail_n = nxt({head[ROBW], restore_rob}, 2'd1);", 'restored tail with the wrong lap'),
+    ('M61', 'OOO_ROB/OOO_ROB.sv', 'rob', "c1 = c0 && used >= (ROBW + 1)'(2) && done[hi1] && !exc[hi1];", "c1 = c0 && used >= (ROBW + 1)'(2) && done[hi1];", 'the second commit ignores its exception'),
+    ('M62', 'OOO_ROB/OOO_ROB.sv', 'rob', 'done[i]  <= n1 ? disp_exc[1] : disp_exc[0];', "done[i]  <= 1'b0;", 'an exception at decode never done'),
+    ('M63', 'OOO_ROB/OOO_ROB.sv', 'rob', "(c0 ? (p0[1] ? 3'd2 : 3'd1) : 3'd0)", "(c0 ? 3'd1 : 3'd0)", 'a fused pair counted once in instret'),
+    ('M64', 'OOO_ROB/OOO_ROB.sv', 'rob', "head_ns    = used != '0 && p0[0] && !done[hi0];", "head_ns    = used != '0 && p0[0];", 'head_ns stays after the µop ran'),
+    ('M67', 'OOO_RENAME/OOO_RENAME.sv', 'rename', "+ (FW + 1)'(cmt_valid[1] && cmt_wr[1]);", ";", 'the committed head misses slot 1'),
     ('M33', 'OOO_UBTB/OOO_UBTB.sv', 'ubtb', "else if (upd_valid && !found && upd_taken) rr <= rr + EW'(1);", "else if (upd_valid && upd_taken) rr <= rr + EW'(1);", 'replacement moves on a hit'),
 ]
 

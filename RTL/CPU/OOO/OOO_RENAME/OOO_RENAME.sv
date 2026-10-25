@@ -34,6 +34,15 @@
 // after its µop is renamed, which the pipeline guarantees (dispatch, issue
 // and execution come between).
 //
+// The committed state (Plan/OOC.md 11.4): the RAT of the committed µops
+// (arat, written at commit: cmt_*) and the committed head of the free list
+// (chead, advanced by every committed allocation; cmt_wr is set only for
+// one, so never for x0). flush_all (a trap, a serialization) goes back to
+// it: RAT = arat, head = chead. The busy bits need nothing (bug injection
+// showed clearing them redundant): every register in arat holds a value
+// written before its µop committed, and a free register's bit is set again
+// when it is given out.
+//
 // x0 maps to physical register 0 forever, is never given out and is always
 // ready. Rename stalls (ready = 0) when the free list cannot cover the
 // destinations of both µops, and in the cycle of a restore.
@@ -77,7 +86,14 @@ module OOO_RENAME
 
         // misprediction: back to a checkpoint
         input  logic                        restore,
-        input  logic [$clog2(NCKPT)-1:0]    restore_id
+        input  logic [$clog2(NCKPT)-1:0]    restore_id,
+
+        // commit: the committed-state RAT (from the ROB), and the full flush
+        input  logic [1:0]                  cmt_valid,
+        input  logic [1:0]                  cmt_wr,
+        input  logic [1:0][4:0]             cmt_arch,
+        input  logic [1:0][TAGW-1:0]        cmt_new,
+        input  logic                        flush_all
     );
 
     localparam int NF = NREG - 32;
@@ -92,6 +108,8 @@ module OOO_RENAME
     logic [TAGW-1:0]         rat    [32];
     logic [TAGW-1:0]         fl     [NF]; // free list ring
     logic [FW:0]             head, tail;  // with a wrap bit
+    logic [TAGW-1:0]         arat   [32]; // the committed state
+    logic [FW:0]             chead;
     logic [FW:0]             nfree;
     logic [NREG-1:0]         busy;
     logic [TAGW-1:0]         ck_rat [NCKPT][32];
@@ -116,7 +134,7 @@ module OOO_RENAME
         new_tag[0] = alloc[0] ? fl[head[FW-1:0]] : '0;
         new_tag[1] = alloc[1] ? fl[FW'(head + (FW + 1)'(alloc[0]))] : '0;
     end
-    assign ready = (nfree >= (FW + 1)'(need)) && !restore;
+    assign ready = (nfree >= (FW + 1)'(need)) && !restore && !flush_all;
 
     // rename
     always @(*) begin
@@ -151,6 +169,8 @@ module OOO_RENAME
             busy    <= '0;
             ck_next <= '0;
             pk_v    <= '0;
+            chead   <= '0;
+            for (int a = 0; a < 32; a++) arat[a] <= TAGW'(a);
         end else begin
             logic [FW:0] t;
             // write-back clears busy
@@ -161,7 +181,14 @@ module OOO_RENAME
                 if (free_valid[k]) begin fl[t[FW-1:0]] <= free_tag[k]; t = t + (FW + 1)'(1); end
             tail <= t;
             pk_v <= '0;
-            if (restore) begin
+            // the committed state
+            for (int u = 0; u < 2; u++)
+                if (cmt_valid[u] && cmt_wr[u]) arat[cmt_arch[u]] <= cmt_new[u];
+            chead <= chead + (FW + 1)'(cmt_valid[0] && cmt_wr[0]) + (FW + 1)'(cmt_valid[1] && cmt_wr[1]);
+            if (flush_all) begin
+                for (int a = 0; a < 32; a++) rat[a] <= arat[a];
+                head <= chead;
+            end else if (restore) begin
                 for (int a = 0; a < 32; a++)
                     rat[a] <= (fx_v[restore_id] && fx_a[restore_id] == 5'(a)) ? fx_t[restore_id]
                                                                                : ck_rat[restore_id][a];

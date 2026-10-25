@@ -707,3 +707,71 @@ register to register, as in mmRISC-2's measurement. Per group of register names,
   about 3.3k to 3.6k, at the top of the G0 estimate (2.5k to 3.5k, adapter included).
 - The effect on the budget is recorded in `Doc/UARCH.md` 4.4 (with the LSU measured and the committed-state RAT of
   11.4, the gap is about 9.5k in the middle).
+
+---
+
+## 12. The ROB, and the committed state of renaming (step 2 of Phase 1, 2026-10-25)
+
+The second block of step 2. The ROB is written, and renaming gets the committed-state RAT (the first item of 11.4). Both
+are verified by unit tests and bug injection, with Vivado scripts.
+
+### 12.1 The ROB (`RTL/CPU/OOO/OOO_ROB`)
+
+| Item | Content |
+|---|---|
+| Size | 24 µops (a fused pair is one); up to 2 dispatched a cycle (slot 1 only with slot 0) and up to 2 committed, in program order |
+| Payload | pc, the architectural destination and its new and old physical registers, load / store / fused / non-speculative flags. LUTRAM in two banks by the parity of the index: the 2 µops of a dispatch and the 2 of a commit are consecutive, so each bank has one write and one read a cycle |
+| Status | Done, exception and its cause, in flip-flops (written by 4 completion ports: ALU0, ALU1, LSU loads, LSU stores) |
+| Branch resolution | From the two ALU ports. Of the mispredictions in a cycle the oldest wins: `restore` (index and checkpoint) is given and the tail cut back to just after it. A misprediction of an index not in the ROB is ignored |
+| Commit | From the head, up to 2 µops that are done with no exception. A non-speculative µop runs only at the head (`head_ns`). An exception at the head is a trap (`trap`, cause, pc) and the ROB empties (`flush_all` for the rest). A trap wins over a restore in the same cycle |
+| Commit outputs | To the committed-state RAT and the free list (renaming), load / store counts (LQ / SQ), instructions (a fused pair counts 2), pc (commit trace, lock-step) |
+
+### 12.2 The committed state of renaming (`OOO_RENAME`)
+
+- The committed-state RAT (32 × 6 bits, written at commit) and the committed head of the free list (advanced by every
+  committed allocation) are added.
+- `flush_all`: RAT ← committed RAT, free-list head ← committed head.
+- Contract: `cmt_wr` is set only for a µop that allocated (never for x0; the ROB's `disp_wr` comes from renaming's
+  allocation).
+
+### 12.3 Verification
+
+- **`tb_rob.cpp` (new)**: against a reference ROB. Random µops (ALU / fused / load / store / branch / non-speculative /
+  exception found at decode) dispatched, completed out of order on the 4 ports (now and then with an exception);
+  branches resolved on the ALU ports in their completion cycle, some mispredicted (sometimes two at once); completions
+  and resolutions for indices not in the ROB mixed in, and dispatch offered in cycles of trap or restore (must not go
+  in). Every cycle `rob_avail` and the indices given, the head and `head_ns`, the trap (cause, pc), every field and
+  count of the commits, and the restore's index and checkpoint are checked. All PASS on 4 seeds (400,000 cycles each).
+  On one seed: 196,138 µops committed (235,378 instructions), 13,357 traps, 12,845 restores (415 with two mispredictions
+  at once).
+- **`tb_rename.cpp` (extended)**: commits also update the reference's committed state (a µop commits only after it is
+  written back, as in the core), and now and then a `flush_all` comes. PASS (909 flushes).
+- **Bug injection**: 9 added for the ROB and 3 for renaming. At first 4 were not detected; all four were redundant
+  logic, and were removed (12.4). The remaining 8 are all detected (62 in all).
+
+### 12.4 Logic removed by bug injection
+
+| Logic | Why it was redundant |
+|---|---|
+| ROB: ignoring a completion for an index not in the ROB | An entry not in the ROB is cleared when it is given out. What is in flight for flushed µops is dropped by each unit (this check could not catch it anyway) |
+| ROB: blocking dispatch in a cycle of trap or restore | The tail is set by the trap or restore, so nothing is allocated; the writes go only to entries beyond the new tail (cleared when given out) |
+| Renaming: excluding x0 from the committed-state RAT | `cmt_wr` is never set for x0 (contract) |
+| Renaming: clearing every busy bit on `flush_all` | A register in the committed-state RAT was written before it committed, so its busy bit is 0; a free register's bit is set again when it is given out |
+
+### 12.5 Size (Yosys), and the Vivado runs asked of the author
+
+| Block | Yosys | Expected in Vivado | G0 estimate |
+|---|---|---|---|
+| OOC_ROB | 1,446 LUTs + 80 LUTRAM, 536 FFs (about 390 of the harness) | about 1.0k to 1.2k | 0.7k to 1.2k |
+| OOC_RENAME | 3,216 → 3,769 LUTs (+0.55k) | 2,267 → about 2.6k to 2.7k | +0.3k for the committed state |
+
+- The ROB is at the top of its estimate; the committed state of renaming is a little more than assumed (about +0.4k
+  against +0.3k).
+- Checkpoints: the G0 configuration has 6, but renaming's ring of checkpoint numbers assumes a power of two and the RTL
+  keeps 8. Whether to go to 6 is decided when the core is put together (8 → 6 is −0.3 % / −0.5 % in the model).
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_ROB
+synth_ooo.bat OOC_RENAME
+```

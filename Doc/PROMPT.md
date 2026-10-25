@@ -990,3 +990,35 @@ synth_ooo.bat OOC_LSU
 ```text
 I reran synth_ooo.bat OOC_LSU. Please read the result and record it.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**The LSU closes at 50 MHz.** Recorded in 11.8 of OOC_J.md / OOC.md and pushed to dev as `4ad3206`.
+
+| Run | LUT | Register-to-register slack | Logic levels |
+|---|---|---|---|
+| First version | 2,912 | −4.019 ns | 29 |
+| First rewrite (mask of older stores, age matrix, write-port priority) | 2,943 | −0.352 ns | 25 |
+| **Second fix (the retry choice a cycle ahead, the misaligned check per source)** | **2,969** | **+6.265 ns** | 13 |
+
+- The worst path now is aligning and sign-extending the result of the load in M into `wb_data`, with more than 6 ns of slack.
+- 2,969 LUTs. With the D$ adapter (about 0.3k to 0.6k expected) about 3.3k to 3.6k, at the top of the G0 estimate (2.5k to 3.5k, adapter included).
+
+**Effect on the budget** (a row added to UARCH 4.4)
+
+With the LSU measured and the committed-state RAT found while writing the LSU (about 0.3k), the gap widens a little:
+
+| | Low | Middle | High |
+|---|---|---|---|
+| At G0 | 5.4k | 8.8k | 12.1k |
+| **Now (2026-10-25)** | **6.5k** | **9.5k** | **12.5k** |
+
+The blocks not written yet are the front end, TAGE, BTB / RAS, decode, the ROB and control, whose estimates still have their spread. The way forward is unchanged: measure the rest and decide the levers at G0b.
+<!-- /answer -->
+
+## 31. 2026-10-25 12:24:35 JST
+
+```text
+As the next block of step 2, please go on with the ROB and renaming with the committed-state RAT added. Prepare the unit tests and Vivado scripts too.
+```
