@@ -140,19 +140,25 @@ module OOO_FBUF
     // ---- taking instructions out, and new blocks in
     logic [3:0]  used;                         // parcels consumed
     logic [1:0]  npop;                         // blocks emptied
-    logic [2:0]  hoff_n;
+    logic [2:0]  hoff_n;                       // the head's next parcel
     always @(*) begin
+        logic [BW-1:0] ic;                     // the block after B
+        ic   = hb + BW'(2);
         used = st[consume];
-        if (!av || used < na) begin            // (an empty queue: nothing to pop, whatever the stale block says)
-            npop   = 2'd0;
-            hoff_n = hoff + 3'(used);
-        end else if (used - na < 4'(be[ib]) - 4'(bs[ib]) + 4'd1 || !bv) begin
-            npop   = 2'd1;                     // A gone; B (if any) partly used
-            hoff_n = bs[ib] + 3'(used - na);
-        end else begin
-            npop   = 2'd2;                     // A and B gone
-            hoff_n = 3'd0;
-        end
+        if (!av || used < na)                  npop = 2'd0;   // (an empty queue: nothing to pop, whatever the stale block says)
+        else if (used - na < 4'(be[ib]) - 4'(bs[ib]) + 4'd1 || !bv)
+                                               npop = 2'd1;   // A gone; B (if any) partly used
+        else                                   npop = 2'd2;   // A and B gone
+        // the head's next parcel: further into A, into B, or the start of
+        // whatever is head next (the block after B, or the one coming in when
+        // nothing is left). Every candidate is read before npop is known, so
+        // that the count taken is not followed by a read of the block starts
+        // (Plan/OOC.md 13.6).
+        case (npop)
+            2'd0:    hoff_n = av ? hoff + 3'(used) : in_start;
+            2'd1:    hoff_n = bv ? bs[ib] + 3'(used - na) : in_start;
+            default: hoff_n = (nblk >= (BW + 1)'(3)) ? bs[ic] : in_start;
+        endcase
     end
 
     logic push;
@@ -174,13 +180,7 @@ module OOO_FBUF
             hb   <= hb + BW'(npop);
             tb   <= tb + BW'(push);
             nblk <= left + (BW + 1)'(push);
-            // the head's parcel: into B, or the start of whatever is head next
-            if (!av)                           hoff <= in_start;   // empty: the block coming in
-            else if (npop == 2'd0)             hoff <= hoff_n;
-            else if (npop == 2'd1 && bv && used - na < 4'(be[ib]) - 4'(bs[ib]) + 4'd1)
-                                               hoff <= hoff_n;
-            else if (left != '0)               hoff <= bs[hb + BW'(npop)];
-            else                               hoff <= in_start;   // empty: the block coming in
+            hoff <= hoff_n;
         end
     end
     always_ff @(posedge clk) begin

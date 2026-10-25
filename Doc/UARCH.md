@@ -210,7 +210,7 @@ of the slices).
 | uBTB (`OOO_UBTB`) | 910 | Measured |
 | Fusion (`OOC_FUSE`) | 215 | Measured |
 | **Measured blocks** | 15,304 → **about 14.0k** | |
-| Fetch: PC generation, FTQ, I$ interface, predecode, fetch buffer, 4 instructions out | 2.0k to 2.8k | mmRISC-2's IFU without its BTB is 2,893 for a narrower fetch; the buffer (8 parcels in at any place, 4 instructions out at variable places) about 1.3k to 1.8k. **2026-10-25: `OOO_FBUF` about 1.56k and `OOO_FTQ` about 0.24k in Yosys; Vivado to come (`Plan/OOC.md` 13.5)** |
+| Fetch: PC generation, FTQ, I$ interface, predecode, fetch buffer, 4 instructions out | 2.0k to 2.8k | mmRISC-2's IFU without its BTB is 2,893 for a narrower fetch; the buffer (8 parcels in at any place, 4 instructions out at variable places) about 1.3k to 1.8k. **2026-10-25: measured in Vivado, `OOO_FBUF` 931 LUTs (+0.539 ns, then its loop shortened) and `OOO_FTQ` 148 (`Plan/OOC.md` 13.6)** |
 | TAGE-S logic (tables in block RAM) | 0.8k to 1.5k | Folded histories, tag compares, provider / alternate choice, update and allocation through the FTQ |
 | BTB (block RAM) and RAS 16 | 0.4k to 0.7k | Tag compare and target; RAS in LUTRAM |
 | Decode × 4 and RVC × 4 | 1.0k to 1.6k | mmRISC-2's CORE_DEC 278 and CORE_DECOMP 78 each; `REDUCE.md` E2 |

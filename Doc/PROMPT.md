@@ -1128,3 +1128,155 @@ Every block measured so far (ALU, uBTB, fusion, register file, issue queue, rena
 ```text
 As the next block of step 2, please go on with fetch and the fetch buffer. Prepare the unit tests and Vivado scripts too.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I wrote the fetch buffer (`OOO_FBUF`) and the FTQ (`OOO_FTQ`). Both unit tests PASS, and all 16 mutations added are detected. The Vivado scripts are ready, and everything is pushed to dev (bb06c8c). Vivado has not been run yet.
+
+**What I wrote**
+- **[OOO_FBUF.sv](../RTL/CPU/OOO/OOO_FBUF/OOO_FBUF.sv)**
+  - Instead of UARCH's "ring of 16 parcels", a queue of 4 whole 16-byte blocks.
+  - A ring needs a select in front of every parcel; a block queue needs one only at the exit, and the data goes into LUTRAM.
+  - Up to 4 instructions a cycle come out of a window of 8 parcels over the head block and the next. 32-bit instructions across blocks are handled.
+- **[OOO_FTQ.sv](../RTL/CPU/OOO/OOO_FTQ/OOO_FTQ.sv)**
+  - 8 entries in LUTRAM. Each holds the PC, the next address, the taken parcel and 32 bits of predictor state.
+  - Two reads for decode and one for branch resolution.
+  - pop at commit, restore on a misprediction, and flush_all.
+
+**Verification**
+- `tb_fbuf`: a random program runs with random taken transfers, and the run is cut into blocks as fetch would. Every slot's contents and the exact number of instructions given are checked every cycle. PASS on 9 seeds.
+- `tb_ftq`: against a reference queue, PASS on 4 seeds. With the existing ones, all 10 tests PASS.
+- The tests found two RTL bugs: popping from an empty queue, and not setting the head parcel when a block went into an empty queue. Both fixed.
+- 16 mutations added, all detected (79 in all). The two not detected at first were both redundant conditions: stopping the write during flush or restore, which in fact only writes a free slot. They were removed.
+
+**Size (Yosys estimate)**
+
+| Block | Physical LUTs | G0 estimate |
+|---|---|---|
+| OOC_FBUF | about 1.56k (LUT 1,381 + LUTRAM 176) | the buffer 1.3k to 1.8k |
+| OOC_FTQ | about 0.24k (LUT 15 + LUTRAM 224) | within the fetch's 2.0k to 2.8k |
+
+- In the OOC_FBUF harness, decode takes all the instructions given unless it is stalled. That measures the very loop the core will have: state → window → instruction lengths → count taken → head pointer.
+
+Recorded in `Plan/OOC.md` section 13 (and the Japanese version), the fetch rows of `Doc/UARCH`, and the RTL READMEs.
+
+**Request**: please run these two in Vivado.
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_FBUF
+synth_ooo.bat OOC_FTQ
+```
+
+The rest of the fetch budget (PC generation, the I$ interface, predecode) is written together with TAGE, BTB and RAS.
+<!-- /answer -->
+
+## 35. 2026-10-25 15:16:49 JST
+
+```text
+I ran FBUF and FTQ in Vivado.
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+(No answer was recorded: the safety check returned no verdict and the turn stopped. Reading the Vivado results and the fix are in the answer to 36.)
+<!-- /answer -->
+
+## 36. 2026-10-25 15:25:30 JST
+
+```text
+Please try again
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I tried again, but the shell is still unusable. The safety check returns no verdict, so even a simple command like `ls` is stopped. The FBUF fix is neither tested nor committed.
+
+**Vivado results** (recorded in `Plan/OOC.md` 13.6, the Japanese version, and `Doc/UARCH`)
+
+| Block | LUT | of it LUTRAM | FF | Register-to-register slack | Levels |
+|---|---|---|---|---|---|
+| OOC_FBUF | **931** | 192 | 323 | **+0.539 ns** | 16 |
+| OOC_FTQ | **148** | 132 | 329 | +15.844 ns | 1 |
+
+- Both are smaller than the Yosys estimates (1.56k → 931, 0.24k → 148) and well inside the G0 estimate.
+- The FTQ has plenty of margin too.
+- The FBUF closes at 50 MHz, but with only 0.539 ns. The worst path reads LUTRAM twice.
+  - Path: `hb` → block data read → window → chain of instruction lengths → count taken → `npop` → read of `bs[hb+npop]` → `hoff`
+  - In the core, place and route will be worse than alone, so this margin is too thin.
+
+**Fix (written, not run yet)**
+- In [OOO_FBUF.sv](../RTL/CPU/OOO/OOO_FBUF/OOO_FBUF.sv), every candidate for the next head parcel is ready before `npop`, and `npop` only selects among them.
+  - The four candidates: further into the head block, into the next block, the start of the block after it (a third read port), the block coming in.
+  - The end of the path loses a LUTRAM read and a LUT, about 2 ns.
+- I checked by reading the code, case by case of `npop`, that it gives the same values as before. Not yet by the tests.
+- Three mutations rewritten for the new code, and one (M86) added.
+- The contract for the core is recorded too: decode's count taken comes only from the buffer's own valid instructions and a registered stall.
+
+When the shell is back, in this order:
+1. lint, `tb_fbuf` (9 seeds), all 10 tests
+2. the FBUF mutations
+3. commit and push
+
+Then please rerun `synth_ooo.bat OOC_FBUF`.
+<!-- /answer -->
+
+## 37. 2026-10-25 15:29:36 JST
+
+```text
+Please try again. Go on through the tests, the bug injection, commit and push.
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I tried again, and again it could not run. The safety check returns no verdict, so not only Bash but also running from the terminal panel is stopped. The FBUF fix is as written; no tests, bug injection or commit yet.
+
+The checks are in one script:
+
+```bash
+bash SIM/OOO_UNIT/obj_dir/fbuf_check.sh
+```
+
+Please run it at the top of the repository. It does four things:
+- lint of `OOO_FBUF.sv`
+- all 10 tests (`run.sh`)
+- `tb_fbuf` on 8 seeds
+- the 12 FBUF mutations (M70 to M80 and M86)
+
+The results go into `SIM/OOO_UNIT/obj_dir/fbuf_check.txt`. Reading files works without the check, so tell me when it has run and I will read and judge it.
+
+If all is well, I commit and push as soon as the shell is back: the fix, `mutate.py`, `OOC 13.6`, `UARCH`, the prompt log. Then please rerun `synth_ooo.bat OOC_FBUF`.
+
+If you switch the permission mode away from auto in the settings, I may be able to run it myself.
+<!-- /answer -->
+
+## 38. 2026-10-25 15:31:39 JST
+
+```text
+I ran fbuf_check.sh. Please read obj_dir/fbuf_check.txt, and if there is no problem go on through commit and push.
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Thank you for running it, but the result file `SIM/OOO_UNIT/obj_dir/fbuf_check.txt` is not there. The script seems not to have run in this repository. The work folder of M86, the mutation just added, is missing too, so it did not run partway either. Most likely it was run from a folder other than the top of the repository, and the relative path `bash SIM/OOO_UNIT/...` found no file.
+
+With the absolute path it runs from anywhere:
+
+```bash
+bash /media/psf/Home/Documents/CQ/RISCV/mmRISC/mmRISC-3/SIM/OOO_UNIT/obj_dir/fbuf_check.sh
+```
+
+It runs all the tests and 12 mutations, so it takes several minutes to a quarter of an hour.
+
+The `/auto-mode-setup` settings went in, but the safety check on my side still returns no verdict, and both Bash and reading the terminal stay stopped. If you switch the permission mode away from auto (to approval), I can run it myself without this check and go on through commit and push.
+<!-- /answer -->
+
+## 39. 2026-10-25 15:35:45 JST
+
+```text
+I reran fbuf_check.sh with the absolute path. Please read fbuf_check.txt, and if there is no problem go on through commit and push.
+```

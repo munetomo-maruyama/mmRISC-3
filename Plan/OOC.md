@@ -884,3 +884,29 @@ cd FPGA\OOO_OOC
 synth_ooo.bat OOC_FBUF
 synth_ooo.bat OOC_FTQ
 ```
+
+### 13.6 The Vivado results, and the head parcel read ahead (2026-10-25)
+
+| Block | LUT | of it LUTRAM | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|---|
+| OOC_FBUF | **931** | 192 | 323 | **+0.539 ns** | 16 |
+| OOC_FTQ | **148** | 132 | 329 | +15.844 ns | 1 |
+
+- **Both are smaller than Yosys said** (FBUF 1.56k → 931, FTQ 0.24k → 148) and well inside the estimate (the buffer
+  1.3k to 1.8k). All the FFs are the harness's, and the blocks' data is in LUTRAM.
+- **The FTQ** is only its LUTRAM, with plenty of margin.
+- **The fetch buffer closes at 50 MHz, but only by 0.539 ns** (19.3 ns, 16 levels, 79 % of it routing). The path is
+  the loop of 13.5: the head pointer `hb` → the block data (LUTRAM) → the window → the chain of instruction lengths →
+  the count taken → the blocks popped (`npop`) → **a second LUTRAM read, the start parcel of the new head block
+  (`bs[hb + npop]`)** → the head parcel `hoff`. In the core, place and route around it will be worse than alone, so
+  this margin is too thin.
+- **Fixed**: the second read no longer waits for `npop`. Every candidate for the next head parcel (further into the
+  head block, into the next one, the start of the block after it from a third read port, the block coming in) is
+  ready before `npop` is known, and `npop` only selects among them. The end of the path loses a LUTRAM read and a
+  LUT, about 2 ns.
+- **Contract for the core**: decode's count taken must come from the buffer's own valid instructions and a registered
+  stall (as in the harness); anything that decode computes in D1 (fusion, the rename's free registers) must not feed
+  `consume` in the same cycle.
+- **Checked**: all 10 unit tests PASS, `tb_fbuf` on 9 seeds; the buffer's mutations follow the new code (3 rewritten,
+  M86 added for the start read after two pops), all 12 detected (80 in all).
+- **Please rerun `synth_ooo.bat OOC_FBUF`** (the size should hardly change; the slack should grow by about 2 ns).
