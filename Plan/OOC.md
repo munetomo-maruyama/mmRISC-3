@@ -1320,3 +1320,119 @@ synth_ooo.bat OOC_DEC
   left unwritten is the issue-queue payload, the D$ adapter and the control.
 - Not tried now: sharing or narrowing decode (for example RVC expansion in only some slots) would change what the
   model measured; it is a G0b matter if it comes to it.
+
+---
+
+## 17. The issue-queue payload and the D$ adapter (step 2 of Phase 1, 2026-10-25)
+
+A4 and A3 of the work plan.
+
+### 17.1 The issue-queue payload (`RTL/CPU/OOO/OOO_IQPL`)
+
+| Item | Content |
+|---|---|
+| What | One record of W bits for each entry of `OOO_IQ`: what a µop needs in RR and EX besides its tags (operation, immediate, ROB / LQ / SQ index and so on). The queue keeps only what the select and the wakeup read |
+| Write | At DS, up to 2, to the entries the queue gives the two µops. `OOO_IQ` now outputs them (`disp_entry`, never the same entry) |
+| Read | Up to 3, in RR: the grant's entry (`iss_entry`, late in IS) is registered, and the LUTRAM is read through it |
+| Structure | Two banks with one write port each (bank 0 written only by slot 0, bank 1 only by slot 1) and a live value table (one flip-flop per entry: which bank wrote it last). Each bank has one write and three reads (RAM32M-shaped). One write statement per bank, as Vivado needs for LUTRAM (12.6) |
+| Timing | An entry is not given out again in the cycle it is freed, so the earliest write of a new µop to it is in the cycle of the old µop's read in RR, and the LUTRAM still answers the old record then. A µop kept after its issue (selective replay, 15) keeps its entry and its record |
+
+- **W = 96** for now. A count of what the units need: ROB 5, LQ 4, SQ 4, FTQ index and offset about 9, checkpoint 3,
+  immediate 32, ALU operation and operand choices about 12, branch about 6, MDU 4, memory about 8, fusion about 4
+  (about 91). It is fixed when the core is put together; the cost is linear in W.
+- At 16 entries (`OOO_IQ`'s default) as at 12: a RAM32M is 32 deep, so the depth costs nothing below 32.
+- Not done now: narrower records per port (port 2 needs about half of the fields), a lever if it comes to it.
+
+### 17.2 The D$ adapter (`RTL/CPU/OOO/OOO_DCAD`) and one output added to mmRISC-2's D$
+
+**The two sides do not match.** `OOO_LSU` (11.1) sends a load in E with its LQ entry and expects hit and data in M,
+the next cycle; it has no ready for loads, takes the fills of misses by LQ entry, and drains stores through a port with
+ready. mmRISC-2's `DCACHE` takes requests with valid / ready and answers them **in request order, 2 cycles after the
+request at the earliest** (`d_resp_valid` is a register).
+
+**One output added to the D$** (`RTL/CPU/CACHE`: `DCACHE`, `CACHE_TAG_ARRAY`, `CACHE_DATA_ARRAY` taken from mmRISC-2
+Rev.02; the arrays without change): `d_hit_now` / `d_hit_now_data`, a load hit in stage 1, in the cycle it is found
+(the 8-byte word). `hit && s1_is_load && s1_can_go`: the request leaves stage 1 now with its data in the reorder
+buffer. Unlike `s1_fast` it does not ask that nothing older is waiting: that condition is only for the order of
+`d_resp_*`, which still answers in order (the adapter drops that copy). So the LSU gets **hits under misses**.
+
+| Item | Content |
+|---|---|
+| Requests | One a cycle: (1) the load in E, an 8-byte read of its word; (2) a load the D$ did not take in E (pending); (3) the store being drained (the byte mask becomes size and offset, the data is shifted down). The LSU drains no store in a cycle with a load in E; stores wait while loads are pending |
+| Physical address | The address of the request, registered when it is taken (`d_req_paddr`; Phase 1 has no translation). `d_req_cancel` is 0 |
+| Answer in M | `dc_hit` = the D$ took the LSU's load in E last cycle and `d_hit_now` |
+| Answer as a fill | The D$'s in-order answer; given to the LSU at once, or kept by LQ entry (data in LUTRAM) while the LSU's fill buffer is taken |
+| In-order queue | 8 entries (the D$'s `ROB_DEPTH`, it takes no more): load or store, LQ entry, answer still wanted |
+| Pending loads | By LQ entry: a bit and the word address (LUTRAM); the lowest is sent when nothing comes from E |
+| Answers dropped | The load hit in M; or **the same LQ entry sent a newer request** (with the answers kept for it, and its pending request) |
+
+- **Why a newer request drops the old answers**: a load not done in M (an older store without its address, a partial
+  overlap, a recovery) is tried again by the LSU, and an older store may reach the D$ in between. The old answer comes
+  first (in order) and does not have that store: given to the entry, now waiting for its new request, it is a stale
+  value.
+- **The LSU's `dc_kill` is not used**: the same rule covers LQ entries freed while their loads are in the D$. A later
+  owner of the entry sends a request before it waits for a fill (which drops the old answers), and until then the
+  LSU takes no fill for it. Bug injection showed dropping on `dc_kill` redundant (17.3).
+
+### 17.3 Verification
+
+- **`tb_iqpl`**: random writes (up to 2 a cycle, to two different entries, leaning towards the entries being read) and
+  3 grants a cycle against an array. All PASS on 4 seeds (1.2 million reads each, 218,000 of them in the cycle their
+  entry was written again, 266,000 changes of the writing slot).
+- **`tb_iq`** now also checks `disp_entry` (never an entry in use, never the same for both slots) and that
+  `iss_entry` is the entry of the issued µop: PASS on 4 seeds.
+- **`tb_dcad`**: `OOO_LSU`, `OOO_DCAD` and the real `DCACHE` (64 sets, 4 ways, 2 MSHRs, 2 write-back buffers, 8
+  answers in flight) together (`SIM/OOO_UNIT/LSU_DC.sv`), with a memory model on the AXI4 bus (random delays, gaps
+  between beats, random ready signals). The rest of the core is `tb_lsu`'s model, with all its checks (every load's
+  value against program order, ld_cancel, the stores in commit order, lsu_st_known, no deadlock), and each load the D$
+  took is answered once at most. The words used lie on 8 lines, **6 of them in one set** of the 4-way D$ (lines are
+  evicted, dirty ones written back, and filled again all the time); `DCAD_SPREAD=1` puts one line in a set. The fill
+  handshake to the LSU is held now and then (`tb_hold`) so that the adapter keeps answers.
+
+| Layout (300,000 cycles, one seed) | Loads (late) | D$ reads | Hits in M | Fills | Line fills | Write-backs |
+|---|---|---|---|---|---|---|
+| 6 lines in one set | 25,641 (17,479) | 42,076 | 9,839 | 25,811 | 11,753 | 6,457 |
+| One line a set | 92,540 (7,938) | 111,325 | 111,306 | 16 | 8 | 0 |
+
+- All PASS on 5 seeds in each layout. With the condition of `s1_fast` (nothing older waiting), the first version had
+  4,400 hits in M on the first layout; without it, 10,300.
+- **Bug injection**: 17 added (3 in `OOO_IQPL`, 1 in `OOO_IQ`, 12 in `OOO_DCAD`, 1 in `DCACHE`; `mutate.py` can break
+  `RTL/CPU/CACHE` too). At first:
+  - 2 were not detected, which showed dropping answers on `dc_kill` redundant (17.2): removed from the adapter, as the
+    LSU's epoch was (11.2).
+  - 1 was not detected because the adapter seldom kept answers (dropping a kept answer on a newer request): `tb_hold`
+    added, and it is detected now.
+  - 1 made the test bench crash (a read outside the lines used): it reports it now.
+
+  All are detected (183 in all).
+
+### 17.4 Open points for the assembly
+
+1. **The timing of the hit path.** The D$'s tag RAM → hit → `d_hit_now` → the LSU's M (the forwarding choice,
+   alignment) → `wb_data`, and → `ld_cancel` → the issue queue's next state. mmRISC-2's worst path is already tag RAM
+   → hit → `rob_data` (12 levels, +4.4 ns), and the LSU's M is 13 levels (+6.265 ns). `OOC_LSUDC` measures the first
+   part; if it misses 50 MHz, the way it is fixed is decided on the result.
+2. `d_resp_error` is not reported (a bus error on a load should be an access fault). Below `STORE_ACK_LIMIT` memory
+   never answers with one.
+3. Loads below `MEM_BASE` (peripherals): the LSU reads 8-byte words, speculatively. A peripheral has to be read at its
+   size and only at the head (the LSU and the ROB, when the core is put together).
+4. The LSU's `dc_kill` can be removed then.
+
+### 17.5 Size (Yosys), and the Vivado runs asked of the author
+
+| Block | Yosys | G0 estimate |
+|---|---|---|
+| OOC_IQPL (16 entries, 96 bits) | 1,202 LUTs + 384 LUT RAM, 530 FFs (502 of them the harness's) | 0.4k to 0.7k |
+| OOO_DCAD alone (no harness) | 486 LUTs + 72 LUT RAM, 122 FFs | 0.3k to 0.6k |
+| OOC_LSUDC (LSU + adapter + D$) | 13,843 LUTs + 72 LUT RAM, 8,246 FFs | |
+
+- The payload is at least the 384 LUT RAM (2 banks × 3 reads × 96 bits) and the 3 × 96 bank choices; Yosys's logic
+  count is above what that needs, and Vivado decides.
+- `OOC_LSUDC` is there for the timing of 17.4 and for the adapter's own row; `summary.txt` now lists the instances
+  of a harness with several blocks. The D$ is mmRISC-2's and counted with the caches.
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_IQPL
+synth_ooo.bat OOC_LSUDC
+```

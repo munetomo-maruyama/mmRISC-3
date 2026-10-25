@@ -123,7 +123,7 @@ the free list; renaming gets them (about 0.3k LUTs).
 | Item | Specification |
 |---|---|
 | ROB | 24 µops; payload in LUTRAM banked by the parity of the index (one write port each), done and exception bits in flip-flops; commit 2 a cycle |
-| Issue queue | `OOO_IQ`: unified, 12 entries, 2 sources and 1 destination, oldest first (age matrix), 3 issues a cycle, 6 wakeup buses with load masks, selective replay of µops issued on a load that misses (3.7); payload in LUTRAM |
+| Issue queue | `OOO_IQ`: unified, 12 entries, 2 sources and 1 destination, oldest first (age matrix), 3 issues a cycle, 6 wakeup buses with load masks, selective replay of µops issued on a load that misses (3.7); payload in LUTRAM (`OOO_IQPL`: two banks with one write port each and a live value table, written at DS to `disp_entry`, read in RR, `Plan/OOC.md` 17.1) |
 | Ports | P0: ALU0 + MUL / DIV; P1: ALU1; P2: LSU |
 | **Dispatch rules** (the wakeup relies on them) | A latency-2 µop (multiply) is "ALU0 only"; an any-ALU µop has latency 1; an LSU µop writes a register only as a load |
 | Physical registers | `OOO_PRF`: 64 × 64, 3 writes / 6 reads, LUTRAM per write bank + LVT |
@@ -146,9 +146,9 @@ the free list; renaming gets them (about 0.3k LUTs).
 | LSU | 1 load or store a cycle; load-use 2 cycles with hit speculation, a replay on a miss |
 | Ordering | Conservative memory dependence: a load issues only when the addresses of all older stores are known (no loss in the model) |
 | LQ / SQ | 12 / 12; forwarding from the SQ (same address and size); stores write the D$ after commit |
-| D$ | mmRISC-2's (non-blocking, 2 MSHRs) behind an adapter with tagged requests and responses |
+| D$ | mmRISC-2's (non-blocking, 2 MSHRs) behind an adapter with tagged requests and responses (`OOO_DCAD`, `Plan/OOC.md` 17.2): the D$ gives a load hit in its stage 1 (`d_hit_now`, the one output added, also under a miss) for the LSU's M; other answers come in order and are given as fills by LQ entry; a newer request of an LQ entry drops its older answers (no stale value for a load tried again) |
 | Misaligned | Trap, as in mmRISC-2 |
-| Block | `OOO_LSU` (2026-10-25, `Plan/OOC.md` 11): LQ / SQ, forwarding, `lsu_st_known` for the issue queue, `ld_cancel` for a load that misses its expected cycle, late results, `dc_kill` for the D$ adapter |
+| Block | `OOO_LSU` (2026-10-25, `Plan/OOC.md` 11): LQ / SQ, forwarding, `lsu_st_known` for the issue queue, `ld_cancel` for a load that misses its expected cycle, late results, `dc_kill` for the D$ adapter (not needed by `OOO_DCAD`) |
 | **Holding back dependents** (decided 2026-10-25, `Plan/OOC.md` 15) | Selective replay in the issue queue: a load is decided 3 cycles after its issue (`ld_cancel` of M); wakeups carry the mask of the open loads they depend on; a µop issued on an open load keeps its entry until the load is confirmed, and goes back to waiting if it is cancelled; the cancelled load waits for its late answer. Units drop µops in RR / EX whose mask meets `ld_kill`. About +1.0k LUTs, −0.2 % / −0.2 % in the model (the kept entries) |
 
 ### 3.8 Commit, exceptions and fused pairs
@@ -216,8 +216,8 @@ of the slices).
 | BTB (block RAM) and RAS 16 | 0.4k to 0.7k | Tag compare and target; RAS in LUTRAM. **2026-10-25: `OOO_BTB` (indirect jumps only) and `OOO_RAS` written; the direct targets are predecode's 8 adders, in the fetch row** |
 | Decode × 4 and RVC × 4 | 1.0k to 1.6k | mmRISC-2's CORE_DEC 278 and CORE_DECOMP 78 each; `REDUCE.md` E2. **2026-10-25: `OOO_DEC` measured in Vivado, 1,980 LUTs with every field (the FP and CSR ones too), +8.048 ns (`Plan/OOC.md` 16.4)** |
 | ROB 24 | 0.7k to 1.2k | Payload in LUTRAM (two banks), status in flip-flops, commit 2 a cycle, flush. **2026-10-25: `OOO_ROB` written; Vivado first gave 5,173 LUTs with the payload in flip-flops (two write statements per bank), fixed to one write per bank: 1,073 LUTs (160 LUTRAM), +11.060 ns (`Plan/OOC.md` 12.7)** |
-| Issue-queue payload | 0.4k to 0.7k | LUTRAM, 2 writes / 3 reads (two banks + LVT) |
-| LSU: address calculation, alignment, LQ 12, SQ 12 with forwarding, D$ adapter, hit speculation and replay | 2.5k to 3.5k | mmRISC-2's CORE_LSU is 946 (alignment); the SQ's address compares and data select; the adapter. **2026-10-25: `OOO_LSU` without the adapter measured in Vivado, 2,969 LUTs, +6.265 ns (`Plan/OOC.md` 11.8)** |
+| Issue-queue payload | 0.4k to 0.7k | LUTRAM, 2 writes / 3 reads (two banks + LVT). **2026-10-25: `OOO_IQPL` written (16 × 96 bits), Yosys 1,202 LUTs + 384 LUT RAM; Vivado asked (`Plan/OOC.md` 17.5)** |
+| LSU: address calculation, alignment, LQ 12, SQ 12 with forwarding, D$ adapter, hit speculation and replay | 2.5k to 3.5k | mmRISC-2's CORE_LSU is 946 (alignment); the SQ's address compares and data select; the adapter. **2026-10-25: `OOO_LSU` without the adapter measured in Vivado, 2,969 LUTs, +6.265 ns (`Plan/OOC.md` 11.8); the adapter `OOO_DCAD` written, Yosys 486 LUTs + 72 LUT RAM alone; Vivado asked with the LSU and the D$ (`OOC_LSUDC`, `Plan/OOC.md` 17.5)** |
 | Dispatch, branch resolution, redirects, commit and exceptions, the ports to CSR / MDU / FPU / MMU | 1.5k to 2.5k | mmRISC-2's pipeline itself is 2,511 |
 | **Not yet written** | **9.3k to 14.5k** | Estimates |
 | **The out-of-order engine** | **23.3k to 28.5k** | |

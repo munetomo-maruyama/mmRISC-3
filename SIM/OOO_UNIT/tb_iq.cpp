@@ -51,6 +51,7 @@ struct Uop {
     long id;            // dispatch order: the age
     int port, use[2], src[2], wr, dst, lat2, ext;
     long disp, issued = -1;
+    int entry = -1;     // its entry (disp_entry), where the payload is
     St st = WAIT;
     std::set<long> deps;    // open loads (when issued)
     bool load() const { return port == 2 && lat2; }
@@ -166,6 +167,12 @@ int main(int argc, char** argv)
         d.eval();
 
         if ((int)d.ld_kill != exp_kill) MM("ld_kill %x, expected %x", (int)d.ld_kill, exp_kill);
+        // the entries given to the µops dispatched now: not one in use (the payload's write address)
+        for (int k = 0; k < nd; k++) {
+            u[k].entry = (int)((d.disp_entry >> (4 * k)) & 15);
+            for (auto& kv : q) if (kv.second.entry == u[k].entry) MM("disp_entry %d of slot %d is in use (p%d)", u[k].entry, k, kv.first);
+        }
+        if (nd == 2 && u[0].entry == u[1].entry) MM("both slots dispatched to entry %d", u[0].entry);
         if (getenv("IQ_DEBUG") && cyc >= atol(getenv("IQ_DEBUG")) && cyc < atol(getenv("IQ_DEBUG")) + 8) {
             printf("cycle %ld disp_ready %d nd %d flush %d iss_valid %d kill %x ldc %d\n", cyc, (int)d.disp_ready, nd, flush, (int)d.iss_valid, exp_kill, ldc);
             for (int k = 0; k < nd; k++) printf("  disp p%d port %d lat2 %d use %d%d src %d %d avail %ld %ld rn %ld %ld\n", u[k].dst, u[k].port, u[k].lat2,
@@ -205,6 +212,8 @@ int main(int argc, char** argv)
                 bool ok = v == (exp[p] != nullptr) && (!v || t == exp[p]->dst);
                 if (!ok) MM("port %d: issued %d (p%d), expected %s (p%d)", p, v, t, exp[p] ? "one" : "none", exp[p] ? exp[p]->dst : 0);
                 if (ok && v) {
+                    int en = (int)((d.iss_entry >> (4 * p)) & 15);
+                    if (en != exp[p]->entry) MM("port %d (p%d): iss_entry %d, expected %d", p, t, en, exp[p]->entry);
                     int m = 0;
                     for (long l : deps_of(*exp[p])) m |= 1 << slot_of.at(l);
                     int g = (int)((d.iss_ldm >> (3 * p)) & 7);

@@ -15,8 +15,9 @@
 //   OOC_FUSE    fusion of a group of 4 decoded instructions
 //   OOC_PRF     the register file: read address -> data
 //   OOC_RENAME  renaming with its inputs and outputs registered
-//   OOC_LSU / OOC_ROB / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC  the same,
-//               each with one input bus and one output bus
+//   OOC_LSU / OOC_ROB / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC / OOC_IQPL
+//               the same, each with one input bus and one output bus
+//   OOC_LSUDC   the LSU, the D$ adapter and mmRISC-2's D$ together
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -490,3 +491,160 @@ module OOC_DEC
     assign unused_rst = rst_n;
     /* verilator lint_on UNUSEDSIGNAL */
 endmodule : OOC_DEC
+
+//---------------------------------------------------------------------------
+// OOC_IQPL: the payload of the issue queue (16 entries, 96-bit records)
+// with its inputs and outputs registered; the read addresses get a second
+// register inside the block, as the grants come late in IS
+//---------------------------------------------------------------------------
+module OOC_IQPL
+    (
+        input  logic          clk,
+        input  logic          rst_n,
+        input  logic [213:0]  in,
+        output logic [287:0]  out
+    );
+    logic [213:0] q;
+    always_ff @(posedge clk) q <= in;
+    logic [1:0]       wr_valid;
+    logic [1:0][3:0]  wr_entry;
+    logic [1:0][95:0] wr_data;
+    logic [2:0][3:0]  iss_entry;
+    logic [2:0][95:0] rr_data;
+    assign {wr_valid, wr_entry, wr_data, iss_entry} = q;
+    OOO_IQPL #(.N(16), .W(96)) u_iqpl
+        (.clk(clk), .rst_n(rst_n), .wr_valid(wr_valid), .wr_entry(wr_entry), .wr_data(wr_data),
+         .iss_entry(iss_entry), .rr_data(rr_data));
+    always_ff @(posedge clk) out <= rr_data;
+endmodule : OOC_IQPL
+
+//---------------------------------------------------------------------------
+// OOC_LSUDC: OOO_LSU, OOO_DCAD and mmRISC-2's DCACHE (RTL/CPU/CACHE) as in
+// the core, with the LSU's core side and the D$'s AXI4 bus registered. The
+// adapter's size is its row in the hierarchical report (summary.txt lists
+// the instances); the path that is new is the D$'s stage-1 hit (d_hit_now)
+// through the LSU's M into wb_data and ld_cancel. The peripheral bus is
+// tied off, and the LSU's dc_kill is not used by the adapter.
+//---------------------------------------------------------------------------
+module OOC_LSUDC
+    (
+        input  logic          clk,
+        input  logic          rst_n,
+        input  logic [264:0]  in,
+        output logic [336:0]  out
+    );
+    logic [264:0] q;
+    always_ff @(posedge clk) q <= in;
+
+    // LSU core side, in
+    logic [1:0]       disp_valid, disp_ld, disp_st, lq_commit, sq_commit, iss_size;
+    logic [1:0][4:0]  disp_rob;
+    logic             iss_valid, iss_ld, iss_uns, restore, flush_all;
+    logic [3:0]       iss_lq, iss_sq;
+    logic [63:0]      iss_base, iss_data;
+    logic [11:0]      iss_imm;
+    logic [5:0]       iss_dst;
+    logic [4:0]       restore_lq_tail, restore_sq_tail;
+    // AXI4, in
+    logic             awready, wready, bvalid, arready, rlast, rvalid;
+    logic [1:0]       bresp, rresp;
+    logic [63:0]      rdata;
+    assign {disp_valid, disp_ld, disp_st, disp_rob, iss_valid, iss_ld, iss_lq, iss_sq, iss_base, iss_imm,
+            iss_data, iss_size, iss_uns, iss_dst, lq_commit, sq_commit, restore, restore_lq_tail,
+            restore_sq_tail, flush_all,
+            awready, wready, bresp, bvalid, arready, rdata, rresp, rlast, rvalid} = q;
+
+    // LSU core side, out
+    logic [1:0]       lq_avail, sq_avail;
+    logic [1:0][3:0]  disp_lq, disp_sq;
+    logic [1:0][4:0]  ck_lq_tail, ck_sq_tail;
+    logic [11:0]      st_known;
+    logic             wb_valid, wb_late, ld_cancel, cmp_ld_valid, cmp_ld_exc, cmp_st_valid, cmp_st_exc;
+    logic [5:0]       wb_tag, ld_cancel_tag;
+    logic [63:0]      wb_data;
+    logic [4:0]       cmp_ld_rob, cmp_st_rob;
+    // AXI4, out
+    logic [3:0]       awid, arid;
+    logic [39:0]      awaddr, araddr;
+    logic [7:0]       awlen, arlen, wstrb;
+    logic [2:0]       awsize, arsize;
+    logic [1:0]       awburst, arburst;
+    logic             awvalid, wlast, wvalid, bready, arvalid, rready;
+    logic [63:0]      wdata;
+
+    // between the blocks
+    logic             dc_req_valid, dc_hit, dc_fill_valid, dc_fill_ready, dc_st_valid, dc_st_ready;
+    logic [39:0]      dc_req_addr, dc_st_addr;
+    logic [3:0]       dc_req_tag, dc_fill_tag;
+    logic [63:0]      dc_rdata, dc_fill_data, dc_st_data;
+    logic [7:0]       dc_st_mask;
+    logic             d_req_valid, d_req_ready, d_req_cancel, d_resp_valid, d_hit_now;
+    logic [39:0]      d_req_addr, d_req_paddr;
+    logic [1:0]       d_req_size;
+    logic [4:0]       d_req_cmd;
+    logic [63:0]      d_req_wdata, d_resp_data, d_hit_now_data;
+
+    OOO_LSU #(.NLQ(12), .NSQ(12), .PAW(40), .TAGW(6), .ROBW(5)) u_lsu
+        (.clk(clk), .rst_n(rst_n),
+         .disp_valid(disp_valid), .disp_ld(disp_ld), .disp_st(disp_st), .disp_rob(disp_rob),
+         .lq_avail(lq_avail), .sq_avail(sq_avail), .disp_lq(disp_lq), .disp_sq(disp_sq),
+         .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail),
+         .iss_valid(iss_valid), .iss_ld(iss_ld), .iss_lq(iss_lq), .iss_sq(iss_sq),
+         .iss_base(iss_base), .iss_imm(iss_imm), .iss_data(iss_data), .iss_size(iss_size),
+         .iss_uns(iss_uns), .iss_dst(iss_dst), .lsu_st_known(st_known),
+         .dc_req_valid(dc_req_valid), .dc_req_addr(dc_req_addr), .dc_req_tag(dc_req_tag),
+         .dc_hit(dc_hit), .dc_rdata(dc_rdata),
+         .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),
+         .dc_fill_ready(dc_fill_ready), .dc_kill(),
+         .dc_st_valid(dc_st_valid), .dc_st_addr(dc_st_addr), .dc_st_data(dc_st_data), .dc_st_mask(dc_st_mask),
+         .dc_st_ready(dc_st_ready),
+         .wb_valid(wb_valid), .wb_late(wb_late), .wb_tag(wb_tag), .wb_data(wb_data),
+         .ld_cancel(ld_cancel), .ld_cancel_tag(ld_cancel_tag),
+         .cmp_ld_valid(cmp_ld_valid), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_exc),
+         .cmp_st_valid(cmp_st_valid), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_exc),
+         .lq_commit(lq_commit), .sq_commit(sq_commit),
+         .restore(restore), .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail),
+         .flush_all(flush_all));
+
+    OOO_DCAD #(.NLQ(12), .PAW(40), .DEPTH(8)) u_dcad
+        (.clk(clk), .rst_n(rst_n),
+         .dc_req_valid(dc_req_valid), .dc_req_addr(dc_req_addr), .dc_req_tag(dc_req_tag),
+         .dc_hit(dc_hit), .dc_rdata(dc_rdata),
+         .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),
+         .dc_fill_ready(dc_fill_ready),
+         .dc_st_valid(dc_st_valid), .dc_st_addr(dc_st_addr), .dc_st_data(dc_st_data), .dc_st_mask(dc_st_mask),
+         .dc_st_ready(dc_st_ready),
+         .d_req_valid(d_req_valid), .d_req_ready(d_req_ready), .d_req_addr(d_req_addr),
+         .d_req_size(d_req_size), .d_req_cmd(d_req_cmd), .d_req_wdata(d_req_wdata),
+         .d_req_paddr(d_req_paddr), .d_req_cancel(d_req_cancel),
+         .d_resp_valid(d_resp_valid), .d_resp_data(d_resp_data),
+         .d_hit_now(d_hit_now), .d_hit_now_data(d_hit_now_data));
+
+    DCACHE #(.PADDR_WIDTH(40), .ROB_DEPTH(8)) u_dc
+        (.clk(clk), .rst_n(rst_n),
+         .d_req_valid(d_req_valid), .d_req_ready(d_req_ready), .d_req_addr(d_req_addr),
+         .d_req_size(d_req_size), .d_req_cmd(d_req_cmd), .d_req_wdata(d_req_wdata),
+         .d_req_paddr(d_req_paddr), .d_req_cancel(d_req_cancel),
+         .d_resp_valid(d_resp_valid), .d_resp_drop(), .d_resp_data(d_resp_data), .d_resp_error(),
+         .d_hit_now(d_hit_now), .d_hit_now_data(d_hit_now_data),
+         .m_axi4_awid(awid), .m_axi4_awaddr(awaddr), .m_axi4_awlen(awlen), .m_axi4_awsize(awsize),
+         .m_axi4_awburst(awburst), .m_axi4_awvalid(awvalid), .m_axi4_awready(awready),
+         .m_axi4_wdata(wdata), .m_axi4_wstrb(wstrb), .m_axi4_wlast(wlast), .m_axi4_wvalid(wvalid),
+         .m_axi4_wready(wready), .m_axi4_bresp(bresp), .m_axi4_bvalid(bvalid), .m_axi4_bready(bready),
+         .m_axi4_arid(arid), .m_axi4_araddr(araddr), .m_axi4_arlen(arlen), .m_axi4_arsize(arsize),
+         .m_axi4_arburst(arburst), .m_axi4_arvalid(arvalid), .m_axi4_arready(arready),
+         .m_axi4_rdata(rdata), .m_axi4_rresp(rresp), .m_axi4_rlast(rlast), .m_axi4_rvalid(rvalid),
+         .m_axi4_rready(rready),
+         .m_axil_awaddr(), .m_axil_awvalid(), .m_axil_awready(1'b0), .m_axil_wdata(), .m_axil_wstrb(),
+         .m_axil_wvalid(), .m_axil_wready(1'b0), .m_axil_bresp(2'b00), .m_axil_bvalid(1'b0), .m_axil_bready(),
+         .m_axil_araddr(), .m_axil_arvalid(), .m_axil_arready(1'b0), .m_axil_rdata(64'd0), .m_axil_rresp(2'b00),
+         .m_axil_rvalid(1'b0), .m_axil_rready(),
+         .ev_miss(), .ev_vic_copy());
+
+    always_ff @(posedge clk)
+        out <= {lq_avail, sq_avail, disp_lq, disp_sq, ck_lq_tail, ck_sq_tail, st_known,
+                wb_valid, wb_late, wb_tag, wb_data, ld_cancel, ld_cancel_tag,
+                cmp_ld_valid, cmp_ld_rob, cmp_ld_exc, cmp_st_valid, cmp_st_rob, cmp_st_exc,
+                awid, awaddr, awlen, awsize, awburst, awvalid, wdata, wstrb, wlast, wvalid, bready,
+                arid, araddr, arlen, arsize, arburst, arvalid, rready};
+endmodule : OOC_LSUDC

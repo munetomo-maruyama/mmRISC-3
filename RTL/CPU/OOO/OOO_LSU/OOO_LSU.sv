@@ -51,10 +51,13 @@
 //
 // The D$ port is abstract: the adapter to mmRISC-2's D$ (tagged requests
 // and fills, the write port) is outside, as is address translation (Phase
-// 1 is M-mode, physical addresses: the address is used as it is). The
-// adapter must drop the pending fill of every LQ entry in dc_kill (freed
-// by a commit or a flush; the line itself is still filled): an entry can be
-// given out again while its old miss is outstanding.
+// 1 is M-mode, physical addresses: the address is used as it is). An entry
+// can be given out again while its old miss is outstanding, so its old fill
+// must not reach the new owner: the adapter drops the pending fill of every
+// LQ entry in dc_kill (freed by a commit or a flush; the line itself is
+// still filled), or, as OOO_DCAD does, every older answer of an entry when
+// the entry sends a new request (which also keeps a load tried again from
+// the answer of its first try).
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps

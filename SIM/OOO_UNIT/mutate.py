@@ -6,7 +6,8 @@
 #
 # Every mutation is one literal change of one line of the RTL (a wrong
 # operand, a dropped condition, a wrong constant), made in a copy of
-# RTL/CPU/OOO (or of $OOO_RTL) under obj_dir/mutate/<M>; the test of that block is run on the
+# RTL/CPU/OOO (or of $OOO_RTL; RTL/CPU/CORE for 'CORE:' files, RTL/CPU/CACHE
+# for 'CACHE:') under obj_dir/mutate/<M>; the test of that block is run on the
 # copy and must FAIL. Each line of the report is DETECTED, NOT DETECTED, or
 # NOT APPLIED (the text to change was not found exactly once: a rename moved
 # it), and every line has to be read: the count alone can hide one.
@@ -20,6 +21,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 RTL = os.environ.get('OOO_RTL') or os.path.abspath(os.path.join(HERE, '..', '..', 'RTL', 'CPU', 'OOO'))
 CORE = os.path.abspath(os.path.join(HERE, '..', '..', 'RTL', 'CPU', 'CORE'))   # blocks taken from mmRISC-2 ('CORE:' files)
+CACHE = os.path.abspath(os.path.join(HERE, '..', '..', 'RTL', 'CPU', 'CACHE'))  # mmRISC-2's D$ ('CACHE:' files)
 
 M = [
     # id, file, test, old, new, what it breaks
@@ -187,6 +189,24 @@ M = [
     ('M170', 'CORE:CORE_DEC/CORE_DEC.sv', 'dec', "{7'b0000101, 3'b100}: alu_op = ALU_MIN;", "{7'b0000101, 3'b100}: alu_op = ALU_MAX;", 'min decoded as max'),
     ('M171', 'CORE:CORE_DEC/CORE_DEC.sv', 'dec', 'mem_signed = ~funct3[2];', 'mem_signed = funct3[2];', 'loads extended the wrong way'),
     ('M172', 'CORE:CORE_DEC/CORE_DEC.sv', 'dec', "3'b010:  fp_op = FOP_EQ;", "3'b010:  fp_op = FOP_LT;", 'feq decoded as flt'),
+    # 2026-10-25: the issue-queue payload and the D$ adapter (Plan/OOC.md 17)
+    ('M173', 'OOO_IQPL/OOO_IQPL.sv', 'iqpl', "if (wr_valid[1]) lvt[wr_entry[1]] <= 1'b1;", "if (wr_valid[1]) lvt[wr_entry[1]] <= 1'b0;", 'the LVT never names bank 1'),
+    ('M174', 'OOO_IQPL/OOO_IQPL.sv', 'iqpl', 'rr_data[p] = lvt[ra[p]] ? bank1[ra[p]] : bank0[ra[p]];', 'rr_data[p] = lvt[ra[p]] ? bank1[iss_entry[p]] : bank0[iss_entry[p]];', 'read a cycle early'),
+    ('M175', 'OOO_IQPL/OOO_IQPL.sv', 'iqpl', 'if (wr_valid[1]) bank1[wr_entry[1]] <= wr_data[1];', 'if (wr_valid[1]) bank1[wr_entry[0]] <= wr_data[1];', 'slot 1 written to the entry of slot 0'),
+    ('M176', 'OOO_IQ/OOO_IQ.sv', 'iq', 'disp_entry = fe;', 'disp_entry = {fe[0], fe[1]};', 'payload entries of the two slots swapped'),
+    ('M177', 'OOO_DCAD/OOO_DCAD.sv', 'dcad', "!(e_go && q_tag[i] == dc_req_tag) &&", "1'b1 &&", 'the answer of an older request of the entry kept (stale)'),
+    ('M178', 'OOO_DCAD/OOO_DCAD.sv', 'dcad', 'dc_fill_data  = f_kept ? fd[f_sel] : d_resp_data;', 'dc_fill_data  = d_resp_data;', 'a kept answer given with the data of the D$ now'),
+    ('M179', 'OOO_DCAD/OOO_DCAD.sv', 'dcad', "!(dc_hit && s1_slot == DW'(i));", "1'b1;", 'a load answered in M answered again'),
+    ('M180', 'OOO_DCAD/OOO_DCAD.sv', 'dcad', "if (e_go && dc_req_tag == LW'(e))                   pnd[e] <= !d_req_ready;", "if (e_go && dc_req_tag == LW'(e))                   pnd[e] <= 1'b0;", 'a load the D$ did not take is forgotten'),
+    ('M181', 'OOO_DCAD/OOO_DCAD.sv', 'dcad', 'assign dc_hit   = s1_e && d_hit_now;', 'assign dc_hit   = d_hit_now;', 'a hit of another request given to the load in M'),
+    ('M182', 'OOO_DCAD/OOO_DCAD.sv', 'dcad', ":        {dc_st_addr[PAW-1:3], s_off};", ":        {dc_st_addr[PAW-1:3], 3'b000};", 'stores at the start of their word'),
+    ('M183', 'OOO_DCAD/OOO_DCAD.sv', 'dcad', "8'h0f, 8'hf0:               s_size = 2'd2;", "8'h0f:                      s_size = 2'd2;", 'a store to the upper word written as a byte'),
+    ('M184', 'OOO_DCAD/OOO_DCAD.sv', 'dcad', "else if (a_want && !(f_take && !f_kept) && a_tag == LW'(e)) fr[e] <= 1'b1;", "else if (a_want && a_tag == LW'(e)) fr[e] <= 1'b1;", 'an answer given now kept to be given again'),
+    ('M185', 'OOO_DCAD/OOO_DCAD.sv', 'dcad', 's1_pa   <= d_req_addr;', 's1_pa   <= dc_req_addr;', 'the physical address of the load in E for every request'),
+    ('M186', 'OOO_DCAD/OOO_DCAD.sv', 'dcad', "else if (f_take && f_kept && f_sel == LW'(e))      fr[e] <= 1'b0;", "else if (1'b0)                                     fr[e] <= 1'b0;", 'a kept answer given again and again'),
+    ('M187', 'OOO_DCAD/OOO_DCAD.sv', 'dcad', "if (e_go && dc_req_tag == LW'(e))                  fr[e] <= 1'b0;", "if (1'b0)                                          fr[e] <= 1'b0;", 'an answer kept for the entry survives its new request'),
+    ('M188', 'OOO_DCAD/OOO_DCAD.sv', 'dcad', "s_go  = !dc_req_valid && pnd == '0 && dc_st_valid;", "s_go  = !dc_req_valid && dc_st_valid;", 'a store sent with a pending load'),
+    ('M189', 'CACHE:DCACHE/DCACHE.sv', 'dcad', 'assign d_hit_now      = hit && s1_is_load && s1_can_go;', 'assign d_hit_now      = hit && s1_is_load;', 'a hit in a way being filled or evicted answered now'),
     ('M148', 'OOO_IQ/OOO_IQ.sv', 'iq', "if (woken(sq[s]) && (wmask(sq[s]) & kill_m) == '0) begin", 'if (woken(sq[s])) begin', 'woken by the cancelled load in the cancel cycle'),
     ('M149', 'OOO_IQ/OOO_IQ.sv', 'iq', "drdy[d][s] = (wmask(t) & kill_m) == '0;", "drdy[d][s] = 1'b1;", 'dispatched ready on a wakeup of the cancelled load'),
     ('M150', 'OOO_IQ/OOO_IQ.sv', 'iq', 'assign ld_kill = kill_q;', 'assign ld_kill = kill_m;', 'ld_kill for the units a cycle early'),
@@ -206,12 +226,15 @@ def run(m):
     shutil.rmtree(work, ignore_errors=True)
     shutil.copytree(RTL, os.path.join(work, 'rtl'))
     shutil.copytree(CORE, os.path.join(work, 'core'))
-    path = os.path.join(work, 'core', f[5:]) if f.startswith('CORE:') else os.path.join(work, 'rtl', f)
+    shutil.copytree(CACHE, os.path.join(work, 'cache'))
+    if f.startswith('CORE:'):    path = os.path.join(work, 'core', f[5:])
+    elif f.startswith('CACHE:'): path = os.path.join(work, 'cache', f[6:])
+    else:                        path = os.path.join(work, 'rtl', f)
     src = open(path).read()
     if src.count(old) != 1:
         return mid, 'NOT APPLIED', what, f'found {src.count(old)} times'
     open(path, 'w').write(src.replace(old, new))
-    env = dict(os.environ, OOO_RTL=os.path.join(work, 'rtl'), CORE_RTL=os.path.join(work, 'core'), OOO_OBJ=os.path.join(work, 'obj'))
+    env = dict(os.environ, OOO_RTL=os.path.join(work, 'rtl'), CORE_RTL=os.path.join(work, 'core'), CACHE_RTL=os.path.join(work, 'cache'), OOO_OBJ=os.path.join(work, 'obj'))
     r = subprocess.run([os.path.join(HERE, 'run.sh'), test], env=env, capture_output=True, text=True)
     last = (r.stdout.strip().splitlines() or [''])[-1]
     return mid, ('DETECTED' if r.returncode != 0 else 'NOT DETECTED'), what, last

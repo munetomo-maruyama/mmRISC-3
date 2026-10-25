@@ -1718,3 +1718,38 @@ synth_ooo.bat OOC_DEC
 ```text
 synth_ooo.bat OOC_DEC has finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Decode closes at 50 MHz with plenty of margin, but its size is above the estimate.
+
+| Run | LUT | FF | Register-to-register slack | Levels |
+|---|---|---|---|---|
+| OOC_DEC (4 slots, every field) | **1,980** | 628 | **+8.048 ns** | 9 |
+
+- **Timing**: 11.8 ns, comfortably closed.
+- **Size**: the estimate was 1.0k to 1.6k; it came to about 495 LUTs a slot.
+  - Inside mmRISC-2's pipeline, `CORE_DEC` + `CORE_DECOMP` were 356 LUTs.
+  - The difference is the fields `OOO_DEC` derives and the outputs mmRISC-2's pipeline did not use.
+  - Last time I said "the fields Phase 1 does not use disappear and it gets smaller", but I counted the FP and CSR fields in the budget: the instruction set is kept, so the final core decodes them too.
+- **Budget** (a row added to UARCH 4.4):
+
+| | Low | Middle | High |
+|---|---|---|---|
+| After the IQ with replay was measured | 8.9k | 10.9k | 12.8k |
+| **After decode was measured** | **9.9k** | **11.6k** | **13.2k** |
+
+- What is left unwritten is the issue-queue payload, the D$ adapter and the control.
+- Sharing or narrowing decode in some slots would change the model's assumptions, so I did not try it. If needed, it becomes an item for G0b.
+
+Recorded in `Plan/OOC.md` 16.4 (and the Japanese version), 4.3 and 4.4 of `Doc/UARCH`, and the prompt log (answer 49 and the English of 50); pushed to dev (e5a12df).
+
+The gap has widened to 11.6k in the middle. There are two ways on: measure the remaining small blocks first (the issue-queue payload A4 and the D$ adapter A3), or start the G0b budget review now.
+<!-- /answer -->
+
+## 51. 2026-10-25 23:31:14 JST
+
+```text
+Next, please go ahead with the issue-queue payload (A4) and the D$ adapter (A3). Prepare everything up to the unit tests and the Vivado scripts.
+```

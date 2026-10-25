@@ -66,7 +66,8 @@
 // are confirmed).
 //
 // The payload of a µop (operation, immediates, ROB index) is not here: it
-// sits in a LUTRAM indexed by the entry, and iss_entry says which.
+// sits in a LUTRAM indexed by the entry (OOO_IQPL): disp_entry says where
+// it is written, iss_entry where it is read.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -84,6 +85,7 @@ module OOO_IQ
 
         // dispatch: up to 2 µops a cycle, in program order (0 the older)
         output logic [1:0]            disp_ready, // room for this many
+        output logic [1:0][$clog2(N)-1:0] disp_entry, // the entries they go to (for the payload)
         input  logic [1:0]            disp_valid,
         input  logic [1:0][1:0]       disp_port,  // 0 any ALU, 1 ALU0 only, 2 LSU
         input  logic [1:0][1:0]       disp_use,   // the sources the µop reads
@@ -250,6 +252,7 @@ module OOO_IQ
         for (int i = N - 1; i >= 0; i--) if (!v[i]) begin f1 = f0; f1v = f0v; f0 = EW'(i); f0v = 1'b1; end
         disp_ready = (f0v && f1v) ? 2'd2 : f0v ? 2'd1 : 2'd0;
         fe[0] = f0; fe[1] = f1; fev[0] = f0v; fev[1] = f1v;
+        disp_entry = fe;
     end
 
     // ---- the sources of the µops dispatched now: ready (and with what

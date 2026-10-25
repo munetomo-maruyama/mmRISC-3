@@ -6,6 +6,7 @@
 #
 #   OOO_RTL=<dir>  another copy of RTL/CPU/OOO (the bug injection of mutate.py)
 #   CORE_RTL=<dir> another copy of RTL/CPU/CORE (the same)
+#   CACHE_RTL=<dir> another copy of RTL/CPU/CACHE (the same)
 #   OOO_OBJ=<dir>  where to build (default obj_dir)
 #
 # Each test is a Verilator C++ testbench (tb_<test>.cpp) that holds one block
@@ -21,6 +22,7 @@ cd "$(dirname "$0")"
 HERE=$(pwd)
 R=${OOO_RTL:-$(cd ../../RTL/CPU/OOO && pwd)}
 C=${CORE_RTL:-$(cd ../../RTL/CPU/CORE && pwd)}   # blocks taken from mmRISC-2
+CA=${CACHE_RTL:-$(cd ../../RTL/CPU/CACHE && pwd)} # mmRISC-2's D$
 SP=${SPIKE:-$HOME/RISCV/toolchain/spike-install}   # Spike, the judge of tb_dec
 OBJ=${OOO_OBJ:-$HERE/obj_dir}
 
@@ -30,8 +32,10 @@ TOP[fuse]=OOO_FUSE;     SRC[fuse]="$R/OOO_FUSE/OOO_FUSE.sv"
 TOP[prf]=OOO_PRF;       SRC[prf]="$R/OOO_PRF/OOO_PRF.sv"
 TOP[rename]=OOO_RENAME; SRC[rename]="$R/OOO_RENAME/OOO_RENAME.sv"
 TOP[iq]=OOO_IQ;         SRC[iq]="$R/OOO_IQ/OOO_IQ.sv"
+TOP[iqpl]=OOO_IQPL;     SRC[iqpl]="$R/OOO_IQPL/OOO_IQPL.sv"
 TOP[ubtb]=OOO_UBTB;     SRC[ubtb]="$R/OOO_UBTB/OOO_UBTB.sv"
 TOP[lsu]=OOO_LSU;       SRC[lsu]="$R/OOO_LSU/OOO_LSU.sv"
+TOP[dcad]=LSU_DC;       SRC[dcad]="$R/OOO_LSU/OOO_LSU.sv $R/OOO_DCAD/OOO_DCAD.sv $CA/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv $CA/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv $CA/DCACHE/DCACHE.sv $HERE/LSU_DC.sv"
 TOP[rob]=OOO_ROB;       SRC[rob]="$R/OOO_ROB/OOO_ROB.sv"
 TOP[fbuf]=OOO_FBUF;     SRC[fbuf]="$R/OOO_FBUF/OOO_FBUF.sv"
 TOP[ftq]=OOO_FTQ;       SRC[ftq]="$R/OOO_FTQ/OOO_FTQ.sv"
@@ -43,7 +47,7 @@ TOP[dec]=OOO_DEC;       SRC[dec]="$C/CORE_DECOMP/CORE_DECOMP.sv $C/CORE_DEC/CORE
 XC[dec]="-I$SP/include -I$SP/include/riscv -I$SP/include/softfloat -I$SP/include/fesvr -Wno-c++20-extensions"
 XL[dec]="-L$SP/lib -lriscv -ldisasm -lsoftfloat -lfesvr -Wl,-rpath,$SP/lib -lpthread -ldl"
 TOP[fetch]=OOO_FETCH;   SRC[fetch]="$R/OOO_UBTB/OOO_UBTB.sv $R/OOO_PREDEC/OOO_PREDEC.sv $R/OOO_TAGE/OOO_TAGE.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FETCH/OOO_FETCH.sv"
-TESTS=${*:-alu2 fuse prf rename iq ubtb lsu rob fbuf ftq predec ras btb tage fetch dec}
+TESTS=${*:-alu2 fuse prf rename iq iqpl ubtb lsu dcad rob fbuf ftq predec ras btb tage fetch dec}
 
 fail=0
 for t in $TESTS; do
