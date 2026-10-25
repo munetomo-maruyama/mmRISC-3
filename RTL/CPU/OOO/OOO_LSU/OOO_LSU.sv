@@ -174,6 +174,14 @@ module OOO_LSU
     function automatic logic [LW-1:0] ldist(input logic [LW-1:0] i, input logic [LW-1:0] h);
         return (i >= h) ? LW'(i - h) : LW'(i + LW'(NLQ) - h);
     endfunction
+    function automatic logic misal(input logic [1:0] size, input logic [2:0] a);
+        case (size)
+            2'd1:    return a[0];
+            2'd2:    return a[1:0] != 2'd0;
+            2'd3:    return a != 3'd0;
+            default: return 1'b0;
+        endcase
+    endfunction
     function automatic logic [7:0] bmask(input logic [1:0] size, input logic [2:0] off);
         return 8'((9'd1 << (9'd1 << size)) - 9'd1) << off;
     endfunction
@@ -234,17 +242,26 @@ module OOO_LSU
             lsu_st_known[e] = lv[e] && (lold[e] & sv & ~sknown) == '0;
     end
 
-    // ---- E: a new µop from port 2, or a load tried again from the LQ
-    logic          r_any;                      // an LQ entry to try again
-    logic [LW-1:0] r_e;
+    // ---- E: a new µop from port 2, or a load tried again from the LQ. The
+    // entry to try again is chosen a cycle ahead (the lowest-numbered one
+    // waiting: retries are rare, and any order is correct) and only checked
+    // again in E, so that E does not wait for a choice over the LQ
+    // (Plan/OOC.md 11.7)
+    logic          r_qv, r_any;
+    logic [LW-1:0] r_q, r_e, r_next;
+    logic          r_next_v;
     always @(*) begin
-        logic [LW-1:0] best;
-        r_any = 1'b0; r_e = '0; best = '1;
-        for (int e = 0; e < NLQ; e++)
-            if (lv[e] && lst[e] == L_WAIT && lretry[e] && ldist(LW'(e), lq_head[LW-1:0]) <= best) begin
-                r_any = 1'b1; r_e = LW'(e); best = ldist(LW'(e), lq_head[LW-1:0]);
-            end
+        r_next_v = 1'b0; r_next = '0;
+        for (int e = NLQ - 1; e >= 0; e--)
+            if (lv[e] && lst[e] == L_WAIT && lretry[e]) begin r_next_v = 1'b1; r_next = LW'(e); end
+        r_e   = r_q;
+        r_any = r_qv && lv[r_q] && lst[r_q] == L_WAIT && lretry[r_q];
     end
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) r_qv <= 1'b0;
+        else        r_qv <= r_next_v;
+    end
+    always_ff @(posedge clk) r_q <= r_next;
 
     logic          e_v, e_ld, e_retry, e_mis;
     logic [LW-1:0] e_lq;
@@ -265,12 +282,9 @@ module OOO_LSU
         e_size  = iss_valid ? iss_size : lsize[r_e];
         e_uns   = iss_valid ? iss_uns  : luns[r_e];
         e_dst   = iss_valid ? iss_dst  : ldst[r_e];
-        case (e_size)
-            2'd1:    e_mis = e_addr[0];
-            2'd2:    e_mis = e_addr[1:0] != 2'd0;
-            2'd3:    e_mis = e_addr[2:0] != 3'd0;
-            default: e_mis = 1'b0;
-        endcase
+        // misaligned: the issued µop's from its own address (a store's SQ write
+        // waits on it), a retried load's from the LQ
+        e_mis = iss_valid ? misal(iss_size, e_sum[2:0]) : misal(lsize[r_e], laddr[r_e][2:0]);
         dc_req_valid = e_v && e_ld && !e_mis;
         dc_req_addr  = e_addr;
         dc_req_tag   = e_lq;

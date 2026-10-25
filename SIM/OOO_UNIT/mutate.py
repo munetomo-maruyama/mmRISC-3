@@ -77,6 +77,7 @@ M = [
     ('M53', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'lold[e] <= lold[e] & ~s_free;', 'lold[e] <= lold[e];', 'a drained store stays in the older mask'),
     ('M54', 'OOO_LSU/OOO_LSU.sv', 'lsu', "syoung[i][j] <= a0 && s_new[1] && st1[SW-1:0] == SW'(j);", "syoung[i][j] <= 1'b0;", 'slot 1 not younger than slot 0'),
     ('M55', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'f_v    = (fb_v || dc_fill_valid) && f_live && !m_v && !restore && !flush_all;', 'f_v    = (fb_v || dc_fill_valid) && f_live && !restore && !flush_all;', 'a fill writes over the load in M'),
+    ('M56', 'OOO_LSU/OOO_LSU.sv', 'lsu', "r_any = r_qv && lv[r_q] && lst[r_q] == L_WAIT && lretry[r_q];", 'r_any = r_qv;', 'a stale retry candidate tried'),
     ('M33', 'OOO_UBTB/OOO_UBTB.sv', 'ubtb', "else if (upd_valid && !found && upd_taken) rr <= rr + EW'(1);", "else if (upd_valid && upd_taken) rr <= rr + EW'(1);", 'replacement moves on a hit'),
 ]
 

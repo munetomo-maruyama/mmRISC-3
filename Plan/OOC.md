@@ -672,3 +672,23 @@ register to register, as in mmRISC-2's measurement. Per group of register names,
   conversion (340) replaced by a small iterative unit (0.3k to 0.5k expected).
 - **The FPU levers (L3) are about 1.0k to 1.3k together** (1.5k to 3k at G0). The gap is that much harder to close
   (`Doc/UARCH.md` 6.2 updated).
+
+### 11.7 The LSU rerun, and the remaining path fixed (2026-10-25)
+
+| Run | LUT | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|
+| OOC_LSU (first version) | 2,912 | 2,943 | −4.019 ns | 29 |
+| OOC_LSU (rewritten in 11.5) | **2,943** | 3,157 | **−0.352 ns** | 25 |
+
+- The rewrite of 11.5 took the 4 ns miss down to 0.35 ns, at about the same size (2,943).
+- **The remaining path**: an LQ entry's valid bit → the choice of the entry to try again (a loop keeping the oldest so
+  far: serial once more) → the choice of E's address (a new µop or a load tried again) → the misaligned check → a
+  store's write into the SQ. A store never comes from a retry, so its check need not wait for the retry choice.
+- **Fixed**:
+  1. **The retry choice a cycle ahead**: the lowest-numbered waiting entry, by a parallel priority select, into a
+     register. E only checks with bit lookups that it is still valid and waiting. Retries are rare, and any order is
+     correct.
+  2. **The misaligned check per source**: the issued µop's straight from its address, a retried load's from the LQ,
+     chosen afterwards.
+- All PASS on 7 seeds. One mutation added (a stale candidate tried again); all 15 LSU mutations detected (54 in all).
+- **Please rerun `synth_ooo.bat OOC_LSU`.**

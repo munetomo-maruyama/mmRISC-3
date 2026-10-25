@@ -896,3 +896,56 @@ https://github.com/riscv/riscv-arch-test
 ```text
 I ran synth_ooo.bat OOC_LSU and synth_fpu_c1.bat. Please read the results and record them.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I read the two results and recorded them in 11.5 to 11.6 of OOC_J.md / OOC.md. The LSU's size is inside the estimate, but it fell 4 ns short of 50 MHz, so I rewrote it right away. Pushed to dev as `6e456de`.
+
+**LSU (OOC_LSU)**
+
+| | LUT | Register-to-register slack |
+|---|---|---|
+| First version | **2,912** (estimate 2.5k to 3.5k, adapter included) | **−4.019 ns** (29 levels) |
+
+It did not close because three things were in series. As with the uBTB, a serial choice was the main cause.
+
+1. The SQ boundary was computed from the load's LQ number
+2. The youngest matching store was chosen by a loop comparing with "the best so far" (a chain of compares, about 15 ns)
+3. Whether the write port went to a fill or to the load waited for the result of the search
+
+What was rewritten:
+
+- **A mask of older stores**: each LQ entry keeps the SQ entries older than it as a bit mask. The boundary arithmetic goes.
+- **An age matrix of the SQ**: the youngest match comes out as a one-hot select in two levels.
+- **Write-port priority**: whenever a load is in M, the port always goes to M. The choice no longer waits for the search.
+
+After the rewrite all 7 seeds still PASS, and all 14 LSU mutations are detected (53 in all). In Yosys 4,768 → 4,292 LUTs, about 2.6k expected in Vivado. The test bench had one place where it crashed on an RTL error; it now reports it instead of crashing.
+
+**FPU breakdown (C1)**: FPU_PIPE is 9,060 LUTs, the same as mmRISC-2's measurement.
+
+| Function | LUT |
+|---|---|
+| FMA datapath (alignment 1.5k, normalization 1.2k, add 0.8k, others) | about 4.3k |
+| Divide / square root (iterative) | about 1.3k |
+| Rounder | 1.0k |
+| Other operations (compares, min / max, sign, classification and so on) | 0.86k |
+| Second half of the float-to-integer conversion | 0.34k |
+
+- **The FPU levers turned out smaller than thought.** The multiply is mostly DSPs, so sharing the multiplier (C2) saves about 0.3k LUTs. Moving the rare operations to an iterative unit (C3) saves about 0.7k to 0.9k. Together about 1.0k to 1.3k, less than the 1.5k to 3k assumed at G0.
+- Reflecting this, I updated the outlook for closing the gap in UARCH 6.2. The levers usable without touching fusion, Ethernet or the ceiling come to 3.6k to 4.8k; closing the middle of the estimate (8.8k over) needs fusion level 2 and raising the ceiling to 54k, or more.
+- The FMA datapath (about 4.3k) is the double-precision FMA itself, the part kept for performance.
+
+**The next Vivado run** (checking the rewritten LSU):
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_LSU
+```
+<!-- /answer -->
+
+## 29. 2026-10-25 11:47:56 JST
+
+```text
+I reran synth_ooo.bat OOC_LSU. Please read the result and record it.
+```

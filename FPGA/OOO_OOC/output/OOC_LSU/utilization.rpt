@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Sun Oct 25 10:53:24 2026
+| Date         : Sun Oct 25 11:41:42 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOC_LSU/utilization.rpt
 | Design       : OOC_LSU
@@ -22,9 +22,9 @@ Table of Contents
 +-------------+---------+------------+------------+---------+------+------+--------+--------+------------+
 |   Instance  |  Module | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
 +-------------+---------+------------+------------+---------+------+------+--------+--------+------------+
-| OOC_LSU     |   (top) |       2912 |       2912 |       0 |    0 | 2943 |      0 |      0 |          0 |
+| OOC_LSU     |   (top) |       2943 |       2943 |       0 |    0 | 3157 |      0 |      0 |          0 |
 |   (OOC_LSU) |   (top) |          0 |          0 |       0 |    0 |  607 |      0 |      0 |          0 |
-|   u_lsu     | OOO_LSU |       2912 |       2912 |       0 |    0 | 2336 |      0 |      0 |          0 |
+|   u_lsu     | OOO_LSU |       2943 |       2943 |       0 |    0 | 2550 |      0 |      0 |          0 |
 +-------------+---------+------------+------------+---------+------+------+--------+--------+------------+
 * Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
 
