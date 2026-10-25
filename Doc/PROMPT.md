@@ -1677,3 +1677,44 @@ Recorded in `Plan/OOC.md` 15.7 (and the Japanese version), the issue-queue row o
 ```text
 Next, please go on with decode × 4 and RVC expansion (A2). Prepare the unit tests and Vivado scripts too.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I wrote decode × 4 and RVC expansion (A2). All 16 unit tests PASS and all 20 mutations added are detected (166 in all). The Vivado script is ready, and everything is pushed to dev (8c31e6a). Vivado has not been run yet.
+
+**How: mmRISC-2's decoders as they are**
+- mmRISC-2 Rev.02's `CORE_DECOMP` (RVC → 32-bit) and `CORE_DEC` (RV64GC + Zba/Zbb/Zbc/Zbs/Zicond/Zicsr/Zifencei/Zicboz, privileged instructions) are brought unchanged into `RTL/CPU/CORE`.
+  - The instruction set is kept as mmRISC-2's, and the ALU's operation encoding is the same, so the decode result goes on as it is.
+  - In mmRISC-2 these booted Linux.
+- The new **`OOO_DEC`** expands RVC and decodes in each of the 4 slots, and derives the fields the other blocks use.
+
+| To | Fields |
+|---|---|
+| Fusion (`OOO_FUSE`) | class, op kind, integer registers, whether the narrowed second stage can run it |
+| Issue queue | port, 2-cycle result, result from outside |
+| ROB | illegal, the mark of instructions that run only at the ROB head |
+
+**How it is checked (`tb_dec`)**
+- Two references. One is a decoder and RVC expander written separately from the specification's tables; the RVC expansion uses Spike's own field extractors. The other decides whether an instruction exists, by **actually running it in Spike**.
+- At first I tried to decide that with Spike's disassembler, but it could not be used: whatever the ISA string, it knows every extension, vector and quad included, and it takes the reserved RVC encodings.
+- Running it, Spike still accepts vector instructions without V, so only the vector encoding space is left out of the judgment.
+- All 49,152 RVC encodings and 3,000,000 32-bit words. First the reference and Spike were checked to agree (no difference); then every output of the RTL against the reference: PASS.
+- Two redundant conditions found on the way were removed. The test now also checks that illegal instructions have no register or port.
+
+**Size (Yosys)**: `OOC_DEC` is 2,246 LUTs. With the ratios so far, about 1.1k to 1.8k, near the top of the estimate (1.0k to 1.6k). The harness keeps every field, FP and CSR included, so in the Phase 1 core the unused part is removed by synthesis and it should be smaller.
+
+Recorded in `Plan/OOC.md` section 16 (and the Japanese version), 3.3 and 4.3 of `Doc/UARCH`, `RTL/CPU/CORE/README` (new), the RTL READMEs and the prompt log (answer 48 and the English of 49).
+
+**Request**: please run this in Vivado.
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_DEC
+```
+<!-- /answer -->
+
+## 50. 2026-10-25 23:25:04 JST
+
+```text
+synth_ooo.bat OOC_DEC has finished.
+```

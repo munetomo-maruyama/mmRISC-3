@@ -214,7 +214,7 @@ of the slices).
 | Fetch: PC generation, FTQ, I$ interface, predecode, fetch buffer, 4 instructions out | 2.0k to 2.8k | mmRISC-2's IFU without its BTB is 2,893 for a narrower fetch; the buffer (8 parcels in at any place, 4 instructions out at variable places) about 1.3k to 1.8k. **2026-10-25: measured in Vivado, `OOO_FBUF` 940 LUTs (+3.541 ns after its loop was shortened) and `OOO_FTQ` 148, about 1.09k together (`Plan/OOC.md` 13.6, 13.7); PC generation, the I$ interface and predecode in `OOC_FRONT` (next rows)** |
 | TAGE-S logic (tables in block RAM) | 0.8k to 1.5k | Folded histories, tag compares, provider / alternate choice, update and allocation through the FTQ. **2026-10-25: the whole front end with the uBTB (`OOC_FRONT`: uBTB, predecode, TAGE-S, BTB, RAS, fetch control) measured in Vivado, 3,076 LUTs, 5.5 BRAM tiles, +0.959 ns (`Plan/OOC.md` 14.6), at the bottom of its estimate of 3.0k to 4.8k** |
 | BTB (block RAM) and RAS 16 | 0.4k to 0.7k | Tag compare and target; RAS in LUTRAM. **2026-10-25: `OOO_BTB` (indirect jumps only) and `OOO_RAS` written; the direct targets are predecode's 8 adders, in the fetch row** |
-| Decode × 4 and RVC × 4 | 1.0k to 1.6k | mmRISC-2's CORE_DEC 278 and CORE_DECOMP 78 each; `REDUCE.md` E2. **2026-10-25: `OOO_DEC` written (Yosys 2,246 with the FP and CSR fields); Vivado to come (`Plan/OOC.md` 16.3)** |
+| Decode × 4 and RVC × 4 | 1.0k to 1.6k | mmRISC-2's CORE_DEC 278 and CORE_DECOMP 78 each; `REDUCE.md` E2. **2026-10-25: `OOO_DEC` measured in Vivado, 1,980 LUTs with every field (the FP and CSR ones too), +8.048 ns (`Plan/OOC.md` 16.4)** |
 | ROB 24 | 0.7k to 1.2k | Payload in LUTRAM (two banks), status in flip-flops, commit 2 a cycle, flush. **2026-10-25: `OOO_ROB` written; Vivado first gave 5,173 LUTs with the payload in flip-flops (two write statements per bank), fixed to one write per bank: 1,073 LUTs (160 LUTRAM), +11.060 ns (`Plan/OOC.md` 12.7)** |
 | Issue-queue payload | 0.4k to 0.7k | LUTRAM, 2 writes / 3 reads (two banks + LVT) |
 | LSU: address calculation, alignment, LQ 12, SQ 12 with forwarding, D$ adapter, hit speculation and replay | 2.5k to 3.5k | mmRISC-2's CORE_LSU is 946 (alignment); the SQ's address compares and data select; the adapter. **2026-10-25: `OOO_LSU` without the adapter measured in Vivado, 2,969 LUTs, +6.265 ns (`Plan/OOC.md` 11.8)** |
@@ -237,6 +237,8 @@ of the slices).
 | **Over, 2026-10-25 evening** | **7.5k** | **9.5k** | **11.4k** |
 | Needed, 2026-10-25 night (the issue queue with selective replay measured: 4,974 LUTs at 16 entries, about 3.9k at 12, +1.4k) | 26.8k | 28.0k | 29.2k |
 | **Over, 2026-10-25 night** | **8.9k** | **10.9k** | **12.8k** |
+| Needed, 2026-10-25 late (decode measured: 1,980 LUTs with every field, in place of 1.0k to 1.6k) | 27.8k | 28.7k | 29.6k |
+| **Over, 2026-10-25 late** | **9.9k** | **11.6k** | **13.2k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is

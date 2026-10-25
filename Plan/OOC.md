@@ -1304,3 +1304,19 @@ A2 of the work plan: D1, between the fetch buffer and fusion.
 cd FPGA\OOO_OOC
 synth_ooo.bat OOC_DEC
 ```
+
+### 16.4 The Vivado result (2026-10-25)
+
+| Run | LUT | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|
+| OOC_DEC (4 slots, every field kept) | **1,980** | 628 | **+8.048 ns** | 9 |
+
+- **It closes at 50 MHz with plenty of margin** (11.8 ns, 9 levels).
+- **It is above the estimate** (1.0k to 1.6k): about 495 LUTs a slot, where mmRISC-2 measured 278 + 78 = 356 for
+  CORE_DEC and CORE_DECOMP in its pipeline. The rest is the derived fields of `OOO_DEC` and the outputs mmRISC-2's
+  pipeline did not use. The FP and CSR fields stay in the count: the instruction set is kept, so the final core
+  decodes them too.
+- **The budget** (`Doc/UARCH.md` 4.4): in place of 1.0k to 1.6k, the gap goes to **9.9k / 11.6k / 13.2k**. What is
+  left unwritten is the issue-queue payload, the D$ adapter and the control.
+- Not tried now: sharing or narrowing decode (for example RVC expansion in only some slots) would change what the
+  model measured; it is a G0b matter if it comes to it.
