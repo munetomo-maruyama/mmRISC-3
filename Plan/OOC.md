@@ -538,3 +538,87 @@ synth_ooo.bat OOC_RENAME
 - Against the first versions: the issue queue 6,200 → 3,143 (−49 %), renaming 6,098 → 2,271 (−63 %). Most of it comes
   from 2 sources and 1 destination per µop and from 64 physical registers.
 
+
+---
+
+## 11. LSU (step 2 of Phase 1, 2026-10-25)
+
+The first block of step 2 of `Doc/UARCH.md` section 8. The LSU (LQ / SQ and forwarding), the block whose estimate had
+the widest spread, is written, verified by a unit test and bug injection, and has its Vivado scripts.
+
+### 11.1 The block (`RTL/CPU/OOO/OOO_LSU`)
+
+| Item | Content |
+|---|---|
+| Pipeline | E: address calculation (base + immediate), the misaligned check; a store writes its SQ entry and is complete, a load sends its request to the D$. M: the D$ answer, the search of the SQ (the youngest older store to the same 8-byte word), the result chosen and aligned. WB: the result register (2 cycles after issue as the dependents see it) |
+| LQ / SQ | 12 / 12. Allocated in order at dispatch (up to 2 a cycle). The LQ is freed at commit, the SQ when a committed store has been written to the D$. The tails after each slot are given out for the checkpoints |
+| Forwarding | The data of the youngest older matching store when it covers the load. When it does not (a partial overlap), the load waits and is tried again from the LQ |
+| Ordering | Conservative: a load uses D$ data only when every older store has its address. `lsu_st_known` (per LQ entry) lets the issue queue hold loads until then, and M checks again |
+| Misses | The load waits for the fill (`dc_fill_*`) and writes back late (`wb_late`: it needs a wakeup). A fill arriving while the write port is taken is buffered (one) |
+| Cancelling speculative wakeups | A load from port 2 that cannot give its result in its expected cycle (WB) raises `ld_cancel` with its tag in M. How the dependents are held back (the replay policy) is outside this block and decided when the core is put together (11.4) |
+| Recovery | `restore` sets the tails of a checkpoint. `flush_all` goes to the committed state (the LQ empty, the SQ down to its committed stores, which still drain). A load in M in a cycle of recovery waits and is tried again if its entry stays |
+| D$ | The port is abstract (tagged requests and fills, a write port); the adapter to mmRISC-2's D$ is outside. The adapter drops the answers of the fills of the LQ entries in `dc_kill` (freed entries; the line is still filled) |
+
+**No store drains in a cycle with a load in E.** That load reads the D$ now and searches the SQ next cycle, so the store
+must still be in the SQ then (the block RAM reads first, so a store written in the same cycle is not read).
+
+### 11.2 Verification (`SIM/OOO_UNIT/tb_lsu.cpp`)
+
+- **The test bench plays the rest of the core.** It sends a random stream of loads, stores, branches and other µops in
+  program order to a few 8-byte words (loads and stores meet often). It dispatches up to 2 a cycle while the queues and
+  a 24-entry window have room, issues to port 2 in random order (a load mostly after `lsu_st_known`, now and then
+  earlier to exercise the LSU's own wait), and commits in order. The D$ model answers hit or miss at random, fills after
+  a few cycles, and takes stores (now and then not). Branches resolve at random, some mispredicted (restore to the
+  checkpoint); a misaligned access is an exception that does `flush_all` at the head.
+- **Checked**:
+  - every load's value: the committed memory with the older uncommitted stores applied in program order (flushed
+    stores never count)
+  - a load completes once (on time or late; a misaligned one with an exception and no write)
+  - `ld_cancel` is raised exactly when a load from port 2 gives no result in its expected cycle
+  - the stores reach the D$ in commit order with their data and byte mask
+  - `lsu_st_known` is never set for a load with an older store whose address is not known
+  - no deadlock
+- **Result**: all PASS on 7 seeds (300,000 cycles each, 2.1 million in all). On one seed: 76,407 loads (21,918 of them
+  late), 80,510 stores, 32,432 cancels, 6,052 restores, 3,475 flushes.
+- **RTL bugs the test found** (all fixed):
+  1. Counting from the SQ head, `head + k` was computed at the width of an index (4 bits) and wrapped at 16 (the queue
+     is 12)
+  2. A load in M in a cycle of recovery was neither completed nor kept, so an older load that survives the recovery
+     never completed
+  3. The D$ fill of a flushed load was taken by the owner of the same LQ entry two allocations later (the 1-bit epoch
+     had come round). Fixed by adding `dc_kill`
+- **Bug injection**: 11 added, all detected (50 in all). At first the two that remove the epoch were not detected,
+  which showed the epoch redundant, so it was removed (`dc_kill`, never giving out a freed entry in the same cycle, and
+  not moving E to M in a cycle of recovery are enough). The one that removes the drain restriction was not detected
+  at first either: a hole in the test, whose D$ model wrote before it read; it now reads first.
+
+### 11.3 Size (Yosys), and the Vivado runs asked of the author
+
+| Block | LUT | FF | From |
+|---|---|---|---|
+| OOC_LSU (LQ 12, SQ 12, PAW 40) | 4,768 | 2,939 (about 640 of the harness included) | Yosys |
+| Expected in Vivado | about 2.9k to 3.6k | | The Vivado / Yosys ratios so far, 0.6 to 0.75 |
+| G0 estimate (with the D$ adapter) | 2.5k to 3.5k | | `Doc/UARCH.md` 4.3 |
+
+- Without the adapter it is already near the top of the estimate. Candidates to reduce it: the SQ data (12 × 64 bits)
+  and the LQ addresses (12 × 40 bits) in LUTRAM (written once, read through 1 or 2 ports), removing flip-flops and
+  12-to-1 selects (a few hundred LUTs together). Decided after the Vivado result.
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_LSU
+cd ..\FPU_C1
+synth_fpu_c1.bat
+```
+
+### 11.4 What the specification was missing (found writing the LSU)
+
+1. **Going back to the committed state**: a full flush for exceptions, interrupts and serialization needs the RAT of
+   the committed state (32 × 6 bits) and the committed head of the free list. The design has only checkpoints (at
+   branches). Renaming gets them (about 0.3k LUTs).
+2. **Holding back the dependents of a load that misses**: for 2-cycle load-use the dependents are woken before the
+   result is known. When a load cannot give its result (a miss, a wait), the dependents already woken must be held
+   back. The candidate: the issue queue cancels speculative wakeups and keeps the entries of µops issued in the shadow
+   until confirmed. Decided before the core is put together.
+
+(Added to the G0 specification, `Doc/UARCH.md` 3.4 and 3.7.)

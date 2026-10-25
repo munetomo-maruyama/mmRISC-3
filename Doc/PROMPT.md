@@ -807,3 +807,40 @@ Also: the `find /` (a search of the whole file system) I ran in the previous tur
 ```text
 I was reset, so please continue.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I solved the CoreMark problem left last time, and **step 1 of Phase 1 (lock-step comparison) is done**. Pushed to dev as `0e97174`.
+
+**The exit code 37 came from the checker, not from CoreMark.**
+
+- One character written through HTIF has the form `(1 << 56) | (1 << 48) | character code`. The checker looked at bit 0 before the device number, so a character with an odd code was taken for an "exit".
+- "2" (0x32, even) was printed, the next "K" (0x4B, odd) was taken as the exit, and the exit code became 37 (0x25).
+- Now the device number is checked first. Both CoreMark builds run to the end and print what running `spike` directly printed in Phase 0. The "Errors detected" in the output is only because 10 iterations fall short of the 10 seconds CoreMark asks for, the same as in Phase 0.
+
+**Results of the self-test** (`SIM/LOCKSTEP/run_selftest.sh`, PASS)
+
+| Target | Result |
+|---|---|
+| 175 riscv-tests | No mismatch. All 3,500 deliberately injected errors caught at the very place injected |
+| 2 CoreMark builds (about 3 million instructions each) | No mismatch, exit code 0. All 20 injected errors caught |
+| Tests ending with a nonzero code | Only ma_data and amocas (the ones expected to fail in mmRISC-2 too) |
+
+Step 1 is marked done in UARCH section 8, and the prompt log (answer 24 and the English of 25) is updated.
+
+Next is step 2 (RTL and Vivado measurements of the front end, decode, ROB and LSU), to narrow the spread of the estimates with measurements for the budget decision at G0b. For the FPU breakdown (C1) I first need to prepare an OOC script that synthesizes FPU_PIPE in parts, so I will make it together with step 2.
+<!-- /answer -->
+
+## 26. 2026-10-25 10:17:51 JST
+
+```text
+Please go on to step 2 of Phase 1. Start with the LSU (LQ / SQ and forwarding), whose estimate has the widest spread, and prepare its unit test and Vivado scripts. If you also make the OOC script for the FPU breakdown (C1), I will run it in Vivado.
+```
+
+## 27. 2026-10-25 10:18:39 JST
+
+```text
+Also, from now on please do the instruction tests with riscv-arch-test.
+https://github.com/riscv/riscv-arch-test
+```

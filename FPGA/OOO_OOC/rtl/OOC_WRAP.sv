@@ -175,3 +175,61 @@ module OOC_RENAME
          .out_dst(od), .out_old(oo), .wb_valid(wv), .wb_tag(wt), .free_valid(fv), .free_tag(ft),
          .restore(rs), .restore_id(rid));
 endmodule : OOC_RENAME
+
+//---------------------------------------------------------------------------
+// OOC_LSU: the load / store unit with its inputs and outputs registered
+// (the issue fields come from RR, the D$ data from the block RAM, and the
+// D$ address goes to it, all through flip-flops in the core as well).
+// The inputs come in one bus and the outputs go out in one, to keep the
+// harness short; the parameters are those of the G0 configuration.
+//---------------------------------------------------------------------------
+module OOC_LSU
+    (
+        input  logic          clk,
+        input  logic          rst_n,
+        input  logic [325:0]  in,
+        output logic [315:0]  out
+    );
+    logic [325:0] q;
+    always_ff @(posedge clk) q <= in;
+
+    logic [1:0]   lq_avail, sq_avail;
+    logic [7:0]   disp_lq, disp_sq;
+    logic [9:0]   ck_lq_tail, ck_sq_tail;
+    logic [11:0]  st_known, dc_kill;
+    logic         dc_req_valid, dc_fill_ready, dc_st_valid, wb_valid, wb_late, ld_cancel;
+    logic         cmp_ld_valid, cmp_ld_exc, cmp_st_valid, cmp_st_exc;
+    logic [39:0]  dc_req_addr, dc_st_addr;
+    logic [3:0]   dc_req_tag;
+    logic [63:0]  dc_st_data, wb_data;
+    logic [7:0]   dc_st_mask;
+    logic [5:0]   wb_tag, ld_cancel_tag;
+    logic [4:0]   cmp_ld_rob, cmp_st_rob;
+
+    OOO_LSU #(.NLQ(12), .NSQ(12), .PAW(40), .TAGW(6), .ROBW(5)) u_lsu
+        (.clk(clk), .rst_n(rst_n),
+         .disp_valid(q[1:0]), .disp_ld(q[3:2]), .disp_st(q[5:4]), .disp_rob(q[15:6]),
+         .lq_avail(lq_avail), .sq_avail(sq_avail), .disp_lq(disp_lq), .disp_sq(disp_sq),
+         .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail),
+         .iss_valid(q[16]), .iss_ld(q[17]), .iss_lq(q[21:18]), .iss_sq(q[25:22]),
+         .iss_base(q[89:26]), .iss_imm(q[101:90]), .iss_data(q[165:102]), .iss_size(q[167:166]),
+         .iss_uns(q[168]), .iss_dst(q[174:169]), .lsu_st_known(st_known),
+         .dc_req_valid(dc_req_valid), .dc_req_addr(dc_req_addr), .dc_req_tag(dc_req_tag),
+         .dc_hit(q[175]), .dc_rdata(q[239:176]),
+         .dc_fill_valid(q[240]), .dc_fill_tag(q[244:241]), .dc_fill_data(q[308:245]),
+         .dc_fill_ready(dc_fill_ready), .dc_kill(dc_kill),
+         .dc_st_valid(dc_st_valid), .dc_st_addr(dc_st_addr), .dc_st_data(dc_st_data), .dc_st_mask(dc_st_mask),
+         .dc_st_ready(q[309]),
+         .wb_valid(wb_valid), .wb_late(wb_late), .wb_tag(wb_tag), .wb_data(wb_data),
+         .ld_cancel(ld_cancel), .ld_cancel_tag(ld_cancel_tag),
+         .cmp_ld_valid(cmp_ld_valid), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_exc),
+         .cmp_st_valid(cmp_st_valid), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_exc),
+         .lq_commit(q[311:310]), .sq_commit(q[313:312]),
+         .restore(q[314]), .restore_lq_tail(q[319:315]), .restore_sq_tail(q[324:320]), .flush_all(q[325]));
+
+    always_ff @(posedge clk)
+        out <= {lq_avail, sq_avail, disp_lq, disp_sq, ck_lq_tail, ck_sq_tail, st_known, dc_kill,
+                dc_req_valid, dc_req_addr, dc_req_tag, dc_fill_ready, dc_st_valid, dc_st_addr,
+                dc_st_data, dc_st_mask, wb_valid, wb_late, wb_tag, wb_data, ld_cancel, ld_cancel_tag,
+                cmp_ld_valid, cmp_ld_rob, cmp_ld_exc, cmp_st_valid, cmp_st_rob, cmp_st_exc};
+endmodule : OOC_LSU

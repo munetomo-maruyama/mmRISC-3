@@ -15,9 +15,10 @@ to be used as they are in Phase 1, and are measured alone first (Phase 0, step 3
 | `OOO_IQ` | Issue queue: 16 entries, 2 sources and 1 destination per µop, 6 wakeup buses, 2 in / 3 out per cycle (ALU0 + MUL/DIV, ALU1, LSU), 1-cycle wakeup-select, oldest first by an age matrix, latency-2 and external wakeups | `tb_iq`: every issue against an independent account of when values are usable |
 | `OOO_RENAME` | Renaming: 2 µops per cycle with 2 sources and 1 destination, 64 physical registers, RAT, free list, busy bits, in-group dependences, 8 checkpoints copied a cycle late | `tb_rename`: against a reference with commits, write-backs and restores |
 | `OOO_PRF` | Physical registers: NREG × 64 (64 in the fusion configuration), NW writes / NR reads (3 / 6), LUTRAM banks + live value table | `tb_prf`: random reads and writes against an array |
+| `OOO_LSU` | Load / store unit: LQ 12, SQ 12, forwarding from the youngest older store, conservative ordering (`lsu_st_known`), `ld_cancel` and late results for misses, recovery to a checkpoint or the committed state | `tb_lsu`: the rest of the core modelled, every load value against program order, 7 seeds |
 | `OOO_UBTB` | Next-line predictor: 16 entries, 12-bit partial tags, next fetch address in one cycle with a parallel choice | `tb_ubtb`: against a reference table |
 
 - Coding follows mmRISC-2 (`logic`, `always_ff` with active-low asynchronous reset, comments on what and why).
 - Every block is linted by Verilator (`-Wall`); the unit tests start everything that has no reset at random values.
-- `SIM/OOO_UNIT/mutate.py` breaks the RTL on purpose (33 mutations); all are detected.
+- `SIM/OOO_UNIT/mutate.py` breaks the RTL on purpose (50 mutations); all are detected.
 - Out-of-context synthesis in Vivado: `FPGA/OOO_OOC` (`synth_ooo.bat`), run by the author.

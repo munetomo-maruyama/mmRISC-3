@@ -62,6 +62,18 @@ M = [
     ('M37', 'OOO_RENAME/OOO_RENAME.sv', 'rename', 'fx_v[out_ckpt_id[u]]    <= (u == 0) && alloc[1];', 'fx_v[out_ckpt_id[u]]    <= alloc[1];', "µop 1's checkpoint undoes µop 1"),
     ('M38', 'OOO_IQ/OOO_IQ.sv', 'iq', 'd_v2 <= iss_wr[2];', "d_v2 <= 1'b0;", 'loads never wake their dependents'),
     ('M39', 'OOO_IQ/OOO_IQ.sv', 'iq', 'bv[1] = iss_wr[1];', "bv[1] = 1'b0;", 'ALU1 never wakes its dependents'),
+    # 2026-10-25: the load / store unit (Doc/UARCH.md 3.7)
+    ('M40', 'OOO_LSU/OOO_LSU.sv', 'lsu', "sdist(SW'(i), sq_head[SW-1:0]) >= best)) begin", "sdist(SW'(i), sq_head[SW-1:0]) < best)) begin", 'forwarding from the oldest matching store'),
+    ('M41', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'm_cover = (smask[m_fwd_e] & m_lmask) == m_lmask;', "m_cover = 1'b1;", 'a partial overlap forwarded'),
+    ('M42', 'OOO_LSU/OOO_LSU.sv', 'lsu', "if (older[i] && !sknown[i]) m_unknown = 1'b1;", "if (1'b0) m_unknown = 1'b1;", 'an older store without an address ignored'),
+    ('M43', 'OOO_LSU/OOO_LSU.sv', 'lsu', "(SW + 1)'(sdist(SW'(i), sq_head[SW-1:0])) < nb;", "(SW + 1)'(sdist(SW'(i), sq_head[SW-1:0])) <= nb;", 'the store after the boundary counted as older'),
+    ('M44', 'OOO_LSU/OOO_LSU.sv', 'lsu', "e_wdata = iss_data << {e_sum[2:0], 3'b000};", 'e_wdata = iss_data;', 'store data not aligned'),
+    ('M45', 'OOO_LSU/OOO_LSU.sv', 'lsu', "2'd1:    return uns ? {48'd0, s[15:0]} : {{48{s[15]}}, s[15:0]};", "2'd1:    return {48'd0, s[15:0]};", 'halfword loads never sign extended'),
+    ('M46', 'OOO_LSU/OOO_LSU.sv', 'lsu', "sknown[sq_head[SW-1:0]] && !(e_v && e_ld);", "sknown[sq_head[SW-1:0]];", 'a store drained while a load reads the D$'),
+    ('M47', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'ld_cancel     = m_v && !m_retry && !m_ok;', 'ld_cancel     = m_v && !m_ok;', 'retried loads cancelled too'),
+    ('M48', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'assign dc_kill[e] = lv[e] && !keep;', "assign dc_kill[e] = 1'b0;", 'pending fills of freed entries not dropped'),
+    ('M50', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'lq_tail_n = restore_lq_tail;', 'lq_tail_n = lq_tail;', 'restore keeps the LQ tail'),
+    ('M51', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'sq_cmt_n  = snext(sq_cmt, sq_commit);', "sq_cmt_n  = snext(sq_cmt, {1'b0, sq_commit[0]});", 'only one store committed a cycle'),
     ('M33', 'OOO_UBTB/OOO_UBTB.sv', 'ubtb', "else if (upd_valid && !found && upd_taken) rr <= rr + EW'(1);", "else if (upd_valid && upd_taken) rr <= rr + EW'(1);", 'replacement moves on a hit'),
 ]
 

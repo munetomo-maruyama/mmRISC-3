@@ -113,6 +113,10 @@ flip-flops, a free list of 32, busy bits cleared by the 3 write-back ports, in-g
 a jalr (a jal cannot mispredict in the back end). Restoring a checkpoint needs at least 2 cycles after its renaming,
 which the pipeline gives.
 
+**Added 2026-10-25 (`Plan/OOC.md` 11.4)**: a full flush (exceptions, interrupts, serialization) goes back to the
+committed state, which needs the RAT of the committed state (32 × 6 bits, written at commit) and the committed head of
+the free list; renaming gets them (about 0.3k LUTs).
+
 ### 3.5 Dispatch, ROB and issue queue
 
 | Item | Specification |
@@ -143,6 +147,8 @@ which the pipeline gives.
 | LQ / SQ | 12 / 12; forwarding from the SQ (same address and size); stores write the D$ after commit |
 | D$ | mmRISC-2's (non-blocking, 2 MSHRs) behind an adapter with tagged requests and responses |
 | Misaligned | Trap, as in mmRISC-2 |
+| Block | `OOO_LSU` (2026-10-25, `Plan/OOC.md` 11): LQ / SQ, forwarding, `lsu_st_known` for the issue queue, `ld_cancel` for a load that misses its expected cycle, late results, `dc_kill` for the D$ adapter |
+| **Open: holding back dependents** | The dependents of a load are woken before its result is known (2-cycle load-use). When it cannot give its result (a miss, a wait), the dependents already woken must be held back; candidate: the issue queue cancels speculative wakeups and keeps the entries of µops issued in the shadow until confirmed. Decided before the core is put together |
 
 ### 3.8 Commit, exceptions and fused pairs
 
@@ -210,7 +216,7 @@ of the slices).
 | Decode × 4 and RVC × 4 | 1.0k to 1.6k | mmRISC-2's CORE_DEC 278 and CORE_DECOMP 78 each; `REDUCE.md` E2 |
 | ROB 24 | 0.7k to 1.2k | Payload in LUTRAM (two banks), status in flip-flops, commit 2 a cycle, flush |
 | Issue-queue payload | 0.4k to 0.7k | LUTRAM, 2 writes / 3 reads (two banks + LVT) |
-| LSU: address calculation, alignment, LQ 12, SQ 12 with forwarding, D$ adapter, hit speculation and replay | 2.5k to 3.5k | mmRISC-2's CORE_LSU is 946 (alignment); the SQ's address compares and data select; the adapter |
+| LSU: address calculation, alignment, LQ 12, SQ 12 with forwarding, D$ adapter, hit speculation and replay | 2.5k to 3.5k | mmRISC-2's CORE_LSU is 946 (alignment); the SQ's address compares and data select; the adapter. **2026-10-25: `OOO_LSU` without the adapter is 4,768 LUTs in Yosys (about 2.9k to 3.6k in Vivado terms; `Plan/OOC.md` 11.3)** |
 | Dispatch, branch resolution, redirects, commit and exceptions, the ports to CSR / MDU / FPU / MMU | 1.5k to 2.5k | mmRISC-2's pipeline itself is 2,511 |
 | **Not yet written** | **9.3k to 14.5k** | Estimates |
 | **The out-of-order engine** | **23.3k to 28.5k** | |
@@ -299,7 +305,7 @@ Block RAM and DSP are not the limit: 26.5 tiles are free, TAGE-S and the BTB nee
 | Lock-step | Every commit compared with Spike (1.1.1-dev, installed): PC, register written and value, CSR effects, exceptions. A commit-trace port in the style of RVFI (simulation only) |
 | Fused pairs | Reported as 2 instructions; when the first half's result is not written (one write per pair), only its PC is compared and the register is compared after the second half |
 | Unit level | The Phase 0 unit tests and bug injection (`SIM/OOO_UNIT`, 39 mutations) carry over and grow with each block |
-| Core level | riscv-tests (rv64ui / um / uc + Zb), random instruction streams, exception injection, bug injection into renaming and the LSQ |
+| Core level | **riscv-arch-test** (the author's instruction, 2026-10-25: the instruction tests from now on), random instruction streams, exception injection, bug injection into renaming and the LSQ. The riscv-tests of mmRISC-2 served only the self-test of the lock-step checker |
 | Performance | CoreMark in simulation against the cycle model (G1: within ±5 %); Konata pipeline views |
 | Spike's support | Sstc, Zicboz, Smcntrpmf, Sdtrig, PMP checked before Phase 2 |
 

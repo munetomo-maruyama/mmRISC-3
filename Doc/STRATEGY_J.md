@@ -169,7 +169,7 @@ mmRISC-2の資産(SIM_CORE / SIM_SYS / SIM_BIOS、riscv-tests、バグ注入)に
 | Phase | 内容 | ゲート(完了条件) |
 |---|---|---|
 | **0** | リポジトリ立ち上げ、測定条件の固定、命令数の表、性能モデルと校正、設計空間の探索、NaxRiscvの実測、資源予算 | **G0**: マイクロアーキテクチャ仕様の凍結。予測CoreMark/MHzとLUT予算を数字で示す。目標に届かない場合は、ここで目標か構成を見直す |
-| 1 | 整数OoOコア(2幅、M-modeのみ、ベアメタル)、Spike lock-step、riscv-tests(rv64ui/um/uc + Zb系) | **G1**: シミュレーションでCoreMarkがモデルの±5%。Vivadoでコア単体(OOC)のLUTと50MHzを確認 |
+| 1 | 整数OoOコア(2幅、M-modeのみ、ベアメタル)、Spike lock-step、riscv-arch-test(2026-10-25から。それまではriscv-tests) | **G1**: シミュレーションでCoreMarkがモデルの±5%。Vivadoでコア単体(OOC)のLUTと50MHzを確認 |
 | 2 | 特権 / CSR / MMU / 例外 / デバッグ / FPU(縮小版)、非投機化一式 | **G2**: SIM_BIOSでLinuxのプロンプト、全テストPASS、バグ注入全検出 |
 | 3 | LiteX統合、タイミング、ボードでLinux(BusyBox、Debian 13) | **G3**: 120分ストレステストPASS、ボードでのCoreMark測定 |
 | 4 | 性能の詰め(予測器の拡大、融合の追加、メモリ依存投機など、モデルで効果を確認したものから) | **G4**: 目標の達成、またはやめどころの判断(mmRISC-2と同様、見込み数%未満のテーマは切る) |

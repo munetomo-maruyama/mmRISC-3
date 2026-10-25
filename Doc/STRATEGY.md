@@ -214,7 +214,7 @@ mmRISC-2's assets (SIM_CORE / SIM_SYS / SIM_BIOS, riscv-tests, bug injection), p
 | Phase | Content | Gate |
 |---|---|---|
 | **0** | Repository, measurement rules, instruction-count table, performance model and calibration, design-space exploration, NaxRiscv measured, resource budget | **G0**: micro-architecture spec frozen, with the predicted CoreMark/MHz and the LUT budget in numbers. If the goal is out of reach, the goal or the configuration is revised here |
-| 1 | Integer out-of-order core (2-wide, M-mode only, bare metal), Spike lock-step, riscv-tests (rv64ui/um/uc + Zb) | **G1**: CoreMark in simulation within ±5 % of the model; the core alone (OOC) in Vivado for LUTs and 50 MHz |
+| 1 | Integer out-of-order core (2-wide, M-mode only, bare metal), Spike lock-step, riscv-arch-test (from 2026-10-25; riscv-tests before) | **G1**: CoreMark in simulation within ±5 % of the model; the core alone (OOC) in Vivado for LUTs and 50 MHz |
 | 2 | Privilege / CSR / MMU / exceptions / debug / FPU (reduced), all non-speculative handling | **G2**: Linux prompt in SIM_BIOS, all tests PASS, all bug injections detected |
 | 3 | LiteX integration, timing, Linux on the board (BusyBox, Debian 13) | **G3**: 120-minute stress test PASS, CoreMark measured on the board |
 | 4 | Performance work (larger predictor, more fusion, memory-dependence speculation and so on, in the order the model ranks them) | **G4**: goal reached, or the stopping point decided (as in mmRISC-2, themes estimated under a few % are dropped) |
