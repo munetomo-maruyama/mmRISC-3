@@ -72,7 +72,7 @@ most optimization (sf + `-flto`). From `Plan/model/results/g0.txt`:
 |---|---|
 | F0 | Next fetch address: uBTB (16 entries, partial tags) in one cycle; redirects from F2 and from the back end win |
 | F1 | I$ read (block RAM), TAGE-S and BTB read (block RAM) |
-| F2 | I$ way select, predecode (RVC boundaries), override by TAGE-S / BTB / RAS (a disagreement redirects F0, 2 cycles lost); 16 bytes into the fetch buffer |
+| F2 | I$ way select, predecode (RVC boundaries, the targets of branches and jal), override by TAGE-S / BTB / RAS (a disagreement redirects F0, 2 cycles lost); 16 bytes into the fetch buffer (`OOO_FETCH`, `Plan/OOC.md` 14) |
 | D1 | Up to 4 instructions out of the fetch buffer (a window of 8 parcels), RVC expansion, decode |
 | D2 | Fusion (4 instructions → 2 µops), renaming (RAT, free list, busy bits, checkpoints) |
 | DS | Dispatch: issue queue, ROB, LQ / SQ, payload |
@@ -92,9 +92,9 @@ A misprediction costs 9 cycles from EX to EX. The model is the reference for the
 | Fetch | 16 bytes a cycle (aligned), the next block after a taken transfer |
 | Fetch buffer | `OOO_FBUF`: 4 whole 16-byte blocks in LUTRAM (decided at step 2 instead of a ring of 16 parcels, `Plan/OOC.md` 13.1); a window of 8 parcels over the head block and the next; up to 4 instructions a cycle out to decode; 32-bit instructions across blocks handled in the window |
 | uBTB | `OOO_UBTB`: 16 entries, fully associative, 12-bit partial tags, the first taken hit of the block in parallel, round-robin replacement, returns from the RAS top |
-| TAGE-S | 62 kbit in block RAM (`Plan/model/tage.h`, as measured in `TRACE.md`); updated at resolution through the FTQ |
-| BTB, RAS | BTB in block RAM; RAS 16 entries, its pointer kept per fetch block for recovery |
-| FTQ | `OOO_FTQ`: 8 entries, one per fetch block: PC, next address and prediction state (32 bits) for the update and the recovery (LUTRAM) |
+| TAGE-S | `OOO_TAGE`: per fetch block, as it can be built in block RAM (decided at step 2, `Plan/OOC.md` 14.1): 4 tagged tables of 1024 rows indexed by the fetch address and the history, each row with 3 direction counters for the 1st, 2nd and 3rd conditional branch of the block; base table of 2-bit counters per parcel; one history bit per slot branch. A 4th branch in a block is predicted not taken (none in CoreMark). Updated at commit through the FTQ. Against the model's TAGE per branch: about −0.2 % / −0.5 % |
+| BTB, RAS | `OOO_BTB`: for indirect jumps only (256 rows in block RAM, read with the fetch address); the targets of branches and jal come from predecode (`OOO_PREDEC`), those of returns from the RAS. `OOO_RAS`: 16 entries in LUTRAM; each block keeps the pointer and the entry a push would overwrite, for recovery |
+| FTQ | `OOO_FTQ`: 8 entries, one per fetch block: PC, next address and prediction state for the update and the recovery (LUTRAM). The front end needs 312 bits of state a block (TAGE 270, RAS 42), and the outcomes of the slot branches for the update at commit: the FTQ grows at the core's assembly (`Plan/OOC.md` 14.2) |
 
 ### 3.3 Decode and fusion
 
@@ -211,8 +211,8 @@ of the slices).
 | Fusion (`OOC_FUSE`) | 215 | Measured |
 | **Measured blocks** | 15,304 → **about 14.0k** | |
 | Fetch: PC generation, FTQ, I$ interface, predecode, fetch buffer, 4 instructions out | 2.0k to 2.8k | mmRISC-2's IFU without its BTB is 2,893 for a narrower fetch; the buffer (8 parcels in at any place, 4 instructions out at variable places) about 1.3k to 1.8k. **2026-10-25: measured in Vivado, `OOO_FBUF` 940 LUTs (+3.541 ns after its loop was shortened) and `OOO_FTQ` 148, about 1.09k together (`Plan/OOC.md` 13.6, 13.7)** |
-| TAGE-S logic (tables in block RAM) | 0.8k to 1.5k | Folded histories, tag compares, provider / alternate choice, update and allocation through the FTQ |
-| BTB (block RAM) and RAS 16 | 0.4k to 0.7k | Tag compare and target; RAS in LUTRAM |
+| TAGE-S logic (tables in block RAM) | 0.8k to 1.5k | Folded histories, tag compares, provider / alternate choice, update and allocation through the FTQ. **2026-10-25: `OOO_TAGE` written; in Vivado with the front end (`OOC_FRONT`, `Plan/OOC.md` 14.4)** |
+| BTB (block RAM) and RAS 16 | 0.4k to 0.7k | Tag compare and target; RAS in LUTRAM. **2026-10-25: `OOO_BTB` (indirect jumps only) and `OOO_RAS` written; the direct targets are predecode's 8 adders, in the fetch row** |
 | Decode × 4 and RVC × 4 | 1.0k to 1.6k | mmRISC-2's CORE_DEC 278 and CORE_DECOMP 78 each; `REDUCE.md` E2 |
 | ROB 24 | 0.7k to 1.2k | Payload in LUTRAM (two banks), status in flip-flops, commit 2 a cycle, flush. **2026-10-25: `OOO_ROB` written; Vivado first gave 5,173 LUTs with the payload in flip-flops (two write statements per bank), fixed to one write per bank: 1,073 LUTs (160 LUTRAM), +11.060 ns (`Plan/OOC.md` 12.7)** |
 | Issue-queue payload | 0.4k to 0.7k | LUTRAM, 2 writes / 3 reads (two banks + LVT) |

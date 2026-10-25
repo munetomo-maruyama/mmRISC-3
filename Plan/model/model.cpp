@@ -14,10 +14,13 @@
 //   model tage <trace.bin>
 //       the conditional branches through TAGE-S / M / L (to hold against
 //       ../trace/analyze.py)
+//   model tageblk <trace.bin> [slots=2 hist=0 lag=0 halve=1]
+//       TAGE-S as it can be built in block RAM, per fetch block (tageblk.h)
 //---------------------------------------------------------------------------
 #include "inorder.h"
 #include "tage.h"
 #include "ooo.h"
+#include "tageblk.h"
 
 static void print_inorder(const InorderResult& r, long iters)
 {
@@ -105,6 +108,17 @@ int main(int argc, char** argv)
             printf("TAGE-%s %ld kbit  conditional branches %ld  mispredicted %ld (%.3f %%)\n", nm,
                    tg.bits / 1024, nb, nm_, 100.0 * nm_ / nb);
         }
+    } else if (mode == "tageblk") {
+        int slots = (int)o.get("slots", 2), hist = (int)o.get("hist", 0), lag = (int)o.get("lag", 0);
+        bool halve = o.get("halve", 1);
+        o.check();
+        TageBlk tb(slots, hist, lag);
+        tb.halve = halve;
+        tb.run(t);
+        printf("TAGE-S per block (slots %d, hist %d, lag %d, halve %d): blocks %ld  conditional branches %ld  mispredicted %ld (%.3f %%)  past the slots %ld\n",
+               slots, hist, lag, (int)halve, tb.stat_blocks, tb.stat_br, tb.stat_miss, 100.0 * tb.stat_miss / tb.stat_br, tb.stat_past);
+        printf("blocks by branches used: 0 %ld  1 %ld  2 %ld  3 %ld  4+ %ld\n", tb.stat_nbr[0], tb.stat_nbr[1],
+               tb.stat_nbr[2], tb.stat_nbr[3], tb.stat_nbr[4] + tb.stat_nbr[5] + tb.stat_nbr[6] + tb.stat_nbr[7]);
     } else {
         fprintf(stderr, "unknown mode %s\n", mode.c_str());
         return 1;

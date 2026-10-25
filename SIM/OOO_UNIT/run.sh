@@ -32,7 +32,12 @@ TOP[lsu]=OOO_LSU;       SRC[lsu]="$R/OOO_LSU/OOO_LSU.sv"
 TOP[rob]=OOO_ROB;       SRC[rob]="$R/OOO_ROB/OOO_ROB.sv"
 TOP[fbuf]=OOO_FBUF;     SRC[fbuf]="$R/OOO_FBUF/OOO_FBUF.sv"
 TOP[ftq]=OOO_FTQ;       SRC[ftq]="$R/OOO_FTQ/OOO_FTQ.sv"
-TESTS=${*:-alu2 fuse prf rename iq ubtb lsu rob fbuf ftq}
+TOP[predec]=OOO_PREDEC; SRC[predec]="$R/OOO_PREDEC/OOO_PREDEC.sv"
+TOP[ras]=OOO_RAS;       SRC[ras]="$R/OOO_RAS/OOO_RAS.sv"
+TOP[btb]=OOO_BTB;       SRC[btb]="$R/OOO_BTB/OOO_BTB.sv"
+TOP[tage]=OOO_TAGE;     SRC[tage]="$R/OOO_TAGE/OOO_TAGE.sv"
+TOP[fetch]=OOO_FETCH;   SRC[fetch]="$R/OOO_UBTB/OOO_UBTB.sv $R/OOO_PREDEC/OOO_PREDEC.sv $R/OOO_TAGE/OOO_TAGE.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FETCH/OOO_FETCH.sv"
+TESTS=${*:-alu2 fuse prf rename iq ubtb lsu rob fbuf ftq predec ras btb tage fetch}
 
 fail=0
 for t in $TESTS; do

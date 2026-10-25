@@ -19,7 +19,8 @@ R=../../RTL/CPU/OOO
 mkdir -p output/yosys
 SRCS="$R/OOO_ALU/OOO_ALU.sv $R/OOO_ALU2/OOO_ALU2.sv $R/OOO_FUSE/OOO_FUSE.sv $R/OOO_PRF/OOO_PRF.sv
       $R/OOO_RENAME/OOO_RENAME.sv $R/OOO_IQ/OOO_IQ.sv $R/OOO_UBTB/OOO_UBTB.sv $R/OOO_LSU/OOO_LSU.sv $R/OOO_ROB/OOO_ROB.sv
-      $R/OOO_FBUF/OOO_FBUF.sv $R/OOO_FTQ/OOO_FTQ.sv rtl/OOC_WRAP.sv"
+      $R/OOO_FBUF/OOO_FBUF.sv $R/OOO_FTQ/OOO_FTQ.sv $R/OOO_PREDEC/OOO_PREDEC.sv $R/OOO_TAGE/OOO_TAGE.sv
+      $R/OOO_BTB/OOO_BTB.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FETCH/OOO_FETCH.sv rtl/OOC_WRAP.sv"
 
 one() {   # one <top> [NAME=value ...]
     local top=$1; shift
@@ -60,6 +61,7 @@ one OOC_LSU
 one OOC_ROB
 one OOC_FBUF
 one OOC_FTQ
+one OOC_FRONT
 one OOC_PRF NW=3 NR=8
 one OOC_PRF NW=5 NR=8
 one OOC_PRF NW=6 NR=9

@@ -1309,3 +1309,97 @@ I checked `fbuf_check.txt`, found no problem, and committed and pushed the FBUF 
 ```text
 I ran synth_ooo.bat OOC_FBUF.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The fetch buffer rerun widened the slack from +0.539 ns to **+3.541 ns**. The size, 940 LUTs, hardly changed.
+
+| Run | LUT | of it LUTRAM | FF | Register-to-register slack | Levels |
+|---|---|---|---|---|---|
+| OOC_FBUF (first version) | 931 | 192 | 323 | +0.539 ns | 16 |
+| **OOC_FBUF (fixed)** | **940** | 192 | 323 | **+3.541 ns** | 14 |
+
+- **The slack grew by 3.0 ns**, more than the 2 ns or so expected, for only 9 more LUTs (the third port reading the block starts).
+- **The worst path is now the loop itself.** It starts and ends at the head pointer `hb`, and the second LUTRAM read is gone.
+  - Path: `hb` → block data → window → chain of instruction lengths → count taken → `npop` → `hb`
+  - What remains is the window and the length chain; 79 % of the delay is routing.
+- **Budget**: the fetch buffer and the FTQ together come to about 1.09k (940 + 148).
+  - The fetch row of UARCH 4.3 (2.0k to 2.8k) also holds PC generation, the I$ interface and predecode, not written yet.
+  - So the gap in 4.4 is left as it is until the whole fetch is measured.
+
+Recorded in `Plan/OOC.md` 13.7 (and the Japanese version) and the fetch rows of `Doc/UARCH`, with the English of the prompt log (answer 39 and prompt 40). Pushed to dev (cfc712f).
+<!-- /answer -->
+
+## 41. 2026-10-25 16:16:40 JST
+
+```text
+Please lay out the work from here on.
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I laid out the work up to G1 from the steps of `Doc/UARCH.md` section 8, the budget table of 4.3 and the open items of `Plan/OOC.md` 11.4. We are now in the second half of step 2 (the RTL block by block).
+
+#### Done so far
+- **Step 1**: the lock-step checker (`SIM/LOCKSTEP`).
+- **Blocks of step 2 measured**: ALU2, uBTB, fusion, PRF, IQ, renaming (with the committed state), LSU, ROB, fetch buffer, FTQ. All close at 50 MHz.
+- **Step 2'**: the FPU breakdown (C1).
+
+#### Work left
+
+**A. The remaining blocks of step 2** (each with unit tests, bug injection and Vivado scripts)
+
+| # | Block | G0 estimate | Content |
+|---|---|---|---|
+| A1 | The rest of the front end | about 2.1k to 3.9k | PC generation and redirects (F0), I$ interface, predecode, TAGE-S logic (tables in BRAM), BTB, RAS 16 |
+| A2 | Decode × 4 and RVC expansion × 4 | 1.0k to 1.6k | Takes the FBUF's output and feeds the measured fusion block |
+| A3 | D$ adapter | 0.3k to 0.6k | Connects the LSU to mmRISC-2's D$ |
+| A4 | Issue-queue payload | 0.4k to 0.7k | LUTRAM, 2 writes / 3 reads |
+
+- A1 has the widest estimate (about 1.8k), so as with the LSU I recommend measuring it first.
+- A1 also checks the timing of the F0 loop (uBTB → next PC).
+
+**B. To decide before assembling the core**
+- **B1 How to stop the dependents of a missing load (the replay policy)**: the biggest design decision left open in 11.4.
+  - It will likely add the cancellation of speculative wakeups to the issue queue, which changes the size and timing of the measured `OOO_IQ`.
+  - So it should be decided well before assembly, at the latest before G0b.
+- **B2 Checkpoints 8 → 6**: the RTL has 8 now. 6 saves about 0.25k, −0.3 % / −0.5 % in the model. It can be decided at G0b.
+
+**C. In parallel**
+- **C1 Step 2''**: give the model the kind of operation per instruction, to measure L7 (asymmetric ALUs, −0.7k to −1.0k). Needed before G0b.
+- **C2 riscv-arch-test setup**: `~/RISCV/riscv-arch-test` is cloned. Building the tests and running them through Spike and the lock-step checker can be done now, without the core.
+
+**D. Step 3: G0b (the budget gate)**
+- Once A1 to A4 are measured, rebuild the tables of 4.3 and 4.4.
+- The gap is now about 9.9k in the middle.
+- Then apply the levers of 6.2 in the decided order and let the author decide (L1 → L3 → L4 to L6 → L7 → L9 → L10 ...). No lever that removes instructions.
+
+**E. Step 4: assembling the core** (M-mode, bare metal)
+- Dispatch, branch resolution and redirect, commit and exceptions, MDU, minimal CSRs (estimate 1.5k to 2.5k).
+- Checked by riscv-arch-test and the lock-step checker; CoreMark in simulation compared with the model.
+
+**F. Step 5: G1**
+- CoreMark in simulation within ±5 % of the model.
+- The whole core synthesized OOC in Vivado: LUTs and 50 MHz.
+
+#### Recommended order
+1. **A1 the rest of the front end**: the widest budget, and the F0 timing.
+2. **B1 the replay policy**: decide it in the documents, add the cancellation to `OOO_IQ`, measure again.
+3. **A2 decode**, **A3 D$ adapter**, **A4 IQ payload**.
+4. **C1 operation kinds in the model**, at the same time as A2.
+5. **D G0b**, the author's decision.
+6. **E assembly**, with C2 (riscv-arch-test) ready before it.
+7. **F G1**.
+
+The Vivado runs of A1 to A4 and B1 are each asked of the author.
+
+The English of the prompt log (answer 40 and prompt 41) is added but not committed yet; it goes in with the next block.
+<!-- /answer -->
+
+## 42. 2026-10-25 16:20:52 JST
+
+```text
+As recommended, please go on next with the front end (PC generation, the I$ interface, predecode, TAGE-S, BTB, RAS). Prepare the unit tests and Vivado scripts too.
+```

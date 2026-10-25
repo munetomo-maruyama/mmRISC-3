@@ -7,7 +7,7 @@
 #   vivado -mode batch -source synth_ooo.tcl -tclargs [top [period [impl [generics]]]]
 #
 #     top       OOC_ALU2 / OOC_FUSE / OOC_PRF / OOC_RENAME / OOO_IQ / OOO_UBTB / OOC_LSU / OOC_ROB
-#               / OOC_FBUF / OOC_FTQ
+#               / OOC_FBUF / OOC_FTQ / OOC_FRONT
 #                                                          OOC_ALU2
 #     period    clock period in ns                         20.0 (50 MHz)
 #     impl      1 = also place and route                   1
@@ -42,7 +42,9 @@ read_verilog -sv [list \
     $rtl/OOO_ALU/OOO_ALU.sv $rtl/OOO_ALU2/OOO_ALU2.sv $rtl/OOO_FUSE/OOO_FUSE.sv \
     $rtl/OOO_PRF/OOO_PRF.sv $rtl/OOO_RENAME/OOO_RENAME.sv $rtl/OOO_IQ/OOO_IQ.sv \
     $rtl/OOO_UBTB/OOO_UBTB.sv $rtl/OOO_LSU/OOO_LSU.sv $rtl/OOO_ROB/OOO_ROB.sv \
-    $rtl/OOO_FBUF/OOO_FBUF.sv $rtl/OOO_FTQ/OOO_FTQ.sv ./rtl/OOC_WRAP.sv]
+    $rtl/OOO_FBUF/OOO_FBUF.sv $rtl/OOO_FTQ/OOO_FTQ.sv \
+    $rtl/OOO_PREDEC/OOO_PREDEC.sv $rtl/OOO_TAGE/OOO_TAGE.sv $rtl/OOO_BTB/OOO_BTB.sv $rtl/OOO_RAS/OOO_RAS.sv \
+    $rtl/OOO_FETCH/OOO_FETCH.sv ./rtl/OOC_WRAP.sv]
 
 set gargs {}
 foreach g $gens { lappend gargs -generic $g }
@@ -76,9 +78,11 @@ set n_lut  [count {PRIMITIVE_GROUP == LUT}]
 set n_ff   [count {PRIMITIVE_GROUP == FLOP_LATCH}]
 set n_dsp  [count {REF_NAME =~ DSP48*}]
 set n_lram [count {REF_NAME =~ RAM32* || REF_NAME =~ RAM64* || REF_NAME =~ RAM128* || REF_NAME =~ RAM256*}]
+# block RAM in tiles (a RAMB36 is one, a RAMB18 half)
+set n_bram [expr {[count {REF_NAME =~ RAMB36*}] + 0.5 * [count {REF_NAME =~ RAMB18*}]}]
 lassign [slice_luts] s_tot s_log s_ram
-set synth_msg [format "after synthesis: %d LUTs (%d logic + %d LUT RAM; %d LUT cells), %d FF, %d DSP, %d LUT RAM cells" \
-                   $s_tot $s_log $s_ram $n_lut $n_ff $n_dsp $n_lram]
+set synth_msg [format "after synthesis: %d LUTs (%d logic + %d LUT RAM; %d LUT cells), %d FF, %d DSP, %d LUT RAM cells, %.1f BRAM tiles" \
+                   $s_tot $s_log $s_ram $n_lut $n_ff $n_dsp $n_lram $n_bram]
 puts "INFO: $synth_msg"
 
 set fh [open $outdir/summary.txt w]

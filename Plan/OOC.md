@@ -926,3 +926,122 @@ synth_ooo.bat OOC_FTQ
 - The fetch buffer and the FTQ come to **about 1.09k** (940 + 148). The fetch row of `Doc/UARCH.md` 4.3 (2.0k to
   2.8k) is kept until PC generation, the I$ interface and predecode are written and measured too; the gap in 4.4 is
   not changed yet.
+
+## 14. The front end (step 2 of Phase 1, 2026-10-25)
+
+The fourth block of step 2: PC generation, the I$ interface, predecode, TAGE-S, BTB and RAS, from F0 to the block that
+goes into the fetch buffer and the FTQ. All are verified by unit tests and bug injection, with a Vivado script for
+the whole front end.
+
+### 14.1 TAGE-S per fetch block (measured first)
+
+The model's TAGE-S (`Plan/model/tage.h`) predicts one branch at a time, indexed by its own pc, with one history bit
+per branch, updated at once. In hardware the tables are read in F1 with the fetch address only, before predecode has
+found the branches of the block, and one 16-byte block can hold several conditional branches. So the predictor works
+per block (`Plan/model/tageblk.h`): rows indexed and tagged by the fetch address and the history, with direction
+counters for the 1st, 2nd, ... conditional branch of the block ("slots"), a base table per parcel, and the history
+used for the index lagging by the blocks still in F1 and F2. Measured on the conditional branches of CoreMark
+(`Plan/model/tageblk.sh`, `results/tageblk.txt`):
+
+| Predictor | -O2 | max. optimization |
+|---|---|---|
+| The model's TAGE-S per branch | 0.761 % | 0.683 % |
+| Per block, 1 slot | 2.301 % | 2.970 % |
+| Per block, 2 slots | 0.808 % | 1.303 % |
+| Per block, 2 slots, history lagging 2 blocks | 0.863 % | 1.412 % |
+| Per block, **3 slots** | 0.773 % | 0.777 % |
+| Per block, 3 slots, history lagging 2 blocks | 0.825 % | 0.850 % |
+| The same without halving the useful counters | **0.821 %** | **0.845 %** |
+
+- **3 slots**: with 2, the maximum-optimization build has many blocks with a third branch (10,778 branches past the
+  slots), and the base counter alone predicts them badly. With 3, no branch is past the slots in either build.
+- **History**: one bit per slot branch (at most 3 a block). The blocks in F1 and F2 when a block is in F0 are not in
+  its history yet; the lag is 0 to 2 blocks, 2 when fetch runs without bubbles, which is the case measured.
+- **No halving** of the useful counters (it would need a scan of every row): no effect.
+- Against the model: +348 / +799 mispredicted branches in 10 iterations, about **−0.2 % / −0.5 %** of CoreMark/MHz
+  (9 cycles each).
+
+### 14.2 The blocks (`RTL/CPU/OOO`)
+
+| Block | What it is |
+|---|---|
+| `OOO_PREDEC` | Predecode (F2): the instruction boundaries of the block (from the start parcel, or after the second half of a 32-bit instruction carried from the line before), and per end parcel the kind of control transfer (conditional branch, jal, jalr, call, return) and the target of branches and jal: 8 adders in parallel, so that the choice of the first taken transfer is followed only by a select |
+| `OOO_TAGE` | TAGE-S per block (14.1): 4 tagged tables of 1024 rows (histories 5 / 12 / 30 / 70, tags 8 / 8 / 9 / 9 bits; a row holds a valid bit, a tag, a useful counter and 3 direction counters) and a base table of 512 rows × 8 parcels, all in block RAM. The folded histories are XORs of a 70-bit shift register (no folded registers to save). F1 compares the tags and keeps provider and alternate for F2. The update at commit recomputes provider and alternate from the rows as read at prediction (270 bits of metadata a block), and follows Seznec's TAGE slot by slot; each table is written at most once |
+| `OOO_BTB` | For indirect jumps only (jalr / c.jr / c.jalr that are not returns): 256 rows in block RAM, read with the fetch address, one jump per line (tag, parcel, target), written at resolution |
+| `OOO_RAS` | 16 entries in LUTRAM, pushed and popped at F2; a block keeps the pointer and the entry a push would overwrite, and a misprediction puts them back and does the mispredicted transfer's own push or pop |
+| `OOO_FETCH` | F0 to F2 around `OOO_UBTB`: the I$ request with the fetch address; the requests in flight (at most 2, plus one in a redirect cycle); at F2 the first transfer predicted taken ends the block (branch: its TAGE slot; jal: always; return: RAS; other jalr: BTB at that parcel); if the next address differs from the one fetch went on with, F0 is redirected (2 cycles) and the uBTB trained; the block goes out with its TAGE metadata and RAS snapshot |
+
+Decisions made while writing them:
+
+- **Direct targets from predecode, a BTB for indirect jumps only.** The targets of branches and jal are in the
+  instruction bits, which the I$ gives in F2; 8 adders give them without a table (no cold misses, nothing to learn).
+  The model's BTB (unlimited, last target) only gated a branch's first prediction.
+- **A 4th or later conditional branch of a block is predicted not taken.** Bug injection showed it: its base counter
+  would never be trained (the update covers the slots only), so it was in effect "always taken". None in CoreMark.
+- **The I$ contract** (mmRISC-2's ICACHE, to be widened to 16 bytes): a request accepted at F0 is answered 2 cycles
+  later on a hit, later on a miss, in order; another request is accepted the next cycle only if this one hits. TAGE and
+  the BTB keep their F1 results for exactly that timing. Every accepted request is answered (no kill): fetch drops
+  the answers a redirect made useless. The request carries the full fetch address.
+- **Credit**: fetch asks for a block only while the fetch buffer and the FTQ have room for it and for those in
+  flight, so an answer never waits.
+- **A 32-bit instruction across two lines** is predecoded with the second block (its first half kept as `carry`),
+  which is always the next line; OOO_FBUF gives it from the first half's block.
+- **The uBTB is trained from F2** when it and F2 differed (the F2 transfer, or its own guess weakened when it was
+  earlier). An unconditional uBTB entry that F2 finds wrong (an alias) cannot be weakened and stays until it is
+  replaced; the override fixes each occurrence.
+- **For the core's assembly**: the FTQ keeps 312 bits of front-end state a block (TAGE 270, RAS 42), read at the head
+  for the update and at a mispredicted block for the recovery, and the outcomes of the slot branches written at
+  resolution (by their parcel; a branch across two lines belongs to the next block). From 32 to 312 bits in LUTRAM
+  is about +0.2k. The back end computes the recovery (history bits of the slots up to the mispredicted transfer, RAS
+  push / pop) from the block's metadata.
+
+### 14.3 Verification
+
+- **`tb_predec`**: 2,000,000 random blocks built from instructions (32-bit and compressed branches, jal, jalr with link
+  and other registers, c.jr / c.jalr / c.ebreak, other instructions), cut at random places, with random start parcels
+  and carried halves, against a predecoder written from the specification's tables with byte offsets
+  (`predec_ref.h`). PASS.
+- **`tb_ras`**, **`tb_btb`**: against reference structures (recoveries from snapshots; reads in the same cycle as
+  writes to the same row). PASS.
+- **`tb_tage`**: against `tage_ref.h`, a reference written from the specification. Blocks are read with the I$
+  timing; 40 blocks with fixed slots and outcome patterns, so that the tables learn (provider hit in 65 % of the
+  predictions, an alternate in 11 %, a weak new entry in 8 %); updates in order up to the first taken or mispredicted
+  slot; restores. Every prediction and all 270 bits of metadata (which carry the rows as read, so a wrong write is
+  seen when the row is read again) are compared. PASS on 4 seeds.
+- **`tb_fetch`**: the front end runs a random 4 KB program (branches with loop / always / never / random behavior,
+  forward jumps, calls and returns by jal and jalr, indirect jumps, runs of compressed branches) through an I$ with
+  random misses; a back end walks the blocks along the program's true path, redirects on mispredictions with the
+  recovery data, commits (TAGE update) and updates the BTB. Checked: every fetch address of every cycle (a mirror of
+  the uBTB and its training), every block's start, end, taken, next address, 270 bits of TAGE metadata and RAS
+  snapshot (mirrors of TAGE read at the request's cycle, BTB, RAS, carried half, and predecode), the true path, the
+  credit, and progress. PASS on 11 programs (400,000 cycles each; on one: 180,443 instructions, 102,232 blocks,
+  17,199 mispredictions, 9,630 carried halves).
+- **Bug injection**: 42 added (M87–M128: predecode 8, RAS 3, BTB 2, TAGE 15, fetch 14). At first 2 were not
+  detected (the 4th-branch path, see 14.2: the design was changed, and the test program got runs of compressed
+  branches); now all 42 are detected (122 in all).
+
+### 14.4 Size (Yosys), and the Vivado run asked of the author
+
+| Module | Yosys LUT (hierarchical) | Block RAM |
+|---|---|---|
+| OOO_UBTB | 2,190 (Vivado measured 910, 7.6) | |
+| OOO_TAGE | 2,034 | 5 |
+| OOO_PREDEC | 1,134 | |
+| OOO_FETCH (control) | 1,044 | |
+| OOO_RAS | 53 + 14 LUTRAM cells | |
+| OOO_BTB | 8 | 1 |
+| **OOC_FRONT (flattened)** | **5,884 + 116 LUTRAM**, 2,626 FFs (about 1,250 of the harness) | 6 |
+
+- Yosys has given 1.6 to 2.4 times Vivado's LUTs on these blocks (uBTB 2,207 → 910, FBUF 1,557 → 940), so about 3k
+  to 3.7k are expected in Vivado, with the uBTB.
+- G0 estimate for these parts: the fetch row less the fetch buffer and FTQ (about 0.9k to 1.7k), TAGE-S 0.8k to
+  1.5k, BTB and RAS 0.4k to 0.7k, and the uBTB 0.91k: **3.0k to 4.8k**.
+- To watch in the timing: the F2 path from the I$ data through predecode, the first taken transfer and the target
+  select to the comparison with the next address and the redirect into the uBTB's fetch address; and the TAGE update
+  (3 slots in a row).
+- The summary of `synth_ooo.tcl` now also gives the block RAM tiles.
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_FRONT
+```
