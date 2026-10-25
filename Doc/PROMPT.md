@@ -1529,3 +1529,56 @@ Next, in the order laid out before, I recommend deciding how to hold back the de
 ```text
 As recommended, next please decide how to hold back the dependents of a missing load (the replay policy, B1), and add the cancellation to OOO_IQ. Prepare the unit tests and Vivado scripts too.
 ```
+
+(During this turn I asked the author which policy to take, with the CoreMark measurement: a replay trap at commit, recommended, about +0.05k LUTs, or selective replay in the issue queue, about +0.7k to 1.2k. The author chose selective replay in the issue queue.)
+
+<!-- answer -->
+**Claude Code's answer**
+
+As you decided, a missing load is handled by selective replay in the issue queue, built into `OOO_IQ`. All 15 unit tests PASS and all 21 IQ mutations are detected (146 in all). Pushed to dev (5935e45). Vivado has not been run yet.
+
+**Measured first**: in 10 iterations of CoreMark, the only loads that could not give their result in the expected cycle were the 26 cold D$ misses. Partial overlaps with stores: 0. You chose the policy having seen this.
+
+**The policy**
+- **Load slots**: a load issued in cycle c owns slot "c mod 4", and at c+3 the `ld_cancel` of the LSU's M decides "cancel" or "confirm".
+- **Masks**: the wakeup buses carry the mask of the open loads a value relies on. Each source remembers it, and a µop issues with its sources' masks combined (`iss_ldm`).
+- **Kept entries**: a µop issued on an open load keeps its entry until the load is confirmed. On a cancel it goes back to waiting, and the sources woken through that load go back to not ready.
+- **The cancelled load**: not issued again from the queue. It waits in its entry until the LSU's late answer.
+- **Correction at dispatch**: a source whose producer waits in the queue is not ready whatever renaming says, and gets the producer's mask if the producer is unconfirmed. Instead of a table of masks for 64 registers (about 1k LUTs), the queue's producers are compared.
+
+**Changed on the way**: at first I decided at c+4, with `ld_cancel` through a register. But measured in the model, keeping the entries a cycle longer cost a lot.
+
+| Configuration (G0) | -O2 | max. optimization |
+|---|---|---|
+| Entries freed at issue (so far) | 6.564 | 6.801 |
+| Kept until c+4 (through a register) | 6.491 (−1.1 %) | 6.766 (−0.5 %) |
+| **Kept until c+3 (as built)** | **6.550 (−0.2 %)** | **6.786 (−0.2 %)** |
+
+The M-stage signal comes at the end of the cycle, so it is kept out of the select loop and acts only on the entries' next state. A µop selected in the cycle of the cancel is taken back as if not issued. `ld_kill` for the units is given a cycle later.
+
+**Verification**
+- `tb_iq` is rewritten: an account follows, for every value, "the open loads it relies on". A quarter of the loads are cancelled.
+- Renaming's ready bits are given without knowing about cancels, so the queue's correction is tested too. PASS on 12 seeds.
+- Checked: every cycle's issue, its mask, `ld_kill`, and the number of free entries.
+
+**Size**: Yosys 5,255 → 7,288 LUTs at 16 entries (+2.0k). With the ratios so far, about **+1.0k** in the core. The budget gap is updated once Vivado gives the number.
+
+**Needed at the core's assembly** (recorded in `Plan/OOC.md` 15.2)
+- Every unit drops a µop in RR/EX whose `iss_ldm` meets `ld_kill`; in the LSU, no SQ write and no D$ request either.
+- Renaming's ready bits are set with the wakeup broadcasts. This is unrelated to this change: it was needed before, and I noticed now that setting them at write-back would miss some.
+- Holding loads in the queue until `lsu_st_known` is still to be wired.
+
+Recorded in `Plan/OOC.md` section 15 (and the Japanese version), 3.5, 3.7 and 4.3 of `Doc/UARCH`, the RTL READMEs, the model (`keep_spec` and `results/g0.txt`) and the prompt log.
+
+**Request**: please run this in Vivado.
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOO_IQ
+```
+<!-- /answer -->
+
+## 46. 2026-10-25 19:47:18 JST
+
+```text
+I have finished running OOO_IQ.
+```

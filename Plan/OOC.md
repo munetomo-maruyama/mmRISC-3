@@ -1174,3 +1174,22 @@ issued on that guess has to be taken back.
 cd FPGA\OOO_OOC
 synth_ooo.bat OOO_IQ
 ```
+
+### 15.5 The Vivado result (2026-10-25)
+
+| Run | LUT | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|
+| OOO_IQ, 16 entries (10.x) | 3,143 | 702 | +5.065 ns | 12 |
+| **OOO_IQ with selective replay, 16 entries** | **4,974** | 975 | **+3.309 ns** | 13 |
+
+- **It closes at 50 MHz** with 3.3 ns to spare. The worst path is still the wakeup-select loop (a ready bit through
+  the select, the issued tags and the compares into another ready bit); `ld_cancel` is not on it. It lost 1.8 ns,
+  mostly routing (83 %) in a larger block.
+- **It is larger than estimated: +1,831 LUTs at 16 entries** (Vivado / Yosys 0.68, against 0.6 before), about
+  **+1.4k at 12 entries** (expected +1.0k; the range given to the author was +0.7k to 1.2k). The per-source masks
+  (32 sources × 4 bits, each chosen from the 6 buses and cleared by confirm and cancel) and the dispatch compares
+  against the 16 producers are most of it.
+- **The budget** (`Doc/UARCH.md` 4.4): the gap goes to **8.9k / 10.9k / 12.8k**.
+- **For G0b**: going back to the replay trap at commit (15.1) would save about 1.4k and gain 0.2 % on CoreMark (no
+  kept entries), at the cost of a refetch on every D$ miss in code that misses. It is listed with the levers; the
+  decision stays with the author.

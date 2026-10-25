@@ -204,7 +204,7 @@ of the slices).
 | Block | LUT | Basis |
 |---|---|---|
 | ALUs, 2 ports (`OOC_ALU2` × 2) | 6,266 → **about 5.9k** | Measured; about −0.2k a port without the third source |
-| Issue queue (`OOO_IQ`) | 3,143 → **about 2.45k** | Measured at 16 entries; about 0.78 × at 12. **2026-10-25: the selective replay added, about +1.0k expected (Yosys +2.0k at 16 entries); Vivado to come (`Plan/OOC.md` 15.4)** |
+| Issue queue (`OOO_IQ`) | 3,143 → **about 2.45k** | Measured at 16 entries; about 0.78 × at 12. **2026-10-25: with the selective replay measured in Vivado, 4,974 LUTs at 16 entries (+1,831), +3.309 ns; about 3.9k at 12 (+1.4k) (`Plan/OOC.md` 15.5)** |
 | Renaming (`OOC_RENAME`) | 2,267 → **about 2.0k** | Measured with 8 checkpoints; 6 checkpoints |
 | Register file (`OOC_PRF`, 64, 3 / 6) | 2,503 | Measured |
 | uBTB (`OOO_UBTB`) | 910 | Measured |
@@ -234,6 +234,8 @@ of the slices).
 | **Over, 2026-10-25 later** | **7.2k** | **9.9k** | **12.7k** |
 | Needed, 2026-10-25 evening (the front end measured: fetch buffer 940, FTQ 148, OOC_FRONT 3,076 less the uBTB already counted, + FTQ widened 0.15k to 0.25k, + I$ to 16 bytes 0.05k to 0.2k, in place of the fetch, TAGE-S, BTB and RAS rows) | 25.4k | 26.6k | 27.8k |
 | **Over, 2026-10-25 evening** | **7.5k** | **9.5k** | **11.4k** |
+| Needed, 2026-10-25 night (the issue queue with selective replay measured: 4,974 LUTs at 16 entries, about 3.9k at 12, +1.4k) | 26.8k | 28.0k | 29.2k |
+| **Over, 2026-10-25 night** | **8.9k** | **10.9k** | **12.8k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is
