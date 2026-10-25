@@ -1246,3 +1246,61 @@ synth_ooo.bat OOO_IQ
   entries. The RTL changes of 15.6 stay (fewer flip-flops, simpler: the same behavior).
 - What is left to reduce it is not a detail: the per-source masks are the bulk and cannot go while the replay is
   selective. The real lever is the policy itself (the replay trap at commit, about −1.4k, 15.5), for G0b.
+
+## 16. Decode × 4 and RVC expansion (step 2 of Phase 1, 2026-10-25)
+
+A2 of the work plan: D1, between the fetch buffer and fusion.
+
+### 16.1 The block (`RTL/CPU/OOO/OOO_DEC`)
+
+- **mmRISC-2's decoders are used as they are.** `CORE_DECOMP` (RVC → 32-bit) and `CORE_DEC` (RV64GC + Zba / Zbb /
+  Zbc / Zbs / Zicond / Zicsr / Zifencei / Zicboz and the privileged instructions) are taken from mmRISC-2 Rev.02
+  without change into `RTL/CPU/CORE`: the instruction set is mmRISC-2's (kept, G0), and `OOO_ALU` already uses
+  CORE_EXU's operation encoding, so CORE_DEC's record feeds it directly. They booted Linux in mmRISC-2.
+- `OOO_DEC` puts one of each in each of the 4 slots and derives what the rest of the core needs:
+
+| Field | For | Content |
+|---|---|---|
+| `cls`, `op`, `rd`, `rs1`, `rs2`, `use_rs1`, `use_rs2`, `imm`[11:0], `mem_size`, `alu2ok` | `OOO_FUSE` | The class (ALU, branch, jal, jalr, integer load, integer store, MUL / DIV, other), the operation kind of the model (lui, auipc, slli(w), srli / srai(w), add(w) / sh*add(.uw) / add.uw, addi(w)), integer registers only (rd 0 when no integer register is written), and whether the operation exists in the narrowed second stage |
+| `port`, `lat2`, `ext_ans` | the issue queue | 0 any ALU, 1 ALU0 only (MUL / DIV, CSR and system), 2 LSU, 3 FPU; a 2-cycle result (multiply, integer load); a result woken from outside (divide; AMO / LR / SC) |
+| `illegal`, `nonspec`, `sys`, CSR fields | the ROB | A reserved RVC encoding or an unknown instruction; what runs only at the head (`Doc/UARCH.md` 3.9) |
+| the rest of CORE_DEC's record | execution | ALU operation and operands, 32-bit immediate, branch, MDU, memory command, FP fields |
+
+- FP loads and stores, AMO / LR / SC and cbo.zero are "other" for fusion (Phase 1 has no FP renaming, and the
+  others run at the head). `op` comes from the encoding, not the mnemonic: c.li and mv count as addi (the model's trace
+  named them li and mv; a pair this adds is still limited by W1 / SRC2).
+
+### 16.2 Verification (`SIM/OOO_UNIT/tb_dec.cpp`)
+
+- **The reference** is written apart from CORE_DEC / CORE_DECOMP: a 32-bit decoder from the specification's tables
+  (opcode, funct3, funct7), an RVC expander that uses Spike's own field extractors (`insn_t::rvc_*`), and the derived
+  fields from `Doc/UARCH.md`.
+- **What exists is decided by Spike, running the instruction**: a processor_t built for mmRISC-2's instruction set,
+  in M-mode with the FPU on, steps the instruction; it exists unless it traps with an illegal instruction. Spike's
+  disassembler alone could not decide it: it knows every extension whatever the ISA string (vector, quad, Zfh,
+  crypto), and it takes the reserved RVC encodings. Spike also runs vector instructions with V absent, so those
+  encodings are not asked; CSR instructions (whether the CSR exists is a run-time matter) and reserved static rounding
+  modes are not asked either.
+- **The runs**: all 49,152 RVC encodings and 3,000,000 32-bit words (their opcode, funct3 and funct7 drawn from the
+  encodings that exist and the rest, and wholly random ones), the 4 slots with different instructions each time.
+  First the reference's own idea of what exists is checked against Spike: **no difference**. Then every output of every
+  slot against the reference: **PASS** (1,549,165 legal, 1,499,987 illegal).
+- **Bug injection**: 20 added (16 in OOO_DEC, 1 in CORE_DECOMP, 3 in CORE_DEC; `mutate.py` can now break the
+  `RTL/CPU/CORE` files too), all detected (166 in all). On the way, two conditions found redundant were removed (the
+  divide check's Zbc bit, the FPU port's "arithmetic" flag), and illegal instructions were made to give no register,
+  latency or port of their own (the test now checks that).
+
+### 16.3 Size (Yosys), and the Vivado run asked of the author
+
+| Block | Yosys | G0 estimate |
+|---|---|---|
+| OOC_DEC (4 slots, every field kept) | 2,246 LUTs, 636 FFs (all of the harness) | 1.0k to 1.6k |
+
+- With the Vivado / Yosys ratios seen so far (0.5 to 0.8), about 1.1k to 1.8k: near the top of the estimate. The
+  harness keeps every output, the FP and CSR fields included; in the Phase 1 core the fields it does not use are
+  removed by synthesis, so this is the upper side.
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_DEC
+```

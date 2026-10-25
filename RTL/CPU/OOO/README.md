@@ -12,6 +12,7 @@ to be used as they are in Phase 1, and are measured alone first (Phase 0, step 3
 | `OOO_ALU` | One integer ALU: RV64I + Zba / Zbb / Zbs / Zicond, the operation set and encoding of mmRISC-2's CORE_EXU; the adder and the shifter are shared between operations; `FULL = 0` is the narrowed one for the second stage of fusion | through OOO_ALU2 |
 | `OOO_ALU2` | The ALU of one issue port: a full `OOO_ALU` and a narrowed one in series, so that a fused ALU + ALU pair finishes in one cycle, and the branch comparison (alone, or on the first result for a fused ALU + branch) | `tb_alu2`: 2,000,000 random vectors against the specification |
 | `OOO_BTB` | Branch target buffer for indirect jumps only: 256 rows in block RAM read with the fetch address, one jump per line | `tb_btb`: against a reference table |
+| `OOO_DEC` | Decode of 4 instructions: `CORE_DECOMP` + `CORE_DEC` per slot (taken from mmRISC-2, `RTL/CPU/CORE`), and the fields for fusion (class, kind, integer registers, alu2ok), the issue queue (port, latency, answer from outside) and the ROB (illegal, non-speculative) | `tb_dec`: every RVC encoding and 3,000,000 instructions against a decoder from the specification, Spike judging what exists |
 | `OOO_FBUF` | Fetch buffer: a queue of 4 whole 16-byte blocks (start / end parcel, taken, FTQ index), a window of 8 parcels over the head block and the next, up to 4 instructions a cycle (RVC or 32-bit, also across blocks) | `tb_fbuf`: an execution model with random taken transfers, flushes and partial takes; the exact count given, 9 seeds |
 | `OOO_FTQ` | Fetch target queue: 8 entries (fetch address, next address, taken parcel, predictor state) in LUTRAM, 2 reads for decode and 1 for resolution, pop / restore / flush_all | `tb_ftq`: against a reference queue, 4 seeds |
 | `OOO_FETCH` | The front end F0–F2 around `OOO_UBTB`, `OOO_PREDEC`, `OOO_TAGE`, `OOO_BTB` and `OOO_RAS`: I$ requests and answers, the first transfer predicted taken ends the block, F2 overrides the uBTB (2 cycles) and trains it, recovery from the back end, credit from the fetch buffer and the FTQ | `tb_fetch`: a random program through an I$ with misses, a back end on the true path; every fetch address and every block against mirrors of the predictors, 11 programs |
@@ -28,5 +29,5 @@ to be used as they are in Phase 1, and are measured alone first (Phase 0, step 3
 
 - Coding follows mmRISC-2 (`logic`, `always_ff` with active-low asynchronous reset, comments on what and why).
 - Every block is linted by Verilator (`-Wall`); the unit tests start everything that has no reset at random values.
-- `SIM/OOO_UNIT/mutate.py` breaks the RTL on purpose (146 mutations); all are detected.
+- `SIM/OOO_UNIT/mutate.py` breaks the RTL on purpose (166 mutations); all are detected.
 - Out-of-context synthesis in Vivado: `FPGA/OOO_OOC` (`synth_ooo.bat`), run by the author.

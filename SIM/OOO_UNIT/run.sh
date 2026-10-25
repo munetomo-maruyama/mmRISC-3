@@ -5,6 +5,7 @@
 #   ./run.sh [test ...]       default: all of them
 #
 #   OOO_RTL=<dir>  another copy of RTL/CPU/OOO (the bug injection of mutate.py)
+#   CORE_RTL=<dir> another copy of RTL/CPU/CORE (the same)
 #   OOO_OBJ=<dir>  where to build (default obj_dir)
 #
 # Each test is a Verilator C++ testbench (tb_<test>.cpp) that holds one block
@@ -19,9 +20,11 @@
 cd "$(dirname "$0")"
 HERE=$(pwd)
 R=${OOO_RTL:-$(cd ../../RTL/CPU/OOO && pwd)}
+C=${CORE_RTL:-$(cd ../../RTL/CPU/CORE && pwd)}   # blocks taken from mmRISC-2
+SP=${SPIKE:-$HOME/RISCV/toolchain/spike-install}   # Spike, the judge of tb_dec
 OBJ=${OOO_OBJ:-$HERE/obj_dir}
 
-declare -A TOP SRC
+declare -A TOP SRC XC XL
 TOP[alu2]=OOO_ALU2;     SRC[alu2]="$R/OOO_ALU/OOO_ALU.sv $R/OOO_ALU2/OOO_ALU2.sv"
 TOP[fuse]=OOO_FUSE;     SRC[fuse]="$R/OOO_FUSE/OOO_FUSE.sv"
 TOP[prf]=OOO_PRF;       SRC[prf]="$R/OOO_PRF/OOO_PRF.sv"
@@ -36,15 +39,18 @@ TOP[predec]=OOO_PREDEC; SRC[predec]="$R/OOO_PREDEC/OOO_PREDEC.sv"
 TOP[ras]=OOO_RAS;       SRC[ras]="$R/OOO_RAS/OOO_RAS.sv"
 TOP[btb]=OOO_BTB;       SRC[btb]="$R/OOO_BTB/OOO_BTB.sv"
 TOP[tage]=OOO_TAGE;     SRC[tage]="$R/OOO_TAGE/OOO_TAGE.sv"
+TOP[dec]=OOO_DEC;       SRC[dec]="$C/CORE_DECOMP/CORE_DECOMP.sv $C/CORE_DEC/CORE_DEC.sv $R/OOO_DEC/OOO_DEC.sv"
+XC[dec]="-I$SP/include -I$SP/include/riscv -I$SP/include/softfloat -I$SP/include/fesvr -Wno-c++20-extensions"
+XL[dec]="-L$SP/lib -lriscv -ldisasm -lsoftfloat -lfesvr -Wl,-rpath,$SP/lib -lpthread -ldl"
 TOP[fetch]=OOO_FETCH;   SRC[fetch]="$R/OOO_UBTB/OOO_UBTB.sv $R/OOO_PREDEC/OOO_PREDEC.sv $R/OOO_TAGE/OOO_TAGE.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FETCH/OOO_FETCH.sv"
-TESTS=${*:-alu2 fuse prf rename iq ubtb lsu rob fbuf ftq predec ras btb tage fetch}
+TESTS=${*:-alu2 fuse prf rename iq ubtb lsu rob fbuf ftq predec ras btb tage fetch dec}
 
 fail=0
 for t in $TESTS; do
     o=$OBJ/$t
     rm -rf $o; mkdir -p $o
     if ! verilator --cc --exe --build -O2 -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT --x-assign unique --x-initial unique --Mdir $o \
-            --top-module ${TOP[$t]} ${SRC[$t]} $HERE/tb_$t.cpp -CFLAGS "-O2 -std=c++17" > $o/build.log 2>&1; then
+            --top-module ${TOP[$t]} ${SRC[$t]} $HERE/tb_$t.cpp -CFLAGS "-O2 -std=c++17 ${XC[$t]}" ${XL[$t]:+-LDFLAGS "${XL[$t]}"} > $o/build.log 2>&1; then
         echo "tb_$t: build failed (see $o/build.log): FAIL"; fail=$((fail + 1)); continue
     fi
     $o/V${TOP[$t]} +verilator+rand+reset+2 || fail=$((fail + 1))

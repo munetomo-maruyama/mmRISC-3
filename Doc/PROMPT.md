@@ -1649,3 +1649,31 @@ Recorded in `Plan/OOC.md` 15.6 (and the Japanese version) and the prompt log (an
 ```text
 I ran synth_ooo.bat OOO_IQ. Please check it.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I checked it. The estimate I gave last time was wrong: Yosys had fallen 15 %, but in Vivado **the LUTs did not fall**.
+
+| Run (16 entries) | LUT | FF | Register-to-register slack | Levels |
+|---|---|---|---|---|
+| Before the replay | 3,143 | 702 | +5.065 ns | 12 |
+| With selective replay | 4,974 | 975 | +3.309 ns | 13 |
+| **After last time's reductions** | **4,977** | **924** | **+2.857 ns** | 12 |
+
+- **The LUTs are the same** (4,974 → 4,977). Only the FFs fell, by the 4th mask bit (975 → 924).
+  - Vivado apparently built efficiently from the start the parts Yosys counted twice: the compare of the cancelled load's tag with buses that never carry it, and the 4th mask bit.
+  - Vivado's numbers also move by a few percent from run to run.
+  - Last time I said "shrinks to about +0.85k"; taking the Yosys difference as the estimate was the mistake. This made it clear that Yosys cannot judge small structural differences. The lesson is recorded, and from now on a saving is promised only subject to Vivado's confirmation.
+- **Timing**: it still closes at 50 MHz with 2.9 ns to spare.
+- **Budget**: the gap stays at 8.9k / 10.9k / 12.8k; selective replay costs about +1.4k at 12 entries. Last time's RTL changes stay: the behavior is the same, with fewer FFs and a simpler build.
+- **Further reduction**: no more can come from details. Most of it is the per-source masks, which cannot go while the replay is selective. The big lever left is the policy itself (the replay trap at commit, about −1.4k), listed for your decision at G0b.
+
+Recorded in `Plan/OOC.md` 15.7 (and the Japanese version), the issue-queue row of `Doc/UARCH`, and the prompt log (answer 47 and the English of 48); pushed to dev (51ce7c1).
+<!-- /answer -->
+
+## 49. 2026-10-25 21:58:01 JST
+
+```text
+Next, please go on with decode × 4 and RVC expansion (A2). Prepare the unit tests and Vivado scripts too.
+```

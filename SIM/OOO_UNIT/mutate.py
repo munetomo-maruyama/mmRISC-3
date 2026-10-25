@@ -19,6 +19,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RTL = os.environ.get('OOO_RTL') or os.path.abspath(os.path.join(HERE, '..', '..', 'RTL', 'CPU', 'OOO'))
+CORE = os.path.abspath(os.path.join(HERE, '..', '..', 'RTL', 'CPU', 'CORE'))   # blocks taken from mmRISC-2 ('CORE:' files)
 
 M = [
     # id, file, test, old, new, what it breaks
@@ -165,6 +166,27 @@ M = [
     ('M145', 'OOO_IQ/OOO_IQ.sv', 'iq', 'end else if (phq && xwoken(dq)) begin', "end else if (phq && 1'b0) begin", 'a cancelled load never freed'),
     ('M146', 'OOO_IQ/OOO_IQ.sv', 'iq', "smq[s] <= uq[s] ? wmask(sq[s]) & ~conf_m : '0;", "smq[s] <= '0;", 'a woken source without its mask'),
     ('M147', 'OOO_IQ/OOO_IQ.sv', 'iq', "end else if ((emq & ~conf_m) == '0) begin", "end else if (1'b0) begin", 'a kept entry never freed'),
+    # 2026-10-25: decode (OOO_DEC, and the blocks taken from mmRISC-2)
+    ('M153', 'OOO_DEC/OOO_DEC.sv', 'dec', 'ld   = is_load  && !is_store && mem_cmd[k] == CMD_LOAD  && !is_fp_load;', 'ld   = is_load  && !is_store && mem_cmd[k] == CMD_LOAD;', 'an FP load counted as an integer load'),
+    ('M154', 'OOO_DEC/OOO_DEC.sv', 'dec', 'amo  = is_load && (is_store || mem_cmd[k] != CMD_LOAD);', 'amo  = is_load && is_store;', 'LR not an atomic'),
+    ('M155', 'OOO_DEC/OOO_DEC.sv', 'dec', "else if (alu_op[k] == ALU_SLL && b_sel[k] && !a_uw[k])      op[k] = 3'd3;", "else if (alu_op[k] == ALU_SLL && b_sel[k])                  op[k] = 3'd3;", 'slli.uw taken as slli'),
+    ('M156', 'OOO_DEC/OOO_DEC.sv', 'dec', "else if (alu_op[k] == ALU_ADD && !b_sel[k])                 op[k] = 3'd5;", "else if (alu_op[k] == ALU_SUB && !b_sel[k])                 op[k] = 3'd5;", 'sub taken as add'),
+    ('M157', 'OOO_DEC/OOO_DEC.sv', 'dec', "alu2ok[k] = alu && a_sel[k] == 2'd0 &&", 'alu2ok[k] = alu &&', 'lui / auipc as a second stage'),
+    ('M158', 'OOO_DEC/OOO_DEC.sv', 'dec', 'alu_op[k] == ALU_XOR || alu_op[k] == ALU_SRL ||', 'alu_op[k] == ALU_XOR || alu_op[k] == ALU_SRA ||', 'sra in the second stage, not srl'),
+    ('M159', 'OOO_DEC/OOO_DEC.sv', 'dec', "else if (is_load || is_store)       port[k] = 2'd2;", "else if (is_load)                   port[k] = 2'd2;", 'stores not to the LSU'),
+    ('M160', 'OOO_DEC/OOO_DEC.sv', 'dec', "else if (is_fp[k])                  port[k] = 2'd3;", "else if (1'b0)                      port[k] = 2'd3;", 'FP arithmetic not to the FPU'),
+    ('M161', 'OOO_DEC/OOO_DEC.sv', 'dec', 'lat2[k]    = !ill && ((is_mdu && !div) || ld);', 'lat2[k]    = !ill && ld;', 'multiplies with latency 1'),
+    ('M162', 'OOO_DEC/OOO_DEC.sv', 'dec', 'div  = is_mdu && mdu_op[k][2];', 'div  = is_mdu && mdu_op[k][1];', 'the wrong MDU operations answered from outside'),
+    ('M163', 'OOO_DEC/OOO_DEC.sv', 'dec', 'nonspec[k] = !ill && (sysm || amo || cbo);', 'nonspec[k] = !ill && (sysm || amo);', 'cbo.zero speculative'),
+    ('M164', 'OOO_DEC/OOO_DEC.sv', 'dec', "rd[k] = (we_rd && !ill) ? d_rd : 5'd0;", "rd[k] = we_rd ? d_rd : 5'd0;", 'a register for a reserved RVC encoding'),
+    ('M165', 'OOO_DEC/OOO_DEC.sv', 'dec', 'assign sys[k]   = {wfi, sret, mret, ebreak, ecall, cbo, fei, fe};', 'assign sys[k]   = {wfi, mret, sret, ebreak, ecall, cbo, fei, fe};', 'mret and sret swapped'),
+    ('M166', 'OOO_DEC/OOO_DEC.sv', 'dec', 'assign xi = in_rvc[k] ? x : in_inst[k];', 'assign xi = in_inst[k];', 'RVC not expanded'),
+    ('M167', 'OOO_DEC/OOO_DEC.sv', 'dec', 'ill  = d_ill || (in_rvc[k] && c_ill);', 'ill  = d_ill;', 'reserved RVC encodings legal'),
+    ('M168', 'OOO_DEC/OOO_DEC.sv', 'dec', 'assign imm[k]   = imm_full[31:0];', "assign imm[k]   = {imm_full[31:1], 1'b0};", 'immediate bit 0 lost'),
+    ('M169', 'CORE:CORE_DECOMP/CORE_DECOMP.sv', 'dec', "if (insn_c[12:5] == 8'd0) illegal = 1'b1;   // also the all zero word", "if (insn_c[12:6] == 7'd0) illegal = 1'b1;   // also the all zero word", 'c.addi4spn reserved check one bit short'),
+    ('M170', 'CORE:CORE_DEC/CORE_DEC.sv', 'dec', "{7'b0000101, 3'b100}: alu_op = ALU_MIN;", "{7'b0000101, 3'b100}: alu_op = ALU_MAX;", 'min decoded as max'),
+    ('M171', 'CORE:CORE_DEC/CORE_DEC.sv', 'dec', 'mem_signed = ~funct3[2];', 'mem_signed = funct3[2];', 'loads extended the wrong way'),
+    ('M172', 'CORE:CORE_DEC/CORE_DEC.sv', 'dec', "3'b010:  fp_op = FOP_EQ;", "3'b010:  fp_op = FOP_LT;", 'feq decoded as flt'),
     ('M148', 'OOO_IQ/OOO_IQ.sv', 'iq', "if (woken(sq[s]) && (wmask(sq[s]) & kill_m) == '0) begin", 'if (woken(sq[s])) begin', 'woken by the cancelled load in the cancel cycle'),
     ('M149', 'OOO_IQ/OOO_IQ.sv', 'iq', "drdy[d][s] = (wmask(t) & kill_m) == '0;", "drdy[d][s] = 1'b1;", 'dispatched ready on a wakeup of the cancelled load'),
     ('M150', 'OOO_IQ/OOO_IQ.sv', 'iq', 'assign ld_kill = kill_q;', 'assign ld_kill = kill_m;', 'ld_kill for the units a cycle early'),
@@ -183,12 +205,13 @@ def run(m):
     work = os.path.join(HERE, 'obj_dir', 'mutate', mid)
     shutil.rmtree(work, ignore_errors=True)
     shutil.copytree(RTL, os.path.join(work, 'rtl'))
-    path = os.path.join(work, 'rtl', f)
+    shutil.copytree(CORE, os.path.join(work, 'core'))
+    path = os.path.join(work, 'core', f[5:]) if f.startswith('CORE:') else os.path.join(work, 'rtl', f)
     src = open(path).read()
     if src.count(old) != 1:
         return mid, 'NOT APPLIED', what, f'found {src.count(old)} times'
     open(path, 'w').write(src.replace(old, new))
-    env = dict(os.environ, OOO_RTL=os.path.join(work, 'rtl'), OOO_OBJ=os.path.join(work, 'obj'))
+    env = dict(os.environ, OOO_RTL=os.path.join(work, 'rtl'), CORE_RTL=os.path.join(work, 'core'), OOO_OBJ=os.path.join(work, 'obj'))
     r = subprocess.run([os.path.join(HERE, 'run.sh'), test], env=env, capture_output=True, text=True)
     last = (r.stdout.strip().splitlines() or [''])[-1]
     return mid, ('DETECTED' if r.returncode != 0 else 'NOT DETECTED'), what, last

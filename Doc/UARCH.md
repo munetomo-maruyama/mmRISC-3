@@ -101,6 +101,7 @@ A misprediction costs 9 cycles from EX to EX. The model is the reference for the
 | Item | Specification |
 |---|---|
 | Width | 4 instructions decoded, 2 µops out per cycle |
+| Decoder | `OOO_DEC`: per slot mmRISC-2's `CORE_DECOMP` + `CORE_DEC` taken without change (`RTL/CPU/CORE`), and the fields fusion, the issue queue and the ROB need (`Plan/OOC.md` 16) |
 | Fusion | `OOO_FUSE` LEVEL 3: lui + addi, auipc + x, slli + srli, ALU + load (address), load / store pairs, ALU + branch, ALU + ALU (chained). Greedy from the oldest slot, adjacent instructions in program order |
 | Limits | A pair reads at most 2 registers (`SRC2`) and writes at most 1 (`W1`); the second half of ALU + ALU is an operation of the narrowed second stage (`alu2ok` from the decoder) |
 | Off | `no_fuse`: single-step, armed triggers, the refetch after an exception in a pair (3.8) |
@@ -213,7 +214,7 @@ of the slices).
 | Fetch: PC generation, FTQ, I$ interface, predecode, fetch buffer, 4 instructions out | 2.0k to 2.8k | mmRISC-2's IFU without its BTB is 2,893 for a narrower fetch; the buffer (8 parcels in at any place, 4 instructions out at variable places) about 1.3k to 1.8k. **2026-10-25: measured in Vivado, `OOO_FBUF` 940 LUTs (+3.541 ns after its loop was shortened) and `OOO_FTQ` 148, about 1.09k together (`Plan/OOC.md` 13.6, 13.7); PC generation, the I$ interface and predecode in `OOC_FRONT` (next rows)** |
 | TAGE-S logic (tables in block RAM) | 0.8k to 1.5k | Folded histories, tag compares, provider / alternate choice, update and allocation through the FTQ. **2026-10-25: the whole front end with the uBTB (`OOC_FRONT`: uBTB, predecode, TAGE-S, BTB, RAS, fetch control) measured in Vivado, 3,076 LUTs, 5.5 BRAM tiles, +0.959 ns (`Plan/OOC.md` 14.6), at the bottom of its estimate of 3.0k to 4.8k** |
 | BTB (block RAM) and RAS 16 | 0.4k to 0.7k | Tag compare and target; RAS in LUTRAM. **2026-10-25: `OOO_BTB` (indirect jumps only) and `OOO_RAS` written; the direct targets are predecode's 8 adders, in the fetch row** |
-| Decode × 4 and RVC × 4 | 1.0k to 1.6k | mmRISC-2's CORE_DEC 278 and CORE_DECOMP 78 each; `REDUCE.md` E2 |
+| Decode × 4 and RVC × 4 | 1.0k to 1.6k | mmRISC-2's CORE_DEC 278 and CORE_DECOMP 78 each; `REDUCE.md` E2. **2026-10-25: `OOO_DEC` written (Yosys 2,246 with the FP and CSR fields); Vivado to come (`Plan/OOC.md` 16.3)** |
 | ROB 24 | 0.7k to 1.2k | Payload in LUTRAM (two banks), status in flip-flops, commit 2 a cycle, flush. **2026-10-25: `OOO_ROB` written; Vivado first gave 5,173 LUTs with the payload in flip-flops (two write statements per bank), fixed to one write per bank: 1,073 LUTs (160 LUTRAM), +11.060 ns (`Plan/OOC.md` 12.7)** |
 | Issue-queue payload | 0.4k to 0.7k | LUTRAM, 2 writes / 3 reads (two banks + LVT) |
 | LSU: address calculation, alignment, LQ 12, SQ 12 with forwarding, D$ adapter, hit speculation and replay | 2.5k to 3.5k | mmRISC-2's CORE_LSU is 946 (alignment); the SQ's address compares and data select; the adapter. **2026-10-25: `OOO_LSU` without the adapter measured in Vivado, 2,969 LUTs, +6.265 ns (`Plan/OOC.md` 11.8)** |

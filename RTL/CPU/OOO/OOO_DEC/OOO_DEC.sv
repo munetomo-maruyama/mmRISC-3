@@ -1,0 +1,189 @@
+//---------------------------------------------------------------------------
+// OOO_DEC.sv
+//
+// Decode of mmRISC-3 (D1, Doc/UARCH.md 3.1, 3.3): the 4 instructions the
+// fetch buffer gives a cycle, each expanded if it is RVC and decoded, with
+// mmRISC-2's CORE_DECOMP and CORE_DEC (RTL/CPU/CORE, taken without change:
+// the instruction set is mmRISC-2's, and OOO_ALU uses CORE_EXU's operation
+// encoding). Combinational, one slot per instruction, nothing between the
+// slots (fusion and renaming come in D2).
+//
+// What comes out per slot: CORE_DEC's record (the µop's payload: ALU
+// operation and operands, immediate, branch, MDU, memory, system, CSR and
+// FP fields), and what OOO_FUSE, the issue queue and the ROB need of it:
+//   illegal   reserved RVC encoding or an instruction CORE_DEC does not know
+//   cls       0 ALU 1 BR 2 JAL 3 JALR 4 LOAD 5 STORE 6 MUL/DIV 7 other, for
+//             OOO_FUSE; loads and stores are the integer ones (FP loads and
+//             stores, AMO / LR / SC and cbo.zero are "other": not fused in
+//             Phase 1, which has no FP renaming)
+//   op        1 lui 2 auipc 3 slli(w) 4 srli / srai(w) 5 add(w) / sh*add(.uw)
+//             / add.uw 6 addi(w), else 0 (Plan/model/mktrace.py op_of; here
+//             from the encoding, so c.li and mv count as addi)
+//   rd, rs1, rs2, use_rs1, use_rs2   integer registers only: rd is 0 when
+//             no integer register is written (x0 or an FP destination)
+//   imm       the immediate, 32 bits (sign extended at its use); its low 12
+//             bits are the load / store offset OOO_FUSE pairs on
+//   alu2ok    an ALU operation the narrowed second stage of OOO_ALU2 has
+//             (add, sub, sh*add(.uw), logic, srl, extensions, czero, bext)
+//   port      0 any ALU, 1 ALU0 only (MUL / DIV, CSR and system: they run
+//             at the ROB head beside ALU0), 2 LSU, 3 FPU (Doc/UARCH.md 3.5)
+//   lat2      the result comes 2 cycles after issue (a multiply, a load)
+//   ext_ans   the result comes from outside, woken on ext_* (a divide; AMO,
+//             LR, SC from the LSU at the head)
+//   nonspec   runs only at the ROB head (Doc/UARCH.md 3.9: CSR, ECALL,
+//             EBREAK, MRET, SRET, WFI, FENCE, FENCE.I, SFENCE.VMA, AMO, LR,
+//             SC, cbo.zero)
+//---------------------------------------------------------------------------
+
+`timescale 1ns/1ps
+
+module OOO_DEC
+    (
+        input  logic [3:0][31:0]    in_inst,    // an RVC one in the low 16 bits
+        input  logic [3:0]          in_rvc,
+
+        // for fusion, the issue queue and the ROB
+        output logic [3:0]          illegal,
+        output logic [3:0][2:0]     cls,
+        output logic [3:0][2:0]     op,
+        output logic [3:0][4:0]     rd,
+        output logic [3:0][4:0]     rs1,
+        output logic [3:0][4:0]     rs2,
+        output logic [3:0]          use_rs1,
+        output logic [3:0]          use_rs2,
+        output logic [3:0][31:0]    imm,
+        output logic [3:0]          alu2ok,
+        output logic [3:0][1:0]     port,
+        output logic [3:0]          lat2,
+        output logic [3:0]          ext_ans,
+        output logic [3:0]          nonspec,
+
+        // the rest of CORE_DEC's record
+        output logic [3:0][5:0]     alu_op,
+        output logic [3:0]          a_uw,
+        output logic [3:0][1:0]     a_shift,
+        output logic [3:0][1:0]     a_sel,
+        output logic [3:0]          b_sel,
+        output logic [3:0]          word_op,
+        output logic [3:0]          is_branch,
+        output logic [3:0]          is_jal,
+        output logic [3:0]          is_jalr,
+        output logic [3:0][2:0]     br_op,
+        output logic [3:0][3:0]     mdu_op,
+        output logic [3:0][4:0]     mem_cmd,
+        output logic [3:0][1:0]     mem_size,
+        output logic [3:0]          mem_signed,
+        output logic [3:0][7:0]     sys,        // fence, fence.i, cbo.zero, ecall, ebreak, mret, sret, wfi
+        output logic [3:0]          is_sfence,
+        output logic [3:0]          is_csr,
+        output logic [3:0][11:0]    csr_addr,
+        output logic [3:0][1:0]     csr_op,
+        output logic [3:0]          csr_imm_sel,
+        output logic [3:0]          csr_wr,
+        output logic [3:0]          csr_rd,
+        output logic [3:0]          is_fp,
+        output logic [3:0][4:0]     fp_op,
+        output logic [3:0]          fp_fmt,
+        output logic [3:0][2:0]     fp_rm,
+        output logic [3:0][2:0]     use_fs,     // fs1, fs2, fs3 (bit 0: fs1)
+        output logic [3:0][4:0]     rs3,
+        output logic [3:0]          fp_we_rd,
+        output logic [3:0]          fp_int_signed,
+        output logic [3:0]          fp_int_w
+    );
+
+    localparam logic [5:0] ALU_ADD = 6'd0, ALU_SUB = 6'd1, ALU_SLL = 6'd2, ALU_XOR = 6'd5, ALU_SRL = 6'd6,
+                           ALU_SRA = 6'd7, ALU_OR = 6'd8, ALU_AND = 6'd9, ALU_ANDN = 6'd10, ALU_ORN = 6'd11,
+                           ALU_XNOR = 6'd12, ALU_SEXTB = 6'd22, ALU_SEXTH = 6'd23, ALU_ZEXTH = 6'd24,
+                           ALU_CZEQZ = 6'd27, ALU_CZNEZ = 6'd28, ALU_BEXT = 6'd32;
+    localparam logic [4:0] CMD_LOAD = 5'd0, CMD_STORE = 5'd1;
+
+    for (genvar k = 0; k < 4; k++) begin : g_slot
+        logic [31:0] x, xi;
+        logic        c_ill;
+        CORE_DECOMP u_decomp (.insn_c(in_inst[k][15:0]), .insn(x), .illegal(c_ill));
+        assign xi = in_rvc[k] ? x : in_inst[k];
+
+        logic        d_ill, we_rd, is_mdu, is_load, is_store, fe, fei, cbo, ecall, ebreak, mret, sret, wfi;
+        logic        is_fp_load, is_fp_store;
+        logic [4:0]  d_rd;
+        logic [63:0] d_imm;
+        /* verilator lint_off PINCONNECTEMPTY */     // (fp_arith: an FP instruction that is not a load or store)
+        CORE_DEC u_dec
+            (.insn(xi),
+             .rs1(rs1[k]), .rs2(rs2[k]), .rd(d_rd), .use_rs1(use_rs1[k]), .use_rs2(use_rs2[k]), .we_rd(we_rd),
+             .imm(d_imm), .alu_op(alu_op[k]), .a_uw(a_uw[k]), .a_shift(a_shift[k]), .a_sel(a_sel[k]), .b_sel(b_sel[k]),
+             .word_op(word_op[k]),
+             .is_branch(is_branch[k]), .is_jal(is_jal[k]), .is_jalr(is_jalr[k]), .br_op(br_op[k]),
+             .is_mdu(is_mdu), .mdu_op(mdu_op[k]),
+             .is_load(is_load), .is_store(is_store), .mem_cmd(mem_cmd[k]), .mem_size(mem_size[k]), .mem_signed(mem_signed[k]),
+             .is_fence(fe), .is_fence_i(fei), .is_cbo_zero(cbo), .is_ecall(ecall), .is_ebreak(ebreak),
+             .is_mret(mret), .is_sret(sret), .is_sfence(is_sfence[k]), .is_wfi(wfi), .illegal(d_ill),
+             .is_fp(is_fp[k]), .fp_arith(), .fp_op(fp_op[k]), .fp_fmt(fp_fmt[k]), .fp_rm(fp_rm[k]),
+             .use_fs1(use_fs[k][0]), .use_fs2(use_fs[k][1]), .use_fs3(use_fs[k][2]), .fp_we_rd(fp_we_rd[k]),
+             .fp_int_signed(fp_int_signed[k]), .fp_int_w(fp_int_w[k]), .is_fp_load(is_fp_load), .is_fp_store(is_fp_store),
+             .is_csr(is_csr[k]), .csr_addr(csr_addr[k]), .csr_op(csr_op[k]), .csr_imm_sel(csr_imm_sel[k]),
+             .csr_wr(csr_wr[k]), .csr_rd(csr_rd[k]));
+        /* verilator lint_on PINCONNECTEMPTY */
+
+        /* verilator lint_off UNUSEDSIGNAL */   // (the immediate is never wider than 32 bits)
+        logic [63:0] imm_full;
+        /* verilator lint_on UNUSEDSIGNAL */
+        assign imm_full = d_imm;
+        assign imm[k]   = imm_full[31:0];
+        assign rs3[k]   = xi[31:27];
+        assign sys[k]   = {wfi, sret, mret, ebreak, ecall, cbo, fei, fe};
+
+        always @(*) begin
+            logic ill, ld, st, amo, alu, div, sysm;
+            ill  = d_ill || (in_rvc[k] && c_ill);
+            illegal[k] = ill;
+            // integer loads and stores; AMO / LR / SC have both or a command of their own
+            ld   = is_load  && !is_store && mem_cmd[k] == CMD_LOAD  && !is_fp_load;
+            st   = is_store && !is_load  && mem_cmd[k] == CMD_STORE && !is_fp_store;
+            amo  = is_load && (is_store || mem_cmd[k] != CMD_LOAD);
+            sysm = is_csr[k] || fe || fei || ecall || ebreak || mret || sret || wfi || is_sfence[k];
+            alu  = !ill && !is_branch[k] && !is_jal[k] && !is_jalr[k] && !is_load && !is_store && !is_mdu &&
+                   !sysm && !is_fp[k];
+            div  = is_mdu && mdu_op[k][2];      // div, divu, rem, remu (and the W forms; Zbc is 001 .. 011)
+            rd[k] = (we_rd && !ill) ? d_rd : 5'd0;
+            // the class for fusion
+            if (ill)                cls[k] = 3'd7;
+            else if (is_branch[k])  cls[k] = 3'd1;
+            else if (is_jal[k])     cls[k] = 3'd2;
+            else if (is_jalr[k])    cls[k] = 3'd3;
+            else if (ld)            cls[k] = 3'd4;
+            else if (st)            cls[k] = 3'd5;
+            else if (is_mdu)        cls[k] = 3'd6;
+            else if (alu)           cls[k] = 3'd0;
+            else                    cls[k] = 3'd7;
+            // the operation kind for fusion
+            op[k] = 3'd0;
+            if (alu) begin
+                if (a_sel[k] == 2'd2)                                       op[k] = 3'd1;   // lui
+                else if (a_sel[k] == 2'd1)                                  op[k] = 3'd2;   // auipc
+                else if (alu_op[k] == ALU_SLL && b_sel[k] && !a_uw[k])      op[k] = 3'd3;   // slli, slliw
+                else if ((alu_op[k] == ALU_SRL || alu_op[k] == ALU_SRA) && b_sel[k]) op[k] = 3'd4;   // srli, srai (w)
+                else if (alu_op[k] == ALU_ADD && !b_sel[k])                 op[k] = 3'd5;   // add(w), sh*add(.uw), add.uw
+                else if (alu_op[k] == ALU_ADD && b_sel[k])                  op[k] = 3'd6;   // addi(w)
+            end
+            // an operation of the narrowed second stage (OOO_ALU FULL = 0), on a register first operand
+            alu2ok[k] = alu && a_sel[k] == 2'd0 &&
+                        (alu_op[k] == ALU_ADD || alu_op[k] == ALU_SUB || alu_op[k] == ALU_XOR || alu_op[k] == ALU_SRL ||
+                         alu_op[k] == ALU_OR || alu_op[k] == ALU_AND || alu_op[k] == ALU_ANDN || alu_op[k] == ALU_ORN ||
+                         alu_op[k] == ALU_XNOR || alu_op[k] == ALU_SEXTB || alu_op[k] == ALU_SEXTH ||
+                         alu_op[k] == ALU_ZEXTH || alu_op[k] == ALU_CZEQZ || alu_op[k] == ALU_CZNEZ ||
+                         alu_op[k] == ALU_BEXT);
+            // where it issues, how its result comes
+            if (ill)                            port[k] = 2'd1;    // (an exception at decode: never issued)
+            else if (is_load || is_store)       port[k] = 2'd2;
+            else if (is_fp[k])                  port[k] = 2'd3;    // (FP loads and stores went to the LSU)
+            else if (is_mdu || sysm)            port[k] = 2'd1;
+            else                                port[k] = 2'd0;
+            lat2[k]    = !ill && ((is_mdu && !div) || ld);
+            ext_ans[k] = !ill && (div || amo);
+            nonspec[k] = !ill && (sysm || amo || cbo);
+        end
+    end
+
+endmodule : OOO_DEC
