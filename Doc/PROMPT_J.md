@@ -1270,3 +1270,32 @@ bash /media/psf/Home/Documents/CQ/RISCV/mmRISC/mmRISC-3/SIM/OOO_UNIT/obj_dir/fbu
 ```text
 絶対パスで fbuf_check.sh を実行し直しました。fbuf_check.txt を読んで、問題なければコミットとpushまで進めてください。
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+`fbuf_check.txt` を確認したところ問題はなく、FBUFの修正をコミットしてdevにpushしました(e668be9)。新しい経路の余裕はまだVivadoで測っていません。
+
+**確認の結果**
+- lintで警告は出ませんでした。
+- 単体テストは10本すべてPASS、`tb_fbuf` は9シードでPASSです。
+- バグ注入は、最初の実行で11件検出、1件(M80)が適用されませんでした。
+  - npopの行を書き直したため、M80の置換対象の文字列が見つからなくなっていました。
+  - 定義を直して流し直し、M80も検出しました。FBUFの12件はすべて検出です(合計80件)。
+- 途中からシェルが使えるようになったので、M80の再実行とコミット・pushは私が行いました。
+
+**コミットした内容**
+- `OOO_FBUF.sv` の修正: 次の先頭パーセルの候補を `npop` より前に読み、`npop` はそこから選ぶだけにしたもの。
+- `mutate.py`、`Plan/OOC` 13.6、`Doc/UARCH`、RTLのREADME(どれも日英両方)。
+- VivadoのOOC_FBUFとOOC_FTQのレポート。
+- プロンプトログ(35〜39の英訳)。35は安全チェックの不調でターンが止まり、回答が記録されなかったので、その旨を注記しました。
+- 一時的に作った `fbuf_check.sh` は消しました。
+
+**お願い**: `synth_ooo.bat OOC_FBUF` を再実行してください。規模はほとんど変わらず、余裕は+0.539 nsから約2 ns増える見込みです。
+<!-- /answer -->
+
+## 40. 2026-10-25 16:00:46 JST
+
+```text
+synth_ooo.bat OOC_FBUF実行しました。
+```

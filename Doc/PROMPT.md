@@ -1280,3 +1280,32 @@ The `/auto-mode-setup` settings went in, but the safety check on my side still r
 ```text
 I reran fbuf_check.sh with the absolute path. Please read fbuf_check.txt, and if there is no problem go on through commit and push.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I checked `fbuf_check.txt`, found no problem, and committed and pushed the FBUF fix to dev (e668be9). The slack of the new path has not been measured in Vivado yet.
+
+**Results of the check**
+- No lint warnings.
+- All 10 unit tests PASS, and `tb_fbuf` PASSes on 9 seeds.
+- In the first run of the bug injection, 11 were detected and 1 (M80) was not applied.
+  - Rewriting the npop line had removed the text M80 replaces.
+  - I fixed its definition and reran it; M80 is detected too. All 12 FBUF mutations are detected (80 in all).
+- The shell came back partway, so I reran M80 and did the commit and push myself.
+
+**What was committed**
+- The fix to `OOO_FBUF.sv`: the candidates for the next head parcel are read before `npop`, which only selects among them.
+- `mutate.py`, `Plan/OOC` 13.6, `Doc/UARCH`, the RTL READMEs (all in both languages).
+- The Vivado reports of OOC_FBUF and OOC_FTQ.
+- The prompt log (English for 35 to 39). 35 has a note that no answer was recorded, since the turn stopped on the safety check's failure.
+- The temporary `fbuf_check.sh` was removed.
+
+**Request**: please rerun `synth_ooo.bat OOC_FBUF`. The size should hardly change, and the slack should grow by about 2 ns from +0.539 ns.
+<!-- /answer -->
+
+## 40. 2026-10-25 16:00:46 JST
+
+```text
+I ran synth_ooo.bat OOC_FBUF.
+```

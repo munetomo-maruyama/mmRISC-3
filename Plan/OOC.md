@@ -910,3 +910,19 @@ synth_ooo.bat OOC_FTQ
 - **Checked**: all 10 unit tests PASS, `tb_fbuf` on 9 seeds; the buffer's mutations follow the new code (3 rewritten,
   M86 added for the start read after two pops), all 12 detected (80 in all).
 - **Please rerun `synth_ooo.bat OOC_FBUF`** (the size should hardly change; the slack should grow by about 2 ns).
+
+### 13.7 The fetch buffer rerun (2026-10-25)
+
+| Run | LUT | of it LUTRAM | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|---|
+| OOC_FBUF (first version) | 931 | 192 | 323 | +0.539 ns | 16 |
+| **OOC_FBUF (fixed in 13.6)** | **940** | 192 | 323 | **+3.541 ns** | 14 |
+
+- **The slack grows by 3.0 ns** (more than the 2 ns expected), for 9 LUTs more (the third read port of the block
+  starts).
+- The worst path now ends at the head pointer: `hb` → the block data (LUTRAM) → the window → the chain of instruction
+  lengths → the count taken → `npop` → `hb`. It is the loop itself, with no second read after it; what remains is the
+  window and the length chain, 79 % of it routing.
+- The fetch buffer and the FTQ come to **about 1.09k** (940 + 148). The fetch row of `Doc/UARCH.md` 4.3 (2.0k to
+  2.8k) is kept until PC generation, the I$ interface and predecode are written and measured too; the gap in 4.4 is
+  not changed yet.

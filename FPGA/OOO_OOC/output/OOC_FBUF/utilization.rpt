@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Sun Oct 25 15:10:29 2026
+| Date         : Sun Oct 25 15:59:00 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOC_FBUF/utilization.rpt
 | Design       : OOC_FBUF
@@ -22,9 +22,9 @@ Table of Contents
 +--------------+----------+------------+------------+---------+------+-----+--------+--------+------------+
 |   Instance   |  Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs | RAMB36 | RAMB18 | DSP Blocks |
 +--------------+----------+------------+------------+---------+------+-----+--------+--------+------------+
-| OOC_FBUF     |    (top) |        931 |        739 |     192 |    0 | 323 |      0 |      0 |          0 |
+| OOC_FBUF     |    (top) |        940 |        748 |     192 |    0 | 323 |      0 |      0 |          0 |
 |   (OOC_FBUF) |    (top) |          0 |          0 |       0 |    0 | 309 |      0 |      0 |          0 |
-|   u_fbuf     | OOO_FBUF |        931 |        739 |     192 |    0 |  14 |      0 |      0 |          0 |
+|   u_fbuf     | OOO_FBUF |        940 |        748 |     192 |    0 |  14 |      0 |      0 |          0 |
 +--------------+----------+------------+------------+---------+------+-----+--------+--------+------------+
 * Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
 
