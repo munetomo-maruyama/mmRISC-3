@@ -2016,3 +2016,60 @@ Recommended order: D-12 → D-14 → L4 to L6 → L7.
 ```text
 Proceed as recommended on all seven items: keep G2 and G3, add cut to the OOC_DEC harness, then commit and ask for the three Vivado runs, and start D-12.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I went ahead on the seven items as recommended. Tier 1 is pushed to dev as `ace55f7` and D-12 as `eb600dd`. All 18 tests PASS and all 175 bug injections are detected. Vivado has not been run yet.
+
+**Tier 1 (`ace55f7`)**
+- The decisions D-11 to D-14 are recorded in section 9 and 6.3 of `Doc/UARCH`; what tier 1 did is in 6.4.
+- **G1**: renaming has 6 checkpoints. 6 is not a power of two, so the numbers now turn in a ring of 6.
+- **G2**: the rare classes are decoded in slot 0 only. The output `cut` is also registered by the `OOC_DEC` harness.
+- **G3**: port 2 of the payload reads only the low 48 bits.
+- The 5 bug injections that G2's change of text had moved off their targets were rewritten and are detected.
+
+**D-12: replay after commit and an issue queue of 10 (`eb600dd`)**
+- **Issue queue**: back to the version before the selective replay (git f4af1b8), with 10 entries. The masks and the kept entries are gone; entries are freed at issue. Its test went back to that version too, with checks of `disp_ready` and the entry numbers added.
+- **LSU**: a load that raised `ld_cancel` (a miss, a wait) is marked, and its late completion carries the mark (`cmp_ld_rp`).
+- **ROB**: a marked µop commits alone, and then the ROB empties. Fetch starts again from the next instruction (`replay`, `replay_pc` = pc + the µop's length).
+  - The load itself is not run again, so a peripheral read never happens twice.
+  - For that the payload got the length (3 bits).
+- **Bug injection**: the 21 for the selective replay went with the logic they targeted; 8 added, 4 rewritten.
+- The selective replay's RTL and test stay in git (5935e45, 7d93d41).
+
+**Size in Yosys** (a hint only; Vivado decides)
+
+| Block | Before | After |
+|---|---|---|
+| Issue queue | 6,172 | **2,513** |
+| Renaming | 3,769 | 3,456 |
+| Decode | 2,246 | 2,078 |
+| Payload | 1,202 | 515 |
+| ROB | 1,544 | 1,621 (the replay adds a little) |
+
+**Contracts for the assembly** (in `Doc/UARCH` 6.4 and 6.5)
+- The fetch buffer and fusion take `valid & ~cut` from decode.
+- Dispatch stops when 6 transfers are unresolved.
+- `replay` is a `flush_all` for the rest of the core.
+- A load that runs only at the head (MMIO) must not wake what follows it on a guess.
+
+The rest of tier 1 (L1, L3, L8) is not touched yet: the CSR, the FPU and LiteX are not in the repository. The budget counts them at their estimates.
+
+**Vivado request** (six; `OOC_IQPL` again, now with 10 entries)
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_RENAME
+synth_ooo.bat OOC_DEC
+synth_ooo.bat OOC_IQPL
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_ROB
+synth_ooo.bat OOC_LSU
+```
+<!-- /answer -->
+
+## 57. 2026-10-26 22:07:41 JST
+
+```text
+I ran synth_ooo.bat for OOC_RENAME, OOC_DEC, OOC_IQPL, OOO_IQ, OOC_ROB and OOC_LSU. Please check output/*/summary.txt.
+```

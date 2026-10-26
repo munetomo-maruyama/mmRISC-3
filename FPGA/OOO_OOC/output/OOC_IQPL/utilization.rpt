@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Mon Oct 26 20:10:25 2026
+| Date         : Mon Oct 26 21:58:03 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOC_IQPL/utilization.rpt
 | Design       : OOC_IQPL
@@ -22,9 +22,9 @@ Table of Contents
 +--------------+----------+------------+------------+---------+------+-----+--------+--------+------------+
 |   Instance   |  Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs | RAMB36 | RAMB18 | DSP Blocks |
 +--------------+----------+------------+------------+---------+------+-----+--------+--------+------------+
-| OOC_IQPL     |    (top) |        711 |        327 |     384 |    0 | 533 |      0 |      0 |          0 |
-|   (OOC_IQPL) |    (top) |          0 |          0 |       0 |    0 | 502 |      0 |      0 |          0 |
-|   u_iqpl     | OOO_IQPL |        711 |        327 |     384 |    0 |  31 |      0 |      0 |          0 |
+| OOC_IQPL     |    (top) |        585 |        265 |     320 |    0 | 478 |      0 |      0 |          0 |
+|   (OOC_IQPL) |    (top) |          0 |          0 |       0 |    0 | 454 |      0 |      0 |          0 |
+|   u_iqpl     | OOO_IQPL |        585 |        265 |     320 |    0 |  24 |      0 |      0 |          0 |
 +--------------+----------+------------+------------+---------+------+-----+--------+--------+------------+
 * Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
 

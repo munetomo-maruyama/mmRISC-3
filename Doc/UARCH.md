@@ -210,7 +210,7 @@ of the slices).
 | Block | LUT | Basis |
 |---|---|---|
 | ALUs, 2 ports (`OOC_ALU2` × 2) | 6,266 → **about 5.9k** | Measured; about −0.2k a port without the third source |
-| Issue queue (`OOO_IQ`) | 3,143 → **about 2.45k** | Measured at 16 entries; about 0.78 × at 12. **2026-10-25: with the selective replay measured in Vivado, 4,974 LUTs at 16 entries (+1,831), +3.309 ns; about 3.9k at 12 (+1.4k) (`Plan/OOC.md` 15.5); after the reductions of 15.6, 4,977 LUTs, +2.857 ns (15.7): no change** |
+| Issue queue (`OOO_IQ`) | 3,143 → **about 2.45k** | Measured at 16 entries; about 0.78 × at 12. **2026-10-25: with the selective replay measured in Vivado, 4,974 LUTs at 16 entries (+1,831), +3.309 ns; about 3.9k at 12 (+1.4k) (`Plan/OOC.md` 15.5); after the reductions of 15.6, 4,977 LUTs, +2.857 ns (15.7): no change. 2026-10-26: 10 entries with replay after commit (D-12), 1,621 LUTs, +7.843 ns (6.6)** |
 | Renaming (`OOC_RENAME`) | 2,267 → **about 2.0k** | Measured with 8 checkpoints; 6 checkpoints |
 | Register file (`OOC_PRF`, 64, 3 / 6) | 2,503 | Measured |
 | uBTB (`OOO_UBTB`) | 910 | Measured |
@@ -246,6 +246,8 @@ of the slices).
 | **Over, 2026-10-25 late** | **9.9k** | **11.6k** | **13.2k** |
 | Needed, 2026-10-26 (the issue-queue payload measured 711 and the D$ adapter 227, in place of 0.4k to 0.7k and 0.3k to 0.6k) | 28.0k | 28.6k | 29.2k |
 | **Over, 2026-10-26** | **10.1k** | **11.5k** | **12.8k** |
+| Needed, 2026-10-26 later (G0b tier 1 in the RTL and D-12 measured, 6.6: issue queue 1,621 in place of about 3.9k, ROB 1,232, LSU 2,981, renaming 2,464, decode 1,808, payload 585) | 25.4k | 26.0k | 26.6k |
+| **Over, 2026-10-26 later** | **7.5k** | **8.9k** | **10.2k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is
@@ -420,6 +422,28 @@ The decisions are D-11 to D-14 (section 9).
   4 retargeted: 175 in all, all detected.
 - **Vivado asked** (with 6.4's three): `synth_ooo.bat OOO_IQ`, `OOC_ROB`, `OOC_LSU` (and `OOC_IQPL` again, now 10
   entries).
+
+### 6.6 The Vivado results of tier 1 and D-12 (2026-10-26)
+
+| Run | Before | **Now** | Change | Register-to-register slack | Estimate of the lever |
+|---|---|---|---|---|---|
+| OOO_IQ (10 entries, no selective replay) | 4,977 (16, replay); about 3.9k counted at 12 | **1,621** | **−2,279** against what was counted | +7.843 ns (was +2.857) | G4: −1.9k with the ROB and LSU parts |
+| OOC_ROB (replay after commit) | 1,073 | **1,232** (176 LUT RAM) | +159 | +11.233 ns | (in G4) |
+| OOC_LSU (the replay mark) | 2,969 | **2,981** | +12 | +5.698 ns | (in G4) |
+| OOC_RENAME (6 checkpoints) | 2,624 | **2,464** | −160 | +8.179 ns | G1: −0.25k |
+| OOC_DEC (rare classes in slot 0) | 1,980 | **1,808** | −172 | +7.803 ns | G2: −0.4k to −0.7k |
+| OOC_IQPL (10 entries, port 2 at 48 bits) | 711 | **585** (320 LUT RAM) | −126 | +12.620 ns | G3: −0.1k to −0.2k |
+| **Together** | | | **−2,566** | | **−2.85k** (G1 to G4 at their middle values) |
+
+- **All close at 50 MHz**; the issue queue gained 5 ns of slack.
+- **G4 (replay after commit + 10 entries) did better than estimated**: −2.11k with the ROB and LSU parts, against −1.9k.
+- **G2 did worse**: −172 against −0.4k to −0.7k, as Yosys said; the logic that recognizes the rare classes stays in
+  slots 1 to 3 while `CORE_DEC` is used whole. A light integer-only decoder for slots 1 to 3 (option 1b of the
+  decision list) is the way to the rest, about −0.3k to −0.5k more, with new verification.
+- **The budget** (4.4): the gap goes to **7.5k / 8.9k / 10.2k**.
+- **Against the plan of 6.3**: the measured part of tier 1 and G4 gave 2.57k for 2.85k planned (−0.28k). The levers
+  still to come (L1, L3, L8 of tier 1 at 2.15k; L4 to L6 1.2k; L7 0.85k; L9 1.2k; the reserve L10 + B4 / B5 3.5k)
+  add up to 8.9k: **the middle margin is now about 0** (−0.03k), +1.4k at the low end, −1.3k at the high end.
 
 ---
 

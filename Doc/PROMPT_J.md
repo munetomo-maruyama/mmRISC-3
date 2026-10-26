@@ -2009,5 +2009,56 @@ Proceed as recommended on all seven items: keep G2 and G3, add cut to the OOC_DE
 <!-- answer -->
 **Claude Codeの回答**
 
-The docs for D-12 are written. I'm waiting for the full test and mutation run (175 mutations) to finish before committing and asking for the Vivado runs.
+7項目を推奨どおりに進めました。段1は`ace55f7`、D-12は`eb600dd`としてdevにpushしています。テスト18本はすべてPASS、バグ注入は175件すべて検出です。Vivadoはまだ流していません。
+
+**段1(`ace55f7`)**
+- 決定D-11〜D-14を`Doc/UARCH` 9章と6.3に記録しました。段1の内容は6.4にあります。
+- **G1**: リネームのチェックポイントを6にしました。6は2のべき乗でないので、番号を6で回すように直しています。
+- **G2**: まれな種類はスロット0だけでデコードするようにしました。出力`cut`も`OOC_DEC`のハーネスでレジスタに取ります。
+- **G3**: ペイロードのポート2は下位48ビットだけを読みます。
+- G2で文面が変わって当たらなくなっていたバグ注入5件は、書き直して検出されるようにしました。
+
+**D-12: コミットのあとのリプレイと発行キュー10(`eb600dd`)**
+- **発行キュー**: 選択的リプレイを入れる前の版(git f4af1b8)に戻し、10エントリにしました。マスクと残すエントリがなくなり、エントリは発行で空きます。テストも当時の版に戻し、`disp_ready`とエントリ番号の検査を足しています。
+- **LSU**: `ld_cancel`を出したロード(ミスや待ち)に印を付け、遅れて完了するときにその印を運びます(`cmp_ld_rp`)。
+- **ROB**: 印の付いたµopはそれだけでコミットし、そのあとROBを空にします。フェッチは次の命令から取り直します(`replay`、`replay_pc` = pc + µopの長さ)。
+  - ロード自身は再実行しないので、周辺の読み出しが2回起きることはありません。
+  - そのためにペイロードに長さ(3ビット)を加えました。
+- **バグ注入**: 選択的リプレイ用の21件は対象の論理ごとなくなったので外し、8件を加え、4件を書き直しました。
+- 選択的リプレイのRTLとテストはgitに残っています(5935e45、7d93d41)。
+
+**Yosysでの規模**(目安です。Vivadoで決まります)
+
+| ブロック | 前 | 後 |
+|---|---|---|
+| 発行キュー | 6,172 | **2,513** |
+| リネーム | 3,769 | 3,456 |
+| デコード | 2,246 | 2,078 |
+| ペイロード | 1,202 | 515 |
+| ROB | 1,544 | 1,621(リプレイの分の増加) |
+
+**組み立てのときの約束**(`Doc/UARCH` 6.4と6.5に書きました)
+- フェッチバッファと融合は、デコードから`valid & ~cut`を受け取ります。
+- ディスパッチは、未解決の分岐が6つになったら止まります。
+- `replay`は、コアの残りにとっての`flush_all`として扱います。
+- 先頭でだけ実行するロード(MMIO)は、予想で後続を起こしてはいけません。
+
+段1の残り(L1、L3、L8)は、対象のCSR、FPU、LiteXがまだリポジトリにないので、まだ触っていません。予算表では見積りの値で数えています。
+
+**Vivadoのお願い**(6本です。`OOC_IQPL`は10エントリにしたので、もう一度流してください)
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_RENAME
+synth_ooo.bat OOC_DEC
+synth_ooo.bat OOC_IQPL
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_ROB
+synth_ooo.bat OOC_LSU
+```
 <!-- /answer -->
+
+## 57. 2026-10-26 22:07:41 JST
+
+```text
+I ran synth_ooo.bat for OOC_RENAME, OOC_DEC, OOC_IQPL, OOO_IQ, OOC_ROB and OOC_LSU. Please check output/*/summary.txt.
+```
