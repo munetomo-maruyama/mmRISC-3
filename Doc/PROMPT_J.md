@@ -2186,5 +2186,51 @@ Go on to L4 to L6 (LQ/SQ 8, uBTB 8, fetch buffer 8) as planned.
 <!-- answer -->
 **Claude Codeの回答**
 
-The docs and the prompt log are done. Waiting for the full test and mutation run to finish before committing.
+L4〜L6をRTLに入れ、devにpushしました(`662a191`)。テスト18本はすべてPASSです。バグ注入は173件中171件が検出され、残る2件は2ブロックでは結果が変わらない(等価な)変異でした。L6(フェッチバッファ)は、Yosysでは逆に大きくなっています。
+
+**したこと**
+- **L4(LQ / SQを8に)**: `OOO_LSU`と`OOO_DCAD`を8エントリにしました。
+  - テストに直書きされていたビット幅は、エントリ数から計算するように直しました。
+  - LSUのハーネス2つ(OOC_LSU、OOC_LSUDC)は、エントリ3ビット・tail 4ビットで書き直しました。
+- **L5(uBTBを8に)**: `OOO_UBTB`を8エントリにし、`OOO_FETCH`の中のものも合わせました。tb_fetchが持つuBTBの鏡も8にしています。
+- **L6(フェッチバッファを2ブロックに)**: `OOO_FBUF`を2ブロックにしました。
+
+**Yosysでの規模**(目安です。Vivadoで決まります)
+
+| ブロック | 前 | 後 |
+|---|---|---|
+| LSU | 4,662 | 3,055 |
+| uBTB | 2,207 | 1,037 |
+| フロントエンド全体 | 5,797 | 5,148 |
+| LSU + アダプタ + D$ | 13,843 | 12,455 |
+| フェッチバッファ | 1,381 | **1,829(増えた)** |
+
+**L6は何も減らないかもしれません。**
+- ブロックはLUTRAMに置いていましたが、LUTRAMの費用は32段までは深さによりません。4ブロックを2ブロックにしても、RAMは減りません。
+- しかも2段のメモリは、フリップフロップと選択回路で組まれてしまいました。
+- −0.3kという見積りは、モデルのバッファを命令の数で数えたもので、この構造を見たものではありませんでした。
+- Vivadoでも減らなければ、4ブロックに戻すことを勧めます。そのままだと、何も得ずにCoreMarkの−0.3%だけを払うことになります。
+
+**バグ注入で見つからなかった2件(M77、M86)**
+- どちらも「2ブロックをpopしたとき、その次(3つ目)のブロックの開始位置」を壊すものです。2ブロックでは3つ目のブロックが存在しないので、壊しても結果は変わりません。
+- 4ブロックなら検出されます。L6を戻すかもしれないので、RTLは一般の形のままにしてあります。
+- なお、今回のバグ注入の集計で、私の絞り込みが「NOT DETECTED」の行まで落としていました。件数の行(173件中171件)で気づいています。今後のためにメモリに書き残しました。
+
+記録は`Doc/UARCH`の3.1、3.2、3.7、6.9(英語版と日本語版)、READMEs、プロンプトログ(59の回答と60の英訳)に入れています。
+
+**Vivadoのお願い**(OOC_LSUDCは、D$と合わせたタイミングを見るためです)
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_LSU
+synth_ooo.bat OOO_UBTB
+synth_ooo.bat OOC_FBUF
+synth_ooo.bat OOC_FRONT
+synth_ooo.bat OOC_LSUDC
+```
 <!-- /answer -->
+
+## 61. 2026-10-26 23:50:11 JST
+
+```text
+I ran synth_ooo.bat for OOC_LSU, OOO_UBTB, OOC_FBUF, OOC_FRONT and OOC_LSUDC. Please check output/*/summary.txt.
+```

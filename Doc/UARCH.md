@@ -250,6 +250,8 @@ of the slices).
 | **Over, 2026-10-26 later** | **7.5k** | **8.9k** | **10.2k** |
 | Needed, 2026-10-26 night (D-14 measured, 6.8: two ALU ports 3,852 in place of about 5.9k, fusion 208, decode 1,791) | 23.3k | 23.9k | 24.5k |
 | **Over, 2026-10-26 night** | **5.4k** | **6.8k** | **8.1k** |
+| Needed, 2026-10-26 late night (L4 to L6 measured, 6.10: LSU 2,290, front end 2,588, fetch buffer 924, adapter 199) | 22.1k | 22.7k | 23.3k |
+| **Over, 2026-10-26 late night** | **4.2k** | **5.6k** | **6.9k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is
@@ -503,6 +505,26 @@ The decisions are D-11 to D-14 (section 9).
   since L6 may go back to 4.
 - **Vivado asked**: `synth_ooo.bat OOC_LSU`, `OOO_UBTB`, `OOC_FBUF`, `OOC_FRONT` (and `OOC_LSUDC` for the timing with
   the D$).
+
+### 6.10 The Vivado results of L4 to L6 (2026-10-26)
+
+| Run | Before | **Now** | Change | Register-to-register slack | Estimate |
+|---|---|---|---|---|---|
+| OOC_LSU (LQ / SQ 8) | 2,981 | **2,290** | −691 | +6.866 ns | L4: −0.4k to −0.6k |
+| OOO_UBTB alone (8 entries) | 910 | **492** | −418 | +7.078 ns | L5: about −0.4k |
+| OOC_FRONT (the uBTB inside) | 3,076 | **2,588** | **−488** (what the budget sees: it counts the front end as OOC_FRONT) | +0.574 ns (was +0.959) | |
+| OOC_FBUF (2 blocks) | 940 | **924** (192 LUT RAM, as before) | **−16** | +4.076 ns | L6: about −0.3k |
+| OOC_LSUDC (LSU + adapter + D$) | 8,439 | 7,562 (adapter 199, was 227) | −877 | +1.552 ns | |
+| **Together, as the budget counts** | | | **−1,223** (LSU, front end, fetch buffer, adapter) | | **−1.2k** |
+
+- **All close at 50 MHz** (the front end with 0.57 ns, the uBTB's loop at 7.1 ns).
+- **L4 and L5 did better than estimated; L6 did nothing.** Vivado kept the 2 blocks in LUTRAM (Yosys had not), whose
+  cost is the same at any depth below 32: −16 LUTs for −0.5 % / −0.2 % in the model (fb 8 against 16 with the decided
+  set: 6.250 / 6.698 against 6.279 / 6.710; pessimistic 5.504 / 5.928 against 5.548 / 5.971). **Recommended: L6 back
+  to 4 blocks.**
+- **The budget** (4.4): the gap goes to **4.2k / 5.6k / 6.9k**.
+- **Against the plan**: still to come L1, L3, L8 (2.15k), L7 (about 0.4k) and the reserve L10 + B4 / B5 (3.5k):
+  6.05k. Middle margin about +0.4k (+1.8k low, −0.9k high), as before: L4 to L6 gave what was planned.
 
 ---
 

@@ -2193,3 +2193,55 @@ Recorded in `Doc/UARCH` 6.8 and 4.4 (English and Japanese) and the prompt log (a
 ```text
 Go on to L4 to L6 (LQ/SQ 8, uBTB 8, fetch buffer 8) as planned.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+L4 to L6 are in the RTL and pushed to dev (`662a191`). All 18 tests PASS. Of 173 bug injections 171 are detected; the other 2 are mutations that change nothing with 2 blocks (equivalent). L6 (the fetch buffer) came out larger in Yosys.
+
+**What was done**
+- **L4 (LQ / SQ to 8)**: `OOO_LSU` and `OOO_DCAD` have 8 entries.
+  - The bit widths written out in the tests are now computed from the sizes.
+  - The two LSU harnesses (OOC_LSU, OOC_LSUDC) were rewritten for 3-bit entries and 4-bit tails.
+- **L5 (uBTB to 8)**: `OOO_UBTB` has 8 entries, the one inside `OOO_FETCH` too, and tb_fetch's mirror of the uBTB.
+- **L6 (fetch buffer to 2 blocks)**: `OOO_FBUF` has 2 blocks.
+
+**Size in Yosys** (a hint only; Vivado decides)
+
+| Block | Before | After |
+|---|---|---|
+| LSU | 4,662 | 3,055 |
+| uBTB | 2,207 | 1,037 |
+| Whole front end | 5,797 | 5,148 |
+| LSU + adapter + D$ | 13,843 | 12,455 |
+| Fetch buffer | 1,381 | **1,829 (larger)** |
+
+**L6 may save nothing.**
+- The blocks were in LUTRAM, and LUTRAM costs the same at any depth up to 32: 2 blocks instead of 4 save no RAM.
+- And the 2-deep memory was built of flip-flops and selects instead.
+- The −0.3k estimate counted the model's buffer in instructions; it did not look at this structure.
+- If Vivado shows no saving either, I recommend going back to 4 blocks; as it is, it pays CoreMark's −0.3 % for nothing.
+
+**The 2 not detected (M77, M86)**
+- Both break "the start of the next (third) block when 2 blocks are popped". With 2 blocks there is no third block, so breaking it changes nothing.
+- With 4 blocks they are detected. L6 may go back, so the RTL stays general.
+- In this campaign my filter also dropped the "NOT DETECTED" lines; the count line (171 of 173) caught it. I wrote it into memory for next time.
+
+Recorded in 3.1, 3.2, 3.7 and 6.9 of `Doc/UARCH` (English and Japanese), the READMEs, and the prompt log (answer 59 and the English of 60).
+
+**Vivado request** (OOC_LSUDC for the timing with the D$)
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_LSU
+synth_ooo.bat OOO_UBTB
+synth_ooo.bat OOC_FBUF
+synth_ooo.bat OOC_FRONT
+synth_ooo.bat OOC_LSUDC
+```
+<!-- /answer -->
+
+## 61. 2026-10-26 23:50:11 JST
+
+```text
+I ran synth_ooo.bat for OOC_LSU, OOO_UBTB, OOC_FBUF, OOC_FRONT and OOC_LSUDC. Please check output/*/summary.txt.
+```

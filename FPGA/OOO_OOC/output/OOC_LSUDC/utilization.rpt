@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Mon Oct 26 20:16:48 2026
+| Date         : Mon Oct 26 23:49:14 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOC_LSUDC/utilization.rpt
 | Design       : OOC_LSUDC
@@ -22,14 +22,14 @@ Table of Contents
 +---------------+------------------+------------+------------+---------+------+------+--------+--------+------------+
 |    Instance   |      Module      | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
 +---------------+------------------+------------+------------+---------+------+------+--------+--------+------------+
-| OOC_LSUDC     |            (top) |       8439 |       8369 |      70 |    0 | 8240 |      4 |      4 |          0 |
-|   (OOC_LSUDC) |            (top) |          0 |          0 |       0 |    0 |  515 |      0 |      0 |          0 |
-|   u_dc        |           DCACHE |       5211 |       5211 |       0 |    0 | 5012 |      4 |      4 |          0 |
-|     (u_dc)    |           DCACHE |       2103 |       2103 |       0 |    0 | 4492 |      0 |      0 |          0 |
-|     u_dat     | CACHE_DATA_ARRAY |       1187 |       1187 |       0 |    0 |    0 |      4 |      0 |          0 |
-|     u_tag     |  CACHE_TAG_ARRAY |       1938 |       1938 |       0 |    0 |  520 |      0 |      4 |          0 |
-|   u_dcad      |         OOO_DCAD |        227 |        157 |      70 |    0 |  110 |      0 |      0 |          0 |
-|   u_lsu       |          OOO_LSU |       3004 |       3004 |       0 |    0 | 2603 |      0 |      0 |          0 |
+| OOC_LSUDC     |            (top) |       7562 |       7492 |      70 |    0 | 7356 |      4 |      4 |          0 |
+|   (OOC_LSUDC) |            (top) |          0 |          0 |       0 |    0 |  502 |      0 |      0 |          0 |
+|   u_dc        |           DCACHE |       5215 |       5215 |       0 |    0 | 5012 |      4 |      4 |          0 |
+|     (u_dc)    |           DCACHE |       2104 |       2104 |       0 |    0 | 4492 |      0 |      0 |          0 |
+|     u_dat     | CACHE_DATA_ARRAY |       1183 |       1183 |       0 |    0 |    0 |      4 |      0 |          0 |
+|     u_tag     |  CACHE_TAG_ARRAY |       1945 |       1945 |       0 |    0 |  520 |      0 |      4 |          0 |
+|   u_dcad      |         OOO_DCAD |        199 |        129 |      70 |    0 |   94 |      0 |      0 |          0 |
+|   u_lsu       |          OOO_LSU |       2151 |       2151 |       0 |    0 | 1748 |      0 |      0 |          0 |
 +---------------+------------------+------------+------------+---------+------+------+--------+--------+------------+
 * Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
 

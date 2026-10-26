@@ -1,3 +1,9 @@
 OOC_FRONT   (period 20.0 ns, I/O delay 6.0 ns each side on the ports)
-after synthesis: 3123 LUTs (3035 logic + 88 LUT RAM; 3283 LUT cells), 2576 FF, 0 DSP, 25 LUT RAM cells, 5.5 BRAM tiles
-after place and route: 3076 LUTs (2994 logic + 82 LUT RAM; 3276 LUT cells), WNS 0.959 ns, register to register 0.959 ns (16 logic levels)
+after synthesis: 2640 LUTs (2552 logic + 88 LUT RAM; 2763 LUT cells), 2111 FF, 0 DSP, 25 LUT RAM cells, 5.5 BRAM tiles
+after place and route: 2588 LUTs (2506 logic + 82 LUT RAM; 2756 LUT cells), WNS 0.574 ns, register to register 0.574 ns (16 logic levels)
+instances (after place and route):
+    u_fetch                OOO_FETCH              2588 LUTs (2506 logic + 82 LUT RAM), 961 FF
+      u_btb                OOO_BTB                  35 LUTs (35 logic + 0 LUT RAM), 52 FF
+      u_ras                OOO_RAS                 252 LUTs (200 logic + 52 LUT RAM), 4 FF
+      u_tage               OOO_TAGE               1035 LUTs (1035 logic + 0 LUT RAM), 332 FF
+      u_ubtb               OOO_UBTB               1242 LUTs (1242 logic + 0 LUT RAM), 505 FF
