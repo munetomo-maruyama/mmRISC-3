@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-// tb_fbuf.cpp : OOO_FBUF (2 blocks, 4 instructions out) against an execution
+// tb_fbuf.cpp : OOO_FBUF (4 blocks, 4 instructions out) against an execution
 // model
 //
 // A random program in memory (parcels with random length bits: about a
@@ -20,7 +20,7 @@
 // block, then the next block, 8 parcels at most), up to 4.
 //---------------------------------------------------------------------------
 #include "VOOO_FBUF.h"
-static const int NB = 2;                       // blocks (OOO_FBUF NB)
+static const int NB = 4;                       // blocks (OOO_FBUF NB)
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>

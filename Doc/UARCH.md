@@ -95,7 +95,7 @@ A misprediction costs 9 cycles from EX to EX. The model is the reference for the
 | Item | Specification |
 |---|---|
 | Fetch | 16 bytes a cycle (aligned), the next block after a taken transfer |
-| Fetch buffer | `OOO_FBUF`: whole 16-byte blocks, **2 since G0b L6** (4 before; decided at step 2 instead of a ring of 16 parcels, `Plan/OOC.md` 13.1); a window of 8 parcels over the head block and the next; up to 4 instructions a cycle out to decode; 32-bit instructions across blocks handled in the window |
+| Fetch buffer | `OOO_FBUF`: 4 whole 16-byte blocks in LUTRAM (decided at step 2 instead of a ring of 16 parcels, `Plan/OOC.md` 13.1; G0b's L6, 2 blocks, was measured no smaller and taken back, 6.10); a window of 8 parcels over the head block and the next; up to 4 instructions a cycle out to decode; 32-bit instructions across blocks handled in the window |
 | uBTB | `OOO_UBTB`: **8 entries** (G0b L5; 16 before), fully associative, 12-bit partial tags, the first taken hit of the block in parallel, round-robin replacement, returns from the RAS top |
 | TAGE-S | `OOO_TAGE`: per fetch block, as it can be built in block RAM (decided at step 2, `Plan/OOC.md` 14.1): 4 tagged tables of 1024 rows indexed by the fetch address and the history, each row with 3 direction counters for the 1st, 2nd and 3rd conditional branch of the block; base table of 2-bit counters per parcel; one history bit per slot branch. A 4th branch in a block is predicted not taken (none in CoreMark). Updated at commit through the FTQ. Against the model's TAGE per branch: about −0.2 % / −0.5 % |
 | BTB, RAS | `OOO_BTB`: for indirect jumps only (256 rows in block RAM, read with the fetch address); the targets of branches and jal come from predecode (`OOO_PREDEC`), those of returns from the RAS. `OOO_RAS`: 16 entries in LUTRAM; each block keeps the pointer and the entry a push would overwrite, for recovery |
@@ -521,8 +521,11 @@ The decisions are D-11 to D-14 (section 9).
 - **L4 and L5 did better than estimated; L6 did nothing.** Vivado kept the 2 blocks in LUTRAM (Yosys had not), whose
   cost is the same at any depth below 32: −16 LUTs for −0.5 % / −0.2 % in the model (fb 8 against 16 with the decided
   set: 6.250 / 6.698 against 6.279 / 6.710; pessimistic 5.504 / 5.928 against 5.548 / 5.971). **Recommended: L6 back
-  to 4 blocks.**
-- **The budget** (4.4): the gap goes to **4.2k / 5.6k / 6.9k**.
+  to 4 blocks.** **Done (the author, 2026-10-26)**: `NB` is 4 again; that RTL is the one measured before (940 LUTs,
+  13.7), the reports are those again, and M77 / M86 are detected again (173 of 173). The decided set in the model is
+  now **6.28 / 6.71** (pessimistic 5.55 / 5.97).
+- **The budget** (4.4): the gap goes to **4.2k / 5.6k / 6.9k** (with the fetch buffer back at 940: +16, no change in
+  the rounding).
 - **Against the plan**: still to come L1, L3, L8 (2.15k), L7 (about 0.4k) and the reserve L10 + B4 / B5 (3.5k):
   6.05k. Middle margin about +0.4k (+1.8k low, −0.9k high), as before: L4 to L6 gave what was planned.
 
@@ -576,7 +579,7 @@ is kept** (that of mmRISC-2 Rev.02); everything else as recommended. **G0b (D-11
 | D-9 | FPU (D3 reconsidered) | Keep FPU_PIPE; C1 now; C2 and C3 at G0b if needed. Not the multi-cycle FPU (it is larger) | As recommended (C2 / C3 keep the instruction set) |
 | D-10 | The order of the levers when the gap remains | L3 → L4 to L6 → L7 → L9 → L10 → L11 / L12 (section 6.2) | As recommended; no lever may remove instructions |
 | D-2 | L2 size | Keep 256 KB (block RAM is not the limit) | As recommended |
-| D-11 | G0b tier 1 (G1, L1, L3, L8, G2, G3; 6.3) | Take all (about 3.1k, nothing lost) || **As recommended (2026-10-26)** |
-| D-12 | Replay policy again: the trap at commit with an issue queue of 10 (G4) | Take it (about 1.9k, +0.2 % CoreMark; code that misses pays a refetch) || **As recommended (2026-10-26)** |
-| D-13 | L4 to L6, and L7 after it is modelled | Take L4 to L6 (1.2k, −1.7 %); L7 if about 1 % or less || **As recommended (2026-10-26)** |
-| D-14 | The end state | A: fusion level 2 now; the 54k ceiling and no PMP / HPM as the reserve, decided at G1 || **As recommended (2026-10-26)** |
+| D-11 | G0b tier 1 (G1, L1, L3, L8, G2, G3; 6.3) | Take all (about 3.1k, nothing lost) | **As recommended (2026-10-26)** |
+| D-12 | Replay policy again: the trap at commit with an issue queue of 10 (G4) | Take it (about 1.9k, +0.2 % CoreMark; code that misses pays a refetch) | **As recommended (2026-10-26)** |
+| D-13 | L4 to L6, and L7 after it is modelled | Take L4 to L6 (1.2k, −1.7 %); L7 if about 1 % or less | **As recommended (2026-10-26)**; L6 taken back after Vivado (6.10) |
+| D-14 | The end state | A: fusion level 2 now; the 54k ceiling and no PMP / HPM as the reserve, decided at G1 | **As recommended (2026-10-26)** |

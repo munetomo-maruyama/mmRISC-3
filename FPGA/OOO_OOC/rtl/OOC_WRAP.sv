@@ -339,7 +339,7 @@ module OOC_FBUF
         if (q[140])
             for (int i = 0; i < 4; i++) if (out_valid[i]) consume = 3'(i + 1);
     end
-    OOO_FBUF #(.NB(2), .FTQW(3)) u_fbuf
+    OOO_FBUF #(.NB(4), .FTQW(3)) u_fbuf
         (
          .clk(clk), .rst_n(rst_n), .flush(q[0]), .in_valid(q[1]), .in_data(q[129:2]), .in_start(q[132:130]),
          .in_end(q[135:133]), .in_taken(q[136]), .in_ftq(q[139:137]), .consume(consume), .in_ready(in_ready),

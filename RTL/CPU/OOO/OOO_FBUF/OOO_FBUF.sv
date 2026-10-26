@@ -30,15 +30,17 @@
 // Only two blocks feed the window, so a window that would need a third (the
 // head block and the next one both nearly empty) gives fewer instructions
 // that cycle; the cycle model counts the buffer in instructions, and its
-// size hardly matters (Plan/MODEL.md 6: 16 → 8 is −0.3 %): 2 blocks since
-// G0b (L6), the model's 8.
+// size hardly matters (Plan/MODEL.md 6: 16 → 8 is −0.3 %). G0b's L6 (2
+// blocks, the model's 8) was measured and taken back: the blocks are in
+// LUTRAM, whose cost does not depend on the depth below 32 (−16 LUTs,
+// Doc/UARCH.md 6.10).
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
 
 module OOO_FBUF
     #(
-        parameter int NB   = 2,         // blocks (a power of two; G0b L6, Doc/UARCH.md 6.3: 4 -> 2)
+        parameter int NB   = 4,         // blocks (a power of two; 2 measured no smaller, Doc/UARCH.md 6.10)
         parameter int FTQW = 3
     )
     (

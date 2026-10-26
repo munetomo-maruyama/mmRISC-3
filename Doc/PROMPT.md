@@ -2245,3 +2245,9 @@ synth_ooo.bat OOC_LSUDC
 ```text
 I ran synth_ooo.bat for OOC_LSU, OOO_UBTB, OOC_FBUF, OOC_FRONT and OOC_LSUDC. Please check output/*/summary.txt.
 ```
+
+## 62. 2026-10-26 23:54:11 JST
+
+```text
+Yes, put the fetch buffer back to 4 blocks (revert L6) and record it.
+```
