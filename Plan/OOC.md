@@ -1436,3 +1436,35 @@ cd FPGA\OOO_OOC
 synth_ooo.bat OOC_IQPL
 synth_ooo.bat OOC_LSUDC
 ```
+
+### 17.6 The Vivado results (2026-10-26)
+
+| Run | LUT | of it LUT RAM | FF | BRAM tiles | Register-to-register slack | Logic levels |
+|---|---|---|---|---|---|---|
+| OOC_IQPL (16 entries, 96 bits) | **711** | 384 | 533 (502 the harness's) | 0 | **+12.237 ns** | 3 |
+| OOC_LSUDC (LSU + adapter + D$) | 8,439 | 70 | 8,240 | 6 | **+1.254 ns** | 21 |
+
+| Instance of OOC_LSUDC | LUT | of it LUT RAM | FF |
+|---|---|---|---|
+| `u_dcad` (`OOO_DCAD`) | **227** | 70 | 110 |
+| `u_lsu` (`OOO_LSU`) | 3,004 | 0 | 2,603 |
+| `u_dc` (`DCACHE`, arrays included) | 5,211 | 0 | 5,012 |
+
+- **Both close at 50 MHz.**
+- **The payload is 711 LUTs**: 384 LUT RAM (2 banks × 3 reads × 96 bits, as counted) and 327 logic, mostly the
+  3 × 96 bank choices. Just above its estimate (0.4k to 0.7k). It is linear in W: about 7.4 LUTs a bit.
+- **The adapter is 227 LUTs**, below its estimate (0.3k to 0.6k). The LSU in this harness is 3,004 (2,969 alone, 11.8):
+  what feeds `dc_kill` and the fill input is optimized a little differently.
+- **The worst path is not the hit path of 17.4.** It runs from the D$'s tag forwarding through the tag compare to
+  `s1_can_go` → `d_req_ready` → the adapter's `dc_st_ready` → the LSU's store drain → the SQ's head and valid bits (21
+  levels, +1.254 ns). Paths inside the D$ to `rob_data` follow (+2.07 ns). The new hit path, `d_hit_now` → the LSU's M
+  → `wb_data` / `ld_cancel`, is not among the 10 worst, so its slack is above 2.07 ns. In the core `ld_cancel` goes on
+  into the issue queue's next state, which this harness does not have (17.4 item 1 stays open for that part).
+- If the drain path gets in the way when the core is put together, `dc_st_ready` can be made from the registered state
+  of the D$ (a store drains a cycle later), at no cost in the model's terms (stores drain after commit).
+- The D$ is mmRISC-2's and counted with the L1 caches outside the engine (`Doc/UARCH.md` 4.2: 8,217 for both). Its
+  5,012 FFs are mostly the line buffers of the MSHRs and write-back buffers: `REDUCE.md` A3 (to LUTRAM, 0.8k to 1.5k)
+  stays a G0b candidate.
+- **The budget** (`Doc/UARCH.md` 4.4): the payload 711 and the adapter 227 in place of 0.4k to 0.7k and 0.3k to 0.6k:
+  the gap goes to **10.1k / 11.5k / 12.8k**. What is left unwritten is the control (dispatch, branch resolution,
+  redirects, commit and exceptions, the ports to CSR / MDU / FPU / MMU; 1.5k to 2.5k).

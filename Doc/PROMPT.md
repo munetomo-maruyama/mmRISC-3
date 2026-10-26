@@ -1753,3 +1753,56 @@ The gap has widened to 11.6k in the middle. There are two ways on: measure the r
 ```text
 Next, please go ahead with the issue-queue payload (A4) and the D$ adapter (A3). Prepare everything up to the unit tests and the Vivado scripts.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I wrote the issue-queue payload (A4) and the D$ adapter (A3), up to the unit tests and the Vivado scripts. All 18 tests PASS and all 183 bug injections are detected. It is pushed to dev (ecd950c), but Vivado has not been run yet.
+
+**A4: the issue-queue payload (`OOO_IQPL`)**
+- A LUTRAM with 2 writes and 3 reads. It has two banks with one write port each, and remembers per entry, in one bit, which bank wrote it last (LVT).
+- Each bank is written by one statement so that Vivado makes LUTRAM of it (what we learned with the ROB).
+- The write address is needed, so `OOO_IQ` now outputs `disp_entry`. tb_iq now also checks the entry number of every µop.
+- The record is 96 bits for now. Counting the fields needed gives about 91 bits; it is fixed when the core is put together.
+
+**A3: the D$ adapter (`OOO_DCAD`)**
+- **What did not match**: the LSU waits for hit and data in the cycle after the request (M), while mmRISC-2's D$ answers 2 cycles later at the earliest, in request order.
+- **Only one output was added to the D$**: `d_hit_now` gives a load hit in the cycle stage 1 finds it. The D$ files were copied to `RTL/CPU/CACHE`.
+  - mmRISC-2's condition "no older answer waiting" is only there to answer in order, so I left it out.
+  - Hits now come back under misses too. In the layout with many evictions, hits in M went from about 4,400 to about 10,300.
+- **Answers of misses**: the D$'s in-order answers are given to the LSU as fills by LQ entry.
+- **The rule that keeps stale values out**: a load the LSU tries again can receive the answer of its first request late. That answer is an old value without the store that came in between. So when an entry sends a new request, its older answers are dropped.
+- **`dc_kill` was removed**: bug injection showed it is not needed given the rule above, as with the LSU's epoch.
+
+**Verification**
+- tb_dcad puts together the LSU, the adapter, the real D$ and an AXI4 memory model, keeping all of tb_lsu's checks.
+  - 6 lines are put in one set of the 4-way D$, so that evictions and write-backs happen all the time.
+  - PASS on 5 seeds in each of two layouts.
+- Bug injection found one hole in the test: the adapter seldom kept answers. A hook that holds the fills now and then was added, and it is detected now.
+
+**Size (Yosys)**
+
+| Block | Yosys | G0 estimate |
+|---|---|---|
+| OOC_IQPL | 1,202 LUTs + 384 LUT RAM | 0.4k to 0.7k |
+| OOO_DCAD (alone) | 486 LUTs + 72 LUT RAM | 0.3k to 0.6k |
+
+**What worries me: the timing of the hit path**
+- The path is the D$'s tag RAM → hit → the LSU's M → `wb_data` / `ld_cancel`.
+- In mmRISC-2, tag to hit is already 12 levels (+4.4 ns of margin), and the LSU's M is 13 levels. Whether it fits 50 MHz is not known until OOC_LSUDC (LSU + adapter + D$) is run.
+- The result's `summary.txt` now also has a row per instance (the adapter's own size).
+
+The other points left for the assembly (reporting the D$'s bus errors, loads to peripherals) are in `Plan/OOC.md` 17.4.
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_IQPL
+synth_ooo.bat OOC_LSUDC
+```
+<!-- /answer -->
+
+## 52. 2026-10-26 20:36:45 JST
+
+```text
+I ran synth_ooo.bat OOC_IQPL and synth_ooo.bat OOC_LSUDC. Please check output/*/summary.txt.
+```

@@ -216,8 +216,8 @@ of the slices).
 | BTB (block RAM) and RAS 16 | 0.4k to 0.7k | Tag compare and target; RAS in LUTRAM. **2026-10-25: `OOO_BTB` (indirect jumps only) and `OOO_RAS` written; the direct targets are predecode's 8 adders, in the fetch row** |
 | Decode × 4 and RVC × 4 | 1.0k to 1.6k | mmRISC-2's CORE_DEC 278 and CORE_DECOMP 78 each; `REDUCE.md` E2. **2026-10-25: `OOO_DEC` measured in Vivado, 1,980 LUTs with every field (the FP and CSR ones too), +8.048 ns (`Plan/OOC.md` 16.4)** |
 | ROB 24 | 0.7k to 1.2k | Payload in LUTRAM (two banks), status in flip-flops, commit 2 a cycle, flush. **2026-10-25: `OOO_ROB` written; Vivado first gave 5,173 LUTs with the payload in flip-flops (two write statements per bank), fixed to one write per bank: 1,073 LUTs (160 LUTRAM), +11.060 ns (`Plan/OOC.md` 12.7)** |
-| Issue-queue payload | 0.4k to 0.7k | LUTRAM, 2 writes / 3 reads (two banks + LVT). **2026-10-25: `OOO_IQPL` written (16 × 96 bits), Yosys 1,202 LUTs + 384 LUT RAM; Vivado asked (`Plan/OOC.md` 17.5)** |
-| LSU: address calculation, alignment, LQ 12, SQ 12 with forwarding, D$ adapter, hit speculation and replay | 2.5k to 3.5k | mmRISC-2's CORE_LSU is 946 (alignment); the SQ's address compares and data select; the adapter. **2026-10-25: `OOO_LSU` without the adapter measured in Vivado, 2,969 LUTs, +6.265 ns (`Plan/OOC.md` 11.8); the adapter `OOO_DCAD` written, Yosys 486 LUTs + 72 LUT RAM alone; Vivado asked with the LSU and the D$ (`OOC_LSUDC`, `Plan/OOC.md` 17.5)** |
+| Issue-queue payload | 0.4k to 0.7k | LUTRAM, 2 writes / 3 reads (two banks + LVT). **2026-10-26: `OOO_IQPL` (16 × 96 bits) measured in Vivado, 711 LUTs (384 LUT RAM), +12.237 ns (`Plan/OOC.md` 17.6)** |
+| LSU: address calculation, alignment, LQ 12, SQ 12 with forwarding, D$ adapter, hit speculation and replay | 2.5k to 3.5k | mmRISC-2's CORE_LSU is 946 (alignment); the SQ's address compares and data select; the adapter. **2026-10-25: `OOO_LSU` without the adapter measured in Vivado, 2,969 LUTs, +6.265 ns (`Plan/OOC.md` 11.8); 2026-10-26: the adapter `OOO_DCAD` measured with the LSU and the D$ (`OOC_LSUDC`), 227 LUTs (70 LUT RAM); the three together close at +1.254 ns (`Plan/OOC.md` 17.6)** |
 | Dispatch, branch resolution, redirects, commit and exceptions, the ports to CSR / MDU / FPU / MMU | 1.5k to 2.5k | mmRISC-2's pipeline itself is 2,511 |
 | **Not yet written** | **9.3k to 14.5k** | Estimates |
 | **The out-of-order engine** | **23.3k to 28.5k** | |
@@ -239,10 +239,13 @@ of the slices).
 | **Over, 2026-10-25 night** | **8.9k** | **10.9k** | **12.8k** |
 | Needed, 2026-10-25 late (decode measured: 1,980 LUTs with every field, in place of 1.0k to 1.6k) | 27.8k | 28.7k | 29.6k |
 | **Over, 2026-10-25 late** | **9.9k** | **11.6k** | **13.2k** |
+| Needed, 2026-10-26 (the issue-queue payload measured 711 and the D$ adapter 227, in place of 0.4k to 0.7k and 0.3k to 0.6k) | 28.0k | 28.6k | 29.2k |
+| **Over, 2026-10-26** | **10.1k** | **11.5k** | **12.8k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is
-left unwritten is decode, the issue-queue payload, the D$ adapter and the control (about ±1.4k).
+left unwritten is decode, the issue-queue payload, the D$ adapter and the control (about ±1.4k). 2026-10-26: only the
+control is left (1.5k to 2.5k, ±0.5k).
 
 Block RAM and DSP are not the limit: 26.5 tiles are free, TAGE-S and the BTB need about 4 to 6, so the L2 stays at
 256 KB (D-2); 32 of 240 DSPs are used.
