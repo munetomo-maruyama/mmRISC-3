@@ -33,6 +33,13 @@
 //   nonspec   runs only at the ROB head (Doc/UARCH.md 3.9: CSR, ECALL,
 //             EBREAK, MRET, SRET, WFI, FENCE, FENCE.I, SFENCE.VMA, AMO, LR,
 //             SC, cbo.zero)
+//   cut       slot k is not taken this cycle: the rare classes (illegal,
+//             FP, CSR and system, SFENCE.VMA, AMO / LR / SC, cbo.zero) are
+//             decoded in slot 0 only (G0b G2, Doc/UARCH.md 6.3), so a group
+//             ends before one in slot 1 to 3; it comes to slot 0 in the
+//             next cycle. In slots 1 to 3 the fields only those classes use
+//             are 0, and synthesis removes their decoding there. CoreMark
+//             has 2 such instructions in 3 million (the timer reads).
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -57,6 +64,7 @@ module OOO_DEC
         output logic [3:0]          lat2,
         output logic [3:0]          ext_ans,
         output logic [3:0]          nonspec,
+        output logic [3:0]          cut,        // not taken this cycle (see above); cut[0] is 0
 
         // the rest of CORE_DEC's record
         output logic [3:0][5:0]     alu_op,
@@ -106,6 +114,12 @@ module OOO_DEC
 
         logic        d_ill, we_rd, is_mdu, is_load, is_store, fe, fei, cbo, ecall, ebreak, mret, sret, wfi;
         logic        is_fp_load, is_fp_store;
+        // the fields only the rare classes use: given out in slot 0 only
+        logic        l_sfence, l_csr, l_csr_imm_sel, l_csr_wr, l_csr_rd, l_fp, l_fp_fmt, l_fp_we_rd, l_fp_int_signed, l_fp_int_w;
+        logic [11:0] l_csr_addr;
+        logic [1:0]  l_csr_op;
+        logic [4:0]  l_fp_op, l_mem_cmd;
+        logic [2:0]  l_fp_rm, l_use_fs;
         logic [4:0]  d_rd;
         logic [63:0] d_imm;
         /* verilator lint_off PINCONNECTEMPTY */     // (fp_arith: an FP instruction that is not a load or store)
@@ -116,14 +130,14 @@ module OOO_DEC
              .word_op(word_op[k]),
              .is_branch(is_branch[k]), .is_jal(is_jal[k]), .is_jalr(is_jalr[k]), .br_op(br_op[k]),
              .is_mdu(is_mdu), .mdu_op(mdu_op[k]),
-             .is_load(is_load), .is_store(is_store), .mem_cmd(mem_cmd[k]), .mem_size(mem_size[k]), .mem_signed(mem_signed[k]),
+             .is_load(is_load), .is_store(is_store), .mem_cmd(l_mem_cmd), .mem_size(mem_size[k]), .mem_signed(mem_signed[k]),
              .is_fence(fe), .is_fence_i(fei), .is_cbo_zero(cbo), .is_ecall(ecall), .is_ebreak(ebreak),
-             .is_mret(mret), .is_sret(sret), .is_sfence(is_sfence[k]), .is_wfi(wfi), .illegal(d_ill),
-             .is_fp(is_fp[k]), .fp_arith(), .fp_op(fp_op[k]), .fp_fmt(fp_fmt[k]), .fp_rm(fp_rm[k]),
-             .use_fs1(use_fs[k][0]), .use_fs2(use_fs[k][1]), .use_fs3(use_fs[k][2]), .fp_we_rd(fp_we_rd[k]),
-             .fp_int_signed(fp_int_signed[k]), .fp_int_w(fp_int_w[k]), .is_fp_load(is_fp_load), .is_fp_store(is_fp_store),
-             .is_csr(is_csr[k]), .csr_addr(csr_addr[k]), .csr_op(csr_op[k]), .csr_imm_sel(csr_imm_sel[k]),
-             .csr_wr(csr_wr[k]), .csr_rd(csr_rd[k]));
+             .is_mret(mret), .is_sret(sret), .is_sfence(l_sfence), .is_wfi(wfi), .illegal(d_ill),
+             .is_fp(l_fp), .fp_arith(), .fp_op(l_fp_op), .fp_fmt(l_fp_fmt), .fp_rm(l_fp_rm),
+             .use_fs1(l_use_fs[0]), .use_fs2(l_use_fs[1]), .use_fs3(l_use_fs[2]), .fp_we_rd(l_fp_we_rd),
+             .fp_int_signed(l_fp_int_signed), .fp_int_w(l_fp_int_w), .is_fp_load(is_fp_load), .is_fp_store(is_fp_store),
+             .is_csr(l_csr), .csr_addr(l_csr_addr), .csr_op(l_csr_op), .csr_imm_sel(l_csr_imm_sel),
+             .csr_wr(l_csr_wr), .csr_rd(l_csr_rd));
         /* verilator lint_on PINCONNECTEMPTY */
 
         /* verilator lint_off UNUSEDSIGNAL */   // (the immediate is never wider than 32 bits)
@@ -131,20 +145,39 @@ module OOO_DEC
         /* verilator lint_on UNUSEDSIGNAL */
         assign imm_full = d_imm;
         assign imm[k]   = imm_full[31:0];
-        assign rs3[k]   = xi[31:27];
-        assign sys[k]   = {wfi, sret, mret, ebreak, ecall, cbo, fei, fe};
+        localparam bit S0 = (k == 0);
+        assign rs3[k]          = S0 ? xi[31:27] : '0;
+        assign sys[k]          = S0 ? {wfi, sret, mret, ebreak, ecall, cbo, fei, fe} : '0;
+        assign is_sfence[k]    = S0 && l_sfence;
+        assign is_csr[k]       = S0 && l_csr;
+        assign csr_addr[k]     = S0 ? l_csr_addr : '0;
+        assign csr_op[k]       = S0 ? l_csr_op : '0;
+        assign csr_imm_sel[k]  = S0 && l_csr_imm_sel;
+        assign csr_wr[k]       = S0 && l_csr_wr;
+        assign csr_rd[k]       = S0 && l_csr_rd;
+        assign is_fp[k]        = S0 && l_fp;
+        assign fp_op[k]        = S0 ? l_fp_op : '0;
+        assign fp_fmt[k]       = S0 && l_fp_fmt;
+        assign fp_rm[k]        = S0 ? l_fp_rm : '0;
+        assign use_fs[k]       = S0 ? l_use_fs : '0;
+        assign fp_we_rd[k]     = S0 && l_fp_we_rd;
+        assign fp_int_signed[k] = S0 && l_fp_int_signed;
+        assign fp_int_w[k]     = S0 && l_fp_int_w;
+        // slots 1 to 3 carry integer loads and stores only
+        assign mem_cmd[k]      = S0 ? l_mem_cmd : {4'd0, is_store};
 
         always @(*) begin
             logic ill, ld, st, amo, alu, div, sysm;
             ill  = d_ill || (in_rvc[k] && c_ill);
-            illegal[k] = ill;
             // integer loads and stores; AMO / LR / SC have both or a command of their own
-            ld   = is_load  && !is_store && mem_cmd[k] == CMD_LOAD  && !is_fp_load;
-            st   = is_store && !is_load  && mem_cmd[k] == CMD_STORE && !is_fp_store;
-            amo  = is_load && (is_store || mem_cmd[k] != CMD_LOAD);
-            sysm = is_csr[k] || fe || fei || ecall || ebreak || mret || sret || wfi || is_sfence[k];
+            ld   = is_load  && !is_store && l_mem_cmd == CMD_LOAD  && !is_fp_load;
+            st   = is_store && !is_load  && l_mem_cmd == CMD_STORE && !is_fp_store;
+            amo  = is_load && (is_store || l_mem_cmd != CMD_LOAD);
+            sysm = l_csr || fe || fei || ecall || ebreak || mret || sret || wfi || l_sfence;
             alu  = !ill && !is_branch[k] && !is_jal[k] && !is_jalr[k] && !is_load && !is_store && !is_mdu &&
-                   !sysm && !is_fp[k];
+                   !sysm && !l_fp;
+            rare[k]    = ill || l_fp || is_fp_load || is_fp_store || sysm || amo || cbo;
+            illegal[k] = S0 && ill;
             div  = is_mdu && mdu_op[k][2];      // div, divu, rem, remu (and the W forms; Zbc is 001 .. 011)
             rd[k] = (we_rd && !ill) ? d_rd : 5'd0;
             // the class for fusion
@@ -177,13 +210,20 @@ module OOO_DEC
             // where it issues, how its result comes
             if (ill)                            port[k] = 2'd1;    // (an exception at decode: never issued)
             else if (is_load || is_store)       port[k] = 2'd2;
-            else if (is_fp[k])                  port[k] = 2'd3;    // (FP loads and stores went to the LSU)
-            else if (is_mdu || sysm)            port[k] = 2'd1;
+            else if (l_fp && S0)                port[k] = 2'd3;    // (FP loads and stores went to the LSU)
+            else if (is_mdu || (sysm && S0))    port[k] = 2'd1;
             else                                port[k] = 2'd0;
             lat2[k]    = !ill && ((is_mdu && !div) || ld);
-            ext_ans[k] = !ill && (div || amo);
-            nonspec[k] = !ill && (sysm || amo || cbo);
+            ext_ans[k] = !ill && (div || (amo && S0));
+            nonspec[k] = S0 && !ill && (sysm || amo || cbo);
         end
+    end
+
+    // a group ends before a rare class in slot 1 to 3
+    logic [3:0] rare;
+    always @(*) begin
+        cut[0] = 1'b0;
+        for (int k = 1; k < 4; k++) cut[k] = cut[k-1] || rare[k];
     end
 
 endmodule : OOO_DEC

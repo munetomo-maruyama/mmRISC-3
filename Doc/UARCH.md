@@ -35,7 +35,7 @@
    checked again at **G0b**, once the front end, decode, ROB and LSU are written and measured, which is the first
    step of Phase 1 anyway. The FPU breakdown (C1) is measured in parallel by the author. The levers are applied in
    the order of section 6.
-7. **G0b (2026-10-26, proposed, 6.3)**: with every block but the control measured, the gap is 10.1k / 11.5k / 12.8k.
+7. **G0b (2026-10-26, decided as recommended, 6.3)**: with every block but the control measured, the gap is 10.1k / 11.5k / 12.8k.
    New levers were found (checkpoints back to 6, the replay trap at commit making a 10-entry issue queue free, rare
    classes decoded in one slot) and every lever was modelled. Recommended: the levers that lose nothing (3.1k), the
    trap with 10 entries (1.9k, +0.2 %), L4 to L6 (1.2k), L7 if it models well, fusion level 2, and the 54k ceiling with
@@ -316,7 +316,7 @@ Block RAM and DSP are not the limit: 26.5 tiles are free, TAGE-S and the BTB nee
   L10 and more. **Low end (5.4k)**: L1 and L3 to L8 with L9 nearly close it. **High end (12.1k)**: even L1 to L11 fall short, and the FPU or
   Ethernet has to be reconsidered.
 
-### 6.3 G0b: the levers against the measured gap (2026-10-26, proposed)
+### 6.3 G0b: the levers against the measured gap (2026-10-26, decided as recommended)
 
 The gap is **10.1k / 11.5k / 12.8k** (4.4) with every block but the control measured (1.5k to 2.5k left). The levers
 of 6.2 no longer close the middle (L1, L3 to L8 about 4.2k, L9 1.2k, L10 2k), so the measured blocks were searched for
@@ -385,6 +385,23 @@ Two ways to close the rest (the levers at their middle values):
 
 The decisions are D-11 to D-14 (section 9).
 
+### 6.4 Tier 1 applied (2026-10-26)
+
+| # | Where | What was done | Yosys (a hint only) | State |
+|---|---|---|---|---|
+| G1 | `OOO_RENAME` | `NCKPT` 8 → 6. The checkpoints are given out in a ring of 6 (an add modulo NCKPT; 6 is not a power of two). The control must keep at most 6 transfers unresolved | `OOC_RENAME` 3,769 → 3,456 LUTs | `tb_rename` PASS on 4 seeds, with the ring full about 32,000 times each |
+| G2 | `OOO_DEC` | The rare classes (illegal, FP, CSR and system, SFENCE.VMA, AMO / LR / SC, cbo.zero) are decoded in slot 0 only: their fields are 0 in slots 1 to 3, and a new output `cut` ends the group before one in slot 1 to 3 (it comes to slot 0 next cycle). `CORE_DEC` is kept as it is | `OOC_DEC` 2,246 → 2,078 LUTs (the estimate was −0.4k to −0.7k: the logic that recognizes them stays) | `tb_dec` PASS; each RVC encoding is now also tried in slot 0. CoreMark has 2 such instructions in 3 million (the timer reads) |
+| G3 | `OOO_IQPL` | Port 2 reads the low `W2` = 48 bits of a record (the LSU's fields go there when the record is laid out) | `OOC_IQPL` 1,202 → 1,008 LUTs; the LUT RAM stays 384 (a RAM32M has 3 read ports in any case: only the bank choice goes) | `tb_iqpl` PASS on 4 seeds |
+| L1 | `CORE_CSR` | Not in the repository yet: applied when the CSRs are brought in for the assembly (a parameter) | | Counted at its estimate |
+| L3 | FPU | A design task (C2 shared multiplier, C3 a small iterative unit): in Phase 2, with the FPU | | Counted at its estimate |
+| L8 | LiteX | At the LiteX build | | Counted at its estimate |
+
+- **For the assembly**: the fetch buffer and fusion take `valid & ~cut` from decode; dispatch stalls at 6 unresolved
+  transfers; the payload's record keeps the LSU's fields in its low 48 bits.
+- Bug injection: 5 added (183 + 5 = 188), and 5 retargeted after the decode change; all 188 detected.
+- `OOC_DEC` now also registers `cut` (568 output bits).
+- **Vivado asked**: `synth_ooo.bat OOC_RENAME`, `OOC_DEC`, `OOC_IQPL`.
+
 ---
 
 ## 7. Verification
@@ -416,7 +433,7 @@ The decisions are D-11 to D-14 (section 9).
 | 2 | RTL of the front end, decode, ROB, LSU (with their unit tests and bug injection), each out of context in Vivado | Claude Code, Vivado by the author |
 | 2' | FPU breakdown (C1), in parallel | The author's Vivado |
 | 2'' | The model gets the operation class per instruction, for L7 (asymmetric ALUs) | Claude Code |
-| 3 | **G0b**: the budget table with measured blocks; the levers of section 6 applied in order | Claude Code proposes, the author decides. **Proposed 2026-10-26 (6.3, D-11 to D-14)** |
+| 3 | **G0b**: the budget table with measured blocks; the levers of section 6 applied in order | Claude Code proposes, the author decides. **Decided 2026-10-26 as recommended (6.3, D-11 to D-14)** |
 | 4 | Integration of the core (M-mode, bare metal), riscv-tests, CoreMark against the model | Claude Code |
 | 5 | **G1**: CoreMark in simulation within ±5 % of the model; the core alone in Vivado for LUTs and 50 MHz | |
 
@@ -425,7 +442,8 @@ The decisions are D-11 to D-14 (section 9).
 ## 9. Decisions for the author
 
 Decided by the author on 2026-10-24 (`Doc/PROMPT.md` entry 23): **Zbc stays, and as a principle the instruction set
-is kept** (that of mmRISC-2 Rev.02); everything else as recommended.
+is kept** (that of mmRISC-2 Rev.02); everything else as recommended. **G0b (D-11 to D-14) decided by the author on
+2026-10-26 (`Doc/PROMPT.md` entry 54): as recommended; tier 1 applied first (6.4).**
 
 | # | Item | Recommendation | **Decision (2026-10-24)** |
 |---|---|---|---|
@@ -434,7 +452,7 @@ is kept** (that of mmRISC-2 Rev.02); everything else as recommended.
 | D-9 | FPU (D3 reconsidered) | Keep FPU_PIPE; C1 now; C2 and C3 at G0b if needed. Not the multi-cycle FPU (it is larger) | As recommended (C2 / C3 keep the instruction set) |
 | D-10 | The order of the levers when the gap remains | L3 → L4 to L6 → L7 → L9 → L10 → L11 / L12 (section 6.2) | As recommended; no lever may remove instructions |
 | D-2 | L2 size | Keep 256 KB (block RAM is not the limit) | As recommended |
-| D-11 | G0b tier 1 (G1, L1, L3, L8, G2, G3; 6.3) | Take all (about 3.1k, nothing lost) | |
-| D-12 | Replay policy again: the trap at commit with an issue queue of 10 (G4) | Take it (about 1.9k, +0.2 % CoreMark; code that misses pays a refetch) | |
-| D-13 | L4 to L6, and L7 after it is modelled | Take L4 to L6 (1.2k, −1.7 %); L7 if about 1 % or less | |
-| D-14 | The end state | A: fusion level 2 now; the 54k ceiling and no PMP / HPM as the reserve, decided at G1 | |
+| D-11 | G0b tier 1 (G1, L1, L3, L8, G2, G3; 6.3) | Take all (about 3.1k, nothing lost) || **As recommended (2026-10-26)** |
+| D-12 | Replay policy again: the trap at commit with an issue queue of 10 (G4) | Take it (about 1.9k, +0.2 % CoreMark; code that misses pays a refetch) || **As recommended (2026-10-26)** |
+| D-13 | L4 to L6, and L7 after it is modelled | Take L4 to L6 (1.2k, −1.7 %); L7 if about 1 % or less || **As recommended (2026-10-26)** |
+| D-14 | The end state | A: fusion level 2 now; the 54k ceiling and no PMP / HPM as the reserve, decided at G1 || **As recommended (2026-10-26)** |

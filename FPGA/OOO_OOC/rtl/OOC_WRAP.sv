@@ -182,7 +182,7 @@ module OOC_RENAME
         cv <= cmt_valid; cw <= cmt_wr; ca <= cmt_arch; cn <= cmt_new; fa <= flush_all;
         out <= {rdy, ckid, os, ordy, od, oo};
     end
-    OOO_RENAME #(.NREG(64), .TAGW(6), .NCKPT(8), .NWB(3)) u_ren
+    OOO_RENAME #(.NREG(64), .TAGW(6), .NCKPT(6), .NWB(3)) u_ren
         (.clk(clk), .rst_n(rst_n), .ready(rdy), .in_valid(iv), .in_use(iu), .in_src(is),
          .in_wr(iw), .in_dst(id), .in_ckpt(ick), .out_ckpt_id(ckid), .out_src(os), .out_rdy(ordy),
          .out_dst(od), .out_old(oo), .wb_valid(wv), .wb_tag(wt), .free_valid(fv), .free_tag(ft),
@@ -425,7 +425,7 @@ module OOC_DEC
         input  logic          clk,
         input  logic          rst_n,
         input  logic [131:0]  in,
-        output logic [563:0]  out
+        output logic [567:0]  out
     );
     logic [131:0] q;
     always_ff @(posedge clk) q <= in;
@@ -474,6 +474,7 @@ module OOC_DEC
     logic [3:0] fp_we_rd;
     logic [3:0] fp_int_signed;
     logic [3:0] fp_int_w;
+    logic [3:0] cut;
     OOO_DEC u_dec
         (.in_inst(q[127:0]), .in_rvc(q[131:128]), .illegal(illegal), .cls(cls), .op(op), .rd(rd), .rs1(rs1),
          .rs2(rs2), .use_rs1(use_rs1), .use_rs2(use_rs2), .imm(imm), .alu2ok(alu2ok), .port(port),
@@ -483,9 +484,9 @@ module OOC_DEC
          .mem_signed(mem_signed), .sys(sys), .is_sfence(is_sfence), .is_csr(is_csr), .csr_addr(csr_addr),
          .csr_op(csr_op), .csr_imm_sel(csr_imm_sel), .csr_wr(csr_wr), .csr_rd(csr_rd), .is_fp(is_fp),
          .fp_op(fp_op), .fp_fmt(fp_fmt), .fp_rm(fp_rm), .use_fs(use_fs), .rs3(rs3), .fp_we_rd(fp_we_rd),
-         .fp_int_signed(fp_int_signed), .fp_int_w(fp_int_w));
+         .fp_int_signed(fp_int_signed), .fp_int_w(fp_int_w), .cut(cut));
     always_ff @(posedge clk)
-        out <= {illegal, cls, op, rd, rs1, rs2, use_rs1, use_rs2, imm, alu2ok, port, lat2, ext_ans, nonspec, alu_op, a_uw, a_shift, a_sel, b_sel, word_op, is_branch, is_jal, is_jalr, br_op, mdu_op, mem_cmd, mem_size, mem_signed, sys, is_sfence, is_csr, csr_addr, csr_op, csr_imm_sel, csr_wr, csr_rd, is_fp, fp_op, fp_fmt, fp_rm, use_fs, rs3, fp_we_rd, fp_int_signed, fp_int_w};
+        out <= {illegal, cls, op, rd, rs1, rs2, use_rs1, use_rs2, imm, alu2ok, port, lat2, ext_ans, nonspec, alu_op, a_uw, a_shift, a_sel, b_sel, word_op, is_branch, is_jal, is_jalr, br_op, mdu_op, mem_cmd, mem_size, mem_signed, sys, is_sfence, is_csr, csr_addr, csr_op, csr_imm_sel, csr_wr, csr_rd, is_fp, fp_op, fp_fmt, fp_rm, use_fs, rs3, fp_we_rd, fp_int_signed, fp_int_w, cut};
     /* verilator lint_off UNUSEDSIGNAL */
     logic unused_rst;
     assign unused_rst = rst_n;

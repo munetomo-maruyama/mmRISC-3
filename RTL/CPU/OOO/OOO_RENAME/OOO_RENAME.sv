@@ -23,7 +23,9 @@
 //   checkpoints NCKPT copies of the RAT and of the free list's head, for a
 //              µop with a control transfer; a misprediction restores one
 //              (the registers given out after it come back by moving the
-//              head back: the ring order makes them the right ones)
+//              head back: the ring order makes them the right ones). They
+//              are given out in a ring of NCKPT (6 in G0, not a power of
+//              two); the pipeline keeps at most NCKPT unresolved
 //
 // A checkpoint copies the RAT one cycle late, from the RAT flip-flops: the
 // state after both µops of the group. A checkpoint of µop 0 also keeps what
@@ -54,7 +56,7 @@ module OOO_RENAME
     #(
         parameter int NREG  = 64,
         parameter int TAGW  = 6,
-        parameter int NCKPT = 8,
+        parameter int NCKPT = 6,        // G0 (Doc/UARCH.md 3.4)
         parameter int NWB   = 3      // write-back ports that clear busy bits
     )
     (
@@ -123,6 +125,14 @@ module OOO_RENAME
 
     assign nfree = tail - head;
 
+    // the checkpoint ring: a + n modulo NCKPT (n is 0 to 2)
+    function automatic logic [CW-1:0] cadd(input logic [CW-1:0] a, input logic [1:0] n);
+        logic [CW:0] s;
+        s = {1'b0, a} + (CW + 1)'(n);
+        if (s >= (CW + 1)'(NCKPT)) s = s - (CW + 1)'(NCKPT);
+        return s[CW-1:0];
+    endfunction
+
     // allocation: µop 0 takes the register at the head, µop 1 the next one
     // (or the head, when µop 0 writes none)
     logic [1:0]           alloc;
@@ -154,7 +164,7 @@ module OOO_RENAME
             end
         if (alloc[0] && in_dst[0] == in_dst[1]) out_old[1] = new_tag[0];
         out_ckpt_id[0] = ck_next;
-        out_ckpt_id[1] = ck_next + CW'(in_valid[0] && in_ckpt[0]);
+        out_ckpt_id[1] = cadd(ck_next, 2'(in_valid[0] && in_ckpt[0]));
     end
 
     logic go;
@@ -193,7 +203,7 @@ module OOO_RENAME
                     rat[a] <= (fx_v[restore_id] && fx_a[restore_id] == 5'(a)) ? fx_t[restore_id]
                                                                                : ck_rat[restore_id][a];
                 head    <= ck_head[restore_id];
-                ck_next <= restore_id + CW'(1);
+                ck_next <= cadd(restore_id, 2'd1);
             end else if (go) begin
                 for (int u = 0; u < 2; u++)
                     if (alloc[u]) begin
@@ -210,7 +220,7 @@ module OOO_RENAME
                     end
                 pk_v    <= in_valid & in_ckpt;
                 pk_id   <= out_ckpt_id;
-                ck_next <= ck_next + CW'(in_valid[0] && in_ckpt[0]) + CW'(in_valid[1] && in_ckpt[1]);
+                ck_next <= cadd(ck_next, 2'(in_valid[0] && in_ckpt[0]) + 2'(in_valid[1] && in_ckpt[1]));
             end
         end
     end

@@ -1,5 +1,6 @@
 //---------------------------------------------------------------------------
-// tb_iqpl.cpp : OOO_IQPL (the payload of the issue queue, N 16, W 96)
+// tb_iqpl.cpp : OOO_IQPL (the payload of the issue queue, N 16, W 96; port
+// 2 reads the low 48 bits only, the rest of its record is 0)
 //
 // Random writes of up to 2 records a cycle to two different entries, and 3
 // grants a cycle, against an array. The writes lean towards the entries
@@ -16,7 +17,7 @@
 #include <cstdlib>
 #include <random>
 
-static const int N = 16, W = 96, WW = (W + 31) / 32;
+static const int N = 16, W = 96, WW = (W + 31) / 32, W2 = 48;
 static std::mt19937 rng(77);
 static VOOO_IQPL d;
 
@@ -59,9 +60,13 @@ int main(int argc, char** argv)
                 checks++;
                 if (ra[p] == we[0] || ra[p] == we[1]) same++;
                 for (int k = 0; k < WW; k++) {
-                    uint32_t got = d.rr_data[p * WW + k];
-                    if (got != mem[ra[p]].w[k]) {
-                        if (bad++ < 10) printf("cycle %ld: port %d entry %d word %d: %08x, expected %08x\n", cyc, p, ra[p], k, got, mem[ra[p]].w[k]);
+                    uint32_t got = d.rr_data[p * WW + k], want = mem[ra[p]].w[k];
+                    if (p == 2) {                       // the low W2 bits only
+                        int lo = 32 * k, keep = W2 - lo;
+                        want = keep >= 32 ? want : keep <= 0 ? 0 : want & ((1u << keep) - 1);
+                    }
+                    if (got != want) {
+                        if (bad++ < 10) printf("cycle %ld: port %d entry %d word %d: %08x, expected %08x\n", cyc, p, ra[p], k, got, want);
                         break;
                     }
                 }

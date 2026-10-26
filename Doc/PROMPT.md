@@ -1846,3 +1846,173 @@ Recorded in `Plan/OOC.md` 17.6 (English and Japanese), 4.3 and 4.4 of `Doc/UARCH
 ```text
 Start the G0b budget review now: list the levers against the 11.5k gap and recommend a set.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I've done the G0b review. The levers listed at G0 (about 4.2k, or 5.4k with fusion level 2) can no longer close the middle 11.5k. Measuring turned up new levers. With them and some decisions from you, the middle closes with about +0.25k to spare. The high end (12.8k) does not close with any set.
+
+**What I found while measuring** (every lever that affects performance was run in the model)
+1. Renaming was measured with 8 checkpoints, but G0 specifies 6. Building it as specified saves about −0.25k at no cost; G0's performance figures already assume 6.
+2. **With the replay trap at commit, the issue queue can drop to 10 entries for free.** Only the entries kept for open loads need 12. Cutting to 10 loses 1.9% with them and nothing without them. Together that is about −1.9k, at +0.2% CoreMark.
+3. Decoding the rare classes (FP, CSR, system, AMO) only in slot 0 saves about −0.4k to −0.7k. None of them is in CoreMark's loop.
+4. Narrowing the payload per port saves −0.1k to −0.2k.
+
+**The levers** (`-O2` change against the design as written, 6.550)
+
+| Tier | Lever | LUT | `-O2` |
+|---|---|---|---|
+| 1: nothing lost | Checkpoints 6, HPM 2 (already decided), FPU C2+C3, LiteX peripherals, rare classes in slot 0, payload narrowed | **−3.1k** | 0 |
+| 2: small loss | Trap at commit + issue queue 10 | −1.9k | +0.2% |
+| | LQ/SQ 8, uBTB 8, fetch buffer 8 (L4 to L6) | −1.2k | −1.7% |
+| | Asymmetric ALUs (L7) | −0.7k to −1.0k | not modelled yet |
+| 3: your choice | Fusion level 2 | −1.2k | −3.1% |
+| | 54k ceiling | +2k | 0 (timing risk) |
+| | No PMP, no HPM counters | −1.5k | 0 (Linux features lost) |
+| | No fusion (instead of level 2) | −2.7k | −7.0% |
+
+- **Measured, not worth taking**: 4 checkpoints (−3.2% for 0.25k), issue queue 8, ROB 20.
+- Tiers 1 and 2 together give about 7.0k, which leaves about 4.5k in the middle.
+
+**Two ways to close the rest**
+
+| End state | CoreMark `-O2` / most optimization (pessimistic) | Middle margin |
+|---|---|---|
+| **A: fusion level 2 + 54k ceiling + no PMP / HPM** | **6.25 / 6.70** (5.50 / 5.93) | +0.25k |
+| B: no fusion + 54k ceiling | 5.99 / 6.47 (5.36 / 5.83) | +0.25k |
+
+Both meet the `-O2` goal (5.0) with margin. The "above 6.0" goal holds in the normal pipeline but fails in the pessimistic one (L4 to L6 alone already bring it to 5.97). Without the 54k ceiling, both end states are about 2k short in the middle.
+
+**Recommendation** (decisions D-11 to D-14 in UARCH section 9)
+1. Take all of tier 1 now (3.1k).
+2. Switch to the trap at commit with a 10-entry issue queue (1.9k). You chose selective replay when it was estimated at +0.7k to 1.2k; it measured +1.4k, and it needs 2 more queue entries. The cost moves to code that misses in the D$ (Linux), which the model can't show. The selective-replay RTL stays in the repository if you want it back.
+3. Take L4 to L6, and model L7 first, taking it if it costs about 1% or less.
+4. End state A: fusion level 2 now, because it fixes the shape of the ALU ports the core is built with. Keep the 54k ceiling and no PMP / HPM (3.5k together) in reserve, and decide them at G1 once the whole core has a Vivado number. The control (±0.5k) and whole-chip effects can move the total by more than the margin. I prefer A over B because it gets 4% more CoreMark for the same LUTs; B keeps PMP and `perf`.
+
+One correction to my last answer: moving the D$ line buffers to LUTRAM (REDUCE A3) is already counted in the room as part of group A, so it isn't a new lever. I fixed that line in Plan/OOC 17.6.
+
+Everything is in `Doc/UARCH` 6.3 (English and Japanese), with the model runs in `Plan/model/g0b.sh` and `results/g0b.txt`. Pushed to dev (32fce9d).
+<!-- /answer -->
+## 54. 2026-10-26 20:58:53 JST
+
+```text
+I accept D-11 to D-14 as recommended. Record the decisions and apply tier 1 first.
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I have stopped. I am waiting for your instructions on how to go on.
+
+Where things stand (nothing committed or pushed):
+- **Recorded**: the decisions D-11 to D-14, in section 9 and 6.3 of `Doc/UARCH` (English and Japanese).
+- **The three tier-1 items that are in the RTL are changed**:
+  - **G1**: `OOO_RENAME` has 6 checkpoints. The ring now wraps at 6; tb_rename PASSes on 4 seeds.
+  - **G2**: `OOO_DEC` decodes the rare classes in slot 0 only. A `cut` output was added; tb_dec PASSes.
+  - **G3**: port 2 of `OOO_IQPL` reads only the low 48 bits; tb_iqpl PASSes on 4 seeds.
+  - 5 bug injections added, all 5 detected.
+- **Yosys** (a hint only): renaming −313, decode −168, payload −194 LUTs. output/yosys_size.txt updated.
+- **Not checked yet**:
+  - All tests and all bug injections ran in the background; the notice that they finished came, but I have not read the results.
+  - I stopped while about to read the `OOC_DEC` harness, to add the new `cut` output to it.
+- **The rest of tier 1 (L1, L3, L8)**: their blocks (CSR, FPU, LiteX) are not in this repository yet, so they are not touched.
+- **Not started**: UARCH 6.4 (the record of tier 1), the READMEs, the prompt log, the Vivado request.
+<!-- /answer -->
+
+## 55. 2026-10-26 21:21:17 JST
+
+```text
+Please sort out the items that need a decision here and tell me the pros and cons of each.
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Seven items need a decision now. For each: the options, their pros and cons, and my recommendation.
+
+First the state. All the background tests (18) PASS. Of 188 bug injections 183 are detected and the other 5 are NOT APPLIED: G2 changed the text of `OOO_DEC`, so their targets are no longer found. That needs no decision; I will rewrite them.
+
+---
+
+**1. What to do with G2 (rare classes decoded in slot 0 only)**
+
+Yosys gives −168 LUTs, short of the estimate of −0.4k to −0.7k. `CORE_DEC` is used as it is with its outputs forced to 0, so the logic that tells whether an instruction is of a rare class stays in slots 1 to 3.
+
+| Option | Pros | Cons |
+|---|---|---|
+| **a. Keep it and measure in Vivado** | Changed and tested already; no effect on CoreMark (2 in 3 million instructions) | One more contract at the assembly: the fetch buffer and fusion end the group by `cut`. The gain may be small |
+| b. Write a new light decoder, integer only, for slots 1 to 3 | May come close to the estimated saving | Leaves `CORE_DEC`, proven in mmRISC-2, and needs new verification |
+| c. Revert | No new contract | Loses about 0.2k |
+
+Recommendation: a. Whether to go to b is decided on the Vivado number.
+
+**2. Whether the `OOC_DEC` harness registers `cut`** (the work you stopped)
+
+| Option | Pros | Cons |
+|---|---|---|
+| **Register it** | Measured as it sits in the core | The harness's output bus changes, so a comparison with the last number needs a note |
+| Leave it out | The harness stays as it is | The logic of `cut` is removed by synthesis, and the result comes out a few tens of LUTs smaller |
+
+Recommendation: register it.
+
+**3. G3 (port 2 of the payload reads only the low 48 bits)**
+
+Yosys gives −194 LUTs, but the LUT RAM stays 384: a RAM32M comes with 3 read ports, so narrowing port 2 removes only the bank choice. And 48 bits is a provisional width, before the record's contents are fixed.
+
+| Option | Pros | Cons |
+|---|---|---|
+| **a. Keep 48 bits** | A number soon | Commits early to a layout with the LSU's fields in the low bits; the width changes if they do not fit |
+| b. Fix the record's contents now | Exact | Before the control is written, some of it cannot be decided |
+| c. Revert | No new contract | Loses 0.1k to 0.2k |
+
+Recommendation: a, reviewed when the contents are fixed at the assembly.
+
+**4. G1 (6 checkpoints)**: less a decision than a contract to confirm.
+- The control has to keep unresolved transfers at 6 or fewer. The model's G0 numbers already assume it.
+- 6 is not a power of two, so turning the ring at 6 takes a few compares more.
+- Keeping 8 numbers and limiting the unresolved ones to 6 saves no LUTs.
+
+Recommendation: go on as it is.
+
+**5. When to apply L1, L3 and L8** (the CSR, the FPU and LiteX are not in this repository yet)
+- **L1 (HPM counters 4 → 2)**: a parameter change only; applied at the assembly, when the CSRs are brought in.
+- **L3 (FPU C2 + C3)**: a large task, designing a new small iterative unit for the rare operations.
+
+| L3 option | Pros | Cons |
+|---|---|---|
+| **In Phase 2, when the FPU comes in** | Phase 1 (up to CoreMark) is not held up | Its 1.15k stays an estimate in the budget until then |
+| Build it now | The number is fixed | Phase 1 is delayed |
+
+- **L8 (removing unused LiteX peripherals)**: at the LiteX build.
+
+Recommendation: those times. Until then they are counted at their estimates in the budget.
+
+**6. When to ask for Vivado**
+
+| Option | Pros | Cons |
+|---|---|---|
+| **Three now (OOC_RENAME, OOC_DEC, OOC_IQPL)** | Tier 1's effect is known early, and whether 1b is needed can be decided | Fusion level 2 (D-14) makes decode's `alu2ok` unneeded, so `OOC_DEC` has to run again later |
+| Together, after the changes of D-12 to D-14 | One run for you | Tier 1's numbers come later |
+
+Recommendation: now. All three are short runs.
+
+**7. The order of D-12 to D-14**
+
+| Item | Size of the work | Content |
+|---|---|---|
+| D-12 trap + issue queue 10 | Medium | Remove the selective replay from `OOO_IQ`; the ROB gets the trap mark and the LSU's `ld_cancel` goes to the ROB |
+| D-14 fusion level 2 | Medium | Remove the second stage of `OOO_ALU2` and ALU + ALU from `OOO_FUSE` |
+| D-13 L4 to L6 | Small | Parameters LQ/SQ 8, uBTB 8, fetch buffer 8, and the tests adjusted |
+| D-13 L7 | Medium (model) | Add the operation class per instruction to the model and measure the loss of asymmetric ALUs |
+
+Recommended order: D-12 → D-14 → L4 to L6 → L7.
+- D-12 is the largest (1.9k), and the shape of the issue queue fixes the payload's entry count, so it comes first.
+- D-14 fixes the shape of the ALU ports, so it comes next.
+- L4 to L6 are small and can be done at any time.
+<!-- /answer -->
+
+## 56. 2026-10-26 21:25:43 JST
+
+```text
+Proceed as recommended on all seven items: keep G2 and G3, add cut to the OOC_DEC harness, then commit and ask for the three Vivado runs, and start D-12.
+```

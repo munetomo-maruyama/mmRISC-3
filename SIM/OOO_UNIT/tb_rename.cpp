@@ -1,6 +1,6 @@
 //---------------------------------------------------------------------------
 // tb_rename.cpp : OOO_RENAME (64 registers, 2 sources and 1 destination per
-// µop, 8 checkpoints) against a reference of renaming written separately
+// µop, 6 checkpoints in a ring of 6) against a reference of renaming written separately
 //
 // Every cycle: 2 random µops (sources and destinations from a small set of
 // registers, so that the in-group cases happen), some with a checkpoint;
@@ -23,10 +23,13 @@
 #include "VOOO_RENAME.h"
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <deque>
 #include <random>
 #include <vector>
+
+static const int NCK = 6;            // checkpoints (OOO_RENAME NCKPT)
 
 struct Ref {
     int rat[32];
@@ -34,7 +37,7 @@ struct Ref {
     long head = 0, tail = 32;
     bool busy[64] = {false};
     struct Ck { int rat[32]; long head; };
-    Ck ck[8];
+    Ck ck[NCK];
     int ck_next = 0;
     int arat[32]; long chead = 0;       // the committed state
     Ref() { for (int a = 0; a < 32; a++) rat[a] = arat[a] = a; for (int f = 0; f < 32; f++) fl[f] = 32 + f; }
@@ -52,13 +55,14 @@ static void tick() { d.clk = 1; d.eval(); d.clk = 0; d.eval(); }
 int main(int argc, char** argv)
 {
     Verilated::commandArgs(argc, argv);
+    if (const char* e = getenv("RENAME_SEED")) rng.seed((unsigned)strtoul(e, nullptr, 0));
     Ref R;
     // rst_n starts at 0 in Verilator: raise it first so that the fall is an edge
     d.clk = 0; d.rst_n = 1; d.eval(); d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
     std::deque<Uop> inflight;          // renamed, not committed, oldest first
     std::vector<Pend> pending_ck;      // checkpoints of unresolved transfers, oldest first
     std::vector<int> given;            // registers given out (for write-backs)
-    long bad = 0, cyc = 0, renamed = 0, restores = 0, early = 0, nflush = 0;
+    long bad = 0, cyc = 0, renamed = 0, restores = 0, early = 0, nflush = 0, nfull = 0;
     for (cyc = 0; cyc < 400000; cyc++) {
         // ---- inputs
         int valid = 0, use[2][2], src[2][2], wr[2], dst[2], ckp[2];
@@ -66,7 +70,9 @@ int main(int argc, char** argv)
             if (rng() % 5) valid |= 1 << u;
             for (int s = 0; s < 2; s++) { use[u][s] = rng() % 3 != 0; src[u][s] = rng() % 8; }
             wr[u] = rng() % 4 != 0; dst[u] = rng() % 8;
-            ckp[u] = (rng() % 4 == 0) && pending_ck.size() + (u ? ckp[0] : 0) < 7;
+            // at most NCK unresolved, as the pipeline keeps them (the ring is full then)
+            ckp[u] = (rng() % 3 == 0) && pending_ck.size() + (u ? ckp[0] : 0) < NCK;
+            if (ckp[u] && pending_ck.size() + (u ? ckp[0] : 0) == NCK - 1) nfull++;
         }
         // write-backs: up to 3 registers given out
         int wbv = 0; uint32_t wbt = 0;
@@ -149,7 +155,7 @@ int main(int argc, char** argv)
                     if (gd != nt[u] || go != old) { ok = false; snprintf(why, sizeof why, "u%d dst (x%d): new p%d/%d old p%d/%d", u, dst[u], gd, nt[u], go, old); }
                 }
                 int gck = (d.out_ckpt_id >> (3 * u)) & 7;
-                int eck = (R.ck_next + (u == 1 && (valid & 1) && ckp[0])) % 8;
+                int eck = (R.ck_next + (u == 1 && (valid & 1) && ckp[0])) % NCK;
                 if (ckp[u] && gck != eck) { ok = false; snprintf(why, sizeof why, "u%d ckpt %d/%d", u, gck, eck); }
             }
         }
@@ -168,7 +174,7 @@ int main(int argc, char** argv)
         } else if (restore) {
             for (int a = 0; a < 32; a++) R.rat[a] = R.ck[rid].rat[a];
             R.head = R.ck[rid].head;
-            R.ck_next = (rid + 1) % 8;
+            R.ck_next = (rid + 1) % NCK;
         } else if (ready && valid) {
             int cknext = R.ck_next;
             for (int u = 0; u < 2; u++) {
@@ -178,7 +184,7 @@ int main(int argc, char** argv)
                 o.old = R.rat[dst[u]];
                 if (alloc[u]) { R.rat[dst[u]] = nt[u]; R.busy[nt[u]] = true; given.push_back(nt[u]); }
                 if (ckp[u]) {
-                    int idc = cknext % 8; cknext++;
+                    int idc = cknext % NCK; cknext++;
                     for (int a = 0; a < 32; a++) R.ck[idc].rat[a] = R.rat[a];
                     R.ck[idc].head = R.head + (u == 0 ? alloc[0] : need);
                     o.has_ck = true; o.ck = idc;
@@ -188,11 +194,11 @@ int main(int argc, char** argv)
                 renamed++;
             }
             R.head += need;
-            R.ck_next = cknext % 8;
+            R.ck_next = cknext % NCK;
         }
         tick();
     }
-    printf("tb_rename: %ld cycles, %ld µops renamed, %ld restores, %ld resolved at the earliest, %ld flushes, %ld mismatches: %s\n",
-           cyc, renamed, restores, early, nflush, bad, bad ? "FAIL" : "PASS");
+    printf("tb_rename: %ld cycles, %ld µops renamed, %ld restores, %ld resolved at the earliest, %ld flushes, %ld checkpoints filling the ring, %ld mismatches: %s\n",
+           cyc, renamed, restores, early, nflush, nfull, bad, bad ? "FAIL" : "PASS");
     return bad ? 1 : 0;
 }

@@ -18,6 +18,12 @@
 // takes both banks at its entry and chooses by that bit. Each bank has one
 // write and three reads (RAM32M-shaped).
 //
+// Port 2 (the LSU) needs about half of a record (ROB / LQ / SQ index,
+// offset, size, sign, the second half of a fused pair): the record keeps
+// those fields in its low W2 bits, and port 2 reads only them (G0b G3,
+// Doc/UARCH.md 6.3); its upper bits are 0, so synthesis drops that read
+// port and its bank choice for them.
+//
 // A record is read in the cycle after the grant. An entry is not given out
 // again in the cycle it is freed (OOO_IQ), so the earliest write of a new
 // µop to it comes in the cycle of that read, and the LUTRAM still answers
@@ -31,7 +37,8 @@
 module OOO_IQPL
     #(
         parameter int N = 16,           // entries of OOO_IQ
-        parameter int W = 96            // bits of a record (Plan/OOC.md 17.1)
+        parameter int W  = 96,          // bits of a record (Plan/OOC.md 17.1)
+        parameter int W2 = 48           // the low bits port 2 reads
     )
     (
         input  logic                        clk,
@@ -68,8 +75,10 @@ module OOO_IQPL
     always_ff @(posedge clk) ra <= iss_entry;
 
     always @(*) begin
-        for (int p = 0; p < 3; p++)
+        for (int p = 0; p < 2; p++)
             rr_data[p] = lvt[ra[p]] ? bank1[ra[p]] : bank0[ra[p]];
+        rr_data[2] = '0;
+        rr_data[2][W2-1:0] = lvt[ra[2]] ? bank1[ra[2]][W2-1:0] : bank0[ra[2]][W2-1:0];
     end
 
 endmodule
