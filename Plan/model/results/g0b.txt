@@ -1,0 +1,38 @@
+| configuration | -O2 | max | g13 |
+|---|---|---|---|
+| base: G0 as written (kept until c + 3)                     |  6.550 |  6.786 |  6.340 |
+| base, pessimistic                                          |  5.846 |  6.134 |  5.689 |
+| **one lever at a time** | | | |
+| replay trap at commit (no kept entries; misses free)       |  6.564 |  6.801 |  6.348 |
+| issue queue 12 -> 10                                       |  6.427 |  6.753 |  6.200 |
+| issue queue 12 -> 8                                        |  5.984 |  6.367 |  5.794 |
+| ROB 24 -> 20                                               |  6.521 |  6.783 |  6.293 |
+| ROB 24 -> 16                                               |  6.397 |  6.740 |  6.148 |
+| checkpoints 6 -> 4                                         |  6.342 |  6.607 |  6.126 |
+| L4: LQ / SQ 12 -> 8                                        |  6.514 |  6.768 |  6.310 |
+| L5: uBTB 16 -> 8                                           |  6.511 |  6.782 |  6.330 |
+| L6: fetch buffer 16 -> 8                                   |  6.532 |  6.782 |  6.329 |
+| multiply latency 2 -> 3                                    |  6.522 |  6.786 |  6.309 |
+| L9: fusion level 2 (no ALU + ALU)                          |  6.321 |  6.741 |  6.142 |
+| **sets** | | | |
+| L4 to L6                                                   |  6.441 |  6.751 |  6.272 |
+| L4 to L6 + iq 10                                           |  6.332 |  6.723 |  6.139 |
+| L4 to L6 + iq 10 + ckpt 4                                  |  6.186 |  6.572 |  5.979 |
+| L4 to L6 + iq 10 + ckpt 4, pessimistic                     |  5.393 |  5.747 |  5.301 |
+| L4 to L6 + iq 10 + ckpt 4 + rob 20                         |  6.186 |  6.572 |  5.979 |
+| L4 to L6 + iq 8 + ckpt 4                                   |  5.853 |  6.276 |  5.662 |
+| L4 to L6 + iq 10 + ckpt 4 + fusion 2                       |  5.994 |  6.529 |  5.807 |
+| L4 to L6 + iq 10 + ckpt 4 + fusion 2, pessimistic          |  5.259 |  5.714 |  5.180 |
+| L4 to L6 + iq 10 + ckpt 4, trap at commit                  |  6.287 |  6.582 |  6.097 |
+| no fusion (2-wide decode), base sizes                      |  6.021 |  6.501 |  5.876 |
+| **candidate sets (Doc/UARCH.md 6.3)** | | | |
+| R1: L4 to L6, trap at commit                               |  6.447 |  6.753 |  6.283 |
+| R1, pessimistic                                            |  5.651 |  5.967 |  5.525 |
+| R2: R1 + fusion 2                                          |  6.248 |  6.700 |  6.099 |
+| R2, pessimistic                                            |  5.511 |  5.932 |  5.400 |
+| R3: R2 + iq 10 (end state A of 6.3)                        |  6.250 |  6.698 |  6.082 |
+| R3, pessimistic                                            |  5.504 |  5.928 |  5.365 |
+| R4: R1 without fusion (2-wide decode)                      |  5.995 |  6.471 |  5.867 |
+| R4, pessimistic                                            |  5.381 |  5.831 |  5.286 |
+| R5: R4 + iq 10 (end state B of 6.3)                        |  5.986 |  6.468 |  5.847 |
+| R5, pessimistic                                            |  5.359 |  5.827 |  5.260 |

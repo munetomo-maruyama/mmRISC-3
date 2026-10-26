@@ -1806,3 +1806,43 @@ synth_ooo.bat OOC_LSUDC
 ```text
 I ran synth_ooo.bat OOC_IQPL and synth_ooo.bat OOC_LSUDC. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Both close at 50 MHz. The payload is just above the top of its estimate; the adapter is below its estimate.
+
+| Run | LUT | of it LUT RAM | Register-to-register slack | Levels |
+|---|---|---|---|---|
+| OOC_IQPL (16 entries × 96 bits) | **711** | 384 | **+12.237 ns** | 3 |
+| OOC_LSUDC (LSU + adapter + D$) | 8,439 | 70 | **+1.254 ns** | 21 |
+| └ adapter `OOO_DCAD` | **227** | 70 | | |
+| └ `OOO_LSU` | 3,004 | 0 | | |
+| └ D$ `DCACHE` | 5,211 | 0 | | |
+
+- **Payload**: 711 against an estimate of 0.4k to 0.7k. The 384 LUT RAM are as counted; the remaining 327 logic LUTs are mostly the bank choice. About 7.4 LUTs a bit, so once the record width is fixed, the size follows directly.
+- **Adapter**: 227 against an estimate of 0.3k to 0.6k.
+- **The hit path I was worried about last time was not a problem.**
+  - The worst path is the D$'s `d_req_ready` → the adapter → the LSU's store drain → the SQ's valid bits, 21 levels, +1.254 ns.
+  - The path `d_hit_now` → the LSU's M → `wb_data` / `ld_cancel` is not among the 10 worst, so its slack is above 2.07 ns.
+  - In the core `ld_cancel` goes on into the issue queue; that part is checked when the core is put together.
+  - If the drain path gets in the way, it can be cut by draining stores a cycle later. Stores drain after commit, so performance is not affected.
+- **The D$**'s 5,211 is already counted in the budget, as the L1 caches outside the engine (8,217). It has 5,012 FFs, mostly line buffers; moving them to LUTRAM, A3 of `REDUCE.md` (0.8k to 1.5k), stays a G0b candidate.
+
+**Budget** (a row added to UARCH 4.4)
+
+| | Low | Middle | High |
+|---|---|---|---|
+| After decode was measured | 9.9k | 11.6k | 13.2k |
+| **After the payload and the adapter were measured** | **10.1k** | **11.5k** | **12.8k** |
+
+Only the control (1.5k to 2.5k) is left unwritten, so the remaining uncertainty is about ±0.5k.
+
+Recorded in `Plan/OOC.md` 17.6 (English and Japanese), 4.3 and 4.4 of `Doc/UARCH`, and the prompt log (answer 51 and the English of 52); pushed to dev with the Vivado reports (d3b49dd).
+<!-- /answer -->
+
+## 53. 2026-10-26 20:40:28 JST
+
+```text
+Start the G0b budget review now: list the levers against the 11.5k gap and recommend a set.
+```

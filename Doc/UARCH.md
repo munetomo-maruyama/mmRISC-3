@@ -35,6 +35,11 @@
    checked again at **G0b**, once the front end, decode, ROB and LSU are written and measured, which is the first
    step of Phase 1 anyway. The FPU breakdown (C1) is measured in parallel by the author. The levers are applied in
    the order of section 6.
+7. **G0b (2026-10-26, proposed, 6.3)**: with every block but the control measured, the gap is 10.1k / 11.5k / 12.8k.
+   New levers were found (checkpoints back to 6, the replay trap at commit making a 10-entry issue queue free, rare
+   classes decoded in one slot) and every lever was modelled. Recommended: the levers that lose nothing (3.1k), the
+   trap with 10 entries (1.9k, +0.2 %), L4 to L6 (1.2k), L7 if it models well, fusion level 2, and the 54k ceiling with
+   no PMP / HPM as a reserve decided at G1: about +0.25k of margin in the middle, CoreMark 6.25 / 6.70.
 
 ---
 
@@ -311,6 +316,75 @@ Block RAM and DSP are not the limit: 26.5 tiles are free, TAGE-S and the BTB nee
   L10 and more. **Low end (5.4k)**: L1 and L3 to L8 with L9 nearly close it. **High end (12.1k)**: even L1 to L11 fall short, and the FPU or
   Ethernet has to be reconsidered.
 
+### 6.3 G0b: the levers against the measured gap (2026-10-26, proposed)
+
+The gap is **10.1k / 11.5k / 12.8k** (4.4) with every block but the control measured (1.5k to 2.5k left). The levers
+of 6.2 no longer close the middle (L1, L3 to L8 about 4.2k, L9 1.2k, L10 2k), so the measured blocks were searched for
+new ones, and every lever with an effect on performance was run in the model (`Plan/model/g0b.sh` →
+`results/g0b.txt`; the base is the design as written, G0 with the entries kept until c + 3: **6.550 / 6.786**).
+
+**Found while measuring**:
+1. Renaming was measured with **8 checkpoints** (`OOC_RENAME`); G0 has 6. About −0.25k, already in G0's performance.
+2. **With the replay trap at commit, the issue queue can have 10 entries at no cost.** The entries kept for open loads
+   are what needs 12: 12 → 10 costs −1.9 % with them, nothing without them (6.566 against 6.564). Together about
+   −1.9k: the selective replay measured +1.4k at 12 entries (`Plan/OOC.md` 15.5), and two entries fewer of the plain
+   queue about −0.5k.
+3. **Decode** is 495 LUTs a slot with every field (`Plan/OOC.md` 16.4). The rare classes (FP, CSR, system, AMO / LR /
+   SC) decoded in slot 0 only (a group ends before such an instruction in another slot): about −0.4k to −0.7k. None
+   of them is in CoreMark's loop.
+4. **The payload** is 7.4 LUTs a bit and port 2 needs about half of the fields: −0.1k to −0.2k narrowed per port.
+
+| # | Lever | LUT | `-O2` | Most optimization | What is lost | Decision |
+|---|---|---|---|---|---|---|
+| | **Tier 1: nothing lost** | | | | | |
+| G1 | Checkpoints 8 → 6, as in G0 | −0.25k | 0 | 0 | | G0 |
+| L1 | HPM counters 4 → 2 | −0.65k | 0 | 0 | `perf` counts 2 events at once | Taken (D-8) |
+| L3 | FPU C2 + C3 | −1.0k to −1.3k | 0 | 0 | Rare floating-point operations slower | D-9: at G0b if needed |
+| L8 | Unneeded LiteX peripherals | −0.2k to −0.5k | 0 | 0 | | |
+| G2 | Rare classes decoded in slot 0 only | −0.4k to −0.7k | about 0 (none in the loop; not modelled) | about 0 | FP- and CSR-heavy code decodes fewer a cycle | |
+| G3 | Payload narrowed per port | −0.1k to −0.2k | 0 | 0 | | |
+| | Tier 1 together | **−2.6k to −3.6k (3.1k)** | 0 | 0 | | |
+| | **Tier 2: small losses** | | | | | |
+| G4 | Replay trap at commit + issue queue 10 | −1.7k to −2.1k (1.9k) | +0.2 % | +0.2 % | Every load that misses refetches what follows it (not in the model: CoreMark has 26 cold misses; code that misses pays) | The author (it reverses 15.1 of `Plan/OOC.md`) |
+| L4–L6 | LQ / SQ 8, uBTB 8, fetch buffer 8 | −1.2k | −1.7 % | −0.5 % | | D-10 |
+| L7 | Asymmetric ALUs | −0.7k to −1.0k | to be modelled | | | |
+| | **Tier 3: choices** | | | | | |
+| L9 | Fusion level 2 (no ALU + ALU) | −1.2k | −3.1 % (on tier 2) | −0.8 % | | |
+| L10 | Ceiling 52k → 54k | +2k of room | 0 | 0 | Timing and slice congestion | |
+| B4 + B5 | No PMP, no HPM counters (beyond A2 and L1) | −1.5k | 0 | 0 | M-mode protection; Linux `perf` | |
+| L11 | No fusion, in place of L9 | −2.7k | −7.0 % (on tier 2) | −4.2 % | | |
+| L12 | No Ethernet | to be measured | 0 | 0 | Against D5 | |
+
+- **Measured and not recommended**: checkpoints 6 → 4 (−0.25k for −3.2 %), issue queue 8 (−2.2 % even with the
+  trap), ROB 24 → 20 (−0.15k for −0.4 %).
+- **Tiers 1 and 2 together: about 7.0k** (with L7). That leaves about **4.5k in the middle** (3.0k low, 5.8k high).
+
+Two ways to close the rest (the levers at their middle values):
+
+| End state | Adds | Levers in all | Margin (low / middle / high) | CoreMark/MHz `-O2` / most opt. (pessimistic) |
+|---|---|---|---|---|
+| **A: fusion level 2** | L9 + L10 + B4 + B5 | 11.75k | +1.65k / **+0.25k** / −1.05k | **6.25 / 6.70** (5.50 / 5.93) |
+| B: no fusion | L11 + L10 | 11.75k | +1.65k / +0.25k / −1.05k | 5.99 / 6.47 (5.36 / 5.83) |
+
+- Without L10, both are about 2k short in the middle. The high end is not closed by either.
+- The `-O2` goal (5.0) is met with margin by both, even pessimistic. The "above 6.0" goal holds in the nominal pipeline
+  and is missed in the pessimistic one (it already was with L4 to L6 alone, 5.97).
+
+**Recommendation**:
+1. **Take tier 1 now** (3.1k): G1 is the G0 number, L1 was decided, L3 was planned for G0b, the rest loses nothing.
+2. **Take G4** (1.9k at +0.2 %): the author chose selective replay (`Plan/OOC.md` 15.1) when it was estimated at
+   +0.7k to 1.2k; it measured +1.4k, and the issue queue it needs is 2 entries larger. The cost moves to code that
+   misses in the D$ (Linux), which the model cannot show; the selective replay RTL stays in the repository if it is
+   wanted back.
+3. **Take L4 to L6** (1.2k, −1.7 %), as D-10 ordered.
+4. **Model L7** (the operation class per instruction, C1 of the work plan) and take it if it costs about 1 % or less.
+5. **End state A**: L9 now (it shapes the ALU ports the core is built with); **L10 and B4 / B5 as the reserve
+   (3.5k), decided at G1** with the whole core in Vivado. The control (±0.5k) and the whole-chip result (packing,
+   optimization across modules) move the total by more than the margin. A rather than B: the same LUTs for 4 %
+   more CoreMark; B keeps PMP and `perf`.
+
+The decisions are D-11 to D-14 (section 9).
+
 ---
 
 ## 7. Verification
@@ -342,7 +416,7 @@ Block RAM and DSP are not the limit: 26.5 tiles are free, TAGE-S and the BTB nee
 | 2 | RTL of the front end, decode, ROB, LSU (with their unit tests and bug injection), each out of context in Vivado | Claude Code, Vivado by the author |
 | 2' | FPU breakdown (C1), in parallel | The author's Vivado |
 | 2'' | The model gets the operation class per instruction, for L7 (asymmetric ALUs) | Claude Code |
-| 3 | **G0b**: the budget table with measured blocks; the levers of section 6 applied in order | Claude Code proposes, the author decides |
+| 3 | **G0b**: the budget table with measured blocks; the levers of section 6 applied in order | Claude Code proposes, the author decides. **Proposed 2026-10-26 (6.3, D-11 to D-14)** |
 | 4 | Integration of the core (M-mode, bare metal), riscv-tests, CoreMark against the model | Claude Code |
 | 5 | **G1**: CoreMark in simulation within ±5 % of the model; the core alone in Vivado for LUTs and 50 MHz | |
 
@@ -360,3 +434,7 @@ is kept** (that of mmRISC-2 Rev.02); everything else as recommended.
 | D-9 | FPU (D3 reconsidered) | Keep FPU_PIPE; C1 now; C2 and C3 at G0b if needed. Not the multi-cycle FPU (it is larger) | As recommended (C2 / C3 keep the instruction set) |
 | D-10 | The order of the levers when the gap remains | L3 → L4 to L6 → L7 → L9 → L10 → L11 / L12 (section 6.2) | As recommended; no lever may remove instructions |
 | D-2 | L2 size | Keep 256 KB (block RAM is not the limit) | As recommended |
+| D-11 | G0b tier 1 (G1, L1, L3, L8, G2, G3; 6.3) | Take all (about 3.1k, nothing lost) | |
+| D-12 | Replay policy again: the trap at commit with an issue queue of 10 (G4) | Take it (about 1.9k, +0.2 % CoreMark; code that misses pays a refetch) | |
+| D-13 | L4 to L6, and L7 after it is modelled | Take L4 to L6 (1.2k, −1.7 %); L7 if about 1 % or less | |
+| D-14 | The end state | A: fusion level 2 now; the 54k ceiling and no PMP / HPM as the reserve, decided at G1 | |

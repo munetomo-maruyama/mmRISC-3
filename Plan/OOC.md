@@ -1464,7 +1464,7 @@ synth_ooo.bat OOC_LSUDC
   of the D$ (a store drains a cycle later), at no cost in the model's terms (stores drain after commit).
 - The D$ is mmRISC-2's and counted with the L1 caches outside the engine (`Doc/UARCH.md` 4.2: 8,217 for both). Its
   5,012 FFs are mostly the line buffers of the MSHRs and write-back buffers: `REDUCE.md` A3 (to LUTRAM, 0.8k to 1.5k)
-  stays a G0b candidate.
+  is still to be done, and it is already counted in the room (group A, `Doc/UARCH.md` 4.2), not a new lever.
 - **The budget** (`Doc/UARCH.md` 4.4): the payload 711 and the adapter 227 in place of 0.4k to 0.7k and 0.3k to 0.6k:
   the gap goes to **10.1k / 11.5k / 12.8k**. What is left unwritten is the control (dispatch, branch resolution,
   redirects, commit and exceptions, the ports to CSR / MDU / FPU / MMU; 1.5k to 2.5k).
