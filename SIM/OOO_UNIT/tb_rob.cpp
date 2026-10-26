@@ -11,11 +11,15 @@
 // or a resolution for an index that is not in the ROB (must be ignored).
 // Sometimes µops are offered in a cycle of trap or restore (must not go in).
 //
+// Loads now and then complete marked for replay after commit (cmp_rp): such
+// a µop commits, nothing younger with it, and the ROB empties (replay, with
+// the pc of the next instruction).
+//
 // Checked every cycle: rob_avail and the indices given at dispatch, the
-// head and head_ns, the trap (cause, pc), every commit (pc, destination,
-// new and old registers) and the load / store / instret counts, and that a
-// restore names the oldest mispredicted branch in the ROB with its
-// checkpoint.
+// head and head_ns, the trap (cause, pc), the replay (pc + length), every
+// commit (pc, destination, new and old registers) and the load / store /
+// instret counts, and that a restore names the oldest mispredicted branch
+// in the ROB with its checkpoint.
 //---------------------------------------------------------------------------
 #include "VOOO_ROB.h"
 #include <cstdint>
@@ -27,8 +31,8 @@
 
 static const int NROB = 24;
 struct E {
-    int idx; uint64_t pc; int wr, arch, nw, old, ld, st, fused, ns, br, ckpt;
-    bool done = false, exc = false; int cause = 0;
+    int idx; uint64_t pc; int wr, arch, nw, old, ld, st, fused, ns, br, ckpt, len;
+    bool done = false, exc = false, rp = false; int cause = 0;
     long ready_at = 0; bool ns_go = false;
 };
 
@@ -51,15 +55,18 @@ int main(int argc, char** argv)
     d.clk = 0; d.rst_n = 1; d.eval(); d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
     std::deque<E> rob;
     int tail_idx = 0;                          // the index the next entry gets
-    long ncommit = 0, ntrap = 0, nrestore = 0, ninstret = 0, n2restore = 0;
+    long ncommit = 0, ntrap = 0, nrestore = 0, ninstret = 0, n2restore = 0, nreplay = 0;
     for (cyc = 0; cyc < 400000; cyc++) {
         // ---------- the reference before the clock
         bool trap = !rob.empty() && rob[0].done && rob[0].exc;
         bool c0 = !rob.empty() && rob[0].done && !rob[0].exc;
-        bool c1 = c0 && rob.size() >= 2 && rob[1].done && !rob[1].exc;
+        bool c1 = c0 && !rob[0].rp && rob.size() >= 2 && rob[1].done && !rob[1].exc;
+        bool replay = (c0 && rob[0].rp) || (c1 && rob[1].rp);
+        const uint64_t PCM = (1ull << 38) - 1;
+        uint64_t replay_pc = replay ? ((c0 && rob[0].rp) ? rob[0].pc + rob[0].len : rob[1].pc + rob[1].len) & PCM : 0;
         int avail = std::min(2, NROB - (int)rob.size());
         // ---------- completions and resolutions
-        unsigned cv = 0, cexc = 0; uint32_t crob = 0, ccause = 0;
+        unsigned cv = 0, cexc = 0, crp = 0; uint32_t crob = 0, ccause = 0;
         unsigned bv = 0, bmis = 0, brob = 0, bck = 0;
         std::vector<int> picked;
         for (int p = 0; p < 4; p++) {
@@ -87,6 +94,7 @@ int main(int argc, char** argv)
             picked.push_back(k);
             cv |= 1u << p; crob |= (uint32_t)rob[k].idx << (5 * p);
             if (rng() % 25 == 0) { cexc |= 1u << p; ccause |= (uint32_t)(rng() % 32) << (5 * p); }
+            if (rob[k].ld && rng() % 6 == 0) crp |= 1u << p;  // a load that raised ld_cancel
             if (rob[k].br && p < 2) {
                 bv |= 1u << p; brob |= (unsigned)rob[k].idx << (5 * p); bck |= (unsigned)rob[k].ckpt << (3 * p);
                 if (rng() % 3 == 0) bmis |= 1u << p;
@@ -105,17 +113,17 @@ int main(int argc, char** argv)
             for (int k = 0; k < (int)rob.size(); k++)
                 if (rob[k].idx == idx && (rpos < 0 || k < rpos)) { rpos = k; rck = (bck >> (3 * p)) & 7; }
         }
-        bool restore = rpos >= 0 && !trap;
+        bool restore = rpos >= 0 && !trap && !replay;
         if (restore && __builtin_popcount(bmis & bv) == 2) n2restore++;
         // ---------- dispatch (also in a cycle of trap / restore, now and then: it must not go in)
         int nd = 0;
-        if ((!trap && !restore) || rng() % 4 == 0) {
+        if ((!trap && !restore && !replay) || rng() % 4 == 0) {
             nd = rng() % 3;
             if (nd > avail) nd = avail;
         }
         E ne[2];
         unsigned dv = 0, dwr = 0, dld = 0, dst = 0, dfu = 0, dns = 0, dexc = 0;
-        uint32_t darch = 0, dnew = 0, dold = 0, dcause = 0;
+        uint32_t darch = 0, dnew = 0, dold = 0, dcause = 0, dlen = 0;
         d.disp_pc[0] = d.disp_pc[1] = d.disp_pc[2] = 0;
         for (int u = 0; u < nd; u++) {
             E& e = ne[u];
@@ -126,16 +134,19 @@ int main(int argc, char** argv)
             e.wr = !e.st && !e.br && rng() % 6 != 0; e.arch = rng() % 32; e.nw = rng() % 64; e.old = rng() % 64;
             e.fused = !e.ld && !e.st && !e.ns && rng() % 3 == 0;
             e.ckpt = rng() % 8;
+            e.len = e.fused ? 2 + rng() % 3 : 1 + rng() % 2;      // halfwords: RVC 1, 32-bit 2, a pair 2 .. 4
             bool dx = rng() % 40 == 0;
             e.done = e.exc = dx; e.cause = dx ? rng() % 32 : 0;
             e.ready_at = cyc + 1 + rng() % 10;
             dv |= 1u << u; dwr |= e.wr << u; dld |= e.ld << u; dst |= e.st << u; dfu |= e.fused << u; dns |= e.ns << u; dexc |= dx << u;
             darch |= e.arch << (5 * u); dnew |= e.nw << (6 * u); dold |= e.old << (6 * u); dcause |= e.cause << (5 * u);
+            dlen |= e.len << (3 * u);
             setw(d.disp_pc, 38 * u, 38, e.pc);
         }
         d.disp_valid = dv; d.disp_wr = dwr; d.disp_arch = darch; d.disp_new = dnew; d.disp_old = dold;
         d.disp_ld = dld; d.disp_st = dst; d.disp_fused = dfu; d.disp_ns = dns; d.disp_exc = dexc; d.disp_cause = dcause;
-        d.cmp_valid = cv; d.cmp_rob = crob; d.cmp_exc = cexc; d.cmp_cause = ccause;
+        d.disp_len = dlen;
+        d.cmp_valid = cv; d.cmp_rob = crob; d.cmp_exc = cexc; d.cmp_cause = ccause; d.cmp_rp = crp;
         d.br_valid = bv; d.br_rob = brob; d.br_mispred = bmis; d.br_ckpt = bck;
         d.eval();
 
@@ -152,6 +163,9 @@ int main(int argc, char** argv)
             if ((int)d.trap_cause != rob[0].cause) FAIL("trap cause %d, expected %d", (int)d.trap_cause, rob[0].cause);
             if ((uint64_t)d.trap_pc != rob[0].pc) FAIL("trap pc %llx, expected %llx", (unsigned long long)d.trap_pc, (unsigned long long)rob[0].pc);
         }
+        if ((bool)d.replay != replay) FAIL("replay %d, expected %d", (int)d.replay, replay);
+        else if (replay && (uint64_t)d.replay_pc != replay_pc)
+            FAIL("replay pc %llx, expected %llx", (unsigned long long)d.replay_pc, (unsigned long long)replay_pc);
         unsigned cvx = (c0 ? 1 : 0) | (c1 ? 2 : 0);
         if ((unsigned)d.cmt_valid != cvx) FAIL("cmt_valid %d, expected %d", (int)d.cmt_valid, cvx);
         int eld = 0, est = 0, eir = 0;
@@ -181,7 +195,11 @@ int main(int argc, char** argv)
         for (int p = 0; p < 4; p++) {
             if (!((cv >> p) & 1)) continue;
             int idx = (crob >> (5 * p)) & 31;
-            for (auto& e : rob) if (e.idx == idx) { e.done = true; if ((cexc >> p) & 1) { e.exc = true; e.cause = (ccause >> (5 * p)) & 31; } }
+            for (auto& e : rob) if (e.idx == idx) {
+                e.done = true;
+                if ((cexc >> p) & 1) { e.exc = true; e.cause = (ccause >> (5 * p)) & 31; }
+                if ((crp >> p) & 1) e.rp = true;
+            }
         }
         if (trap) {
             rob.clear(); ntrap++;
@@ -195,7 +213,10 @@ int main(int argc, char** argv)
                 nrestore++;
             }
             for (int k = 0; k < nc; k++) rob.pop_front();
-            if (restore) {
+            if (replay) {                      // empty after the commits
+                rob.clear(); nreplay++;
+                tail_idx = (int)d.head_rob;
+            } else if (restore) {
                 tail_idx = rob.empty() ? (int)d.head_rob : (rob.back().idx + 1) % NROB;
             } else {
                 for (int u = 0; u < nd; u++) rob.push_back(ne[u]);
@@ -204,7 +225,7 @@ int main(int argc, char** argv)
         }
         if (ns_seen) for (auto& e : rob) if (e.idx == ns_idx) e.ns_go = true;
     }
-    printf("tb_rob: %ld cycles, %ld µops committed (%ld instructions), %ld traps, %ld restores (%ld with two mispredicted), %ld mismatches: %s\n",
-           cyc, ncommit, ninstret, ntrap, nrestore, n2restore, bad, bad ? "FAIL" : "PASS");
+    printf("tb_rob: %ld cycles, %ld µops committed (%ld instructions), %ld traps, %ld replays, %ld restores (%ld with two mispredicted), %ld mismatches: %s\n",
+           cyc, ncommit, ninstret, ntrap, nreplay, nrestore, n2restore, bad, bad ? "FAIL" : "PASS");
     return bad ? 1 : 0;
 }

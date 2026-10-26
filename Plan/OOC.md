@@ -1101,6 +1101,10 @@ synth_ooo.bat OOC_FRONT
 
 ## 15. Loads that miss: selective replay in the issue queue (2026-10-25)
 
+> **Replaced on 2026-10-26** by the replay after commit with a 10-entry issue queue (G0b D-12, `Doc/UARCH.md` 6.3 and
+> 6.5): the selective replay measured +1.4k and needs 2 more entries. This section records what was built; its RTL is
+> in git (5935e45, 7d93d41).
+
 The open item of 11.4 (B1 of the work plan): the dependents of a load are woken before its result is known (2-cycle
 load-use), so when the LSU finds in M that the load gives no result in WB (`ld_cancel`: a D$ miss, a wait), what was
 issued on that guess has to be taken back.

@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-// tb_iqpl.cpp : OOO_IQPL (the payload of the issue queue, N 16, W 96; port
+// tb_iqpl.cpp : OOO_IQPL (the payload of the issue queue, N 10, W 96; port
 // 2 reads the low 48 bits only, the rest of its record is 0)
 //
 // Random writes of up to 2 records a cycle to two different entries, and 3
@@ -17,7 +17,7 @@
 #include <cstdlib>
 #include <random>
 
-static const int N = 16, W = 96, WW = (W + 31) / 32, W2 = 48;
+static const int N = 10, W = 96, WW = (W + 31) / 32, W2 = 48;
 static std::mt19937 rng(77);
 static VOOO_IQPL d;
 

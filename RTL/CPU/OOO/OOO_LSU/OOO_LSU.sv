@@ -21,10 +21,11 @@
 //   WB the result register: the register-file write and the bypass, 2
 //      cycles after issue as far as the dependents are concerned
 // A load that cannot give its result in WB (miss, wait, exception) raises
-// ld_cancel with its tag in M, so that the dependents woken for it can be
-// held back (the replay policy of the core is outside this block). It
-// gives its result later through the same write port, marked late (it
-// needs a wakeup of its own then).
+// ld_cancel with its tag in M: the dependents woken for it may have run on
+// a wrong value. It gives its result later through the same write port,
+// marked late, and its completion is marked for replay after commit
+// (cmp_ld_rp, Doc/UARCH.md 6.3 D-12): the ROB commits it and fetches what
+// follows it again.
 //
 // Ordering: conservative. A load only takes data from the D$ when every
 // older store has its address; the issue queue is expected to hold loads
@@ -127,6 +128,7 @@ module OOO_LSU
         output logic                        cmp_ld_valid, // ROB completion of a load (with the write, or an exception)
         output logic [ROBW-1:0]             cmp_ld_rob,
         output logic                        cmp_ld_exc,
+        output logic                        cmp_ld_rp,    // it raised ld_cancel: replay after commit
         output logic                        cmp_st_valid, // ROB completion of a store (in E)
         output logic [ROBW-1:0]             cmp_st_rob,
         output logic                        cmp_st_exc,
@@ -196,6 +198,7 @@ module OOO_LSU
     // LQ entries: kept in the per-entry blocks below, read through these
     localparam logic [1:0] L_IDLE = 2'd0, L_WAIT = 2'd1, L_MISS = 2'd2, L_DONE = 2'd3;
     logic [NLQ-1:0]       lv, lretry;
+    logic [NLQ-1:0]       lcan;                // the load raised ld_cancel
     logic [1:0]           lst  [NLQ];
     logic [ROBW-1:0]      lrob [NLQ];
     logic [NSQ-1:0]       lold [NLQ];          // the SQ entries older than the load
@@ -426,12 +429,14 @@ module OOO_LSU
             wb_data    <= align(m_word, m_addr[2:0], m_size, m_uns);
             cmp_ld_rob <= lrob[m_lq];
             cmp_ld_exc <= m_exc;
+            cmp_ld_rp  <= lcan[m_lq];
         end else begin
             wb_late    <= 1'b1;
             wb_tag     <= ldst[f_e];
             wb_data    <= align(f_word, laddr[f_e][2:0], lsize[f_e], luns[f_e]);
             cmp_ld_rob <= lrob[f_e];
             cmp_ld_exc <= 1'b0;
+            cmp_ld_rp  <= lcan[f_e];
         end
         if (!fb_v && dc_fill_valid) begin
             fb_tag  <= dc_fill_tag;
@@ -521,7 +526,9 @@ module OOO_LSU
                 // of slot 0 for a load in slot 1
                 lold[e]   <= (sv & ~s_free) | ((a1 && s_new[0]) ? s_onehot0 : '0);
                 lretry[e] <= 1'b0;
+                lcan[e]   <= 1'b0;
             end else begin
+                if (ld_cancel && m_lq == LW'(e)) lcan[e] <= 1'b1;
                 lold[e] <= lold[e] & ~s_free;              // a store gone is no longer older
                 if (iss_valid && iss_ld && iss_lq == LW'(e) && !restore && !flush_all) begin
                     laddr[e] <= e_sum[PAW-1:0];

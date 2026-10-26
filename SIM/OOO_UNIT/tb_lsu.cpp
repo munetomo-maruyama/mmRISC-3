@@ -20,7 +20,8 @@
 //     a misaligned one, which writes nothing); nothing completes for an
 //     entry that was flushed
 //   - ld_cancel: raised for a load from port 2 exactly when it gives no
-//     result in its expected cycle
+//     result in its expected cycle; such a load, and only such a load,
+//     completes marked for replay after commit (cmp_ld_rp)
 //   - the stores reach the D$ in commit order with their data and byte mask
 //   - lsu_st_known is never set for a load with an older store whose
 //     address is not known
@@ -47,6 +48,7 @@ struct Uop {
     int tag = -1;
     bool mis = false;              // misaligned: an exception
     bool issued = false, done = false, exc = false;
+    bool canc = false;             // raised ld_cancel: its completion is marked for replay
     long disp_cyc = 0, resolve_at = 0;
     bool mispred = false;
     unsigned ck_lq = 0, ck_sq = 0; // checkpoint tails (branches)
@@ -231,6 +233,7 @@ int main(int argc, char** argv)
             Uop* M = find(m_iss.seq);
             if (!M) FAIL("load %ld in M is no longer in flight", m_iss.seq);
             else if (canc && (int)d.ld_cancel_tag != M->tag) FAIL("ld_cancel tag %d, expected %d", (int)d.ld_cancel_tag, M->tag);
+            else if (canc) M->canc = true;
         } else if (canc) FAIL("ld_cancel without a load from port 2 in M");
         if (canc) ncancel++;
         // WB: the result register (from last cycle's M or a fill)
@@ -254,6 +257,7 @@ int main(int argc, char** argv)
                     if (!d.wb_late && !ontime) FAIL("load %ld: written as on time, but it was not issued for this cycle", L->seq);
                     if (d.wb_late && ontime) FAIL("load %ld: written as late in its expected cycle", L->seq);
                     if (d.wb_late) nlate++;
+                    if ((bool)d.cmp_ld_rp != L->canc) FAIL("load %ld: replay mark %d, expected %d", L->seq, (int)d.cmp_ld_rp, L->canc);
                     L->done = true; nld++;
                 }
             }

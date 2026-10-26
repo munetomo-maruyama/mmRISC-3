@@ -2005,3 +2005,9 @@ Yosysでは−194 LUTですが、LUT RAMは384のまま減りません。RAM32M�
 ```text
 Proceed as recommended on all seven items: keep G2 and G3, add cut to the OOC_DEC harness, then commit and ask for the three Vivado runs, and start D-12.
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+The docs for D-12 are written. I'm waiting for the full test and mutation run (175 mutations) to finish before committing and asking for the Vivado runs.
+<!-- /answer -->

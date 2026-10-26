@@ -202,7 +202,7 @@ module OOC_LSU
         input  logic          clk,
         input  logic          rst_n,
         input  logic [325:0]  in,
-        output logic [315:0]  out
+        output logic [316:0]  out
     );
     logic [325:0] q;
     always_ff @(posedge clk) q <= in;
@@ -212,7 +212,7 @@ module OOC_LSU
     logic [9:0]   ck_lq_tail, ck_sq_tail;
     logic [11:0]  st_known, dc_kill;
     logic         dc_req_valid, dc_fill_ready, dc_st_valid, wb_valid, wb_late, ld_cancel;
-    logic         cmp_ld_valid, cmp_ld_exc, cmp_st_valid, cmp_st_exc;
+    logic         cmp_ld_valid, cmp_ld_exc, cmp_ld_rp, cmp_st_valid, cmp_st_exc;
     logic [39:0]  dc_req_addr, dc_st_addr;
     logic [3:0]   dc_req_tag;
     logic [63:0]  dc_st_data, wb_data;
@@ -236,7 +236,7 @@ module OOC_LSU
          .dc_st_ready(q[309]),
          .wb_valid(wb_valid), .wb_late(wb_late), .wb_tag(wb_tag), .wb_data(wb_data),
          .ld_cancel(ld_cancel), .ld_cancel_tag(ld_cancel_tag),
-         .cmp_ld_valid(cmp_ld_valid), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_exc),
+         .cmp_ld_valid(cmp_ld_valid), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_exc), .cmp_ld_rp(cmp_ld_rp),
          .cmp_st_valid(cmp_st_valid), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_exc),
          .lq_commit(q[311:310]), .sq_commit(q[313:312]),
          .restore(q[314]), .restore_lq_tail(q[319:315]), .restore_sq_tail(q[324:320]), .flush_all(q[325]));
@@ -245,7 +245,7 @@ module OOC_LSU
         out <= {lq_avail, sq_avail, disp_lq, disp_sq, ck_lq_tail, ck_sq_tail, st_known, dc_kill,
                 dc_req_valid, dc_req_addr, dc_req_tag, dc_fill_ready, dc_st_valid, dc_st_addr,
                 dc_st_data, dc_st_mask, wb_valid, wb_late, wb_tag, wb_data, ld_cancel, ld_cancel_tag,
-                cmp_ld_valid, cmp_ld_rob, cmp_ld_exc, cmp_st_valid, cmp_st_rob, cmp_st_exc};
+                cmp_ld_valid, cmp_ld_rob, cmp_ld_exc, cmp_ld_rp, cmp_st_valid, cmp_st_rob, cmp_st_exc};
 endmodule : OOC_LSU
 
 //---------------------------------------------------------------------------
@@ -257,10 +257,10 @@ module OOC_ROB
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [201:0]  in,
-        output logic [191:0]  out
+        input  logic [211:0]  in,
+        output logic [230:0]  out
     );
-    logic [201:0] q;
+    logic [211:0] q;
     always_ff @(posedge clk) q <= in;
     logic [1:0] rob_avail;
     logic [9:0] disp_rob;
@@ -281,20 +281,23 @@ module OOC_ROB
     logic trap;
     logic [4:0] trap_cause;
     logic [37:0] trap_pc;
+    logic replay;
+    logic [37:0] replay_pc;
     OOO_ROB #(.NROB(24), .ROBW(5), .VA(39), .TAGW(6), .CW(3), .NCMP(4)) u_rob
         (.clk(clk), .rst_n(rst_n),
          .disp_valid(q[1:0]), .disp_pc(q[77:2]), .disp_wr(q[79:78]), .disp_arch(q[89:80]),
          .disp_new(q[101:90]), .disp_old(q[113:102]), .disp_ld(q[115:114]), .disp_st(q[117:116]),
          .disp_fused(q[119:118]), .disp_ns(q[121:120]), .disp_exc(q[123:122]), .disp_cause(q[133:124]),
          .cmp_valid(q[137:134]), .cmp_rob(q[157:138]), .cmp_exc(q[161:158]), .cmp_cause(q[181:162]),
-         .br_valid(q[183:182]), .br_rob(q[193:184]), .br_mispred(q[195:194]), .br_ckpt(q[201:196]),
+         .br_valid(q[183:182]), .br_rob(q[193:184]), .br_mispred(q[195:194]), .br_ckpt(q[201:196]), .disp_len(q[207:202]), .cmp_rp(q[211:208]),
          .rob_avail(rob_avail), .disp_rob(disp_rob), .restore(restore), .restore_rob(restore_rob),
          .restore_ckpt(restore_ckpt), .head_rob(head_rob), .head_ns(head_ns), .cmt_valid(cmt_valid),
          .cmt_wr(cmt_wr), .cmt_arch(cmt_arch), .cmt_new(cmt_new), .cmt_old(cmt_old),
          .cmt_pc(cmt_pc), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_instret(cmt_instret),
-         .trap(trap), .trap_cause(trap_cause), .trap_pc(trap_pc));
+         .trap(trap), .trap_cause(trap_cause), .trap_pc(trap_pc),
+         .replay(replay), .replay_pc(replay_pc));
     always_ff @(posedge clk)
-        out <= {rob_avail, disp_rob, restore, restore_rob, restore_ckpt, head_rob, head_ns, cmt_valid, cmt_wr, cmt_arch, cmt_new, cmt_old, cmt_pc, cmt_ld_n, cmt_st_n, cmt_instret, trap, trap_cause, trap_pc};
+        out <= {rob_avail, disp_rob, restore, restore_rob, restore_ckpt, head_rob, head_ns, cmt_valid, cmt_wr, cmt_arch, cmt_new, cmt_old, cmt_pc, cmt_ld_n, cmt_st_n, cmt_instret, trap, trap_cause, trap_pc, replay, replay_pc};
 endmodule : OOC_ROB
 
 //---------------------------------------------------------------------------
@@ -494,7 +497,7 @@ module OOC_DEC
 endmodule : OOC_DEC
 
 //---------------------------------------------------------------------------
-// OOC_IQPL: the payload of the issue queue (16 entries, 96-bit records)
+// OOC_IQPL: the payload of the issue queue (10 entries, 96-bit records)
 // with its inputs and outputs registered; the read addresses get a second
 // register inside the block, as the grants come late in IS
 //---------------------------------------------------------------------------
@@ -513,7 +516,7 @@ module OOC_IQPL
     logic [2:0][3:0]  iss_entry;
     logic [2:0][95:0] rr_data;
     assign {wr_valid, wr_entry, wr_data, iss_entry} = q;
-    OOO_IQPL #(.N(16), .W(96)) u_iqpl
+    OOO_IQPL #(.N(10), .W(96), .W2(48)) u_iqpl
         (.clk(clk), .rst_n(rst_n), .wr_valid(wr_valid), .wr_entry(wr_entry), .wr_data(wr_data),
          .iss_entry(iss_entry), .rr_data(rr_data));
     always_ff @(posedge clk) out <= rr_data;
@@ -532,7 +535,7 @@ module OOC_LSUDC
         input  logic          clk,
         input  logic          rst_n,
         input  logic [264:0]  in,
-        output logic [336:0]  out
+        output logic [337:0]  out
     );
     logic [264:0] q;
     always_ff @(posedge clk) q <= in;
@@ -560,7 +563,7 @@ module OOC_LSUDC
     logic [1:0][3:0]  disp_lq, disp_sq;
     logic [1:0][4:0]  ck_lq_tail, ck_sq_tail;
     logic [11:0]      st_known;
-    logic             wb_valid, wb_late, ld_cancel, cmp_ld_valid, cmp_ld_exc, cmp_st_valid, cmp_st_exc;
+    logic             wb_valid, wb_late, ld_cancel, cmp_ld_valid, cmp_ld_exc, cmp_ld_rp, cmp_st_valid, cmp_st_exc;
     logic [5:0]       wb_tag, ld_cancel_tag;
     logic [63:0]      wb_data;
     logic [4:0]       cmp_ld_rob, cmp_st_rob;
@@ -601,7 +604,7 @@ module OOC_LSUDC
          .dc_st_ready(dc_st_ready),
          .wb_valid(wb_valid), .wb_late(wb_late), .wb_tag(wb_tag), .wb_data(wb_data),
          .ld_cancel(ld_cancel), .ld_cancel_tag(ld_cancel_tag),
-         .cmp_ld_valid(cmp_ld_valid), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_exc),
+         .cmp_ld_valid(cmp_ld_valid), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_exc), .cmp_ld_rp(cmp_ld_rp),
          .cmp_st_valid(cmp_st_valid), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_exc),
          .lq_commit(lq_commit), .sq_commit(sq_commit),
          .restore(restore), .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail),
@@ -645,7 +648,7 @@ module OOC_LSUDC
     always_ff @(posedge clk)
         out <= {lq_avail, sq_avail, disp_lq, disp_sq, ck_lq_tail, ck_sq_tail, st_known,
                 wb_valid, wb_late, wb_tag, wb_data, ld_cancel, ld_cancel_tag,
-                cmp_ld_valid, cmp_ld_rob, cmp_ld_exc, cmp_st_valid, cmp_st_rob, cmp_st_exc,
+                cmp_ld_valid, cmp_ld_rob, cmp_ld_exc, cmp_ld_rp, cmp_st_valid, cmp_st_rob, cmp_st_exc,
                 awid, awaddr, awlen, awsize, awburst, awvalid, wdata, wstrb, wlast, wvalid, bready,
                 arid, araddr, arlen, arsize, arburst, arvalid, rready};
 endmodule : OOC_LSUDC

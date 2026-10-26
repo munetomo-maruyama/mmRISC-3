@@ -128,7 +128,7 @@ the free list; renaming gets them (about 0.3k LUTs).
 | Item | Specification |
 |---|---|
 | ROB | 24 µops; payload in LUTRAM banked by the parity of the index (one write port each), done and exception bits in flip-flops; commit 2 a cycle |
-| Issue queue | `OOO_IQ`: unified, 12 entries, 2 sources and 1 destination, oldest first (age matrix), 3 issues a cycle, 6 wakeup buses with load masks, selective replay of µops issued on a load that misses (3.7); payload in LUTRAM (`OOO_IQPL`: two banks with one write port each and a live value table, written at DS to `disp_entry`, read in RR, `Plan/OOC.md` 17.1) |
+| Issue queue | `OOO_IQ`: unified, **10 entries** (G0b D-12, 6.5), 2 sources and 1 destination, oldest first (age matrix), 3 issues a cycle, 6 wakeup buses, entries freed at issue (a load that misses is replayed after commit, 3.7); payload in LUTRAM (`OOO_IQPL`: two banks with one write port each and a live value table, written at DS to `disp_entry`, read in RR, `Plan/OOC.md` 17.1) |
 | Ports | P0: ALU0 + MUL / DIV; P1: ALU1; P2: LSU |
 | **Dispatch rules** (the wakeup relies on them) | A latency-2 µop (multiply) is "ALU0 only"; an any-ALU µop has latency 1; an LSU µop writes a register only as a load |
 | Physical registers | `OOO_PRF`: 64 × 64, 3 writes / 6 reads, LUTRAM per write bank + LVT |
@@ -154,7 +154,7 @@ the free list; renaming gets them (about 0.3k LUTs).
 | D$ | mmRISC-2's (non-blocking, 2 MSHRs) behind an adapter with tagged requests and responses (`OOO_DCAD`, `Plan/OOC.md` 17.2): the D$ gives a load hit in its stage 1 (`d_hit_now`, the one output added, also under a miss) for the LSU's M; other answers come in order and are given as fills by LQ entry; a newer request of an LQ entry drops its older answers (no stale value for a load tried again) |
 | Misaligned | Trap, as in mmRISC-2 |
 | Block | `OOO_LSU` (2026-10-25, `Plan/OOC.md` 11): LQ / SQ, forwarding, `lsu_st_known` for the issue queue, `ld_cancel` for a load that misses its expected cycle, late results, `dc_kill` for the D$ adapter (not needed by `OOO_DCAD`) |
-| **Holding back dependents** (decided 2026-10-25, `Plan/OOC.md` 15) | Selective replay in the issue queue: a load is decided 3 cycles after its issue (`ld_cancel` of M); wakeups carry the mask of the open loads they depend on; a µop issued on an open load keeps its entry until the load is confirmed, and goes back to waiting if it is cancelled; the cancelled load waits for its late answer. Units drop µops in RR / EX whose mask meets `ld_kill`. About +1.0k LUTs, −0.2 % / −0.2 % in the model (the kept entries) |
+| **Holding back dependents** (decided 2026-10-26, D-12, 6.5; the selective replay of `Plan/OOC.md` 15 before) | **Replay after commit**: a load that raises `ld_cancel` (a miss, a wait) completes later marked (`cmp_ld_rp`); the ROB commits it and empties, and the front end fetches from the next instruction (`replay`, `replay_pc`). What ran on the guess in between is thrown away; the load itself runs once. No masks, no kept entries; the units need not drop anything. +0.2 % / +0.2 % in the model; every load that misses pays a refetch and the work under the miss (code that misses: Linux) |
 
 ### 3.8 Commit, exceptions and fused pairs
 
@@ -401,6 +401,25 @@ The decisions are D-11 to D-14 (section 9).
 - Bug injection: 5 added (183 + 5 = 188), and 5 retargeted after the decode change; all 188 detected.
 - `OOC_DEC` now also registers `cut` (568 output bits).
 - **Vivado asked**: `synth_ooo.bat OOC_RENAME`, `OOC_DEC`, `OOC_IQPL`.
+
+### 6.5 D-12 applied: replay after commit, issue queue 10 (2026-10-26)
+
+| Block | What was done | Yosys (a hint only) | Test |
+|---|---|---|---|
+| `OOO_IQ` | Back to the queue before the selective replay (git f4af1b8: entries freed at issue, no masks, no kept entries, no `ld_cancel` / `iss_ldm` / `ld_kill`), with `disp_entry` kept, **N = 10** | 6,172 → 2,513 LUTs (Vivado before: 3,143 at 16 without the replay, 4,977 with it) | `tb_iq` (its version before the replay, with a seed, `disp_ready` and the entry checks) PASS on 4 seeds |
+| `OOO_LSU` | `lcan` per LQ entry: set by `ld_cancel`, cleared at allocation; the load's completion carries it (`cmp_ld_rp`) | 4,779 → 4,662 (noise) | `tb_lsu`, `tb_dcad`: a load that raised `ld_cancel`, and only such a load, completes marked |
+| `OOO_ROB` | A replay bit per entry (`cmp_rp`) and the µop's length in the payload (`disp_len`, 3 bits). A marked µop commits, nothing younger with it, and the ROB empties: `replay` with `replay_pc` = its pc + its length. Order: trap, replay, restore | 1,544 → 1,621 | `tb_rob`: marked load completions, the replay and its pc checked; about 5,700 replays a run, PASS on 4 seeds |
+| `OOO_IQPL` | 10 entries (the cost is the same up to 32) | | `tb_iqpl` PASS |
+
+- **For the assembly**: `replay` is a `flush_all` for the rest of the core (renaming to the committed state, the LSU,
+  the issue queue) with fetch from `replay_pc`; dispatch in that cycle does not go in (as for a trap). Renaming's
+  busy bits keep following the wakeup buses. A load that runs only at the head (MMIO, 3.9) must not wake its dependents
+  on a guess (it issues as one answered from outside), so it never raises `ld_cancel` for them.
+- The selective replay's RTL and its test stay in git (5935e45, 7d93d41) if it is wanted back.
+- Bug injection: the 21 mutations of the selective replay (M132 to M152) went with it, 8 were added (M195 to M202),
+  4 retargeted: 175 in all, all detected.
+- **Vivado asked** (with 6.4's three): `synth_ooo.bat OOO_IQ`, `OOC_ROB`, `OOC_LSU` (and `OOC_IQPL` again, now 10
+  entries).
 
 ---
 

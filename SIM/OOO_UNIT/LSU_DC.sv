@@ -53,6 +53,7 @@ module LSU_DC
         output logic                        cmp_ld_valid,
         output logic [ROBW-1:0]             cmp_ld_rob,
         output logic                        cmp_ld_exc,
+        output logic                        cmp_ld_rp,
         output logic                        cmp_st_valid,
         output logic [ROBW-1:0]             cmp_st_rob,
         output logic                        cmp_st_exc,
@@ -122,7 +123,7 @@ module LSU_DC
          .dc_fill_valid(l_fill_valid), .dc_fill_tag, .dc_fill_data, .dc_fill_ready(l_fill_ready), .dc_kill,
          .dc_st_valid, .dc_st_addr, .dc_st_data, .dc_st_mask, .dc_st_ready,
          .wb_valid, .wb_late, .wb_tag, .wb_data, .ld_cancel, .ld_cancel_tag,
-         .cmp_ld_valid, .cmp_ld_rob, .cmp_ld_exc, .cmp_st_valid, .cmp_st_rob, .cmp_st_exc,
+         .cmp_ld_valid, .cmp_ld_rob, .cmp_ld_exc, .cmp_ld_rp, .cmp_st_valid, .cmp_st_rob, .cmp_st_exc,
          .lq_commit, .sq_commit, .restore, .restore_lq_tail, .restore_sq_tail, .flush_all);
 
     logic             d_req_valid, d_req_ready, d_req_cancel, d_resp_valid, d_hit_now;

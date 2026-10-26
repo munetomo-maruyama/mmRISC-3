@@ -32,6 +32,15 @@
 // the ROB empties (flush_all for the rest of the core). A trap wins over a
 // restore in the same cycle.
 //
+// Replay after commit (Doc/UARCH.md 6.3, D-12): a load that could not give
+// its result in its expected cycle (ld_cancel) had its dependents woken on
+// a guess, so what follows it may have run on a wrong value. Its completion
+// comes marked (cmp_rp); it commits like any µop, nothing younger commits
+// with it, and replay empties the ROB (flush_all) with the pc of the next
+// instruction (replay_pc = its pc + its length, disp_len in halfwords), from
+// where the front end fetches again. The load itself is not run again (a
+// peripheral read happens once). Order: trap, then replay, then restore.
+//
 // The commit outputs feed the committed-state RAT and the free list
 // (renaming), the LQ / SQ (counts) and the commit trace (pc, lock-step).
 //---------------------------------------------------------------------------
@@ -63,6 +72,7 @@ module OOO_ROB
         input  logic [1:0]                  disp_st,
         input  logic [1:0]                  disp_fused,  // two instructions
         input  logic [1:0]                  disp_ns,     // non-speculative: runs at the head
+        input  logic [1:0][2:0]             disp_len,    // halfwords of the µop (1 .. 4)
         input  logic [1:0]                  disp_exc,    // an exception known at decode
         input  logic [1:0][4:0]             disp_cause,
         output logic [1:0][ROBW-1:0]        disp_rob,
@@ -72,6 +82,7 @@ module OOO_ROB
         input  logic [NCMP-1:0][ROBW-1:0]   cmp_rob,
         input  logic [NCMP-1:0]             cmp_exc,
         input  logic [NCMP-1:0][4:0]        cmp_cause,
+        input  logic [NCMP-1:0]             cmp_rp,      // replay after commit (a load that raised ld_cancel)
 
         // branch resolution (ALU ports)
         input  logic [1:0]                  br_valid,
@@ -98,7 +109,9 @@ module OOO_ROB
         output logic [2:0]                  cmt_instret, // instructions (a fused pair counts 2)
         output logic                        trap,        // the head has an exception: flush_all
         output logic [4:0]                  trap_cause,
-        output logic [VA-1:1]               trap_pc
+        output logic [VA-1:1]               trap_pc,
+        output logic                        replay,      // a marked µop commits now: flush_all after it
+        output logic [VA-1:1]               replay_pc    // the next instruction, fetched again
     );
 
     localparam int H  = NROB / 2;
@@ -127,11 +140,11 @@ module OOO_ROB
     assign rob_avail = (used <= (ROBW + 1)'(NROB - 2)) ? 2'd2 : (used == (ROBW + 1)'(NROB - 1)) ? 2'd1 : 2'd0;
 
     // ---- payload: two banks by parity, written at dispatch, read at commit
-    localparam int PW = (VA - 1) + 1 + 5 + 2 * TAGW + 4;
+    localparam int PW = (VA - 1) + 1 + 5 + 2 * TAGW + 4 + 3;
     typedef logic [PW-1:0] pay_t;
     function automatic pay_t pack(input int u);
         return {disp_pc[u], disp_wr[u], disp_arch[u], disp_new[u], disp_old[u],
-                disp_ld[u], disp_st[u], disp_fused[u], disp_ns[u]};
+                disp_ld[u], disp_st[u], disp_fused[u], disp_ns[u], disp_len[u]};
     endfunction
     (* ram_style = "distributed" *) pay_t bank0 [H];
     (* ram_style = "distributed" *) pay_t bank1 [H];
@@ -163,7 +176,7 @@ module OOO_ROB
     always_ff @(posedge clk) if (we1) bank1[wa1] <= wd1;
 
     // ---- status
-    logic [NROB-1:0] done, exc;
+    logic [NROB-1:0] done, exc, rp;
     logic [4:0]      cause [NROB];
 
     // in the ROB now: between head and tail
@@ -185,12 +198,15 @@ module OOO_ROB
     logic c0, c1;
     always @(*) begin
         c0 = used != '0 && done[hi0] && !exc[hi0];
-        c1 = c0 && used >= (ROBW + 1)'(2) && done[hi1] && !exc[hi1];
+        c1 = c0 && !rp[hi0] && used >= (ROBW + 1)'(2) && done[hi1] && !exc[hi1];
         trap       = used != '0 && done[hi0] && exc[hi0];
         trap_cause = cause[hi0];
         trap_pc    = p0[PW-1 -: VA-1];
+        replay     = (c0 && rp[hi0]) || (c1 && rp[hi1]);
+        replay_pc  = (c0 && rp[hi0]) ? p0[PW-1 -: VA-1] + (VA - 1)'(p0[2:0])
+                                     : p1[PW-1 -: VA-1] + (VA - 1)'(p1[2:0]);
         head_rob   = hi0;
-        head_ns    = used != '0 && p0[0] && !done[hi0];
+        head_ns    = used != '0 && p0[3] && !done[hi0];
         cmt_valid  = {c1, c0};
         for (int u = 0; u < 2; u++) begin
             pay_t p;
@@ -201,9 +217,9 @@ module OOO_ROB
             cmt_new[u]  = p[PW-VA-6 -: TAGW];
             cmt_old[u]  = p[PW-VA-6-TAGW -: TAGW];
         end
-        cmt_ld_n    = 2'(c0 && p0[3]) + 2'(c1 && p1[3]);
-        cmt_st_n    = 2'(c0 && p0[2]) + 2'(c1 && p1[2]);
-        cmt_instret = (c0 ? (p0[1] ? 3'd2 : 3'd1) : 3'd0) + (c1 ? (p1[1] ? 3'd2 : 3'd1) : 3'd0);
+        cmt_ld_n    = 2'(c0 && p0[6]) + 2'(c1 && p1[6]);
+        cmt_st_n    = 2'(c0 && p0[5]) + 2'(c1 && p1[5]);
+        cmt_instret = (c0 ? (p0[4] ? 3'd2 : 3'd1) : 3'd0) + (c1 ? (p1[4] ? 3'd2 : 3'd1) : 3'd0);
     end
 
     // ---- branch resolution: the oldest mispredicted one in the ROB
@@ -216,7 +232,7 @@ module OOO_ROB
         end else begin
             restore_rob = br_rob[1]; restore_ckpt = br_ckpt[1];
         end
-        restore = (r0 || r1) && !trap;
+        restore = (r0 || r1) && !trap && !replay;
     end
 
     // ---- pointers
@@ -225,6 +241,8 @@ module OOO_ROB
         head_n = nxt(head, 2'(c0) + 2'(c1));
         if (trap) begin
             tail_n = head;                     // empty
+        end else if (replay) begin
+            tail_n = head_n;                   // empty after the commits
         end else if (restore) begin
             // just after the branch: its index with the wrap bit of its lap
             // (the head's, or the next one if it lies before the head)
@@ -253,11 +271,13 @@ module OOO_ROB
                 done[i]  <= n1 ? disp_exc[1] : disp_exc[0];      // an exception at decode is done at once
                 exc[i]   <= n1 ? disp_exc[1] : disp_exc[0];
                 cause[i] <= n1 ? disp_cause[1] : disp_cause[0];
+                rp[i]    <= 1'b0;
             end else begin
                 for (int c = 0; c < NCMP; c++)
                     if (cmp_valid[c] && cmp_rob[c] == ROBW'(i)) begin
                         done[i] <= 1'b1;
                         if (cmp_exc[c]) begin exc[i] <= 1'b1; cause[i] <= cmp_cause[c]; end
+                        if (cmp_rp[c])  rp[i] <= 1'b1;
                     end
             end
         end

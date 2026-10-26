@@ -36,7 +36,7 @@
 
 module OOO_IQPL
     #(
-        parameter int N = 16,           // entries of OOO_IQ
+        parameter int N = 10,           // entries of OOO_IQ
         parameter int W  = 96,          // bits of a record (Plan/OOC.md 17.1)
         parameter int W2 = 48           // the low bits port 2 reads
     )
