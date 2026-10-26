@@ -209,7 +209,7 @@ of the slices).
 
 | Block | LUT | Basis |
 |---|---|---|
-| ALUs, 2 ports (`OOC_ALU2` × 2) | 6,266 → **about 5.9k** | Measured; about −0.2k a port without the third source |
+| ALUs, 2 ports (`OOC_ALU2` × 2) | 6,266 → **about 5.9k** | Measured; about −0.2k a port without the third source. **2026-10-26: fusion level 2 (D-14), one ALU and 2 sources a port: 1,926 a port, 3,852 for two, +1.753 ns (6.8)** |
 | Issue queue (`OOO_IQ`) | 3,143 → **about 2.45k** | Measured at 16 entries; about 0.78 × at 12. **2026-10-25: with the selective replay measured in Vivado, 4,974 LUTs at 16 entries (+1,831), +3.309 ns; about 3.9k at 12 (+1.4k) (`Plan/OOC.md` 15.5); after the reductions of 15.6, 4,977 LUTs, +2.857 ns (15.7): no change. 2026-10-26: 10 entries with replay after commit (D-12), 1,621 LUTs, +7.843 ns (6.6)** |
 | Renaming (`OOC_RENAME`) | 2,267 → **about 2.0k** | Measured with 8 checkpoints; 6 checkpoints |
 | Register file (`OOC_PRF`, 64, 3 / 6) | 2,503 | Measured |
@@ -248,6 +248,8 @@ of the slices).
 | **Over, 2026-10-26** | **10.1k** | **11.5k** | **12.8k** |
 | Needed, 2026-10-26 later (G0b tier 1 in the RTL and D-12 measured, 6.6: issue queue 1,621 in place of about 3.9k, ROB 1,232, LSU 2,981, renaming 2,464, decode 1,808, payload 585) | 25.4k | 26.0k | 26.6k |
 | **Over, 2026-10-26 later** | **7.5k** | **8.9k** | **10.2k** |
+| Needed, 2026-10-26 night (D-14 measured, 6.8: two ALU ports 3,852 in place of about 5.9k, fusion 208, decode 1,791) | 23.3k | 23.9k | 24.5k |
+| **Over, 2026-10-26 night** | **5.4k** | **6.8k** | **8.1k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is
@@ -460,6 +462,28 @@ The decisions are D-11 to D-14 (section 9).
   added: 173 in all, all detected.
 - **Vivado asked**: `synth_ooo.bat OOC_ALU2`, `OOC_FUSE`, `OOC_DEC`. The budget counts the two ALU ports at about 5.9k
   (6.1); L9 was −1.2k.
+
+### 6.8 The Vivado results of D-14 (2026-10-26)
+
+| Run | Before | **Now** | Change | Register-to-register slack |
+|---|---|---|---|---|
+| OOC_ALU2 (one port: one ALU, the branch comparison, 2 bypassed sources) | 3,133 | **1,926** (`OOO_ALU` 801 of it) | −1,207 a port | +1.753 ns (was +0.512), 46 levels (33 CARRY4) |
+| Two ALU ports | about 5.9k counted (6,266 less the third source of 6.1) | **3,852** | **−2,048** against what was counted | |
+| OOC_FUSE (level 2) | 215 | **208** | −7 | +10.591 ns |
+| OOC_DEC (no `alu2ok`) | 1,808 | **1,791** | −17 | +8.034 ns |
+| **Together** | | | **−2,072** | |
+
+- **All close at 50 MHz**, the ALU port with 1.2 ns more slack than before (its worst path: the bypass → the ALU's
+  adder → the fused branch's comparison → `take_branch`, two carry chains in a row).
+- **L9 gave −2.07k, against −1.2k planned**: the second ALU and its bypass, and the third source, which G0 had already
+  subtracted (−0.4k) but the RTL still had.
+- **The budget** (4.4): the gap goes to **5.4k / 6.8k / 8.1k**.
+- **L7 (asymmetric ALUs) is worth less now**: its −0.7k to −1.0k was estimated against ports of two chained ALUs. With
+  one ALU of 801 LUTs a port, an ALU1 with only add / sub, logic, compares and branches saves about −0.3k to −0.5k
+  (to be modelled before it is taken).
+- **Against the plan**: still to come L1, L3, L8 (2.15k), L4 to L6 (1.2k), L7 (about 0.4k) and the reserve L10 + B4 /
+  B5 (3.5k): 7.25k. **Middle margin about +0.4k** (+1.8k low, −0.9k high). Without the reserve, the middle is about
+  3.1k short.
 
 ---
 

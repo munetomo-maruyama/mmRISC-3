@@ -2105,5 +2105,43 @@ Go on to D-14 (fusion level 2) as planned.
 <!-- answer -->
 **Claude Codeの回答**
 
-The prompt log is updated. Waiting for the full test and mutation run to finish before committing.
+D-14(融合レベル2)をRTLに入れ、devにpushしました(`3600489`)。テスト18本はすべてPASS、バグ注入は173件すべて検出です。Vivadoはまだ流していません。
+
+**したこと**
+- **`OOO_FUSE`**: レベル2にしました。ALU + ALUの規則と、入力の`alu2ok`をなくしました。
+  - CoreMarkの命令列では、RTLの作る組がモデルとちょうど同じ数(156,004)になりました。
+- **`OOO_ALU2`**: フルのALU 1つと、分岐の比較だけにしました。
+  - 絞った2段目のALUは、ALU + ALUとともになくしました。
+  - **3つ目のソース`s3`もなくしました。** G0では「3つ目のソースなし」を約−0.4kとして予算に数えていましたが、RTLにはまだ残っていました。
+  - 組が読むレジスタは2本までなので、融合した分岐は、ALUの結果をs1、s2、0のどれかと比べれば足ります(`br_o_sel`)。
+  - ハーネスも、バイパスをソース2つにしました。
+- **`OOO_DEC`**: `alu2ok`を外しました。
+- **バグ注入**: 2段目・ALU + ALU・`alu2ok`をねらった5件は対象ごとなくなったので外し、3件を加えました。
+
+**Yosysでの規模**(目安です。Vivadoで決まります)
+- ALUポート: 4,617 → **3,235**
+- 融合: 285 → 269
+- デコード: ほぼ同じ
+
+予算では、2つのALUポートを約5.9kと数え、L9は−1.2kと見込んでいます。どこまで減ったかは、Vivadoの数で決まります。
+
+**組み立てのときの約束**(`Doc/UARCH` 6.7に書きました)
+- デコードと融合は、融合した分岐に`br_o_sel`を渡します。分岐のもう一方のレジスタが2つのソースポートのどちらにあるか、x0なら0かを示します。
+- ペイロードからは、2つ目の操作のフィールドがなくなります。
+
+記録は`Doc/UARCH`の3.1、3.3、3.6、6.7(英語版と日本語版)、READMEs、プロンプトログ(57の回答と58の英訳)に入れています。
+
+**Vivadoのお願い**
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_ALU2
+synth_ooo.bat OOC_FUSE
+synth_ooo.bat OOC_DEC
+```
 <!-- /answer -->
+
+## 59. 2026-10-26 22:47:01 JST
+
+```text
+I ran synth_ooo.bat for OOC_ALU2, OOC_FUSE and OOC_DEC. Please check output/*/summary.txt.
+```

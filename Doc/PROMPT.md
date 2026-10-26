@@ -2112,3 +2112,47 @@ Recorded in `Doc/UARCH` 6.6 and 4.4 (English and Japanese) and the prompt log (a
 ```text
 Go on to D-14 (fusion level 2) as planned.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+D-14 (fusion level 2) is in the RTL and pushed to dev (`3600489`). All 18 tests PASS and all 173 bug injections are detected. Vivado has not been run yet.
+
+**What was done**
+- **`OOO_FUSE`**: level 2. The ALU + ALU rule and the `alu2ok` input are gone.
+  - On the CoreMark stream the RTL forms exactly as many pairs as the model (156,004).
+- **`OOO_ALU2`**: one full ALU and the branch comparison only.
+  - The narrowed second ALU went with ALU + ALU.
+  - **The third source `s3` went too.** G0 counted "no third source" in the budget (about −0.4k), but the RTL still had it.
+  - A pair reads at most 2 registers, so a fused branch only has to compare the ALU result with s1, s2 or zero (`br_o_sel`).
+  - The harness bypasses 2 sources now.
+- **`OOO_DEC`**: `alu2ok` removed.
+- **Bug injection**: the 5 aimed at the second stage, ALU + ALU and `alu2ok` went with them; 3 added.
+
+**Size in Yosys** (a hint only; Vivado decides)
+- ALU port: 4,617 → **3,235**
+- Fusion: 285 → 269
+- Decode: about the same
+
+The budget counts the two ALU ports at about 5.9k, and L9 was expected at −1.2k. How much is saved is decided by the Vivado number.
+
+**Contracts for the assembly** (in `Doc/UARCH` 6.7)
+- Decode and fusion give a fused branch `br_o_sel`: which of the two source ports holds the branch's other register, or 0 for x0.
+- The payload loses the second operation's fields.
+
+Recorded in 3.1, 3.3, 3.6 and 6.7 of `Doc/UARCH` (English and Japanese), the READMEs, and the prompt log (answer 57 and the English of 58).
+
+**Vivado request**
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_ALU2
+synth_ooo.bat OOC_FUSE
+synth_ooo.bat OOC_DEC
+```
+<!-- /answer -->
+
+## 59. 2026-10-26 22:47:01 JST
+
+```text
+I ran synth_ooo.bat for OOC_ALU2, OOC_FUSE and OOC_DEC. Please check output/*/summary.txt.
+```

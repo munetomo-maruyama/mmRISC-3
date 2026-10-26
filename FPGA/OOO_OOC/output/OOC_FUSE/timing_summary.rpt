@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Sat Oct 24 22:11:12 2026
+| Date         : Mon Oct 26 22:44:13 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_timing_summary -file ./output/OOC_FUSE/timing_summary.rpt
 | Design       : OOC_FUSE
@@ -138,7 +138,7 @@ Table of Contents
 
     WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
     -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
-     10.125        0.000                      0                  187        0.233        0.000                      0                  187        9.500        0.000                       0                   173  
+     10.591        0.000                      0                  180        0.252        0.000                      0                  180        9.500        0.000                       0                   168  
 
 
 All user specified timing constraints are met.
@@ -161,7 +161,7 @@ clk    {0.000 10.000}     20.000          50.000
 
 Clock             WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
 -----             -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
-clk                10.125        0.000                      0                  187        0.233        0.000                      0                  187        9.500        0.000                       0                   173  
+clk                10.591        0.000                      0                  180        0.252        0.000                      0                  180        9.500        0.000                       0                   168  
 
 
 ------------------------------------------------------------------------------------------------
@@ -192,24 +192,24 @@ Path Group    From Clock    To Clock          WNS(ns)      TNS(ns)  TNS Failing 
 From Clock:  clk
   To Clock:  clk
 
-Setup :            0  Failing Endpoints,  Worst Slack       10.125ns,  Total Violation        0.000ns
-Hold  :            0  Failing Endpoints,  Worst Slack        0.233ns,  Total Violation        0.000ns
+Setup :            0  Failing Endpoints,  Worst Slack       10.591ns,  Total Violation        0.000ns
+Hold  :            0  Failing Endpoints,  Worst Slack        0.252ns,  Total Violation        0.000ns
 PW    :            0  Failing Endpoints,  Worst Slack        9.500ns,  Total Violation        0.000ns
 ---------------------------------------------------------------------------------------------------
 
 
 Max Delay Paths
 --------------------------------------------------------------------------------------
-Slack (MET) :             10.125ns  (required time - arrival time)
+Slack (MET) :             10.591ns  (required time - arrival time)
   Source:                 im_reg[1][0]/C
                             (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            out_reg[0]/D
+  Destination:            out_reg[1]/D
                             (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Setup (Max at Slow Process Corner)
   Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
-  Data Path Delay:        9.868ns  (logic 3.182ns (32.245%)  route 6.686ns (67.755%))
-  Logic Levels:           10  (CARRY4=3 LUT2=1 LUT5=2 LUT6=4)
+  Data Path Delay:        9.406ns  (logic 3.269ns (34.756%)  route 6.137ns (65.244%))
+  Logic Levels:           11  (CARRY4=4 LUT2=1 LUT3=1 LUT5=1 LUT6=4)
   Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
     Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
     Source Clock Delay      (SCD):    0.973ns
@@ -224,49 +224,52 @@ Slack (MET) :             10.125ns  (required time - arrival time)
   -------------------------------------------------------------------    -------------------
                          (clock clk rise edge)        0.000     0.000 r  
                                                       0.000     0.000 r  clk (IN)
-                         net (fo=172, unset)          0.973     0.973    clk
-    SLICE_X9Y83          FDRE                                         r  im_reg[1][0]/C
+                         net (fo=167, unset)          0.973     0.973    clk
+    SLICE_X13Y70         FDRE                                         r  im_reg[1][0]/C
   -------------------------------------------------------------------    -------------------
-    SLICE_X9Y83          FDRE (Prop_fdre_C_Q)         0.456     1.429 r  im_reg[1][0]/Q
-                         net (fo=3, routed)           0.829     2.258    u_fuse/pair_kind05_inferred__2/i__carry__1_1[0]
-    SLICE_X9Y83          LUT2 (Prop_lut2_I0_O)        0.124     2.382 r  u_fuse/i__carry_i_4__2/O
-                         net (fo=1, routed)           0.000     2.382    u_fuse/i__carry_i_4__2_n_0
-    SLICE_X9Y83          CARRY4 (Prop_carry4_S[0]_O[3])
-                                                      0.606     2.988 r  u_fuse/pair_kind5_inferred__2/i__carry/O[3]
-                         net (fo=2, routed)           1.190     4.178    u_fuse/pair_kind53_out[3]
-    SLICE_X7Y85          LUT5 (Prop_lut5_I4_O)        0.306     4.484 r  u_fuse/i__carry_i_3/O
-                         net (fo=1, routed)           0.000     4.484    u_fuse/i__carry_i_3_n_0
-    SLICE_X7Y85          CARRY4 (Prop_carry4_S[1]_CO[3])
-                                                      0.550     5.034 r  u_fuse/pair_kind4_inferred__0/i__carry/CO[3]
-                         net (fo=1, routed)           0.000     5.034    u_fuse/pair_kind4_inferred__0/i__carry_n_0
-    SLICE_X7Y86          CARRY4 (Prop_carry4_CI_CO[0])
-                                                      0.271     5.305 r  u_fuse/pair_kind4_inferred__0/i__carry__0/CO[0]
-                         net (fo=1, routed)           0.783     6.088    u_fuse/pair_kind48_out
-    SLICE_X8Y87          LUT6 (Prop_lut6_I1_O)        0.373     6.461 f  u_fuse/out[11]_i_6/O
-                         net (fo=3, routed)           0.985     7.446    u_fuse/out[11]_i_6_n_0
-    SLICE_X10Y91         LUT5 (Prop_lut5_I0_O)        0.124     7.570 r  u_fuse/out[11]_i_2/O
-                         net (fo=3, routed)           0.625     8.195    u_fuse/out[11]_i_2_n_0
-    SLICE_X10Y92         LUT6 (Prop_lut6_I4_O)        0.124     8.319 r  u_fuse/out[9]_i_1/O
-                         net (fo=9, routed)           1.224     9.542    u_fuse/k0[0]
-    SLICE_X8Y93          LUT6 (Prop_lut6_I1_O)        0.124     9.666 r  u_fuse/out[3]_i_1/O
-                         net (fo=3, routed)           1.051    10.717    u_fuse/D[3]
-    SLICE_X8Y94          LUT6 (Prop_lut6_I2_O)        0.124    10.841 r  u_fuse/out[0]_i_1/O
-                         net (fo=1, routed)           0.000    10.841    cn[0]
-    SLICE_X8Y94          FDRE                                         r  out_reg[0]/D
+    SLICE_X13Y70         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  im_reg[1][0]/Q
+                         net (fo=3, routed)           0.968     2.397    u_fuse/pair_kind05_inferred__2/i__carry__1_1[0]
+    SLICE_X13Y71         LUT2 (Prop_lut2_I0_O)        0.124     2.521 r  u_fuse/i__carry_i_4__2/O
+                         net (fo=1, routed)           0.000     2.521    u_fuse/i__carry_i_4__2_n_0
+    SLICE_X13Y71         CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.053 r  u_fuse/pair_kind5_inferred__2/i__carry/CO[3]
+                         net (fo=1, routed)           0.000     3.053    u_fuse/pair_kind5_inferred__2/i__carry_n_0
+    SLICE_X13Y72         CARRY4 (Prop_carry4_CI_O[3])
+                                                      0.313     3.366 f  u_fuse/pair_kind5_inferred__2/i__carry__0/O[3]
+                         net (fo=2, routed)           0.941     4.307    u_fuse/pair_kind53_out[7]
+    SLICE_X15Y73         LUT3 (Prop_lut3_I0_O)        0.306     4.613 r  u_fuse/i__carry_i_2/O
+                         net (fo=1, routed)           0.000     4.613    u_fuse/i__carry_i_2_n_0
+    SLICE_X15Y73         CARRY4 (Prop_carry4_S[2]_CO[3])
+                                                      0.398     5.011 r  u_fuse/pair_kind4_inferred__0/i__carry/CO[3]
+                         net (fo=1, routed)           0.000     5.011    u_fuse/pair_kind4_inferred__0/i__carry_n_0
+    SLICE_X15Y74         CARRY4 (Prop_carry4_CI_CO[0])
+                                                      0.271     5.282 f  u_fuse/pair_kind4_inferred__0/i__carry__0/CO[0]
+                         net (fo=2, routed)           0.823     6.105    u_fuse/pair_kind48_out
+    SLICE_X12Y74         LUT6 (Prop_lut6_I1_O)        0.373     6.478 r  u_fuse/out[11]_i_18/O
+                         net (fo=3, routed)           0.781     7.259    u_fuse/out[11]_i_18_n_0
+    SLICE_X9Y76          LUT5 (Prop_lut5_I0_O)        0.124     7.383 r  u_fuse/out[11]_i_5/O
+                         net (fo=3, routed)           0.601     7.984    u_fuse/out[11]_i_5_n_0
+    SLICE_X10Y76         LUT6 (Prop_lut6_I4_O)        0.124     8.108 r  u_fuse/out[6]_i_1/O
+                         net (fo=8, routed)           1.292     9.399    u_fuse/D[5]
+    SLICE_X13Y79         LUT6 (Prop_lut6_I2_O)        0.124     9.523 f  u_fuse/out[4]_i_1/O
+                         net (fo=3, routed)           0.731    10.255    u_fuse/D[4]
+    SLICE_X12Y79         LUT6 (Prop_lut6_I5_O)        0.124    10.379 r  u_fuse/out[1]_i_1/O
+                         net (fo=1, routed)           0.000    10.379    cn[1]
+    SLICE_X12Y79         FDRE                                         r  out_reg[1]/D
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)       20.000    20.000 r  
                                                       0.000    20.000 r  clk (IN)
-                         net (fo=172, unset)          0.924    20.924    clk
-    SLICE_X8Y94          FDRE                                         r  out_reg[0]/C
+                         net (fo=167, unset)          0.924    20.924    clk
+    SLICE_X12Y79         FDRE                                         r  out_reg[1]/C
                          clock pessimism              0.000    20.924    
                          clock uncertainty           -0.035    20.889    
-    SLICE_X8Y94          FDRE (Setup_fdre_C_D)        0.077    20.966    out_reg[0]
+    SLICE_X12Y79         FDRE (Setup_fdre_C_D)        0.081    20.970    out_reg[1]
   -------------------------------------------------------------------
-                         required time                         20.966    
-                         arrival time                         -10.841    
+                         required time                         20.970    
+                         arrival time                         -10.379    
   -------------------------------------------------------------------
-                         slack                                 10.125    
+                         slack                                 10.591    
 
 
 
@@ -274,16 +277,16 @@ Slack (MET) :             10.125ns  (required time - arrival time)
 
 Min Delay Paths
 --------------------------------------------------------------------------------------
-Slack (MET) :             0.233ns  (arrival time - required time)
+Slack (MET) :             0.252ns  (arrival time - required time)
   Source:                 va_reg[0]/C
                             (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            out_reg[0]/D
+  Destination:            out_reg[8]/D
                             (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Hold (Min at Fast Process Corner)
   Requirement:            0.000ns  (clk rise@0.000ns - clk rise@0.000ns)
-  Data Path Delay:        0.374ns  (logic 0.209ns (55.816%)  route 0.165ns (44.184%))
-  Logic Levels:           1  (LUT6=1)
+  Data Path Delay:        0.394ns  (logic 0.209ns (53.019%)  route 0.185ns (46.981%))
+  Logic Levels:           1  (LUT4=1)
   Clock Path Skew:        0.022ns (DCD - SCD - CPR)
     Destination Clock Delay (DCD):    0.432ns
     Source Clock Delay      (SCD):    0.410ns
@@ -293,27 +296,27 @@ Slack (MET) :             0.233ns  (arrival time - required time)
   -------------------------------------------------------------------    -------------------
                          (clock clk rise edge)        0.000     0.000 r  
                                                       0.000     0.000 r  clk (IN)
-                         net (fo=172, unset)          0.410     0.410    clk
-    SLICE_X8Y95          FDRE                                         r  va_reg[0]/C
+                         net (fo=167, unset)          0.410     0.410    clk
+    SLICE_X12Y79         FDRE                                         r  va_reg[0]/C
   -------------------------------------------------------------------    -------------------
-    SLICE_X8Y95          FDRE (Prop_fdre_C_Q)         0.164     0.574 r  va_reg[0]/Q
-                         net (fo=4, routed)           0.165     0.740    u_fuse/Q[0]
-    SLICE_X8Y94          LUT6 (Prop_lut6_I5_O)        0.045     0.785 r  u_fuse/out[0]_i_1/O
-                         net (fo=1, routed)           0.000     0.785    cn[0]
-    SLICE_X8Y94          FDRE                                         r  out_reg[0]/D
+    SLICE_X12Y79         FDRE (Prop_fdre_C_Q)         0.164     0.574 r  va_reg[0]/Q
+                         net (fo=5, routed)           0.185     0.759    u_fuse/out[4]_i_4_0[0]
+    SLICE_X12Y79         LUT4 (Prop_lut4_I1_O)        0.045     0.804 r  u_fuse/out[8]_i_1/O
+                         net (fo=2, routed)           0.000     0.804    v1
+    SLICE_X12Y79         FDRE                                         r  out_reg[8]/D
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)        0.000     0.000 r  
                                                       0.000     0.000 r  clk (IN)
-                         net (fo=172, unset)          0.432     0.432    clk
-    SLICE_X8Y94          FDRE                                         r  out_reg[0]/C
+                         net (fo=167, unset)          0.432     0.432    clk
+    SLICE_X12Y79         FDRE                                         r  out_reg[8]/C
                          clock pessimism              0.000     0.432    
-    SLICE_X8Y94          FDRE (Hold_fdre_C_D)         0.120     0.552    out_reg[0]
+    SLICE_X12Y79         FDRE (Hold_fdre_C_D)         0.121     0.553    out_reg[8]
   -------------------------------------------------------------------
-                         required time                         -0.552    
-                         arrival time                           0.785    
+                         required time                         -0.553    
+                         arrival time                           0.804    
   -------------------------------------------------------------------
-                         slack                                  0.233    
+                         slack                                  0.252    
 
 
 
@@ -327,9 +330,9 @@ Period(ns):         20.000
 Sources:            { clk }
 
 Check Type        Corner  Lib Pin  Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location      Pin
-Min Period        n/a     FDRE/C   n/a            1.000         20.000      19.000     SLICE_X13Y92  a_reg[0][0]/C
-Low Pulse Width   Slow    FDRE/C   n/a            0.500         10.000      9.500      SLICE_X13Y92  a_reg[0][0]/C
-High Pulse Width  Slow    FDRE/C   n/a            0.500         10.000      9.500      SLICE_X13Y92  a_reg[0][0]/C
+Min Period        n/a     FDRE/C   n/a            1.000         20.000      19.000     SLICE_X12Y76  a_reg[0][0]/C
+Low Pulse Width   Slow    FDRE/C   n/a            0.500         10.000      9.500      SLICE_X12Y76  a_reg[0][0]/C
+High Pulse Width  Slow    FDRE/C   n/a            0.500         10.000      9.500      SLICE_X12Y76  a_reg[0][0]/C
 
 
 
