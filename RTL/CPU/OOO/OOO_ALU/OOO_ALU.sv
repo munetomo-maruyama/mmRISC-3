@@ -23,13 +23,14 @@
 //   counts   ctz as a tree over bytes (clz is ctz of the reversed operand),
 //            cpop as a tree of adders
 //
-// FULL = 0 is the second stage of a fused ALU + ALU pair (OOO_ALU2): only
+// FULL = 0 was the second stage of a fused ALU + ALU pair, not used since
+// fusion level 2 (G0b D-14, Doc/UARCH.md 6.7); the parameter is kept. It had only
 // the operations that CoreMark puts there (Plan/OOC.md 7.2) and the cheap
 // ones beside them,
 //   add / sub, sh*add(.uw), the logic operations, srl (srliw is the only
 //   shift CoreMark has there), sext.b / sext.h / zext.h, czero.eqz /
 //   czero.nez, bext
-// (OOO_FUSE alu2ok, tb_alu2 OPS2); without sll / sra (the reversal and the sign fill of
+// (then OOO_FUSE alu2ok, tb_alu2 OPS2); without sll / sra (the reversal and the sign fill of
 // the shifter), rotates, comparisons, min / max, counts, orc.b / rev8 and
 // bset / bclr / binv. Their result is 0 there; the fusion
 // never puts them in a second stage (OOO_FUSE, alu2ok).

@@ -2073,3 +2073,42 @@ synth_ooo.bat OOC_LSU
 ```text
 I ran synth_ooo.bat for OOC_RENAME, OOC_DEC, OOC_IQPL, OOO_IQ, OOC_ROB and OOC_LSU. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+All six close at 50 MHz. Together they saved about 2.57k LUTs, and the gap in the middle is now 8.9k. That is 0.28k short of the 2.85k planned, and the middle margin of the G0b plan is now about 0.
+
+| Run | Before | **Now** | Change | Register-to-register slack | Estimate |
+|---|---|---|---|---|---|
+| Issue queue (10 entries, no replay) | about 3.9k in the budget | **1,621** | **−2,279** | +7.843 ns (was +2.857) | G4: −1.9k with the ROB and LSU parts |
+| ROB (replay after commit) | 1,073 | 1,232 | +159 | +11.233 ns | (in G4) |
+| LSU (the replay mark) | 2,969 | 2,981 | +12 | +5.698 ns | (in G4) |
+| Renaming (6 checkpoints) | 2,624 | 2,464 | −160 | +8.179 ns | G1: −0.25k |
+| Decode (rare classes in slot 0) | 1,980 | 1,808 | −172 | +7.803 ns | G2: −0.4k to −0.7k |
+| Payload (10 entries, port 2 at 48 bits) | 711 | 585 | −126 | +12.620 ns | G3: −0.1k to −0.2k |
+| **Together** | | | **−2,566** | | −2.85k |
+
+- **G4 (replay after commit with 10 entries) did better than estimated**: −2.11k with the ROB and LSU increases included (estimate −1.9k). The issue queue also gained 5 ns of slack.
+- **G2 (decode) fell short** (−172), as Yosys said: while `CORE_DEC` is used whole, the logic that recognizes the rare classes stays in slots 1 to 3. The remaining −0.3k to −0.5k needs a light integer-only decoder for slots 1 to 3 (1b of the earlier list), with new verification.
+
+**Budget** (a row added to UARCH 4.4)
+
+| | Low | Middle | High |
+|---|---|---|---|
+| After the payload and the adapter were measured | 10.1k | 11.5k | 12.8k |
+| **After tier 1 and D-12 were measured** | **7.5k** | **8.9k** | **10.2k** |
+
+**Where we stand against the plan**
+- The levers still to come add up to 8.9k: the rest of tier 1 (L1, L3, L8) 2.15k, L4 to L6 1.2k, L7 0.85k, fusion level 2 (L9) 1.2k, and the reserve, the 54k ceiling (L10) and no PMP / HPM (B4 / B5), 3.5k.
+- With the reserve the middle margin is about 0 (−0.03k), +1.4k at the low end, −1.3k at the high end.
+- Getting through without the reserve is hard, and even the small ups and downs of each measurement can make it short. The light decoder (1b above) is one candidate to fill that difference.
+
+Recorded in `Doc/UARCH` 6.6 and 4.4 (English and Japanese) and the prompt log (answer 56 and the English of 57); pushed to dev with the Vivado reports (d633f71).
+<!-- /answer -->
+
+## 58. 2026-10-26 22:13:33 JST
+
+```text
+Go on to D-14 (fusion level 2) as planned.
+```

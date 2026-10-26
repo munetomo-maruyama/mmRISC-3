@@ -83,7 +83,7 @@ most optimization (sf + `-flto`). From `Plan/model/results/g0.txt`:
 | DS | Dispatch: issue queue, ROB, LQ / SQ, payload |
 | IS | Wakeup-select (one cycle with the wakeup of latency 1) |
 | RR | Register-file read (6 ports) |
-| EX | Bypass and the two chained ALU stages / address calculation / branch resolution |
+| EX | Bypass and the ALU with the branch comparison after it (fusion level 2, 6.7) / address calculation / branch resolution |
 | (M) | Loads: D$ access, result 2 cycles after issue to the dependents (hit speculated) |
 | WB, CM | Register-file write (3 ports); commit 2 µops a cycle from the ROB head |
 
@@ -107,8 +107,8 @@ A misprediction costs 9 cycles from EX to EX. The model is the reference for the
 |---|---|
 | Width | 4 instructions decoded, 2 µops out per cycle |
 | Decoder | `OOO_DEC`: per slot mmRISC-2's `CORE_DECOMP` + `CORE_DEC` taken without change (`RTL/CPU/CORE`), and the fields fusion, the issue queue and the ROB need (`Plan/OOC.md` 16) |
-| Fusion | `OOO_FUSE` LEVEL 3: lui + addi, auipc + x, slli + srli, ALU + load (address), load / store pairs, ALU + branch, ALU + ALU (chained). Greedy from the oldest slot, adjacent instructions in program order |
-| Limits | A pair reads at most 2 registers (`SRC2`) and writes at most 1 (`W1`); the second half of ALU + ALU is an operation of the narrowed second stage (`alu2ok` from the decoder) |
+| Fusion | `OOO_FUSE` **LEVEL 2** (G0b D-14, 6.7; ALU + ALU given up): lui + addi, auipc + x, slli + srli, ALU + load (address), load / store pairs, ALU + branch. Greedy from the oldest slot, adjacent instructions in program order |
+| Limits | A pair reads at most 2 registers (`SRC2`) and writes at most 1 (`W1`); so the other operand of a fused branch is one of the two (or x0) |
 | Off | `no_fuse`: single-step, armed triggers, the refetch after an exception in a pair (3.8) |
 
 ### 3.4 Renaming
@@ -137,7 +137,7 @@ the free list; renaming gets them (about 0.3k LUTs).
 
 | Item | Specification |
 |---|---|
-| ALU ports | `OOO_ALU2` on P0 and P1: a full `OOO_ALU` (RV64I, Zba, Zbb, Zbs, Zicond; one adder and one shifter shared) and a narrowed one in series (add / sub, sh*add, logic, srl, extensions, czero, bext), plus the branch comparison (alone, or on the first result) |
+| ALU ports | `OOO_ALU2` on P0 and P1: a full `OOO_ALU` (RV64I, Zba, Zbb, Zbs, Zicond; one adder and one shifter shared) and the branch comparison (alone, or fused on the ALU result against s1, s2 or zero); 2 sources, 2 bypassed (6.7) |
 | Sources | 2 per µop (the third source input of `OOO_ALU2` goes in Phase 1: the second stage takes res1, s1, s2 or imm2) |
 | Bypass | In front of the ALUs in EX: the register file, the own result, the other ALU port, the load |
 | MUL / DIV | mmRISC-2's CORE_MDU behind P0 (multiply in DSP blocks, latency 2; divide iterative, woken from outside) |
@@ -444,6 +444,22 @@ The decisions are D-11 to D-14 (section 9).
 - **Against the plan of 6.3**: the measured part of tier 1 and G4 gave 2.57k for 2.85k planned (−0.28k). The levers
   still to come (L1, L3, L8 of tier 1 at 2.15k; L4 to L6 1.2k; L7 0.85k; L9 1.2k; the reserve L10 + B4 / B5 3.5k)
   add up to 8.9k: **the middle margin is now about 0** (−0.03k), +1.4k at the low end, −1.3k at the high end.
+
+### 6.7 D-14 applied: fusion level 2 (2026-10-26)
+
+| Block | What was done | Yosys (a hint only) | Test |
+|---|---|---|---|
+| `OOO_FUSE` | `LEVEL` 2: the ALU + ALU rule and the `alu2ok` input are gone | `OOC_FUSE` 285 → 269 | `tb_fuse` random PASS; on the CoreMark stream (`FUSE_TRACE`, `mkfuse.py` now at level 2) the RTL forms the model's pairs exactly (156,004 = 156,004) |
+| `OOO_ALU2` | One full ALU and the branch comparison. The narrowed second ALU went with ALU + ALU, and **the third source `s3` too**: a fused branch compares the ALU result with s1, s2 or zero (`br_o_sel`), since a pair reads at most 2 registers (SRC2). G0 counted "no third source" (6.1, about −0.4k) but the RTL still had it | `OOC_ALU2` 4,617 → 3,235 (the harness now bypasses 2 sources) | `tb_alu2` PASS (the fused branch with each choice of the other operand, and equal operands on a port the ALU does not read) |
+| `OOO_DEC` | `alu2ok` removed | 2,078 → 2,112 (noise) | `tb_dec` PASS |
+| `OOO_ALU` | `FULL = 0` (the narrowed form) no longer used; the parameter is kept | | |
+
+- **For the assembly**: decode / fusion give a fused branch `br_o_sel` (which of the µop's two source ports holds the
+  branch's other register, or zero for x0); the payload loses the second operation's fields.
+- Bug injection: M3, M6, M29, M157, M158 (the second stage, ALU + ALU, `alu2ok`) went with them, M203 to M205 were
+  added: 173 in all, all detected.
+- **Vivado asked**: `synth_ooo.bat OOC_ALU2`, `OOC_FUSE`, `OOC_DEC`. The budget counts the two ALU ports at about 5.9k
+  (6.1); L9 was −1.2k.
 
 ---
 

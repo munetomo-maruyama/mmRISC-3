@@ -1,8 +1,9 @@
 //---------------------------------------------------------------------------
 // tb_alu2.cpp : OOO_ALU2 against a reference written from the RISC-V
-// specification (RV64I, Zba, Zbb, Zbs, Zicond), random operations (the
-// second stage only those it has), operand selections and values (values biased to the edges: 0, -1, sign bits,
-// small shifts)
+// specification (RV64I, Zba, Zbb, Zbs, Zicond), random operations, operand
+// selections and values (values biased to the edges: 0, -1, sign bits,
+// small shifts), and the branch comparison alone or fused after the
+// operation (its other operand s1, s2 or zero)
 //---------------------------------------------------------------------------
 #include "VOOO_ALU2.h"
 #include <cstdint>
@@ -75,12 +76,9 @@ static uint64_t ref_alu(int op, uint64_t a, uint64_t b, bool uw, int shift, bool
 }
 
 // the operand forms the decoder produces (word forms, .uw, sh*add only where RISC-V has them)
-// the operations of the narrowed second stage (OOO_ALU FULL = 0, SECOND_OPS)
-static const int OPS2[] = {0, 1, 5, 6, 8, 9, 10, 11, 12, 22, 23, 24, 27, 28, 32};
-
-static void rand_op(int& op, bool& uw, int& shift, bool& word, bool second = false)
+static void rand_op(int& op, bool& uw, int& shift, bool& word)
 {
-    op = second ? OPS2[rng() % (sizeof(OPS2) / sizeof(OPS2[0]))] : (int)(rng() % 33);
+    op = (int)(rng() % 33);
     uw = false; shift = 0; word = false;
     if (op == 0) { int k = rng() % 6; if (k == 1) word = true; else if (k == 2) uw = true;
                    else if (k >= 3) { shift = (int)(rng() % 3) + 1; uw = rng() & 1; } }
@@ -94,22 +92,26 @@ int main(int argc, char** argv)
     VOOO_ALU2 d;
     long n = 0, bad = 0;
     for (long it = 0; it < 2000000; it++) {
-        uint64_t s1 = rval(), s2 = rval(), s3 = rval(), i1 = rval(), i2 = rval(), pc = rng() & ~1ull;
-        int op1, sh1, op2, sh2; bool uw1, w1, uw2, w2;
-        rand_op(op1, uw1, sh1, w1); rand_op(op2, uw2, sh2, w2, true);
-        int a1 = rng() % 3, b1i = rng() & 1, a2s3 = rng() & 1, b2 = rng() % 3;
-        int isbr = rng() & 1, brop = (int[]){0, 1, 4, 5, 6, 7}[rng() % 6], brf = rng() & 1, bra = rng() & 1;
+        uint64_t s1 = rval(), s2 = rval(), i1 = rval(), pc = rng() & ~1ull;
+        int op1, sh1; bool uw1, w1;
+        rand_op(op1, uw1, sh1, w1);
+        int a1 = rng() % 3, b1i = rng() & 1;
+        int isbr = rng() & 1, brop = (int[]){0, 1, 4, 5, 6, 7}[rng() % 6], brf = rng() & 1, bra = rng() & 1, bos = rng() % 3;
         if (rng() % 4 == 0) s2 = s1;                       // equal operands for the branches
-        d.s1 = s1; d.s2 = s2; d.s3 = s3; d.imm1 = i1; d.imm2 = i2; d.pc = pc;
+        if (brf && rng() % 3 == 0) {                       // a fused branch with equal operands: the
+            uint64_t A = a1 == 1 ? pc : a1 == 2 ? 0 : s1;  // other operand on a port the ALU does not read
+            uint64_t r = ref_alu(op1, A, b1i ? i1 : s2, uw1, sh1, w1);
+            if (bos == 1 && b1i) s2 = r;
+            else if (bos == 0 && a1 != 0) s1 = r;
+        }
+        d.s1 = s1; d.s2 = s2; d.imm1 = i1; d.pc = pc;
         d.op1 = op1; d.uw1 = uw1; d.shift1 = sh1; d.word1 = w1; d.a1_sel = a1; d.b1_imm = b1i;
-        d.op2 = op2; d.uw2 = uw2; d.shift2 = sh2; d.word2 = w2; d.a2_s3 = a2s3; d.b2_sel = b2;
-        d.is_br = isbr; d.br_op = brop; d.br_fused = brf; d.br_res1_a = bra;
+        d.is_br = isbr; d.br_op = brop; d.br_fused = brf; d.br_res1_a = bra; d.br_o_sel = bos;
         d.eval();
         uint64_t A1 = a1 == 1 ? pc : a1 == 2 ? 0 : s1;
         uint64_t r1 = ref_alu(op1, A1, b1i ? i1 : s2, uw1, sh1, w1);
-        uint64_t A2 = a2s3 ? s3 : r1, B2 = b2 == 1 ? s3 : b2 == 2 ? i2 : r1;
-        uint64_t r2 = ref_alu(op2, A2, B2, uw2, sh2, w2);
-        uint64_t ca = brf ? (bra ? r1 : s3) : s1, cb = brf ? (bra ? s3 : r1) : s2;
+        uint64_t o = bos == 1 ? s2 : bos == 2 ? 0 : s1;
+        uint64_t ca = brf ? (bra ? r1 : o) : s1, cb = brf ? (bra ? o : r1) : s2;
         bool t = false;
         switch (brop) {
         case 0: t = ca == cb; break; case 1: t = ca != cb; break;
@@ -118,11 +120,11 @@ int main(int argc, char** argv)
         }
         t = t && isbr;
         n++;
-        if (d.res1 != r1 || d.res2 != r2 || d.take_branch != t) {
+        if (d.res1 != r1 || d.take_branch != t) {
             if (bad++ < 10)
-                printf("MISMATCH op1 %d uw %d sh %d w %d a1 %d b1i %d: res1 %016llx ref %016llx | op2 %d: res2 %016llx ref %016llx | br %d ref %d\n",
-                       op1, uw1, sh1, w1, a1, b1i, (unsigned long long)d.res1, (unsigned long long)r1, op2,
-                       (unsigned long long)d.res2, (unsigned long long)r2, d.take_branch, t);
+                printf("MISMATCH op1 %d uw %d sh %d w %d a1 %d b1i %d: res1 %016llx ref %016llx | br %d (fused %d other %d) ref %d\n",
+                       op1, uw1, sh1, w1, a1, b1i, (unsigned long long)d.res1, (unsigned long long)r1,
+                       d.take_branch, brf, bos, t);
         }
     }
     printf("tb_alu2: %ld vectors, %ld mismatches: %s\n", n, bad, bad ? "FAIL" : "PASS");

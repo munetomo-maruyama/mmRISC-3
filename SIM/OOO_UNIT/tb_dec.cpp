@@ -45,7 +45,7 @@ static long bad = 0, nlegal = 0, nill = 0, nrvc = 0;
 // ---------------------------------------------------------------- the reference
 struct R {
     bool legal = false;
-    int cls = 7, op = 0, rd = 0, rs1 = 0, rs2 = 0, use1 = 0, use2 = 0, alu2ok = 0, port = 1, lat2 = 0, ext = 0, nonspec = 0;
+    int cls = 7, op = 0, rd = 0, rs1 = 0, rs2 = 0, use1 = 0, use2 = 0, port = 1, lat2 = 0, ext = 0, nonspec = 0;
     bool imm_v = false; uint32_t imm = 0;
     bool alu_v = false; int alu_op = 0, uw = 0, shift = 0, asel = 0, bsel = 1, word = 0;
     int br = 0, jal = 0, jalr = 0, br_op = 0;
@@ -62,13 +62,6 @@ static uint32_t sx32(uint32_t v, int b) { return (uint32_t)((int32_t)(v << (32 -
 enum { A_ADD = 0, A_SUB, A_SLL, A_SLT, A_SLTU, A_XOR, A_SRL, A_SRA, A_OR, A_AND, A_ANDN, A_ORN, A_XNOR, A_MIN, A_MINU,
        A_MAX, A_MAXU, A_ROL, A_ROR, A_CLZ, A_CTZ, A_CPOP, A_SEXTB, A_SEXTH, A_ZEXTH, A_ORCB, A_REV8, A_CZEQZ, A_CZNEZ,
        A_BSET, A_BCLR, A_BINV, A_BEXT };
-static bool second_ok(int a) {
-    switch (a) {
-    case A_ADD: case A_SUB: case A_XOR: case A_SRL: case A_OR: case A_AND: case A_ANDN: case A_ORN: case A_XNOR:
-    case A_SEXTB: case A_SEXTH: case A_ZEXTH: case A_CZEQZ: case A_CZNEZ: case A_BEXT: return true;
-    default: return false;
-    }
-}
 
 static R decode32(uint32_t x)
 {
@@ -242,7 +235,6 @@ static R decode32(uint32_t x)
     if (!r.legal) return R();
     r.rd = we ? (int)rd : 0;
     r.rs1 = (int)rs1; r.rs2 = (int)rs2;
-    if (r.alu_v) r.alu2ok = r.asel == 0 && second_ok(r.alu_op);
     return r;
 }
 
@@ -419,7 +411,7 @@ static void check(int k, uint32_t raw, bool rvc, const R& e, long n, bool cut_ex
     CK("illegal", g1(d.illegal, k), !e.legal);
     if (!e.legal) {                                          // nothing to rename, issue or wait for
         CK("cls", gf(d.cls, k, 3), 7); CK("op", gf(d.op, k, 3), 0); CK("rd", gf(d.rd, k, 5), 0);
-        CK("alu2ok", g1(d.alu2ok, k), 0); CK("lat2", g1(d.lat2, k), 0); CK("ext_ans", g1(d.ext_ans, k), 0);
+        CK("lat2", g1(d.lat2, k), 0); CK("ext_ans", g1(d.ext_ans, k), 0);
         CK("nonspec", g1(d.nonspec, k), 0); CK("port", gf(d.port, k, 2), 1);
     }
     if (e.legal) {
@@ -431,7 +423,6 @@ static void check(int k, uint32_t raw, bool rvc, const R& e, long n, bool cut_ex
         if (e.use1) CK("rs1", gf(d.rs1, k, 5), e.rs1);
         if (e.use2) CK("rs2", gf(d.rs2, k, 5), e.rs2);
         if (e.imm_v) CK("imm", d.imm[k], e.imm);
-        CK("alu2ok", g1(d.alu2ok, k), e.alu2ok);
         CK("port", gf(d.port, k, 2), e.port);
         CK("lat2", g1(d.lat2, k), e.lat2);
         CK("ext_ans", g1(d.ext_ans, k), e.ext);

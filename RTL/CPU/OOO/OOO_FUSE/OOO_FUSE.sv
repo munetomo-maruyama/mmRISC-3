@@ -15,10 +15,9 @@
 //                              the first does not overwrite the base
 //            store + store     same base and size, offsets one access apart
 //   level 2  ALU + branch      the branch reads the ALU's rd
-//   level 3  ALU + ALU         the second reads the first's rd, and its
-//                              operation is one of the narrowed second stage
-//                              of OOO_ALU2 (alu2ok, from the decoder)
-// The first's rd is never x0 for the pairs that pass a value on.
+// The first's rd is never x0 for the pairs that pass a value on. Level 3
+// (ALU + ALU, with a second ALU stage in each port) was given up at G0b
+// (D-14, Doc/UARCH.md 6.3 and 6.7): fusion level 2 is the configuration.
 //
 // SRC2 (Plan/OOC.md 7.4): a pair reads at most 2 registers from outside,
 // so that a µop needs no more than 2 register-file reads (6 ports for the
@@ -47,7 +46,7 @@
 
 module OOO_FUSE
     #(
-        parameter int LEVEL = 3,
+        parameter int LEVEL = 2,       // 1 or 2 (level 3 was given up, D-14)
         parameter bit SRC2  = 1'b1,
         parameter bit W1    = 1'b1
     )
@@ -66,7 +65,6 @@ module OOO_FUSE
         input  logic [3:0]       use_rs2,
         input  logic [3:0][11:0] imm,       // offset of a load / store
         input  logic [3:0][1:0]  msize,     // 0 byte .. 3 double
-        input  logic [3:0]       alu2ok,    // can be the second of ALU + ALU (OOO_ALU FULL = 0)
 
         output logic             u0_valid,
         output logic [1:0]       u0_slot,   // first instruction of the µop
@@ -82,7 +80,7 @@ module OOO_FUSE
 
     localparam logic [3:0] K_NONE = 4'd0, K_LUI = 4'd1, K_AUIPC = 4'd2, K_SHIFT = 4'd3,
                            K_ALU_LD = 4'd4, K_LD_LD = 4'd5, K_ST_ST = 4'd6,
-                           K_ALU_BR = 4'd7, K_ALU_ALU = 4'd8;
+                           K_ALU_BR = 4'd7;
 
     // more than 2 registers read from outside by slot k + slot k+1
     function automatic logic over2(input int k);
@@ -131,8 +129,6 @@ module OOO_FUSE
             return K_ST_ST;
         if (LEVEL >= 2 && cls[k] == C_ALU && cls[k+1] == C_BR && rd_b)
             return K_ALU_BR;
-        if (LEVEL >= 3 && cls[k] == C_ALU && cls[k+1] == C_ALU && rd_b && alu2ok[k+1])
-            return K_ALU_ALU;
         return K_NONE;
     endfunction
 

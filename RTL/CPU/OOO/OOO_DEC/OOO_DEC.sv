@@ -23,8 +23,6 @@
 //             no integer register is written (x0 or an FP destination)
 //   imm       the immediate, 32 bits (sign extended at its use); its low 12
 //             bits are the load / store offset OOO_FUSE pairs on
-//   alu2ok    an ALU operation the narrowed second stage of OOO_ALU2 has
-//             (add, sub, sh*add(.uw), logic, srl, extensions, czero, bext)
 //   port      0 any ALU, 1 ALU0 only (MUL / DIV, CSR and system: they run
 //             at the ROB head beside ALU0), 2 LSU, 3 FPU (Doc/UARCH.md 3.5)
 //   lat2      the result comes 2 cycles after issue (a multiply, a load)
@@ -59,7 +57,6 @@ module OOO_DEC
         output logic [3:0]          use_rs1,
         output logic [3:0]          use_rs2,
         output logic [3:0][31:0]    imm,
-        output logic [3:0]          alu2ok,
         output logic [3:0][1:0]     port,
         output logic [3:0]          lat2,
         output logic [3:0]          ext_ans,
@@ -100,10 +97,7 @@ module OOO_DEC
         output logic [3:0]          fp_int_w
     );
 
-    localparam logic [5:0] ALU_ADD = 6'd0, ALU_SUB = 6'd1, ALU_SLL = 6'd2, ALU_XOR = 6'd5, ALU_SRL = 6'd6,
-                           ALU_SRA = 6'd7, ALU_OR = 6'd8, ALU_AND = 6'd9, ALU_ANDN = 6'd10, ALU_ORN = 6'd11,
-                           ALU_XNOR = 6'd12, ALU_SEXTB = 6'd22, ALU_SEXTH = 6'd23, ALU_ZEXTH = 6'd24,
-                           ALU_CZEQZ = 6'd27, ALU_CZNEZ = 6'd28, ALU_BEXT = 6'd32;
+    localparam logic [5:0] ALU_ADD = 6'd0, ALU_SLL = 6'd2, ALU_SRL = 6'd6, ALU_SRA = 6'd7;
     localparam logic [4:0] CMD_LOAD = 5'd0, CMD_STORE = 5'd1;
 
     for (genvar k = 0; k < 4; k++) begin : g_slot
@@ -200,13 +194,6 @@ module OOO_DEC
                 else if (alu_op[k] == ALU_ADD && !b_sel[k])                 op[k] = 3'd5;   // add(w), sh*add(.uw), add.uw
                 else if (alu_op[k] == ALU_ADD && b_sel[k])                  op[k] = 3'd6;   // addi(w)
             end
-            // an operation of the narrowed second stage (OOO_ALU FULL = 0), on a register first operand
-            alu2ok[k] = alu && a_sel[k] == 2'd0 &&
-                        (alu_op[k] == ALU_ADD || alu_op[k] == ALU_SUB || alu_op[k] == ALU_XOR || alu_op[k] == ALU_SRL ||
-                         alu_op[k] == ALU_OR || alu_op[k] == ALU_AND || alu_op[k] == ALU_ANDN || alu_op[k] == ALU_ORN ||
-                         alu_op[k] == ALU_XNOR || alu_op[k] == ALU_SEXTB || alu_op[k] == ALU_SEXTH ||
-                         alu_op[k] == ALU_ZEXTH || alu_op[k] == ALU_CZEQZ || alu_op[k] == ALU_CZNEZ ||
-                         alu_op[k] == ALU_BEXT);
             // where it issues, how its result comes
             if (ill)                            port[k] = 2'd1;    // (an exception at decode: never issued)
             else if (is_load || is_store)       port[k] = 2'd2;

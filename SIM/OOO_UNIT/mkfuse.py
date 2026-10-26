@@ -6,16 +6,14 @@
 #   mkfuse.py ../../Plan/trace/work/<build>.trace.gz obj_dir/<build>.fuse
 #
 # One line per instruction:
-#   seq cls op rd rs1 rs2 use_rs1 use_rs2 imm msize alu2ok
+#   seq cls op rd rs1 rs2 use_rs1 use_rs2 imm msize
 # seq is 0 when the instruction before it transferred control (a taken
 # branch or jump: it is not in the same run of the fetch). The first line
 # gives the number of pairs the model forms on the same stream (the kinds
 # of Plan/trace/analyze.py fusion_kind, greedy over the whole stream, with
 # the limits of 2 sources and 1 write, fuse_2src and fuse_1w of
-# Plan/model/ooo.h), the number the
-# window of 4 of the hardware is held against. alu2ok: the operation is one
-# of the narrowed second stage of OOO_ALU2 (OOO_ALU FULL = 0); the model
-# does not limit it, so a pair lost to it shows as a difference.
+# Plan/model/ooo.h; fusion level 2: no ALU + ALU, G0b D-14), the number the
+# window of 4 of the hardware is held against.
 #---------------------------------------------------------------------------
 import gzip
 import os
@@ -45,20 +43,6 @@ def op_of(mn):
     if m in ('addi', 'addiw'):
         return 6
     return 0
-
-
-# the narrowed second stage (OOO_ALU FULL = 0): add / sub, sh*add(.uw), the
-# logic operations, srl, sext / zext, czero, bext; the pseudo-instructions
-# and compressed forms of them
-ALU2OK = {'add', 'addw', 'addi', 'addiw', 'add.uw', 'sub', 'subw', 'sh1add', 'sh2add', 'sh3add',
-          'sh1add.uw', 'sh2add.uw', 'sh3add.uw', 'xor', 'xori', 'or', 'ori', 'and', 'andi', 'andn',
-          'orn', 'xnor', 'srl', 'srli', 'srlw', 'srliw', 'sext.b', 'sext.h', 'zext.h', 'czero.eqz',
-          'czero.nez', 'bext', 'bexti', 'mv', 'li', 'lui', 'neg', 'negw', 'not', 'sext.w', 'zext.w',
-          'zext.b', 'nop'}
-
-
-def alu2ok(mn):
-    return int((mn[2:] if mn.startswith('c.') else mn) in ALU2OK)
 
 
 def model_pairs_2src(tr, allk):
@@ -93,7 +77,7 @@ def main():
     tr = A.load_trace(sys.argv[1])
     taken = A.taken_flags(tr)
     allk = {'lui+addi', 'auipc+x', 'slli+srli', 'alu+load(addr)', 'load+load(pair)',
-            'store+store(pair)', 'alu+branch', 'alu+alu'}
+            'store+store(pair)', 'alu+branch'}
     model_pairs = model_pairs_2src(tr, allk)
     offs = []
     with gzip.open(sys.argv[1], 'rt') as f:
@@ -119,7 +103,7 @@ def main():
                 u1, u2 = int(len(ints) > 0), int(len(ints) > 1)
             imm = offs[i] & 0xfff
             ms = msize(x.mn) if x.cls in ('load', 'store') else 0
-            f.write(f'{seq} {cls} {op_of(x.mn)} {rd} {rs1} {rs2} {u1} {u2} {imm} {ms} {alu2ok(x.mn)}\n')
+            f.write(f'{seq} {cls} {op_of(x.mn)} {rd} {rs1} {rs2} {u1} {u2} {imm} {ms}\n')
 
 
 if __name__ == '__main__':
