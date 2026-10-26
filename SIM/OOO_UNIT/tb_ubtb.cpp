@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-// tb_ubtb.cpp : OOO_UBTB (16 entries, 12-bit partial tags) against a
+// tb_ubtb.cpp : OOO_UBTB (8 entries, 12-bit partial tags) against a
 // reference table
 //
 // Addresses come from a small region so that blocks hold several entries
@@ -27,7 +27,7 @@ int main(int argc, char** argv)
     Verilated::commandArgs(argc, argv);
     VOOO_UBTB d;
     std::mt19937_64 rng(9);
-    const int NE = 16;
+    const int NE = 8;
     // the partial tag: the block address (half words / 8) folded to 12 bits
     auto tagof = [](uint64_t pc) { uint64_t b = pc >> 3; return (b ^ (b >> 12)) & 0xfff; };
     std::vector<E> T(NE);

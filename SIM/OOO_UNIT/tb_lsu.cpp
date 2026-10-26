@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-// tb_lsu.cpp : OOO_LSU (LQ 12, SQ 12) inside a model of the rest of the core
+// tb_lsu.cpp : OOO_LSU (LQ 8, SQ 8) inside a model of the rest of the core
 //
 // A random stream of µops in program order (loads, stores, branches, other)
 // to a few 8-byte words, so that loads and stores meet often: dispatched up
@@ -36,7 +36,8 @@
 #include <random>
 #include <vector>
 
-static const int NLQ = 12, NSQ = 12, WINDOW = 24;
+static const int NLQ = 8, NSQ = 8, WINDOW = 24;
+static const int LQW = 3, CKW = 4;          // index and tail (wrap bit) widths of the LQ / SQ
 static const uint64_t BASE = 0x80001000ull;   // the words used: BASE .. BASE + 8 * NWORD
 static const int NWORD = 4;
 
@@ -199,9 +200,9 @@ int main(int argc, char** argv)
         for (int s = 0, k = 0; s < 2; s++) {
             if (!((dv >> s) & 1)) continue;
             Uop& u = nu[k++];
-            if (u.k == LD) u.lq = (d.disp_lq >> (4 * s)) & 15;
-            if (u.k == ST) u.sq = (d.disp_sq >> (4 * s)) & 15;
-            if (u.k == BR) { u.ck_lq = (d.ck_lq_tail >> (5 * s)) & 31; u.ck_sq = (d.ck_sq_tail >> (5 * s)) & 31; }
+            if (u.k == LD) u.lq = (d.disp_lq >> (LQW * s)) & ((1 << LQW) - 1);
+            if (u.k == ST) u.sq = (d.disp_sq >> (LQW * s)) & ((1 << LQW) - 1);
+            if (u.k == BR) { u.ck_lq = (d.ck_lq_tail >> (CKW * s)) & ((1 << CKW) - 1); u.ck_sq = (d.ck_sq_tail >> (CKW * s)) & ((1 << CKW) - 1); }
         }
         // no two µops in flight share an LQ / SQ entry
         { std::map<int, long> lqs, sqs;

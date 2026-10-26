@@ -223,7 +223,8 @@ int main(int argc, char** argv)
     struct Fl { uint64_t pc; TageRef::Rd rd; bool bhit; int boff; uint64_t btgt; bool ubt; int uboff; bool bek; };
     // the uBTB (as tb_ubtb's reference) and the fetch address of F0
     struct UE { bool v = false; uint64_t tag = 0; int off = 0; uint64_t tgt = 0; int cnt = 0; bool cond = false, ret = false; };
-    UE ubt[16]; int ub_rr = 0;
+    const int NUB = 8;                         // uBTB entries
+    UE ubt[NUB]; int ub_rr = 0;
     uint64_t m_pc = 0; bool m_pc_known = true;
     auto ubtag = [](uint64_t pc) { uint64_t b = pc >> 3; return (b ^ (b >> 12)) & 0xfff; };
     long novr = 0, novr_drop = 0;
@@ -285,7 +286,7 @@ int main(int argc, char** argv)
         if (!m_pc_known) { m_pc = req_pc; m_pc_known = true; }
         if (req_pc != m_pc) FAIL("fetch address %llx, expected %llx", (unsigned long long)req_pc, (unsigned long long)m_pc);
         int ub_best = 8, ub_bi = -1;
-        for (int e = 0; e < 16; e++)
+        for (int e = 0; e < NUB; e++)
             if (ubt[e].v && ubt[e].tag == ubtag(m_pc) && ubt[e].off >= (int)(m_pc & 7) && (!ubt[e].cond || ubt[e].cnt >= 2) && ubt[e].off < ub_best) {
                 ub_best = ubt[e].off; ub_bi = e;
             }
@@ -445,13 +446,13 @@ int main(int argc, char** argv)
         else if (acc) { if (ub_next_known) m_pc = ub_next; else m_pc_known = false; }
         if (ub_upd) {
             int fnd = -1;
-            for (int e = 0; e < 16; e++) if (ubt[e].v && ubt[e].tag == ubtag(ub_upc) && ubt[e].off == (int)(ub_upc & 7)) fnd = e;
+            for (int e = 0; e < NUB; e++) if (ubt[e].v && ubt[e].tag == ubtag(ub_upc) && ubt[e].off == (int)(ub_upc & 7)) fnd = e;
             if (fnd >= 0) {
                 if (ub_utk) { ubt[fnd].tgt = ub_utgt; if (ubt[fnd].cnt < 3) ubt[fnd].cnt++; }
                 else if (ubt[fnd].cnt > 0) ubt[fnd].cnt--;
             } else if (ub_utk) {
                 ubt[ub_rr] = UE{true, ubtag(ub_upc), (int)(ub_upc & 7), ub_utgt, 2, ub_ucond, ub_uret};
-                ub_rr = (ub_rr + 1) % 16;
+                ub_rr = (ub_rr + 1) % NUB;
             }
         }
         if (up) { R.update(ub.m, ub.ex, ub.tk); ftq.pop_front(); ncommit++; }

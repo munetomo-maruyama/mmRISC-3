@@ -195,45 +195,59 @@ module OOC_LSU
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [325:0]  in,
-        output logic [316:0]  out
+        input  logic [320:0]  in,
+        output logic [299:0]  out
     );
-    logic [325:0] q;
+    logic [320:0] q;
     always_ff @(posedge clk) q <= in;
 
+    // in (LQ 8, SQ 8: 3-bit entries, 4-bit tails)
+    logic [1:0]   disp_valid, disp_ld, disp_st, iss_size, lq_commit, sq_commit;
+    logic [9:0]   disp_rob;
+    logic         iss_valid, iss_ld, iss_uns, dc_hit, dc_fill_valid, dc_st_ready, restore, flush_all;
+    logic [2:0]   iss_lq, iss_sq, dc_fill_tag;
+    logic [63:0]  iss_base, iss_data, dc_rdata, dc_fill_data;
+    logic [11:0]  iss_imm;
+    logic [5:0]   iss_dst;
+    logic [3:0]   restore_lq_tail, restore_sq_tail;
+    assign {disp_valid, disp_ld, disp_st, disp_rob, iss_valid, iss_ld, iss_lq, iss_sq, iss_base, iss_imm,
+            iss_data, iss_size, iss_uns, iss_dst, dc_hit, dc_rdata, dc_fill_valid, dc_fill_tag, dc_fill_data,
+            dc_st_ready, lq_commit, sq_commit, restore, restore_lq_tail, restore_sq_tail, flush_all} = q;
+
+    // out
     logic [1:0]   lq_avail, sq_avail;
-    logic [7:0]   disp_lq, disp_sq;
-    logic [9:0]   ck_lq_tail, ck_sq_tail;
-    logic [11:0]  st_known, dc_kill;
+    logic [5:0]   disp_lq, disp_sq;
+    logic [7:0]   ck_lq_tail, ck_sq_tail;
+    logic [7:0]   st_known, dc_kill;
     logic         dc_req_valid, dc_fill_ready, dc_st_valid, wb_valid, wb_late, ld_cancel;
     logic         cmp_ld_valid, cmp_ld_exc, cmp_ld_rp, cmp_st_valid, cmp_st_exc;
     logic [39:0]  dc_req_addr, dc_st_addr;
-    logic [3:0]   dc_req_tag;
+    logic [2:0]   dc_req_tag;
     logic [63:0]  dc_st_data, wb_data;
     logic [7:0]   dc_st_mask;
     logic [5:0]   wb_tag, ld_cancel_tag;
     logic [4:0]   cmp_ld_rob, cmp_st_rob;
 
-    OOO_LSU #(.NLQ(12), .NSQ(12), .PAW(40), .TAGW(6), .ROBW(5)) u_lsu
+    OOO_LSU #(.NLQ(8), .NSQ(8), .PAW(40), .TAGW(6), .ROBW(5)) u_lsu
         (.clk(clk), .rst_n(rst_n),
-         .disp_valid(q[1:0]), .disp_ld(q[3:2]), .disp_st(q[5:4]), .disp_rob(q[15:6]),
+         .disp_valid(disp_valid), .disp_ld(disp_ld), .disp_st(disp_st), .disp_rob(disp_rob),
          .lq_avail(lq_avail), .sq_avail(sq_avail), .disp_lq(disp_lq), .disp_sq(disp_sq),
          .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail),
-         .iss_valid(q[16]), .iss_ld(q[17]), .iss_lq(q[21:18]), .iss_sq(q[25:22]),
-         .iss_base(q[89:26]), .iss_imm(q[101:90]), .iss_data(q[165:102]), .iss_size(q[167:166]),
-         .iss_uns(q[168]), .iss_dst(q[174:169]), .lsu_st_known(st_known),
+         .iss_valid(iss_valid), .iss_ld(iss_ld), .iss_lq(iss_lq), .iss_sq(iss_sq),
+         .iss_base(iss_base), .iss_imm(iss_imm), .iss_data(iss_data), .iss_size(iss_size),
+         .iss_uns(iss_uns), .iss_dst(iss_dst), .lsu_st_known(st_known),
          .dc_req_valid(dc_req_valid), .dc_req_addr(dc_req_addr), .dc_req_tag(dc_req_tag),
-         .dc_hit(q[175]), .dc_rdata(q[239:176]),
-         .dc_fill_valid(q[240]), .dc_fill_tag(q[244:241]), .dc_fill_data(q[308:245]),
+         .dc_hit(dc_hit), .dc_rdata(dc_rdata),
+         .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),
          .dc_fill_ready(dc_fill_ready), .dc_kill(dc_kill),
          .dc_st_valid(dc_st_valid), .dc_st_addr(dc_st_addr), .dc_st_data(dc_st_data), .dc_st_mask(dc_st_mask),
-         .dc_st_ready(q[309]),
+         .dc_st_ready(dc_st_ready),
          .wb_valid(wb_valid), .wb_late(wb_late), .wb_tag(wb_tag), .wb_data(wb_data),
          .ld_cancel(ld_cancel), .ld_cancel_tag(ld_cancel_tag),
          .cmp_ld_valid(cmp_ld_valid), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_exc), .cmp_ld_rp(cmp_ld_rp),
          .cmp_st_valid(cmp_st_valid), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_exc),
-         .lq_commit(q[311:310]), .sq_commit(q[313:312]),
-         .restore(q[314]), .restore_lq_tail(q[319:315]), .restore_sq_tail(q[324:320]), .flush_all(q[325]));
+         .lq_commit(lq_commit), .sq_commit(sq_commit),
+         .restore(restore), .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all(flush_all));
 
     always_ff @(posedge clk)
         out <= {lq_avail, sq_avail, disp_lq, disp_sq, ck_lq_tail, ck_sq_tail, st_known, dc_kill,
@@ -325,7 +339,7 @@ module OOC_FBUF
         if (q[140])
             for (int i = 0; i < 4; i++) if (out_valid[i]) consume = 3'(i + 1);
     end
-    OOO_FBUF #(.NB(4), .FTQW(3)) u_fbuf
+    OOO_FBUF #(.NB(2), .FTQW(3)) u_fbuf
         (
          .clk(clk), .rst_n(rst_n), .flush(q[0]), .in_valid(q[1]), .in_data(q[129:2]), .in_start(q[132:130]),
          .in_end(q[135:133]), .in_taken(q[136]), .in_ftq(q[139:137]), .consume(consume), .in_ready(in_ready),
@@ -527,21 +541,21 @@ module OOC_LSUDC
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [264:0]  in,
-        output logic [337:0]  out
+        input  logic [260:0]  in,
+        output logic [325:0]  out
     );
-    logic [264:0] q;
+    logic [260:0] q;
     always_ff @(posedge clk) q <= in;
 
     // LSU core side, in
     logic [1:0]       disp_valid, disp_ld, disp_st, lq_commit, sq_commit, iss_size;
     logic [1:0][4:0]  disp_rob;
     logic             iss_valid, iss_ld, iss_uns, restore, flush_all;
-    logic [3:0]       iss_lq, iss_sq;
+    logic [2:0]       iss_lq, iss_sq;
     logic [63:0]      iss_base, iss_data;
     logic [11:0]      iss_imm;
     logic [5:0]       iss_dst;
-    logic [4:0]       restore_lq_tail, restore_sq_tail;
+    logic [3:0]       restore_lq_tail, restore_sq_tail;
     // AXI4, in
     logic             awready, wready, bvalid, arready, rlast, rvalid;
     logic [1:0]       bresp, rresp;
@@ -553,9 +567,9 @@ module OOC_LSUDC
 
     // LSU core side, out
     logic [1:0]       lq_avail, sq_avail;
-    logic [1:0][3:0]  disp_lq, disp_sq;
-    logic [1:0][4:0]  ck_lq_tail, ck_sq_tail;
-    logic [11:0]      st_known;
+    logic [1:0][2:0]  disp_lq, disp_sq;
+    logic [1:0][3:0]  ck_lq_tail, ck_sq_tail;
+    logic [7:0]       st_known;
     logic             wb_valid, wb_late, ld_cancel, cmp_ld_valid, cmp_ld_exc, cmp_ld_rp, cmp_st_valid, cmp_st_exc;
     logic [5:0]       wb_tag, ld_cancel_tag;
     logic [63:0]      wb_data;
@@ -572,7 +586,7 @@ module OOC_LSUDC
     // between the blocks
     logic             dc_req_valid, dc_hit, dc_fill_valid, dc_fill_ready, dc_st_valid, dc_st_ready;
     logic [39:0]      dc_req_addr, dc_st_addr;
-    logic [3:0]       dc_req_tag, dc_fill_tag;
+    logic [2:0]       dc_req_tag, dc_fill_tag;
     logic [63:0]      dc_rdata, dc_fill_data, dc_st_data;
     logic [7:0]       dc_st_mask;
     logic             d_req_valid, d_req_ready, d_req_cancel, d_resp_valid, d_hit_now;
@@ -581,7 +595,7 @@ module OOC_LSUDC
     logic [4:0]       d_req_cmd;
     logic [63:0]      d_req_wdata, d_resp_data, d_hit_now_data;
 
-    OOO_LSU #(.NLQ(12), .NSQ(12), .PAW(40), .TAGW(6), .ROBW(5)) u_lsu
+    OOO_LSU #(.NLQ(8), .NSQ(8), .PAW(40), .TAGW(6), .ROBW(5)) u_lsu
         (.clk(clk), .rst_n(rst_n),
          .disp_valid(disp_valid), .disp_ld(disp_ld), .disp_st(disp_st), .disp_rob(disp_rob),
          .lq_avail(lq_avail), .sq_avail(sq_avail), .disp_lq(disp_lq), .disp_sq(disp_sq),
@@ -603,7 +617,7 @@ module OOC_LSUDC
          .restore(restore), .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail),
          .flush_all(flush_all));
 
-    OOO_DCAD #(.NLQ(12), .PAW(40), .DEPTH(8)) u_dcad
+    OOO_DCAD #(.NLQ(8), .PAW(40), .DEPTH(8)) u_dcad
         (.clk(clk), .rst_n(rst_n),
          .dc_req_valid(dc_req_valid), .dc_req_addr(dc_req_addr), .dc_req_tag(dc_req_tag),
          .dc_hit(dc_hit), .dc_rdata(dc_rdata),

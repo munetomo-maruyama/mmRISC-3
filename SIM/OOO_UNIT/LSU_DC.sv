@@ -13,8 +13,8 @@
 
 module LSU_DC
     #(
-        parameter int NLQ  = 12,
-        parameter int NSQ  = 12,
+        parameter int NLQ  = 8,
+        parameter int NSQ  = 8,
         parameter int PAW  = 40,
         parameter int TAGW = 6,
         parameter int ROBW = 5

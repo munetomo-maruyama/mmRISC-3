@@ -2156,3 +2156,40 @@ synth_ooo.bat OOC_DEC
 ```text
 I ran synth_ooo.bat for OOC_ALU2, OOC_FUSE and OOC_DEC. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+All three close at 50 MHz. Fusion level 2 saved about 2.07k LUTs, well beyond the −1.2k planned. The gap in the middle is now 6.8k.
+
+| Run | Before | **Now** | Change | Register-to-register slack |
+|---|---|---|---|---|
+| ALU port (one) | 3,133 | **1,926** (`OOO_ALU` 801 of it) | −1,207 a port | +1.753 ns (was +0.512) |
+| Two ALU ports | about 5.9k counted | **3,852** | **−2,048** | |
+| Fusion | 215 | 208 | −7 | +10.591 ns |
+| Decode | 1,808 | 1,791 | −17 | +8.034 ns |
+| **Together** | | | **−2,072** | |
+
+- **Why it beat the plan**: besides the second ALU and its bypass, the third source went too. G0 had already taken about 0.4k off the budget for it, but the RTL still had it.
+- **Timing**: the ALU port gained 1.2 ns of slack. The worst path is the bypass → the ALU's adder → the fused branch's comparison → `take_branch`, 46 levels with two carry chains in a row.
+
+**Budget** (a row added to UARCH 4.4)
+
+| | Low | Middle | High |
+|---|---|---|---|
+| After tier 1 and D-12 were measured | 7.5k | 8.9k | 10.2k |
+| **After D-14 was measured** | **5.4k** | **6.8k** | **8.1k** |
+
+**Where we stand against the plan**
+- **L7 (asymmetric ALUs) is worth less now.** Its −0.7k to −1.0k assumed ports of two chained ALUs. With one ALU a port (801 LUTs), an ALU1 with only add / sub, logic, compares and branches saves about −0.3k to −0.5k. Its loss is to be modelled before it is taken.
+- The levers still to come add up to 7.25k: the rest of tier 1 (L1, L3, L8) 2.15k, L4 to L6 1.2k, L7 about 0.4k, and the reserve, the 54k ceiling and no PMP / HPM (L10 + B4 / B5), 3.5k.
+- The middle margin is now **about +0.4k** (+1.8k low, −0.9k high). Better than the about 0 of last time, but without the reserve the middle is about 3.1k short.
+
+Recorded in `Doc/UARCH` 6.8 and 4.4 (English and Japanese) and the prompt log (answer 58 and the English of 59); pushed to dev with the Vivado reports (174a21b).
+<!-- /answer -->
+
+## 60. 2026-10-26 22:54:51 JST
+
+```text
+Go on to L4 to L6 (LQ/SQ 8, uBTB 8, fetch buffer 8) as planned.
+```

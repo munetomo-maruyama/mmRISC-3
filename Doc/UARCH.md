@@ -75,7 +75,7 @@ most optimization (sf + `-flto`). From `Plan/model/results/g0.txt`:
 
 | Stage | Work |
 |---|---|
-| F0 | Next fetch address: uBTB (16 entries, partial tags) in one cycle; redirects from F2 and from the back end win |
+| F0 | Next fetch address: uBTB (8 entries since G0b L5, partial tags) in one cycle; redirects from F2 and from the back end win |
 | F1 | I$ read (block RAM), TAGE-S and BTB read (block RAM) |
 | F2 | I$ way select, predecode (RVC boundaries, the targets of branches and jal), override by TAGE-S / BTB / RAS (a disagreement redirects F0, 2 cycles lost); 16 bytes into the fetch buffer (`OOO_FETCH`, `Plan/OOC.md` 14) |
 | D1 | Up to 4 instructions out of the fetch buffer (a window of 8 parcels), RVC expansion, decode |
@@ -95,8 +95,8 @@ A misprediction costs 9 cycles from EX to EX. The model is the reference for the
 | Item | Specification |
 |---|---|
 | Fetch | 16 bytes a cycle (aligned), the next block after a taken transfer |
-| Fetch buffer | `OOO_FBUF`: 4 whole 16-byte blocks in LUTRAM (decided at step 2 instead of a ring of 16 parcels, `Plan/OOC.md` 13.1); a window of 8 parcels over the head block and the next; up to 4 instructions a cycle out to decode; 32-bit instructions across blocks handled in the window |
-| uBTB | `OOO_UBTB`: 16 entries, fully associative, 12-bit partial tags, the first taken hit of the block in parallel, round-robin replacement, returns from the RAS top |
+| Fetch buffer | `OOO_FBUF`: whole 16-byte blocks, **2 since G0b L6** (4 before; decided at step 2 instead of a ring of 16 parcels, `Plan/OOC.md` 13.1); a window of 8 parcels over the head block and the next; up to 4 instructions a cycle out to decode; 32-bit instructions across blocks handled in the window |
+| uBTB | `OOO_UBTB`: **8 entries** (G0b L5; 16 before), fully associative, 12-bit partial tags, the first taken hit of the block in parallel, round-robin replacement, returns from the RAS top |
 | TAGE-S | `OOO_TAGE`: per fetch block, as it can be built in block RAM (decided at step 2, `Plan/OOC.md` 14.1): 4 tagged tables of 1024 rows indexed by the fetch address and the history, each row with 3 direction counters for the 1st, 2nd and 3rd conditional branch of the block; base table of 2-bit counters per parcel; one history bit per slot branch. A 4th branch in a block is predicted not taken (none in CoreMark). Updated at commit through the FTQ. Against the model's TAGE per branch: about −0.2 % / −0.5 % |
 | BTB, RAS | `OOO_BTB`: for indirect jumps only (256 rows in block RAM, read with the fetch address); the targets of branches and jal come from predecode (`OOO_PREDEC`), those of returns from the RAS. `OOO_RAS`: 16 entries in LUTRAM; each block keeps the pointer and the entry a push would overwrite, for recovery |
 | FTQ | `OOO_FTQ`: 8 entries, one per fetch block: PC, next address and prediction state for the update and the recovery (LUTRAM). The front end needs 312 bits of state a block (TAGE 270, RAS 42), and the outcomes of the slot branches for the update at commit: the FTQ grows at the core's assembly (`Plan/OOC.md` 14.2) |
@@ -150,7 +150,7 @@ the free list; renaming gets them (about 0.3k LUTs).
 |---|---|
 | LSU | 1 load or store a cycle; load-use 2 cycles with hit speculation, a replay on a miss |
 | Ordering | Conservative memory dependence: a load issues only when the addresses of all older stores are known (no loss in the model) |
-| LQ / SQ | 12 / 12; forwarding from the SQ (same address and size); stores write the D$ after commit |
+| LQ / SQ | **8 / 8** (G0b L4; 12 / 12 before); forwarding from the SQ (same address and size); stores write the D$ after commit |
 | D$ | mmRISC-2's (non-blocking, 2 MSHRs) behind an adapter with tagged requests and responses (`OOO_DCAD`, `Plan/OOC.md` 17.2): the D$ gives a load hit in its stage 1 (`d_hit_now`, the one output added, also under a miss) for the LSU's M; other answers come in order and are given as fills by LQ entry; a newer request of an LQ entry drops its older answers (no stale value for a load tried again) |
 | Misaligned | Trap, as in mmRISC-2 |
 | Block | `OOO_LSU` (2026-10-25, `Plan/OOC.md` 11): LQ / SQ, forwarding, `lsu_st_known` for the issue queue, `ld_cancel` for a load that misses its expected cycle, late results, `dc_kill` for the D$ adapter (not needed by `OOO_DCAD`) |
@@ -484,6 +484,25 @@ The decisions are D-11 to D-14 (section 9).
 - **Against the plan**: still to come L1, L3, L8 (2.15k), L4 to L6 (1.2k), L7 (about 0.4k) and the reserve L10 + B4 /
   B5 (3.5k): 7.25k. **Middle margin about +0.4k** (+1.8k low, −0.9k high). Without the reserve, the middle is about
   3.1k short.
+
+### 6.9 L4 to L6 applied: LQ / SQ 8, uBTB 8, fetch buffer 2 blocks (2026-10-26)
+
+| Lever | Where | Yosys (a hint only) | Test |
+|---|---|---|---|
+| L4 | `OOO_LSU` `NLQ` / `NSQ` 12 → 8, `OOO_DCAD` `NLQ` 8; the LSU harnesses rewritten for 3-bit entries and 4-bit tails | `OOC_LSU` 4,662 → 3,055; `OOC_LSUDC` 13,843 → 12,455 | `tb_lsu`, `tb_dcad` (widths derived from the sizes) PASS on 4 seeds |
+| L5 | `OOO_UBTB` `NE` 16 → 8 (and in `OOO_FETCH`) | `OOO_UBTB` 2,207 → 1,037; `OOC_FRONT` 5,797 → 5,148 | `tb_ubtb`, `tb_fetch` PASS |
+| L6 | `OOO_FBUF` `NB` 4 → 2 | `OOC_FBUF` **1,381 → 1,829**, LUT RAM 176 → 0 | `tb_fbuf` PASS on 4 seeds |
+
+- **L6 may save nothing.** The blocks were in LUTRAM, whose cost does not depend on the depth below 32, so 2 blocks
+  save no RAM; and a 2-deep memory is built of flip-flops and selects instead (Yosys). The −0.3k estimate counted the
+  model's buffer in instructions, not this structure. If Vivado confirms it, L6 goes back to 4 blocks (it costs −0.3 %
+  for nothing).
+- The model's "L4 to L6" row is −1.7 % / −0.5 % (`results/g0b.txt`).
+- Bug injection: 171 of 173 detected. M77 and M86 (the start of the block after B when two blocks are popped) are
+  equivalent with 2 blocks: there is never a third block. They are detected with 4 blocks; the RTL stays general,
+  since L6 may go back to 4.
+- **Vivado asked**: `synth_ooo.bat OOC_LSU`, `OOO_UBTB`, `OOC_FBUF`, `OOC_FRONT` (and `OOC_LSUDC` for the timing with
+  the D$).
 
 ---
 

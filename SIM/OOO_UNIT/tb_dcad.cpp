@@ -33,7 +33,8 @@
 #include <random>
 #include <vector>
 
-static const int NLQ = 12, NSQ = 12, WINDOW = 24;
+static const int NLQ = 8, NSQ = 8, WINDOW = 24;
+static const int LQW = 3, CKW = 4;          // index and tail (wrap bit) widths of the LQ / SQ
 static const uint64_t BASE = 0x80001040ull;   // set 1 of the D$
 static const int NWORD = 16;                   // 2 words on each of 8 lines
 // line k: 0..5 in set 1 (6 lines for 4 ways), 6 and 7 in sets 2 and 3
@@ -208,9 +209,9 @@ int main(int argc, char** argv)
         for (int s = 0, k = 0; s < 2; s++) {
             if (!((dv >> s) & 1)) continue;
             Uop& u = nu[k++];
-            if (u.k == LD) u.lq = (d.disp_lq >> (4 * s)) & 15;
-            if (u.k == ST) u.sq = (d.disp_sq >> (4 * s)) & 15;
-            if (u.k == BR) { u.ck_lq = (d.ck_lq_tail >> (5 * s)) & 31; u.ck_sq = (d.ck_sq_tail >> (5 * s)) & 31; }
+            if (u.k == LD) u.lq = (d.disp_lq >> (LQW * s)) & ((1 << LQW) - 1);
+            if (u.k == ST) u.sq = (d.disp_sq >> (LQW * s)) & ((1 << LQW) - 1);
+            if (u.k == BR) { u.ck_lq = (d.ck_lq_tail >> (CKW * s)) & ((1 << CKW) - 1); u.ck_sq = (d.ck_sq_tail >> (CKW * s)) & ((1 << CKW) - 1); }
         }
         // no two µops in flight share an LQ / SQ entry
         { std::map<int, long> lqs, sqs;

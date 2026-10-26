@@ -26,15 +26,16 @@
 // comparisons in series, 65 logic levels): for each of the 8 parcels the OR
 // of the entries that hit there, the first parcel by an 8-bit priority, and
 // the target read by an AND-OR of the one entry that hit at that parcel.
-// 16 entries (Plan/OOC.md 7.6: -0.2 % / -0.1 % against 32 with fusion; none
-// would be -4.8 % / -2.1 %).
+// 8 entries since G0b (L5, Doc/UARCH.md 6.3: 16 -> 8 is -0.6 % / -0.1 %
+// in the model); 16 were -0.2 % / -0.1 % against 32 (Plan/OOC.md 7.6), and
+// none would be -4.8 % / -2.1 %.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
 
 module OOO_UBTB
     #(
-        parameter int NE = 16,
+        parameter int NE = 8,          // G0b L5 (Doc/UARCH.md 6.3): 16 -> 8
         parameter int VA = 39,         // Sv39
         parameter int TW = 12          // partial tag
     )

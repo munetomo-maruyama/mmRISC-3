@@ -65,8 +65,8 @@
 
 module OOO_LSU
     #(
-        parameter int NLQ  = 12,
-        parameter int NSQ  = 12,
+        parameter int NLQ  = 8,         // G0b L4 (Doc/UARCH.md 6.3): 12 -> 8
+        parameter int NSQ  = 8,
         parameter int PAW  = 40,        // physical address bits (mmRISC-2's PADDR_WIDTH)
         parameter int TAGW = 6,         // physical register tags
         parameter int ROBW = 5          // ROB index (24 entries)

@@ -108,7 +108,7 @@ module OOO_FETCH
     logic [VA-1:1] ras_top;
     logic          acc;
 
-    OOO_UBTB #(.NE(16), .VA(VA), .TW(12)) u_ubtb
+    OOO_UBTB #(.NE(8), .VA(VA), .TW(12)) u_ubtb
         (.clk(clk), .rst_n(rst_n),
          .redirect(be_redirect || ovr), .redirect_pc(be_redirect ? be_pc : ovr_pc),
          .ras_top(ras_top), .stall(!acc),

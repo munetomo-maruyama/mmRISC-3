@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-// tb_fbuf.cpp : OOO_FBUF (4 blocks, 4 instructions out) against an execution
+// tb_fbuf.cpp : OOO_FBUF (2 blocks, 4 instructions out) against an execution
 // model
 //
 // A random program in memory (parcels with random length bits: about a
@@ -20,6 +20,7 @@
 // block, then the next block, 8 parcels at most), up to 4.
 //---------------------------------------------------------------------------
 #include "VOOO_FBUF.h"
+static const int NB = 2;                       // blocks (OOO_FBUF NB)
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
@@ -172,7 +173,7 @@ int main(int argc, char** argv)
             if (q[0].id < f) q.pop_front(); else break;
         }
         d.in_valid = 0; d.consume = 0; d.flush = 0; d.eval();
-        if ((bool)d.in_ready != (q.size() < 4)) FAIL("in_ready %d with %zu blocks", (int)d.in_ready, q.size());
+        if ((bool)d.in_ready != (q.size() < (size_t)NB)) FAIL("in_ready %d with %zu blocks", (int)d.in_ready, q.size());
     }
     printf("tb_fbuf: %ld cycles, %ld instructions taken (%ld taken transfers, %ld across blocks), 4 given in %ld cycles, %ld flushes, %ld mismatches: %s\n",
            cyc, ninst, ntaken, ncross, nfull4, nflush, bad, bad ? "FAIL" : "PASS");

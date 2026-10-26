@@ -53,7 +53,7 @@
 
 module OOO_DCAD
     #(
-        parameter int NLQ   = 12,
+        parameter int NLQ   = 8,
         parameter int PAW   = 40,
         parameter int DEPTH = 8         // the D$'s ROB_DEPTH
     )
