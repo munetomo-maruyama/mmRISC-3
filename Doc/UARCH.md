@@ -252,6 +252,8 @@ of the slices).
 | **Over, 2026-10-26 night** | **5.4k** | **6.8k** | **8.1k** |
 | Needed, 2026-10-26 late night (L4 to L6 measured, 6.10: LSU 2,290, front end 2,588, fetch buffer 924, adapter 199) | 22.1k | 22.7k | 23.3k |
 | **Over, 2026-10-26 late night** | **4.2k** | **5.6k** | **6.9k** |
+| Needed, 2026-10-27 (L7 measured, 6.13: ALU1's port 684 in place of 1,926; fusion 215, issue queue 1,597, decode 1,823) | 20.9k | 21.5k | 22.1k |
+| **Over, 2026-10-27** | **3.0k** | **4.4k** | **5.7k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is
@@ -577,6 +579,27 @@ pair is complex when its ALU part is.
   unchanged (latency 1).
 - Bug injection: 7 added (M206 to M212), 2 retargeted (M2, M14): 180 in all.
 - **Vivado asked**: `synth_ooo.bat OOC_ALU2 20.0 1 FULL=0` (ALU1), and `OOC_ALU2`, `OOC_FUSE`, `OOO_IQ`, `OOC_DEC` again.
+
+### 6.13 The Vivado results of L7 (2026-10-27)
+
+| Run | Before | **Now** | Change | Register-to-register slack |
+|---|---|---|---|---|
+| OOC_ALU2 FULL=0 (ALU1: its `OOO_ALU` 226 of it) | 1,926 | **684** | **−1,242** | +5.735 ns (40 levels) |
+| OOC_ALU2 (ALU0, unchanged) | 1,926 | 1,928 | +2 | +1.480 ns |
+| OOC_FUSE (with the ports) | 208 | 215 | +7 | +9.565 ns |
+| OOO_IQ (port 1 first) | 1,621 | 1,597 | −24 | +7.438 ns |
+| OOC_DEC (ALU0-only marks) | 1,791 | 1,823 | +32 | +7.813 ns |
+| **Together** | | | **−1,225** | |
+
+- **All close at 50 MHz.** L7 gave −1.23k against about −0.4k planned (6.8) and −1.1k by the Yosys ratio (6.12): the
+  limited ALU is 226 against 799, and the port's operand selection shrinks with it.
+- **The budget** (4.4): the gap goes to **3.0k / 4.4k / 5.7k**.
+- **Against the plan**: still to come L1, L3, L8 (2.15k) and the reserve L10 + B4 / B5 (3.5k): 5.65k. **Middle margin
+  about +1.3k** (+2.7k low, about 0 high). Without the reserve the middle is about 2.2k short; with only one of its two
+  parts, about 0.2k short (L10) or 0.7k short (B4 / B5).
+- The run: cmd.exe split the unquoted `FULL=0` of the command given (my instruction), so Vivado got `-generic FULL`;
+  it bound FULL to 0 (the log says so), and the result is ALU1's. `synth_ooo.tcl` now puts `NAME value` pairs back
+  together; the run's output is in `output/OOC_ALU2_FULL0`.
 
 ---
 

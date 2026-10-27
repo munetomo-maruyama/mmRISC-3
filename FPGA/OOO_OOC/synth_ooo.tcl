@@ -33,6 +33,17 @@ set top    [expr {[llength $argv] > 0 ? [lindex $argv 0] : "OOC_ALU2"}]
 set period [expr {[llength $argv] > 1 ? [lindex $argv 1] : 20.0}]
 set impl   [expr {[llength $argv] > 2 ? [lindex $argv 2] : 1}]
 set gens   [expr {[llength $argv] > 3 ? [lindex $argv 3] : ""}]
+# cmd.exe splits an unquoted NAME=value at the "=" (synth_ooo.bat OOC_ALU2
+# 20.0 1 FULL=0 arrives as FULL 0): put such pairs back together
+if {[llength $argv] > 4} {
+    set rest [lrange $argv 3 end]
+    set gens {}
+    for {set k 0} {$k < [llength $rest]} {incr k} {
+        set g [lindex $rest $k]
+        if {[string first "=" $g] < 0 && $k + 1 < [llength $rest]} { incr k; set g "$g=[lindex $rest $k]" }
+        lappend gens $g
+    }
+}
 
 set tag $top
 foreach g $gens { append tag "_[string map {= {}} $g]" }

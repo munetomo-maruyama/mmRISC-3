@@ -2314,3 +2314,47 @@ By the way, my last answer (62) was written in English by mistake. From now on I
 ```text
 Build L7 into the RTL: complex ALU ops ALU0-only in decode and fusion, the issue queue selecting port 1 first, and ALU1 with the limited ALU. Then tests and Vivado scripts.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+L7 (asymmetric ALUs) is in the RTL and pushed to dev (`12e5a60`). All 19 tests PASS, including the new tb_alu1, and all 180 bug injections are detected. Vivado has not been run yet.
+
+**What was done**
+- **ALU1's limited ALU**: `OOO_ALU`'s `FULL = 0` now has only ALU1's operations: add / sub (with the word forms), slt / sltu, xor / or / and.
+  - `OOO_ALU2` passes this parameter down, so ALU1 is `OOO_ALU2 #(.FULL(0))`.
+  - Its new test is `tb_alu1`; `run.sh` got a way to pass parameters to Verilator (`GV`).
+- **Decode**: the other ALU instructions (shifts, Zba, Zbb, Zbs, Zicond) are "ALU0 only" (port 1), as MUL / DIV are.
+- **Fusion**: gives the issue port of each µop. A pair is LSU if a half is, else ALU0 only if a half is, else any ALU.
+  - On the CoreMark stream it still forms exactly the model's pairs.
+- **Issue queue**: port 1 selects first (the oldest ready simple operation), and port 0 from the rest.
+  - The test's reference uses the same order, and "ALU0 only" µops now come with latency 1 and 2.
+- **Bug injection**: 7 added for the new parts, 2 rewritten whose text changed.
+
+**Size in Yosys** (a hint only; Vivado decides)
+- ALU port: full 3,088 → ALU1 **1,263** (−1,825 a port).
+- With the port's Vivado / Yosys ratio (about 0.6), **about −1.1k**.
+- More than last time's −0.5k to −0.65k, which looked only at the ALU itself; this compares the whole port (operand selection and so on).
+
+Performance in the model: −0.3 % / −0.2 % (6.260 / 6.695).
+
+**Contract for the assembly**: the payload of a µop going to port 1 needs no shift or Zba / Zbb fields.
+
+Recorded in 3.5, 3.6 and 6.12 of `Doc/UARCH` (English and Japanese), the READMEs, and the prompt log (answer 63 and the English of 64).
+
+**Vivado request** (ALU1 is the run with `FULL=0`; running `synth_ooo.bat` without arguments also does it at the end of the loop)
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_ALU2 20.0 1 FULL=0
+synth_ooo.bat OOC_ALU2
+synth_ooo.bat OOC_FUSE
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_DEC
+```
+<!-- /answer -->
+
+## 65. 2026-10-27 22:26:36 JST
+
+```text
+I ran synth_ooo.bat for OOC_ALU2 (and with FULL=0), OOC_FUSE, OOO_IQ and OOC_DEC. Please check output/*/summary.txt.
+```

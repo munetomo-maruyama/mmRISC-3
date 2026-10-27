@@ -2307,5 +2307,43 @@ Build L7 into the RTL: complex ALU ops ALU0-only in decode and fusion, the issue
 <!-- answer -->
 **Claude Codeの回答**
 
-The docs are written. Waiting for the full test and mutation run to finish before committing.
+L7(非対称なALU)をRTLに入れ、devにpushしました(`12e5a60`)。テストは新しいtb_alu1を含めて19本すべてPASS、バグ注入は180件すべて検出です。Vivadoはまだ流していません。
+
+**したこと**
+- **ALU1の絞ったALU**: `OOO_ALU`の`FULL = 0`を、ALU1の操作だけにしました。残したのは加減算(ワード形を含む)、slt / sltu、xor / or / andです。
+  - `OOO_ALU2`がこのパラメータを下に渡すので、ALU1は`OOO_ALU2 #(.FULL(0))`で作れます。
+  - そのための新しいテストが`tb_alu1`です。`run.sh`には、Verilatorにパラメータを渡す仕組み(`GV`)を加えました。
+- **デコード**: 上の操作以外のALU命令(シフト、Zba、Zbb、Zbs、Zicond)を「ALU0だけ」(ポート1)にしました。MUL / DIVと同じ扱いです。
+- **融合**: µopごとの発行ポートを出すようにしました。組の片方がLSUならLSU、そうでなく片方がALU0だけならALU0だけ、どちらでもなければどのALUでもです。
+  - CoreMarkの命令列では、今もモデルとちょうど同じ組を作ります。
+- **発行キュー**: ポート1が先に選び(準備のできたいちばん古い単純な演算)、ポート0は残りから選ぶ順にしました。
+  - テストの参照も同じ順にし、「ALU0だけ」のµopにはレイテンシ1と2の両方を出すようにしました。
+- **バグ注入**: 新しい部分をねらって7件を加え、文面が変わった2件を書き直しました。
+
+**Yosysでの規模**(目安です。Vivadoで決まります)
+- ALUポート: フル3,088 → ALU1は**1,263**(ポートあたり−1,825)。
+- ポートのVivado/Yosysの比(約0.6)で換算すると、**約−1.1k**です。
+- 前回の見込み(−0.5k〜−0.65k)より大きいのは、前回はALUの中身だけを見ていたからです。今回はポート全体(オペランドの選択など)で比べています。
+
+性能はモデルで−0.3% / −0.2%(6.260 / 6.695)です。
+
+**組み立てのときの約束**: ポート1に行くµopのペイロードには、シフトやZba / Zbbのフィールドは要りません。
+
+記録は`Doc/UARCH`の3.5、3.6、6.12(英語版と日本語版)、READMEs、プロンプトログ(63の回答と64の英訳)に入れています。
+
+**Vivadoのお願い**(ALU1は`FULL=0`を付けた実行です。`synth_ooo.bat`を引数なしで流す場合も、ループの最後に入れてあります)
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_ALU2 20.0 1 FULL=0
+synth_ooo.bat OOC_ALU2
+synth_ooo.bat OOC_FUSE
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_DEC
+```
 <!-- /answer -->
+
+## 65. 2026-10-27 22:26:36 JST
+
+```text
+I ran synth_ooo.bat for OOC_ALU2 (and with FULL=0), OOC_FUSE, OOO_IQ and OOC_DEC. Please check output/*/summary.txt.
+```
