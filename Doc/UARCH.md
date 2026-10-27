@@ -129,7 +129,7 @@ the free list; renaming gets them (about 0.3k LUTs).
 |---|---|
 | ROB | 24 µops; payload in LUTRAM banked by the parity of the index (one write port each), done and exception bits in flip-flops; commit 2 a cycle |
 | Issue queue | `OOO_IQ`: unified, **10 entries** (G0b D-12, 6.5), 2 sources and 1 destination, oldest first (age matrix), 3 issues a cycle, 6 wakeup buses, entries freed at issue (a load that misses is replayed after commit, 3.7); payload in LUTRAM (`OOO_IQPL`: two banks with one write port each and a live value table, written at DS to `disp_entry`, read in RR, `Plan/OOC.md` 17.1) |
-| Ports | P0: ALU0 + MUL / DIV; P1: ALU1; P2: LSU |
+| Ports | P0: ALU0 + MUL / DIV and the complex ALU operations; P1: ALU1 (add / sub, slt / sltu, logic, branches; it selects first, 6.12); P2: LSU |
 | **Dispatch rules** (the wakeup relies on them) | A latency-2 µop (multiply) is "ALU0 only"; an any-ALU µop has latency 1; an LSU µop writes a register only as a load |
 | Physical registers | `OOO_PRF`: 64 × 64, 3 writes / 6 reads, LUTRAM per write bank + LVT |
 
@@ -137,7 +137,7 @@ the free list; renaming gets them (about 0.3k LUTs).
 
 | Item | Specification |
 |---|---|
-| ALU ports | `OOO_ALU2` on P0 and P1: a full `OOO_ALU` (RV64I, Zba, Zbb, Zbs, Zicond; one adder and one shifter shared) and the branch comparison (alone, or fused on the ALU result against s1, s2 or zero); 2 sources, 2 bypassed (6.7) |
+| ALU ports | `OOO_ALU2` on P0 and P1: on P0 a full `OOO_ALU` (RV64I, Zba, Zbb, Zbs, Zicond; one adder and one shifter shared), on P1 a limited one (add / sub, slt / sltu, logic; G0b L7, 6.12), each with the branch comparison (alone, or fused on the ALU result against s1, s2 or zero); 2 sources, 2 bypassed (6.7) |
 | Sources | 2 per µop (the third source input of `OOO_ALU2` goes in Phase 1: the second stage takes res1, s1, s2 or imm2) |
 | Bypass | In front of the ALUs in EX: the register file, the own result, the other ALU port, the load |
 | MUL / DIV | mmRISC-2's CORE_MDU behind P0 (multiply in DSP blocks, latency 2; divide iterative, woken from outside) |
@@ -557,6 +557,26 @@ pair is complex when its ALU part is.
   a fused pair with a complex ALU part too); the issue queue's select order turned round; `OOO_ALU2` of ALU1 with an
   `OOO_ALU` limited to add / sub, logic, compares (the parameter `FULL` is free since D-14).
 - **By D-13** (L7 if it costs about 1 % or less) it is to be taken.
+
+### 6.12 L7 applied: asymmetric ALUs (2026-10-27)
+
+| Block | What was done | Yosys (a hint only) | Test |
+|---|---|---|---|
+| `OOO_ALU` | `FULL = 0` is now ALU1's set: add / sub (and their word forms), slt / sltu, xor / or / and; no shifter, counts, Zba change, Zbb, Zbs or Zicond | | `tb_alu1` (new: `OOO_ALU2` with `FULL = 0`, ALU1's operations) PASS |
+| `OOO_ALU2` | Parameter `FULL` passed to its `OOO_ALU`: ALU1 is `OOO_ALU2 #(.FULL(0))` | `OOC_ALU2` 3,088; `OOC_ALU2 FULL=0` **1,263** (−1,825 a port) | `tb_alu2` PASS |
+| `OOO_DEC` | Every ALU operation but add / sub (no `.uw`, no sh*add), slt / sltu, xor / or / and is "ALU0 only" (port 1, as MUL / DIV) | 2,139 (noise) | `tb_dec` PASS (the reference marks them too) |
+| `OOO_FUSE` | Inputs `port`, outputs `u0_port` / `u1_port`: a pair is LSU if a half is, else ALU0 only if a half is, else any ALU | 279 | `tb_fuse` PASS (the ports checked; the CoreMark stream still gives the model's pairs exactly) |
+| `OOO_IQ` | **Port 1 selects first** (the oldest ready any-ALU µop), then port 0 (the oldest ready ALU µop of the rest) | 2,571 (noise) | `tb_iq` PASS on 4 seeds (the reference turned round too; ALU0-only µops now of latency 1 or 2) |
+
+- **Size**: Yosys gives −1.8k a port for ALU1; with the Vivado / Yosys ratio of the port (about 0.6) that would be about
+  −1.1k, more than the −0.5k to −0.65k of 6.11 (which looked at the ALU alone, not the operand and bypass logic the
+  limited operations no longer need). Vivado decides.
+- **Performance**: −0.3 % / −0.2 % in the model (6.11): decided set with L7 6.260 / 6.695 (pessimistic 5.521 /
+  5.949).
+- **For the assembly**: the payload of a port-1 µop needs no shift / Zba / Zbb fields; ALU1's bypass and wakeup are
+  unchanged (latency 1).
+- Bug injection: 7 added (M206 to M212), 2 retargeted (M2, M14): 180 in all.
+- **Vivado asked**: `synth_ooo.bat OOC_ALU2 20.0 1 FULL=0` (ALU1), and `OOC_ALU2`, `OOC_FUSE`, `OOO_IQ`, `OOC_DEC` again.
 
 ---
 

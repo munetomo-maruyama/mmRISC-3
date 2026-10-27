@@ -23,17 +23,13 @@
 //   counts   ctz as a tree over bytes (clz is ctz of the reversed operand),
 //            cpop as a tree of adders
 //
-// FULL = 0 was the second stage of a fused ALU + ALU pair, not used since
-// fusion level 2 (G0b D-14, Doc/UARCH.md 6.7); the parameter is kept. It had only
-// the operations that CoreMark puts there (Plan/OOC.md 7.2) and the cheap
-// ones beside them,
-//   add / sub, sh*add(.uw), the logic operations, srl (srliw is the only
-//   shift CoreMark has there), sext.b / sext.h / zext.h, czero.eqz /
-//   czero.nez, bext
-// (then OOO_FUSE alu2ok, tb_alu2 OPS2); without sll / sra (the reversal and the sign fill of
-// the shifter), rotates, comparisons, min / max, counts, orc.b / rev8 and
-// bset / bclr / binv. Their result is 0 there; the fusion
-// never puts them in a second stage (OOO_FUSE, alu2ok).
+// FULL = 0 is the ALU of ALU1 (G0b L7, Doc/UARCH.md 6.11 and 6.12): only
+//   add / sub (and addw / subw), slt / sltu, xor / or / and
+// (lui and auipc are adds, of a zero or the pc chosen in front, OOO_ALU2).
+// No shifter, no counts, no Zba change of the first operand, no Zbb, Zbs or
+// Zicond: their results are 0 there, and the decoder sends those operations
+// to ALU0 only (OOO_DEC port 1). Until D-14 FULL = 0 was the narrowed
+// second stage of a fused ALU + ALU pair, a different set.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -151,13 +147,13 @@ module OOO_ALU
 
     always @(*) begin
         a32  = op_a[31:0];
-        a_zx = a_uw ? {32'd0, a32} : op_a;
+        a_zx = (FULL && a_uw) ? {32'd0, a32} : op_a;
 
         // adder: the first operand shifted for sh*add, the second inverted for
         // a subtraction; the carry out is "a >= b" unsigned
-        inv_b = (alu_op == ALU_SUB) || (FULL && (alu_op == ALU_SLT || alu_op == ALU_SLTU ||
-                (alu_op >= ALU_MIN && alu_op <= ALU_MAXU)));
-        sum   = {1'b0, a_zx << a_shift} + {1'b0, inv_b ? ~op_b : op_b} + {64'd0, inv_b};
+        inv_b = (alu_op == ALU_SUB) || (alu_op == ALU_SLT) || (alu_op == ALU_SLTU) ||
+                (FULL && alu_op >= ALU_MIN && alu_op <= ALU_MAXU);
+        sum   = {1'b0, FULL ? a_zx << a_shift : a_zx} + {1'b0, inv_b ? ~op_b : op_b} + {64'd0, inv_b};
         lt_u  = !sum[64];
         lt_s  = lt_u ^ op_a[63] ^ op_b[63];
 
@@ -177,7 +173,7 @@ module OOO_ALU
         else if (FULL && alu_op == ALU_SRA) hi = {64{sx[63]}};
         else                        hi = 64'd0;
         fun = {hi, lo} >> shamt;
-        shr = fun[63:0];
+        shr = FULL ? fun[63:0] : 64'd0;
         shl = rev64(shr);
 
         // counts: clz is ctz of the reversed operand (a 32 bit form puts its
@@ -199,20 +195,21 @@ module OOO_ALU
             ALU_XOR, ALU_BINV:  r_log = op_a ^ lb;
             ALU_OR,  ALU_BSET:  r_log = op_a | lb;
             ALU_AND:            r_log = op_a & lb;
-            ALU_ANDN, ALU_BCLR: r_log = op_a & ~lb;
-            ALU_ORN:            r_log = op_a | ~lb;
-            default:            r_log = ~(op_a ^ lb);     // ALU_XNOR
+            ALU_ANDN, ALU_BCLR: r_log = FULL ? op_a & ~lb : 64'd0;
+            ALU_ORN:            r_log = FULL ? op_a | ~lb : 64'd0;
+            default:            r_log = FULL ? ~(op_a ^ lb) : 64'd0;   // ALU_XNOR
         endcase
 
         // the result: an AND-OR of the units, each enabled by its operations
         // (the full ALU's units are constant 0 in the narrowed one)
         g_add = (alu_op == ALU_ADD) || (alu_op == ALU_SUB);
         g_log = (alu_op == ALU_XOR) || (alu_op == ALU_OR) || (alu_op == ALU_AND) ||
-                (alu_op >= ALU_ANDN && alu_op <= ALU_XNOR) ||
+                (FULL && alu_op >= ALU_ANDN && alu_op <= ALU_XNOR) ||
                 (FULL && alu_op >= ALU_BSET && alu_op <= ALU_BINV);
-        g_shr = (alu_op == ALU_SRL) || (FULL && (alu_op == ALU_SRA || alu_op == ALU_ROR));
+        g_shr = FULL && (alu_op == ALU_SRL || alu_op == ALU_SRA || alu_op == ALU_ROR);
         g_shl = FULL && (alu_op == ALU_SLL || alu_op == ALU_ROL);
-        g_cz  = (alu_op == ALU_CZEQZ) ? (op_b != 64'd0) :
+        g_cz  = !FULL                ? 1'b0 :
+                (alu_op == ALU_CZEQZ) ? (op_b != 64'd0) :
                 (alu_op == ALU_CZNEZ) ? (op_b == 64'd0) : 1'b0;
         g_mna = FULL && ((alu_op == ALU_MIN && lt_s) || (alu_op == ALU_MINU && lt_u) ||
                          (alu_op == ALU_MAX && !lt_s) || (alu_op == ALU_MAXU && !lt_u));
@@ -220,12 +217,12 @@ module OOO_ALU
                          (alu_op == ALU_MAX && lt_s) || (alu_op == ALU_MAXU && lt_u));
         r_ext = 64'd0;
         case (alu_op)
-            ALU_SEXTB: r_ext = {{56{op_a[7]}},  op_a[7:0]};
-            ALU_SEXTH: r_ext = {{48{op_a[15]}}, op_a[15:0]};
-            ALU_ZEXTH: r_ext = {48'd0, op_a[15:0]};
+            ALU_SEXTB: if (FULL) r_ext = {{56{op_a[7]}},  op_a[7:0]};
+            ALU_SEXTH: if (FULL) r_ext = {{48{op_a[15]}}, op_a[15:0]};
+            ALU_ZEXTH: if (FULL) r_ext = {48'd0, op_a[15:0]};
             ALU_BEXT:  r_ext = {63'd0, shr[0]};
-            ALU_SLT:   r_ext = {63'd0, FULL && lt_s};
-            ALU_SLTU:  r_ext = {63'd0, FULL && lt_u};
+            ALU_SLT:   r_ext = {63'd0, lt_s};
+            ALU_SLTU:  r_ext = {63'd0, lt_u};
             ALU_CLZ, ALU_CTZ: r_ext = {57'd0, n_tz};
             ALU_CPOP:  r_ext = {57'd0, n_pop};
             ALU_ORCB:  if (FULL) for (int i = 0; i < 8; i++) r_ext[8*i +: 8] = {8{|op_a[8*i +: 8]}};

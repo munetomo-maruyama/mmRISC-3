@@ -9,16 +9,17 @@
 //
 // Every cycle, the µops that are in the queue (dispatched in an earlier
 // cycle), not issued, and whose sources are all usable are "ready". The
-// queue must issue, on port 2 the oldest ready LSU µop, on port 0 the
-// oldest ready ALU µop (any ALU or ALU0 only), on port 1 the oldest ready
-// any-ALU µop other than port 0's; nothing else. That checks the wakeup
+// queue must issue, on port 2 the oldest ready LSU µop, on port 1 the
+// oldest ready any-ALU µop, on port 0 the oldest ready ALU µop (any ALU or
+// ALU0 only) other than port 1's (G0b L7: port 1 first); nothing else. That checks the wakeup
 // (back to back for latency 1), the select (oldest first, no port idle
 // while a µop is ready for it) and that nothing issues early or twice.
 // Some µops' results come from outside (ext); now and then the queue is
 // flushed. µops are told apart by their destination tag (unique while a µop
 // is in flight, also when it writes nothing). The µops keep the rules the
 // wakeup buses rely on (OOO_IQ.sv): an any-ALU µop has latency 1, an
-// ALU0-only one (multiply) latency 2, and an LSU µop writes a register only
+// ALU0-only one latency 1 or 2 (a complex ALU operation or a multiply), and
+// an LSU µop writes a register only
 // with latency 2 (a load); a store or a load that missed writes none here
 // and is answered on ext_*. A tag is given out again 4 cycles after its µop
 // left the queue (after its announcement for an external one), not before:
@@ -91,7 +92,7 @@ int main(int argc, char** argv)
             if (t0 < 0) break;
             x.id = next_id++;
             x.port = (int[]){0, 0, 0, 1, 2, 2}[rng() % 6];
-            x.lat2 = x.port == 2 ? (rng() % 4 != 0) : x.port == 1 ? 1 : 0;
+            x.lat2 = x.port == 2 ? (rng() % 4 != 0) : x.port == 1 ? (rng() & 1) : 0;   // ALU0 only: a multiply or a complex ALU operation (L7)
             x.ext = x.port == 2 && !x.lat2;            // a store, or a load that missed: answer from outside
             x.dst = t0; x.wr = !x.ext;
             for (int s = 0; s < 2; s++) {
@@ -163,12 +164,12 @@ int main(int argc, char** argv)
             const Uop& x = kv.second;
             if (!ready(x)) continue;
             if (x.port == 2) { if (!e2 || x.id < e2->id) e2 = &x; }
-            else if (!e0 || x.id < e0->id) e0 = &x;
+            else if (x.port == 0 && (!e1 || x.id < e1->id)) e1 = &x;
         }
         for (auto& kv : q) {
             const Uop& x = kv.second;
-            if (!ready(x) || x.port != 0 || &x == e0) continue;
-            if (!e1 || x.id < e1->id) e1 = &x;
+            if (!ready(x) || x.port == 2 || &x == e1) continue;
+            if (!e0 || x.id < e0->id) e0 = &x;
         }
         const Uop* exp[3] = {e0, e1, e2};
         if (!flush) {

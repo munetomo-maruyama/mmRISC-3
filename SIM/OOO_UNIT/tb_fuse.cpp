@@ -4,7 +4,8 @@
 // 1. random: groups of 4 with registers from a small pool (so that pairs
 //    happen often), against a reference of the rules of OOO_FUSE.sv (with
 //    the limit of 2 sources, SRC2, and of 1 write, W1; fusion level 2: no
-//    ALU + ALU, G0b D-14)
+//    ALU + ALU, G0b D-14), and the port of each µop (an LSU half makes the
+//    pair LSU, else an ALU0-only half ALU0 only, G0b L7)
 // 2. trace (FUSE_TRACE=<file of mkfuse.py>): the CoreMark stream through
 //    the window of 4 as the decoder would feed it (the window moves by
 //    `consumed`); the pairs formed are counted against the pairs the model
@@ -17,14 +18,14 @@
 #include <random>
 #include <vector>
 
-struct Ins { int seq, cls, op, rd, rs1, rs2, u1, u2, imm, ms; };
+struct Ins { int seq, cls, op, rd, rs1, rs2, u1, u2, imm, ms, port = 0; };
 
 static VOOO_FUSE d;
 
 static void put(const Ins* g, int nvalid)
 {
     d.no_fuse = 0;
-    d.valid = 0; d.seq = 0; d.cls = 0; d.op = 0; d.use_rs1 = 0; d.use_rs2 = 0; d.msize = 0;
+    d.valid = 0; d.seq = 0; d.cls = 0; d.op = 0; d.use_rs1 = 0; d.use_rs2 = 0; d.msize = 0; d.port = 0;
     for (int k = 0; k < 4; k++) {
         const Ins& x = g[k];
         if (k < nvalid) d.valid |= 1u << k;
@@ -34,6 +35,7 @@ static void put(const Ins* g, int nvalid)
         d.use_rs1 |= (unsigned)x.u1 << k;
         d.use_rs2 |= (unsigned)x.u2 << k;
         d.msize |= (unsigned)x.ms << (2 * k);
+        d.port |= (unsigned)x.port << (2 * k);
     }
     d.rd = 0; d.rs1 = 0; d.rs2 = 0;
     for (int k = 0; k < 4; k++) {
@@ -102,6 +104,7 @@ static int random_test()
             x.u1 = rng() % 4 != 0; x.u2 = rng() & 1;
             x.imm = ((rng() % 5) * 4 + (rng() % 3 == 0 ? 0xff0 : 0)) & 0xfff;
             x.ms = rng() % 4;
+            x.port = rng() % 4;
         }
         put(g, nv);
         // the reference: greedy from slot 0
@@ -114,7 +117,13 @@ static int random_test()
         if (!u1v) u1k = u1k;    // the RTL reports the kind regardless of validity; compared only when valid
         int cons = !u0v ? 0 : !u1v ? s1 : s1 + (u1k ? 2 : 1);
         n++;
+        auto uport = [&](int k, bool paired) {
+            int a = g[k].port, b = (paired && k < 3) ? g[k + 1].port : a;
+            return (a == 2 || b == 2) ? 2 : (a == 1 || b == 1) ? 1 : a;
+        };
         bool ok = d.u0_valid == u0v && d.consumed == cons;
+        if (u0v) ok = ok && (int)d.u0_port == uport(0, u0k != 0);
+        if (u1v) ok = ok && (int)d.u1_port == uport(s1, u1k != 0);
         if (u0v) ok = ok && d.u0_slot == 0 && d.u0_kind == u0k;
         if (u1v) ok = ok && d.u1_valid && d.u1_slot == s1 && d.u1_kind == u1k;
         else ok = ok && !d.u1_valid;

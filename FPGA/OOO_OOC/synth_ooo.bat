@@ -17,6 +17,8 @@ if not "%~1"=="" (
 for %%t in (OOC_ALU2 OOC_FUSE OOC_RENAME OOO_IQ OOO_UBTB OOC_LSU OOC_ROB OOC_FBUF OOC_FTQ OOC_FRONT OOC_DEC OOC_IQPL OOC_LSUDC) do (
     call vivado -mode batch -source synth_ooo.tcl -log output\vivado_%%t.log -journal output\vivado_%%t.jou -tclargs %%t 20.0 1
 )
+REM ALU1 (G0b L7): the ALU port with the limited ALU
+call vivado -mode batch -source synth_ooo.tcl -log output\vivado_OOC_ALU2_FULL0.log -journal output\vivado_OOC_ALU2_FULL0.jou -tclargs OOC_ALU2 20.0 1 "FULL=0"
 :prf
 REM the register file with the write / read ports of Plan/OOC.md
 for %%p in (3_8 5_8 6_9 3_6 5_6) do (

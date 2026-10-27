@@ -26,8 +26,9 @@ CA=${CACHE_RTL:-$(cd ../../RTL/CPU/CACHE && pwd)} # mmRISC-2's D$
 SP=${SPIKE:-$HOME/RISCV/toolchain/spike-install}   # Spike, the judge of tb_dec
 OBJ=${OOO_OBJ:-$HERE/obj_dir}
 
-declare -A TOP SRC XC XL
+declare -A TOP SRC XC XL GV
 TOP[alu2]=OOO_ALU2;     SRC[alu2]="$R/OOO_ALU/OOO_ALU.sv $R/OOO_ALU2/OOO_ALU2.sv"
+TOP[alu1]=OOO_ALU2;     SRC[alu1]="${SRC[alu2]}"; GV[alu1]="-GFULL=0"   # ALU1 (G0b L7)
 TOP[fuse]=OOO_FUSE;     SRC[fuse]="$R/OOO_FUSE/OOO_FUSE.sv"
 TOP[prf]=OOO_PRF;       SRC[prf]="$R/OOO_PRF/OOO_PRF.sv"
 TOP[rename]=OOO_RENAME; SRC[rename]="$R/OOO_RENAME/OOO_RENAME.sv"
@@ -47,14 +48,14 @@ TOP[dec]=OOO_DEC;       SRC[dec]="$C/CORE_DECOMP/CORE_DECOMP.sv $C/CORE_DEC/CORE
 XC[dec]="-I$SP/include -I$SP/include/riscv -I$SP/include/softfloat -I$SP/include/fesvr -Wno-c++20-extensions"
 XL[dec]="-L$SP/lib -lriscv -ldisasm -lsoftfloat -lfesvr -Wl,-rpath,$SP/lib -lpthread -ldl"
 TOP[fetch]=OOO_FETCH;   SRC[fetch]="$R/OOO_UBTB/OOO_UBTB.sv $R/OOO_PREDEC/OOO_PREDEC.sv $R/OOO_TAGE/OOO_TAGE.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FETCH/OOO_FETCH.sv"
-TESTS=${*:-alu2 fuse prf rename iq iqpl ubtb lsu dcad rob fbuf ftq predec ras btb tage fetch dec}
+TESTS=${*:-alu2 alu1 fuse prf rename iq iqpl ubtb lsu dcad rob fbuf ftq predec ras btb tage fetch dec}
 
 fail=0
 for t in $TESTS; do
     o=$OBJ/$t
     rm -rf $o; mkdir -p $o
     if ! verilator --cc --exe --build -O2 -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT --x-assign unique --x-initial unique --Mdir $o \
-            --top-module ${TOP[$t]} ${SRC[$t]} $HERE/tb_$t.cpp -CFLAGS "-O2 -std=c++17 ${XC[$t]}" ${XL[$t]:+-LDFLAGS "${XL[$t]}"} > $o/build.log 2>&1; then
+            --top-module ${TOP[$t]} ${GV[$t]} ${SRC[$t]} $HERE/tb_$t.cpp -CFLAGS "-O2 -std=c++17 ${XC[$t]}" ${XL[$t]:+-LDFLAGS "${XL[$t]}"} > $o/build.log 2>&1; then
         echo "tb_$t: build failed (see $o/build.log): FAIL"; fail=$((fail + 1)); continue
     fi
     $o/V${TOP[$t]} +verilator+rand+reset+2 || fail=$((fail + 1))

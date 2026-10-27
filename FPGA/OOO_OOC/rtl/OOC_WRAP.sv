@@ -23,6 +23,9 @@
 `timescale 1ns/1ps
 
 module OOC_ALU2
+    #(
+        parameter int FULL = 1          // 0: ALU1, the limited ALU (G0b L7)
+    )
     (
         input  logic        clk,
         input  logic [63:0] prf1, prf2,           // register file data
@@ -60,7 +63,7 @@ module OOC_ALU2
     assign s1 = byp(q1, p1);
     assign s2 = byp(q2, p2);
 
-    OOO_ALU2 u_alu2
+    OOO_ALU2 #(.FULL(FULL[0])) u_alu2
         (.s1(s1), .s2(s2), .imm1(i1), .pc(pcq),
          .op1(o1), .uw1(u1), .shift1(h1), .word1(w1), .a1_sel(as1), .b1_imm(bi),
          .is_br(ib), .br_op(bo), .br_fused(bf), .br_res1_a(br1), .br_o_sel(os),
@@ -78,28 +81,29 @@ module OOC_FUSE
         input  logic [3:0][2:0]  cls, op,
         input  logic [3:0][4:0]  rd, rs1, rs2,
         input  logic [3:0][11:0] imm,
-        input  logic [3:0][1:0]  msize,
-        output logic [15:0]      out
+        input  logic [3:0][1:0]  msize, port,
+        output logic [19:0]      out
     );
     logic             nf;
     logic [3:0]       va, sq, u1, u2;
     logic [3:0][2:0]  cl, opq;
     logic [3:0][4:0]  d, a, b;
     logic [3:0][11:0] im;
-    logic [3:0][1:0]  ms;
+    logic [3:0][1:0]  ms, pt;
     logic             v0, v1;
     logic [1:0]       s0, s1;
     logic [3:0]       k0, k1;
+    logic [1:0]       p0, p1;
     logic [2:0]       cn;
     always_ff @(posedge clk) begin
         nf <= no_fuse; va <= valid; sq <= seq; u1 <= use_rs1; u2 <= use_rs2;
-        cl <= cls; opq <= op; d <= rd; a <= rs1; b <= rs2; im <= imm; ms <= msize;
-        out <= {v0, s0, k0, v1, s1, k1, cn[1:0]};
+        cl <= cls; opq <= op; d <= rd; a <= rs1; b <= rs2; im <= imm; ms <= msize; pt <= port;
+        out <= {v0, s0, k0, p0, v1, s1, k1, p1, cn[1:0]};
     end
     OOO_FUSE u_fuse
         (.no_fuse(nf), .valid(va), .seq(sq), .cls(cl), .op(opq), .rd(d), .rs1(a), .rs2(b),
-         .use_rs1(u1), .use_rs2(u2), .imm(im), .msize(ms),
-         .u0_valid(v0), .u0_slot(s0), .u0_kind(k0), .u1_valid(v1), .u1_slot(s1), .u1_kind(k1),
+         .use_rs1(u1), .use_rs2(u2), .imm(im), .msize(ms), .port(pt),
+         .u0_valid(v0), .u0_slot(s0), .u0_kind(k0), .u0_port(p0), .u1_valid(v1), .u1_slot(s1), .u1_kind(k1), .u1_port(p1),
          .consumed(cn));
 endmodule : OOC_FUSE
 

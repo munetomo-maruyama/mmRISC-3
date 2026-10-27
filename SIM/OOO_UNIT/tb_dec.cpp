@@ -233,6 +233,13 @@ static R decode32(uint32_t x)
         break;
     }
     if (!r.legal) return R();
+    // ALU1 (G0b L7) has add / sub (no .uw, no sh*add), slt / sltu, xor / or / and: the rest is ALU0 only
+    if (r.alu_v) {
+        int a = r.alu_op;
+        bool simple = (a == A_ADD && !r.uw && !r.shift) || a == A_SUB || a == A_SLT || a == A_SLTU ||
+                      a == A_XOR || a == A_OR || a == A_AND;
+        if (!simple) r.port = 1;
+    }
     r.rd = we ? (int)rd : 0;
     r.rs1 = (int)rs1; r.rs2 = (int)rs2;
     return r;

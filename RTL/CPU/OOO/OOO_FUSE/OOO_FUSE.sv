@@ -33,6 +33,12 @@
 // pairs loads and stores by their dynamic addresses (within 8 bytes); here
 // it can only be the offsets, which is what Plan/OOC.md measures.
 //
+// The port of a µop (the issue queue's: 0 any ALU, 1 ALU0 only, 2 LSU, 3
+// FPU, from the decoder) is its instruction's; a pair's is the LSU's if a
+// half goes there (ALU + load, load and store pairs), else ALU0 only if a
+// half is (slli + srli, an ALU + branch whose ALU operation ALU1 does not
+// have: G0b L7, Doc/UARCH.md 6.12), else any ALU.
+//
 // Pairing is greedy from the oldest slot, as in the model: slot 0 pairs
 // with slot 1 if it can, and the second µop starts after the first. A pair
 // needs both slots valid and the second to follow the first in program
@@ -65,13 +71,16 @@ module OOO_FUSE
         input  logic [3:0]       use_rs2,
         input  logic [3:0][11:0] imm,       // offset of a load / store
         input  logic [3:0][1:0]  msize,     // 0 byte .. 3 double
+        input  logic [3:0][1:0]  port,      // OOO_DEC: 0 any ALU, 1 ALU0 only, 2 LSU, 3 FPU
 
         output logic             u0_valid,
         output logic [1:0]       u0_slot,   // first instruction of the µop
         output logic [3:0]       u0_kind,   // 0 alone, else the kind of pair (below)
+        output logic [1:0]       u0_port,   // the issue queue's port of the µop (above)
         output logic             u1_valid,
         output logic [1:0]       u1_slot,
         output logic [3:0]       u1_kind,
+        output logic [1:0]       u1_port,
         output logic [2:0]       consumed   // instructions taken out of the group
     );
 
@@ -139,6 +148,16 @@ module OOO_FUSE
                      !(W1 && rd[k] != 5'd0 && rd[k+1] != 5'd0 && rd[k] != rd[k+1])) ? pair_kind(k) : K_NONE;
     end
 
+    // the port of a µop starting at slot k, alone or with slot k+1
+    function automatic logic [1:0] uport(input logic [1:0] k, input logic paired);
+        logic [1:0] a, b;
+        a = port[k];
+        b = (paired && k != 2'd3) ? port[k + 2'd1] : port[k];
+        if (a == 2'd2 || b == 2'd2)      return 2'd2;
+        else if (a == 2'd1 || b == 2'd1) return 2'd1;
+        else                             return a;
+    endfunction
+
     always @(*) begin
         logic [2:0] s1;       // where the second µop starts
         u0_valid = valid[0];
@@ -148,6 +167,8 @@ module OOO_FUSE
         u1_valid = valid[0] && (s1 < 3'd4) && valid[s1[1:0]];
         u1_slot  = s1[1:0];
         u1_kind  = (s1 < 3'd3) ? pk[s1[1:0]] : K_NONE;
+        u0_port  = uport(2'd0, pk[0] != K_NONE);
+        u1_port  = uport(s1[1:0], u1_kind != K_NONE);
         if (!u0_valid)      consumed = 3'd0;
         else if (!u1_valid) consumed = s1;
         else                consumed = s1 + ((u1_kind != K_NONE) ? 3'd2 : 3'd1);

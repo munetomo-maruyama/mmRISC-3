@@ -56,6 +56,7 @@ EOF
 
 run_all() {
 one OOC_ALU2
+one OOC_ALU2 FULL=0
 one OOC_FUSE
 one OOC_RENAME
 one OOO_IQ

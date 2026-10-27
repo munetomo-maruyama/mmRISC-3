@@ -3,7 +3,9 @@
 // specification (RV64I, Zba, Zbb, Zbs, Zicond), random operations, operand
 // selections and values (values biased to the edges: 0, -1, sign bits,
 // small shifts), and the branch comparison alone or fused after the
-// operation (its other operand s1, s2 or zero)
+// operation (its other operand s1, s2 or zero). Built with ALU1 defined
+// (tb_alu1.cpp, OOO_ALU2 FULL = 0): only the operations of ALU1, add / sub
+// (and their word forms), slt / sltu, xor / or / and.
 //---------------------------------------------------------------------------
 #include "VOOO_ALU2.h"
 #include <cstdint>
@@ -78,6 +80,12 @@ static uint64_t ref_alu(int op, uint64_t a, uint64_t b, bool uw, int shift, bool
 // the operand forms the decoder produces (word forms, .uw, sh*add only where RISC-V has them)
 static void rand_op(int& op, bool& uw, int& shift, bool& word)
 {
+#ifdef ALU1
+    static const int SIMPLE[] = {0, 1, 3, 4, 5, 8, 9};
+    op = SIMPLE[rng() % 7];
+    uw = false; shift = 0; word = (op == 0 || op == 1) && (rng() & 1);
+    return;
+#endif
     op = (int)(rng() % 33);
     uw = false; shift = 0; word = false;
     if (op == 0) { int k = rng() % 6; if (k == 1) word = true; else if (k == 2) uw = true;
@@ -127,6 +135,10 @@ int main(int argc, char** argv)
                        d.take_branch, brf, bos, t);
         }
     }
+#ifdef ALU1
+    printf("tb_alu1: %ld vectors (ALU1: add / sub, slt / sltu, logic), %ld mismatches: %s\n", n, bad, bad ? "FAIL" : "PASS");
+#else
     printf("tb_alu2: %ld vectors, %ld mismatches: %s\n", n, bad, bad ? "FAIL" : "PASS");
+#endif
     return bad ? 1 : 0;
 }

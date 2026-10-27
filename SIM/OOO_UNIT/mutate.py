@@ -26,7 +26,7 @@ CACHE = os.path.abspath(os.path.join(HERE, '..', '..', 'RTL', 'CPU', 'CACHE'))  
 M = [
     # id, file, test, old, new, what it breaks
     ('M1', 'OOO_ALU/OOO_ALU.sv', 'alu2', "ALU_BEXT:  r_ext = {63'd0, shr[0]};", "ALU_BEXT:  r_ext = {63'd0, shr[1]};", 'bext takes the wrong bit'),
-    ('M2', 'OOO_ALU/OOO_ALU.sv', 'alu2', "sum   = {1'b0, a_zx << a_shift}", "sum   = {1'b0, a_zx}", 'sh*add without the shift'),
+    ('M2', 'OOO_ALU/OOO_ALU.sv', 'alu2', "sum   = {1'b0, FULL ? a_zx << a_shift : a_zx}", "sum   = {1'b0, a_zx}", 'sh*add without the shift'),
     ('M4', 'OOO_ALU2/OOO_ALU2.sv', 'alu2', "3'b101:  take_branch = is_br & ~lt;", "3'b101:  take_branch = is_br & lt;", 'BGE taken as BLT'),
     ('M5', 'OOO_FUSE/OOO_FUSE.sv', 'fuse', "cls[k+1] == C_LOAD && d != 5'd0 && rs1[k+1] == d", "cls[k+1] == C_STORE && d != 5'd0 && rs1[k+1] == d", 'ALU + load fused as ALU + store'),
     ('M7', 'OOO_FUSE/OOO_FUSE.sv', 'fuse', "s1       = (pk[0] != K_NONE) ? 3'd2 : 3'd1;", "s1       = (pk[0] != K_NONE) ? 3'd1 : 3'd1;", 'the second µop starts inside the first pair'),
@@ -36,7 +36,7 @@ M = [
     ('M11', 'OOO_RENAME/OOO_RENAME.sv', 'rename', "busy[new_tag[u]] <= 1'b1;", "busy[new_tag[u]] <= 1'b0;", 'a new register not busy'),
     ('M12', 'OOO_RENAME/OOO_RENAME.sv', 'rename', 'head    <= ck_head[restore_id];', 'head    <= head;', 'restore keeps the free-list head'),
     ('M13', 'OOO_RENAME/OOO_RENAME.sv', 'rename', 'if (alloc[0] && in_dst[0] == in_dst[1]) out_old[1] = new_tag[0];', 'if (alloc[0] && in_dst[0] == in_dst[1]) out_old[1] = out_old[1];', 'in-group old mapping'),
-    ('M14', 'OOO_IQ/OOO_IQ.sv', 'iq', "g0[i] = req0[i] && ((req0 & older[i]) == '0);", 'g0[i] = req0[i] && (req0[i] == req0[i]) && ((req0 & older[i] & ~req0) == \'0);', 'port 0 not oldest first'),
+    ('M14', 'OOO_IQ/OOO_IQ.sv', 'iq', "g1[i] = req1[i] && ((req1 & older[i]) == '0);", "g1[i] = req1[i] && ((req1 & older[i] & ~req1) == '0);", 'port 1 not oldest first'),
     ('M15', 'OOO_IQ/OOO_IQ.sv', 'iq', 'bv[0] = iss_wr[0] && !lat2_0;', 'bv[0] = iss_wr[0];', 'latency 2 woken after 1'),
     ('M16', 'OOO_IQ/OOO_IQ.sv', 'iq', "if (disp1[i] && disp_valid[0] && fev[0]) oq[fe[0]] <= 1'b1;", "if (disp1[i] && disp_valid[0] && fev[0]) oq[fe[0]] <= 1'b0;", 'second µop of a pair as old as the first'),
     ('M17', 'OOO_IQ/OOO_IQ.sv', 'iq', 'bv[4+e] = ext_valid[e];', "bv[4+e] = 1'b0;", 'external wakeups lost'),
@@ -206,6 +206,14 @@ M = [
     ('M203', 'OOO_ALU2/OOO_ALU2.sv', 'alu2', "            2'd1:    o = s2;", "            2'd1:    o = s1;", 'a fused branch compares with s1 for s2'),
     ('M204', 'OOO_ALU2/OOO_ALU2.sv', 'alu2', "            2'd2:    o = 64'd0;", "            2'd2:    o = s2;", 'beqz after an operation compares with s2'),
     ('M205', 'OOO_FUSE/OOO_FUSE.sv', 'fuse', 'parameter int LEVEL = 2,', 'parameter int LEVEL = 1,', 'ALU + branch not fused'),
+    # 2026-10-27: L7, asymmetric ALUs (Doc/UARCH.md 6.12)
+    ('M206', 'OOO_DEC/OOO_DEC.sv', 'dec', "simple = (alu_op[k] == ALU_ADD && !a_uw[k] && a_shift[k] == 2'd0) || alu_op[k] == ALU_SUB ||", "simple = (alu_op[k] == ALU_ADD) || alu_op[k] == ALU_SUB ||", 'sh*add / add.uw sent to ALU1'),
+    ('M207', 'OOO_DEC/OOO_DEC.sv', 'dec', 'alu_op[k] == ALU_SLT || alu_op[k] == ALU_SLTU || alu_op[k] == ALU_XOR ||', 'alu_op[k] == ALU_SLTU || alu_op[k] == ALU_XOR ||', 'slt kept off ALU1'),
+    ('M208', 'OOO_FUSE/OOO_FUSE.sv', 'fuse', "else if (a == 2'd1 || b == 2'd1) return 2'd1;", "else if (a == 2'd1) return 2'd1;", 'a pair with an ALU0-only second half on any ALU'),
+    ('M209', 'OOO_IQ/OOO_IQ.sv', 'iq', "g0[i] = req0[i] && !g1[i] && (((req0 & ~g1) & older[i]) == '0);", "g0[i] = req0[i] && !g1[i] && ((req0 & older[i]) == '0);", "port 0 held by an older µop port 1 took"),
+    ('M210', 'OOO_IQ/OOO_IQ.sv', 'iq', "g0[i] = req0[i] && !g1[i] && (((req0 & ~g1) & older[i]) == '0);", "g0[i] = req0[i] && (((req0 & ~g1) & older[i]) == '0);", 'port 0 issues what port 1 took'),
+    ('M211', 'OOO_ALU/OOO_ALU.sv', 'alu1', "ALU_SLT:   r_ext = {63'd0, lt_s};", "ALU_SLT:   r_ext = {63'd0, FULL && lt_s};", 'ALU1 without slt'),
+    ('M212', 'OOO_ALU/OOO_ALU.sv', 'alu1', "ALU_AND:            r_log = op_a & lb;", "ALU_AND:            r_log = FULL ? op_a & lb : 64'd0;", 'ALU1 without and'),
     ('M81', 'OOO_FTQ/OOO_FTQ.sv', 'ftq', "assign push_ready = used != (FTQW + 1)'(NFTQ);", "assign push_ready = 1'b1;", 'a full FTQ takes a block'),
     ('M82', 'OOO_FTQ/OOO_FTQ.sv', 'ftq', "{(restore_idx >= head[FTQW-1:0]) ? head[FTQW] : ~head[FTQW], restore_idx}", "{head[FTQW], restore_idx}", 'restored tail with the wrong lap'),
     ('M83', 'OOO_FTQ/OOO_FTQ.sv', 'ftq', 'if (flush_all)    tail <= h;', 'if (flush_all)    tail <= head;', 'flush_all without the pops of that cycle'),

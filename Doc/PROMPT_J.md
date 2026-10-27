@@ -2259,3 +2259,53 @@ Fetch buffer back at 4 blocks, as you asked, and recorded. Pushed to dev as `aee
 ```text
 Next, add the operation class to the model and measure L7 (asymmetric ALUs).
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+モデルに命令ごとの演算の種類を加え、L7(非対称なALU)を測りました。損は−0.3% / −0.2%で、D-13の基準(約1%以下)に収まります。ただし条件があり、発行キューが単純な演算を先にALU1へ回す必要があります。逆の順だと−6%です。
+
+**モデルの変更**(`Plan/model/ooo.h`に`alu_split`を追加)
+- これまでは2つのALUポートをひとまとめに扱い、どちらもどの演算でも取れることにしていました。
+- `alu_split` 1: ALU0とALU1を分け、MUL / DIVとシステム命令はALU0だけにします(RTLと同じ)。
+- `alu_split` 2: さらに「複雑な」演算(シフト、Zba、Zbb、Zbs、Zicond)もALU0だけにします。単純な演算はALU1を先に取ります(L7)。
+- `alu_split` 3: 2と同じで、単純な演算がALU0を先に取ります。
+
+**結果**(決めた組み合わせが基準: 6.279 / 6.710)
+
+| 構成 | `-O2` | 最大の最適化 |
+|---|---|---|
+| ポートを分けただけ(1) | 6.279(損なし) | 6.710 |
+| **L7、単純な演算はALU1を先に(2)** | **6.260(−0.3%)** | **6.695(−0.2%)** |
+| L7、単純な演算はALU0を先に(3) | 5.882(−6.3%) | 6.264(−6.6%) |
+
+- 悲観のパイプラインでは、L7(2)で−0.5% / −0.4%です。
+- **順が大事な理由**: 複雑な演算はALU命令の30%(全命令の16.5%)あります。単純な演算がALU0を先に取ると、複雑な演算がその後ろで待たされます。
+- **RTLでの意味**: 今の発行キューは、ポート0(ALU0)を先に選んでいます。L7を入れるなら、ポート1(準備のできたいちばん古い単純な演算)を先に選び、残りからポート0を選ぶ順に逆にします。選択の段数は変わりません。
+
+**規模の見込み**
+- いまポートのALUは、Vivadoで801 LUTです。
+- Yosysでは、加減算・論理・比較だけのALUが165 LUT、フルのALUが2,174 LUTです。フルのALUのVivado/Yosysの比(0.37)で換算すると、ALU1で**約−0.5k〜−0.65k**になります。
+- ただしYosysの差は目安にすぎず、確定はVivadoの数です。
+
+**RTLに入れる場合の作業**(まだRTLには入れていません)
+- デコードと融合: 複雑な演算と、複雑なALU部分をもつ融合した組を「ALU0だけ」にします。MUL / DIVですでに使っている区分です。
+- 発行キュー: 選択の順を逆にします。
+- ALU1の`OOO_ALU2`: 単純な演算だけの`OOO_ALU`を使います。D-14で空いたパラメータ`FULL`をこれに使えます。
+
+記録は`Doc/UARCH` 6.11(英語版と日本語版)と`Plan/model/results/g0b.txt`、プロンプトログ(62の回答と63の英訳)に入れ、devにpushしました(`728ceaa`)。
+
+なお、前回(62)の回答を英語で書いてしまっていました。以後は日本語で答えます。
+<!-- /answer -->
+
+## 64. 2026-10-27 21:52:16 JST
+
+```text
+Build L7 into the RTL: complex ALU ops ALU0-only in decode and fusion, the issue queue selecting port 1 first, and ALU1 with the limited ALU. Then tests and Vivado scripts.
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+The docs are written. Waiting for the full test and mutation run to finish before committing.
+<!-- /answer -->

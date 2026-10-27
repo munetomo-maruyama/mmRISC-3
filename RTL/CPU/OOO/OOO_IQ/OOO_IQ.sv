@@ -5,9 +5,14 @@
 // unified, N entries, up to 2 sources and 1 destination per µop (a fused
 // pair too: OOO_FUSE SRC2 / W1, Plan/OOC.md 7.4), 2 µops written a cycle,
 // 3 issued a cycle:
-//   port 0  ALU0 (and MUL / DIV, which only go here)
-//   port 1  ALU1
+//   port 0  ALU0 (and MUL / DIV, and the ALU operations ALU1 does not have,
+//           which only go here)
+//   port 1  ALU1 (add / sub, slt / sltu, logic, branches: "any ALU" µops)
 //   port 2  LSU
+// Port 1 selects first (the oldest ready "any ALU" µop), then port 0 (the
+// oldest ready ALU µop of the rest), so that a µop ALU1 can take does not
+// keep ALU0 from one only ALU0 can take (G0b L7, Doc/UARCH.md 6.11: −0.3 %
+// this way round, −6 % the other way).
 // The selection and the wakeup close in one cycle (the loop that lets a
 // dependent ALU µop issue in the cycle after its producer):
 //   ready bits -> requests -> oldest first by an age matrix -> the issued
@@ -103,11 +108,11 @@ module OOO_IQ
             req2[i] = ready_all[i] && (port[i] == 2'd2);
         end
         for (int i = 0; i < N; i++) begin
-            g0[i] = req0[i] && ((req0 & older[i]) == '0);
+            g1[i] = req1[i] && ((req1 & older[i]) == '0);
+            g2[i] = req2[i] && ((req2 & older[i]) == '0);
         end
         for (int i = 0; i < N; i++) begin
-            g1[i] = req1[i] && !g0[i] && (((req1 & ~g0) & older[i]) == '0);
-            g2[i] = req2[i] && ((req2 & older[i]) == '0);
+            g0[i] = req0[i] && !g1[i] && (((req0 & ~g1) & older[i]) == '0);
         end
     end
 

@@ -24,7 +24,10 @@
 //   imm       the immediate, 32 bits (sign extended at its use); its low 12
 //             bits are the load / store offset OOO_FUSE pairs on
 //   port      0 any ALU, 1 ALU0 only (MUL / DIV, CSR and system: they run
-//             at the ROB head beside ALU0), 2 LSU, 3 FPU (Doc/UARCH.md 3.5)
+//             at the ROB head beside ALU0; and the ALU operations ALU1 does
+//             not have, G0b L7: everything but add / sub, slt / sltu and
+//             the logic operations, so shifts, Zba, Zbb, Zbs, Zicond), 2
+//             LSU, 3 FPU (Doc/UARCH.md 3.5)
 //   lat2      the result comes 2 cycles after issue (a multiply, a load)
 //   ext_ans   the result comes from outside, woken on ext_* (a divide; AMO,
 //             LR, SC from the LSU at the head)
@@ -97,7 +100,8 @@ module OOO_DEC
         output logic [3:0]          fp_int_w
     );
 
-    localparam logic [5:0] ALU_ADD = 6'd0, ALU_SLL = 6'd2, ALU_SRL = 6'd6, ALU_SRA = 6'd7;
+    localparam logic [5:0] ALU_ADD = 6'd0, ALU_SUB = 6'd1, ALU_SLL = 6'd2, ALU_SLT = 6'd3, ALU_SLTU = 6'd4,
+                           ALU_XOR = 6'd5, ALU_SRL = 6'd6, ALU_SRA = 6'd7, ALU_OR = 6'd8, ALU_AND = 6'd9;
     localparam logic [4:0] CMD_LOAD = 5'd0, CMD_STORE = 5'd1;
 
     for (genvar k = 0; k < 4; k++) begin : g_slot
@@ -161,7 +165,7 @@ module OOO_DEC
         assign mem_cmd[k]      = S0 ? l_mem_cmd : {4'd0, is_store};
 
         always @(*) begin
-            logic ill, ld, st, amo, alu, div, sysm;
+            logic ill, ld, st, amo, alu, div, sysm, simple;
             ill  = d_ill || (in_rvc[k] && c_ill);
             // integer loads and stores; AMO / LR / SC have both or a command of their own
             ld   = is_load  && !is_store && l_mem_cmd == CMD_LOAD  && !is_fp_load;
@@ -194,11 +198,17 @@ module OOO_DEC
                 else if (alu_op[k] == ALU_ADD && !b_sel[k])                 op[k] = 3'd5;   // add(w), sh*add(.uw), add.uw
                 else if (alu_op[k] == ALU_ADD && b_sel[k])                  op[k] = 3'd6;   // addi(w)
             end
+            // an operation ALU1 has (OOO_ALU FULL = 0): add / sub without the
+            // Zba changes of the first operand, slt / sltu, xor / or / and
+            simple = (alu_op[k] == ALU_ADD && !a_uw[k] && a_shift[k] == 2'd0) || alu_op[k] == ALU_SUB ||
+                     alu_op[k] == ALU_SLT || alu_op[k] == ALU_SLTU || alu_op[k] == ALU_XOR ||
+                     alu_op[k] == ALU_OR || alu_op[k] == ALU_AND;
             // where it issues, how its result comes
             if (ill)                            port[k] = 2'd1;    // (an exception at decode: never issued)
             else if (is_load || is_store)       port[k] = 2'd2;
             else if (l_fp && S0)                port[k] = 2'd3;    // (FP loads and stores went to the LSU)
             else if (is_mdu || (sysm && S0))    port[k] = 2'd1;
+            else if (alu && !simple)            port[k] = 2'd1;    // ALU0 only (L7)
             else                                port[k] = 2'd0;
             lat2[k]    = !ill && ((is_mdu && !div) || ld);
             ext_ans[k] = !ill && (div || (amo && S0));

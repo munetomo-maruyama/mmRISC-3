@@ -19,6 +19,11 @@
 // Fusion level 2 (G0b D-14, Doc/UARCH.md 6.3 and 6.7): the second, narrowed
 // ALU of a fused ALU + ALU is gone with that pair.
 //
+// FULL = 0 is ALU1 (G0b L7, Doc/UARCH.md 6.11 and 6.12): its OOO_ALU has only
+// add / sub, slt / sltu and the logic operations (OOO_ALU FULL = 0); the
+// issue queue gives it only µops decoded as "any ALU", which those are (a
+// branch, alone or fused after such an operation, compares here as well).
+//
 // What is not here: the target of a branch or jump (pc + imm, a separate
 // adder beside this one, not on the chained path) and the link value.
 //---------------------------------------------------------------------------
@@ -26,6 +31,9 @@
 `timescale 1ns/1ps
 
 module OOO_ALU2
+    #(
+        parameter bit FULL = 1'b1       // 0: ALU1, the limited ALU
+    )
     (
         input  logic [63:0] s1,
         input  logic [63:0] s2,
@@ -62,7 +70,7 @@ module OOO_ALU2
         b1 = b1_imm ? imm1 : s2;
     end
 
-    OOO_ALU u_alu1
+    OOO_ALU #(.FULL(FULL)) u_alu1
         (.op_a(a1), .op_b(b1), .alu_op(op1), .a_uw(uw1), .a_shift(shift1), .word_op(word1),
          .result(res1));
 

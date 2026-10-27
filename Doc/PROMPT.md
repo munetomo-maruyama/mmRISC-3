@@ -2270,3 +2270,47 @@ Fetch buffer back at 4 blocks, as you asked, and recorded. Pushed to dev as `aee
 ```text
 Next, add the operation class to the model and measure L7 (asymmetric ALUs).
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I added the operation class of each instruction to the model and measured L7 (asymmetric ALUs). The loss is −0.3 % / −0.2 %, inside D-13's criterion (about 1 % or less). There is one condition: the issue queue has to give simple operations to ALU1 first. The other way round it is −6 %.
+
+**Changes to the model** (`alu_split` added to `Plan/model/ooo.h`)
+- Until now the two ALU ports were pooled: either could take any operation.
+- `alu_split` 1: ALU0 and ALU1 apart, MUL / DIV and system instructions on ALU0 only (as the RTL).
+- `alu_split` 2: also the "complex" operations (shifts, Zba, Zbb, Zbs, Zicond) on ALU0 only; simple operations take ALU1 first (L7).
+- `alu_split` 3: as 2, with simple operations taking ALU0 first.
+
+**Results** (the decided set as the base: 6.279 / 6.710)
+
+| Configuration | `-O2` | Most optimization |
+|---|---|---|
+| Ports apart only (1) | 6.279 (no loss) | 6.710 |
+| **L7, simple operations to ALU1 first (2)** | **6.260 (−0.3 %)** | **6.695 (−0.2 %)** |
+| L7, simple operations to ALU0 first (3) | 5.882 (−6.3 %) | 6.264 (−6.6 %) |
+
+- In the pessimistic pipeline L7 (2) is −0.5 % / −0.4 %.
+- **Why the order matters**: the complex operations are 30 % of the ALU instructions (16.5 % of all). If simple operations take ALU0 first, the complex ones wait behind them.
+- **What it means for the RTL**: the issue queue now selects port 0 (ALU0) first. With L7 it selects port 1 first (the oldest ready simple operation) and port 0 from the rest. The select's depth stays the same.
+
+**Size expected**
+- The ALU of a port is 801 LUTs in Vivado now.
+- In Yosys an ALU with only add / sub, logic and compares is 165 LUTs, the full one 2,174. With the full one's Vivado / Yosys ratio (0.37), ALU1 saves **about −0.5k to −0.65k**.
+- Yosys differences are only a hint; Vivado decides.
+
+**Work to put it into the RTL** (not in the RTL yet)
+- Decode and fusion: complex operations, and fused pairs with a complex ALU part, become "ALU0 only", the class MUL / DIV already use.
+- Issue queue: the select order turned round.
+- ALU1's `OOO_ALU2`: an `OOO_ALU` with only the simple operations; the parameter `FULL`, free since D-14, can be used for it.
+
+Recorded in `Doc/UARCH` 6.11 (English and Japanese), `Plan/model/results/g0b.txt` and the prompt log (answer 62 and the English of 63); pushed to dev (`728ceaa`).
+
+By the way, my last answer (62) was written in English by mistake. From now on I answer in Japanese.
+<!-- /answer -->
+
+## 64. 2026-10-27 21:52:16 JST
+
+```text
+Build L7 into the RTL: complex ALU ops ALU0-only in decode and fusion, the issue queue selecting port 1 first, and ALU1 with the limited ALU. Then tests and Vivado scripts.
+```
