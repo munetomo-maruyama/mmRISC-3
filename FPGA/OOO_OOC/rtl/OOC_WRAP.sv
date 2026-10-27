@@ -270,10 +270,10 @@ module OOC_ROB
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [211:0]  in,
-        output logic [230:0]  out
+        input  logic [217:0]  in,
+        output logic [236:0]  out
     );
-    logic [211:0] q;
+    logic [217:0] q;
     always_ff @(posedge clk) q <= in;
     logic [1:0] rob_avail;
     logic [9:0] disp_rob;
@@ -296,13 +296,14 @@ module OOC_ROB
     logic [37:0] trap_pc;
     logic replay;
     logic [37:0] replay_pc;
+    logic [5:0] cmt_ftq;
     OOO_ROB #(.NROB(24), .ROBW(5), .VA(39), .TAGW(6), .CW(3), .NCMP(4)) u_rob
         (.clk(clk), .rst_n(rst_n),
          .disp_valid(q[1:0]), .disp_pc(q[77:2]), .disp_wr(q[79:78]), .disp_arch(q[89:80]),
          .disp_new(q[101:90]), .disp_old(q[113:102]), .disp_ld(q[115:114]), .disp_st(q[117:116]),
          .disp_fused(q[119:118]), .disp_ns(q[121:120]), .disp_exc(q[123:122]), .disp_cause(q[133:124]),
          .cmp_valid(q[137:134]), .cmp_rob(q[157:138]), .cmp_exc(q[161:158]), .cmp_cause(q[181:162]),
-         .br_valid(q[183:182]), .br_rob(q[193:184]), .br_mispred(q[195:194]), .br_ckpt(q[201:196]), .disp_len(q[207:202]), .cmp_rp(q[211:208]),
+         .br_valid(q[183:182]), .br_rob(q[193:184]), .br_mispred(q[195:194]), .br_ckpt(q[201:196]), .disp_len(q[207:202]), .cmp_rp(q[211:208]), .disp_ftq(q[217:212]), .cmt_ftq(cmt_ftq),
          .rob_avail(rob_avail), .disp_rob(disp_rob), .restore(restore), .restore_rob(restore_rob),
          .restore_ckpt(restore_ckpt), .head_rob(head_rob), .head_ns(head_ns), .cmt_valid(cmt_valid),
          .cmt_wr(cmt_wr), .cmt_arch(cmt_arch), .cmt_new(cmt_new), .cmt_old(cmt_old),
@@ -310,7 +311,7 @@ module OOC_ROB
          .trap(trap), .trap_cause(trap_cause), .trap_pc(trap_pc),
          .replay(replay), .replay_pc(replay_pc));
     always_ff @(posedge clk)
-        out <= {rob_avail, disp_rob, restore, restore_rob, restore_ckpt, head_rob, head_ns, cmt_valid, cmt_wr, cmt_arch, cmt_new, cmt_old, cmt_pc, cmt_ld_n, cmt_st_n, cmt_instret, trap, trap_cause, trap_pc, replay, replay_pc};
+        out <= {rob_avail, disp_rob, restore, restore_rob, restore_ckpt, head_rob, head_ns, cmt_valid, cmt_wr, cmt_arch, cmt_new, cmt_old, cmt_pc, cmt_ld_n, cmt_st_n, cmt_instret, trap, trap_cause, trap_pc, replay, replay_pc, cmt_ftq};
 endmodule : OOC_ROB
 
 //---------------------------------------------------------------------------
@@ -673,29 +674,34 @@ module OOC_CTRL
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [212:0]  in,
-        output logic [90:0]   out
+        input  logic [240:0]  in,
+        output logic [112:0]  out
     );
-    logic [212:0] q;
+    logic [240:0] q;
     always_ff @(posedge clk) q <= in;
     logic [1:0]       r_valid, r_ckpt, ds_ld, ds_st, rob_avail, iq_avail, lq_avail, sq_avail, br_valid, br_mispred;
     logic [1:0][2:0]  r_ckpt_id, ds_ftq, br_ckpt;
-    logic             r_ren_ready, rob_restore, trap, replay;
+    logic             r_ren_ready, rob_restore, trap, replay, head_ns, iss_ns;
+    logic [1:0]       cmt_valid, cmt_wr, cmt_ld_n, cmt_st_n;
+    logic [1:0][5:0]  cmt_old;
+    logic [1:0][2:0]  cmt_ftq;
     logic [1:0][3:0]  ck_lq_tail, ck_sq_tail;
     logic [1:0][37:0] br_next;
     logic [2:0]       rob_restore_ckpt;
     logic [37:0]      replay_pc, trap_vec;
     assign {r_valid, r_ckpt, r_ckpt_id, r_ren_ready, ds_ld, ds_st, ds_ftq, rob_avail, iq_avail, lq_avail, sq_avail,
             ck_lq_tail, ck_sq_tail, br_valid, br_mispred, br_ckpt, br_next, rob_restore, rob_restore_ckpt, trap,
-            replay, replay_pc, trap_vec} = q;
+            replay, replay_pc, trap_vec, head_ns, cmt_valid, cmt_wr, cmt_old, cmt_ld_n, cmt_st_n, cmt_ftq, iss_ns} = q;
     logic [1:0]       r_go, ds_valid, d_go;
     logic [1:0][5:0]  d_bmask;
-    logic             flush_all, restore, fe_redirect;
+    logic             flush_all, restore, fe_redirect, fe_flush, ns_ok;
+    logic [1:0]       free_valid, lq_commit, sq_commit, ftq_pop;
+    logic [1:0][5:0]  free_tag;
     logic [2:0]       restore_id, restore_ftq;
     logic [3:0]       restore_lq_tail, restore_sq_tail;
     logic [5:0]       kill, clr, live;
     logic [37:0]      fe_pc;
-    OOO_CTRL #(.NCKPT(6), .CW(3), .VA(39), .FTQW(3), .LW(3)) u_ctrl
+    OOO_CTRL #(.NCKPT(6), .CW(3), .VA(39), .FTQW(3), .LW(3), .TAGW(6)) u_ctrl
         (.clk(clk), .rst_n(rst_n),
          .r_valid(r_valid), .r_ckpt(r_ckpt), .r_ckpt_id(r_ckpt_id), .r_ren_ready(r_ren_ready), .r_go(r_go),
          .ds_valid(ds_valid), .ds_ld(ds_ld), .ds_st(ds_st), .ds_ftq(ds_ftq),
@@ -703,11 +709,15 @@ module OOC_CTRL
          .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail), .d_go(d_go), .d_bmask(d_bmask),
          .br_valid(br_valid), .br_mispred(br_mispred), .br_ckpt(br_ckpt), .br_next(br_next),
          .rob_restore(rob_restore), .rob_restore_ckpt(rob_restore_ckpt), .trap(trap), .replay(replay),
-         .replay_pc(replay_pc), .trap_vec(trap_vec),
+         .replay_pc(replay_pc), .trap_vec(trap_vec), .head_ns(head_ns), .cmt_valid(cmt_valid), .cmt_wr(cmt_wr),
+         .cmt_old(cmt_old), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_ftq(cmt_ftq), .iss_ns(iss_ns), .ns_ok(ns_ok),
+         .fe_flush(fe_flush),
          .flush_all(flush_all), .restore(restore), .restore_id(restore_id), .restore_lq_tail(restore_lq_tail),
          .restore_sq_tail(restore_sq_tail), .restore_ftq(restore_ftq), .kill(kill), .clr(clr),
-         .fe_redirect(fe_redirect), .fe_pc(fe_pc), .live(live));
+         .fe_redirect(fe_redirect), .fe_pc(fe_pc), .live(live), .free_valid(free_valid), .free_tag(free_tag),
+         .lq_commit(lq_commit), .sq_commit(sq_commit), .ftq_pop(ftq_pop));
     always_ff @(posedge clk)
         out <= {r_go, ds_valid, d_go, d_bmask, flush_all, restore, restore_id, restore_lq_tail, restore_sq_tail,
-                restore_ftq, kill, clr, fe_redirect, fe_pc, live};
+                restore_ftq, kill, clr, fe_redirect, fe_pc, live, ns_ok, fe_flush, free_valid, free_tag, lq_commit,
+                sq_commit, ftq_pop};
 endmodule : OOC_CTRL

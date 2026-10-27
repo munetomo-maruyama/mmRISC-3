@@ -1566,3 +1566,61 @@ synth_ooo.bat OOO_IQ
 5. **Exceptions and interrupts**: the trap vector and the CSR writes (mepc, mcause, mtval), interrupts at a µop
    boundary, the refetch with fusion off after an exception inside a pair (3.8), FENCE.I / SFENCE.VMA flushing the
    front end.
+
+---
+
+## 19. The control, second part: non-speculative µops, commit and the FTQ's pops (2026-10-27)
+
+Items 1 and 2 of 18.7.
+
+### 19.1 What was done
+
+| Block | What was done |
+|---|---|
+| `OOO_IQ` | A non-speculative bit per entry (`disp_ns`: CSR, system, AMO / LR / SC, cbo.zero). Such an entry may be selected only with `ns_ok` and when no older non-speculative entry is in the queue (the head's is the oldest); `iss_ns` says that one issued. The condition is of registered state and `ns_ok`, off the wakeup-select loop |
+| `OOO_CTRL` | `ns_ok` = the ROB head is a non-speculative µop not run yet (`head_ns`) and none has issued since that head came (`head_ns` alone stays up while an issued CSR executes). The commit fan-out: the old mappings to the free list (`free_*`), the LQ / SQ counts. The FTQ's pops: the blocks before the block of the latest committed µop, up to 2 a cycle, its own block too after a replay. The back end flushed a cycle after a trap or a replay (below) |
+| `OOO_ROB` | The µop's fetch block in the payload (`disp_ftq` → `cmt_ftq`, 3 bits) |
+
+- **A µop that changes what younger ones do** (a CSR write, FENCE.I, SFENCE.VMA, MRET) completes marked for replay
+  after commit, so what follows it is fetched again: the ROB's existing mechanism, a contract for the units and no new
+  logic. CSR reads need nothing more than `ns_ok`.
+- **Found: a replay flushed renaming in the cycle it commits the load.** Renaming goes back to its committed state,
+  which takes that cycle's commit only at the clock edge, so the load's mapping (and the free list's committed head)
+  would be lost. Now the front end is flushed at once (`fe_flush`: the FTQ, the fetch buffer, fetch from `fe_pc`) and
+  the back end a cycle later (`flush_all`: renaming, the LSU, the issue queue, the units); in between nothing is
+  renamed or dispatched, and the ROB is already empty. A trap commits nothing in its cycle, but goes the same way.
+- **Lost predictor updates**: a trap or a replay flushes the FTQ; blocks still to pop then (only when more than 2
+  blocks end in a cycle) go without their update.
+
+### 19.2 Verification
+
+- **`tb_ctrl`** also checks: `fe_flush` at once and `flush_all` a cycle later, with nothing renamed, dispatched or
+  cleared in either cycle; `ns_ok` against its own model of the busy bit (random `head_ns` and issues); the free list
+  and LQ / SQ fan-out; the FTQ pops against a mirror of the FTQ's head with random commits whose blocks move on by 0
+  to 2 a µop. PASS on 4 seeds (about 200,000 pops a run).
+- **`tb_iq`**: an eighth of the ALU0-only and LSU µops non-speculative, `ns_ok` random; such a µop issues only with
+  it and as the oldest one queued; `iss_ns` checked. PASS on 4 seeds (about 17,000 a run).
+- **`tb_rob`**: the fetch block at commit. PASS.
+- **Bug injection**: 9 added (6 in `OOO_CTRL`, 2 in `OOO_IQ`, 1 in `OOO_ROB`), 3 of the ROB retargeted (its payload's
+  fields moved): 200 in all.
+
+### 19.3 Size (Yosys), and the Vivado runs asked of the author
+
+| Block | Yosys | Before |
+|---|---|---|
+| OOC_CTRL | 388 | 384 |
+| OOO_IQ | 2,986 | 2,833 |
+| OOC_ROB | 1,668 | 1,621 |
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_CTRL
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_ROB
+```
+
+### 19.4 What is left of the control
+
+Items 3 to 5 of 18.7: the units' pipelines dropping by mask and the DS register's payload, the front end's restore
+(history, RAS), exceptions and interrupts (CSR writes, interrupts at a µop boundary, the refetch with fusion off after
+an exception inside a pair).

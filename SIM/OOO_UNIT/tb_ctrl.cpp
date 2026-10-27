@@ -25,6 +25,14 @@
 //   - restore: the id, the LSU tails and the FTQ index given at the
 //     branch's dispatch
 //   - the redirect: trap vector, replay pc, or the restoring branch's next pc
+//   - trap / replay: fe_flush at once, flush_all a cycle later, and nothing
+//     renamed, dispatched or cleared in either cycle
+//   - ns_ok: the head non-speculative and not run yet (head_ns random, an
+//     issue of it random, cleared when the head commits or a flush)
+//   - the commit fan-out: free_valid / free_tag, lq_commit / sq_commit
+//   - the FTQ pops: the blocks before the latest committed µop's (its own
+//     after a replay), at most 2 a cycle, against a mirror of the FTQ's
+//     head; random commits whose blocks move on by 0 to 2 a µop
 //---------------------------------------------------------------------------
 #include "VOOO_CTRL.h"
 #include <algorithm>
@@ -58,7 +66,10 @@ int main(int argc, char** argv)
     long seq = 0;
     int ck_next = 0;
     int res_pct = 30;            // the chance a port resolves a branch in a cycle
-    long nren = 0, ndisp = 0, nclr = 0, nrestore = 0, nflush = 0, nckstall = 0;
+    long nren = 0, ndisp = 0, nclr = 0, nrestore = 0, nflush = 0, nckstall = 0, npop = 0, nnsok = 0;
+    bool flushq = false;         // trap / replay in the cycle before: the back end flushes now
+    bool ns_busy = false;
+    int fhd = 0, ftgt = 0, cblk = 0;   // the FTQ's head, the pop target, the block commits are in
     auto gen = [&]() { U u; u.seq = seq++; int r = rng() % 100; u.ck = r < 25; u.ld = r >= 25 && r < 45; u.st = r >= 45 && r < 60; u.ftq = rng() % 8; return u; };
     auto live_truth = [&]() { unsigned m = 0; for (auto& u : fl) if (u.ck && !u.resolved) m |= 1u << u.id; return m; };
     auto mask_of = [&](long s) { unsigned m = 0; for (auto& u : fl) { if (u.seq >= s) break; if (u.ck && !u.resolved) m |= 1u << u.id; } return m; };
@@ -83,7 +94,7 @@ int main(int argc, char** argv)
         // resolutions: up to 2 dispatched branches not resolved; their rate changes
         // now and then, so that the checkpoints run out at times
         if (cyc % 500 == 0) res_pct = (int[]){10, 30, 70}[rng() % 3];
-        std::vector<U*> cand; for (auto& u : fl) if (u.ck && u.disp && !u.resolved) cand.push_back(&u);
+        std::vector<U*> cand; if (!flushq) for (auto& u : fl) if (u.ck && u.disp && !u.resolved) cand.push_back(&u);
         std::shuffle(cand.begin(), cand.end(), rng);
         U* br[2] = {nullptr, nullptr}; bool mis[2] = {false, false}; uint64_t nxt[2];
         unsigned bv = 0, bm = 0, bck = 0;
@@ -94,7 +105,16 @@ int main(int argc, char** argv)
         }
         // the ROB: the oldest mispredicted of the cycle; now and then a trap or a replay
         U* rs = nullptr; for (int p = 0; p < 2; p++) if (br[p] && mis[p] && (!rs || br[p]->seq < rs->seq)) rs = br[p];
-        int trap = rng() % 400 == 0, replay = !trap && rng() % 400 == 0;
+        int trap = !flushq && rng() % 400 == 0, replay = !flushq && !trap && rng() % 400 == 0;
+        // commits (none with a trap, at least one with a replay), their blocks moving on
+        unsigned cv = 0, cwr = 0, cold = 0, cldn = rng() % 3, cstn = rng() % 3, cftq = 0;
+        if (!trap && !flushq && (replay || rng() % 3)) cv = (rng() % 2) ? 3 : 1;
+        for (int k = 0; k < 2; k++) {
+            if ((cv >> k) & 1) { int step = rng() % 8; cblk = (cblk + (step < 5 ? 0 : step < 7 ? 1 : 2)) % 8; if ((cblk - fhd + 8) % 8 > 6) cblk = (fhd + 6) % 8; }
+            cftq |= (unsigned)cblk << (3 * k);
+            cwr |= (rng() & 1) << k; cold |= (unsigned)(rng() % 64) << (6 * k);
+        }
+        int head_ns = rng() % 3 == 0, iss_ns = rng() % 4 == 0;
         uint64_t tvec = rng() & ((1ull << 38) - 1), rpc = rng() & ((1ull << 38) - 1);
 
         d.r_valid = rv; d.r_ckpt = rck; d.r_ckpt_id = rid; d.r_ren_ready = ren_ready;
@@ -105,10 +125,12 @@ int main(int argc, char** argv)
         d.br_next[0] = (uint32_t)nxt[0]; d.br_next[1] = (uint32_t)(nxt[0] >> 32) | (uint32_t)(nxt[1] << 6); d.br_next[2] = (uint32_t)(nxt[1] >> 26);
         d.rob_restore = rs != nullptr; d.rob_restore_ckpt = rs ? rs->id : rng() % NCK;
         d.trap = trap; d.replay = replay; d.replay_pc = rpc; d.trap_vec = tvec;
+        d.head_ns = head_ns; d.iss_ns = iss_ns;
+        d.cmt_valid = cv; d.cmt_wr = cwr; d.cmt_old = cold; d.cmt_ld_n = cldn; d.cmt_st_n = cstn; d.cmt_ftq = cftq;
         d.eval();
 
         // ---- expected
-        bool flush = trap || replay, restore = rs && !flush, rcv = flush || restore;
+        bool flush = trap || replay, restore = rs && !flush, rcv = flush || restore || flushq;
         unsigned live = live_truth();
         if ((unsigned)d.live != live) FAIL("live %02x, expected %02x", (unsigned)d.live, live);
         // DS
@@ -121,7 +143,7 @@ int main(int argc, char** argv)
         if ((unsigned)d.d_go != dgo) FAIL("d_go %u, expected %u (ds %d, rob %d iq %d lq %d sq %d, ld %d st %d, rcv %d)", (unsigned)d.d_go, dgo, nall, ra, ia, la, sa, nld, nst, rcv);
         // clears: the branches resolved as predicted that this cycle's restore does not kill
         unsigned clr = 0;
-        if (!flush) for (int p = 0; p < 2; p++) if (br[p] && !mis[p] && !(restore && br[p]->seq > rs->seq)) clr |= 1u << br[p]->id;
+        if (!flush && !flushq) for (int p = 0; p < 2; p++) if (br[p] && !mis[p] && !(restore && br[p]->seq > rs->seq)) clr |= 1u << br[p]->id;
         if ((unsigned)d.clr != clr) FAIL("clr %02x, expected %02x", (unsigned)d.clr, clr);
         for (int k = 0; k < nall; k++) {
             unsigned m = mask_of(ds[k]->seq) & ~clr;
@@ -136,9 +158,23 @@ int main(int argc, char** argv)
         if ((rv & 1) && dsfree && ren_ready && !rcv && (!ok0 || ((rv & 2) && !ok1))) nckstall++;
         if ((unsigned)d.r_go != go) FAIL("r_go %u, expected %u", (unsigned)d.r_go, go);
         // recovery
-        if ((bool)d.flush_all != flush) FAIL("flush_all %d, expected %d", (int)d.flush_all, flush);
+        if ((bool)d.fe_flush != flush) FAIL("fe_flush %d, expected %d", (int)d.fe_flush, flush);
+        if ((bool)d.flush_all != flushq) FAIL("flush_all %d, expected %d", (int)d.flush_all, flushq);
         if ((bool)d.restore != restore) FAIL("restore %d, expected %d", (int)d.restore, restore);
-        if ((bool)d.fe_redirect != rcv) FAIL("fe_redirect %d, expected %d", (int)d.fe_redirect, rcv);
+        if ((bool)d.fe_redirect != (flush || restore)) FAIL("fe_redirect %d, expected %d", (int)d.fe_redirect, flush || restore);
+        // non-speculative µops, the commit fan-out, the FTQ pops
+        bool nsok = head_ns && !ns_busy;
+        if ((bool)d.ns_ok != nsok) FAIL("ns_ok %d, expected %d", (int)d.ns_ok, nsok);
+        nnsok += nsok;
+        for (int k = 0; k < 2; k++) {
+            bool fv = ((cv >> k) & 1) && ((cwr >> k) & 1);
+            if ((bool)((d.free_valid >> k) & 1) != fv) FAIL("free_valid[%d] %d, expected %d", k, (int)((d.free_valid >> k) & 1), fv);
+            if (fv && ((d.free_tag >> (6 * k)) & 63) != ((cold >> (6 * k)) & 63)) FAIL("free_tag[%d]", k);
+        }
+        if ((unsigned)d.lq_commit != cldn || (unsigned)d.sq_commit != cstn) FAIL("lq / sq commit %d %d, expected %u %u", (int)d.lq_commit, (int)d.sq_commit, cldn, cstn);
+        int tgt = cv ? ((int)((cftq >> ((cv & 2) ? 3 : 0)) & 7) + (replay ? 1 : 0)) % 8 : ftgt;
+        int nd = (tgt - fhd + 8) % 8, epop = nd > 2 ? 2 : nd;
+        if ((int)d.ftq_pop != epop) FAIL("ftq_pop %d, expected %d (head %d, target %d)", (int)d.ftq_pop, epop, fhd, tgt);
         unsigned kill = restore ? 1u << rs->id : 0;
         if ((unsigned)d.kill != kill) FAIL("kill %02x, expected %02x", (unsigned)d.kill, kill);
         uint64_t fepc = (uint64_t)d.fe_pc;
@@ -155,12 +191,20 @@ int main(int argc, char** argv)
         // ---- the clock, and the account after it
         unsigned gor = d.r_go, god = d.d_go;
         d.clk = 1; d.eval(); d.clk = 0; d.eval();
+        if (flush || flushq || (cv & 1)) ns_busy = false; else if (iss_ns) ns_busy = true;
+        fhd = (fhd + epop) % 8; npop += epop;
+        ftgt = flush ? fhd : tgt;
+        if (flush) cblk = fhd;                      // the blocks fetched again start there
         // dispatch (with the tails of this cycle)
         for (int k = 0; k < nall; k++) if ((god >> k) & 1) { ds[k]->disp = true; ds[k]->lqt = lqt[k]; ds[k]->sqt = sqt[k]; ndisp++; }
         // resolutions as predicted
         for (int p = 0; p < 2; p++) if ((clr >> (br[p] ? br[p]->id : 0)) & 1 && br[p] && !mis[p]) { br[p]->resolved = true; nclr++; }
-        if (flush) {
-            fl.clear(); stream.clear(); nflush++;
+        bool was_fq = flushq;
+        flushq = flush;
+        if (was_fq) {
+            fl.clear(); stream.clear(); nflush++;   // the back end flushes in the cycle after
+        } else if (flush) {
+            stream.clear();                         // nothing renamed now; the front end flushed
         } else if (restore) {
             rs->resolved = true; nrestore++;
             long s = rs->seq;
@@ -178,7 +222,7 @@ int main(int argc, char** argv)
         // what no longer matters: dispatched non-branches and resolved branches at the front
         while (!fl.empty() && fl.front().disp && (!fl.front().ck || fl.front().resolved)) fl.pop_front();
     }
-    printf("tb_ctrl: %ld cycles, %ld µops renamed, %ld dispatched, %ld cleared, %ld restores, %ld flushes, %ld stalls on a checkpoint id, %ld mismatches: %s\n",
-           cyc, nren, ndisp, nclr, nrestore, nflush, nckstall, bad, bad ? "FAIL" : "PASS");
+    printf("tb_ctrl: %ld cycles, %ld µops renamed, %ld dispatched, %ld cleared, %ld restores, %ld flushes, %ld stalls on a checkpoint id, %ld FTQ pops, %ld cycles of ns_ok, %ld mismatches: %s\n",
+           cyc, nren, ndisp, nclr, nrestore, nflush, nckstall, npop, nnsok, bad, bad ? "FAIL" : "PASS");
     return bad ? 1 : 0;
 }

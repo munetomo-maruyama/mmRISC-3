@@ -2450,3 +2450,36 @@ synth_ooo.bat OOO_IQ
 ```text
 I ran synth_ooo.bat OOC_CTRL and synth_ooo.bat OOO_IQ. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Both close at 50 MHz. The gap in the middle is now 4.6k, a little wider than last time's 4.4k: the issue queue's branch masks are a new cost that was in no estimate.
+
+| Run | LUT | Register-to-register slack | Levels |
+|---|---|---|---|
+| The control's first part (`OOC_CTRL`) | **340** | +13.564 ns | 4 |
+| Issue queue (with branch masks) | **1,775** (+178 for the masks) | +7.841 ns | 10 |
+
+- The control has plenty of timing margin.
+- The issue queue's worst path is the same wakeup-select loop as before; the masks are not on it.
+
+**How the budget counts it**
+- The whole control's estimate (1.5k to 2.5k) stays, and these 340 are counted inside it. The remaining parts are to be written and measured.
+- The issue queue's masks (+178) are added: a new cost, to fix last time's finding that a misprediction emptied the issue queue completely.
+
+| | Low | Middle | High |
+|---|---|---|---|
+| After L7 was measured | 3.0k | 4.4k | 5.7k |
+| **After the control's first part was measured** | **3.2k** | **4.6k** | **5.9k** |
+
+With the levers still to come (5.65k including the reserve), the middle margin is about +1.1k.
+
+Recorded in `Plan/OOC.md` 18.6 and 4.3 / 4.4 of `Doc/UARCH` (English and Japanese) and the prompt log (answer 66 and the English of 67); pushed to dev with the Vivado reports (`1b5dfdd`). By the way, last time's answer called the list of remaining parts "18.6"; since the Vivado results went into 18.6, that list is now 18.7.
+<!-- /answer -->
+
+## 68. 2026-10-27 23:05:07 JST
+
+```text
+Go on with the control's next part: non-speculative µops held until the ROB head, the commit fan-out, and the FTQ pops (with the block end in the ROB).
+```

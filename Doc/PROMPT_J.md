@@ -2439,3 +2439,42 @@ synth_ooo.bat OOO_IQ
 ```text
 I ran synth_ooo.bat OOC_CTRL and synth_ooo.bat OOO_IQ. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+2本とも50MHzで閉じました。超過は中央で4.6kになり、前回の4.4kから少し広がりました。発行キューのブランチマスクが、どの見積りにも入っていなかった新しい費用だからです。
+
+| 実行 | LUT | レジスタ間の余裕 | 段数 |
+|---|---|---|---|
+| 制御の1つ目(`OOC_CTRL`) | **340** | +13.564 ns | 4 |
+| 発行キュー(ブランチマスクつき) | **1,775**(マスクの分+178) | +7.841 ns | 10 |
+
+- 制御はタイミングに大きな余裕があります。
+- 発行キューの最長経路は前と同じwakeup-selectのループで、マスクはその経路に載っていません。
+
+**予算の数え方**
+- 制御全体の見積り(1.5k〜2.5k)はそのまま残し、今回の340はその中に含めました。残りの部分は、これから書いて測ります。
+- 発行キューのマスク(+178)は加えました。前回わかった「予測ミスで発行キューが丸ごと空になる」問題を直すための、新しい費用です。
+
+| | 下の端 | 中央 | 上の端 |
+|---|---|---|---|
+| L7の実測のあと | 3.0k | 4.4k | 5.7k |
+| **制御の1つ目の実測のあと** | **3.2k** | **4.6k** | **5.9k** |
+
+これからの手段(予備まで含めて5.65k)で、中央の余裕は約+1.1kです。
+
+記録は`Plan/OOC.md` 18.6と`Doc/UARCH` 4.3・4.4(英語版と日本語版)、プロンプトログ(66の回答と67の英訳)に入れ、Vivadoのレポートと合わせてdevにpushしました(`1b5dfdd`)。なお、前回の回答で残りの部分を「18.6」と書いていましたが、Vivadoの結果を18.6に入れたので、残りの一覧は18.7に移っています。
+<!-- /answer -->
+
+## 68. 2026-10-27 23:05:07 JST
+
+```text
+Go on with the control's next part: non-speculative µops held until the ROB head, the commit fan-out, and the FTQ pops (with the block end in the ROB).
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+The docs are written. Waiting for the full test and mutation run to finish before committing.
+<!-- /answer -->

@@ -50,6 +50,12 @@
 // goes out (iss_bm) for the units, which drop what has a killed bit. flush
 // (flush_all) frees every entry.
 //
+// Non-speculative µops (Doc/UARCH.md 3.9: CSR, system, AMO / LR / SC,
+// cbo.zero; disp_ns) run only at the ROB head: such an entry may be
+// selected only when ns_ok (OOO_CTRL: the head is one not run yet) and no
+// older non-speculative entry is in the queue (the head's is the oldest);
+// iss_ns tells the control that one went.
+//
 // The payload of a µop (operation, immediates, ROB index) is not here: it
 // sits in a LUTRAM indexed by the entry (OOO_IQPL): disp_entry says where
 // it is written, iss_entry where it is read.
@@ -70,6 +76,7 @@ module OOO_IQ
         input  logic                  flush,      // flush_all: empty the queue
         input  logic [NCK-1:0]        kill,       // a restored checkpoint: its µops leave (one-hot)
         input  logic [NCK-1:0]        clr,        // checkpoints resolved as predicted
+        input  logic                  ns_ok,      // the ROB head is a non-speculative µop not run yet
 
         // dispatch: up to 2 µops a cycle, in program order (0 the older)
         output logic [1:0]            disp_ready, // room for this many
@@ -83,6 +90,7 @@ module OOO_IQ
         input  logic [1:0][TAGW-1:0]  disp_dst,
         input  logic [1:0]            disp_lat2,  // results after 2 cycles (load, multiply)
         input  logic [1:0][NCK-1:0]   disp_bm,    // branch masks (OOO_CTRL d_bmask)
+        input  logic [1:0]            disp_ns,    // non-speculative: issued only at the ROB head
 
         // external wakeups
         input  logic [NEXT-1:0]           ext_valid,
@@ -94,7 +102,8 @@ module OOO_IQ
         output logic [2:0][1:0][TAGW-1:0] iss_src,
         output logic [2:0]            iss_wr,
         output logic [2:0][TAGW-1:0]  iss_dst,
-        output logic [2:0][NCK-1:0]   iss_bm      // the issued µops' branch masks (for the units)
+        output logic [2:0][NCK-1:0]   iss_bm,     // the issued µops' branch masks (for the units)
+        output logic                  iss_ns      // a non-speculative µop issued now
     );
 
     localparam int EW = $clog2(N);
@@ -111,12 +120,16 @@ module OOO_IQ
     logic [TAGW-1:0]              dst   [N];
     logic [N-1:0]                 older [N];  // older[i][j]: entry j is older than entry i
     logic [NCK-1:0]               bm    [N];  // branch mask
+    logic [N-1:0]                 ns;         // non-speculative
 
     // ---- select
     logic [N-1:0] ready_all, req0, req1, req2, g0, g1, g2;
     always @(*) begin
         for (int i = 0; i < N; i++) begin
-            ready_all[i] = v[i] && ((rdy[i] | ~use_s[i]) == 2'b11);
+            // (the non-speculative condition is of registered state and ns_ok,
+            // off the wakeup-select loop)
+            ready_all[i] = v[i] && ((rdy[i] | ~use_s[i]) == 2'b11) &&
+                           (!ns[i] || (ns_ok && (older[i] & v & ns) == '0));
             req0[i] = ready_all[i] && (port[i] == 2'd0 || port[i] == 2'd1);
             req1[i] = ready_all[i] && (port[i] == 2'd0);
             req2[i] = ready_all[i] && (port[i] == 2'd2);
@@ -158,6 +171,8 @@ module OOO_IQ
             end
         end
     end
+
+    assign iss_ns = ((g0 | g1 | g2) & ns) != '0;
 
     // ---- wakeup tags: the µops issued now with latency 1, those issued one
     // cycle ago with latency 2, and the external ones
@@ -229,6 +244,7 @@ module OOO_IQ
         logic [TAGW-1:0]      dq;
         logic [N-1:0]         oq;
         logic [NCK-1:0]       bq;
+        logic                 nq;
         assign v[i]     = vq;
         assign lat2[i]  = lq;
         assign port[i]  = pq;
@@ -239,6 +255,7 @@ module OOO_IQ
         assign dst[i]   = dq;
         assign older[i] = oq;
         assign bm[i]    = bq;
+        assign ns[i]    = nq;
 
         always_ff @(posedge clk or negedge rst_n) begin
             if (!rst_n) begin
@@ -256,6 +273,7 @@ module OOO_IQ
                 dq <= disp_dst[d];
                 lq <= disp_lat2[d];
                 bq <= disp_bm[d];
+                nq <= disp_ns[d];
                 // age: younger than every entry that stays, and the second of a
                 // pair younger than the first
                 for (int j = 0; j < N; j++) oq[j] <= v[j] && !issued[j];

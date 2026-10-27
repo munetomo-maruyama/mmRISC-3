@@ -42,7 +42,9 @@
 // peripheral read happens once). Order: trap, then replay, then restore.
 //
 // The commit outputs feed the committed-state RAT and the free list
-// (renaming), the LQ / SQ (counts) and the commit trace (pc, lock-step).
+// (renaming), the LQ / SQ (counts), the FTQ's pops (the µop's fetch block,
+// cmt_ftq: OOO_CTRL pops the blocks before the latest one committed) and
+// the commit trace (pc, lock-step).
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -54,7 +56,8 @@ module OOO_ROB
         parameter int VA   = 39,
         parameter int TAGW = 6,
         parameter int CW   = 3,        // checkpoint index
-        parameter int NCMP = 4         // completion ports
+        parameter int NCMP = 4,        // completion ports
+        parameter int FTQW = 3         // FTQ index
     )
     (
         input  logic                        clk,
@@ -73,6 +76,7 @@ module OOO_ROB
         input  logic [1:0]                  disp_fused,  // two instructions
         input  logic [1:0]                  disp_ns,     // non-speculative: runs at the head
         input  logic [1:0][2:0]             disp_len,    // halfwords of the µop (1 .. 4)
+        input  logic [1:0][FTQW-1:0]        disp_ftq,    // its fetch block (of its first instruction)
         input  logic [1:0]                  disp_exc,    // an exception known at decode
         input  logic [1:0][4:0]             disp_cause,
         output logic [1:0][ROBW-1:0]        disp_rob,
@@ -104,6 +108,7 @@ module OOO_ROB
         output logic [1:0][TAGW-1:0]        cmt_new,
         output logic [1:0][TAGW-1:0]        cmt_old,
         output logic [1:0][VA-1:1]          cmt_pc,
+        output logic [1:0][FTQW-1:0]        cmt_ftq,
         output logic [1:0]                  cmt_ld_n,    // loads committed now
         output logic [1:0]                  cmt_st_n,    // stores committed now
         output logic [2:0]                  cmt_instret, // instructions (a fused pair counts 2)
@@ -140,11 +145,11 @@ module OOO_ROB
     assign rob_avail = (used <= (ROBW + 1)'(NROB - 2)) ? 2'd2 : (used == (ROBW + 1)'(NROB - 1)) ? 2'd1 : 2'd0;
 
     // ---- payload: two banks by parity, written at dispatch, read at commit
-    localparam int PW = (VA - 1) + 1 + 5 + 2 * TAGW + 4 + 3;
+    localparam int PW = (VA - 1) + 1 + 5 + 2 * TAGW + 4 + 3 + FTQW;
     typedef logic [PW-1:0] pay_t;
     function automatic pay_t pack(input int u);
         return {disp_pc[u], disp_wr[u], disp_arch[u], disp_new[u], disp_old[u],
-                disp_ld[u], disp_st[u], disp_fused[u], disp_ns[u], disp_len[u]};
+                disp_ld[u], disp_st[u], disp_fused[u], disp_ns[u], disp_len[u], disp_ftq[u]};
     endfunction
     (* ram_style = "distributed" *) pay_t bank0 [H];
     (* ram_style = "distributed" *) pay_t bank1 [H];
@@ -203,10 +208,10 @@ module OOO_ROB
         trap_cause = cause[hi0];
         trap_pc    = p0[PW-1 -: VA-1];
         replay     = (c0 && rp[hi0]) || (c1 && rp[hi1]);
-        replay_pc  = (c0 && rp[hi0]) ? p0[PW-1 -: VA-1] + (VA - 1)'(p0[2:0])
-                                     : p1[PW-1 -: VA-1] + (VA - 1)'(p1[2:0]);
+        replay_pc  = (c0 && rp[hi0]) ? p0[PW-1 -: VA-1] + (VA - 1)'(p0[FTQW+2:FTQW])
+                                     : p1[PW-1 -: VA-1] + (VA - 1)'(p1[FTQW+2:FTQW]);
         head_rob   = hi0;
-        head_ns    = used != '0 && p0[3] && !done[hi0];
+        head_ns    = used != '0 && p0[FTQW+3] && !done[hi0];
         cmt_valid  = {c1, c0};
         for (int u = 0; u < 2; u++) begin
             pay_t p;
@@ -216,10 +221,11 @@ module OOO_ROB
             cmt_arch[u] = p[PW-VA-1 -: 5];
             cmt_new[u]  = p[PW-VA-6 -: TAGW];
             cmt_old[u]  = p[PW-VA-6-TAGW -: TAGW];
+            cmt_ftq[u]  = p[FTQW-1:0];
         end
-        cmt_ld_n    = 2'(c0 && p0[6]) + 2'(c1 && p1[6]);
-        cmt_st_n    = 2'(c0 && p0[5]) + 2'(c1 && p1[5]);
-        cmt_instret = (c0 ? (p0[4] ? 3'd2 : 3'd1) : 3'd0) + (c1 ? (p1[4] ? 3'd2 : 3'd1) : 3'd0);
+        cmt_ld_n    = 2'(c0 && p0[FTQW+6]) + 2'(c1 && p1[FTQW+6]);
+        cmt_st_n    = 2'(c0 && p0[FTQW+5]) + 2'(c1 && p1[FTQW+5]);
+        cmt_instret = (c0 ? (p0[FTQW+4] ? 3'd2 : 3'd1) : 3'd0) + (c1 ? (p1[FTQW+4] ? 3'd2 : 3'd1) : 3'd0);
     end
 
     // ---- branch resolution: the oldest mispredicted one in the ROB

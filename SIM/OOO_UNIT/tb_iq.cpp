@@ -37,6 +37,10 @@
 // dispatch, as OOO_CTRL gives it) of an open id: the µops whose mask has it
 // leave, and the ids opened after it close; and a clear of an open id:
 // its bit goes from every mask. iss_bm is checked for every issue.
+//
+// Non-speculative µops (an eighth of the ALU0-only and LSU ones): ready only
+// with ns_ok (random here, as the control gives it) and when no older
+// non-speculative µop is in the queue; iss_ns says that one issued.
 //---------------------------------------------------------------------------
 #include "VOOO_IQ.h"
 #include <cstdint>
@@ -53,6 +57,7 @@ struct Uop {
     long disp, issued = -1;
     int entry = -1;     // its entry (disp_entry), where the payload is
     unsigned bm = 0;    // its branch mask
+    int ns = 0;         // non-speculative
 };
 
 static std::mt19937 rng(5);
@@ -71,7 +76,7 @@ int main(int argc, char** argv)
     for (int t = 0; t < NT; t++) { avail[t] = 0; tag_free_at[t] = 0; refs[t] = 0; }
     std::map<int, Uop> q;                   // in the queue, by destination tag
     std::vector<std::pair<long, int>> ext_due;   // (cycle, tag) to announce on ext
-    long next_id = 0, bad = 0, issued_n = 0, flushes = 0, nkill = 0, nkilled = 0, nclr = 0;
+    long next_id = 0, bad = 0, issued_n = 0, flushes = 0, nkill = 0, nkilled = 0, nclr = 0, nns = 0;
     std::vector<int> open_ids;              // checkpoint ids open, in program order
     const int NCK = 6;
     long cyc;
@@ -121,6 +126,7 @@ int main(int argc, char** argv)
             x.lat2 = x.port == 2 ? (rng() % 4 != 0) : x.port == 1 ? (rng() & 1) : 0;   // ALU0 only: a multiply or a complex ALU operation (L7)
             x.ext = x.port == 2 && !x.lat2;            // a store, or a load that missed: answer from outside
             x.dst = t0; x.wr = !x.ext;
+            x.ns = (x.port == 1 || x.port == 2) && rng() % 8 == 0;
             for (int s = 0; s < 2; s++) {
                 x.use[s] = rng() % 3 != 0;
                 if (!recent.empty() && rng() % 3) x.src[s] = recent[rng() % recent.size()];
@@ -152,11 +158,13 @@ int main(int argc, char** argv)
 
         // drive
         d.flush = flush;
+        int ns_ok = rng() % 2;
+        d.ns_ok = ns_ok;
         d.kill = kill_id >= 0 ? 1u << kill_id : 0;
         d.clr = clr_id >= 0 ? 1u << clr_id : 0;
         unsigned clrm = clr_id >= 0 ? 1u << clr_id : 0, killm = kill_id >= 0 ? 1u << kill_id : 0;
         d.disp_valid = (nd >= 1 ? 1 : 0) | (nd >= 2 ? 2 : 0);
-        uint32_t port = 0, use = 0, rdy = 0, wr = 0, lat2 = 0, dst = 0, src = 0, bmw = 0;
+        uint32_t port = 0, use = 0, rdy = 0, wr = 0, lat2 = 0, dst = 0, src = 0, bmw = 0, nsw = 0;
         for (int k = 0; k < nd; k++) {
             Uop& x = u[k];
             port |= x.port << (2 * k); lat2 |= x.lat2 << k;
@@ -167,9 +175,10 @@ int main(int argc, char** argv)
             }
             wr |= x.wr << k; dst |= (uint32_t)x.dst << (6 * k);
             bmw |= (uint32_t)x.bm << (6 * k);
+            nsw |= (uint32_t)x.ns << k;
         }
         d.disp_port = port; d.disp_use = use; d.disp_src = src; d.disp_rdy = rdy;
-        d.disp_wr = wr; d.disp_dst = dst; d.disp_lat2 = lat2; d.disp_bm = bmw;
+        d.disp_wr = wr; d.disp_dst = dst; d.disp_lat2 = lat2; d.disp_bm = bmw; d.disp_ns = nsw;
         d.ext_valid = extv; d.ext_tag = extt;
         d.eval();
         // the entries given to the µops dispatched now: not one in use
@@ -191,6 +200,10 @@ int main(int argc, char** argv)
         // ---- what must issue now
         auto ready = [&](const Uop& x) {
             if (x.disp >= cyc) return false;
+            if (x.ns) {                             // only at the head: ns_ok, and no older one queued
+                if (!ns_ok) return false;
+                for (auto& kv2 : q) if (kv2.second.ns && kv2.second.id < x.id) return false;
+            }
             for (int s = 0; s < 2; s++) if (x.use[s] && avail[x.src[s]] > cyc) return false;
             return true;
         };
@@ -207,6 +220,11 @@ int main(int argc, char** argv)
             if (!e0 || x.id < e0->id) e0 = &x;
         }
         const Uop* exp[3] = {e0, e1, e2};
+        if (!flush) {
+            bool ens = (e0 && e0->ns) || (e1 && e1->ns) || (e2 && e2->ns);
+            if ((bool)d.iss_ns != ens && bad++ < 10) printf("MISMATCH cycle %ld: iss_ns %d, expected %d\n", cyc, (int)d.iss_ns, ens);
+            if (ens) nns++;
+        }
         if (!flush) {
             for (int p = 0; p < 3; p++) {
                 bool v = (d.iss_valid >> p) & 1;
@@ -269,7 +287,7 @@ int main(int argc, char** argv)
             }
         }
     }
-    printf("tb_iq: %ld cycles, %ld µops issued, %ld kills (%ld µops killed), %ld clears, %ld flushes, %ld mismatches: %s\n",
-           cyc, issued_n, nkill, nkilled, nclr, flushes, bad, bad ? "FAIL" : "PASS");
+    printf("tb_iq: %ld cycles, %ld µops issued (%ld non-speculative), %ld kills (%ld µops killed), %ld clears, %ld flushes, %ld mismatches: %s\n",
+           cyc, issued_n, nns, nkill, nkilled, nclr, flushes, bad, bad ? "FAIL" : "PASS");
     return bad ? 1 : 0;
 }

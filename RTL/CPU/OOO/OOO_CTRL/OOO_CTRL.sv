@@ -1,10 +1,11 @@
 //---------------------------------------------------------------------------
 // OOO_CTRL.sv
 //
-// The control of mmRISC-3's back end (Doc/UARCH.md 3.1, Plan/OOC.md 18),
-// first part: what decides, every cycle, which µops move from renaming to
-// dispatch, which µops a misprediction or a trap throws away, and where
-// fetch starts again.
+// The control of mmRISC-3's back end (Doc/UARCH.md 3.1, Plan/OOC.md 18 and
+// 19): what decides, every cycle, which µops move from renaming to
+// dispatch, which µops a misprediction or a trap throws away, where fetch
+// starts again, when a non-speculative µop may issue, and what commit
+// gives the rest of the core.
 //
 // Branch masks: a µop carries one bit for every checkpoint (NCKPT, the
 // branches and jalrs not yet resolved) older than it. A misprediction that
@@ -45,6 +46,30 @@
 // nothing: its id may be given out again. Units drop what they have in
 // flight with a killed bit (iss mask & kill), so no later resolution of a
 // killed branch arrives.
+//
+// Trap and replay: the front end is flushed at once (fe_flush: the FTQ,
+// the fetch buffer, fetch from fe_pc), the back end a cycle later
+// (flush_all: renaming, the LSU, the issue queue, the units). A replay
+// commits its load in the cycle it is found, and renaming goes back to its
+// committed state, which takes that commit only at the clock edge; flushed
+// in the same cycle, the load's mapping would be lost. In between nothing
+// is renamed or dispatched, and the ROB is already empty.
+//
+// Non-speculative µops (Doc/UARCH.md 3.9): ns_ok lets the issue queue give
+// the oldest one when the ROB head is one not run yet (head_ns), once:
+// after one has issued (iss_ns), no other until the head commits. A µop
+// that changes what younger ones do (a CSR write, FENCE.I, SFENCE.VMA,
+// MRET) completes marked for replay after commit (the unit's contract), so
+// what follows it is fetched again.
+//
+// Commit: the old mappings of the committed µops go back to the free list
+// (free_*), the LQ / SQ get the counts (lq_commit / sq_commit; renaming
+// takes the committed state straight from the ROB). The FTQ pops the
+// blocks before the block of the latest committed µop (cmt_ftq), up to 2 a
+// cycle (the rest the next cycles); after a replay the load's own block
+// too (what follows it comes in new blocks). A trap or a replay flushes the
+// FTQ: blocks still to pop then go without their predictor update (only
+// when more than 2 blocks end in a cycle).
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -55,7 +80,8 @@ module OOO_CTRL
         parameter int CW    = 3,        // checkpoint id bits
         parameter int VA    = 39,
         parameter int FTQW  = 3,
-        parameter int LW    = 3         // LQ / SQ entry bits (the tails have one more)
+        parameter int LW    = 3,        // LQ / SQ entry bits (the tails have one more)
+        parameter int TAGW  = 6
     )
     (
         input  logic                        clk,
@@ -95,9 +121,21 @@ module OOO_CTRL
         input  logic                        replay,
         input  logic [VA-1:1]               replay_pc,
         input  logic [VA-1:1]               trap_vec,   // mtvec (the CSRs)
+        input  logic                        head_ns,    // the head is a non-speculative µop not run yet
+        input  logic [1:0]                  cmt_valid,
+        input  logic [1:0]                  cmt_wr,
+        input  logic [1:0][TAGW-1:0]        cmt_old,
+        input  logic [1:0]                  cmt_ld_n,
+        input  logic [1:0]                  cmt_st_n,
+        input  logic [1:0][FTQW-1:0]        cmt_ftq,
+
+        // OOO_IQ
+        input  logic                        iss_ns,     // a non-speculative µop issued now
+        output logic                        ns_ok,
 
         // recovery
-        output logic                        flush_all,
+        output logic                        fe_flush,   // trap / replay: the front end now
+        output logic                        flush_all,  // the back end, a cycle later
         output logic                        restore,
         output logic [CW-1:0]               restore_id,
         output logic [LW:0]                 restore_lq_tail,
@@ -107,7 +145,14 @@ module OOO_CTRL
         output logic [NCKPT-1:0]            clr,        // checkpoints resolved as predicted
         output logic                        fe_redirect,
         output logic [VA-1:1]               fe_pc,
-        output logic [NCKPT-1:0]            live        // checkpoints given out, not resolved
+        output logic [NCKPT-1:0]            live,       // checkpoints given out, not resolved
+
+        // commit
+        output logic [1:0]                  free_valid, // OOO_RENAME: the old mappings back
+        output logic [1:0][TAGW-1:0]        free_tag,
+        output logic [1:0]                  lq_commit,  // OOO_LSU
+        output logic [1:0]                  sq_commit,
+        output logic [1:0]                  ftq_pop     // OOO_FTQ
     );
 
     logic [NCKPT-1:0] ck_bm  [NCKPT];          // the mask of each checkpoint's branch
@@ -127,10 +172,14 @@ module OOO_CTRL
 
     // ---- recovery and resolution
     logic [NCKPT-1:0] killset;                 // the restored checkpoint and those younger
-    logic             rcv;                     // a cycle of recovery
+    logic             rcv;                     // nothing renamed or dispatched
+    logic             flush_q;                 // trap / replay of the cycle before
+    logic             ns_busy;                 // the head's non-speculative µop has issued
+    logic [FTQW-1:0]  ftq_hd, ftq_tgt;         // the FTQ's head (a mirror); pop up to the target
     always @(*) begin
-        flush_all  = trap || replay;
-        restore    = rob_restore && !flush_all;
+        fe_flush   = trap || replay;
+        flush_all  = flush_q;
+        restore    = rob_restore && !fe_flush && !flush_q;
         restore_id = rob_restore_ckpt;
         kill       = restore ? bit_of(rob_restore_ckpt) : '0;
         killset    = kill;
@@ -140,16 +189,34 @@ module OOO_CTRL
         for (int p = 0; p < 2; p++)
             if (br_valid[p] && !br_mispred[p] && live[br_ckpt[p]]) clr[br_ckpt[p]] = 1'b1;
         clr = clr & ~killset;
-        if (flush_all) clr = '0;
+        if (fe_flush || flush_q) clr = '0;
         restore_lq_tail = ck_lq[rob_restore_ckpt];
         restore_sq_tail = ck_sq[rob_restore_ckpt];
         restore_ftq     = ck_ftq[rob_restore_ckpt];
-        rcv         = flush_all || restore;
-        fe_redirect = rcv;
+        rcv         = fe_flush || flush_q || restore;
+        fe_redirect = fe_flush || restore;
         if (trap)                                                   fe_pc = trap_vec;
         else if (replay)                                            fe_pc = replay_pc;
         else if (br_valid[0] && br_mispred[0] && br_ckpt[0] == rob_restore_ckpt) fe_pc = br_next[0];
         else                                                        fe_pc = br_next[1];
+    end
+
+    // ---- non-speculative µops, commit
+    logic [FTQW-1:0] tgt, ndone;
+    always @(*) begin
+        ns_ok = head_ns && !ns_busy;
+        for (int k = 0; k < 2; k++) begin
+            free_valid[k] = cmt_valid[k] && cmt_wr[k];
+            free_tag[k]   = cmt_old[k];
+        end
+        lq_commit = cmt_ld_n;
+        sq_commit = cmt_st_n;
+        // the FTQ: the blocks before the latest committed µop's (its own too
+        // after a replay)
+        if (cmt_valid != 2'b00) tgt = (cmt_valid[1] ? cmt_ftq[1] : cmt_ftq[0]) + FTQW'(replay);
+        else                    tgt = ftq_tgt;
+        ndone   = tgt - ftq_hd;               // blocks done, not popped
+        ftq_pop = (ndone >= FTQW'(2)) ? 2'd2 : 2'(ndone);
     end
 
     // ---- DS: dispatch, all of the register's µops or none
@@ -180,9 +247,24 @@ module OOO_CTRL
     assign lv_c = live & ~clr;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
+            flush_q <= 1'b0;
+            ns_busy <= 1'b0;
+            ftq_hd  <= '0;
+            ftq_tgt <= '0;
+        end else begin
+            flush_q <= fe_flush;
+            if (fe_flush || flush_q || cmt_valid[0]) ns_busy <= 1'b0;
+            else if (iss_ns)                          ns_busy <= 1'b1;
+            ftq_hd  <= ftq_hd + FTQW'(ftq_pop);
+            // a flushed FTQ keeps no blocks to pop
+            ftq_tgt <= fe_flush ? ftq_hd + FTQW'(ftq_pop) : tgt;
+        end
+    end
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
             live <= '0;
             ds_v <= '0;
-        end else if (flush_all) begin
+        end else if (flush_q) begin
             live <= '0;
             ds_v <= '0;
         end else begin
