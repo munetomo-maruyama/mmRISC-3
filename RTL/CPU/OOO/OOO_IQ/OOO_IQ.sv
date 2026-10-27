@@ -19,8 +19,13 @@
 //   µops' destination tags -> compare against every source -> ready bits.
 // Latency 1 (ALU) wakes in the same cycle as the select. Latency 2 (a load
 // that is predicted to hit, a multiply) goes through one register first.
-// External wakeups (a divide; AMO, LR, SC) come in on ext_*. Entries are
-// freed when issued.
+// External wakeups (a divide; AMO, LR, SC) come in on ext_*, only for live
+// µops (a unit that drops a µop does not wake for it). Entries are freed
+// when issued. The wakeup tags go out (wk_*): renaming clears its busy bits
+// with them and the DS register snoops them (OOO_DSREG), so that a µop
+// between renaming and dispatch misses none. A delayed wakeup is not sent
+// for a µop killed or flushed in the cycle it issued: its register may be
+// given out again by then.
 //
 // A load is guessed to hit: its dependents are woken for 2 cycles after it
 // and nothing takes them back here. When the load cannot give its result
@@ -103,7 +108,11 @@ module OOO_IQ
         output logic [2:0]            iss_wr,
         output logic [2:0][TAGW-1:0]  iss_dst,
         output logic [2:0][NCK-1:0]   iss_bm,     // the issued µops' branch masks (for the units)
-        output logic                  iss_ns      // a non-speculative µop issued now
+        output logic                  iss_ns,     // a non-speculative µop issued now
+
+        // the wakeup tags of this cycle (renaming's busy bits, OOO_DSREG)
+        output logic [3+NEXT:0]       wk_valid,
+        output logic [3+NEXT:0][TAGW-1:0] wk_tag
     );
 
     localparam int EW = $clog2(N);
@@ -191,6 +200,9 @@ module OOO_IQ
         end
     end
 
+    assign wk_valid = bv;
+    assign wk_tag   = bt;
+
     function automatic logic woken(input logic [TAGW-1:0] t);
         logic w;
         w = 1'b0;
@@ -211,14 +223,15 @@ module OOO_IQ
         disp_entry = fe;
     end
 
-    // the latency-2 results issued now wake their dependents next cycle
+    // the latency-2 results issued now wake their dependents next cycle,
+    // unless the µop is killed or flushed now
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             d_v0 <= 1'b0;
             d_v2 <= 1'b0;
         end else begin
-            d_v0 <= iss_wr[0] && lat2_0;
-            d_v2 <= iss_wr[2];
+            d_v0 <= iss_wr[0] && lat2_0 && !flush && (iss_bm[0] & kill) == '0;
+            d_v2 <= iss_wr[2] && !flush && (iss_bm[2] & kill) == '0;
         end
     end
     always_ff @(posedge clk) begin

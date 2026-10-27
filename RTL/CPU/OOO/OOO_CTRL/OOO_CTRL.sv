@@ -27,6 +27,8 @@
 //       ds_valid / d_go; their payload is the assembly's DS register)
 //       when the ROB, the issue queue, the LQ and the SQ have room for all
 //       of them, with their masks (d_bmask, less this cycle's clears).
+//       ds_load: the register takes renaming's µops (it is empty or its
+//       µops go now; the enable of the payload, OOO_DSREG).
 //       A µop with a checkpoint writes the checkpoint table: the LSU's
 //       tails after it (ck_*_tail) and its fetch block (ds_ftq).
 //   recovery, in this order:
@@ -100,6 +102,7 @@ module OOO_CTRL
 
         // DS: dispatch
         output logic [1:0]                  ds_valid,   // the DS register holds these
+        output logic                        ds_load,    // it takes renaming's µops (OOO_DSREG load)
         input  logic [1:0]                  ds_ld,      // the DS µops are loads / stores
         input  logic [1:0]                  ds_st,
         input  logic [1:0][FTQW-1:0]        ds_ftq,     // their fetch blocks
@@ -242,6 +245,7 @@ module OOO_CTRL
     logic [1:0] ck_ok;
     always @(*) begin
         ds_free = ds_v == 2'b00 || d_go == ds_v;
+        ds_load = ds_free;
         for (int k = 0; k < 2; k++) ck_ok[k] = !r_ckpt[k] || !live[r_ckpt_id[k]];
         r_go[0] = r_valid[0] && ds_free && r_ren_ready && !rcv && ck_ok[0];
         r_go[1] = r_go[0] && r_valid[1] && ck_ok[1];

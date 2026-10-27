@@ -17,7 +17,8 @@ module LSU_DC
         parameter int NSQ  = 8,
         parameter int PAW  = 40,
         parameter int TAGW = 6,
-        parameter int ROBW = 5
+        parameter int ROBW = 5,
+        parameter int NCK  = 6
     )
     (
         input  logic                        clk,
@@ -43,6 +44,7 @@ module LSU_DC
         input  logic [1:0]                  iss_size,
         input  logic                        iss_uns,
         input  logic [TAGW-1:0]             iss_dst,
+        input  logic [NCK-1:0]              iss_bm,
         output logic [NLQ-1:0]              lsu_st_known,
         output logic                        wb_valid,
         output logic                        wb_late,
@@ -60,6 +62,7 @@ module LSU_DC
         input  logic [1:0]                  lq_commit,
         input  logic [1:0]                  sq_commit,
         input  logic                        restore,
+        input  logic [NCK-1:0]              kill,
         input  logic [$clog2(NLQ):0]        restore_lq_tail,
         input  logic [$clog2(NSQ):0]        restore_sq_tail,
         input  logic                        flush_all,
@@ -113,18 +116,18 @@ module LSU_DC
     logic [NLQ-1:0]   dc_kill;
     logic [7:0]       dc_st_mask;
 
-    OOO_LSU #(.NLQ(NLQ), .NSQ(NSQ), .PAW(PAW), .TAGW(TAGW), .ROBW(ROBW)) u_lsu
+    OOO_LSU #(.NLQ(NLQ), .NSQ(NSQ), .PAW(PAW), .TAGW(TAGW), .ROBW(ROBW), .NCK(NCK)) u_lsu
         (.clk, .rst_n,
          .disp_valid, .disp_ld, .disp_st, .disp_rob, .lq_avail, .sq_avail, .disp_lq, .disp_sq,
          .ck_lq_tail, .ck_sq_tail,
          .iss_valid, .iss_ld, .iss_lq, .iss_sq, .iss_base, .iss_imm, .iss_data, .iss_size, .iss_uns,
-         .iss_dst, .lsu_st_known,
+         .iss_dst, .iss_bm, .lsu_st_known,
          .dc_req_valid, .dc_req_addr, .dc_req_tag, .dc_hit, .dc_rdata,
          .dc_fill_valid(l_fill_valid), .dc_fill_tag, .dc_fill_data, .dc_fill_ready(l_fill_ready), .dc_kill,
          .dc_st_valid, .dc_st_addr, .dc_st_data, .dc_st_mask, .dc_st_ready,
          .wb_valid, .wb_late, .wb_tag, .wb_data, .ld_cancel, .ld_cancel_tag,
          .cmp_ld_valid, .cmp_ld_rob, .cmp_ld_exc, .cmp_ld_rp, .cmp_st_valid, .cmp_st_rob, .cmp_st_exc,
-         .lq_commit, .sq_commit, .restore, .restore_lq_tail, .restore_sq_tail, .flush_all);
+         .lq_commit, .sq_commit, .restore, .kill, .restore_lq_tail, .restore_sq_tail, .flush_all);
 
     logic             d_req_valid, d_req_ready, d_req_cancel, d_resp_valid, d_hit_now;
     logic [PAW-1:0]   d_req_addr, d_req_paddr;

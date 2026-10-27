@@ -38,6 +38,12 @@
 // leave, and the ids opened after it close; and a clear of an open id:
 // its bit goes from every mask. iss_bm is checked for every issue.
 //
+// The wakeup tags (wk_*, for renaming's busy bits and the DS register) are
+// checked bus by bus: the latency-1 µops issued now, the latency-2 ones
+// issued a cycle ago unless killed or flushed then (their registers may be
+// given out again; a µop issued in its kill cycle makes its value usable
+// to nobody), the external ones.
+//
 // Non-speculative µops (an eighth of the ALU0-only and LSU ones): ready only
 // with ns_ok (random here, as the control gives it) and when no older
 // non-speculative µop is in the queue; iss_ns says that one issued.
@@ -80,6 +86,8 @@ int main(int argc, char** argv)
     std::vector<int> open_ids;              // checkpoint ids open, in program order
     const int NCK = 6;
     long cyc;
+    int pd0_v = 0, pd0_t = 0, pd2_v = 0, pd2_t = 0;    // the delayed wakeups due now
+    long nwk = 0;
     for (cyc = 0; cyc < 300000; cyc++) {
         // ---- disp_ready: from the queue as the last cycle left it
         {
@@ -243,6 +251,26 @@ int main(int argc, char** argv)
             }
         }
 
+        // ---- the wakeup tags of this cycle
+        {
+            int ev[6] = {0}, et[6] = {0};
+            if (!flush) {
+                if (e0 && e0->wr && !e0->lat2) { ev[0] = 1; et[0] = e0->dst; }
+                if (e1 && e1->wr)              { ev[1] = 1; et[1] = e1->dst; }
+            }
+            ev[2] = pd0_v; et[2] = pd0_t; ev[3] = pd2_v; et[3] = pd2_t;
+            for (int k = 0; k < 2; k++) if ((extv >> k) & 1) { ev[4 + k] = 1; et[4 + k] = (extt >> (6 * k)) & 63; }
+            for (int b = 0; b < 6; b++) {
+                if (flush && b < 2) continue;     // what issues in a flush is not followed here
+                int gv = (d.wk_valid >> b) & 1, gt = (int)((d.wk_tag >> (6 * b)) & 63);
+                if ((gv != ev[b] || (gv && gt != et[b])) && bad++ < 10)
+                    printf("MISMATCH cycle %ld: wakeup bus %d %d (p%d), expected %d (p%d)\n", cyc, b, gv, gt, ev[b], et[b]);
+                nwk += gv;
+            }
+            pd0_v = !flush && e0 && e0->lat2 && e0->wr && !(e0->bm & killm); pd0_t = e0 ? e0->dst : 0;
+            pd2_v = !flush && e2 && e2->wr && !(e2->bm & killm);               pd2_t = e2 ? e2->dst : 0;
+        }
+
         // ---- the clock, and the account after it (what issued is read before the edge)
         unsigned issued_now = d.iss_valid;
         d.clk = 1; d.eval(); d.clk = 0; d.eval();
@@ -263,6 +291,10 @@ int main(int argc, char** argv)
                 for (int s2 = 0; s2 < 2; s2++) if (x.use[s2]) refs[x.src[s2]]--;
                 issued_n++;
                 int lat = x.lat2 ? 2 : 1;
+                if (x.bm & killm) {               // issued as it is killed: its value is nobody's
+                    avail[x.dst] = cyc + 1; tag_free_at[x.dst] = cyc + 4; nkilled++;
+                    continue;
+                }
                 if (x.wr) avail[x.dst] = cyc + lat;
                 // an external answer holds its tag until it is announced
                 if (x.ext) ext_due.push_back({cyc + 3 + (long)(rng() % 8), x.dst});
@@ -287,7 +319,7 @@ int main(int argc, char** argv)
             }
         }
     }
-    printf("tb_iq: %ld cycles, %ld µops issued (%ld non-speculative), %ld kills (%ld µops killed), %ld clears, %ld flushes, %ld mismatches: %s\n",
-           cyc, issued_n, nns, nkill, nkilled, nclr, flushes, bad, bad ? "FAIL" : "PASS");
+    printf("tb_iq: %ld cycles, %ld µops issued (%ld non-speculative), %ld kills (%ld µops killed), %ld clears, %ld flushes, %ld wakeups, %ld mismatches: %s\n",
+           cyc, issued_n, nns, nkill, nkilled, nclr, flushes, nwk, bad, bad ? "FAIL" : "PASS");
     return bad ? 1 : 0;
 }

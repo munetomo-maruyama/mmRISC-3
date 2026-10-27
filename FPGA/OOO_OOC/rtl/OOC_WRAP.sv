@@ -18,7 +18,8 @@
 //   OOC_LSU / OOC_ROB / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC / OOC_IQPL
 //               the same, each with one input bus and one output bus
 //   OOC_LSUDC   the LSU, the D$ adapter and mmRISC-2's D$ together
-//   OOC_CTRL    the control's first part (branch masks, go, recovery)
+//   OOC_CTRL    the control (branch masks, go, recovery, commit)
+//   OOC_DSREG   the DS register's payload: ready bits snooping the wakeups
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -144,8 +145,8 @@ module OOC_RENAME
         input  logic [1:0]        in_wr,
         input  logic [1:0][4:0]   in_dst,
         input  logic [1:0]        in_ckpt,
-        input  logic [2:0]        wb_valid,
-        input  logic [2:0][5:0]   wb_tag,
+        input  logic [5:0]        wk_valid,     // OOO_IQ's wakeup tags: not registered (late, 13 ns)
+        input  logic [5:0][5:0]   wk_tag,
         input  logic [1:0]        free_valid,
         input  logic [1:0][5:0]   free_tag,
         input  logic              restore,
@@ -165,8 +166,6 @@ module OOC_RENAME
     logic [1:0][1:0]   iu;
     logic [1:0][1:0][4:0] is;
     logic [1:0][4:0]   id;
-    logic [2:0]        wv;
-    logic [2:0][5:0]   wt;
     logic [1:0][5:0]   ft;
     logic              rs;
     logic [2:0]        rid;
@@ -177,14 +176,14 @@ module OOC_RENAME
     logic [1:0][5:0]   od, oo;
     always_ff @(posedge clk) begin
         iv <= in_valid; iu <= in_use; is <= in_src; iw <= in_wr; id <= in_dst; ick <= in_ckpt;
-        wv <= wb_valid; wt <= wb_tag; fv <= free_valid; ft <= free_tag; rs <= restore; rid <= restore_id;
+        fv <= free_valid; ft <= free_tag; rs <= restore; rid <= restore_id;
         cv <= cmt_valid; cw <= cmt_wr; ca <= cmt_arch; cn <= cmt_new; fa <= flush_all;
         out <= {rdy, ckid, os, ordy, od, oo};
     end
-    OOO_RENAME #(.NREG(64), .TAGW(6), .NCKPT(6), .NWB(3)) u_ren
+    OOO_RENAME #(.NREG(64), .TAGW(6), .NCKPT(6), .NWK(6)) u_ren
         (.clk(clk), .rst_n(rst_n), .ready(rdy), .in_valid(iv), .in_use(iu), .in_src(is),
          .in_wr(iw), .in_dst(id), .in_ckpt(ick), .out_ckpt_id(ckid), .out_src(os), .out_rdy(ordy),
-         .out_dst(od), .out_old(oo), .wb_valid(wv), .wb_tag(wt), .free_valid(fv), .free_tag(ft),
+         .out_dst(od), .out_old(oo), .wk_valid(wk_valid), .wk_tag(wk_tag), .free_valid(fv), .free_tag(ft),
          .restore(rs), .restore_id(rid),
          .cmt_valid(cv), .cmt_wr(cw), .cmt_arch(ca), .cmt_new(cn), .flush_all(fa));
 endmodule : OOC_RENAME
@@ -200,10 +199,10 @@ module OOC_LSU
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [320:0]  in,
+        input  logic [332:0]  in,
         output logic [299:0]  out
     );
-    logic [320:0] q;
+    logic [332:0] q;
     always_ff @(posedge clk) q <= in;
 
     // in (LQ 8, SQ 8: 3-bit entries, 4-bit tails)
@@ -215,9 +214,10 @@ module OOC_LSU
     logic [11:0]  iss_imm;
     logic [5:0]   iss_dst;
     logic [3:0]   restore_lq_tail, restore_sq_tail;
+    logic [5:0]   iss_bm, kill;
     assign {disp_valid, disp_ld, disp_st, disp_rob, iss_valid, iss_ld, iss_lq, iss_sq, iss_base, iss_imm,
-            iss_data, iss_size, iss_uns, iss_dst, dc_hit, dc_rdata, dc_fill_valid, dc_fill_tag, dc_fill_data,
-            dc_st_ready, lq_commit, sq_commit, restore, restore_lq_tail, restore_sq_tail, flush_all} = q;
+            iss_data, iss_size, iss_uns, iss_dst, iss_bm, dc_hit, dc_rdata, dc_fill_valid, dc_fill_tag, dc_fill_data,
+            dc_st_ready, lq_commit, sq_commit, restore, kill, restore_lq_tail, restore_sq_tail, flush_all} = q;
 
     // out
     logic [1:0]   lq_avail, sq_avail;
@@ -240,7 +240,7 @@ module OOC_LSU
          .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail),
          .iss_valid(iss_valid), .iss_ld(iss_ld), .iss_lq(iss_lq), .iss_sq(iss_sq),
          .iss_base(iss_base), .iss_imm(iss_imm), .iss_data(iss_data), .iss_size(iss_size),
-         .iss_uns(iss_uns), .iss_dst(iss_dst), .lsu_st_known(st_known),
+         .iss_uns(iss_uns), .iss_dst(iss_dst), .iss_bm(iss_bm), .lsu_st_known(st_known),
          .dc_req_valid(dc_req_valid), .dc_req_addr(dc_req_addr), .dc_req_tag(dc_req_tag),
          .dc_hit(dc_hit), .dc_rdata(dc_rdata),
          .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),
@@ -252,7 +252,7 @@ module OOC_LSU
          .cmp_ld_valid(cmp_ld_valid), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_exc), .cmp_ld_rp(cmp_ld_rp),
          .cmp_st_valid(cmp_st_valid), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_exc),
          .lq_commit(lq_commit), .sq_commit(sq_commit),
-         .restore(restore), .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all(flush_all));
+         .restore(restore), .kill(kill), .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all(flush_all));
 
     always_ff @(posedge clk)
         out <= {lq_avail, sq_avail, disp_lq, disp_sq, ck_lq_tail, ck_sq_tail, st_known, dc_kill,
@@ -547,10 +547,10 @@ module OOC_LSUDC
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [260:0]  in,
+        input  logic [272:0]  in,
         output logic [325:0]  out
     );
-    logic [260:0] q;
+    logic [272:0] q;
     always_ff @(posedge clk) q <= in;
 
     // LSU core side, in
@@ -562,12 +562,13 @@ module OOC_LSUDC
     logic [11:0]      iss_imm;
     logic [5:0]       iss_dst;
     logic [3:0]       restore_lq_tail, restore_sq_tail;
+    logic [5:0]       iss_bm, kill;
     // AXI4, in
     logic             awready, wready, bvalid, arready, rlast, rvalid;
     logic [1:0]       bresp, rresp;
     logic [63:0]      rdata;
     assign {disp_valid, disp_ld, disp_st, disp_rob, iss_valid, iss_ld, iss_lq, iss_sq, iss_base, iss_imm,
-            iss_data, iss_size, iss_uns, iss_dst, lq_commit, sq_commit, restore, restore_lq_tail,
+            iss_data, iss_size, iss_uns, iss_dst, iss_bm, lq_commit, sq_commit, restore, kill, restore_lq_tail,
             restore_sq_tail, flush_all,
             awready, wready, bresp, bvalid, arready, rdata, rresp, rlast, rvalid} = q;
 
@@ -608,7 +609,7 @@ module OOC_LSUDC
          .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail),
          .iss_valid(iss_valid), .iss_ld(iss_ld), .iss_lq(iss_lq), .iss_sq(iss_sq),
          .iss_base(iss_base), .iss_imm(iss_imm), .iss_data(iss_data), .iss_size(iss_size),
-         .iss_uns(iss_uns), .iss_dst(iss_dst), .lsu_st_known(st_known),
+         .iss_uns(iss_uns), .iss_dst(iss_dst), .iss_bm(iss_bm), .lsu_st_known(st_known),
          .dc_req_valid(dc_req_valid), .dc_req_addr(dc_req_addr), .dc_req_tag(dc_req_tag),
          .dc_hit(dc_hit), .dc_rdata(dc_rdata),
          .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),
@@ -620,7 +621,7 @@ module OOC_LSUDC
          .cmp_ld_valid(cmp_ld_valid), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_exc), .cmp_ld_rp(cmp_ld_rp),
          .cmp_st_valid(cmp_st_valid), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_exc),
          .lq_commit(lq_commit), .sq_commit(sq_commit),
-         .restore(restore), .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail),
+         .restore(restore), .kill(kill), .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail),
          .flush_all(flush_all));
 
     OOO_DCAD #(.NLQ(8), .PAW(40), .DEPTH(8)) u_dcad
@@ -675,7 +676,7 @@ module OOC_CTRL
         input  logic          clk,
         input  logic          rst_n,
         input  logic [240:0]  in,
-        output logic [112:0]  out
+        output logic [113:0]  out
     );
     logic [240:0] q;
     always_ff @(posedge clk) q <= in;
@@ -694,7 +695,7 @@ module OOC_CTRL
             replay, replay_pc, trap_vec, head_ns, cmt_valid, cmt_wr, cmt_old, cmt_ld_n, cmt_st_n, cmt_ftq, iss_ns} = q;
     logic [1:0]       r_go, ds_valid, d_go;
     logic [1:0][5:0]  d_bmask;
-    logic             flush_all, restore, fe_redirect, fe_flush, ns_ok;
+    logic             flush_all, restore, fe_redirect, fe_flush, ns_ok, ds_load;
     logic [1:0]       free_valid, lq_commit, sq_commit, ftq_pop;
     logic [1:0][5:0]  free_tag;
     logic [2:0]       restore_id, restore_ftq;
@@ -704,7 +705,7 @@ module OOC_CTRL
     OOO_CTRL #(.NCKPT(6), .CW(3), .VA(39), .FTQW(3), .LW(3), .TAGW(6)) u_ctrl
         (.clk(clk), .rst_n(rst_n),
          .r_valid(r_valid), .r_ckpt(r_ckpt), .r_ckpt_id(r_ckpt_id), .r_ren_ready(r_ren_ready), .r_go(r_go),
-         .ds_valid(ds_valid), .ds_ld(ds_ld), .ds_st(ds_st), .ds_ftq(ds_ftq),
+         .ds_valid(ds_valid), .ds_load(ds_load), .ds_ld(ds_ld), .ds_st(ds_st), .ds_ftq(ds_ftq),
          .rob_avail(rob_avail), .iq_avail(iq_avail), .lq_avail(lq_avail), .sq_avail(sq_avail),
          .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail), .d_go(d_go), .d_bmask(d_bmask),
          .br_valid(br_valid), .br_mispred(br_mispred), .br_ckpt(br_ckpt), .br_next(br_next),
@@ -717,7 +718,36 @@ module OOC_CTRL
          .fe_redirect(fe_redirect), .fe_pc(fe_pc), .live(live), .free_valid(free_valid), .free_tag(free_tag),
          .lq_commit(lq_commit), .sq_commit(sq_commit), .ftq_pop(ftq_pop));
     always_ff @(posedge clk)
-        out <= {r_go, ds_valid, d_go, d_bmask, flush_all, restore, restore_id, restore_lq_tail, restore_sq_tail,
+        out <= {r_go, ds_valid, ds_load, d_go, d_bmask, flush_all, restore, restore_id, restore_lq_tail, restore_sq_tail,
                 restore_ftq, kill, clr, fe_redirect, fe_pc, live, ns_ok, fe_flush, free_valid, free_tag, lq_commit,
                 sq_commit, ftq_pop};
 endmodule : OOC_CTRL
+
+//---------------------------------------------------------------------------
+// OOC_DSREG: the DS register's payload (Plan/OOC.md 20) with its inputs and
+// outputs registered, but for the wakeup tags, which come straight from
+// OOO_IQ's select (late: synth_ooo.tcl gives them 13 ns). The payload is 8
+// bits a slot here: the rest are flip-flops with an enable, no LUTs.
+//---------------------------------------------------------------------------
+module OOC_DSREG
+    (
+        input  logic              clk,
+        input  logic              rst_n,
+        input  logic [48:0]       in,
+        input  logic [5:0]        wk_valid,     // OOO_IQ's wakeup tags: not registered
+        input  logic [5:0][5:0]   wk_tag,
+        output logic [47:0]       out
+    );
+    logic [48:0] q;
+    always_ff @(posedge clk) q <= in;
+    logic                  load;
+    logic [1:0][1:0][5:0]  in_src, ds_src;
+    logic [1:0][1:0]       in_use, in_rdy, ds_use, ds_rdy;
+    logic [1:0][7:0]       in_data, ds_data;
+    assign {load, in_src, in_use, in_rdy, in_data} = q;
+    OOO_DSREG #(.W(8), .TAGW(6), .NB(6)) u_ds
+        (.clk(clk), .rst_n(rst_n), .load(load), .in_src(in_src), .in_use(in_use), .in_rdy(in_rdy),
+         .in_data(in_data), .wk_valid(wk_valid), .wk_tag(wk_tag),
+         .ds_src(ds_src), .ds_use(ds_use), .ds_rdy(ds_rdy), .ds_data(ds_data));
+    always_ff @(posedge clk) out <= {ds_src, ds_use, ds_rdy, ds_data};
+endmodule : OOC_DSREG

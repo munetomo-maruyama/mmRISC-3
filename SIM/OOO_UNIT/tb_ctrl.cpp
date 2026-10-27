@@ -18,6 +18,8 @@
 //     free or leaving, registers, no recovery, a checkpoint id not in use)
 //   - ds_valid / d_go: what the DS register holds, and that it goes when
 //     every resource has room for it, all of it or none
+//   - ds_load (the payload's enable, OOO_DSREG): set when µops rename,
+//     clear while the register keeps µops that do not go
 //   - d_bmask: exactly the checkpoints of the older branches not resolved
 //   - live: the checkpoints of the branches in flight not resolved
 //   - kill / clr: the restored checkpoint; the branches resolved as
@@ -158,6 +160,8 @@ int main(int argc, char** argv)
         if ((rv & 1) && dsfree && ren_ready && !rcv && ok0) { go = 1; if ((rv & 2) && ok1) go = 3; }
         if ((rv & 1) && dsfree && ren_ready && !rcv && (!ok0 || ((rv & 2) && !ok1))) nckstall++;
         if ((unsigned)d.r_go != go) FAIL("r_go %u, expected %u", (unsigned)d.r_go, go);
+        if (go && !d.ds_load) FAIL("ds_load 0 with µops renamed now");
+        if ((dsv & ~dgo) && d.ds_load) FAIL("ds_load 1 while the DS register keeps µops (ds %u, go %u)", dsv, dgo);
         // recovery
         if ((bool)d.fe_flush != flush) FAIL("fe_flush %d, expected %d", (int)d.fe_flush, flush);
         if ((bool)d.flush_all != flushq) FAIL("flush_all %d, expected %d", (int)d.flush_all, flushq);

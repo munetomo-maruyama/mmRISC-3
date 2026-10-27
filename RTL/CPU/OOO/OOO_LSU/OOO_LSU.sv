@@ -49,6 +49,16 @@
 // Recovery: restore sets the tails to the values of a checkpoint (taken
 // from ck_*_tail at dispatch); flush_all goes back to the committed state
 // (the LQ empty, the SQ down to its committed stores, which still drain).
+// A µop from port 2 carries its branch mask (iss_bm, Plan/OOC.md 20): in E
+// and M it is dropped when the mask has the killed bit (kill), so a µop
+// older than the mispredicted branch goes on through a restore as in any
+// cycle (dropped there before, an older load or store issued in that cycle
+// was lost: the issue queue had freed its entry). A load tried again from
+// the LQ has no mask: it does not start in a cycle of recovery, and one in
+// M is put back to wait (its entry stays or not by the tails). The mask
+// needs no clears (OOO_CTRL clr) for the one cycle of M: a checkpoint
+// cleared in cycle t is killed again in t + 5 at the earliest (renamed,
+// dispatched, issued, read and resolved again).
 //
 // The D$ port is abstract: the adapter to mmRISC-2's D$ (tagged requests
 // and fills, the write port) is outside, as is address translation (Phase
@@ -69,7 +79,8 @@ module OOO_LSU
         parameter int NSQ  = 8,
         parameter int PAW  = 40,        // physical address bits (mmRISC-2's PADDR_WIDTH)
         parameter int TAGW = 6,         // physical register tags
-        parameter int ROBW = 5          // ROB index (24 entries)
+        parameter int ROBW = 5,         // ROB index (24 entries)
+        parameter int NCK  = 6          // checkpoints (branch-mask bits)
     )
     (
         input  logic                        clk,
@@ -99,6 +110,7 @@ module OOO_LSU
         input  logic [1:0]                  iss_size,   // 0 byte .. 3 double
         input  logic                        iss_uns,    // load zero extended
         input  logic [TAGW-1:0]             iss_dst,
+        input  logic [NCK-1:0]              iss_bm,     // its branch mask
         output logic [NLQ-1:0]              lsu_st_known, // LQ entry: every older store has its address
 
         // D$ (abstract)
@@ -137,6 +149,7 @@ module OOO_LSU
         input  logic [1:0]                  lq_commit,    // loads committed this cycle
         input  logic [1:0]                  sq_commit,    // stores committed this cycle
         input  logic                        restore,
+        input  logic [NCK-1:0]              kill,         // OOO_CTRL: µops with this bit die
         input  logic [$clog2(NLQ):0]        restore_lq_tail,
         input  logic [$clog2(NSQ):0]        restore_sq_tail,
         input  logic                        flush_all
@@ -269,7 +282,7 @@ module OOO_LSU
     end
     always_ff @(posedge clk) r_q <= r_next;
 
-    logic          e_v, e_ld, e_retry, e_mis;
+    logic          e_v, e_ld, e_iss, e_retry, e_mis;
     logic [LW-1:0] e_lq;
     logic [PAW-1:0] e_addr;
     logic [1:0]    e_size;
@@ -279,8 +292,9 @@ module OOO_LSU
     logic [63:0]   e_sum;                      // above PAW: translation comes in Phase 2
     /* verilator lint_on UNUSEDSIGNAL */
     always @(*) begin
+        e_iss   = iss_valid && (iss_bm & kill) == '0 && !flush_all;   // not killed now
         e_retry = !iss_valid && r_any && !restore && !flush_all;
-        e_v     = (iss_valid || e_retry) && !restore && !flush_all;
+        e_v     = e_iss || e_retry;
         e_ld    = iss_valid ? iss_ld : 1'b1;
         e_lq    = iss_valid ? iss_lq : r_e;
         e_sum   = iss_base + {{52{iss_imm[11]}}, iss_imm};
@@ -300,7 +314,7 @@ module OOO_LSU
     logic [7:0]    e_mask;
     logic [63:0]   e_wdata;
     always @(*) begin
-        e_st_w  = iss_valid && !iss_ld && sv[iss_sq] && !restore && !flush_all;
+        e_st_w  = e_iss && !iss_ld && sv[iss_sq];
         e_mask  = bmask(iss_size, e_sum[2:0]);
         e_wdata = iss_data << {e_sum[2:0], 3'b000};
         cmp_st_valid = e_st_w;
@@ -315,11 +329,13 @@ module OOO_LSU
     logic [1:0]    m_size;
     logic          m_uns;
     logic [TAGW-1:0] m_dst;
+    logic [NCK-1:0] m_bm;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) m_v <= 1'b0;
-        else        m_v <= e_v && e_ld && !restore && !flush_all;
+        else        m_v <= e_v && e_ld;
     end
     always_ff @(posedge clk) begin
+        m_bm    <= e_retry ? '0 : iss_bm;
         m_retry <= e_retry;
         m_mis   <= e_mis;
         m_lq    <= e_lq;
@@ -371,11 +387,12 @@ module OOO_LSU
         endcase
     endfunction
 
-    // the outcome of the load in M. In a cycle of recovery nothing
-    // completes: a load whose entry stays waits and is tried again
+    // the outcome of the load in M. A load from port 2 that is killed now,
+    // a load tried again in a cycle of recovery, and any load in a flush
+    // complete nothing: one whose entry stays waits and is tried again
     logic m_ok, m_to_miss, m_to_wait, m_exc, m_rec;
     always @(*) begin
-        m_rec     = restore || flush_all;
+        m_rec     = flush_all || (m_retry ? restore : (m_bm & kill) != '0);
         m_exc     = m_live && !m_rec && m_mis;
         m_to_wait = m_live && (m_rec || (!m_mis && (m_unknown || (m_fwd_any && !m_cover))));
         m_ok      = m_live && !m_rec && !m_mis && !m_unknown && (m_fwd_any ? m_cover : dc_hit);
@@ -413,8 +430,9 @@ module OOO_LSU
             cmp_ld_valid <= 1'b0;
             fb_v         <= 1'b0;
         end else begin
-            wb_valid     <= (m_ok || f_v) && !restore && !flush_all;
-            cmp_ld_valid <= (m_ok || m_exc || f_v) && !restore && !flush_all;
+            // (none of them in a flush: m_rec and f_v)
+            wb_valid     <= m_ok || f_v;
+            cmp_ld_valid <= m_ok || m_exc || f_v;
             // the buffer holds a fill until it is written back, or until its
             // entry is gone (flushed); an incoming fill (accepted only while
             // the buffer is empty) goes there when it cannot be written now
@@ -530,7 +548,7 @@ module OOO_LSU
             end else begin
                 if (ld_cancel && m_lq == LW'(e)) lcan[e] <= 1'b1;
                 lold[e] <= lold[e] & ~s_free;              // a store gone is no longer older
-                if (iss_valid && iss_ld && iss_lq == LW'(e) && !restore && !flush_all) begin
+                if (e_iss && iss_ld && iss_lq == LW'(e)) begin
                     laddr[e] <= e_sum[PAW-1:0];
                     lsize[e] <= iss_size;
                     luns[e]  <= iss_uns;

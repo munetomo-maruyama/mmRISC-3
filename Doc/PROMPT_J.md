@@ -2560,3 +2560,33 @@ synth_ooo.bat OOC_CTRL
 ```text
 I ran synth_ooo.bat OOO_IQ and synth_ooo.bat OOC_CTRL. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+再合成の結果を確認しました。ns_ok をレジスタにしたことで、IQ も 50 MHz に収まりました。
+
+| ブロック | LUT | 前回 | レジスタ間 | 最悪(ポート込み) |
+|---|---|---|---|---|
+| OOO_IQ | **1,866** | 1,885 | +6.573 ns(12段) | **+0.776 ns**(前回 −0.261 ns) |
+| OOC_CTRL | **350** | 355 | +13.433 ns(5段) | +11.501 ns |
+
+- **IQ の最悪パス:** いまは IQ 自身の選択回路、`vq`(レジスタ)→ `iss_src`(出力)の 12.215 ns です。前回の ns_ok 入力のパスではありません。
+  - この余裕は、出力遅延を 6 ns と厳しめに置いたうえでの値です。
+- **LUT:** IQ が 19、CTRL が 5 減りました。
+- **予算:** 0.1k の桁では変わらず、不足は 3.3k / 4.7k / 6.0k LUT(少なめ / 中央 / 多め)のままです。
+
+これで、ここまでに Vivado で測ったブロックはすべて 50 MHz を満たしています。記録は Plan/OOC(_J).md の 19.4 節と Doc/UARCH(_J).md の 4.4 節に追記し、回答 69 の英訳も PROMPT.md に入れました。コミット 6b2667c で dev に push 済みです。
+<!-- /answer -->
+
+## 71. 2026-10-28 00:29:52 JST
+
+```text
+Go on with the control's next part: the units' pipelines dropping by branch mask and the DS register's payload.
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+The Yosys table is refreshed. Some untouched blocks moved a little, which is ABC's run-to-run noise, not a change. The new rows match section 20.3. Still waiting on the full suite and the mutation campaign.
+<!-- /answer -->

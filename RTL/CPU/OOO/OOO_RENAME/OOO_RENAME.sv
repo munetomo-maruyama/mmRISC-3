@@ -16,8 +16,13 @@
 //              number of free registers is tail - head and stays right
 //              across a restore
 //   busy bits  NREG: set when a register is given out, cleared when its
-//              value is written (wb_*); rename reads them to tell the issue
-//              queue which sources are ready already
+//              producer wakes its dependents (the issue queue's wakeup
+//              tags, OOO_IQ wk_*: Plan/OOC.md 20); rename reads them to tell
+//              the issue queue which sources are ready already. Cleared at
+//              the write-back instead, a µop renamed between the wakeup and
+//              the write would wait for a wakeup that has gone (the DS
+//              register covers only the cycles from renaming to dispatch,
+//              OOO_DSREG)
 //   in-group   a source of µop 1 that is µop 0's destination takes µop 0's
 //              new tag (and is not ready)
 //   checkpoints NCKPT copies of the RAT and of the free list's head, for a
@@ -41,9 +46,9 @@
 // (chead, advanced by every committed allocation; cmt_wr is set only for
 // one, so never for x0). flush_all (a trap, a serialization) goes back to
 // it: RAT = arat, head = chead. The busy bits need nothing (bug injection
-// showed clearing them redundant): every register in arat holds a value
-// written before its µop committed, and a free register's bit is set again
-// when it is given out.
+// showed clearing them redundant): every register in arat was woken for
+// before its µop committed, and a free register's bit is set again when it
+// is given out.
 //
 // x0 maps to physical register 0 forever, is never given out and is always
 // ready. Rename stalls (ready = 0) when the free list cannot cover the
@@ -57,7 +62,7 @@ module OOO_RENAME
         parameter int NREG  = 64,
         parameter int TAGW  = 6,
         parameter int NCKPT = 6,        // G0 (Doc/UARCH.md 3.4)
-        parameter int NWB   = 3      // write-back ports that clear busy bits
+        parameter int NWK   = 6      // wakeup buses that clear busy bits (OOO_IQ wk_*)
     )
     (
         input  logic                        clk,
@@ -79,8 +84,8 @@ module OOO_RENAME
         output logic [1:0][TAGW-1:0]        out_old,     // the previous mapping, freed at commit
 
         // write-back: the value of a register is there
-        input  logic [NWB-1:0]              wb_valid,
-        input  logic [NWB-1:0][TAGW-1:0]    wb_tag,
+        input  logic [NWK-1:0]              wk_valid,
+        input  logic [NWK-1:0][TAGW-1:0]    wk_tag,
 
         // commit: old mappings back to the free list (up to 2 a cycle)
         input  logic [1:0]                  free_valid,
@@ -183,8 +188,8 @@ module OOO_RENAME
             for (int a = 0; a < 32; a++) arat[a] <= TAGW'(a);
         end else begin
             logic [FW:0] t;
-            // write-back clears busy
-            for (int w = 0; w < NWB; w++) if (wb_valid[w]) busy[wb_tag[w]] <= 1'b0;
+            // a wakeup clears busy (a register given out now is set below)
+            for (int w = 0; w < NWK; w++) if (wk_valid[w]) busy[wk_tag[w]] <= 1'b0;
             // commit returns registers at the tail
             t = tail;
             for (int k = 0; k < 2; k++)

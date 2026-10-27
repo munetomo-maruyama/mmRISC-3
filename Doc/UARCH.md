@@ -114,7 +114,8 @@ A misprediction costs 9 cycles from EX to EX. The model is the reference for the
 ### 3.4 Renaming
 
 `OOO_RENAME`: 2 µops a cycle, 2 sources and 1 destination each, 64 physical registers (6-bit tags), RAT in
-flip-flops, a free list of 32, busy bits cleared by the 3 write-back ports, in-group dependences, 6 checkpoints
+flip-flops, a free list of 32, busy bits cleared by the issue queue's 6 wakeup tags (`Plan/OOC.md` 20: cleared at
+the write-back, a µop renamed in between would miss its wakeup), in-group dependences, 6 checkpoints
 (copied a cycle late from the RAT, `Plan/OOC.md` 10.1). A checkpoint is taken for a µop with a conditional branch or
 a jalr (a jal cannot mispredict in the back end). Restoring a checkpoint needs at least 2 cycles after its renaming,
 which the pipeline gives.
@@ -127,6 +128,7 @@ the free list; renaming gets them (about 0.3k LUTs).
 
 | Item | Specification |
 |---|---|
+| DS register | Between renaming and dispatch: both µops go together or none (`OOO_CTRL`); the payload (`OOO_DSREG`) keeps the source ready bits up to date from the issue queue's wakeup tags of the cycle before, so a µop held there misses no wakeup (`Plan/OOC.md` 20) |
 | ROB | 24 µops; payload in LUTRAM banked by the parity of the index (one write port each; with the µop's length and fetch block), done, exception and replay bits in flip-flops; commit 2 a cycle |
 | Issue queue | `OOO_IQ`: unified, **10 entries** (G0b D-12, 6.5), 2 sources and 1 destination, oldest first (age matrix), 3 issues a cycle, 6 wakeup buses, entries freed at issue (a load that misses is replayed after commit, 3.7), a branch mask per entry (6 bits: a restore kills the µops younger than the branch, `Plan/OOC.md` 18); payload in LUTRAM (`OOO_IQPL`: two banks with one write port each and a live value table, written at DS to `disp_entry`, read in RR, `Plan/OOC.md` 17.1) |
 | Ports | P0: ALU0 + MUL / DIV and the complex ALU operations; P1: ALU1 (add / sub, slt / sltu, logic, branches; it selects first, 6.12); P2: LSU |
@@ -154,7 +156,7 @@ the free list; renaming gets them (about 0.3k LUTs).
 | D$ | mmRISC-2's (non-blocking, 2 MSHRs) behind an adapter with tagged requests and responses (`OOO_DCAD`, `Plan/OOC.md` 17.2): the D$ gives a load hit in its stage 1 (`d_hit_now`, the one output added, also under a miss) for the LSU's M; other answers come in order and are given as fills by LQ entry; a newer request of an LQ entry drops its older answers (no stale value for a load tried again) |
 | Misaligned | Trap, as in mmRISC-2 |
 | Block | `OOO_LSU` (2026-10-25, `Plan/OOC.md` 11): LQ / SQ, forwarding, `lsu_st_known` for the issue queue, `ld_cancel` for a load that misses its expected cycle, late results, `dc_kill` for the D$ adapter (not needed by `OOO_DCAD`) |
-| **Holding back dependents** (decided 2026-10-26, D-12, 6.5; the selective replay of `Plan/OOC.md` 15 before) | **Replay after commit**: a load that raises `ld_cancel` (a miss, a wait) completes later marked (`cmp_ld_rp`); the ROB commits it and empties, and the front end fetches from the next instruction (`replay`, `replay_pc`). What ran on the guess in between is thrown away; the load itself runs once. No masks, no kept entries; the units need not drop anything. +0.2 % / +0.2 % in the model; every load that misses pays a refetch and the work under the miss (code that misses: Linux) |
+| **Holding back dependents** (decided 2026-10-26, D-12, 6.5; the selective replay of `Plan/OOC.md` 15 before) | **Replay after commit**: a load that raises `ld_cancel` (a miss, a wait) completes later marked (`cmp_ld_rp`); the ROB commits it and empties, and the front end fetches from the next instruction (`replay`, `replay_pc`). What ran on the guess in between is thrown away; the load itself runs once. No masks, no kept entries; the units need not drop anything for it (they drop by branch mask on a misprediction, `Plan/OOC.md` 20). +0.2 % / +0.2 % in the model; every load that misses pays a refetch and the work under the miss (code that misses: Linux) |
 
 ### 3.8 Commit, exceptions and fused pairs
 

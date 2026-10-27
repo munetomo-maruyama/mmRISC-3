@@ -4,14 +4,15 @@
 //
 // Every cycle: 2 random µops (sources and destinations from a small set of
 // registers, so that the in-group cases happen), some with a checkpoint;
-// write-backs of registers given out (3 ports); commits in order that give
+// wakeups of registers given out (6 buses, which clear the busy bits: the
+// issue queue's wakeup tags); commits in order that give
 // the old mappings back (up to 2 a cycle); now and then a misprediction
 // that restores a pending checkpoint and drops the µops younger than it.
 // The outputs (ready, physical sources, ready bits, new and old
 // destinations, checkpoint numbers) are compared every cycle.
 //
 // Commits also update the committed-state RAT and head (a µop commits only
-// after its value is written back, as in the core), and now and then a
+// after its wakeup, as in the core), and now and then a
 // flush_all goes back to them (RAT, free-list head, busy bits all clear).
 //
 // The reference takes a checkpoint at once, as the RAT right after its µop;
@@ -74,12 +75,12 @@ int main(int argc, char** argv)
             ckp[u] = (rng() % 3 == 0) && pending_ck.size() + (u ? ckp[0] : 0) < NCK;
             if (ckp[u] && pending_ck.size() + (u ? ckp[0] : 0) == NCK - 1) nfull++;
         }
-        // write-backs: up to 3 registers given out
-        int wbv = 0; uint32_t wbt = 0;
-        for (int w = 0; w < 3; w++)
-            if (!given.empty() && rng() % 2) {
+        // wakeups: up to 6 registers given out
+        int wbv = 0; uint64_t wbt = 0;
+        for (int w = 0; w < 6; w++)
+            if (!given.empty() && rng() % 3 == 0) {
                 int k = rng() % given.size();
-                wbv |= 1 << w; wbt |= (uint32_t)given[k] << (6 * w);
+                wbv |= 1 << w; wbt |= (uint64_t)given[k] << (6 * w);
                 given.erase(given.begin() + k);
             }
         // commits: up to the 2 oldest µops (written back first); now and then
@@ -123,7 +124,7 @@ int main(int argc, char** argv)
             ic |= ckp[u] << u;
         }
         d.in_use = iu; d.in_src = is; d.in_wr = iw; d.in_dst = id; d.in_ckpt = ic;
-        d.wb_valid = wbv; d.wb_tag = wbt; d.free_valid = frv; d.free_tag = frt;
+        d.wk_valid = wbv; d.wk_tag = wbt; d.free_valid = frv; d.free_tag = frt;
         d.cmt_valid = cv; d.cmt_wr = cw; d.cmt_arch = carch; d.cmt_new = cnew; d.flush_all = flush_all;
         d.eval();
 
@@ -162,7 +163,7 @@ int main(int argc, char** argv)
         if (!ok && bad++ < 10) printf("MISMATCH at cycle %ld: %s (rtl/ref)\n", cyc, why);
 
         // ---- the reference: the state after the clock
-        for (int w = 0; w < 3; w++) if ((wbv >> w) & 1) R.busy[(wbt >> (6 * w)) & 0x3f] = false;
+        for (int w = 0; w < 6; w++) if ((wbv >> w) & 1) R.busy[(wbt >> (6 * w)) & 0x3f] = false;
         for (int k = 0; k < nfr; k++) { R.fl[R.tail % 32] = (int)((frt >> (6 * k)) & 0x3f); R.tail++; }
         for (auto& o : cm) if (o.wr) { R.arat[o.arch] = o.nt; R.chead++; }
         if (flush_all) {

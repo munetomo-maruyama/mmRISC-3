@@ -2571,3 +2571,27 @@ Two things to confirm:
 ```text
 I ran synth_ooo.bat OOO_IQ and synth_ooo.bat OOC_CTRL. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I checked the resynthesis. With ns_ok registered, the IQ now fits in 50 MHz too.
+
+| Block | LUT | Before | Register to register | Worst (with the ports) |
+|---|---|---|---|---|
+| OOO_IQ | **1,866** | 1,885 | +6.573 ns (12 levels) | **+0.776 ns** (−0.261 ns before) |
+| OOC_CTRL | **350** | 355 | +13.433 ns (5 levels) | +11.501 ns |
+
+- **The IQ's worst path:** now the IQ's own select, `vq` (a register) → `iss_src` (output), 12.215 ns; no longer the ns_ok input.
+  - That slack is with a strict 6 ns output delay.
+- **LUTs:** the IQ lost 19, CTRL 5.
+- **Budget:** unchanged at 0.1k; the gap stays 3.3k / 4.7k / 6.0k LUTs (low / middle / high).
+
+Every block measured in Vivado so far now meets 50 MHz. Recorded in section 19.4 of Plan/OOC(_J).md and 4.4 of Doc/UARCH(_J).md, with the English of answer 69 in PROMPT.md; pushed to dev in commit 6b2667c.
+<!-- /answer -->
+
+## 71. 2026-10-28 00:29:52 JST
+
+```text
+Go on with the control's next part: the units' pipelines dropping by branch mask and the DS register's payload.
+```

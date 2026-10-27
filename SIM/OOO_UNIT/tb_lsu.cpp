@@ -12,6 +12,12 @@
 // Branches resolve at random and some are mispredicted (restore
 // to the tails of their checkpoint); a misaligned access is an exception
 // that flushes everything younger when it reaches the head (flush_all).
+// Branches hold checkpoint ids (6, as OOO_CTRL gives them); an issued µop
+// carries the mask of the unresolved branches older than it (iss_bm), and
+// a restore kills the id of its branch (kill). µops issue in cycles of
+// recovery too: one younger than the branch is dropped in E and M (no SQ
+// write, no completion), one older goes on as in any other cycle (Plan/
+// OOC.md 20: dropped on any restore before, an older one was lost).
 //
 // Checked:
 //   - every load's value: the committed memory with every older store not
@@ -53,6 +59,7 @@ struct Uop {
     long disp_cyc = 0, resolve_at = 0;
     bool mispred = false;
     unsigned ck_lq = 0, ck_sq = 0; // checkpoint tails (branches)
+    int ck = -1;                   // checkpoint id while unresolved (branches)
 };
 
 static std::mt19937_64 rng(4242);
@@ -85,8 +92,15 @@ int main(int argc, char** argv)
     Pend m_iss, wb_iss;                         // a load from port 2 now in M / expected in WB
     long last_commit = 0, nld = 0, nst = 0, nlate = 0, ncancel = 0, nrestore = 0, nflush = 0, nfwd_chk = 0;
     long dreq_pending_seq = -1; uint64_t dreq_word = 0; bool dreq_v = false, dreq_hit = false;
+    bool ck_used[6] = {false};
+    long nkilled_iss = 0, nrec_iss = 0;
 
     auto find = [&](long s) -> Uop* { for (auto& u : win) if (u.seq == s) return &u; return nullptr; };
+    auto mask_of = [&](const Uop& x) {           // the unresolved branches older than it
+        unsigned m = 0;
+        for (auto& b : win) { if (b.seq >= x.seq) break; if (b.k == BR && b.ck >= 0) m |= 1u << b.ck; }
+        return m;
+    };
     auto expected = [&](const Uop& L) {
         uint8_t m[8 * NWORD];
         for (int i = 0; i < 8 * NWORD; i++) m[i] = arch[i];
@@ -143,6 +157,11 @@ int main(int argc, char** argv)
                 u.k = r < 35 ? LD : r < 65 ? ST : r < 75 ? BR : OT;
                 if (u.k == LD && (lroom <= 0 || free_tags.empty())) break;
                 if (u.k == ST && sroom <= 0) break;
+                if (u.k == BR) {
+                    int c = -1; for (int i = 0; i < 6; i++) if (!ck_used[i]) { c = i; break; }
+                    if (c < 0) break;
+                    u.ck = c; ck_used[c] = true;
+                }
                 if (u.k == LD) lroom--;
                 if (u.k == ST) sroom--;
                 u.size = rng() % 4;
@@ -161,9 +180,10 @@ int main(int argc, char** argv)
                 nu[nn++] = u; seq++; rob_next = (rob_next + 1) % 32;
             }
         }
-        // -- issue to port 2: one LSU µop dispatched before this cycle
+        // -- issue to port 2: one LSU µop dispatched before this cycle (in a
+        // cycle of recovery too)
         int iv = 0; Uop* iu = nullptr;
-        if (!flush_all && !restore && rng() % 5) {
+        if (rng() % 5) {
             std::vector<Uop*> cand;
             for (auto& u : win)
                 if ((u.k == LD || u.k == ST) && !u.issued && u.disp_cyc < cyc) {
@@ -187,12 +207,19 @@ int main(int argc, char** argv)
             int imm = (int)(rng() % 4096) - 2048;
             d.iss_base = iu->addr - (int64_t)imm; d.iss_imm = imm & 0xfff;
             d.iss_data = iu->data; d.iss_size = iu->size; d.iss_uns = iu->uns; d.iss_dst = iu->tag < 0 ? 0 : iu->tag;
-        } else d.iss_valid = 0;
+            d.iss_bm = mask_of(*iu);
+        } else { d.iss_valid = 0; d.iss_bm = rng() & 63; }
+        // the issued µop goes on unless it is flushed or killed now
+        bool iss_live = iv && !flush_all && !(restore && iu->seq > restore_seq);
+        if (iv && !iss_live) nkilled_iss++;
+        if (iv && iss_live && (restore || flush_all)) nrec_iss++;
         d.dc_hit = dreq_hit; d.dc_rdata = dreq_v ? dreq_word : rng();
         d.dc_fill_valid = fill_v; d.dc_fill_tag = fill_tag; d.dc_fill_data = fill_data;
         d.dc_st_ready = st_ready;
         d.lq_commit = lq_commit; d.sq_commit = sq_commit;
         d.restore = restore; d.restore_lq_tail = r_lq; d.restore_sq_tail = r_sq; d.flush_all = flush_all;
+        { unsigned km = 0; if (restore) for (auto& u : win) if (u.seq == restore_seq) km = 1u << u.ck;
+          d.kill = km; }
         d.eval();
 
         // ================= outputs of this cycle =================
@@ -221,7 +248,8 @@ int main(int argc, char** argv)
                 if ((bool)d.cmp_st_exc != iu->mis) FAIL("store completion: exception %d, expected %d", (int)d.cmp_st_exc, iu->mis);
                 iu->done = true; iu->exc = iu->mis; nst++;
             }
-        } else if (iv && iu->k == ST) FAIL("store %ld issued without a completion", iu->seq);
+            if (!iss_live) FAIL("store %ld completes, but it is killed or flushed now", iu->seq);
+        } else if (iss_live && iu->k == ST) FAIL("store %ld issued without a completion", iu->seq);
         // D$ request in E
         bool req_now = d.dc_req_valid;
         uint64_t req_addr = d.dc_req_addr; unsigned req_tag = d.dc_req_tag;
@@ -306,12 +334,15 @@ int main(int argc, char** argv)
         }
         // the pipeline of the load from port 2
         wb_iss = Pend();
-        if (m_iss.v && !canc && !flush_all && !restore) wb_iss = m_iss;
+        if (m_iss.v && !canc && !flush_all) wb_iss = m_iss;
         m_iss = Pend();
-        if (iv && iu->k == LD && !flush_all && !restore) { m_iss.v = true; m_iss.seq = iu->seq; }
-        if (iv && !flush_all && !restore) iu->issued = true;
+        if (iss_live && iu->k == LD) { m_iss.v = true; m_iss.seq = iu->seq; }
+        if (iss_live) iu->issued = true;
+        // checkpoint ids: a branch resolved as predicted frees its id now
+        for (auto& u : win) if (u.k == BR && u.resolve_at == cyc && !u.mispred && u.ck >= 0) { ck_used[u.ck] = false; u.ck = -1; }
         // recovery
         if (flush_all) {
+            for (auto& u : win) if (u.ck >= 0) ck_used[u.ck] = false;
             win.clear(); nflush++;
             for (auto it = tag_seq.begin(); it != tag_seq.end();) { free_tags.push_back(it->first); it = tag_seq.erase(it); }
             m_iss = Pend(); wb_iss = Pend();
@@ -319,9 +350,10 @@ int main(int argc, char** argv)
             nrestore++;
             while (!win.empty() && win.back().seq > restore_seq) {
                 if (win.back().tag >= 0) { tag_seq.erase(win.back().tag); free_tags.push_back(win.back().tag); }
+                if (win.back().ck >= 0) ck_used[win.back().ck] = false;
                 win.pop_back();
             }
-            for (auto& u : win) if (u.seq == restore_seq) u.mispred = false;
+            for (auto& u : win) if (u.seq == restore_seq) { u.mispred = false; ck_used[u.ck] = false; u.ck = -1; }
             if (m_iss.v && !find(m_iss.seq)) m_iss = Pend();
             if (wb_iss.v && !find(wb_iss.seq)) wb_iss = Pend();
         }
@@ -329,8 +361,8 @@ int main(int argc, char** argv)
         for (auto& u : win) if ((u.k == OT || u.k == BR) && !u.done) u.done = true;
         if (cyc - last_commit > 2000 && !win.empty()) { FAIL("deadlock: µop %ld (kind %d) at the head", win.front().seq, win.front().k); break; }
     }
-    printf("tb_lsu: %ld cycles, %ld loads (%ld late), %ld stores, %ld cancels, %ld restores, %ld flushes, %ld mismatches: %s\n",
-           cyc, nld, nlate, nst, ncancel, nrestore, nflush, bad, bad ? "FAIL" : "PASS");
+    printf("tb_lsu: %ld cycles, %ld loads (%ld late), %ld stores, %ld cancels, %ld restores, %ld flushes, %ld issued in recovery and kept, %ld killed at issue, %ld mismatches: %s\n",
+           cyc, nld, nlate, nst, ncancel, nrestore, nflush, nrec_iss, nkilled_iss, bad, bad ? "FAIL" : "PASS");
     (void)nfwd_chk; (void)dreq_pending_seq;
     return bad ? 1 : 0;
 }

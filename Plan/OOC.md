@@ -1654,3 +1654,88 @@ synth_ooo.bat OOC_ROB
 Items 3 to 5 of 18.7: the units' pipelines dropping by mask and the DS register's payload, the front end's restore
 (history, RAS), exceptions and interrupts (CSR writes, interrupts at a µop boundary, the refetch with fusion off after
 an exception inside a pair).
+
+---
+
+## 20. The control, third part: the units dropping by mask, the DS register's payload (2026-10-28)
+
+Item 3 of 18.7.
+
+### 20.1 What was done
+
+| Block | What was done |
+|---|---|
+| `OOO_STAGE` (new) | One pipeline register of a unit: valid, branch mask and W bits. A µop whose mask has the killed bit is not taken (`in_bm & kill`) or, held (`en` = 0: an iterative divide), leaves; the cleared bits leave the mask whether it is taken or held; `flush` empties it. The ALU ports use it after IS (RR), after RR (EX) and after EX (write-back) |
+| `OOO_DSREG` (new) | The DS register's payload: the two µops' source tags, use and ready bits, and W bits of everything else dispatch writes. Loaded with `ds_load`, else it holds. Its ready bits snoop the issue queue's wakeup tags of the cycle before, every cycle (registered tags, off renaming's and the issue queue's paths) |
+| `OOO_LSU` | A µop from port 2 carries its mask (`iss_bm`): dropped in E and M when it has the killed bit (`kill`); an older one goes on through a restore as in any cycle. A load tried again from the LQ has no mask: it does not start in a cycle of recovery and one in M is put back, as before |
+| `OOO_IQ` | The wakeup tags go out (`wk_valid` / `wk_tag`, 6 buses). The delayed wakeup (a load, a multiply) is not sent for a µop killed or flushed in the cycle it issued |
+| `OOO_RENAME` | The busy bits are cleared by the issue queue's wakeup tags (`wk_*`, 6) at the edge of their cycle, no longer by the 3 write-back ports. A register given out in the same cycle stays busy |
+| `OOO_CTRL` | `ds_load`: the DS register takes renaming's µops (it is empty or its µops go now), the payload's enable |
+
+- **Found: the LSU lost an older µop issued in a restore cycle.** It dropped everything in E and M on any restore
+  (written before the masks, when a misprediction emptied the issue queue): an older load or store issued in that
+  cycle never completed, since the issue queue had freed its entry, and the core would wait for it for ever. `tb_lsu`
+  never issued in a cycle of recovery; now it does (with the masks of the branches older than each µop), and the old
+  code deadlocks in 2,800 cycles.
+- **Found: a µop could miss its wakeup between renaming and dispatch.** The busy bits were cleared at the write-back
+  (an ALU result 3 cycles after its wakeup) and the issue queue takes only the wakeups of the cycle a µop is
+  dispatched. A µop renamed between a wakeup and its write-back read its source busy, and nothing would ever wake it:
+  no unit test held renaming and the issue queue together. `Doc/UARCH.md` 6.5 already assumed the busy bits follow
+  the wakeup buses; 3.4 and the RTL had the write-back ports. Now a µop renamed after a wakeup reads its source ready,
+  and the DS register adds the wakeups between renaming and dispatch: those of the capture cycle (seen the cycle
+  after) and of every cycle it holds.
+- **Stale wakeups.** With the busy bits and the DS register taking wakeups, one for a register that has been given
+  out again would mark a new µop's source ready. A µop killed or flushed as it issues has its register given out a
+  cycle later at the earliest: only its delayed wakeup can come then, and the issue queue no longer sends it.
+  Contract for the units that wake from outside (divide, AMO): only for live µops.
+- **What a unit does in the cycle of a kill is not held back** (`OOO_STAGE`): a killed branch clears nothing
+  (`OOO_CTRL`), and its register and ROB entry are given out again only later (renaming a cycle after the restore,
+  dispatch two), so its write and its completion land on nothing live.
+- **Clears.** A checkpoint cleared in cycle t is killed again in t + 5 at the earliest (renamed, dispatched, issued,
+  read, resolved), so the LSU's one-cycle M needs no clears. `OOO_STAGE` clears both when it takes a µop and while it
+  holds: I first left the clear out when taking; a µop taken with a bit cleared in that cycle into a stage that then
+  holds (a divide) would keep the bit, and the next branch with that id would kill it (`tb_stage`, M250).
+
+### 20.2 Verification
+
+- **`tb_stage`** (new): the stage against the history of the µop it holds (taken, killed, cleared, flushed), ids
+  given out again the cycle after they close (sooner than the core can), holds in bursts. 400,000 cycles, 4 seeds.
+- **`tb_dsreg`** (new): renaming's busy bits played (cleared at the edge of the wakeup's cycle); every cycle, every
+  source of the µops held must be ready exactly when its producer woke in a cycle before this one: what the issue
+  queue needs, since it takes the wakeups of the dispatch cycle itself. In-group sources, holds of up to 20 cycles,
+  wakeups a few or 40 cycles after renaming. 300,000 cycles, 162,492 sources made ready by the snoop, 4 seeds.
+- **`tb_lsu` / `tb_dcad`**: branches hold checkpoint ids, every µop issued carries the mask of the unresolved
+  branches older than it, a restore kills its id, and µops issue in cycles of recovery too: one younger than the
+  branch must not write the SQ or complete, one older must go on as in any cycle.
+- **`tb_iq`**: the 6 wakeup buses checked bus by bus every cycle (the delayed one absent for a µop killed or flushed
+  as it issued). **`tb_rename`**: 6 wakeup buses clear the busy bits. **`tb_ctrl`**: `ds_load` set when µops rename,
+  clear while the DS register keeps µops that do not go.
+- **Bug injection**: 19 new mutations (M233–M237, M240–M253) and M38 retargeted; all detected.
+- **Not checked**: an older load in M put back by a restore (as the LSU did before) is not a wrong value, only a late
+  one with a replay after commit, which the tests accept; the mutation of it is not in the list.
+
+### 20.3 Size (Yosys), and the Vivado runs asked of the author
+
+| Block | Before | Now | |
+|---|---|---|---|
+| `OOC_RENAME` | 3,456 | 3,753 | +297: 6 buses clear the busy bits instead of 3 |
+| `OOO_IQ` | 2,986 | 3,163 | +177: the wakeup tags as outputs, the gated delayed wakeups |
+| `OOC_LSU` | 3,055 | 3,148 | +93: the masks in E and M |
+| `OOC_CTRL` | 388 | 386 | `ds_load` |
+| `OOC_DSREG` | | 121 | new: 4 sources × 6 buses compared |
+
+- Yosys only hints (the IQ's +177 is more than the change looks; Vivado decides). The stage registers are about 1 LUT
+  of mask check each (3 a port); the payload of the DS register (about 150 bits a slot) and of the stages are
+  flip-flops with an enable, no LUTs.
+- **Timing to watch**: the busy bits now take the issue queue's wakeup tags, which come late in the cycle from its
+  select (its worst path reaches the port at about 13.2 ns, 19.4). The `OOC_RENAME` harness feeds them unregistered
+  with 13 ns of input delay, `OOC_DSREG` too. If renaming misses: the busy bits take the tags a cycle later (from a
+  register) and the DS register snoops two cycles back (twice the compares).
+- **Please run** `synth_ooo.bat OOC_RENAME`, `synth_ooo.bat OOO_IQ`, `synth_ooo.bat OOC_LSU` and
+  `synth_ooo.bat OOC_DSREG` (new in the list).
+
+### 20.4 What is left of the control
+
+Items 4 and 5 of 18.7: the front end's restore (the FTQ entry's history and RAS state into `OOO_FETCH`), exceptions
+and interrupts (the trap vector and the CSR writes, interrupts at a µop boundary, the refetch with fusion off after an
+exception inside a pair, FENCE.I / SFENCE.VMA). The budget is updated with the Vivado results.
