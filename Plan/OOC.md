@@ -1472,3 +1472,84 @@ synth_ooo.bat OOC_LSUDC
 - **The budget** (`Doc/UARCH.md` 4.4): the payload 711 and the adapter 227 in place of 0.4k to 0.7k and 0.3k to 0.6k:
   the gap goes to **10.1k / 11.5k / 12.8k**. What is left unwritten is the control (dispatch, branch resolution,
   redirects, commit and exceptions, the ports to CSR / MDU / FPU / MMU; 1.5k to 2.5k).
+
+---
+
+## 18. The control, first part: branch masks, dispatch and recovery (step 2 of Phase 1, 2026-10-27)
+
+The last block left unwritten (`Doc/UARCH.md` 4.3: dispatch, branch resolution, redirects, commit and exceptions,
+1.5k to 2.5k). This first part decides which µops move from renaming to dispatch, which µops a misprediction or a trap
+throws away, and where fetch starts again.
+
+### 18.1 What was missing, found while writing it
+
+1. **The issue queue emptied completely on a misprediction** (`flush`), which loses the older µops still waiting.
+   It needs a selective squash. Chosen: **branch masks** (one bit per checkpoint, 6): a µop carries the checkpoints
+   older than it; a restore of checkpoint c kills every µop with bit c (in the DS register, the issue queue, the
+   units' pipelines); a branch resolved as predicted clears its bit everywhere. The other way, comparing ROB indices
+   against the restored one relative to the head in every entry, costs more compares.
+2. **A checkpoint id must be checked at renaming, not at dispatch.** `OOO_RENAME` copies the RAT into the id it gives
+   in the next cycle, so a µop that would take a live id must wait at renaming (the ring of ids is used in order: one
+   still open stops it even when later ones are free).
+3. The units must drop what they have in flight whose mask meets `kill` (the issue queue gives `iss_bm`).
+
+### 18.2 The block (`RTL/CPU/OOO/OOO_CTRL`)
+
+| Part | Content |
+|---|---|
+| D2 (renaming) | `r_go`: the prefix of the µops offered that rename now: the DS register free or leaving, registers free (`OOO_RENAME` ready), no recovery, and a checkpoint id not in use for a µop that takes one. Its mask is the live checkpoints (with slot 0's for slot 1) less this cycle's clears |
+| DS (dispatch) | The DS register's µops go together, both or none (`d_go`), when the ROB, the issue queue, the LQ and the SQ have room for all of them; their masks (`d_bmask`) lose this cycle's clears. A µop with a checkpoint writes the table: the LSU's tails after it and its fetch block |
+| Recovery | trap (flush_all, fetch from the trap vector), then replay (flush_all, fetch from `replay_pc`), then restore (the ROB's oldest mispredicted branch: restore id, the table's LSU tails and FTQ index, `kill` = its bit, fetch from the branch's correct next pc). The restored checkpoint and those younger (their masks have its bit) are free again |
+| Clears | `clr`: the branches resolved as predicted, unless this cycle's restore kills them (their ids may be given out again) |
+
+- Both or none at DS is simpler than moving slot 1 to slot 0 (a select on the whole payload); it can lose a cycle
+  when exactly one entry is free. Not in the model yet.
+
+### 18.3 The issue queue with branch masks (`OOO_IQ`)
+
+Every entry keeps its mask (`disp_bm`); `kill` frees the entries whose mask has the bit, in the next state (the select
+of that cycle is unchanged: a µop selected then is dropped by its unit, its mask in `iss_bm`); `clr` clears bits.
+`flush` is flush_all only.
+
+### 18.4 Verification
+
+- **`tb_ctrl`**: a random stream of µops (a quarter branches, loads, stores) offered to renaming; the test bench plays
+  `OOO_RENAME`'s ring of checkpoint ids and the ROB (the oldest mispredicted branch of the cycle; now and then a trap
+  or a replay), with random room in every queue and random resolutions at a rate that changes every 500 cycles (so
+  that the checkpoints run out at times). Checked every cycle against an account of the µops in program order:
+  `r_go`, `ds_valid`, `d_go`, every mask (exactly the older branches not resolved), `live`, `kill`, `clr`, the restore
+  id, tails and FTQ index, and the redirect pc. PASS on 4 seeds (400,000 cycles each: about 207,000 µops renamed,
+  6,600 restores, 2,000 flushes, 4,000 stalls on a checkpoint id).
+- **`tb_iq`** with masks: the open ids kept in program order, a µop taking them as its mask and sometimes opening
+  one; kills (without dispatch in that cycle, as `OOO_CTRL` gives them) and clears; `iss_bm` checked. PASS on 6 seeds
+  (about 6,000 kills and 39,000 clears a run).
+  - **A hole found in `tb_iq` itself**: a random destination tag could be one the older µop of the same group read, a
+    dependence on a younger µop. Without kills the two then waited for each other until the next flush; a kill made
+    it visible. Fixed: the queue now issues about 278,000 µops a run instead of 100,000.
+- **Bug injection**: 11 added (9 in `OOO_CTRL`, 2 for the masks of `OOO_IQ`), all detected (191 in all).
+
+### 18.5 Size (Yosys), and the Vivado runs asked of the author
+
+| Block | Yosys |
+|---|---|
+| OOC_CTRL | 384 LUTs, 428 FFs (most of them the harness's) |
+| OOO_IQ with masks | 2,833 (2,571 without) |
+
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_CTRL
+synth_ooo.bat OOO_IQ
+```
+
+### 18.6 What the control still needs (the next parts)
+
+1. **Non-speculative µops** (`Doc/UARCH.md` 3.9): held in the issue queue until they are at the ROB head (`head_ns`
+   and the µop's ROB index), and younger µops waiting behind CSR writes.
+2. **Commit**: renaming's free list and committed state from the ROB's commits; the LQ / SQ counts; the FTQ's pops,
+   which need to know which µop ends a fetch block (not in the ROB's payload yet).
+3. **The units' pipelines** dropping by mask, and the pipeline registers between D2 and DS (the payload of the DS
+   register).
+4. **The front end's restore**: the FTQ entry's history and RAS state into `OOO_FETCH` (`be_*`).
+5. **Exceptions and interrupts**: the trap vector and the CSR writes (mepc, mcause, mtval), interrupts at a µop
+   boundary, the refetch with fusion off after an exception inside a pair (3.8), FENCE.I / SFENCE.VMA flushing the
+   front end.

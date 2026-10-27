@@ -30,6 +30,13 @@
 // that iss_entry is the entry of the issued µop (the payload's addresses).
 // Loads that miss are not taken back by the queue (replay after commit,
 // OOO_IQ.sv): for the queue a load is a latency-2 µop like any other.
+//
+// Branch masks (OOO_CTRL): the test bench keeps the checkpoint ids open in
+// program order; a dispatched µop takes them as its mask, and a µop may
+// open a new one after it. Now and then a kill (in a cycle without
+// dispatch, as OOO_CTRL gives it) of an open id: the µops whose mask has it
+// leave, and the ids opened after it close; and a clear of an open id:
+// its bit goes from every mask. iss_bm is checked for every issue.
 //---------------------------------------------------------------------------
 #include "VOOO_IQ.h"
 #include <cstdint>
@@ -45,6 +52,7 @@ struct Uop {
     int port, use[2], src[2], wr, dst, lat2, ext;
     long disp, issued = -1;
     int entry = -1;     // its entry (disp_entry), where the payload is
+    unsigned bm = 0;    // its branch mask
 };
 
 static std::mt19937 rng(5);
@@ -63,7 +71,9 @@ int main(int argc, char** argv)
     for (int t = 0; t < NT; t++) { avail[t] = 0; tag_free_at[t] = 0; refs[t] = 0; }
     std::map<int, Uop> q;                   // in the queue, by destination tag
     std::vector<std::pair<long, int>> ext_due;   // (cycle, tag) to announce on ext
-    long next_id = 0, bad = 0, issued_n = 0, flushes = 0;
+    long next_id = 0, bad = 0, issued_n = 0, flushes = 0, nkill = 0, nkilled = 0, nclr = 0;
+    std::vector<int> open_ids;              // checkpoint ids open, in program order
+    const int NCK = 6;
     long cyc;
     for (cyc = 0; cyc < 300000; cyc++) {
         // ---- disp_ready: from the queue as the last cycle left it
@@ -76,6 +86,19 @@ int main(int argc, char** argv)
         int ndisp = rng() % 3;
         if (rng() % 3000 == 0) ndisp = 0;
         int flush = (rng() % 2000 == 0);
+        // a kill of an open id (no dispatch then) and a clear of another
+        int kill_id = -1, clr_id = -1;
+        if (!flush && !open_ids.empty() && rng() % 40 == 0) {
+            size_t i = rng() % open_ids.size();
+            kill_id = open_ids[i];
+            open_ids.resize(i);                 // it and those opened after it close
+            ndisp = 0;
+        }
+        if (!flush && !open_ids.empty() && rng() % 6 == 0) {
+            size_t i = rng() % open_ids.size();
+            clr_id = open_ids[i];
+            open_ids.erase(open_ids.begin() + i);
+        }
         // tags to choose sources from: recently produced ones mostly
         std::vector<int> recent;
         for (auto& kv : q) recent.push_back(kv.first);
@@ -87,7 +110,10 @@ int main(int argc, char** argv)
             int t0 = -1;
             for (int tries = 0; tries < 50; tries++) {
                 int t = 1 + (int)(rng() % (NT - 1));
-                if (tag_free_at[t] <= cyc && !q.count(t) && !refs[t]) { t0 = t; break; }
+                // (not a tag the older µop of the same group reads: that would be a
+                // dependence on a younger µop, which a kill of it makes visible)
+                bool rd0 = nd == 1 && ((u[0].use[0] && u[0].src[0] == t) || (u[0].use[1] && u[0].src[1] == t));
+                if (tag_free_at[t] <= cyc && !q.count(t) && !refs[t] && !rd0) { t0 = t; break; }
             }
             if (t0 < 0) break;
             x.id = next_id++;
@@ -104,6 +130,11 @@ int main(int argc, char** argv)
             tag_free_at[t0] = 1L << 60;
             avail[t0] = 1L << 60;
             if (nd == 0 && k == 1) {}                // keep the program order of the pair
+            for (int o : open_ids) x.bm |= 1u << o;
+            if (rng() % 5 == 0 && (int)open_ids.size() < NCK) {   // it opens a checkpoint after it
+                int o; do { o = rng() % NCK; } while (std::find(open_ids.begin(), open_ids.end(), o) != open_ids.end());
+                open_ids.push_back(o);
+            }
             recent.push_back(t0);
             nd++;
         }
@@ -121,8 +152,11 @@ int main(int argc, char** argv)
 
         // drive
         d.flush = flush;
+        d.kill = kill_id >= 0 ? 1u << kill_id : 0;
+        d.clr = clr_id >= 0 ? 1u << clr_id : 0;
+        unsigned clrm = clr_id >= 0 ? 1u << clr_id : 0, killm = kill_id >= 0 ? 1u << kill_id : 0;
         d.disp_valid = (nd >= 1 ? 1 : 0) | (nd >= 2 ? 2 : 0);
-        uint32_t port = 0, use = 0, rdy = 0, wr = 0, lat2 = 0, dst = 0, src = 0;
+        uint32_t port = 0, use = 0, rdy = 0, wr = 0, lat2 = 0, dst = 0, src = 0, bmw = 0;
         for (int k = 0; k < nd; k++) {
             Uop& x = u[k];
             port |= x.port << (2 * k); lat2 |= x.lat2 << k;
@@ -132,9 +166,10 @@ int main(int argc, char** argv)
                 rdy |= (avail[x.src[s]] <= cyc) << (2 * k + s);
             }
             wr |= x.wr << k; dst |= (uint32_t)x.dst << (6 * k);
+            bmw |= (uint32_t)x.bm << (6 * k);
         }
         d.disp_port = port; d.disp_use = use; d.disp_src = src; d.disp_rdy = rdy;
-        d.disp_wr = wr; d.disp_dst = dst; d.disp_lat2 = lat2;
+        d.disp_wr = wr; d.disp_dst = dst; d.disp_lat2 = lat2; d.disp_bm = bmw;
         d.ext_valid = extv; d.ext_tag = extt;
         d.eval();
         // the entries given to the µops dispatched now: not one in use
@@ -181,6 +216,8 @@ int main(int argc, char** argv)
                     printf("MISMATCH cycle %ld port %d: issued %d (p%d), expected %s (p%d)\n", cyc, p, v, t,
                            exp[p] ? "one" : "none", exp[p] ? exp[p]->dst : 0);
                 if (ok && v) {
+                    unsigned gb = (unsigned)((d.iss_bm >> (6 * p)) & 63), eb = exp[p]->bm & ~clrm;
+                    if (gb != eb && bad++ < 10) printf("MISMATCH cycle %ld port %d (p%d): iss_bm %02x, expected %02x\n", cyc, p, t, gb, eb);
                     int en = (int)((d.iss_entry >> (4 * p)) & 15);
                     if (en != exp[p]->entry && bad++ < 10)
                         printf("MISMATCH cycle %ld port %d (p%d): iss_entry %d, expected %d\n", cyc, p, t, en, exp[p]->entry);
@@ -198,6 +235,7 @@ int main(int argc, char** argv)
                 avail[x.dst] = cyc + 1; tag_free_at[x.dst] = cyc + 4;
             }
             q.clear();
+            open_ids.clear();
             flushes++;
         } else {
             for (int p = 0; p < 3; p++) {
@@ -212,13 +250,26 @@ int main(int argc, char** argv)
                 if (x.ext) ext_due.push_back({cyc + 3 + (long)(rng() % 8), x.dst});
                 else tag_free_at[x.dst] = cyc + 4;
             }
+            // the killed µops leave (not the ones issued now: they left already)
+            if (killm) {
+                nkill++;
+                for (auto it = q.begin(); it != q.end();) {
+                    Uop& x = it->second;
+                    if (x.bm & killm) {
+                        for (int s2 = 0; s2 < 2; s2++) if (x.use[s2]) refs[x.src[s2]]--;
+                        avail[x.dst] = cyc + 1; tag_free_at[x.dst] = cyc + 4; nkilled++;
+                        it = q.erase(it);
+                    } else ++it;
+                }
+            }
+            if (clrm) { nclr++; for (auto& kv : q) kv.second.bm &= ~clrm; }
             for (int k = 0; k < nd; k++) {
                 u[k].disp = cyc; q[u[k].dst] = u[k];
                 for (int s2 = 0; s2 < 2; s2++) if (u[k].use[s2]) refs[u[k].src[s2]]++;
             }
         }
     }
-    printf("tb_iq: %ld cycles, %ld µops issued, %ld flushes, %ld mismatches: %s\n", cyc, issued_n, flushes, bad,
-           bad ? "FAIL" : "PASS");
+    printf("tb_iq: %ld cycles, %ld µops issued, %ld kills (%ld µops killed), %ld clears, %ld flushes, %ld mismatches: %s\n",
+           cyc, issued_n, nkill, nkilled, nclr, flushes, bad, bad ? "FAIL" : "PASS");
     return bad ? 1 : 0;
 }

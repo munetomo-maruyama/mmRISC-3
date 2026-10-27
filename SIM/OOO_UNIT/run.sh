@@ -33,6 +33,7 @@ TOP[fuse]=OOO_FUSE;     SRC[fuse]="$R/OOO_FUSE/OOO_FUSE.sv"
 TOP[prf]=OOO_PRF;       SRC[prf]="$R/OOO_PRF/OOO_PRF.sv"
 TOP[rename]=OOO_RENAME; SRC[rename]="$R/OOO_RENAME/OOO_RENAME.sv"
 TOP[iq]=OOO_IQ;         SRC[iq]="$R/OOO_IQ/OOO_IQ.sv"
+TOP[ctrl]=OOO_CTRL;     SRC[ctrl]="$R/OOO_CTRL/OOO_CTRL.sv"
 TOP[iqpl]=OOO_IQPL;     SRC[iqpl]="$R/OOO_IQPL/OOO_IQPL.sv"
 TOP[ubtb]=OOO_UBTB;     SRC[ubtb]="$R/OOO_UBTB/OOO_UBTB.sv"
 TOP[lsu]=OOO_LSU;       SRC[lsu]="$R/OOO_LSU/OOO_LSU.sv"
@@ -48,7 +49,7 @@ TOP[dec]=OOO_DEC;       SRC[dec]="$C/CORE_DECOMP/CORE_DECOMP.sv $C/CORE_DEC/CORE
 XC[dec]="-I$SP/include -I$SP/include/riscv -I$SP/include/softfloat -I$SP/include/fesvr -Wno-c++20-extensions"
 XL[dec]="-L$SP/lib -lriscv -ldisasm -lsoftfloat -lfesvr -Wl,-rpath,$SP/lib -lpthread -ldl"
 TOP[fetch]=OOO_FETCH;   SRC[fetch]="$R/OOO_UBTB/OOO_UBTB.sv $R/OOO_PREDEC/OOO_PREDEC.sv $R/OOO_TAGE/OOO_TAGE.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FETCH/OOO_FETCH.sv"
-TESTS=${*:-alu2 alu1 fuse prf rename iq iqpl ubtb lsu dcad rob fbuf ftq predec ras btb tage fetch dec}
+TESTS=${*:-alu2 alu1 fuse prf rename ctrl iq iqpl ubtb lsu dcad rob fbuf ftq predec ras btb tage fetch dec}
 
 fail=0
 for t in $TESTS; do

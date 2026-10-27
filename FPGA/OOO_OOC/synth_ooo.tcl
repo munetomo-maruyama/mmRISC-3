@@ -7,7 +7,7 @@
 #   vivado -mode batch -source synth_ooo.tcl -tclargs [top [period [impl [generics]]]]
 #
 #     top       OOC_ALU2 / OOC_FUSE / OOC_PRF / OOC_RENAME / OOO_IQ / OOO_UBTB / OOC_LSU / OOC_ROB
-#               / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC / OOC_IQPL / OOC_LSUDC
+#               / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC / OOC_IQPL / OOC_LSUDC / OOC_CTRL
 #                                                          OOC_ALU2
 #     period    clock period in ns                         20.0 (50 MHz)
 #     impl      1 = also place and route                   1
@@ -59,7 +59,7 @@ read_verilog -sv [list \
     $rtl/OOO_FBUF/OOO_FBUF.sv $rtl/OOO_FTQ/OOO_FTQ.sv \
     $rtl/OOO_PREDEC/OOO_PREDEC.sv $rtl/OOO_TAGE/OOO_TAGE.sv $rtl/OOO_BTB/OOO_BTB.sv $rtl/OOO_RAS/OOO_RAS.sv \
     $rtl/OOO_FETCH/OOO_FETCH.sv $core/CORE_DECOMP/CORE_DECOMP.sv $core/CORE_DEC/CORE_DEC.sv \
-    $rtl/OOO_DEC/OOO_DEC.sv $rtl/OOO_IQPL/OOO_IQPL.sv $rtl/OOO_DCAD/OOO_DCAD.sv \
+    $rtl/OOO_DEC/OOO_DEC.sv $rtl/OOO_IQPL/OOO_IQPL.sv $rtl/OOO_DCAD/OOO_DCAD.sv $rtl/OOO_CTRL/OOO_CTRL.sv \
     $cache/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv $cache/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv \
     $cache/DCACHE/DCACHE.sv ./rtl/OOC_WRAP.sv]
 

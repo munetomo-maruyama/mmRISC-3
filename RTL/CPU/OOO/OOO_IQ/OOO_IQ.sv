@@ -42,6 +42,14 @@
 // The issued µops are read by an AND-OR of the one-hot grants, not through
 // their encoded entry numbers (iss_entry is only for the payload).
 //
+// Mispredictions (OOO_CTRL, Doc/UARCH.md 6.14): every entry keeps the branch
+// mask of its µop (the checkpoints older than it, disp_bm); kill (the
+// restored checkpoint, one-hot) frees the entries whose mask has that bit,
+// the µops younger than the branch, in the next state; clr (checkpoints
+// resolved as predicted) clears bits in every mask. The issued µop's mask
+// goes out (iss_bm) for the units, which drop what has a killed bit. flush
+// (flush_all) frees every entry.
+//
 // The payload of a µop (operation, immediates, ROB index) is not here: it
 // sits in a LUTRAM indexed by the entry (OOO_IQPL): disp_entry says where
 // it is written, iss_entry where it is read.
@@ -53,12 +61,15 @@ module OOO_IQ
     #(
         parameter int N    = 10,     // G0b (Doc/UARCH.md 6.3, D-12)
         parameter int TAGW = 6,      // physical registers: 64
-        parameter int NEXT = 2       // external wakeup ports
+        parameter int NEXT = 2,      // external wakeup ports
+        parameter int NCK  = 6       // checkpoints (branch-mask bits)
     )
     (
         input  logic                  clk,
         input  logic                  rst_n,
-        input  logic                  flush,      // misprediction: empty the queue
+        input  logic                  flush,      // flush_all: empty the queue
+        input  logic [NCK-1:0]        kill,       // a restored checkpoint: its µops leave (one-hot)
+        input  logic [NCK-1:0]        clr,        // checkpoints resolved as predicted
 
         // dispatch: up to 2 µops a cycle, in program order (0 the older)
         output logic [1:0]            disp_ready, // room for this many
@@ -71,6 +82,7 @@ module OOO_IQ
         input  logic [1:0]            disp_wr,    // it writes its destination
         input  logic [1:0][TAGW-1:0]  disp_dst,
         input  logic [1:0]            disp_lat2,  // results after 2 cycles (load, multiply)
+        input  logic [1:0][NCK-1:0]   disp_bm,    // branch masks (OOO_CTRL d_bmask)
 
         // external wakeups
         input  logic [NEXT-1:0]           ext_valid,
@@ -81,7 +93,8 @@ module OOO_IQ
         output logic [2:0][$clog2(N)-1:0] iss_entry,
         output logic [2:0][1:0][TAGW-1:0] iss_src,
         output logic [2:0]            iss_wr,
-        output logic [2:0][TAGW-1:0]  iss_dst
+        output logic [2:0][TAGW-1:0]  iss_dst,
+        output logic [2:0][NCK-1:0]   iss_bm      // the issued µops' branch masks (for the units)
     );
 
     localparam int EW = $clog2(N);
@@ -97,6 +110,7 @@ module OOO_IQ
     logic [N-1:0]                 wr;
     logic [TAGW-1:0]              dst   [N];
     logic [N-1:0]                 older [N];  // older[i][j]: entry j is older than entry i
+    logic [NCK-1:0]               bm    [N];  // branch mask
 
     // ---- select
     logic [N-1:0] ready_all, req0, req1, req2, g0, g1, g2;
@@ -134,11 +148,13 @@ module OOO_IQ
             iss_entry[p] = enc(g[p]);
             iss_src[p]   = '0;
             iss_dst[p]   = '0;
+            iss_bm[p]    = '0;
             iss_wr[p]    = |(g[p] & wr);
             lat2_0       = |(g0 & lat2);
             for (int i = 0; i < N; i++) begin
                 iss_src[p] = iss_src[p] | ({2*TAGW{g[p][i]}} & src[i]);
                 iss_dst[p] = iss_dst[p] | ({TAGW{g[p][i]}} & dst[i]);
+                iss_bm[p]  = iss_bm[p]  | ({NCK{g[p][i]}}  & bm[i] & ~clr);
             end
         end
     end
@@ -212,6 +228,7 @@ module OOO_IQ
         logic [1:0][TAGW-1:0] sq;
         logic [TAGW-1:0]      dq;
         logic [N-1:0]         oq;
+        logic [NCK-1:0]       bq;
         assign v[i]     = vq;
         assign lat2[i]  = lq;
         assign port[i]  = pq;
@@ -221,6 +238,7 @@ module OOO_IQ
         assign wr[i]    = wq;
         assign dst[i]   = dq;
         assign older[i] = oq;
+        assign bm[i]    = bq;
 
         always_ff @(posedge clk or negedge rst_n) begin
             if (!rst_n) begin
@@ -237,12 +255,14 @@ module OOO_IQ
                 wq <= disp_wr[d];
                 dq <= disp_dst[d];
                 lq <= disp_lat2[d];
+                bq <= disp_bm[d];
                 // age: younger than every entry that stays, and the second of a
                 // pair younger than the first
                 for (int j = 0; j < N; j++) oq[j] <= v[j] && !issued[j];
                 if (disp1[i] && disp_valid[0] && fev[0]) oq[fe[0]] <= 1'b1;
             end else begin
-                if (issued[i]) vq <= 1'b0;
+                if (issued[i] || (bq & kill) != '0) vq <= 1'b0;
+                bq <= bq & ~clr;
                 for (int s = 0; s < 2; s++) if (woken(sq[s])) rq[s] <= 1'b1;
                 // an entry written now is younger than this one
                 for (int j = 0; j < N; j++) if (disp0[j] || disp1[j]) oq[j] <= 1'b0;

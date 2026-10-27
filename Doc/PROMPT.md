@@ -2358,3 +2358,45 @@ synth_ooo.bat OOC_DEC
 ```text
 I ran synth_ooo.bat for OOC_ALU2 (and with FULL=0), OOC_FUSE, OOO_IQ and OOC_DEC. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+All five close at 50 MHz. L7 saved about 1.23k LUTs, beyond what was expected (about 0.4k in the plan, about 1.1k by the Yosys ratio). The gap in the middle is 4.4k.
+
+| Run | Before | **Now** | Change | Register-to-register slack |
+|---|---|---|---|---|
+| ALU1's port (`FULL=0`) | 1,926 | **684** (the limited ALU 226 of it) | **−1,242** | +5.735 ns |
+| ALU0's port (unchanged) | 1,926 | 1,928 | +2 | +1.480 ns |
+| Fusion (with the port outputs) | 208 | 215 | +7 | +9.565 ns |
+| Issue queue (port 1 selects first) | 1,621 | 1,597 | −24 | +7.438 ns |
+| Decode (the "ALU0 only" marks) | 1,791 | 1,823 | +32 | +7.813 ns |
+| **Together** | | | **−1,225** | |
+
+It saved more than expected because besides the ALU itself (799 → 226), the port's operand selection shrank with it.
+
+**Budget** (a row added to UARCH 4.4)
+
+| | Low | Middle | High |
+|---|---|---|---|
+| After L4 to L6 were measured | 4.2k | 5.6k | 6.9k |
+| **After L7 was measured** | **3.0k** | **4.4k** | **5.7k** |
+
+**Where we stand against the plan**
+- The levers still to come add up to 5.65k: the rest of tier 1 (L1, L3, L8) 2.15k and the reserve (the 54k ceiling, L10, and no PMP / HPM, B4 / B5) 3.5k.
+- The middle margin is now **about +1.3k** (+2.7k low, about 0 high).
+- Without any of the reserve, the middle is about 2.2k short; with only one of its parts, about 0.2k short with L10 alone, about 0.7k with B4 / B5 alone. Both are still assumed, but the margin has grown from last time's +0.4k.
+
+**A fault in the run, and the fix**
+- The `FULL=0` of the command I gave was not quoted, so cmd.exe split it at the `=` and Vivado got only `-generic FULL`. My instruction was wrong.
+- Vivado took FULL as 0 (I checked the log), so the result is valid for ALU1.
+- For the future, `synth_ooo.tcl` now puts split `NAME value` pairs back together. This run's output was moved to `output/OOC_ALU2_FULL0`.
+
+Recorded in `Doc/UARCH` 6.13 and 4.4 (English and Japanese) and the prompt log (answer 64 and the English of 65); pushed to dev with the Vivado reports (`ae6d8a7`).
+<!-- /answer -->
+
+## 66. 2026-10-27 22:33:20 JST
+
+```text
+Start writing the control (dispatch, branch resolution, redirects, commit and exceptions), with unit tests and Vivado scripts.
+```

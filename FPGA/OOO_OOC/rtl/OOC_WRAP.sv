@@ -18,6 +18,7 @@
 //   OOC_LSU / OOC_ROB / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC / OOC_IQPL
 //               the same, each with one input bus and one output bus
 //   OOC_LSUDC   the LSU, the D$ adapter and mmRISC-2's D$ together
+//   OOC_CTRL    the control's first part (branch masks, go, recovery)
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -663,3 +664,50 @@ module OOC_LSUDC
                 awid, awaddr, awlen, awsize, awburst, awvalid, wdata, wstrb, wlast, wvalid, bready,
                 arid, araddr, arlen, arsize, arburst, arvalid, rready};
 endmodule : OOC_LSUDC
+
+//---------------------------------------------------------------------------
+// OOC_CTRL: the control's first part (6 checkpoints) with its inputs and
+// outputs registered
+//---------------------------------------------------------------------------
+module OOC_CTRL
+    (
+        input  logic          clk,
+        input  logic          rst_n,
+        input  logic [212:0]  in,
+        output logic [90:0]   out
+    );
+    logic [212:0] q;
+    always_ff @(posedge clk) q <= in;
+    logic [1:0]       r_valid, r_ckpt, ds_ld, ds_st, rob_avail, iq_avail, lq_avail, sq_avail, br_valid, br_mispred;
+    logic [1:0][2:0]  r_ckpt_id, ds_ftq, br_ckpt;
+    logic             r_ren_ready, rob_restore, trap, replay;
+    logic [1:0][3:0]  ck_lq_tail, ck_sq_tail;
+    logic [1:0][37:0] br_next;
+    logic [2:0]       rob_restore_ckpt;
+    logic [37:0]      replay_pc, trap_vec;
+    assign {r_valid, r_ckpt, r_ckpt_id, r_ren_ready, ds_ld, ds_st, ds_ftq, rob_avail, iq_avail, lq_avail, sq_avail,
+            ck_lq_tail, ck_sq_tail, br_valid, br_mispred, br_ckpt, br_next, rob_restore, rob_restore_ckpt, trap,
+            replay, replay_pc, trap_vec} = q;
+    logic [1:0]       r_go, ds_valid, d_go;
+    logic [1:0][5:0]  d_bmask;
+    logic             flush_all, restore, fe_redirect;
+    logic [2:0]       restore_id, restore_ftq;
+    logic [3:0]       restore_lq_tail, restore_sq_tail;
+    logic [5:0]       kill, clr, live;
+    logic [37:0]      fe_pc;
+    OOO_CTRL #(.NCKPT(6), .CW(3), .VA(39), .FTQW(3), .LW(3)) u_ctrl
+        (.clk(clk), .rst_n(rst_n),
+         .r_valid(r_valid), .r_ckpt(r_ckpt), .r_ckpt_id(r_ckpt_id), .r_ren_ready(r_ren_ready), .r_go(r_go),
+         .ds_valid(ds_valid), .ds_ld(ds_ld), .ds_st(ds_st), .ds_ftq(ds_ftq),
+         .rob_avail(rob_avail), .iq_avail(iq_avail), .lq_avail(lq_avail), .sq_avail(sq_avail),
+         .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail), .d_go(d_go), .d_bmask(d_bmask),
+         .br_valid(br_valid), .br_mispred(br_mispred), .br_ckpt(br_ckpt), .br_next(br_next),
+         .rob_restore(rob_restore), .rob_restore_ckpt(rob_restore_ckpt), .trap(trap), .replay(replay),
+         .replay_pc(replay_pc), .trap_vec(trap_vec),
+         .flush_all(flush_all), .restore(restore), .restore_id(restore_id), .restore_lq_tail(restore_lq_tail),
+         .restore_sq_tail(restore_sq_tail), .restore_ftq(restore_ftq), .kill(kill), .clr(clr),
+         .fe_redirect(fe_redirect), .fe_pc(fe_pc), .live(live));
+    always_ff @(posedge clk)
+        out <= {r_go, ds_valid, d_go, d_bmask, flush_all, restore, restore_id, restore_lq_tail, restore_sq_tail,
+                restore_ftq, kill, clr, fe_redirect, fe_pc, live};
+endmodule : OOC_CTRL
