@@ -529,6 +529,35 @@ The decisions are D-11 to D-14 (section 9).
 - **Against the plan**: still to come L1, L3, L8 (2.15k), L7 (about 0.4k) and the reserve L10 + B4 / B5 (3.5k):
   6.05k. Middle margin about +0.4k (+1.8k low, −0.9k high), as before: L4 to L6 gave what was planned.
 
+### 6.11 L7 modelled: asymmetric ALUs (2026-10-27)
+
+**The model** (`Plan/model/ooo.h`, option `alu_split`; `g0b.sh` → `results/g0b.txt`): the two ALU ports were pooled
+(either took any ALU µop, MUL / DIV too). Now `alu_split` 1 keeps ALU0 and ALU1 apart with MUL / DIV and system on
+ALU0 only, as the RTL is; 2 also puts the complex ALU operations on ALU0 only (L7: shifts, Zba, Zbb, Zbs, Zicond, by
+the trace's `sub` field), a simple µop taking ALU1 first; 3 is the same with a simple µop taking ALU0 first. A fused
+pair is complex when its ALU part is.
+
+| Configuration | `-O2` | Most optimization | Pessimistic |
+|---|---|---|---|
+| The decided set (trap at commit, issue queue 10, L4, L5, fusion level 2) | 6.279 | 6.710 | 5.548 / 5.971 |
+| The same, ALU0 / ALU1 apart (`alu_split` 1) | 6.279 | 6.710 | |
+| **+ L7, a simple µop takes ALU1 first** (2) | **6.260 (−0.3 %)** | **6.695 (−0.2 %)** | 5.521 / 5.949 (−0.5 % / −0.4 %) |
+| + L7, a simple µop takes ALU0 first (3) | 5.882 (−6.3 %) | 6.264 (−6.6 %) | |
+
+- **The ALU ports apart cost nothing**: MUL / DIV on ALU0 only (as the RTL) gives the same numbers as the pooled model.
+- **L7 costs −0.3 % / −0.2 % if a simple µop goes to ALU1 first**, and **−6 % if it goes to ALU0 first**: the complex
+  operations are 30 % of the ALU instructions (16.5 % of all in g14 -O2: shifts 5.2 %, Zba 5.2 %, Zbb 3.0 %, Zbs 1.6 %,
+  Zicond 1.5 %) and wait behind simple ones on ALU0. So with L7 the issue queue selects **port 1 first** (the oldest
+  ready simple µop), then port 0 (the oldest ready of the rest); today it is port 0 first. The depth of the select
+  stays the same (one after the other).
+- **The size**: the ALU of a port is 801 LUTs in Vivado (6.8). An ALU with only add / sub (with their word forms),
+  logic and compares is 165 LUTs in Yosys against 2,174 for the full one (the ratio Vivado / Yosys of the full one is
+  0.37): **about −0.5k to −0.65k** for ALU1, if Vivado agrees. More than the −0.3k to −0.5k of 6.8.
+- **In the RTL** it would be: decode marks the complex ALU operations "ALU0 only" (port 1, as MUL / DIV already are;
+  a fused pair with a complex ALU part too); the issue queue's select order turned round; `OOO_ALU2` of ALU1 with an
+  `OOO_ALU` limited to add / sub, logic, compares (the parameter `FULL` is free since D-14).
+- **By D-13** (L7 if it costs about 1 % or less) it is to be taken.
+
 ---
 
 ## 7. Verification

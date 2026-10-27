@@ -54,6 +54,12 @@ struct OooCfg {
     bool mem_cons = true, fwd = true;
     int keep_spec = 0;          // a µop issued on an open load keeps its issue-queue entry until the load
                                 // is decided, keep_spec cycles after its issue (OOO_IQ: 4, Plan/OOC.md 15)
+    int alu_split = 0;          // the 2 ALU ports (with alu = 2, mul_shared; Doc/UARCH.md 6.11):
+                                //   0 pooled (either takes any ALU µop, MUL / DIV too)
+                                //   1 ALU0 / ALU1 apart, MUL / DIV and system on ALU0 only (the RTL)
+                                //   2 as 1, and the complex ALU operations on ALU0 only (L7: shifts,
+                                //     Zba, Zbb, Zbs, Zicond); a simple µop takes ALU1 first
+                                //   3 as 2, a simple µop takes ALU0 first
 };
 
 struct OooResult {
@@ -162,7 +168,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     std::priority_queue<long, std::vector<long>, std::greater<long>> iqh, ckh;
     std::unordered_map<int, long> ready;        // register -> cycle a dependent may issue
     std::unordered_map<int, long> spec;         // register -> cycle its open loads are decided (keep_spec)
-    std::unordered_map<long, int> use_alu, use_lsu, use_mul, use_all;
+    std::unordered_map<long, int> use_alu, use_lsu, use_mul, use_all, use_a0, use_a1;
     struct StInfo { long data_ready, commit; };
     std::unordered_map<uint64_t, StInfo> st_word;   // latest store per 8-byte word
     long st_addr_known = 0;
@@ -264,12 +270,32 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 }
         const Rec& pr = t[pair && t[last].cls != C_ALU ? last : i];
         int port = (pr.cls == C_LOAD || pr.cls == C_STORE) ? 1 : (pr.cls == C_MUL || pr.cls == C_DIV) ? (c.mul_shared ? 0 : 2) : 0;
-        auto& use = port == 1 ? use_lsu : port == 2 ? use_mul : use_alu;
-        int cap = port == 1 ? c.lsu : port == 2 ? c.mul : c.alu;
-        while (use[is] >= cap || (c.issue_w && use_all[is] >= c.issue_w)) is++;
-        use[is]++;
-        use_all[is]++;
-        if (pr.cls == C_DIV) for (int q = 1; q < c.lat_div; q++) use[is + q] = cap;   // not pipelined
+        if (port == 0 && c.alu_split) {
+            // two ALU ports apart: ALU0 takes everything, ALU1 only what it has
+            bool p0only = pr.cls == C_MUL || pr.cls == C_DIV || pr.cls == C_SYS;
+            if (c.alu_split >= 2)
+                for (size_t k = i; k <= last; k++)
+                    if (t[k].cls == C_ALU && t[k].sub != 0) p0only = true;   // shift, Zba, Zbb, Zbs, Zicond
+            bool first1 = c.alu_split != 3;
+            int which = -1;
+            while (which < 0) {
+                bool ok = !(c.issue_w && use_all[is] >= c.issue_w);
+                bool f0 = ok && use_a0[is] < 1, f1 = ok && !p0only && use_a1[is] < 1;
+                if (f1 && (first1 || !f0)) which = 1;
+                else if (f0) which = 0;
+                else is++;
+            }
+            (which ? use_a1 : use_a0)[is]++;
+            use_all[is]++;
+            if (pr.cls == C_DIV) for (int q = 1; q < c.lat_div; q++) use_a0[is + q] = 1;   // not pipelined
+        } else {
+            auto& use = port == 1 ? use_lsu : port == 2 ? use_mul : use_alu;
+            int cap = port == 1 ? c.lsu : port == 2 ? c.mul : c.alu;
+            while (use[is] >= cap || (c.issue_w && use_all[is] >= c.issue_w)) is++;
+            use[is]++;
+            use_all[is]++;
+            if (pr.cls == C_DIV) for (int q = 1; q < c.lat_div; q++) use[is + q] = cap;   // not pipelined
+        }
         // the open loads it issues on: its entry stays until they are decided
         long sp = 0;
         if (c.keep_spec) {
@@ -380,7 +406,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         // the cycles of the port use behind every issue are no longer needed
         if ((u & 0xffff) == 0) {
             long lim = is - 4096;
-            for (auto* mp : {&use_alu, &use_lsu, &use_mul, &use_all})
+            for (auto* mp : {&use_alu, &use_lsu, &use_mul, &use_all, &use_a0, &use_a1})
                 for (auto it = mp->begin(); it != mp->end();) it = it->first < lim ? mp->erase(it) : std::next(it);
         }
         i = last + 1;

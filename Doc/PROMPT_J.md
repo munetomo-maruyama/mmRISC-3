@@ -2240,3 +2240,22 @@ I ran synth_ooo.bat for OOC_LSU, OOO_UBTB, OOC_FBUF, OOC_FRONT and OOC_LSUDC. Pl
 ```text
 Yes, put the fetch buffer back to 4 blocks (revert L6) and record it.
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+Fetch buffer back at 4 blocks, as you asked, and recorded. Pushed to dev as `aee000c`.
+
+- **RTL**: `OOO_FBUF` is back to 4 blocks, and the harness and `tb_fbuf` match. Apart from comments, this RTL is the 4-block version measured before (940 LUTs), so I restored that Vivado report instead of asking for a new run.
+- **Tests**: `tb_fbuf` passes on 4 seeds. The two bug injections that couldn't be caught with 2 blocks (M77, M86) are caught again, so all 173 are now detected.
+- **Performance**: the model gives 6.28 / 6.71 CoreMark/MHz for the decided set (pessimistic 5.55 / 5.97), about 0.5% better than with 2 blocks.
+- **Budget**: the gap stays 4.2k / 5.6k / 6.9k. Going back adds only 16 LUTs.
+- **Docs** (English and Japanese): the change is in `Doc/UARCH` 3.2, 6.10 and decision D-13, and in the READMEs.
+- **Fix in the docs**: the D-11 to D-14 rows had an extra empty cell since I first recorded those decisions. It's corrected in both versions.
+<!-- /answer -->
+
+## 63. 2026-10-27 21:39:54 JST
+
+```text
+Next, add the operation class to the model and measure L7 (asymmetric ALUs).
+```

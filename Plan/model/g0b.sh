@@ -66,4 +66,12 @@ row "R4: R1 without fusion (2-wide decode)"                $S fusion=0 dec_w=2
 row "R4, pessimistic"                                      $S fusion=0 dec_w=2 $P
 row "R5: R4 + iq 10 (end state B of 6.3)"                  $S fusion=0 dec_w=2 iq=10
 row "R5, pessimistic"                                      $S fusion=0 dec_w=2 iq=10 $P
+echo "| **the decided set (D-11 to D-14, L6 back) and L7 (Doc/UARCH.md 6.11)** | | | |"
+D="ubtb=8 rob=24 iq=10 lq=8 sq=8 ckpt=6 fb=16 $F2"
+row "decided set (trap at commit, iq 10, L4, L5, fusion 2)"   $D
+row "decided set, pessimistic"                             $D $P
+row "decided set, ALU0 / ALU1 apart (MUL / DIV on ALU0)"     $D alu_split=1
+row "+ L7, a simple µop takes ALU1 first"                  $D alu_split=2
+row "+ L7, a simple µop takes ALU1 first, pessimistic"     $D alu_split=2 $P
+row "+ L7, a simple µop takes ALU0 first"                  $D alu_split=3
 } | tee results/g0b.txt

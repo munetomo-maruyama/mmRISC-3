@@ -36,3 +36,10 @@
 | R4, pessimistic                                            |  5.381 |  5.831 |  5.286 |
 | R5: R4 + iq 10 (end state B of 6.3)                        |  5.986 |  6.468 |  5.847 |
 | R5, pessimistic                                            |  5.359 |  5.827 |  5.260 |
+| **the decided set (D-11 to D-14, L6 back) and L7 (Doc/UARCH.md 6.11)** | | | |
+| decided set (trap at commit, iq 10, L4, L5, fusion 2)      |  6.279 |  6.710 |  6.096 |
+| decided set, pessimistic                                   |  5.548 |  5.971 |  5.417 |
+| decided set, ALU0 / ALU1 apart (MUL / DIV on ALU0)         |  6.279 |  6.710 |  6.096 |
+| + L7, a simple µop takes ALU1 first                       |  6.260 |  6.695 |  6.082 |
+| + L7, a simple µop takes ALU1 first, pessimistic          |  5.521 |  5.949 |  5.369 |
+| + L7, a simple µop takes ALU0 first                       |  5.882 |  6.264 |  5.735 |
