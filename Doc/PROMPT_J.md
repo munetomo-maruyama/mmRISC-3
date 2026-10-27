@@ -2517,5 +2517,46 @@ I ran synth_ooo.bat for OOC_CTRL, OOO_IQ and OOC_ROB. Please check output/*/summ
 <!-- answer -->
 **Claude Codeの回答**
 
-The docs are written. Waiting for the full test and mutation run to finish before committing.
+Vivado の3件を確認しました。CTRL と ROB はタイミングを満たしていますが、IQ はポート経由のパスで 0.261 ns 足りませんでした。ns_ok をレジスタにして直してあります。単体テストは 20 本すべて PASS、ミューテーションは 200 個すべて検出です。Vivado での再確認はまだです。
+
+**結果(物理 LUT / WNS)**
+
+| ブロック | LUT | 前回 | WNS |
+|---|---|---|---|
+| OOC_CTRL | 355 | 340 | +13.444 ns |
+| OOO_IQ | 1,885 | 1,775 | レジスタ間 +7.417 ns、**ポート経由 −0.261 ns** |
+| OOC_ROB | 1,235 | 1,232 | +9.856 ns |
+
+- **IQ の違反箇所:** 入力 ns_ok → 発行選択 → 出力 iss_src のパスです。10 段で 8.225 ns かかり、上限の 8 ns を超えていました。
+- **原因:** ns_ok が ROB の先頭状態から組み合わせ回路で作られ、その先で IQ の選択回路を通っていたためです。
+
+**修正**
+- ns_ok を OOO_CTRL の中でレジスタにしました。
+  - `ns_ok <= head_ns && !ns_busy_n && !fe_flush && !flush_q`
+  - 副作用として、ROB の先頭まで待つ µop(CSR 書き込みなど)は発行が 1 サイクル遅れます。こうした命令はまれなので、CoreMark にはほぼ影響しません。
+- synth_ooo.tcl では、OOO_IQ の単体合成のときだけ ns_ok に 1 ns の入力遅延を付けるようにしました。レジスタ出力が IQ に届くまでの時間を見込んだ設定です。
+- tb_ctrl はレジスタ化した ns_ok を期待値とするように直しました。テストに合わせて直したミューテーション(M224/M225)も検出されています。
+
+**予算**
+- 不足は 3.3k / 4.7k / 6.0k LUT(少なめ / 中央 / 多め)です。
+- 制御部は第1部と第2部を合わせて 355 LUT で、当初見積もりの 1.5〜2.5k の範囲に収まっています。
+- 記録先は Plan/OOC(_J).md の 19.4 節と Doc/UARCH(_J).md の 4.4 節です。どちらもコミット 444160b で dev に push 済みです。
+
+IQ と CTRL を Vivado で再合成して、output/*/summary.txt を確認させてください。
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_CTRL
+```
+
+確認したいのは次の2点です。
+- IQ のポート経由パスの WNS がプラスになること。
+- CTRL の LUT がほぼ変わらないこと。レジスタが1ビット増えるだけです。
 <!-- /answer -->
+
+## 70. 2026-10-28 00:25:44 JST
+
+```text
+I ran synth_ooo.bat OOO_IQ and synth_ooo.bat OOC_CTRL. Please check output/*/summary.txt.
+```

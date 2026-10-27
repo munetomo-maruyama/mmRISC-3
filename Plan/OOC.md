@@ -1638,7 +1638,16 @@ synth_ooo.bat OOC_ROB
 - **The budget** (`Doc/UARCH.md` 4.4): the control's second part (+15) stays inside the control's estimate; the issue
   queue's non-speculative hold (+110) and the ROB's fetch block (+3) are added: the gap goes to **3.3k / 4.7k /
   6.0k**.
-- **Please rerun `synth_ooo.bat OOO_IQ`** (the constraint) and `synth_ooo.bat OOC_CTRL` (the register).
+- **The rerun (2026-10-28)** with `ns_ok` registered:
+
+| Run | LUT | Before | Register-to-register slack | Worst slack (with the ports) |
+|---|---|---|---|---|
+| OOC_CTRL | **350** | 355 | +13.433 ns (5 levels) | +11.501 ns |
+| OOO_IQ | **1,866** | 1,885 | +6.573 ns (12 levels) | **+0.776 ns** |
+
+  The issue queue closes at 50 MHz. Its worst path is now its own select, `vq` (a register) → `iss_src` (output,
+  6 ns of output delay), 12.215 ns: the cycle the select has anyway, not the `ns_ok` input. Both blocks got a little
+  smaller (−19, −5); the budget does not move at 0.1k (still 3.3k / 4.7k / 6.0k).
 
 ### 19.5 What is left of the control
 

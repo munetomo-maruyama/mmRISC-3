@@ -2524,3 +2524,50 @@ synth_ooo.bat OOC_ROB
 ```text
 I ran synth_ooo.bat for OOC_CTRL, OOO_IQ and OOC_ROB. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I checked the three Vivado runs. CTRL and ROB meet timing, but the IQ missed by 0.261 ns on a path through its ports. I fixed it by registering ns_ok. All 20 unit tests PASS and all 200 mutations are detected. Not yet confirmed in Vivado.
+
+**Results (physical LUTs / WNS)**
+
+| Block | LUT | Before | WNS |
+|---|---|---|---|
+| OOC_CTRL | 355 | 340 | +13.444 ns |
+| OOO_IQ | 1,885 | 1,775 | register to register +7.417 ns, **through the ports −0.261 ns** |
+| OOC_ROB | 1,235 | 1,232 | +9.856 ns |
+
+- **Where the IQ fails:** input ns_ok → issue select → output iss_src, 10 levels, 8.225 ns against the 8 ns limit.
+- **Cause:** ns_ok was made by logic from the ROB head's state and then went through the IQ's select.
+
+**Fix**
+- ns_ok is now a register inside OOO_CTRL.
+  - `ns_ok <= head_ns && !ns_busy_n && !fe_flush && !flush_q`
+  - As a side effect, µops that wait for the ROB head (CSR writes and so on) issue a cycle later. They are rare, so CoreMark is hardly affected.
+- synth_ooo.tcl gives ns_ok a 1 ns input delay only in the OOO_IQ run, for the time from the register's output to the IQ.
+- tb_ctrl now expects the registered ns_ok. The mutations retargeted for it (M224/M225) are detected.
+
+**Budget**
+- The gap is 3.3k / 4.7k / 6.0k LUTs (low / middle / high).
+- The control's first and second parts together are 355 LUTs, inside the original estimate of 1.5k to 2.5k.
+- Recorded in section 19.4 of Plan/OOC(_J).md and 4.4 of Doc/UARCH(_J).md, pushed to dev in commit 444160b.
+
+Please resynthesize the IQ and CTRL in Vivado and let me check output/*/summary.txt.
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_CTRL
+```
+
+Two things to confirm:
+- the WNS of the IQ's port path is positive;
+- the CTRL's LUTs hardly change: it is only one more register bit.
+<!-- /answer -->
+
+## 70. 2026-10-28 00:25:44 JST
+
+```text
+I ran synth_ooo.bat OOO_IQ and synth_ooo.bat OOC_CTRL. Please check output/*/summary.txt.
+```
