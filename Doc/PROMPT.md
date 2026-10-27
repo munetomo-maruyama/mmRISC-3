@@ -2400,3 +2400,53 @@ Recorded in `Doc/UARCH` 6.13 and 4.4 (English and Japanese) and the prompt log (
 ```text
 Start writing the control (dispatch, branch resolution, redirects, commit and exceptions), with unit tests and Vivado scripts.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I wrote the control's first part (`OOO_CTRL`) and the issue queue's branch masks, and pushed them to dev (`642bda5`). All 20 tests PASS, including the new tb_ctrl, and all 191 bug injections are detected. Vivado has not been run yet. Five parts of the control remain.
+
+**What was missing, found while writing it**
+- **A misprediction emptied the issue queue completely** (`flush`). That loses the µops older than the branch that are still waiting.
+  - Fixed with branch masks: each µop carries one bit (6 bits) for every unresolved checkpoint older than it.
+  - A restore throws away only the µops with that bit, the ones younger than the branch. A branch resolved as predicted clears its bit everywhere.
+- **The checkpoint id has to be checked at renaming, not at dispatch.** Renaming copies the RAT into the id it gives in the next cycle, so giving out an id still in use overwrites it.
+
+**What `OOO_CTRL` holds**
+- **Renaming (D2)**: decides which µops may rename now: the DS register comes free, registers are free, no recovery, the checkpoint id is free.
+- **Dispatch (DS)**: sends the DS register's two µops both or none, only when the ROB, the issue queue, the LQ and the SQ all have room.
+  - It can lose a cycle when exactly one entry is free; not in the model yet.
+- **The checkpoint table**: per branch, the LSU's tails and the FTQ index.
+- **Recovery**: trap → replay → branch restore, in that priority. It gives the throw-away mark (kill), the clear mark (clr) and the pc fetch restarts from.
+
+**Issue queue**: a mask per entry. kill removes the entries the mask meets, clr clears bits. The issued µop's mask (`iss_bm`) goes out so that the units can throw away what they have in flight.
+
+**Verification**
+- `tb_ctrl` checks against an account in program order, playing renaming's ring of ids and the ROB, with the checkpoints running out at times. PASS on 4 seeds.
+- `tb_iq` with kills and clears PASS on 6 seeds.
+- **A hole in `tb_iq` itself was found too.** It made combinations where an older µop of a group read a younger µop's result. The two waited for each other until the next flush; with it fixed, the issues a run went from about 100,000 to about 278,000, a stronger test.
+
+**Size in Yosys** (a hint only): the control's first part 384 LUTs, the issue queue +262 for the masks.
+
+**What remains of the control** (`Plan/OOC.md` 18.6)
+1. Holding non-speculative µops (CSRs and so on) until they are at the ROB head.
+2. The commit's follow-up (the free list and so on) and the FTQ's pops. The pops need "which µop is the last of a fetch block", not in the ROB yet.
+3. The units' pipelines throwing away by mask, and the DS register's payload.
+4. Restoring the branch history and the RAS state.
+5. Exceptions and interrupts (the CSR writes, the refetch with fusion off after an exception inside a pair, FENCE.I).
+
+Recorded in `Plan/OOC.md` 18 (English and Japanese), 3.5 and 4.3 of `Doc/UARCH`, the READMEs and the prompt log (answer 65 and the English of 66).
+
+**Vivado request**
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_CTRL
+synth_ooo.bat OOO_IQ
+```
+<!-- /answer -->
+
+## 67. 2026-10-27 23:02:53 JST
+
+```text
+I ran synth_ooo.bat OOC_CTRL and synth_ooo.bat OOO_IQ. Please check output/*/summary.txt.
+```

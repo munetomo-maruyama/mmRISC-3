@@ -223,7 +223,7 @@ of the slices).
 | ROB 24 | 0.7k to 1.2k | Payload in LUTRAM (two banks), status in flip-flops, commit 2 a cycle, flush. **2026-10-25: `OOO_ROB` written; Vivado first gave 5,173 LUTs with the payload in flip-flops (two write statements per bank), fixed to one write per bank: 1,073 LUTs (160 LUTRAM), +11.060 ns (`Plan/OOC.md` 12.7)** |
 | Issue-queue payload | 0.4k to 0.7k | LUTRAM, 2 writes / 3 reads (two banks + LVT). **2026-10-26: `OOO_IQPL` (16 × 96 bits) measured in Vivado, 711 LUTs (384 LUT RAM), +12.237 ns (`Plan/OOC.md` 17.6)** |
 | LSU: address calculation, alignment, LQ 12, SQ 12 with forwarding, D$ adapter, hit speculation and replay | 2.5k to 3.5k | mmRISC-2's CORE_LSU is 946 (alignment); the SQ's address compares and data select; the adapter. **2026-10-25: `OOO_LSU` without the adapter measured in Vivado, 2,969 LUTs, +6.265 ns (`Plan/OOC.md` 11.8); 2026-10-26: the adapter `OOO_DCAD` measured with the LSU and the D$ (`OOC_LSUDC`), 227 LUTs (70 LUT RAM); the three together close at +1.254 ns (`Plan/OOC.md` 17.6)** |
-| Dispatch, branch resolution, redirects, commit and exceptions, the ports to CSR / MDU / FPU / MMU | 1.5k to 2.5k | mmRISC-2's pipeline itself is 2,511. **2026-10-27: first part `OOO_CTRL` (branch masks, go at renaming and dispatch, the checkpoint table, recovery and redirect) written, Yosys 384; the issue queue's masks +262 in Yosys (`Plan/OOC.md` 18)** |
+| Dispatch, branch resolution, redirects, commit and exceptions, the ports to CSR / MDU / FPU / MMU | 1.5k to 2.5k | mmRISC-2's pipeline itself is 2,511. **2026-10-27: first part `OOO_CTRL` (branch masks, go at renaming and dispatch, the checkpoint table, recovery and redirect) measured in Vivado, 340 LUTs, +13.564 ns; the issue queue's masks +178 (1,775) (`Plan/OOC.md` 18.6)** |
 | **Not yet written** | **9.3k to 14.5k** | Estimates |
 | **The out-of-order engine** | **23.3k to 28.5k** | |
 
@@ -254,6 +254,8 @@ of the slices).
 | **Over, 2026-10-26 late night** | **4.2k** | **5.6k** | **6.9k** |
 | Needed, 2026-10-27 (L7 measured, 6.13: ALU1's port 684 in place of 1,926; fusion 215, issue queue 1,597, decode 1,823) | 20.9k | 21.5k | 22.1k |
 | **Over, 2026-10-27** | **3.0k** | **4.4k** | **5.7k** |
+| Needed, 2026-10-27 later (the issue queue's branch masks measured, +178, `Plan/OOC.md` 18.6; the control's first part, 340, inside the control's estimate) | 21.1k | 21.7k | 22.3k |
+| **Over, 2026-10-27 later** | **3.2k** | **4.6k** | **5.9k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is

@@ -1541,7 +1541,20 @@ synth_ooo.bat OOC_CTRL
 synth_ooo.bat OOO_IQ
 ```
 
-### 18.6 What the control still needs (the next parts)
+### 18.6 The Vivado results (2026-10-27)
+
+| Run | LUT | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|
+| OOC_CTRL | **340** | 428 (most of them the harness's) | **+13.564 ns** | 4 |
+| OOO_IQ with branch masks | **1,775** (1,597 without: +178) | 444 | +7.841 ns | 10 |
+
+- **Both close at 50 MHz**, the control with plenty of margin. The issue queue's worst path is still the
+  wakeup-select loop; the masks are not on it.
+- **The budget** (`Doc/UARCH.md` 4.4): the control's estimate (1.5k to 2.5k) stays the whole control's, its first
+  part (340) inside it; the masks of the issue queue (+178) were not in any estimate and are added: the gap goes to
+  **3.2k / 4.6k / 5.9k**. With the levers still to come (5.65k with the reserve), the middle margin is about +1.1k.
+
+### 18.7 What the control still needs (the next parts)
 
 1. **Non-speculative µops** (`Doc/UARCH.md` 3.9): held in the issue queue until they are at the ROB head (`head_ns`
    and the µop's ROB index), and younger µops waiting behind CSR writes.

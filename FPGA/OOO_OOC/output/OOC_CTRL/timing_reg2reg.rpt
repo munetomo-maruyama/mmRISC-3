@@ -1,0 +1,525 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Tue Oct 27 22:58:58 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_timing -max_paths 10 -nworst 1 -path_type full -from [all_registers] -to [all_registers] -file ./output/OOC_CTRL/timing_reg2reg.rpt
+| Design       : OOC_CTRL
+| Device       : 7a100t-csg324
+| Speed File   : -1  PRODUCTION 1.23 2018-06-13
+| Design State : Routed
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             13.564ns  (required time - arrival time)
+  Source:                 q_reg[76]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_ctrl/ck_sq_reg[5][1]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        6.384ns  (logic 1.451ns (22.729%)  route 4.933ns (77.271%))
+  Logic Levels:           4  (LUT3=2 LUT5=1 LUT6=1)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X19Y41         FDRE                         0.000     0.973 r  q_reg[76]/C
+    SLICE_X19Y41         FDRE (Prop_fdre_C_Q)         0.456     1.429 f  q_reg[76]/Q
+                         net (fo=77, routed)          1.714     3.143    u_ctrl/ds_v_reg[1]_0[0]
+    SLICE_X22Y27         LUT3 (Prop_lut3_I2_O)        0.152     3.295 f  u_ctrl/out[44]_i_1/O
+                         net (fo=10, routed)          1.025     4.320    u_ctrl/D[0]
+    SLICE_X23Y31         LUT6 (Prop_lut6_I4_O)        0.332     4.652 r  u_ctrl/ck_ftq[4][2]_i_5/O
+                         net (fo=11, routed)          1.325     5.978    u_ctrl/ck_ftq[4][2]_i_5_n_0
+    SLICE_X14Y27         LUT3 (Prop_lut3_I1_O)        0.156     6.134 r  u_ctrl/ck_sq[4][1]_i_2/O
+                         net (fo=6, routed)           0.868     7.002    u_ctrl/ck_sq[4][1]_i_2_n_0
+    SLICE_X13Y28         LUT5 (Prop_lut5_I2_O)        0.355     7.357 r  u_ctrl/ck_sq[5][1]_i_1/O
+                         net (fo=1, routed)           0.000     7.357    u_ctrl/ck_sq[5][1]_i_1_n_0
+    SLICE_X13Y28         FDRE                                         r  u_ctrl/ck_sq_reg[5][1]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X13Y28         FDRE (Setup_fdre_C_D)        0.032    20.921    u_ctrl/ck_sq_reg[5][1]
+  -------------------------------------------------------------------
+                         required time                         20.921    
+                         arrival time                          -7.357    
+  -------------------------------------------------------------------
+                         slack                                 13.564    
+
+Slack (MET) :             13.610ns  (required time - arrival time)
+  Source:                 q_reg[78]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            out_reg[13]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        6.335ns  (logic 0.828ns (13.070%)  route 5.507ns (86.930%))
+  Logic Levels:           3  (LUT3=1 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X18Y26         FDRE                         0.000     0.973 r  q_reg[78]/C
+    SLICE_X18Y26         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  q_reg[78]/Q
+                         net (fo=51, routed)          2.115     3.544    q_reg_n_0_[78]
+    SLICE_X28Y30         LUT6 (Prop_lut6_I1_O)        0.124     3.668 f  out[43]_i_4/O
+                         net (fo=1, routed)           0.669     4.337    out[43]_i_4_n_0
+    SLICE_X28Y30         LUT3 (Prop_lut3_I1_O)        0.124     4.461 r  out[43]_i_3/O
+                         net (fo=38, routed)          2.723     7.184    out[43]_i_3_n_0
+    SLICE_X18Y44         LUT6 (Prop_lut6_I2_O)        0.124     7.308 r  out[13]_i_1/O
+                         net (fo=1, routed)           0.000     7.308    fe_pc[8]
+    SLICE_X18Y44         FDRE                                         r  out_reg[13]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X18Y44         FDRE (Setup_fdre_C_D)        0.029    20.918    out_reg[13]
+  -------------------------------------------------------------------
+                         required time                         20.918    
+                         arrival time                          -7.308    
+  -------------------------------------------------------------------
+                         slack                                 13.610    
+
+Slack (MET) :             13.612ns  (required time - arrival time)
+  Source:                 q_reg[76]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_ctrl/ck_sq_reg[1][0]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        6.385ns  (logic 1.416ns (22.176%)  route 4.969ns (77.824%))
+  Logic Levels:           4  (LUT3=1 LUT4=1 LUT5=1 LUT6=1)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X19Y41         FDRE                         0.000     0.973 r  q_reg[76]/C
+    SLICE_X19Y41         FDRE (Prop_fdre_C_Q)         0.456     1.429 f  q_reg[76]/Q
+                         net (fo=77, routed)          1.714     3.143    u_ctrl/ds_v_reg[1]_0[0]
+    SLICE_X22Y27         LUT3 (Prop_lut3_I2_O)        0.152     3.295 f  u_ctrl/out[44]_i_1/O
+                         net (fo=10, routed)          1.027     4.322    u_ctrl/D[0]
+    SLICE_X23Y31         LUT6 (Prop_lut6_I4_O)        0.332     4.654 r  u_ctrl/ck_ftq[4][2]_i_7/O
+                         net (fo=6, routed)           0.838     5.492    u_ctrl/ck_ftq[4][2]_i_7_n_0
+    SLICE_X22Y30         LUT4 (Prop_lut4_I0_O)        0.150     5.642 r  u_ctrl/ck_ftq[1][2]_i_2/O
+                         net (fo=11, routed)          1.390     7.032    u_ctrl/ck_ftq[1][2]_i_2_n_0
+    SLICE_X14Y27         LUT5 (Prop_lut5_I1_O)        0.326     7.358 r  u_ctrl/ck_sq[1][0]_i_1/O
+                         net (fo=1, routed)           0.000     7.358    u_ctrl/ck_sq[1][0]_i_1_n_0
+    SLICE_X14Y27         FDRE                                         r  u_ctrl/ck_sq_reg[1][0]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X14Y27         FDRE (Setup_fdre_C_D)        0.081    20.970    u_ctrl/ck_sq_reg[1][0]
+  -------------------------------------------------------------------
+                         required time                         20.970    
+                         arrival time                          -7.358    
+  -------------------------------------------------------------------
+                         slack                                 13.612    
+
+Slack (MET) :             13.619ns  (required time - arrival time)
+  Source:                 q_reg[76]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_ctrl/ck_sq_reg[2][1]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        6.374ns  (logic 1.451ns (22.764%)  route 4.923ns (77.236%))
+  Logic Levels:           4  (LUT3=2 LUT5=1 LUT6=1)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X19Y41         FDRE                         0.000     0.973 r  q_reg[76]/C
+    SLICE_X19Y41         FDRE (Prop_fdre_C_Q)         0.456     1.429 f  q_reg[76]/Q
+                         net (fo=77, routed)          1.714     3.143    u_ctrl/ds_v_reg[1]_0[0]
+    SLICE_X22Y27         LUT3 (Prop_lut3_I2_O)        0.152     3.295 f  u_ctrl/out[44]_i_1/O
+                         net (fo=10, routed)          1.025     4.320    u_ctrl/D[0]
+    SLICE_X23Y31         LUT6 (Prop_lut6_I4_O)        0.332     4.652 r  u_ctrl/ck_ftq[4][2]_i_5/O
+                         net (fo=11, routed)          1.325     5.978    u_ctrl/ck_ftq[4][2]_i_5_n_0
+    SLICE_X14Y27         LUT3 (Prop_lut3_I1_O)        0.156     6.134 r  u_ctrl/ck_sq[4][1]_i_2/O
+                         net (fo=6, routed)           0.858     6.992    u_ctrl/ck_sq[4][1]_i_2_n_0
+    SLICE_X12Y28         LUT5 (Prop_lut5_I4_O)        0.355     7.347 r  u_ctrl/ck_sq[2][1]_i_1/O
+                         net (fo=1, routed)           0.000     7.347    u_ctrl/ck_sq[2][1]_i_1_n_0
+    SLICE_X12Y28         FDRE                                         r  u_ctrl/ck_sq_reg[2][1]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X12Y28         FDRE (Setup_fdre_C_D)        0.077    20.966    u_ctrl/ck_sq_reg[2][1]
+  -------------------------------------------------------------------
+                         required time                         20.966    
+                         arrival time                          -7.347    
+  -------------------------------------------------------------------
+                         slack                                 13.619    
+
+Slack (MET) :             13.630ns  (required time - arrival time)
+  Source:                 q_reg[76]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_ctrl/ck_bm_reg[0][2]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        6.315ns  (logic 1.188ns (18.814%)  route 5.127ns (81.186%))
+  Logic Levels:           4  (LUT3=1 LUT6=3)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X19Y41         FDRE                         0.000     0.973 r  q_reg[76]/C
+    SLICE_X19Y41         FDRE (Prop_fdre_C_Q)         0.456     1.429 f  q_reg[76]/Q
+                         net (fo=77, routed)          1.714     3.143    u_ctrl/ds_v_reg[1]_0[0]
+    SLICE_X22Y27         LUT3 (Prop_lut3_I2_O)        0.152     3.295 f  u_ctrl/out[44]_i_1/O
+                         net (fo=10, routed)          0.982     4.278    u_ctrl/D[0]
+    SLICE_X24Y31         LUT6 (Prop_lut6_I3_O)        0.332     4.610 r  u_ctrl/out[89]_i_2/O
+                         net (fo=35, routed)          0.830     5.439    u_ctrl/ds_free
+    SLICE_X23Y26         LUT6 (Prop_lut6_I4_O)        0.124     5.563 r  u_ctrl/live[0]_i_2/O
+                         net (fo=7, routed)           1.600     7.164    u_ctrl/live[0]_i_2_n_0
+    SLICE_X28Y28         LUT6 (Prop_lut6_I1_O)        0.124     7.288 r  u_ctrl/ck_bm[0][2]_i_1/O
+                         net (fo=1, routed)           0.000     7.288    u_ctrl/ck_bm[0][2]_i_1_n_0
+    SLICE_X28Y28         FDRE                                         r  u_ctrl/ck_bm_reg[0][2]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X28Y28         FDRE (Setup_fdre_C_D)        0.029    20.918    u_ctrl/ck_bm_reg[0][2]
+  -------------------------------------------------------------------
+                         required time                         20.918    
+                         arrival time                          -7.288    
+  -------------------------------------------------------------------
+                         slack                                 13.630    
+
+Slack (MET) :             13.632ns  (required time - arrival time)
+  Source:                 q_reg[76]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            out_reg[78]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        6.315ns  (logic 0.952ns (15.075%)  route 5.363ns (84.925%))
+  Logic Levels:           4  (LUT2=1 LUT6=3)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X19Y41         FDRE                         0.000     0.973 r  q_reg[76]/C
+    SLICE_X19Y41         FDRE (Prop_fdre_C_Q)         0.456     1.429 f  q_reg[76]/Q
+                         net (fo=77, routed)          2.383     3.812    u_ctrl/ds_v_reg[1]_0[0]
+    SLICE_X27Y28         LUT6 (Prop_lut6_I3_O)        0.124     3.936 f  u_ctrl/out[47]_i_3/O
+                         net (fo=7, routed)           0.991     4.927    u_ctrl/out[47]_i_3_n_0
+    SLICE_X24Y27         LUT6 (Prop_lut6_I0_O)        0.124     5.051 r  u_ctrl/out[50]_i_5/O
+                         net (fo=1, routed)           0.813     5.864    u_ctrl/out[50]_i_5_n_0
+    SLICE_X30Y27         LUT6 (Prop_lut6_I4_O)        0.124     5.988 f  u_ctrl/out[50]_i_1/O
+                         net (fo=11, routed)          1.176     7.164    u_ctrl/clr[5]
+    SLICE_X25Y26         LUT2 (Prop_lut2_I1_O)        0.124     7.288 r  u_ctrl/out[78]_i_1/O
+                         net (fo=1, routed)           0.000     7.288    d_bmask[0][5]
+    SLICE_X25Y26         FDRE                                         r  out_reg[78]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X25Y26         FDRE (Setup_fdre_C_D)        0.031    20.920    out_reg[78]
+  -------------------------------------------------------------------
+                         required time                         20.920    
+                         arrival time                          -7.288    
+  -------------------------------------------------------------------
+                         slack                                 13.632    
+
+Slack (MET) :             13.640ns  (required time - arrival time)
+  Source:                 q_reg[76]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_ctrl/ck_bm_reg[0][3]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        6.307ns  (logic 1.188ns (18.837%)  route 5.119ns (81.163%))
+  Logic Levels:           4  (LUT3=1 LUT6=3)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X19Y41         FDRE                         0.000     0.973 r  q_reg[76]/C
+    SLICE_X19Y41         FDRE (Prop_fdre_C_Q)         0.456     1.429 f  q_reg[76]/Q
+                         net (fo=77, routed)          1.714     3.143    u_ctrl/ds_v_reg[1]_0[0]
+    SLICE_X22Y27         LUT3 (Prop_lut3_I2_O)        0.152     3.295 f  u_ctrl/out[44]_i_1/O
+                         net (fo=10, routed)          0.982     4.278    u_ctrl/D[0]
+    SLICE_X24Y31         LUT6 (Prop_lut6_I3_O)        0.332     4.610 r  u_ctrl/out[89]_i_2/O
+                         net (fo=35, routed)          0.830     5.439    u_ctrl/ds_free
+    SLICE_X23Y26         LUT6 (Prop_lut6_I4_O)        0.124     5.563 r  u_ctrl/live[0]_i_2/O
+                         net (fo=7, routed)           1.592     7.156    u_ctrl/live[0]_i_2_n_0
+    SLICE_X28Y28         LUT6 (Prop_lut6_I1_O)        0.124     7.280 r  u_ctrl/ck_bm[0][3]_i_1/O
+                         net (fo=1, routed)           0.000     7.280    u_ctrl/ck_bm[0][3]_i_1_n_0
+    SLICE_X28Y28         FDRE                                         r  u_ctrl/ck_bm_reg[0][3]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X28Y28         FDRE (Setup_fdre_C_D)        0.031    20.920    u_ctrl/ck_bm_reg[0][3]
+  -------------------------------------------------------------------
+                         required time                         20.920    
+                         arrival time                          -7.280    
+  -------------------------------------------------------------------
+                         slack                                 13.640    
+
+Slack (MET) :             13.648ns  (required time - arrival time)
+  Source:                 q_reg[76]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_ctrl/ds_bm_reg[0][5]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        6.343ns  (logic 0.980ns (15.450%)  route 5.363ns (84.550%))
+  Logic Levels:           4  (LUT4=1 LUT6=3)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X19Y41         FDRE                         0.000     0.973 r  q_reg[76]/C
+    SLICE_X19Y41         FDRE (Prop_fdre_C_Q)         0.456     1.429 f  q_reg[76]/Q
+                         net (fo=77, routed)          2.383     3.812    u_ctrl/ds_v_reg[1]_0[0]
+    SLICE_X27Y28         LUT6 (Prop_lut6_I3_O)        0.124     3.936 f  u_ctrl/out[47]_i_3/O
+                         net (fo=7, routed)           0.991     4.927    u_ctrl/out[47]_i_3_n_0
+    SLICE_X24Y27         LUT6 (Prop_lut6_I0_O)        0.124     5.051 r  u_ctrl/out[50]_i_5/O
+                         net (fo=1, routed)           0.813     5.864    u_ctrl/out[50]_i_5_n_0
+    SLICE_X30Y27         LUT6 (Prop_lut6_I4_O)        0.124     5.988 f  u_ctrl/out[50]_i_1/O
+                         net (fo=11, routed)          1.176     7.164    u_ctrl/clr[5]
+    SLICE_X25Y26         LUT4 (Prop_lut4_I3_O)        0.152     7.316 r  u_ctrl/ds_bm[0][5]_i_1/O
+                         net (fo=1, routed)           0.000     7.316    u_ctrl/ds_bm[0][5]_i_1_n_0
+    SLICE_X25Y26         FDRE                                         r  u_ctrl/ds_bm_reg[0][5]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X25Y26         FDRE (Setup_fdre_C_D)        0.075    20.964    u_ctrl/ds_bm_reg[0][5]
+  -------------------------------------------------------------------
+                         required time                         20.964    
+                         arrival time                          -7.316    
+  -------------------------------------------------------------------
+                         slack                                 13.648    
+
+Slack (MET) :             13.676ns  (required time - arrival time)
+  Source:                 q_reg[76]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            out_reg[82]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        6.269ns  (logic 0.952ns (15.186%)  route 5.317ns (84.814%))
+  Logic Levels:           4  (LUT2=1 LUT6=3)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X19Y41         FDRE                         0.000     0.973 r  q_reg[76]/C
+    SLICE_X19Y41         FDRE (Prop_fdre_C_Q)         0.456     1.429 f  q_reg[76]/Q
+                         net (fo=77, routed)          2.383     3.812    u_ctrl/ds_v_reg[1]_0[0]
+    SLICE_X27Y28         LUT6 (Prop_lut6_I3_O)        0.124     3.936 f  u_ctrl/out[47]_i_3/O
+                         net (fo=7, routed)           0.475     4.411    u_ctrl/out[47]_i_3_n_0
+    SLICE_X26Y27         LUT6 (Prop_lut6_I2_O)        0.124     4.535 r  u_ctrl/out[48]_i_2/O
+                         net (fo=1, routed)           0.977     5.512    u_ctrl/out[48]_i_2_n_0
+    SLICE_X28Y29         LUT6 (Prop_lut6_I0_O)        0.124     5.636 f  u_ctrl/out[48]_i_1/O
+                         net (fo=11, routed)          1.482     7.118    u_ctrl/clr[3]
+    SLICE_X25Y25         LUT2 (Prop_lut2_I1_O)        0.124     7.242 r  u_ctrl/out[82]_i_1/O
+                         net (fo=1, routed)           0.000     7.242    d_bmask[1][3]
+    SLICE_X25Y25         FDRE                                         r  out_reg[82]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X25Y25         FDRE (Setup_fdre_C_D)        0.029    20.918    out_reg[82]
+  -------------------------------------------------------------------
+                         required time                         20.918    
+                         arrival time                          -7.242    
+  -------------------------------------------------------------------
+                         slack                                 13.676    
+
+Slack (MET) :             13.696ns  (required time - arrival time)
+  Source:                 q_reg[76]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_ctrl/ds_bm_reg[1][3]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        6.295ns  (logic 0.978ns (15.537%)  route 5.317ns (84.463%))
+  Logic Levels:           4  (LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X19Y41         FDRE                         0.000     0.973 r  q_reg[76]/C
+    SLICE_X19Y41         FDRE (Prop_fdre_C_Q)         0.456     1.429 f  q_reg[76]/Q
+                         net (fo=77, routed)          2.383     3.812    u_ctrl/ds_v_reg[1]_0[0]
+    SLICE_X27Y28         LUT6 (Prop_lut6_I3_O)        0.124     3.936 f  u_ctrl/out[47]_i_3/O
+                         net (fo=7, routed)           0.475     4.411    u_ctrl/out[47]_i_3_n_0
+    SLICE_X26Y27         LUT6 (Prop_lut6_I2_O)        0.124     4.535 r  u_ctrl/out[48]_i_2/O
+                         net (fo=1, routed)           0.977     5.512    u_ctrl/out[48]_i_2_n_0
+    SLICE_X28Y29         LUT6 (Prop_lut6_I0_O)        0.124     5.636 f  u_ctrl/out[48]_i_1/O
+                         net (fo=11, routed)          1.482     7.118    u_ctrl/clr[3]
+    SLICE_X25Y25         LUT5 (Prop_lut5_I3_O)        0.150     7.268 r  u_ctrl/ds_bm[1][3]_i_1/O
+                         net (fo=1, routed)           0.000     7.268    u_ctrl/ds_bm[1][3]_i_1_n_0
+    SLICE_X25Y25         FDRE                                         r  u_ctrl/ds_bm_reg[1][3]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X25Y25         FDRE (Setup_fdre_C_D)        0.075    20.964    u_ctrl/ds_bm_reg[1][3]
+  -------------------------------------------------------------------
+                         required time                         20.964    
+                         arrival time                          -7.268    
+  -------------------------------------------------------------------
+                         slack                                 13.696    
+
+
+
+
