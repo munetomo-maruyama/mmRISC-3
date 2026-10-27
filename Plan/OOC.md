@@ -1734,8 +1734,23 @@ Item 3 of 18.7.
 - **Please run** `synth_ooo.bat OOC_RENAME`, `synth_ooo.bat OOO_IQ`, `synth_ooo.bat OOC_LSU` and
   `synth_ooo.bat OOC_DSREG` (new in the list).
 
-### 20.4 What is left of the control
+### 20.4 The Vivado results (2026-10-28)
+
+| Run | LUT | Before | Worst slack | |
+|---|---|---|---|---|
+| OOC_RENAME | **2,702** | 2,464 | **+3.443 ns** (register to register +8.272 ns) | the worst path is the new one: `wk_tag` (in at 13 ns) → `busy` (3 levels, 4.477 ns) |
+| OOO_IQ | **1,874** | 1,866 | +1.248 ns (register to register +6.293 ns) | the wakeup tags as outputs cost 8 |
+| OOC_LSU | **1,942** | 2,290 | +6.875 ns | −348: more than the change explains (every LQ / SQ write was gated by `!restore && !flush_all`, now by the shared `e_iss`); flip-flops +18 as expected (`m_bm` and the harness's 12 inputs), so nothing was trimmed away |
+| OOC_DSREG | **69** | | +6.835 ns (register to register +15.922 ns) | new; Yosys 121 |
+
+- **All four close at 50 MHz.** Renaming takes the issue queue's wakeup tags straight from its select with 3.4 ns to
+  spare (with 13 ns assumed for them), so the busy bits are cleared at the edge of the wakeup's cycle as designed; the
+  fallback of 20.3 (a cycle later, the DS register snooping two cycles back) is not needed.
+- **The budget** (`Doc/UARCH.md` 4.4): renaming +238, the LSU −348, the issue queue +8 are added; the DS register's 69
+  stays inside the control's estimate (the control so far 350 + 69). The gap goes to **3.2k / 4.6k / 5.9k**.
+
+### 20.5 What is left of the control
 
 Items 4 and 5 of 18.7: the front end's restore (the FTQ entry's history and RAS state into `OOO_FETCH`), exceptions
 and interrupts (the trap vector and the CSR writes, interrupts at a µop boundary, the refetch with fusion off after an
-exception inside a pair, FENCE.I / SFENCE.VMA). The budget is updated with the Vivado results.
+exception inside a pair, FENCE.I / SFENCE.VMA).

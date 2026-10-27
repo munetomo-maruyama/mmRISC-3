@@ -260,6 +260,8 @@ of the slices).
 | **Over, 2026-10-27 later** | **3.2k** | **4.6k** | **5.9k** |
 | Needed, 2026-10-27 night (the control's second part measured, `Plan/OOC.md` 19.4: issue queue 1,885 with the non-speculative hold, ROB 1,235; the control's 355 inside its estimate; 2026-10-28 with `ns_ok` registered: issue queue 1,866, control 350, the same at 0.1k) | 21.2k | 21.8k | 22.4k |
 | **Over, 2026-10-27 night** | **3.3k** | **4.7k** | **6.0k** |
+| Needed, 2026-10-28 (the control's third part measured, `Plan/OOC.md` 20.4: renaming 2,702 with 6 wakeup buses clearing the busy bits, +238; the LSU with the masks 1,942, −348; issue queue 1,874, +8; the DS register's 69 inside the control's estimate) | 21.1k | 21.7k | 22.3k |
+| **Over, 2026-10-28** | **3.2k** | **4.6k** | **5.9k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is

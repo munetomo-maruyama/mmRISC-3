@@ -2595,3 +2595,61 @@ Every block measured in Vivado so far now meets 50 MHz. Recorded in section 19.4
 ```text
 Go on with the control's next part: the units' pipelines dropping by branch mask and the DS register's payload.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+As the control's third part, I built the units dropping µops by branch mask and the DS register's payload. On the way I found two bugs that lead to deadlock and fixed them. All 22 tests PASS and all 219 mutations are detected. Pushed to dev in commit 1dbff9a; not yet confirmed in Vivado.
+
+**Bugs found**
+1. **The LSU lost older µops issued in a restore cycle.** It threw away everything in E and M on every restore.
+   - An older load or store issued in that cycle never completes, since its issue queue entry is already free.
+   - `tb_lsu` never issued in a cycle of recovery, so it did not show. Issuing there, the old code deadlocks in 2,800 cycles.
+2. **A µop could miss its wakeup between renaming and dispatch.** The busy bits were cleared at the write-back, but the issue queue takes only the wakeups of the cycle a µop is dispatched.
+   - A µop renamed in that gap is never woken.
+   - UARCH 6.5 was written assuming busy follows the wakeup buses, but 3.4 and the RTL still had the write-back ports.
+   - No unit test ran renaming and the issue queue together, so it did not show.
+
+**Changes**
+- **OOO_STAGE (new):** one pipeline register of a unit. A µop with a killed bit is dropped, whether it is being taken or held.
+  - Cleared bits leave the mask both when it is taken and while it is held.
+  - I first left out the clear when taking. Without it, a stage that holds (like a divide) keeps a stale bit and another µop's kill hits it by mistake. tb_stage caught it.
+- **OOO_DSREG (new):** the DS register's payload. Its ready bits are updated every cycle from the wakeup tags of the cycle before.
+- **OOO_LSU:** drops by mask in E and M. A µop older than the branch goes on through a restore.
+- **OOO_RENAME:** the busy bits are cleared by the issue queue's 6 wakeup tags.
+- **OOO_IQ:** the wakeup tags go out. No delayed wakeup for a µop killed or flushed as it issues.
+- **OOO_CTRL:** `ds_load`, the payload's enable.
+
+**Size (Yosys, a hint only)**
+
+| Block | Before | Now |
+|---|---|---|
+| OOC_RENAME | 3,456 | 3,753 (+297) |
+| OOO_IQ | 2,986 | 3,163 (+177) |
+| OOC_LSU | 3,055 | 3,148 (+93) |
+| OOC_DSREG (new) | — | 121 |
+
+The budget will be updated once the Vivado results are in.
+
+**Timing to watch:** the busy bits now take the wakeup tags, which come late (about 13 ns) from the issue queue's select.
+- The OOC_RENAME and OOC_DSREG harnesses take these tags unregistered with an input delay of 13 ns.
+- If renaming does not fit, the busy bits are cleared a cycle after the tag and the DS register snoops two cycles back; the comparators double.
+
+Recorded in chapter 20 of Plan/OOC(_J).md, 3.4 / 3.5 / 3.7 of Doc/UARCH(_J).md, the READMEs and PROMPT.md (the English of answer 70).
+
+Please run these four in Vivado and let me check output/*/summary.txt. OOC_DSREG has been added to the list in synth_ooo.bat.
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_RENAME
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_LSU
+synth_ooo.bat OOC_DSREG
+```
+<!-- /answer -->
+
+## 72. 2026-10-28 01:28:52 JST
+
+```text
+I ran synth_ooo.bat for OOC_RENAME, OOO_IQ, OOC_LSU and OOC_DSREG. Please check output/*/summary.txt.
+```

@@ -2588,5 +2588,57 @@ Go on with the control's next part: the units' pipelines dropping by branch mask
 <!-- answer -->
 **Claude Codeの回答**
 
-The Yosys table is refreshed. Some untouched blocks moved a little, which is ABC's run-to-run noise, not a change. The new rows match section 20.3. Still waiting on the full suite and the mutation campaign.
+制御の3つ目として、ユニットがブランチマスクでµopを捨てる仕組みと、DSレジスタのペイロードを作りました。途中でデッドロックにつながるバグを2つ見つけ、直してあります。テストは22本すべてPASS、バグ注入は219件すべて検出です。コミット 1dbff9a で dev に push 済みで、Vivado での確認はこれからです。
+
+**見つけたバグ**
+1. **LSU が、復元のサイクルに発行された古いµopを失っていた。** 復元のたびに E と M のµopを全部捨てていました。
+   - そのサイクルに発行された古いロードやストアは発行キューのエントリがもう空いているので、二度と完了しません。
+   - これまで `tb_lsu` は回復のサイクルに発行しないので、見えていませんでした。発行するようにすると、古いコードは2,800サイクルでデッドロックします。
+2. **リネームからディスパッチまでのあいだに、µopが wakeup を逃しうる。** busy ビットは書き戻しで消していましたが、発行キューが取るのはディスパッチしたサイクルの wakeup だけです。
+   - その隙間でリネームされたµopは、二度と起こされません。
+   - UARCH 6.5 は busy が wakeup バスに従う前提で書いてありましたが、3.4 と RTL は書き戻しポートのままでした。
+   - リネームと発行キューを一緒に動かす単体テストがなかったので、見えていませんでした。
+
+**変更**
+- **OOO_STAGE(新規):** ユニットのパイプラインレジスタ1段です。kill されたビットを持つµopは、取り込みのときにも保持中にも捨てます。
+  - 消去されたビットは、取り込むときと保持中の両方でマスクから落とします。
+  - 取り込みのときの消去は、最初抜いてしまいました。抜くと、除算のように保持する段で古いビットが残り、別のµopが誤って kill されます。tb_stage が検出しました。
+- **OOO_DSREG(新規):** DSレジスタのペイロードです。ready ビットを、前のサイクルの wakeup タグで毎サイクル更新します。
+- **OOO_LSU:** E と M でマスクにより捨てるようにしました。分岐より古いµopは、復元があってもそのまま進みます。
+- **OOO_RENAME:** busy ビットを、発行キューの wakeup タグ6本で消すようにしました。
+- **OOO_IQ:** wakeup タグを外へ出すようにしました。発行と同時に kill かフラッシュされたµopの遅れた wakeup は出しません。
+- **OOO_CTRL:** ペイロードのイネーブル `ds_load` を追加しました。
+
+**規模(Yosys、目安だけ)**
+
+| ブロック | 前 | いま |
+|---|---|---|
+| OOC_RENAME | 3,456 | 3,753(+297) |
+| OOO_IQ | 2,986 | 3,163(+177) |
+| OOC_LSU | 3,055 | 3,148(+93) |
+| OOC_DSREG(新規) | — | 121 |
+
+予算は Vivado の結果が出てから更新します。
+
+**見てほしいタイミング:** busy ビットが、発行キューの選択から遅い時刻(約13 ns)に来る wakeup タグを取るようになりました。
+- OOC_RENAME と OOC_DSREG のハーネスは、このタグをレジスタなしで受け、入力遅延13 ns を付けて測ります。
+- リネームが入らなければ、busy をタグの1サイクル後に消し、DSレジスタは2サイクル前まで見張る形に切り替えます。比較器は倍になります。
+
+記録先は Plan/OOC(_J).md の20章、Doc/UARCH(_J).md の 3.4 / 3.5 / 3.7、各 README、PROMPT.md(回答70の英訳)です。
+
+次の4件を Vivado で回して、output/*/summary.txt を確認させてください。OOC_DSREG は synth_ooo.bat の一覧に追加済みです。
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_RENAME
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_LSU
+synth_ooo.bat OOC_DSREG
+```
 <!-- /answer -->
+
+## 72. 2026-10-28 01:28:52 JST
+
+```text
+I ran synth_ooo.bat for OOC_RENAME, OOO_IQ, OOC_LSU and OOC_DSREG. Please check output/*/summary.txt.
+```
