@@ -227,8 +227,8 @@ M = [
     ('M222', 'OOO_IQ/OOO_IQ.sv', 'iq', "if (issued[i] || (bq & kill) != '0) vq <= 1'b0;", "if (issued[i]) vq <= 1'b0;", 'killed µops stay in the queue'),
     ('M223', 'OOO_IQ/OOO_IQ.sv', 'iq', 'bq <= bq & ~clr;', 'bq <= bq;', 'resolved bits stay in the masks'),
     # 2026-10-27: the control, second part (Plan/OOC.md 19)
-    ('M224', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', 'ns_ok = head_ns && !ns_busy;', 'ns_ok = head_ns;', 'a second non-speculative µop issued at the same head'),
-    ('M225', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "if (fe_flush || flush_q || cmt_valid[0]) ns_busy <= 1'b0;", "if (fe_flush || flush_q) ns_busy <= 1'b0;", 'the next head never gets ns_ok'),
+    ('M224', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', 'ns_ok   <= head_ns && !ns_busy_n && !fe_flush && !flush_q;', 'ns_ok   <= head_ns && !fe_flush && !flush_q;', 'a second non-speculative µop issued at the same head'),
+    ('M225', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "ns_busy_n = (fe_flush || flush_q || cmt_valid[0]) ? 1'b0 : (ns_busy || iss_ns);", "ns_busy_n = (fe_flush || flush_q) ? 1'b0 : (ns_busy || iss_ns);", 'the next head never gets ns_ok'),
     ('M226', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', 'flush_all  = flush_q;', 'flush_all  = fe_flush;', 'the back end flushed in the cycle of the replay'),
     ('M227', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "if (cmt_valid != 2'b00) tgt = (cmt_valid[1] ? cmt_ftq[1] : cmt_ftq[0]) + FTQW'(replay);", "if (cmt_valid != 2'b00) tgt = (cmt_valid[1] ? cmt_ftq[1] : cmt_ftq[0]);", "the replayed load's block not popped"),
     ('M228', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "ftq_tgt <= fe_flush ? ftq_hd + FTQW'(ftq_pop) : tgt;", 'ftq_tgt <= tgt;', 'blocks of a flushed FTQ still popped'),

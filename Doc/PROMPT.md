@@ -2483,3 +2483,44 @@ Recorded in `Plan/OOC.md` 18.6 and 4.3 / 4.4 of `Doc/UARCH` (English and Japanes
 ```text
 Go on with the control's next part: non-speculative µops held until the ROB head, the commit fan-out, and the FTQ pops (with the block end in the ROB).
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I wrote the control's second part and pushed it to dev (`d26ae01`): holding non-speculative µops until the ROB head, the commit's follow-up, and the FTQ's pops. All 20 tests PASS and all 200 bug injections are detected. Vivado has not been run yet. On the way, a fault around the replay was found and fixed.
+
+**The fault found and fixed**
+- The replay (refetching after a load that missed commits) flushed renaming in the same cycle as it committed the load.
+- A flush takes renaming back to its committed state, but that cycle's commit only goes in at the clock edge, so the load's register mapping would have been lost.
+- The fix: the front end (fetch, FTQ, fetch buffer) is flushed at once (`fe_flush`), the back end (renaming, LSU, issue queue, units) a cycle later (`flush_all`). In between nothing is renamed or dispatched, and the ROB is already empty.
+
+**What was done**
+- **Non-speculative µops** (CSRs, system instructions, AMO and so on): a mark on the issue queue's entries.
+  - Such a µop may issue only with the control's permission (`ns_ok`) and as the oldest non-speculative µop in the queue.
+  - The permission is given when "the ROB head is a non-speculative µop not run yet, and none has issued since it became the head". An issued CSR stays at the head while it executes, so this keeps a second one from going.
+- **What changes what younger µops do** (CSR writes, FENCE.I, MRET and so on): completes marked for replay after commit, and what follows is fetched again. It uses the ROB's existing mechanism, so no new logic: recorded as a contract the units keep.
+- **The commit's follow-up**: the old register mappings go back to the free list, the LQ / SQ get the commit counts.
+- **The FTQ's pops**: the ROB keeps the µop's fetch block number (3 bits).
+  - The blocks before the block of the latest committed µop are popped, up to 2 a cycle; after a replay, that block itself too.
+  - Only when 3 or more blocks end in a cycle can a flush lose a predictor update (rare).
+
+**Size in Yosys** (a hint only): control +4, issue queue +153, ROB +47 LUTs.
+
+**What is left of the control**: the units' pipelines throwing away by mask and the DS register's payload, restoring the branch history and the RAS, exceptions and interrupts (`Plan/OOC.md` 19.4).
+
+Recorded in `Plan/OOC.md` 19 (English and Japanese), 3.5, 3.9 and 4.3 of `Doc/UARCH`, the READMEs and the prompt log (answer 67 and the English of 68).
+
+**Vivado request**
+```
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_CTRL
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_ROB
+```
+<!-- /answer -->
+
+## 69. 2026-10-27 23:44:13 JST
+
+```text
+I ran synth_ooo.bat for OOC_CTRL, OOO_IQ and OOC_ROB. Please check output/*/summary.txt.
+```

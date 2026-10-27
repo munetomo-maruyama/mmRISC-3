@@ -256,6 +256,8 @@ of the slices).
 | **Over, 2026-10-27** | **3.0k** | **4.4k** | **5.7k** |
 | Needed, 2026-10-27 later (the issue queue's branch masks measured, +178, `Plan/OOC.md` 18.6; the control's first part, 340, inside the control's estimate) | 21.1k | 21.7k | 22.3k |
 | **Over, 2026-10-27 later** | **3.2k** | **4.6k** | **5.9k** |
+| Needed, 2026-10-27 night (the control's second part measured, `Plan/OOC.md` 19.4: issue queue 1,885 with the non-speculative hold, ROB 1,235; the control's 355 inside its estimate) | 21.2k | 21.8k | 22.4k |
+| **Over, 2026-10-27 night** | **3.3k** | **4.7k** | **6.0k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is

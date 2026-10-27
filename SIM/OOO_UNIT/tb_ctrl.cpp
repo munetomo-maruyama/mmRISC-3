@@ -27,8 +27,9 @@
 //   - the redirect: trap vector, replay pc, or the restoring branch's next pc
 //   - trap / replay: fe_flush at once, flush_all a cycle later, and nothing
 //     renamed, dispatched or cleared in either cycle
-//   - ns_ok: the head non-speculative and not run yet (head_ns random, an
-//     issue of it random, cleared when the head commits or a flush)
+//   - ns_ok: registered: the head non-speculative and not run yet in the
+//     cycle before (head_ns random, an issue of it random, cleared when the
+//     head commits or a flush)
 //   - the commit fan-out: free_valid / free_tag, lq_commit / sq_commit
 //   - the FTQ pops: the blocks before the latest committed µop's (its own
 //     after a replay), at most 2 a cycle, against a mirror of the FTQ's
@@ -68,7 +69,7 @@ int main(int argc, char** argv)
     int res_pct = 30;            // the chance a port resolves a branch in a cycle
     long nren = 0, ndisp = 0, nclr = 0, nrestore = 0, nflush = 0, nckstall = 0, npop = 0, nnsok = 0;
     bool flushq = false;         // trap / replay in the cycle before: the back end flushes now
-    bool ns_busy = false;
+    bool ns_busy = false, ns_ok_q = false;
     int fhd = 0, ftgt = 0, cblk = 0;   // the FTQ's head, the pop target, the block commits are in
     auto gen = [&]() { U u; u.seq = seq++; int r = rng() % 100; u.ck = r < 25; u.ld = r >= 25 && r < 45; u.st = r >= 45 && r < 60; u.ftq = rng() % 8; return u; };
     auto live_truth = [&]() { unsigned m = 0; for (auto& u : fl) if (u.ck && !u.resolved) m |= 1u << u.id; return m; };
@@ -163,9 +164,8 @@ int main(int argc, char** argv)
         if ((bool)d.restore != restore) FAIL("restore %d, expected %d", (int)d.restore, restore);
         if ((bool)d.fe_redirect != (flush || restore)) FAIL("fe_redirect %d, expected %d", (int)d.fe_redirect, flush || restore);
         // non-speculative µops, the commit fan-out, the FTQ pops
-        bool nsok = head_ns && !ns_busy;
-        if ((bool)d.ns_ok != nsok) FAIL("ns_ok %d, expected %d", (int)d.ns_ok, nsok);
-        nnsok += nsok;
+        if ((bool)d.ns_ok != ns_ok_q) FAIL("ns_ok %d, expected %d", (int)d.ns_ok, ns_ok_q);
+        nnsok += ns_ok_q;
         for (int k = 0; k < 2; k++) {
             bool fv = ((cv >> k) & 1) && ((cwr >> k) & 1);
             if ((bool)((d.free_valid >> k) & 1) != fv) FAIL("free_valid[%d] %d, expected %d", k, (int)((d.free_valid >> k) & 1), fv);
@@ -192,6 +192,7 @@ int main(int argc, char** argv)
         unsigned gor = d.r_go, god = d.d_go;
         d.clk = 1; d.eval(); d.clk = 0; d.eval();
         if (flush || flushq || (cv & 1)) ns_busy = false; else if (iss_ns) ns_busy = true;
+        ns_ok_q = head_ns && !ns_busy && !flush && !flushq;
         fhd = (fhd + epop) % 8; npop += epop;
         ftgt = flush ? fhd : tgt;
         if (flush) cblk = fhd;                      // the blocks fetched again start there

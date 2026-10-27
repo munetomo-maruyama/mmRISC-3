@@ -57,7 +57,11 @@
 //
 // Non-speculative µops (Doc/UARCH.md 3.9): ns_ok lets the issue queue give
 // the oldest one when the ROB head is one not run yet (head_ns), once:
-// after one has issued (iss_ns), no other until the head commits. A µop
+// after one has issued (iss_ns), no other until the head commits. ns_ok is
+// a register (from the cycle before): it feeds the issue queue's select,
+// and head_ns comes from the ROB's payload read; combinational, that path
+// missed 50 MHz through the issue queue (Plan/OOC.md 19.4). A
+// non-speculative µop waits one cycle more for it. A µop
 // that changes what younger ones do (a CSR write, FENCE.I, SFENCE.VMA,
 // MRET) completes marked for replay after commit (the unit's contract), so
 // what follows it is fetched again.
@@ -175,6 +179,7 @@ module OOO_CTRL
     logic             rcv;                     // nothing renamed or dispatched
     logic             flush_q;                 // trap / replay of the cycle before
     logic             ns_busy;                 // the head's non-speculative µop has issued
+    logic             ns_busy_n;
     logic [FTQW-1:0]  ftq_hd, ftq_tgt;         // the FTQ's head (a mirror); pop up to the target
     always @(*) begin
         fe_flush   = trap || replay;
@@ -204,7 +209,7 @@ module OOO_CTRL
     // ---- non-speculative µops, commit
     logic [FTQW-1:0] tgt, ndone;
     always @(*) begin
-        ns_ok = head_ns && !ns_busy;
+        ns_busy_n = (fe_flush || flush_q || cmt_valid[0]) ? 1'b0 : (ns_busy || iss_ns);
         for (int k = 0; k < 2; k++) begin
             free_valid[k] = cmt_valid[k] && cmt_wr[k];
             free_tag[k]   = cmt_old[k];
@@ -249,12 +254,13 @@ module OOO_CTRL
         if (!rst_n) begin
             flush_q <= 1'b0;
             ns_busy <= 1'b0;
+            ns_ok   <= 1'b0;
             ftq_hd  <= '0;
             ftq_tgt <= '0;
         end else begin
             flush_q <= fe_flush;
-            if (fe_flush || flush_q || cmt_valid[0]) ns_busy <= 1'b0;
-            else if (iss_ns)                          ns_busy <= 1'b1;
+            ns_busy <= ns_busy_n;
+            ns_ok   <= head_ns && !ns_busy_n && !fe_flush && !flush_q;
             ftq_hd  <= ftq_hd + FTQW'(ftq_pop);
             // a flushed FTQ keeps no blocks to pop
             ftq_tgt <= fe_flush ? ftq_hd + FTQW'(ftq_pop) : tgt;

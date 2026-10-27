@@ -1619,7 +1619,28 @@ synth_ooo.bat OOO_IQ
 synth_ooo.bat OOC_ROB
 ```
 
-### 19.4 What is left of the control
+### 19.4 The Vivado results, and ns_ok registered (2026-10-27)
+
+| Run | LUT | Before | Register-to-register slack | Worst slack (with the ports) |
+|---|---|---|---|---|
+| OOC_CTRL | **355** | 340 | +13.444 ns | |
+| OOO_IQ | **1,885** | 1,775 | +7.417 ns | **−0.261 ns** |
+| OOC_ROB | **1,235** | 1,232 | +9.856 ns | |
+
+- **The issue queue missed 50 MHz on a path through its ports**: `ns_ok` (input, 6 ns of input delay) → the ready bits
+  → the select → `iss_src` (output, 6 ns of output delay), 10 levels, 8.225 ns against 8 ns. Not only the harness's
+  assumption: in the core `ns_ok` came from the ROB's payload read (`head_ns`) through logic, late in its cycle, into
+  the select.
+- **Fixed**: `ns_ok` is now a register of `OOO_CTRL` (from the cycle before; a non-speculative µop waits one cycle
+  more: 2 such instructions in 3 million in CoreMark), and the OOO_IQ run gives that input 1 ns of input delay (it
+  comes from a flip-flop). `tb_ctrl` PASS on 4 seeds with the registered `ns_ok`; the two mutations of it retargeted
+  and detected.
+- **The budget** (`Doc/UARCH.md` 4.4): the control's second part (+15) stays inside the control's estimate; the issue
+  queue's non-speculative hold (+110) and the ROB's fetch block (+3) are added: the gap goes to **3.3k / 4.7k /
+  6.0k**.
+- **Please rerun `synth_ooo.bat OOO_IQ`** (the constraint) and `synth_ooo.bat OOC_CTRL` (the register).
+
+### 19.5 What is left of the control
 
 Items 3 to 5 of 18.7: the units' pipelines dropping by mask and the DS register's payload, the front end's restore
 (history, RAS), exceptions and interrupts (CSR writes, interrupts at a µop boundary, the refetch with fusion off after

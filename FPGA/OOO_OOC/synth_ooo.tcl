@@ -73,6 +73,8 @@ set ins [get_ports -quiet -filter {DIRECTION == IN && NAME != clk && NAME != rst
 set outs [get_ports -quiet -filter {DIRECTION == OUT}]
 if {[llength $ins]}  { set_input_delay  -clock clk $io_dly $ins }
 if {[llength $outs]} { set_output_delay -clock clk $io_dly $outs }
+# OOO_IQ's ns_ok comes from a flip-flop of OOO_CTRL (Plan/OOC.md 19.4): early in the cycle
+if {$top eq "OOO_IQ" && [llength [get_ports -quiet ns_ok]]} { set_input_delay -clock clk 1.0 [get_ports ns_ok] }
 if {[llength [get_ports -quiet rst_n]]} { set_false_path -from [get_ports rst_n] }
 
 write_checkpoint -force $outdir/post_synth.dcp
