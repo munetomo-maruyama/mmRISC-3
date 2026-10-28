@@ -2738,3 +2738,35 @@ D-15(解決の1サイクル後にフェッチを再開)を、作者決定とし�
 ```text
 I ran synth_ooo.bat for OOC_FERS, OOC_FRONT, OOC_ROB and OOC_CTRL. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+FRONT、ROB、CTRL の3件は 50 MHz に入りました。OOC_FERS はハーネスの私のミスで合成に失敗していたので、直してあります。OOC_FERS だけもう一度回してください。
+
+| ブロック | LUT | 前回 | 最悪の余裕 | 備考 |
+|---|---|---|---|---|
+| OOC_FRONT | **2,611** | 2,588 | +0.835 ns(前回 +0.574) | `be_stop` の分 +23 |
+| OOC_ROB | **1,246** | 1,235 | +10.606 ns | `rcv_ftq` / `rcv_end` の分 +11 |
+| OOC_CTRL | **351** | 350 | +11.501 ns | `restore_port` の分 +1 |
+| OOC_FERS | — | | | 合成で失敗(下記) |
+
+- **OOC_FERS が失敗した理由:** ハーネスで `[37:0]` のバスから `ft_pc[38:4]` を取っていました。このバスではラインはビット 37:3 です。
+  - Verilator は SELRANGE の警告を出していましたが、私が lint の結果をエラーだけに絞って見ていたため見落としました。
+  - 修正したうえで、すべてのハーネスを `-Wall` で lint し直し、警告をすべて確認しました。このやり方はメモリにも残しました。
+- **予算:** 増えたのは +35 なので 0.1k の桁では変わらず、不足は 3.2k / 4.6k / 5.9k LUT のままです。
+- **前回のコミットについて:** 3件の結果は、私が回答を書く前にもうファイルに出ていて、前回の D-15 のコミット(3d0272c)に断りなく入っていました。このコミットのメッセージに経緯を書いておきました。
+
+記録は Plan/OOC(_J).md の 21.4 節です。コミット 2afc2ea で dev に push 済みです。
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_FERS
+```
+<!-- /answer -->
+
+## 76. 2026-10-28 20:11:44 JST
+
+```text
+I ran synth_ooo.bat OOC_FERS. Please check output/OOC_FERS/summary.txt.
+```

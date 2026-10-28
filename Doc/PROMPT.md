@@ -2749,3 +2749,35 @@ When the four Vivado results are in, I will check output/*/summary.txt and put t
 ```text
 I ran synth_ooo.bat for OOC_FERS, OOC_FRONT, OOC_ROB and OOC_CTRL. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+FRONT, ROB and CTRL fit in 50 MHz. OOC_FERS had failed in synthesis because of my mistake in its harness; it is fixed. Please run OOC_FERS alone again.
+
+| Block | LUT | Before | Worst slack | Note |
+|---|---|---|---|---|
+| OOC_FRONT | **2,611** | 2,588 | +0.835 ns (+0.574 before) | +23 for `be_stop` |
+| OOC_ROB | **1,246** | 1,235 | +10.606 ns | +11 for `rcv_ftq` / `rcv_end` |
+| OOC_CTRL | **351** | 350 | +11.501 ns | +1 for `restore_port` |
+| OOC_FERS | — | | | failed in synthesis (below) |
+
+- **Why OOC_FERS failed:** the harness took `ft_pc[38:4]` from a `[37:0]` bus; on that bus the line is bits 37:3.
+  - Verilator did warn (SELRANGE), but I missed it because I was looking only at the errors of the lint.
+  - After the fix I linted every harness again with `-Wall` and checked every warning. I also saved this practice in memory.
+- **Budget:** +35 in all, so unchanged at 0.1k; the gap stays 3.2k / 4.6k / 5.9k LUTs.
+- **About the last commit:** the three results were already in the files before I wrote my answer, and went into the last commit (3d0272c, D-15) without notice. This commit's message explains it.
+
+Recorded in section 21.4 of Plan/OOC(_J).md; pushed to dev in commit 2afc2ea.
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_FERS
+```
+<!-- /answer -->
+
+## 76. 2026-10-28 20:11:44 JST
+
+```text
+I ran synth_ooo.bat OOC_FERS. Please check output/OOC_FERS/summary.txt.
+```

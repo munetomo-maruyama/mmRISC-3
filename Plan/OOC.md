@@ -1827,8 +1827,11 @@ Item 4 of 18.7.
 | OOC_CTRL | **351** | 350 | +11.501 ns | `restore_port`: +1 |
 | OOC_FERS | — | | | **failed in synthesis**: my harness took `ft_pc[38:4]` of a `[37:0]` bus (the line is bits 37:3 there); fixed. Verilator warned (SELRANGE), but I had filtered the lint for errors only. All harnesses are now linted with `-Wall` and every warning on them read |
 
+- **The rerun of OOC_FERS**: **151 LUTs** (37 logic + 114 LUT RAM, the FTQ the harness reads: only the bits read are
+  kept), register to register +13.393 ns (10 levels: the restore point's register → the FTQ read → the slot compares
+  → the history bits); worst +11.501 ns at the ports. The restore's 37 stay inside the control's estimate (the control
+  so far 351 + 69 + 37); the FTQ's growth to the front end's 312 bits a block is the FTQ's, counted at the assembly.
 - The budget does not move at 0.1k (+35): still 3.2k / 4.6k / 5.9k (`Doc/UARCH.md` 4.4).
-- **Please run `synth_ooo.bat OOC_FERS` again.**
 
 ### 21.5 What is left of the control
 
