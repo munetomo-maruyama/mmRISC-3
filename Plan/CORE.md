@@ -125,7 +125,7 @@ port 1's write-back, the LSU's loads, the LSU's stores.
 
 ---
 
-## 4. Decisions to make on the way (recommendations)
+## 4. Decisions to make on the way (recommendations, accepted 2026-10-29)
 
 | # | Item | Recommendation | Why |
 |---|---|---|---|
@@ -153,6 +153,33 @@ port 1's write-back, the LSU's loads, the LSU's stores.
 
 - Each step keeps the unit tests (`SIM/OOO_UNIT/run.sh`) and the bug injection green; the core gets its own bug
   injection (the lock-step must catch a mutation of the glue) from B2 on.
+
+### 5.1 B0: the test bench (done 2026-10-29)
+
+`SIM/CORE` (its README has the details): the C++ side of the core's test bench, written before the core.
+
+| Part | What it is |
+|---|---|
+| `Memory` | sparse 4 KB pages over the reference's RAM region, loaded by the bench's own ELF loader (every symbol: `tohost`, `fromhost`, the signature's bounds); the models of the core's ports read and write it, and HTIF sees the writes through a hook |
+| `Htif` | the exit and the console from the **committed stores**; `tohost` back to 0 from the **memory side**, when a write that makes it nonzero reaches the memory |
+| `TraceSlot` | the commit-trace port of 3.9, 2 slots a cycle: pc, the 1 or 2 instructions, `pair`, trap and cause, the one write (`rd`, `rd_val`, `wr_first`: the write is the first half's, ALU + branch), the store of each half. A first half that neither writes nor stores becomes `rd_skip` |
+| `Bench` | lock-step with `SIM/LOCKSTEP` at every instruction, a watchdog, the **architectural memory** (the ELF with the committed stores: riscv-arch-test's signature at B4 comes from it, not from behind a write-back D$), the last 16 commits disassembled on a failure |
+
+It was tested with a stand-in core: a second Spike on the bench's memory, whose stores to the page of `tohost` wait
+0 to 24 cycles in a queue (with forwarding) as behind the SQ and the D$, and whose commits go through the trace port,
+0 to 2 slots a cycle, fused where one write per pair allows. On the 175 riscv-tests `-p-` and the two g14 CoreMark builds: all pass with the reference's exit code and console, the architectural memory equals the stand-in's, and all 2,019 port mutations that applied are caught (`SIM/CORE/results/standin.txt`); the bug injection into the bench detected 18 of 18 changes (`SIM/CORE/results/mutate.txt`).
+
+Three rules came out of it:
+
+1. **A loop polling `tohost` runs longer in the core** than in Spike (the character's store reaches the memory
+   later). `SIM/LOCKSTEP` now gives the reference the core's value for loads of `tohost` and `fromhost`, as for the
+   counters, and the reference runs the same loop (CoreMark: 3,667 and 6,715 such loads in the two builds).
+2. **`tohost`'s line must not stay in the D$** (to do at B3, with the D$): with the real write-back D$ the core
+   would read its own character back for ever. The bench makes that line non-cacheable for the core (the D$ adapter
+   sends its loads and stores to the memory; a bench parameter under `ifdef`). The port models of B1 to B3 write the
+   memory directly.
+3. **The architectural memory holds without translation**: a store commits its virtual address. Phase 2 (the MMU)
+   gives the trace the physical address too.
 
 ---
 

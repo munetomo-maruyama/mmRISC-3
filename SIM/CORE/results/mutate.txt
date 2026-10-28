@@ -1,0 +1,19 @@
+ 0 DETECTED      LOCKSTEP: loads of tohost do not take the DUT's value
+ 1 DETECTED      HTIF: tohost never put back to 0 in the memory
+ 2 DETECTED      HTIF: only a 4-byte write to tohost seen in the memory
+ 3 DETECTED      HTIF: console characters lost
+ 4 DETECTED      HTIF: exit code not shifted
+ 5 DETECTED      HTIF: bit 0 tested before the device
+ 6 DETECTED      HTIF: the committed tohost not cleared after an action
+ 7 DETECTED      HTIF: the upper word of tohost not seen at commit
+ 8 DETECTED      port: second half at pc + 4 whatever the length
+ 9 DETECTED      port: first half not marked rd_skip
+10 DETECTED      port: wr_first ignored
+11 DETECTED      port: the second half's store lost
+12 DETECTED      bench: second halves not checked
+13 DETECTED      ELF: segments loaded 4 bytes off
+14 DETECTED      ELF: only the first program header loaded
+15 DETECTED      arch memory: committed stores not applied
+16 DETECTED      watchdog: no check of cycles without a commit
+17 DETECTED      watchdog: no limit of cycles
+18 mutations, 18 detected

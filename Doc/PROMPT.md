@@ -3208,3 +3208,53 @@ It is also possible to skip the plan and start writing the ALU ports' pipelines 
 ```text
 Start with the integration plan: write Plan/CORE(_J).md with the core's top, the payload formats, the glue still missing, the bring-up order and what G1 measures.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I wrote the integration plan Plan/CORE(_J).md. It is pushed to dev as commit d3f15c0; no RTL was changed.
+
+**What the plan contains**
+1. **The core's top OOO_CORE:** a diagram, and a list of the about 20 kinds of blocks used (how many of each, and the chapter each was written in).
+2. **The formats between the blocks:**
+   - The fields of a µop from fusion to dispatch.
+   - The layout of the payload record (about 96 bits), split into the low 48 bits that port 2 reads and the high part for the ALU ports.
+   - The fields given to the ROB.
+3. **The glue not written yet (10 items):** the D2 / DS wiring, the ports' pipelines, the bypass and the register-file writes, branch resolution, port 0's units, port 2's fields and pairs, commit and the TAGE update, the front end, the commit trace, memory for the simulation.
+4. **Decisions to make on the way (with recommendations):**
+   - **4.1 / 4.5:** a µop's pc and a jalr's predicted target are not put in the payload; they are read in RR from small arrays holding a value per FTQ block.
+   - **4.2:** the register file is written at the same clock as the result enters its write-back register. This keeps the 4-source bypass already measured. For it, the LSU must give out its M stage's result.
+   - **4.3:** OOO_SYS completes in port 0's free slot.
+   - **4.4:** fusion is off at first. The pairs that involve the LSU (ALU + load, store pairs) need new logic in the LSU, so they come last, and whether to keep them is decided after measuring what they bring in the model.
+   - **4.6:** a model stands in for the I$ at first, replaced by the real one before CoreMark.
+5. **The bring-up order:**
+
+   | Step | What |
+   |---|---|
+   | B0 | The test bench |
+   | B1 | The front end alone |
+   | B2 | The core with ALU µops only |
+   | B3 | Loads / stores |
+   | B4 | riscv-arch-test |
+   | B5 | Fusion, the MDU, interrupts |
+   | B6 | CoreMark against the model |
+   | B7 | The core alone synthesized in Vivado |
+
+6. **What G1 measures:**
+   - Correctness: no mismatch in lock-step.
+   - Performance: within ±5 % of the model for each build (6.243 / 6.680 / 6.066).
+   - Size and 50 MHz: checked by synthesizing the whole core alone. That out-of-context synthesis gives about the same value as in the chip was confirmed in section 25.3.
+
+**What I found on the way**
+- The LSU as it is cannot handle fused pairs (ALU + load, store pairs).
+- The ports need a µop's pc and a jalr's predicted target, but nothing gives them yet.
+- The ROB does not hold the instruction bits and the values written that the lock-step needs, so a simulation-only trace is put beside it.
+
+All of these are in the plan. It is linked from Plan/README and from step 4 of UARCH chapter 8.
+<!-- /answer -->
+
+## 88. 2026-10-29 00:47:27 JST
+
+```text
+I accept the plan's recommendations (4.1 to 4.6). Start with B0: the core's test bench (ELF loader, memory model, HTIF, the commit trace into SIM/LOCKSTEP).
+```

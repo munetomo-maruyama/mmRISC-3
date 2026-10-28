@@ -3197,3 +3197,59 @@ G1 の合格条件は2つです。
 ```text
 Start with the integration plan: write Plan/CORE(_J).md with the core's top, the payload formats, the glue still missing, the bring-up order and what G1 measures.
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+統合計画 Plan/CORE(_J).md を書きました。コミット d3f15c0 で dev に push 済みで、RTL は変えていません。
+
+**計画の中身**
+1. **コアのトップ OOO_CORE:** 構成図と、使うブロック約20種(個数と、どの章で書いたか)の一覧です。
+2. **ブロック間の受け渡し形式:**
+   - 融合からディスパッチまでの µop のフィールド。
+   - ペイロード記録(約96ビット)の配置。ポート2が読む下位48ビットと、ALU ポート用の上位に分けました。
+   - ROB に渡すフィールド。
+3. **まだ書いていないつなぎ(10項目):** D2/DS の結線、ポートのパイプライン、バイパスとレジスタファイルの書き込み、分岐の解決、ポート0のユニット群、ポート2のフィールドとペア、コミットと TAGE の更新、フロントエンド、コミットトレース、シミュレーション用メモリです。
+4. **途中で決めること(推奨つき):**
+   - **4.1 / 4.5:** µop の pc と jalr の予測先は、ペイロードに載せず、FTQ のブロックごとの値を持つ小さな配列から RR で読みます。
+   - **4.2:** レジスタファイルへは、結果が書き戻しレジスタに入るのと同じクロックで書きます。これで測定済みの4入力バイパスのまま済みます。そのため LSU は M ステージの結果を外に出す必要があります。
+   - **4.3:** OOO_SYS の完了はポート0の空き枠を使います。
+   - **4.4:** 融合は最初は切っておきます。LSU が絡むペア(ALU + ロード、ストアのペア)は LSU に新しい論理が要るので、最後に回し、モデルで効果を測ってから残すか決めます。
+   - **4.6:** I$ は最初はモデルで代用し、CoreMark の前に本物に替えます。
+5. **立ち上げの順:**
+
+   | 段階 | 内容 |
+   |---|---|
+   | B0 | テストベンチ |
+   | B1 | フロントエンドだけ |
+   | B2 | ALU µop だけのコア |
+   | B3 | ロード / ストア |
+   | B4 | riscv-arch-test |
+   | B5 | 融合、MDU、割り込み |
+   | B6 | CoreMark をモデルと比較 |
+   | B7 | Vivado でコア単体を合成 |
+
+6. **G1 で測るもの:**
+   - 正しさ: ロックステップで不一致がないこと。
+   - 性能: ビルドごとにモデルの ±5% 以内(6.243 / 6.680 / 6.066)。
+   - 規模と 50 MHz: コア全体を単体合成して確かめます。単体合成でもチップ内とほぼ同じ値になることは、25.3 節で確認済みです。
+
+**作業中に分かったこと**
+- 現状の LSU は、融合ペア(ALU + ロード、ストアのペア)を扱えません。
+- ポートには µop の pc と jalr の予測先が要りますが、まだどこからも来ていません。
+- ロックステップに必要な命令ビットと書き込み値を ROB は持っていないので、シミュレーション専用のトレースを別に置きます。
+
+これらはすべて計画に入れました。Plan/README と UARCH 8章のステップ4からリンクしてあります。
+<!-- /answer -->
+
+## 88. 2026-10-29 00:47:27 JST
+
+```text
+I accept the plan's recommendations (4.1 to 4.6). Start with B0: the core's test bench (ELF loader, memory model, HTIF, the commit trace into SIM/LOCKSTEP).
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+The bug injection and the checker's self-test are still running; I'll finish recording and commit once they report.
+<!-- /answer -->

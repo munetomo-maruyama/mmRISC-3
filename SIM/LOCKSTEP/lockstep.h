@@ -10,12 +10,18 @@
 //   wrote (integer or FP) and the value, the store it made (address, data,
 //   size).
 // Rules the DUT and its test bench keep so that the two streams can agree:
-//   - HTIF: a store to tohost is answered at once (tohost back to 0 before
-//     the next instruction reads it); exit is tohost = code << 1 | 1, a
-//     character is device 1, command 1 (Plan/icount/port/minilib.c).
+//   - HTIF: the reference answers a store to tohost at once (tohost back to
+//     0 before its next instruction); exit is tohost = code << 1 | 1, a
+//     character is device 1, command 1 (Plan/icount/port/minilib.c). The
+//     DUT's test bench answers it when the store reaches its memory.
 //   - Reads of the counters that differ by nature (cycle, time, mcycle, the
 //     HPM counters) take the DUT's value: the reference's register is set to
 //     it after the step.
+//   - So do loads of tohost and fromhost (SIM/CORE): in the core a store to
+//     tohost goes through the store queue and the D$ before the test bench
+//     sees it and puts tohost back to 0, so a loop polling tohost runs more
+//     times than in the reference; with the core's value the reference runs
+//     the same loop.
 //   - The first half of a fused pair whose result is not written (one write
 //     per pair, OOO_FUSE W1) sets rd_skip: only its pc and instruction are
 //     compared.

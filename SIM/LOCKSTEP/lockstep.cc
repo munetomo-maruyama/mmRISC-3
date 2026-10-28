@@ -27,9 +27,10 @@
 
 namespace {
 
-// ---- a minimal ELF64 loader: PT_LOAD segments, and the symbol tohost
+// ---- a minimal ELF64 loader: PT_LOAD segments, and the symbols tohost and
+// fromhost
 struct Elf {
-    uint64_t entry = 0, tohost = 0;
+    uint64_t entry = 0, tohost = 0, fromhost = 0;
     std::vector<std::pair<uint64_t, std::vector<uint8_t>>> segs;   // paddr, bytes (memsz)
 };
 
@@ -61,7 +62,7 @@ Elf load_elf(const std::string& path)
         std::memcpy(b.data(), &f[off], filesz);
         e.segs.push_back({paddr, std::move(b)});
     }
-    // the symbol table: tohost
+    // the symbol table: tohost, fromhost
     for (unsigned i = 0; i < shnum; i++) {
         size_t sh = shoff + (size_t)i * shentsize;
         if (rd_le<uint32_t>(f, sh + 4) != 2) continue;           // SHT_SYMTAB
@@ -71,8 +72,10 @@ Elf load_elf(const std::string& path)
         uint64_t stroff = rd_le<uint64_t>(f, str + 24);
         for (uint64_t s = off; s + 24 <= off + size; s += 24) {
             uint32_t name = rd_le<uint32_t>(f, s);
-            if (stroff + name < f.size() && !std::strcmp((const char*)&f[stroff + name], "tohost"))
-                e.tohost = rd_le<uint64_t>(f, s + 8);
+            if (stroff + name >= f.size()) continue;
+            const char* n = (const char*)&f[stroff + name];
+            if (!std::strcmp(n, "tohost")) e.tohost = rd_le<uint64_t>(f, s + 8);
+            if (!std::strcmp(n, "fromhost")) e.fromhost = rd_le<uint64_t>(f, s + 8);
         }
     }
     return e;
@@ -121,7 +124,8 @@ struct Lockstep::Impl {
     std::unique_ptr<processor_t> proc;
     FILE* devnull = nullptr;
     std::ostringstream sout;
-    uint64_t tohost = 0, nsteps = 0;
+    uint64_t tohost = 0, fromhost = 0, nsteps = 0;
+    bool htif_load = false;     // the last step read tohost or fromhost
     bool exited = false;
     int code = 0;
     std::string out;
@@ -131,6 +135,7 @@ struct Lockstep::Impl {
         Elf e = load_elf(c.elf);
         if (!e.tohost) throw std::runtime_error(c.elf + ": no tohost symbol");
         tohost = e.tohost;
+        fromhost = e.fromhost ? e.fromhost : e.tohost + 8;
         cfg.isa = c.isa.c_str();
         cfg.priv = c.priv.c_str();
         cfg.misaligned = false;                    // misaligned accesses trap, as in mmRISC-2
@@ -188,6 +193,11 @@ struct Lockstep::Impl {
         reg_t inst0 = proc->get_csr(CSR_MINSTRET);
         proc->step(1);
         nsteps++;
+        htif_load = false;
+        for (auto& m : s->log_mem_read) {
+            uint64_t a = std::get<0>(m), e = a + std::get<2>(m);
+            if ((a < tohost + 8 && e > tohost) || (a < fromhost + 8 && e > fromhost)) htif_load = true;
+        }
         if (proc->get_csr(CSR_MINSTRET) == inst0) {          // a trap, not retired
             r.trap = true;
             r.cause = (s->prv == PRV_S) ? proc->get_csr(CSR_SCAUSE) : proc->get_csr(CSR_MCAUSE);
@@ -231,9 +241,9 @@ bool Lockstep::check(const Commit& d, std::string* why)
         if (d.cause != r.cause) return bad("cause: DUT " + hex(d.cause) + ", reference " + hex(r.cause));
         return true;
     }
-    // a counter read takes the DUT's value
+    // a counter read, and a load of tohost or fromhost, take the DUT's value
     unsigned opc = r.insn & 0x7f, f3 = (r.insn >> 12) & 7;
-    if (opc == 0x73 && f3 != 0 && f3 != 4 && counter_csr(r.insn >> 20) && r.rd > 0 && !r.rd_fp) {
+    if (((opc == 0x73 && f3 != 0 && f3 != 4 && counter_csr(r.insn >> 20)) || p->htif_load) && r.rd > 0 && !r.rd_fp) {
         p->proc->get_state()->XPR.write(r.rd, d.rd_val);
         r.rd_val = d.rd_val;
     }

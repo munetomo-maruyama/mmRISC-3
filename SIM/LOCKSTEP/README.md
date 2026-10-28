@@ -35,9 +35,11 @@ instruction in program order:
 
 ## Rules for the core and its test bench
 
-- **HTIF answers at once**: a store to `tohost` is handled, and `tohost` set back to 0, before the next instruction
-  reads it (exit: `tohost = code << 1 | 1`; a character: device 1, command 1). Otherwise a polling loop runs a
-  different number of times in the core and in the reference.
+- **HTIF**: the reference answers a store to `tohost` at once (`tohost` back to 0 before its next instruction; exit:
+  `tohost = code << 1 | 1`; a character: device 1, command 1). The core's test bench (`SIM/CORE`) answers it when the
+  store reaches its memory, through the store queue and the D$, so a loop polling `tohost` can run more times in the
+  core: **loads of `tohost` and `fromhost` take the core's value** (the reference's register is overwritten, as for
+  the counters), and the reference runs the same loop (added 2026-10-29).
 - **Counters**: reads of `cycle`, `time`, `mcycle` and the HPM counters take the core's value (the reference's register
   is overwritten), since only those differ by nature. `instret` is compared (a fused pair counts 2).
 - **Misaligned accesses trap** (as in mmRISC-2), and the reference is set the same way.
