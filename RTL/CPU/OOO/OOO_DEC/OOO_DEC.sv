@@ -28,9 +28,11 @@
 //             not have, G0b L7: everything but add / sub, slt / sltu and
 //             the logic operations, so shifts, Zba, Zbb, Zbs, Zicond), 2
 //             LSU, 3 FPU (Doc/UARCH.md 3.5)
-//   lat2      the result comes 2 cycles after issue (a multiply, a load)
-//   ext_ans   the result comes from outside, woken on ext_* (a divide; AMO,
-//             LR, SC from the LSU at the head)
+//   lat2      the result comes 2 cycles after issue (mul / mulw, a load)
+//   ext_ans   the result comes from outside, woken on ext_* (the other MDU
+//             operations: mulh*, clmul*, divides, which mmRISC-2's CORE_MDU
+//             takes more than one cycle for, OOO_MDUP; AMO, LR, SC from the
+//             LSU at the head)
 //   nonspec   runs only at the ROB head (Doc/UARCH.md 3.9: CSR, ECALL,
 //             EBREAK, MRET, SRET, WFI, FENCE, FENCE.I, SFENCE.VMA, AMO, LR,
 //             SC, cbo.zero)
@@ -165,7 +167,7 @@ module OOO_DEC
         assign mem_cmd[k]      = S0 ? l_mem_cmd : {4'd0, is_store};
 
         always @(*) begin
-            logic ill, ld, st, amo, alu, div, sysm, simple;
+            logic ill, ld, st, amo, alu, sysm, simple;
             ill  = d_ill || (in_rvc[k] && c_ill);
             // integer loads and stores; AMO / LR / SC have both or a command of their own
             ld   = is_load  && !is_store && l_mem_cmd == CMD_LOAD  && !is_fp_load;
@@ -176,7 +178,6 @@ module OOO_DEC
                    !sysm && !l_fp;
             rare[k]    = ill || l_fp || is_fp_load || is_fp_store || sysm || amo || cbo;
             illegal[k] = S0 && ill;
-            div  = is_mdu && mdu_op[k][2];      // div, divu, rem, remu (and the W forms; Zbc is 001 .. 011)
             rd[k] = (we_rd && !ill) ? d_rd : 5'd0;
             // the class for fusion
             if (ill)                cls[k] = 3'd7;
@@ -210,8 +211,8 @@ module OOO_DEC
             else if (is_mdu || (sysm && S0))    port[k] = 2'd1;
             else if (alu && !simple)            port[k] = 2'd1;    // ALU0 only (L7)
             else                                port[k] = 2'd0;
-            lat2[k]    = !ill && ((is_mdu && !div) || ld);
-            ext_ans[k] = !ill && (div || (amo && S0));
+            lat2[k]    = !ill && ((is_mdu && mdu_op[k] == 4'd0) || ld);
+            ext_ans[k] = !ill && ((is_mdu && mdu_op[k] != 4'd0) || (amo && S0));
             nonspec[k] = S0 && !ill && (sysm || amo || cbo);
         end
     end

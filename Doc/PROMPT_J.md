@@ -2853,3 +2853,42 @@ synth_ooo.bat OOC_LSUDC
 ```text
 I ran synth_ooo.bat for OOC_TRAP, OOC_SYS, OOC_ROB, OOC_CTRL and OOC_LSUDC. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+5件とも 50 MHz に入りました。これで制御はすべて書き上がり、Vivado での確認まで終わりました。
+
+| ブロック | LUT | 前回 | 最悪の余裕 | 備考 |
+|---|---|---|---|---|
+| OOC_TRAP | **203** | (Yosys 644) | +6.577 ns(13段) | 最悪経路は tval の更新(報告のROB番号 → 年齢の比較 → `tv_d` のイネーブル) |
+| OOC_SYS | **15** | (Yosys 18) | +11.501 ns | |
+| OOC_ROB | **1,235** | 1,246 | +9.615 ns(17段、前回8段) | `irq` がコミットとポインタの経路に入った |
+| OOC_CTRL | **351** | 351 | +11.501 ns | `ns_busy` は既存のレジスタを出しただけ |
+| OOC_LSUDC | **7,678** | 7,562 | +0.820 ns(前回 +1.552) | 下記 |
+
+- **OOC_TRAP:** Yosys の 644 は Vivado では 203 で、前回挙げた tval を狭める案は不要です。
+- **OOC_LSUDC の +116:** 内訳は LSU +2、アダプタ +4、D$ +110 です。
+  - D$ 自体は変えていません。これまでアダプタは LOAD と STORE しか送らなかったので、Vivado が D$ のフラッシュ回路を削っていました。FLUSH が届くようになったので、その回路が残りました。
+  - 最悪経路は前回と同じ、D$ のステージ1 → LSU のフィルバッファです。余裕は 0.8 ns まで縮んでいます。
+- **予算:** 制御はここまで 351 + 69 + 37 + 203 + 15 = **675 LUT** で、見積もりの 1.5k〜2.5k に収まっています。
+  - ROB の −11 とアダプタの +4 は、0.1k の桁では効きません。
+  - D$ は mmRISC-2 での実測値で数えていて、その値はフラッシュ回路込みです。
+  - 不足は 3.2k / 4.6k / 5.9k LUT のままです。
+
+記録は Plan/OOC(_J).md の 22.4 節と、PROMPT.md(回答77の英訳)です。コミット fb8ea6b で dev に push 済みです。
+
+組み立て(G1)までに残っているのは、mmRISC-2 から持ってくるブロック(CSR、MDU、FPU、I$、TLB、デバッグ)と、組み立てそのものです。
+<!-- /answer -->
+
+## 79. 2026-10-28 22:01:47 JST
+
+```text
+Go on: bring mmRISC-2's CORE_CSR (with L1) and CORE_MDU into mmRISC-3, wired to OOO_TRAP / OOO_SYS and port 0, with tests and Vivado scripts.
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+The docs are ready. Still running in the background: the full suite (27 tests), extra seeds, the 288-mutation campaign and the model's G0b table. I'll commit once they report.
+<!-- /answer -->

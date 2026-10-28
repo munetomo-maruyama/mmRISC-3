@@ -43,3 +43,8 @@
 | + L7, a simple µop takes ALU1 first                       |  6.260 |  6.695 |  6.082 |
 | + L7, a simple µop takes ALU1 first, pessimistic          |  5.521 |  5.949 |  5.369 |
 | + L7, a simple µop takes ALU0 first                       |  5.882 |  6.264 |  5.735 |
+| **D-15 / D-16 (Plan/OOC.md 21, 23): redirect 2, mmRISC-2's CORE_MDU** | | | |
+| L7 + D-15 (fetch restarts a cycle after the resolution)    |  6.243 |  6.680 |  6.066 |
+| + D-16: CORE_MDU, mul latency 2 one in 2 cycles, others from outside |  6.193 |  6.680 |  6.066 |
+| + CORE_MDU with every operation from outside (latency 4)   |  6.096 |  6.623 |  5.886 |
+| D-16, pessimistic                                          |  5.497 |  5.937 |  5.365 |

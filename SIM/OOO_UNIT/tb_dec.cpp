@@ -136,8 +136,8 @@ static R decode32(uint32_t x)
     }
     case 0x33: {
         if (f7 == 1) { r.legal = true; r.cls = 6; r.port = 1; r.mdu = true; r.mdu_op = f3; r.use1 = r.use2 = 1; we = 1;
-                       r.lat2 = !(f3 & 4); r.ext = (f3 & 4) != 0; break; }     // multiply: 2 cycles; divide: from outside
-        if (f7 == 5 && (f3 == 1 || f3 == 2 || f3 == 3)) { r.legal = true; r.cls = 6; r.port = 1; r.mdu = true; r.mdu_op = 8 | f3; r.use1 = r.use2 = 1; we = 1; r.lat2 = 1; break; }
+                       r.lat2 = f3 == 0; r.ext = f3 != 0; break; }     // mul: 2 cycles; the rest (CORE_MDU, more than one cycle): from outside
+        if (f7 == 5 && (f3 == 1 || f3 == 2 || f3 == 3)) { r.legal = true; r.cls = 6; r.port = 1; r.mdu = true; r.mdu_op = 8 | f3; r.use1 = r.use2 = 1; we = 1; r.ext = 1; break; }
         static const std::map<uint32_t, int> t = {
             {0x000, A_ADD}, {0x200, A_SUB}, {0x001, A_SLL}, {0x002, A_SLT}, {0x003, A_SLTU}, {0x004, A_XOR}, {0x005, A_SRL},
             {0x205, A_SRA}, {0x006, A_OR}, {0x007, A_AND}, {0x207, A_ANDN}, {0x206, A_ORN}, {0x204, A_XNOR},
@@ -151,7 +151,7 @@ static R decode32(uint32_t x)
     }
     case 0x3b: {
         if (f7 == 1) { if (f3 == 0 || (f3 & 4)) { r.legal = true; r.cls = 6; r.port = 1; r.mdu = true; r.mdu_op = f3; r.use1 = r.use2 = 1; we = 1;
-                                                    r.lat2 = !(f3 & 4); r.ext = (f3 & 4) != 0; } break; }
+                                                    r.lat2 = f3 == 0; r.ext = f3 != 0; } break; }
         uint32_t key = f7 << 4 | f3;
         switch (key) {
         case 0x000: alu(A_ADD, 0, 1, 0, 1); r.op = 5; break;

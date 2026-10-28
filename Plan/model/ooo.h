@@ -43,6 +43,7 @@ struct OooCfg {
     int issue_w = 3;            // µops issued a cycle over all ports (0: no limit)
     bool mul_shared = true;     // MUL / DIV issue through an ALU port
     int lat_alu = 1, lat_load = 2, lat_mul = 2, lat_div = 20, lat_fp = 4;
+    int mdu_busy = 0;       // >0: one MDU, not pipelined (mmRISC-2's CORE_MDU): a multiply holds it this many cycles, a divide lat_div; a divide no longer holds ALU0
     int ubtb = 64;
     std::string pred = "S";     // perfect, gshare, S, M, L (TAGE)
     int fusion = 0;             // 0 none, 1 conservative, 2 + ALU + branch, 3 + ALU + ALU
@@ -168,7 +169,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     std::priority_queue<long, std::vector<long>, std::greater<long>> iqh, ckh;
     std::unordered_map<int, long> ready;        // register -> cycle a dependent may issue
     std::unordered_map<int, long> spec;         // register -> cycle its open loads are decided (keep_spec)
-    std::unordered_map<long, int> use_alu, use_lsu, use_mul, use_all, use_a0, use_a1;
+    std::unordered_map<long, int> use_alu, use_lsu, use_mul, use_all, use_a0, use_a1, use_mdu;
     struct StInfo { long data_ready, commit; };
     std::unordered_map<uint64_t, StInfo> st_word;   // latest store per 8-byte word
     long st_addr_known = 0;
@@ -278,8 +279,9 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                     if (t[k].cls == C_ALU && t[k].sub != 0) p0only = true;   // shift, Zba, Zbb, Zbs, Zicond
             bool first1 = c.alu_split != 3;
             int which = -1;
+            bool mdu = c.mdu_busy && (pr.cls == C_MUL || pr.cls == C_DIV);
             while (which < 0) {
-                bool ok = !(c.issue_w && use_all[is] >= c.issue_w);
+                bool ok = !(c.issue_w && use_all[is] >= c.issue_w) && !(mdu && use_mdu[is]);
                 bool f0 = ok && use_a0[is] < 1, f1 = ok && !p0only && use_a1[is] < 1;
                 if (f1 && (first1 || !f0)) which = 1;
                 else if (f0) which = 0;
@@ -287,7 +289,8 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             }
             (which ? use_a1 : use_a0)[is]++;
             use_all[is]++;
-            if (pr.cls == C_DIV) for (int q = 1; q < c.lat_div; q++) use_a0[is + q] = 1;   // not pipelined
+            if (mdu) for (int q = 0; q < (pr.cls == C_DIV ? c.lat_div : c.mdu_busy); q++) use_mdu[is + q] = 1;
+            else if (pr.cls == C_DIV) for (int q = 1; q < c.lat_div; q++) use_a0[is + q] = 1;   // not pipelined
         } else {
             auto& use = port == 1 ? use_lsu : port == 2 ? use_mul : use_alu;
             int cap = port == 1 ? c.lsu : port == 2 ? c.mul : c.alu;
@@ -406,7 +409,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         // the cycles of the port use behind every issue are no longer needed
         if ((u & 0xffff) == 0) {
             long lim = is - 4096;
-            for (auto* mp : {&use_alu, &use_lsu, &use_mul, &use_all, &use_a0, &use_a1})
+            for (auto* mp : {&use_alu, &use_lsu, &use_mul, &use_all, &use_a0, &use_a1, &use_mdu})
                 for (auto it = mp->begin(); it != mp->end();) it = it->first < lim ? mp->erase(it) : std::next(it);
         }
         i = last + 1;

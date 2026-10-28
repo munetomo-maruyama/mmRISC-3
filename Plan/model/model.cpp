@@ -9,7 +9,7 @@
 //       the 2-wide out-of-order core of mmRISC-3 (ooo.h); keys: w, dec_w,
 //       issue_w, fetch_bytes, fb, fe_depth, dec_depth, iss_to_ex, redirect,
 //       override_at, rob, iq, lq, sq, ckpt, alu, lsu, mul, mul_shared,
-//       lat_load, lat_mul, ubtb, pred (perfect / gshare / S / M / L),
+//       lat_load, lat_mul, mdu_busy, ubtb, pred (perfect / gshare / S / M / L),
 //       fusion (0-3), chain, fuse_1w, fuse_2src, ck1, ck_jal, mem_cons, fwd, keep_spec, alu_split, iters
 //   model tage <trace.bin>
 //       the conditional branches through TAGE-S / M / L (to hold against
@@ -76,6 +76,8 @@ int main(int argc, char** argv)
         c.mul_shared = o.get("mul_shared", c.mul_shared);
         c.lat_load = (int)o.get("lat_load", c.lat_load);
         c.lat_mul = (int)o.get("lat_mul", c.lat_mul);
+        c.mdu_busy = (int)o.get("mdu_busy", c.mdu_busy);
+        c.lat_div = (int)o.get("lat_div", c.lat_div);
         c.ubtb = (int)o.get("ubtb", c.ubtb);
         c.fusion = (int)o.get("fusion", c.fusion);
         c.chain = (int)o.get("chain", c.chain);

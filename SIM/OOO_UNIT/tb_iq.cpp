@@ -44,6 +44,13 @@
 // given out again; a µop issued in its kill cycle makes its value usable
 // to nobody), the external ones.
 //
+// MDU µops (a third of the ALU0-only ones: a multiply with latency 2, or
+// one that answers from outside): port 0 gives one only with mdu_ok
+// (random here, as OOO_MDUP gives it). Port 0's latency-1 write slot: a µop
+// that writes in it (not an MDU one) is not given port 0 in the cycle after
+// a multiply issued on port 0, nor with p0_hold (random). iss_md /
+// iss_md_long are checked with every issue.
+//
 // Non-speculative µops (an eighth of the ALU0-only and LSU ones): ready only
 // with ns_ok (random here, as the control gives it) and when no older
 // non-speculative µop is in the queue; iss_ns says that one issued.
@@ -64,6 +71,7 @@ struct Uop {
     int entry = -1;     // its entry (disp_entry), where the payload is
     unsigned bm = 0;    // its branch mask
     int ns = 0;         // non-speculative
+    int md = 0;         // an MDU µop
 };
 
 static std::mt19937 rng(5);
@@ -133,6 +141,8 @@ int main(int argc, char** argv)
             x.port = (int[]){0, 0, 0, 1, 2, 2}[rng() % 6];
             x.lat2 = x.port == 2 ? (rng() % 4 != 0) : x.port == 1 ? (rng() & 1) : 0;   // ALU0 only: a multiply or a complex ALU operation (L7)
             x.ext = x.port == 2 && !x.lat2;            // a store, or a load that missed: answer from outside
+            x.md = x.port == 1 && rng() % 3 == 0;      // an MDU µop: a multiply (latency 2) or one from outside
+            if (x.md && !x.lat2) x.ext = 1;
             x.dst = t0; x.wr = !x.ext;
             x.ns = (x.port == 1 || x.port == 2) && rng() % 8 == 0;
             for (int s = 0; s < 2; s++) {
@@ -168,11 +178,14 @@ int main(int argc, char** argv)
         d.flush = flush;
         int ns_ok = rng() % 2;
         d.ns_ok = ns_ok;
+        int mdu_ok = rng() % 3 != 0, p0_hold = rng() % 6 == 0;
+        d.mdu_ok = mdu_ok; d.p0_hold = p0_hold;
+        bool blk0 = pd0_v || p0_hold;
         d.kill = kill_id >= 0 ? 1u << kill_id : 0;
         d.clr = clr_id >= 0 ? 1u << clr_id : 0;
         unsigned clrm = clr_id >= 0 ? 1u << clr_id : 0, killm = kill_id >= 0 ? 1u << kill_id : 0;
         d.disp_valid = (nd >= 1 ? 1 : 0) | (nd >= 2 ? 2 : 0);
-        uint32_t port = 0, use = 0, rdy = 0, wr = 0, lat2 = 0, dst = 0, src = 0, bmw = 0, nsw = 0;
+        uint32_t port = 0, use = 0, rdy = 0, wr = 0, lat2 = 0, dst = 0, src = 0, bmw = 0, nsw = 0, mdw = 0;
         for (int k = 0; k < nd; k++) {
             Uop& x = u[k];
             port |= x.port << (2 * k); lat2 |= x.lat2 << k;
@@ -184,9 +197,10 @@ int main(int argc, char** argv)
             wr |= x.wr << k; dst |= (uint32_t)x.dst << (6 * k);
             bmw |= (uint32_t)x.bm << (6 * k);
             nsw |= (uint32_t)x.ns << k;
+            mdw |= (uint32_t)x.md << k;
         }
         d.disp_port = port; d.disp_use = use; d.disp_src = src; d.disp_rdy = rdy;
-        d.disp_wr = wr; d.disp_dst = dst; d.disp_lat2 = lat2; d.disp_bm = bmw; d.disp_ns = nsw;
+        d.disp_wr = wr; d.disp_dst = dst; d.disp_lat2 = lat2; d.disp_bm = bmw; d.disp_ns = nsw; d.disp_md = mdw;
         d.ext_valid = extv; d.ext_tag = extt;
         d.eval();
         // the entries given to the µops dispatched now: not one in use
@@ -225,10 +239,16 @@ int main(int argc, char** argv)
         for (auto& kv : q) {
             const Uop& x = kv.second;
             if (!ready(x) || x.port == 2 || &x == e1) continue;
+            if (x.md && !mdu_ok) continue;                       // the MDU is not free
+            if (blk0 && x.wr && !x.lat2 && !x.md) continue;     // port 0's latency-1 write slot is taken
             if (!e0 || x.id < e0->id) e0 = &x;
         }
         const Uop* exp[3] = {e0, e1, e2};
         if (!flush) {
+            bool emd = e0 && e0->md, eml = emd && !e0->lat2;
+            if ((bool)d.iss_md != emd || (bool)d.iss_md_long != eml) {
+                if (bad++ < 10) printf("MISMATCH cycle %ld: iss_md %d long %d, expected %d %d\n", cyc, (int)d.iss_md, (int)d.iss_md_long, emd, eml);
+            }
             bool ens = (e0 && e0->ns) || (e1 && e1->ns) || (e2 && e2->ns);
             if ((bool)d.iss_ns != ens && bad++ < 10) printf("MISMATCH cycle %ld: iss_ns %d, expected %d\n", cyc, (int)d.iss_ns, ens);
             if (ens) nns++;

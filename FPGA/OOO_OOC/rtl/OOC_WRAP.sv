@@ -23,6 +23,8 @@
 //   OOC_FERS    the front end's restore with the FTQ it reads
 //   OOC_TRAP    exceptions and interrupts at the ROB head
 //   OOC_SYS     the system µops (FENCE.I and so on)
+//   OOC_CSRU    the CSR unit (CORE_CSR)
+//   OOC_MDUP    port 0's MDU (CORE_MDU)
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -832,34 +834,50 @@ module OOC_TRAP
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [394:0]  in,
-        output logic [188:0]  out
+        input  logic [432:0]  in,
+        output logic [189:0]  out
     );
-    logic [394:0] q;
+    logic [432:0] q;
     always_ff @(posedge clk) q <= in;
-    logic             rob_trap, head_valid, head_fused, rob_replay, restore, ns_busy, flush_all, x_mret, irq_pend;
-    logic [4:0]       rob_cause, head_rob, restore_rob, irq_cause;
-    logic [37:0]      rob_pc, rob_replay_pc, mepc;
-    logic [38:0]      mtvec;
-    logic [2:0]       cmt_instret, tv_valid;
-    logic [2:0][4:0]  tv_rob;
-    logic [2:0][63:0] tv_val;
-    assign {rob_trap, rob_cause, rob_pc, head_valid, head_fused, head_rob, rob_replay, rob_replay_pc, cmt_instret,
-            restore, restore_rob, ns_busy, flush_all, x_mret, tv_valid, tv_rob, tv_val, irq_pend, irq_cause, mtvec, mepc} = q;
-    logic             irq, take, csr_trap, csr_int, csr_mret, no_fuse;
-    logic [37:0]      vec, rp_pc, csr_epc;
-    logic [4:0]       csr_cause;
-    logic [63:0]      csr_tval;
+    logic rob_trap;
+    logic [4:0] rob_cause;
+    logic [37:0] rob_pc;
+    logic head_valid;
+    logic head_fused;
+    logic [4:0] head_rob;
+    logic rob_replay;
+    logic [37:0] rob_replay_pc;
+    logic [2:0] cmt_instret;
+    logic restore;
+    logic [4:0] restore_rob;
+    logic ns_busy;
+    logic flush_all;
+    logic x_ret;
+    logic x_sret;
+    logic [2:0] tv_valid;
+    logic [14:0] tv_rob;
+    logic [191:0] tv_val;
+    logic irq_pend;
+    logic [4:0] irq_cause;
+    logic [37:0] tvec;
+    logic [37:0] mepc;
+    logic [37:0] sepc;
+    logic irq;
+    logic take;
+    logic [37:0] vec;
+    logic [37:0] rp_pc;
+    logic csr_trap;
+    logic [37:0] csr_epc;
+    logic csr_int;
+    logic [4:0] csr_cause;
+    logic [63:0] csr_tval;
+    logic csr_mret;
+    logic csr_sret;
+    logic no_fuse;
+    assign {rob_trap, rob_cause, rob_pc, head_valid, head_fused, head_rob, rob_replay, rob_replay_pc, cmt_instret, restore, restore_rob, ns_busy, flush_all, x_ret, x_sret, tv_valid, tv_rob, tv_val, irq_pend, irq_cause, tvec, mepc, sepc} = q;
     OOO_TRAP #(.VA(39), .NROB(24), .ROBW(5), .NTV(3)) u_trap
-        (.clk(clk), .rst_n(rst_n), .rob_trap(rob_trap), .rob_cause(rob_cause), .rob_pc(rob_pc),
-         .head_valid(head_valid), .head_fused(head_fused), .head_rob(head_rob), .rob_replay(rob_replay),
-         .rob_replay_pc(rob_replay_pc), .cmt_instret(cmt_instret), .restore(restore), .restore_rob(restore_rob),
-         .irq(irq), .ns_busy(ns_busy), .flush_all(flush_all), .take(take), .vec(vec), .rp_pc(rp_pc),
-         .x_mret(x_mret), .tv_valid(tv_valid), .tv_rob(tv_rob), .tv_val(tv_val), .irq_pend(irq_pend),
-         .irq_cause(irq_cause), .mtvec(mtvec), .mepc(mepc), .csr_trap(csr_trap), .csr_epc(csr_epc),
-         .csr_int(csr_int), .csr_cause(csr_cause), .csr_tval(csr_tval), .csr_mret(csr_mret), .no_fuse(no_fuse));
-    always_ff @(posedge clk)
-        out <= {irq, take, vec, rp_pc, csr_trap, csr_epc, csr_int, csr_cause, csr_tval, csr_mret, no_fuse};
+        (.rob_trap(rob_trap), .rob_cause(rob_cause), .rob_pc(rob_pc), .head_valid(head_valid), .head_fused(head_fused), .head_rob(head_rob), .rob_replay(rob_replay), .rob_replay_pc(rob_replay_pc), .cmt_instret(cmt_instret), .restore(restore), .restore_rob(restore_rob), .ns_busy(ns_busy), .flush_all(flush_all), .x_ret(x_ret), .x_sret(x_sret), .tv_valid(tv_valid), .tv_rob(tv_rob), .tv_val(tv_val), .irq_pend(irq_pend), .irq_cause(irq_cause), .tvec(tvec), .mepc(mepc), .sepc(sepc), .irq(irq), .take(take), .vec(vec), .rp_pc(rp_pc), .csr_trap(csr_trap), .csr_epc(csr_epc), .csr_int(csr_int), .csr_cause(csr_cause), .csr_tval(csr_tval), .csr_mret(csr_mret), .csr_sret(csr_sret), .no_fuse(no_fuse), .clk(clk), .rst_n(rst_n));
+    always_ff @(posedge clk) out <= {irq, take, vec, rp_pc, csr_trap, csr_epc, csr_int, csr_cause, csr_tval, csr_mret, csr_sret, no_fuse};
 endmodule : OOC_TRAP
 
 //---------------------------------------------------------------------------
@@ -869,17 +887,168 @@ module OOC_SYS
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [14:0]   in,
-        output logic [10:0]   out
+        input  logic [51:0]  in,
+        output logic [82:0]  out
     );
-    logic [14:0] q;
+    logic [51:0] q;
     always_ff @(posedge clk) q <= in;
-    logic       fl_req, ic_flush, tlb_flush, x_mret, cmp_valid, cmp_rp;
+    logic flush;
+    logic sys_valid;
+    logic [2:0] sys_op;
+    logic [4:0] sys_rob;
+    logic [31:0] sys_inst;
+    logic [1:0] priv;
+    logic tw;
+    logic tsr;
+    logic tvm;
+    logic sq_drained;
+    logic fl_take;
+    logic fl_done;
+    logic ic_done;
+    logic wfi_wake;
+    logic fl_req;
+    logic ic_flush;
+    logic tlb_flush;
+    logic x_ret;
+    logic x_sret;
+    logic cmp_valid;
     logic [4:0] cmp_rob;
+    logic cmp_rp;
+    logic cmp_exc;
+    logic tv_valid;
+    logic [4:0] tv_rob;
+    logic [63:0] tv_val;
+    assign {flush, sys_valid, sys_op, sys_rob, sys_inst, priv, tw, tsr, tvm, sq_drained, fl_take, fl_done, ic_done, wfi_wake} = q;
     OOO_SYS #(.ROBW(5)) u_sys
-        (.clk(clk), .rst_n(rst_n), .flush(q[0]), .sys_valid(q[1]), .sys_op(q[4:2]), .sys_rob(q[9:5]),
-         .sq_drained(q[10]), .fl_req(fl_req), .fl_take(q[11]), .fl_done(q[12]), .ic_flush(ic_flush), .ic_done(q[13]),
-         .tlb_flush(tlb_flush), .x_mret(x_mret), .wfi_wake(q[14]),
-         .cmp_valid(cmp_valid), .cmp_rob(cmp_rob), .cmp_rp(cmp_rp));
-    always_ff @(posedge clk) out <= {fl_req, ic_flush, tlb_flush, x_mret, cmp_valid, cmp_rob, cmp_rp};
+        (.flush(flush), .sys_valid(sys_valid), .sys_op(sys_op), .sys_rob(sys_rob), .sys_inst(sys_inst), .priv(priv), .tw(tw), .tsr(tsr), .tvm(tvm), .sq_drained(sq_drained), .fl_take(fl_take), .fl_done(fl_done), .ic_done(ic_done), .wfi_wake(wfi_wake), .fl_req(fl_req), .ic_flush(ic_flush), .tlb_flush(tlb_flush), .x_ret(x_ret), .x_sret(x_sret), .cmp_valid(cmp_valid), .cmp_rob(cmp_rob), .cmp_rp(cmp_rp), .cmp_exc(cmp_exc), .tv_valid(tv_valid), .tv_rob(tv_rob), .tv_val(tv_val), .clk(clk), .rst_n(rst_n));
+    always_ff @(posedge clk) out <= {fl_req, ic_flush, tlb_flush, x_ret, x_sret, cmp_valid, cmp_rob, cmp_rp, cmp_exc, tv_valid, tv_rob, tv_val};
 endmodule : OOC_SYS
+
+//---------------------------------------------------------------------------
+// OOC_CSRU: the CSR unit (CORE_CSR, HPM_COUNTERS 2: L1) with its inputs and outputs
+// registered (Plan/OOC.md 23); the PMP and trigger outputs too, which the MMU
+// and the core use at the assembly
+//---------------------------------------------------------------------------
+module OOC_CSRU
+    (
+        input  logic          clk,
+        input  logic          rst_n,
+        input  logic [416:0]  in,
+        output logic [1846:0]  out
+    );
+    logic [416:0] q;
+    always_ff @(posedge clk) q <= in;
+    logic ex_valid;
+    logic [2:0] ex_op;
+    logic [11:0] ex_addr;
+    logic [4:0] ex_rs1;
+    logic [63:0] ex_src;
+    logic [4:0] ex_rob;
+    logic [31:0] ex_inst;
+    logic trap_en;
+    logic trap_int;
+    logic [4:0] trap_cause;
+    logic [37:0] trap_epc;
+    logic [63:0] trap_tval;
+    logic mret_en;
+    logic sret_en;
+    logic irq_m_soft;
+    logic irq_m_timer;
+    logic irq_m_ext;
+    logic irq_s_ext;
+    logic [63:0] mtime;
+    logic [2:0] instret_inc;
+    logic [19:0] hpm_ev;
+    logic fflags_we;
+    logic [4:0] fflags_set;
+    logic fs_dirty;
+    logic dbg_access;
+    logic [11:0] dbg_addr;
+    logic dbg_enter;
+    logic [2:0] dbg_cause;
+    logic [63:0] dbg_pc;
+    logic dbg_resume;
+    logic [3:0] trig_fired;
+    logic [63:0] ex_res;
+    logic ex_exc;
+    logic ex_rp;
+    logic tv_valid;
+    logic [4:0] tv_rob;
+    logic [63:0] tv_val;
+    logic [37:0] tvec;
+    logic [37:0] mepc;
+    logic [37:0] sepc;
+    logic irq_pend;
+    logic [4:0] irq_cause;
+    logic wfi_wake;
+    logic [1:0] priv;
+    logic [63:0] satp;
+    logic mstatus_sum;
+    logic mstatus_mxr;
+    logic mstatus_mprv;
+    logic [1:0] mstatus_mpp;
+    logic mstatus_tvm;
+    logic mstatus_tw;
+    logic mstatus_tsr;
+    logic menvcfg_cbze;
+    logic senvcfg_cbze;
+    logic [63:0] pmpcfg;
+    logic [511:0] pmpaddr;
+    logic [511:0] pmpmask;
+    logic [2:0] frm;
+    logic [1:0] fs;
+    logic [63:0] dbg_rdata;
+    logic dcsr_step;
+    logic dcsr_ebreakm;
+    logic dcsr_ebreaks;
+    logic dcsr_ebreaku;
+    logic [63:0] dpc;
+    logic [31:0] trig_cfg;
+    logic [255:0] trig_addr;
+    logic tcontrol_mte;
+    assign {ex_valid, ex_op, ex_addr, ex_rs1, ex_src, ex_rob, ex_inst, trap_en, trap_int, trap_cause, trap_epc, trap_tval, mret_en, sret_en, irq_m_soft, irq_m_timer, irq_m_ext, irq_s_ext, mtime, instret_inc, hpm_ev, fflags_we, fflags_set, fs_dirty, dbg_access, dbg_addr, dbg_enter, dbg_cause, dbg_pc, dbg_resume, trig_fired} = q;
+    OOO_CSRU #(.VA(39), .ROBW(5), .PMP_ENTRIES(8), .PMP_CSRS(16), .TRIGGERS(4), .HPM_COUNTERS(2), .HPM_EVENTS(20)) u_csru
+        (.ex_valid(ex_valid), .ex_op(ex_op), .ex_addr(ex_addr), .ex_rs1(ex_rs1), .ex_src(ex_src), .ex_rob(ex_rob), .ex_inst(ex_inst), .trap_en(trap_en), .trap_int(trap_int), .trap_cause(trap_cause), .trap_epc(trap_epc), .trap_tval(trap_tval), .mret_en(mret_en), .sret_en(sret_en), .irq_m_soft(irq_m_soft), .irq_m_timer(irq_m_timer), .irq_m_ext(irq_m_ext), .irq_s_ext(irq_s_ext), .mtime(mtime), .instret_inc(instret_inc), .hpm_ev(hpm_ev), .fflags_we(fflags_we), .fflags_set(fflags_set), .fs_dirty(fs_dirty), .dbg_access(dbg_access), .dbg_addr(dbg_addr), .dbg_enter(dbg_enter), .dbg_cause(dbg_cause), .dbg_pc(dbg_pc), .dbg_resume(dbg_resume), .trig_fired(trig_fired), .ex_res(ex_res), .ex_exc(ex_exc), .ex_rp(ex_rp), .tv_valid(tv_valid), .tv_rob(tv_rob), .tv_val(tv_val), .tvec(tvec), .mepc(mepc), .sepc(sepc), .irq_pend(irq_pend), .irq_cause(irq_cause), .wfi_wake(wfi_wake), .priv(priv), .satp(satp), .mstatus_sum(mstatus_sum), .mstatus_mxr(mstatus_mxr), .mstatus_mprv(mstatus_mprv), .mstatus_mpp(mstatus_mpp), .mstatus_tvm(mstatus_tvm), .mstatus_tw(mstatus_tw), .mstatus_tsr(mstatus_tsr), .menvcfg_cbze(menvcfg_cbze), .senvcfg_cbze(senvcfg_cbze), .pmpcfg(pmpcfg), .pmpaddr(pmpaddr), .pmpmask(pmpmask), .frm(frm), .fs(fs), .dbg_rdata(dbg_rdata), .dcsr_step(dcsr_step), .dcsr_ebreakm(dcsr_ebreakm), .dcsr_ebreaks(dcsr_ebreaks), .dcsr_ebreaku(dcsr_ebreaku), .dpc(dpc), .trig_cfg(trig_cfg), .trig_addr(trig_addr), .tcontrol_mte(tcontrol_mte), .clk(clk), .rst_n(rst_n));
+    always_ff @(posedge clk) out <= {ex_res, ex_exc, ex_rp, tv_valid, tv_rob, tv_val, tvec, mepc, sepc, irq_pend, irq_cause, wfi_wake, priv, satp, mstatus_sum, mstatus_mxr, mstatus_mprv, mstatus_mpp, mstatus_tvm, mstatus_tw, mstatus_tsr, menvcfg_cbze, senvcfg_cbze, pmpcfg, pmpaddr, pmpmask, frm, fs, dbg_rdata, dcsr_step, dcsr_ebreakm, dcsr_ebreaks, dcsr_ebreaku, dpc, trig_cfg, trig_addr, tcontrol_mte};
+endmodule : OOC_CSRU
+
+//---------------------------------------------------------------------------
+// OOC_MDUP: port 0's MDU (CORE_MDU) with its inputs and outputs registered (Plan/OOC.md 23)
+//---------------------------------------------------------------------------
+module OOC_MDUP
+    (
+        input  logic          clk,
+        input  logic          rst_n,
+        input  logic [172:0]  in,
+        output logic [84:0]  out
+    );
+    logic [172:0] q;
+    always_ff @(posedge clk) q <= in;
+    logic flush;
+    logic [5:0] kill;
+    logic [5:0] clr;
+    logic iss_md;
+    logic iss_md_long;
+    logic [5:0] iss_bm;
+    logic ex_valid;
+    logic [3:0] ex_op;
+    logic ex_word;
+    logic [63:0] ex_a;
+    logic [63:0] ex_b;
+    logic [4:0] ex_rob;
+    logic [5:0] ex_dst;
+    logic [5:0] ex_bm;
+    logic ex_lat1_wr;
+    logic mdu_ok;
+    logic p0_hold;
+    logic res_valid;
+    logic [5:0] res_tag;
+    logic [63:0] res_data;
+    logic [4:0] res_rob;
+    logic ext_valid;
+    logic [5:0] ext_tag;
+    assign {flush, kill, clr, iss_md, iss_md_long, iss_bm, ex_valid, ex_op, ex_word, ex_a, ex_b, ex_rob, ex_dst, ex_bm, ex_lat1_wr} = q;
+    OOO_MDUP #(.ROBW(5), .TAGW(6), .NCK(6)) u_mdup
+        (.flush(flush), .kill(kill), .clr(clr), .iss_md(iss_md), .iss_md_long(iss_md_long), .iss_bm(iss_bm), .ex_valid(ex_valid), .ex_op(ex_op), .ex_word(ex_word), .ex_a(ex_a), .ex_b(ex_b), .ex_rob(ex_rob), .ex_dst(ex_dst), .ex_bm(ex_bm), .ex_lat1_wr(ex_lat1_wr), .mdu_ok(mdu_ok), .p0_hold(p0_hold), .res_valid(res_valid), .res_tag(res_tag), .res_data(res_data), .res_rob(res_rob), .ext_valid(ext_valid), .ext_tag(ext_tag), .clk(clk), .rst_n(rst_n));
+    always_ff @(posedge clk) out <= {mdu_ok, p0_hold, res_valid, res_tag, res_data, res_rob, ext_valid, ext_tag};
+endmodule : OOC_MDUP

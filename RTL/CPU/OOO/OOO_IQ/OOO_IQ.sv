@@ -61,6 +61,15 @@
 // older non-speculative entry is in the queue (the head's is the oldest);
 // iss_ns tells the control that one went.
 //
+// Port 0's MDU (mmRISC-2's CORE_MDU, OOO_MDUP: one operation at a time;
+// Plan/OOC.md 23): an MDU µop (disp_md) goes only with mdu_ok (the unit is
+// free when it gets there), and port 0 has one register-file write port:
+// a µop that writes it in the latency-1 slot is not given port 0 in the
+// cycle after a multiply (latency 2: the same slot) nor while a result of
+// the MDU waits to be written (p0_hold). It can still go to port 1. Both
+// inputs are registers of OOO_MDUP, and the multiply of the cycle before
+// is this queue's own (the delayed wakeup).
+//
 // The payload of a µop (operation, immediates, ROB index) is not here: it
 // sits in a LUTRAM indexed by the entry (OOO_IQPL): disp_entry says where
 // it is written, iss_entry where it is read.
@@ -82,6 +91,8 @@ module OOO_IQ
         input  logic [NCK-1:0]        kill,       // a restored checkpoint: its µops leave (one-hot)
         input  logic [NCK-1:0]        clr,        // checkpoints resolved as predicted
         input  logic                  ns_ok,      // the ROB head is a non-speculative µop not run yet
+        input  logic                  mdu_ok,     // OOO_MDUP: an MDU µop may issue now
+        input  logic                  p0_hold,    // OOO_MDUP: a result waits for port 0's write
 
         // dispatch: up to 2 µops a cycle, in program order (0 the older)
         output logic [1:0]            disp_ready, // room for this many
@@ -96,6 +107,7 @@ module OOO_IQ
         input  logic [1:0]            disp_lat2,  // results after 2 cycles (load, multiply)
         input  logic [1:0][NCK-1:0]   disp_bm,    // branch masks (OOO_CTRL d_bmask)
         input  logic [1:0]            disp_ns,    // non-speculative: issued only at the ROB head
+        input  logic [1:0]            disp_md,    // an MDU µop (port 0)
 
         // external wakeups
         input  logic [NEXT-1:0]           ext_valid,
@@ -109,6 +121,8 @@ module OOO_IQ
         output logic [2:0][TAGW-1:0]  iss_dst,
         output logic [2:0][NCK-1:0]   iss_bm,     // the issued µops' branch masks (for the units)
         output logic                  iss_ns,     // a non-speculative µop issued now
+        output logic                  iss_md,     // port 0 issued an MDU µop
+        output logic                  iss_md_long,//   one that answers from outside (not a mul)
 
         // the wakeup tags of this cycle (renaming's busy bits, OOO_DSREG)
         output logic [3+NEXT:0]       wk_valid,
@@ -130,6 +144,8 @@ module OOO_IQ
     logic [N-1:0]                 older [N];  // older[i][j]: entry j is older than entry i
     logic [NCK-1:0]               bm    [N];  // branch mask
     logic [N-1:0]                 ns;         // non-speculative
+    logic [N-1:0]                 md;         // an MDU µop
+    logic                         blk0;       // port 0's latency-1 write slot is taken
 
     // ---- select
     logic [N-1:0] ready_all, req0, req1, req2, g0, g1, g2;
@@ -139,7 +155,8 @@ module OOO_IQ
             // off the wakeup-select loop)
             ready_all[i] = v[i] && ((rdy[i] | ~use_s[i]) == 2'b11) &&
                            (!ns[i] || (ns_ok && (older[i] & v & ns) == '0));
-            req0[i] = ready_all[i] && (port[i] == 2'd0 || port[i] == 2'd1);
+            req0[i] = ready_all[i] && (port[i] == 2'd0 || port[i] == 2'd1) &&
+                      !(blk0 && wr[i] && !lat2[i] && !md[i]) && !(md[i] && !mdu_ok);
             req1[i] = ready_all[i] && (port[i] == 2'd0);
             req2[i] = ready_all[i] && (port[i] == 2'd2);
         end
@@ -181,7 +198,9 @@ module OOO_IQ
         end
     end
 
-    assign iss_ns = ((g0 | g1 | g2) & ns) != '0;
+    assign iss_ns      = ((g0 | g1 | g2) & ns) != '0;
+    assign iss_md      = (g0 & md) != '0;
+    assign iss_md_long = (g0 & md & ~lat2) != '0;
 
     // ---- wakeup tags: the µops issued now with latency 1, those issued one
     // cycle ago with latency 2, and the external ones
@@ -238,6 +257,9 @@ module OOO_IQ
         d_t0 <= iss_dst[0];
         d_t2 <= iss_dst[2];
     end
+    // port 0's latency-1 write slot: the multiply of the cycle before has it,
+    // or a result of the MDU waits for it
+    assign blk0 = d_v0 || p0_hold;
 
     // which entries are written and which issue this cycle
     logic [N-1:0] issued, disp0, disp1;
@@ -257,7 +279,7 @@ module OOO_IQ
         logic [TAGW-1:0]      dq;
         logic [N-1:0]         oq;
         logic [NCK-1:0]       bq;
-        logic                 nq;
+        logic                 nq, mq;
         assign v[i]     = vq;
         assign lat2[i]  = lq;
         assign port[i]  = pq;
@@ -269,6 +291,7 @@ module OOO_IQ
         assign older[i] = oq;
         assign bm[i]    = bq;
         assign ns[i]    = nq;
+        assign md[i]    = mq;
 
         always_ff @(posedge clk or negedge rst_n) begin
             if (!rst_n) begin
@@ -287,6 +310,7 @@ module OOO_IQ
                 lq <= disp_lat2[d];
                 bq <= disp_bm[d];
                 nq <= disp_ns[d];
+                mq <= disp_md[d];
                 // age: younger than every entry that stays, and the second of a
                 // pair younger than the first
                 for (int j = 0; j < N; j++) oq[j] <= v[j] && !issued[j];

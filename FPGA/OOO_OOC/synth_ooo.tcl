@@ -7,7 +7,7 @@
 #   vivado -mode batch -source synth_ooo.tcl -tclargs [top [period [impl [generics]]]]
 #
 #     top       OOC_ALU2 / OOC_FUSE / OOC_PRF / OOC_RENAME / OOO_IQ / OOO_UBTB / OOC_LSU / OOC_ROB
-#               / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC / OOC_IQPL / OOC_LSUDC / OOC_CTRL / OOC_DSREG / OOC_FERS / OOC_TRAP / OOC_SYS
+#               / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC / OOC_IQPL / OOC_LSUDC / OOC_CTRL / OOC_DSREG / OOC_FERS / OOC_TRAP / OOC_SYS / OOC_CSRU / OOC_MDUP
 #                                                          OOC_ALU2
 #     period    clock period in ns                         20.0 (50 MHz)
 #     impl      1 = also place and route                   1
@@ -61,6 +61,7 @@ read_verilog -sv [list \
     $rtl/OOO_FETCH/OOO_FETCH.sv $core/CORE_DECOMP/CORE_DECOMP.sv $core/CORE_DEC/CORE_DEC.sv \
     $rtl/OOO_DEC/OOO_DEC.sv $rtl/OOO_IQPL/OOO_IQPL.sv $rtl/OOO_DCAD/OOO_DCAD.sv $rtl/OOO_CTRL/OOO_CTRL.sv \
     $rtl/OOO_DSREG/OOO_DSREG.sv $rtl/OOO_FERS/OOO_FERS.sv $rtl/OOO_TRAP/OOO_TRAP.sv $rtl/OOO_SYS/OOO_SYS.sv \
+    $core/CORE_CSR/CORE_CSR.sv $rtl/OOO_CSRU/OOO_CSRU.sv $core/CORE_MDU/CORE_MDU.sv $rtl/OOO_MDUP/OOO_MDUP.sv \
     $cache/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv $cache/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv \
     $cache/DCACHE/DCACHE.sv ./rtl/OOC_WRAP.sv]
 
@@ -76,6 +77,8 @@ if {[llength $ins]}  { set_input_delay  -clock clk $io_dly $ins }
 if {[llength $outs]} { set_output_delay -clock clk $io_dly $outs }
 # OOO_IQ's ns_ok comes from a flip-flop of OOO_CTRL (Plan/OOC.md 19.4): early in the cycle
 if {$top eq "OOO_IQ" && [llength [get_ports -quiet ns_ok]]} { set_input_delay -clock clk 1.0 [get_ports ns_ok] }
+# ... and mdu_ok / p0_hold from flip-flops of OOO_MDUP (Plan/OOC.md 23)
+if {$top eq "OOO_IQ" && [llength [get_ports -quiet mdu_ok]]} { set_input_delay -clock clk 1.0 [get_ports {mdu_ok p0_hold}] }
 # OOC_RENAME's and OOC_DSREG's wakeup tags come straight from OOO_IQ's select (Plan/OOC.md 20):
 # its worst path reaches the port at about 13.2 ns (19.4), so they arrive at 13 ns, unregistered
 if {($top eq "OOC_RENAME" || $top eq "OOC_DSREG") && [llength [get_ports -quiet wk_*]]} {

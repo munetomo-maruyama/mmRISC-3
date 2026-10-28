@@ -3,7 +3,7 @@
 //
 // Exceptions and interrupts of mmRISC-3 (Doc/UARCH.md 3.8, Plan/OOC.md 22):
 // what happens at the ROB head, between the ROB, the CSRs (mmRISC-2's
-// CORE_CSR at the assembly: csr_* below) and OOO_CTRL (take / vec / rp_pc
+// CORE_CSR inside OOO_CSRU: csr_* below) and OOO_CTRL (take / vec / rp_pc
 // are its trap / trap_vec / replay_pc). Taken at the head, between µops:
 //
 //   interrupt   irq_pend (a pending interrupt enabled, the CSRs' choice of
@@ -13,7 +13,9 @@
 //               vectored). Not while the head is a non-speculative µop
 //               that has issued (ns_busy): its effect (a CSR write, an MMIO
 //               load, WFI) has happened or is happening, so it must
-//               commit. A pair is one µop, so an interrupt never splits
+//               commit. The vector is the CSRs' (tvec: mtvec or stvec when
+//               the trap is delegated, + 4 x cause when vectored), which
+//               they give for the cause on csr_*. A pair is one µop, so an interrupt never splits
 //               one. An interrupt wins over the head's exception (taken
 //               before the instruction, which faults again after mret).
 //   exception   the head µop has one (OOO_ROB trap): mepc = its pc,
@@ -26,10 +28,10 @@
 //               the faulting instruction traps with its own pc, tval and
 //               registers. no_fuse holds until two instructions have
 //               committed (the pair's) or the next trap or interrupt
-//   MRET        executed at the head by OOO_SYS (x_mret): it completes
-//               marked for replay, and that replay fetches from mepc (not
-//               pc + length) and tells the CSRs (csr_mret: the mstatus
-//               bits)
+//   MRET, SRET  executed at the head by OOO_SYS (x_ret, x_sret for SRET):
+//               it completes marked for replay, and that replay fetches
+//               from mepc / sepc (not pc + length) and tells the CSRs
+//               (csr_mret / csr_sret: the mstatus bits and the level)
 //
 // tval: every unit that reports an exception reports its tval with it
 // (address, instruction bits, or 0) on a tv_* port; the oldest one by ROB
@@ -76,7 +78,8 @@ module OOO_TRAP
         output logic [VA-1:1]               rp_pc,          // OOO_CTRL replay_pc
 
         // OOO_SYS
-        input  logic                        x_mret,
+        input  logic                        x_ret,          // an MRET / SRET ran at the head
+        input  logic                        x_sret,         //   (SRET)
 
         // tval of the exceptions reported (with cmp_exc / disp_exc)
         input  logic [NTV-1:0]              tv_valid,
@@ -86,14 +89,16 @@ module OOO_TRAP
         // the CSRs
         input  logic                        irq_pend,
         input  logic [4:0]                  irq_cause,
-        input  logic [VA-1:0]               mtvec,          // [1:0] mode: 1 vectored
+        input  logic [VA-1:1]               tvec,           // the trap vector for csr_int / csr_cause
         input  logic [VA-1:1]               mepc,
+        input  logic [VA-1:1]               sepc,
         output logic                        csr_trap,       // write mepc, mcause, mtval, mstatus (trap entry)
         output logic [VA-1:1]               csr_epc,
         output logic                        csr_int,        // mcause's interrupt bit
         output logic [4:0]                  csr_cause,
         output logic [63:0]                 csr_tval,
-        output logic                        csr_mret,       // mstatus for MRET
+        output logic                        csr_mret,       // mstatus and the level for MRET
+        output logic                        csr_sret,       //   ... for SRET
 
         // OOO_FUSE
         output logic                        no_fuse
@@ -106,27 +111,24 @@ module OOO_TRAP
     logic            tv_v;              // the oldest exception's tval
     logic [ROBW-1:0] tv_r;
     logic [63:0]     tv_d;
-    logic            x_pend;            // an MRET at the head has run
+    logic            x_pend, x_s;       // an MRET (SRET: x_s) at the head has run
     logic [1:0]      nf_cnt;            // instructions committed since the refetch
 
     logic exc, refetch;
-    logic [VA-1:1] base;
     always @(*) begin
         irq     = irq_pend && head_valid && !ns_busy;
         exc     = rob_trap && !irq;
         refetch = exc && head_fused;
         take    = irq || exc;
-        base    = {mtvec[VA-1:2], 1'b0};
-        if (refetch)                  vec = rob_pc;
-        else if (irq && mtvec[1:0] == 2'd1) vec = base + (VA - 1)'({irq_cause, 1'b0});
-        else                          vec = base;
-        rp_pc     = x_pend ? mepc : rob_replay_pc;
+        vec     = refetch ? rob_pc : tvec;
+        rp_pc     = !x_pend ? rob_replay_pc : x_s ? sepc : mepc;
         csr_trap  = irq || (exc && !head_fused);
         csr_epc   = rob_pc;
         csr_int   = irq;
         csr_cause = irq ? irq_cause : rob_cause;
         csr_tval  = irq ? 64'd0 : tv_d;     // the head is the oldest, and it reported (bug injection: no check needed)
-        csr_mret  = rob_replay && x_pend;
+        csr_mret  = rob_replay && x_pend && !x_s;
+        csr_sret  = rob_replay && x_pend && x_s;
     end
 
     // the oldest tval: a report older than (or at) the one kept replaces it
@@ -155,10 +157,11 @@ module OOO_TRAP
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             x_pend  <= 1'b0;
+            x_s     <= 1'b0;
             no_fuse <= 1'b0;
             nf_cnt  <= '0;
         end else begin
-            if (x_mret)                         x_pend <= 1'b1;
+            if (x_ret)                          begin x_pend <= 1'b1; x_s <= x_sret; end
             else if (rob_replay || flush_all)   x_pend <= 1'b0;
             if (refetch) begin
                 no_fuse <= 1'b1;

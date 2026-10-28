@@ -74,4 +74,9 @@ row "decided set, ALU0 / ALU1 apart (MUL / DIV on ALU0)"     $D alu_split=1
 row "+ L7, a simple µop takes ALU1 first"                  $D alu_split=2
 row "+ L7, a simple µop takes ALU1 first, pessimistic"     $D alu_split=2 $P
 row "+ L7, a simple µop takes ALU0 first"                  $D alu_split=3
+echo "| **D-15 / D-16 (Plan/OOC.md 21, 23): redirect 2, mmRISC-2's CORE_MDU** | | | |"
+row "L7 + D-15 (fetch restarts a cycle after the resolution)"  $D alu_split=2 redirect=2
+row "+ D-16: CORE_MDU, mul latency 2 one in 2 cycles, others from outside" $D alu_split=2 redirect=2 mdu_busy=2
+row "+ CORE_MDU with every operation from outside (latency 4)" $D alu_split=2 redirect=2 mdu_busy=2 lat_mul=4
+row "D-16, pessimistic"                                        $D alu_split=2 redirect=2 mdu_busy=2 $P
 } | tee results/g0b.txt

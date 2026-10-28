@@ -2864,3 +2864,36 @@ synth_ooo.bat OOC_LSUDC
 ```text
 I ran synth_ooo.bat for OOC_TRAP, OOC_SYS, OOC_ROB, OOC_CTRL and OOC_LSUDC. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+All five fit in 50 MHz. With this the control is all written and confirmed in Vivado.
+
+| Block | LUT | Before | Worst slack | Note |
+|---|---|---|---|---|
+| OOC_TRAP | **203** | (Yosys 644) | +6.577 ns (13 levels) | the worst path is the tval's update (a report's ROB index → the age compares → the enable of `tv_d`) |
+| OOC_SYS | **15** | (Yosys 18) | +11.501 ns | |
+| OOC_ROB | **1,235** | 1,246 | +9.615 ns (17 levels, 8 before) | `irq` entered the commit and pointer paths |
+| OOC_CTRL | **351** | 351 | +11.501 ns | `ns_busy` is only an existing register brought out |
+| OOC_LSUDC | **7,678** | 7,562 | +0.820 ns (+1.552 before) | below |
+
+- **OOC_TRAP:** Yosys's 644 is 203 in Vivado; narrowing the tval, raised last time, is not needed.
+- **OOC_LSUDC's +116:** the LSU +2, the adapter +4, the D$ +110.
+  - The D$ itself is unchanged. Until now the adapter sent only LOAD and STORE, so Vivado had trimmed the D$'s flush logic; now that FLUSH can arrive, that logic stays.
+  - The worst path is the same as before, the D$'s stage 1 → the LSU's fill buffer. Its slack has narrowed to 0.8 ns.
+- **Budget:** the control so far is 351 + 69 + 37 + 203 + 15 = **675 LUTs**, inside its 1.5k–2.5k estimate.
+  - The ROB's −11 and the adapter's +4 do not show at 0.1k.
+  - The D$ is counted at mmRISC-2's measured value, which includes its flush logic.
+  - The gap stays 3.2k / 4.6k / 5.9k LUTs.
+
+Recorded in section 22.4 of Plan/OOC(_J).md and PROMPT.md (the English of answer 77); pushed to dev in commit fb8ea6b.
+
+What is left before the assembly (G1) are the blocks to bring from mmRISC-2 (CSR, MDU, FPU, I$, TLB, debug) and the assembly itself.
+<!-- /answer -->
+
+## 79. 2026-10-28 22:01:47 JST
+
+```text
+Go on: bring mmRISC-2's CORE_CSR (with L1) and CORE_MDU into mmRISC-3, wired to OOO_TRAP / OOO_SYS and port 0, with tests and Vivado scripts.
+```

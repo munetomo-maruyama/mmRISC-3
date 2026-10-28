@@ -1925,3 +1925,69 @@ Item 5 of 18.7.
 
 All five items of 18.7 are done. What is left before the assembly: the CSRs (`CORE_CSR` with L1), MUL / DIV and the
 FPU behind their ports, the I$ and the TLBs (Phase 2), debug, and the core's assembly itself (G1).
+
+---
+
+## 23. mmRISC-2's CSRs and MDU behind port 0 (2026-10-29)
+
+### 23.1 What was done
+
+| Block | What was done |
+|---|---|
+| `RTL/CPU/CORE/CORE_CSR` | mmRISC-2 Rev.02's CSR file, with one change: `instret_inc` counts the instructions retired in a cycle (0 to 4: two µops of up to two instructions) instead of one bit |
+| `RTL/CPU/CORE/CORE_MDU` | mmRISC-2 Rev.02's multiply / divide unit, without change |
+| `OOO_CSRU` (new) | The CSR unit: CORE_CSR with `HPM_COUNTERS` = 2 (**L1 applied**). A CSR µop (non-speculative, so at the ROB head and sure to commit) reads, checks and writes its CSR in EX of port 0 (mmRISC-2 wrote at commit; EX at the head is as late as it gets); csrrs / csrrc with x0 do not write; not implemented / not allowed / a write to a read-only CSR is an illegal instruction with the instruction bits as tval; a µop that writes completes marked for replay. Its trap side is OOO_TRAP's: trap entry, MRET / SRET, the vector, mepc / sepc, the interrupt to take and WFI's wakeup |
+| `OOO_MDUP` (new) | Port 0's MDU: CORE_MDU (one operation at a time). mul / mulw: latency 2 for the issue queue (started in EX two cycles after the issue, done the cycle after, into port 0's write-back register). The other operations: answered from outside: written when port 0's EX has no latency-1 writer, with their wakeup on `ext_*`; `p0_hold` while one waits. `mdu_ok` (a register) for the issue queue. Killed by mask or flush_all in EX, while CORE_MDU works, or as it is done |
+| `OOO_IQ` | An MDU bit per entry (`disp_md`): port 0 gives one only with `mdu_ok`; port 0's latency-1 write slot: a µop that writes in it is not given port 0 in the cycle after a multiply (they would both write in the same cycle) nor with `p0_hold` (it still goes to port 1 if it may); `iss_md` / `iss_md_long` for OOO_MDUP |
+| `OOO_DEC` | Latency 2 only for mul / mulw; mulh*, clmul* and the divides answer from outside |
+| `OOO_TRAP` | The vector is the CSRs' (`tvec`: mtvec, or stvec for a trap delegated to S), no longer computed from mtvec here; SRET beside MRET (`x_sret`, `csr_sret`, sepc) |
+| `OOO_SYS` | SRET; the privilege checks (MRET below M, SRET in U or S with TSR, SFENCE.VMA in U or S with TVM, WFI below M with TW: an illegal instruction with its bits as tval, doing nothing) |
+
+- **D-16 (for the author to confirm): CORE_MDU as it is.** It does one operation at a time: mul is done the cycle after
+  its start (latency 2 holds), but the next can start only two cycles later, and mulh / clmul / divides take longer.
+  In the model (`Plan/model`, new option `mdu_busy`): −0.8 % / 0 / 0 against a pipelined multiplier; with every
+  operation answered from outside, −2.4 % / −0.9 % / −3.0 %. A pipelined multiplier beside CORE_MDU would win the
+  0.8 % on -O2 back for LUTs and DSPs.
+- **Found: port 0's write slot.** The issue queue let port 0 issue a latency-1 µop in the cycle after a multiply;
+  both would write in the same cycle through port 0's one register-file write port (the register file has 3). Now the
+  queue does not give port 0 such a µop then (port 1 can take it). The long operations of the MDU write in a cycle
+  port 0 leaves free, and hold port 0 until they do.
+- **Contracts for the assembly**: the port-0 pipeline completes a CSR µop with its result in the latency-1 slot (the
+  CSR unit gives the value, the exception and the replay mark in EX), and an MDU µop through OOO_MDUP (not in EX);
+  µops answered from outside are dispatched as writing nothing (`disp_wr` 0: their wakeup is `ext_*`); the tval port
+  of port 0 is shared by the CSR unit and the system unit (one at a time at the head); ECALL's cause needs the level
+  (CORE_CSR `priv`) at decode.
+
+### 23.2 Verification
+
+- **`tb_csru`** (new): CSR µops on mscratch, sscratch, mepc, mtval, mtvec, mhpmcounter3 / 4 (L1's two),
+  mhpmcounter5 / 6 (not there: read 0, writes ignored), minstret, mvendorid and cycle (read only) and a CSR that does
+  not exist, every form; the value read, the exception and its tval, the replay mark, what was written read back,
+  minstret counting 0 to 4 a cycle, trap entry (mepc sign extended, mcause, the vector direct or vectored) and MRET's
+  mepc. 300,000 cycles, 4 seeds. Two of my test bench's mistakes on the way (cycle is read only; an MRET returns to
+  MPP, which only a trap from M sets to M).
+- **`tb_mdup`** (new): port 0 played by the queue's rules (MDU µops only with mdu_ok, latency-1 writers not after a
+  mul nor under p0_hold, a quarter of the time a writer every cycle it may); every MDU operation with operands that hit
+  division by zero and the overflow; branch masks, kills, clears, flushes. Checked against the M / Zbc semantics:
+  every µop not killed written once with its tag and ROB index, a mul exactly 3 cycles after its issue, a long one
+  never over a latency-1 writer and with its wakeup, none killed written, nothing waiting 200 cycles, mdu_ok never
+  stuck. 400,000 cycles, 4 seeds.
+- **`tb_iq`** (the MDU rules), **`tb_dec`** (latency 2 / outside), **`tb_trap`** (the CSRs' vector, SRET),
+  **`tb_sys`** (SRET, the privilege checks with their tval).
+- **Bug injection**: 28 new mutations (M296–M324 but M304); M161 / M162 / M231 / M270 / M271 / M279 / M284
+  retargeted (their lines changed; M270's vector is CORE_CSR's now); 288 of 288 detected. Decode's `div` was left
+  unused by the change of latencies and is gone.
+
+### 23.3 Size (Yosys), and the Vivado runs asked of the author
+
+| Block | Yosys | |
+|---|---|---|
+| `OOC_CSRU` | 2,823 | new: CORE_CSR with 2 HPM counters (mmRISC-2's CSR in Vivado: 4,750 with 4; L1 estimated −0.65k) |
+| `OOC_MDUP` | 3,742 | new: Yosys builds the multipliers of LUTs here; Vivado uses DSP blocks (mmRISC-2's MDU: 3,423) |
+| `OOC_TRAP` | 644 | the CSRs' vector instead of mtvec's (Vivado 203 before) |
+| `OOC_SYS` | 25 | the privilege checks |
+| `OOO_IQ` | 3,078 | the MDU bit, port 0's write slot |
+
+- **Please run** `synth_ooo.bat OOC_CSRU`, `synth_ooo.bat OOC_MDUP` (both new in the list), `synth_ooo.bat OOO_IQ`,
+  `synth_ooo.bat OOC_TRAP` and `synth_ooo.bat OOC_SYS`. The budget is updated with them (L1 measured instead of
+  estimated).

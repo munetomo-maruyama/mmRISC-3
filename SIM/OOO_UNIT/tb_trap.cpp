@@ -6,9 +6,10 @@
 // complete out of order (an exception with its tval, on one of the three
 // tval ports), and commit in order from the head (1 or 2 instructions each).
 // Now and then: a restore at a µop in the ROB (the younger ones go), a
-// replay at a commit, an MRET run at the head (x_mret) before its replayed
+// replay at a commit, an MRET or SRET run at the head (x_ret) before its replayed
 // commit, a non-speculative µop at the head that has issued (ns_busy), a
-// pending interrupt (irq_pend, random cause), mtvec direct or vectored. A
+// pending interrupt (irq_pend, random cause), the CSRs' vector (here from an
+// mtvec direct or vectored, for the cause OOO_TRAP gives them). A
 // trap or an interrupt empties the model ROB, and OOO_CTRL's flush_all
 // comes the cycle after. Completions of µops flushed or killed still on
 // their way are sent in the cycles of flush_all and of a restore.
@@ -23,7 +24,8 @@
 //     no_fuse until two instructions have committed or the next trap
 //   - an interrupt: mcause with the interrupt bit, mtval 0, mtvec's base
 //     (+ 4 x cause when vectored)
-//   - a replay goes to replay_pc, but to mepc (with csr_mret) after an MRET
+//   - a replay goes to replay_pc, but to mepc / sepc (with csr_mret / csr_sret)
+//     after an MRET / SRET
 //---------------------------------------------------------------------------
 #include "VOOO_TRAP.h"
 #include <cstdint>
@@ -51,13 +53,18 @@ int main(int argc, char** argv)
 
     std::deque<Uop> rob;
     int head = 0;                               // the head's index (the next µop's when empty)
-    bool flush_next = false, x_pend = false, nf = false; int nf_cnt = 0;
+    bool flush_next = false, x_pend = false, x_s = false, nf = false; int nf_cnt = 0;
     long ntrap = 0, nrefetch = 0, nirq = 0, nmret = 0, nstale = 0, ntval = 0, nnf_clear = 0;
-    uint64_t mtvec = (rng() & AM) << 1, mepc = rng() & AM;
+    uint64_t mtvec = (rng() & AM) << 1, mepc = rng() & AM, sepc = rng() & AM;
+    auto tvec_of = [&](bool in, int cause) {     // the CSRs' vector
+        uint64_t base = (mtvec >> 1) & ~1ull & AM;
+        return (in && (mtvec & 3) == 1) ? (base + 2 * (uint64_t)cause) & AM : base;
+    };
 
     for (cyc = 0; cyc < 400000; cyc++) {
         if (rng() % 500 == 0) mtvec = ((rng() & AM) << 1) | (rng() & 1);
         if (rng() % 50 == 0) mepc = rng() & AM;
+        if (rng() % 50 == 0) sepc = rng() & AM;
         bool flush_all = flush_next; flush_next = false;
         // ---- completions: some live µops, with their tval when they have an exception
         uint32_t tvv = 0, tvr = 0; uint64_t tvd[3] = {0, 0, 0};
@@ -86,7 +93,8 @@ int main(int argc, char** argv)
         bool rob_trap = hv && h.done && h.exc;
         bool ns_busy = hv && rng() % 6 == 0;
         bool irq_pend = rng() % 30 == 0; int icause = rng() % 16;
-        bool x_mret = hv && !rob_trap && !x_pend && rng() % 80 == 0;   // the MRET at the head runs
+        bool x_mret = hv && !rob_trap && !x_pend && rng() % 80 == 0;   // the MRET / SRET at the head runs
+        bool x_sret = rng() & 1;
         // commits (only when nothing traps), with a replay now and then
         bool irq_exp = irq_pend && hv && !ns_busy;
         int ncm = 0, instret = 0; bool replay = false; uint64_t rpc = rng() & AM;
@@ -105,17 +113,17 @@ int main(int argc, char** argv)
         d.rob_trap = rob_trap; d.rob_cause = h.cause; d.rob_pc = h.pc; d.head_valid = hv; d.head_fused = h.fused;
         d.head_rob = h.idx; d.rob_replay = replay; d.rob_replay_pc = rpc; d.cmt_instret = instret;
         d.restore = restore; d.restore_rob = restore_rob; d.ns_busy = ns_busy; d.flush_all = flush_all;
-        d.x_mret = x_mret; d.tv_valid = tvv; d.tv_rob = tvr;
+        d.x_ret = x_mret; d.x_sret = x_sret; d.tv_valid = tvv; d.tv_rob = tvr;
         for (int k = 0; k < 3; k++) { d.tv_val[2 * k] = (uint32_t)tvd[k]; d.tv_val[2 * k + 1] = (uint32_t)(tvd[k] >> 32); }
-        d.irq_pend = irq_pend; d.irq_cause = icause; d.mtvec = mtvec; d.mepc = mepc;
-        d.eval();
+        d.irq_pend = irq_pend; d.irq_cause = icause; d.mepc = mepc; d.sepc = sepc;
+        d.tvec = 0; d.eval();
+        d.tvec = tvec_of(d.csr_int, d.csr_cause); d.eval();     // the CSRs answer the cause with the vector
 
         // ---- what must happen
         bool exc = rob_trap && !irq_exp;
         bool refetch = exc && h.fused;
         bool take = irq_exp || exc;
-        uint64_t base = (mtvec >> 1) & ~1ull & AM;
-        uint64_t vec = refetch ? h.pc : (irq_exp && (mtvec & 3) == 1) ? (base + 2 * (uint64_t)icause) & AM : base;
+        uint64_t vec = refetch ? h.pc : tvec_of(irq_exp, irq_exp ? icause : h.cause);
         if ((bool)d.irq != irq_exp) FAIL("irq %d, expected %d", (int)d.irq, irq_exp);
         if ((bool)d.take != take) FAIL("take %d, expected %d", (int)d.take, take);
         if (take && (uint64_t)d.vec != vec) FAIL("vec %llx, expected %llx (%s)", (unsigned long long)d.vec, (unsigned long long)vec, refetch ? "refetch" : irq_exp ? "interrupt" : "exception");
@@ -129,17 +137,18 @@ int main(int argc, char** argv)
             if (!irq_exp) ntval++;
         }
         if (replay) {
-            uint64_t e = x_pend ? mepc : rpc;
-            if ((uint64_t)d.rp_pc != e) FAIL("replay pc %llx, expected %llx (mret %d)", (unsigned long long)d.rp_pc, (unsigned long long)e, x_pend);
+            uint64_t e = !x_pend ? rpc : x_s ? sepc : mepc;
+            if ((uint64_t)d.rp_pc != e) FAIL("replay pc %llx, expected %llx (ret %d sret %d)", (unsigned long long)d.rp_pc, (unsigned long long)e, x_pend, x_s);
         }
-        if ((bool)d.csr_mret != (replay && x_pend)) FAIL("csr_mret %d, expected %d", (int)d.csr_mret, replay && x_pend);
+        if ((bool)d.csr_mret != (replay && x_pend && !x_s)) FAIL("csr_mret %d, expected %d", (int)d.csr_mret, replay && x_pend && !x_s);
+        if ((bool)d.csr_sret != (replay && x_pend && x_s)) FAIL("csr_sret %d, expected %d", (int)d.csr_sret, replay && x_pend && x_s);
         if ((bool)d.no_fuse != nf) FAIL("no_fuse %d, expected %d", (int)d.no_fuse, nf);
 
         d.clk = 1; d.eval(); d.clk = 0; d.eval();
 
         // ---- the model after the edge
         for (auto& u : rob) for (int i : fin) if (u.idx == i) u.done = true;
-        if (x_mret) x_pend = true; else if (replay || flush_all) { if (replay && x_pend) nmret++; x_pend = false; }
+        if (x_mret) { x_pend = true; x_s = x_sret; } else if (replay || flush_all) { if (replay && x_pend) nmret++; x_pend = false; }
         if (refetch) { nf = true; nf_cnt = 0; nrefetch++; }
         else if (take) { if (nf) nnf_clear++; nf = false; }
         else if (nf) { if (nf_cnt + instret >= 2) nf = false; nf_cnt += instret; }
