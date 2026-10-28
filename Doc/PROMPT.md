@@ -3139,3 +3139,32 @@ synth_ooo.bat MM2_CPU_CORE
 ```text
 I ran synth_ooo.bat MM2_CPU_CORE. Please check output/MM2_CPU_CORE/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The calibration came out with mmRISC-2's whole CPU_CORE at **33,014 LUTs** synthesized alone, nearly equal to the 32,929 LUTs in the chip (ratio R = 1.00, difference +0.3 %). Synthesis alone measures a whole core as the chip does, so the risk feared in section 24.5 is gone. The out-of-context numbers of the out-of-order part can be used as they are, and the budget (gap 3.5k / 4.9k / 6.2k LUTs) does not change.
+
+| Block | In the chip | This run (alone) |
+|---|---|---|
+| **CPU_CORE whole** | **32,929** | **33,014** |
+| FPU_PIPE | 8,815 | 8,660 |
+| CORE_IFU (with the BTB) | 5,738 | 6,614 |
+| CORE_CSR | 4,750 | **8,251** (the CSR synthesized alone: 2,732) |
+| CORE_MMU | 4,190 | 4,269 (the 3 PMPs in it: **0** LUTs) |
+| CORE_MDU | 3,423 | 3,410 |
+
+- **What the block-by-block differences are:** not the amount of logic, but which block Vivado counts it in.
+  - In this run the PMP checks inside the MMU have 0 LUTs and CORE_CSR has 8,251 LUTs. The PMP checks take the CSRs' pmpaddr / pmpmask as inputs, so Vivado optimizes them across the hierarchy's boundary into the CSR side.
+  - In the chip part of them went into the CSR (4,750); in the CSR synthesized alone none (2,732). The D$'s 1.41× is the same kind of difference.
+  - A block's number changes with the boundary it was measured at, so what to compare is the sum over whole units. The budget compares that way already.
+- **Timing:** register to register +0.002 ns (28 levels); mmRISC-2's core just fits 50 MHz alone too. The −2.496 ns with the ports comes from assuming 6 ns of I/O delay on the combinational paths to the caches, a condition the chip does not have.
+
+Recorded in section 25.3 of Plan/OOC(_J).md, 4.1 of Doc/UARCH(_J).md and PROMPT.md (the English of answer 84). "Compare sums, not blocks" is also kept in memory. Pushed to dev in commit 9cdc987.
+<!-- /answer -->
+
+## 86. 2026-10-29 00:28:41 JST
+
+```text
+I want to go on to the next step: where should I start?
+```
