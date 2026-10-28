@@ -1818,7 +1818,19 @@ Item 4 of 18.7.
 - **Please run** `synth_ooo.bat OOC_FERS` (new in the list), `synth_ooo.bat OOC_FRONT`, `synth_ooo.bat OOC_ROB` and
   `synth_ooo.bat OOC_CTRL`.
 
-### 21.4 What is left of the control
+### 21.4 The Vivado results (2026-10-28)
+
+| Run | LUT | Before | Worst slack | |
+|---|---|---|---|---|
+| OOC_FRONT | **2,611** | 2,588 | +0.835 ns (was +0.574) | `be_stop`: +23 |
+| OOC_ROB | **1,246** | 1,235 | +10.606 ns | `rcv_ftq` / `rcv_end`: +11 |
+| OOC_CTRL | **351** | 350 | +11.501 ns | `restore_port`: +1 |
+| OOC_FERS | — | | | **failed in synthesis**: my harness took `ft_pc[38:4]` of a `[37:0]` bus (the line is bits 37:3 there); fixed. Verilator warned (SELRANGE), but I had filtered the lint for errors only. All harnesses are now linted with `-Wall` and every warning on them read |
+
+- The budget does not move at 0.1k (+35): still 3.2k / 4.6k / 5.9k (`Doc/UARCH.md` 4.4).
+- **Please run `synth_ooo.bat OOC_FERS` again.**
+
+### 21.5 What is left of the control
 
 Item 5 of 18.7: exceptions and interrupts (the trap vector and the CSR writes: mepc, mcause, mtval; interrupts at a
 µop boundary; the refetch with fusion off after an exception inside a pair; FENCE.I / SFENCE.VMA). The budget is

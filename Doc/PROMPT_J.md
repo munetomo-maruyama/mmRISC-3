@@ -2720,3 +2720,21 @@ synth_ooo.bat OOC_CTRL
 ```text
 I accept D-15 (restart a cycle after the resolution). I will run synth_ooo.bat for OOC_FERS, OOC_FRONT, OOC_ROB and OOC_CTRL.
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+D-15(解決の1サイクル後にフェッチを再開)を、作者決定として記録しました。コミット 3d0272c で dev に push 済みです。
+
+- **Doc/UARCH(_J).md 9章:** D-15 の行を「推奨どおり(2026-10-28、74番)」にし、章の冒頭の決定履歴にも追記しました。
+- **Plan/OOC(_J).md 21.1:** 「作者の確認待ち」を「2026-10-28に作者が推奨どおりと決定」に直しました。
+- **PROMPT.md:** 回答73の英訳とプロンプト74を足しました。
+
+4件の Vivado の結果が出たら、output/*/summary.txt を確認して予算に反映します。
+<!-- /answer -->
+
+## 75. 2026-10-28 20:00:25 JST
+
+```text
+I ran synth_ooo.bat for OOC_FERS, OOC_FRONT, OOC_ROB and OOC_CTRL. Please check output/*/summary.txt.
+```

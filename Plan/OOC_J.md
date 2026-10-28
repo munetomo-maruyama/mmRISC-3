@@ -1297,6 +1297,18 @@ synth_ooo.bat OOC_ROB
 
 - **`synth_ooo.bat OOC_FERS`(リストに追加)、`synth_ooo.bat OOC_FRONT`、`synth_ooo.bat OOC_ROB`、`synth_ooo.bat OOC_CTRL`をお願いします。**
 
-### 21.4 制御に残るもの
+### 21.4 Vivadoの結果(2026-10-28)
+
+| 実行 | LUT | 前 | 最悪の余裕 | |
+|---|---|---|---|---|
+| OOC_FRONT | **2,611** | 2,588 | +0.835 ns(前は+0.574) | `be_stop`: +23 |
+| OOC_ROB | **1,246** | 1,235 | +10.606 ns | `rcv_ftq` / `rcv_end`: +11 |
+| OOC_CTRL | **351** | 350 | +11.501 ns | `restore_port`: +1 |
+| OOC_FERS | — | | | **合成で失敗**: ハーネスが`[37:0]`のバスの`ft_pc[38:4]`を取っていた(そこではラインはビット37:3)。直した。Verilatorは警告していた(SELRANGE)が、lintをエラーだけに絞って見ていた。いまはすべてのハーネスを`-Wall`でlintし、その警告をすべて読む |
+
+- 予算は0.1kの桁では動かない(+35): 3.2k / 4.6k / 5.9kのまま(`Doc/UARCH_J.md` 4.4)。
+- **`synth_ooo.bat OOC_FERS`をもう一度お願いします。**
+
+### 21.5 制御に残るもの
 
 18.7の5: 例外と割り込み(トラップベクタとCSRの書き込み: mepc、mcause、mtval。µopの境目での割り込み。ペアの中の例外のあと融合を切って取り直すこと。FENCE.I / SFENCE.VMA)。予算はVivadoの結果で更新する。

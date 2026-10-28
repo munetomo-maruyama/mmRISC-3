@@ -2731,3 +2731,21 @@ synth_ooo.bat OOC_CTRL
 ```text
 I accept D-15 (restart a cycle after the resolution). I will run synth_ooo.bat for OOC_FERS, OOC_FRONT, OOC_ROB and OOC_CTRL.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I recorded D-15 (restart fetch a cycle after the resolution) as the author's decision. Pushed to dev in commit 3d0272c.
+
+- **Doc/UARCH(_J).md chapter 9:** D-15's row now reads "as recommended (2026-10-28, entry 74)", and the history of decisions at the top of the chapter has it too.
+- **Plan/OOC(_J).md 21.1:** "for the author to confirm" became "decided by the author as recommended on 2026-10-28".
+- **PROMPT.md:** the English of answer 73 and prompt 74.
+
+When the four Vivado results are in, I will check output/*/summary.txt and put them into the budget.
+<!-- /answer -->
+
+## 75. 2026-10-28 20:00:25 JST
+
+```text
+I ran synth_ooo.bat for OOC_FERS, OOC_FRONT, OOC_ROB and OOC_CTRL. Please check output/*/summary.txt.
+```

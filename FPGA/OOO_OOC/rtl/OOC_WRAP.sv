@@ -809,7 +809,7 @@ module OOC_FERS
         (.clk(clk), .rst_n(rst_n), .fe_redirect(fe_redirect), .fe_flush(fe_flush), .fe_pc(fe_pc),
          .restore_ftq(restore_ftq), .restore_port(restore_port), .br_e(br_e), .br_taken(br_taken),
          .br_call(br_call), .br_ret(br_ret), .rcv_ftq(rcv_ftq), .rcv_end(rcv_end),
-         .rs_idx(rs_idx), .ft_line(ft_pc[38:4]), .ft_hist(ft_meta[311:242]),
+         .rs_idx(rs_idx), .ft_line(ft_pc[37:3]), .ft_hist(ft_meta[311:242]),
          .ft_sv(ft_meta[238:236]), .ft_par(ft_meta[235:227]), .ft_ras_ptr(ft_meta[41:38]), .ft_ras_val(ft_meta[37:0]),
          .be_redirect(be_redirect), .be_pc(be_pc), .be_hist(be_hist), .be_hist_n(be_hist_n),
          .be_hist_bits(be_hist_bits), .be_ras_ptr(be_ras_ptr), .be_ras_val(be_ras_val),
