@@ -61,14 +61,15 @@
 // older non-speculative entry is in the queue (the head's is the oldest);
 // iss_ns tells the control that one went.
 //
-// Port 0's MDU (mmRISC-2's CORE_MDU, OOO_MDUP: one operation at a time;
-// Plan/OOC.md 23): an MDU µop (disp_md) goes only with mdu_ok (the unit is
-// free when it gets there), and port 0 has one register-file write port:
-// a µop that writes it in the latency-1 slot is not given port 0 in the
-// cycle after a multiply (latency 2: the same slot) nor while a result of
-// the MDU waits to be written (p0_hold). It can still go to port 1. Both
-// inputs are registers of OOO_MDUP, and the multiply of the cycle before
-// is this queue's own (the delayed wakeup).
+// Port 0's MDU (mmRISC-2's CORE_MDU, OOO_MDUP: one operation at a time for
+// mulh*, clmul* and the divides; Plan/OOC.md 23, 24): such a µop (disp_md;
+// mul / mulw go to the pipelined OOO_PMUL and are not MDU µops here) goes
+// only with mdu_ok (the unit is free when it gets there). Port 0 has one
+// register-file write port: a µop that writes it in the latency-1 slot is
+// not given port 0 in the cycle after a multiply (latency 2: the same
+// slot) nor while a result of the MDU waits to be written (p0_hold). It can
+// still go to port 1. Both inputs are registers of OOO_MDUP, and the
+// multiply of the cycle before is this queue's own (the delayed wakeup).
 //
 // The payload of a µop (operation, immediates, ROB index) is not here: it
 // sits in a LUTRAM indexed by the entry (OOO_IQPL): disp_entry says where
@@ -107,7 +108,7 @@ module OOO_IQ
         input  logic [1:0]            disp_lat2,  // results after 2 cycles (load, multiply)
         input  logic [1:0][NCK-1:0]   disp_bm,    // branch masks (OOO_CTRL d_bmask)
         input  logic [1:0]            disp_ns,    // non-speculative: issued only at the ROB head
-        input  logic [1:0]            disp_md,    // an MDU µop (port 0)
+        input  logic [1:0]            disp_md,    // an MDU µop (port 0: mulh*, clmul*, divides)
 
         // external wakeups
         input  logic [NEXT-1:0]           ext_valid,
@@ -122,7 +123,6 @@ module OOO_IQ
         output logic [2:0][NCK-1:0]   iss_bm,     // the issued µops' branch masks (for the units)
         output logic                  iss_ns,     // a non-speculative µop issued now
         output logic                  iss_md,     // port 0 issued an MDU µop
-        output logic                  iss_md_long,//   one that answers from outside (not a mul)
 
         // the wakeup tags of this cycle (renaming's busy bits, OOO_DSREG)
         output logic [3+NEXT:0]       wk_valid,
@@ -200,7 +200,6 @@ module OOO_IQ
 
     assign iss_ns      = ((g0 | g1 | g2) & ns) != '0;
     assign iss_md      = (g0 & md) != '0;
-    assign iss_md_long = (g0 & md & ~lat2) != '0;
 
     // ---- wakeup tags: the µops issued now with latency 1, those issued one
     // cycle ago with latency 2, and the external ones

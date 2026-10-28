@@ -44,12 +44,13 @@
 // given out again; a µop issued in its kill cycle makes its value usable
 // to nobody), the external ones.
 //
-// MDU µops (a third of the ALU0-only ones: a multiply with latency 2, or
-// one that answers from outside): port 0 gives one only with mdu_ok
-// (random here, as OOO_MDUP gives it). Port 0's latency-1 write slot: a µop
-// that writes in it (not an MDU one) is not given port 0 in the cycle after
-// a multiply issued on port 0, nor with p0_hold (random). iss_md /
-// iss_md_long are checked with every issue.
+// MDU µops (a third of the ALU0-only ones that answer from outside: mulh*,
+// clmul*, divides; a mul is a latency-2 µop of the pipelined multiplier,
+// not one of them): port 0 gives one only with mdu_ok (random here, as
+// OOO_MDUP gives it). Port 0's latency-1 write slot: a µop that writes in it
+// is not given port 0 in the cycle after a multiply (a latency-2 µop)
+// issued on port 0, nor with p0_hold (random). iss_md is checked with every
+// issue.
 //
 // Non-speculative µops (an eighth of the ALU0-only and LSU ones): ready only
 // with ns_ok (random here, as the control gives it) and when no older
@@ -141,8 +142,8 @@ int main(int argc, char** argv)
             x.port = (int[]){0, 0, 0, 1, 2, 2}[rng() % 6];
             x.lat2 = x.port == 2 ? (rng() % 4 != 0) : x.port == 1 ? (rng() & 1) : 0;   // ALU0 only: a multiply or a complex ALU operation (L7)
             x.ext = x.port == 2 && !x.lat2;            // a store, or a load that missed: answer from outside
-            x.md = x.port == 1 && rng() % 3 == 0;      // an MDU µop: a multiply (latency 2) or one from outside
-            if (x.md && !x.lat2) x.ext = 1;
+            x.md = x.port == 1 && !x.lat2 && rng() % 3 == 0;   // an MDU µop: answered from outside
+            if (x.md) x.ext = 1;
             x.dst = t0; x.wr = !x.ext;
             x.ns = (x.port == 1 || x.port == 2) && rng() % 8 == 0;
             for (int s = 0; s < 2; s++) {
@@ -245,10 +246,8 @@ int main(int argc, char** argv)
         }
         const Uop* exp[3] = {e0, e1, e2};
         if (!flush) {
-            bool emd = e0 && e0->md, eml = emd && !e0->lat2;
-            if ((bool)d.iss_md != emd || (bool)d.iss_md_long != eml) {
-                if (bad++ < 10) printf("MISMATCH cycle %ld: iss_md %d long %d, expected %d %d\n", cyc, (int)d.iss_md, (int)d.iss_md_long, emd, eml);
-            }
+            bool emd = e0 && e0->md;
+            if ((bool)d.iss_md != emd && bad++ < 10) printf("MISMATCH cycle %ld: iss_md %d, expected %d\n", cyc, (int)d.iss_md, emd);
             bool ens = (e0 && e0->ns) || (e1 && e1->ns) || (e2 && e2->ns);
             if ((bool)d.iss_ns != ens && bad++ < 10) printf("MISMATCH cycle %ld: iss_ns %d, expected %d\n", cyc, (int)d.iss_ns, ens);
             if (ens) nns++;

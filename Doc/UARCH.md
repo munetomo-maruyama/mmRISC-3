@@ -143,7 +143,7 @@ the free list; renaming gets them (about 0.3k LUTs).
 | ALU ports | `OOO_ALU2` on P0 and P1: on P0 a full `OOO_ALU` (RV64I, Zba, Zbb, Zbs, Zicond; one adder and one shifter shared), on P1 a limited one (add / sub, slt / sltu, logic; G0b L7, 6.12), each with the branch comparison (alone, or fused on the ALU result against s1, s2 or zero); 2 sources, 2 bypassed (6.7) |
 | Sources | 2 per µop (the third source input of `OOO_ALU2` goes in Phase 1: the second stage takes res1, s1, s2 or imm2) |
 | Bypass | In front of the ALUs in EX: the register file, the own result, the other ALU port, the load |
-| MUL / DIV | mmRISC-2's CORE_MDU behind P0 without change (`OOO_MDUP`, D-16, `Plan/OOC.md` 23): one operation at a time; mul / mulw latency 2 (DSP blocks), one every 2 cycles; mulh*, clmul* and the divides answer from outside (woken on `ext_*` when written) |
+| MUL / DIV | mul / mulw: a pipelined multiplier on P0 (`OOO_PMUL`, D-16 variant A, `Plan/OOC.md` 24): latency 2, one a cycle, 10 DSP blocks. mulh*, clmul* and the divides: mmRISC-2's CORE_MDU behind P0 without change (`OOO_MDUP`, `Plan/OOC.md` 23), one at a time, answered from outside (woken on `ext_*` when written) |
 | Branches | Target adders beside the ALUs; a misprediction restores a checkpoint and redirects F0 |
 | FPU | mmRISC-2's FPU_PIPE (D3: pipelined at first), behind its own port, flushed by ROB tag (`REDUCE.md` E4) |
 
@@ -412,7 +412,7 @@ The decisions are D-11 to D-14 (section 9).
 | G1 | `OOO_RENAME` | `NCKPT` 8 → 6. The checkpoints are given out in a ring of 6 (an add modulo NCKPT; 6 is not a power of two). The control must keep at most 6 transfers unresolved | `OOC_RENAME` 3,769 → 3,456 LUTs | `tb_rename` PASS on 4 seeds, with the ring full about 32,000 times each |
 | G2 | `OOO_DEC` | The rare classes (illegal, FP, CSR and system, SFENCE.VMA, AMO / LR / SC, cbo.zero) are decoded in slot 0 only: their fields are 0 in slots 1 to 3, and a new output `cut` ends the group before one in slot 1 to 3 (it comes to slot 0 next cycle). `CORE_DEC` is kept as it is | `OOC_DEC` 2,246 → 2,078 LUTs (the estimate was −0.4k to −0.7k: the logic that recognizes them stays) | `tb_dec` PASS; each RVC encoding is now also tried in slot 0. CoreMark has 2 such instructions in 3 million (the timer reads) |
 | G3 | `OOO_IQPL` | Port 2 reads the low `W2` = 48 bits of a record (the LSU's fields go there when the record is laid out) | `OOC_IQPL` 1,202 → 1,008 LUTs; the LUT RAM stays 384 (a RAM32M has 3 read ports in any case: only the bank choice goes) | `tb_iqpl` PASS on 4 seeds |
-| L1 | `CORE_CSR` | **Applied 2026-10-29** (`Plan/OOC.md` 23): `RTL/CPU/CORE/CORE_CSR` brought in, `HPM_COUNTERS` = 2 in `OOO_CSRU` | | Counted at its estimate until Vivado |
+| L1 | `CORE_CSR` | **Applied 2026-10-28** (`Plan/OOC.md` 23): `RTL/CPU/CORE/CORE_CSR` brought in, `HPM_COUNTERS` = 2 in `OOO_CSRU` | | Counted at its estimate until Vivado |
 | L3 | FPU | A design task (C2 shared multiplier, C3 a small iterative unit): in Phase 2, with the FPU | | Counted at its estimate |
 | L8 | LiteX | At the LiteX build | | Counted at its estimate |
 
@@ -655,7 +655,8 @@ pair is complex when its ALU part is.
 Decided by the author on 2026-10-24 (`Doc/PROMPT.md` entry 23): **Zbc stays, and as a principle the instruction set
 is kept** (that of mmRISC-2 Rev.02); everything else as recommended. **G0b (D-11 to D-14) decided by the author on
 2026-10-26 (`Doc/PROMPT.md` entry 54): as recommended; tier 1 applied first (6.4). D-15 decided by the author on
-2026-10-28 (entry 74): as recommended.**
+2026-10-28 (entry 74): as recommended. D-16 decided by the author on 2026-10-28 (entry 81): the
+pipelined mul / mulw beside CORE_MDU (variant A of `Plan/OOC.md` 23.4).**
 
 | # | Item | Recommendation | **Decision (2026-10-24)** |
 |---|---|---|---|
@@ -669,4 +670,4 @@ is kept** (that of mmRISC-2 Rev.02); everything else as recommended. **G0b (D-11
 | D-13 | L4 to L6, and L7 after it is modelled | Take L4 to L6 (1.2k, −1.7 %); L7 if about 1 % or less | **As recommended (2026-10-26)**; L6 taken back after Vivado (6.10) |
 | D-14 | The end state | A: fusion level 2 now; the 54k ceiling and no PMP / HPM as the reserve, decided at G1 | **As recommended (2026-10-26)** |
 | D-15 | The front end's restore (`Plan/OOC.md` 21) | Restart fetch a cycle after the resolution (`redirect` 2): −0.27 % / −0.22 % / −0.26 % in the model; keeps the resolution → ROB → control → FTQ → history → TAGE address chain out of one cycle | **As recommended (2026-10-28, `Doc/PROMPT.md` entry 74)** |
-| D-16 | mmRISC-2's CORE_MDU behind port 0 (`Plan/OOC.md` 23) | Take it without change: mul / mulw latency 2 but one every 2 cycles, the other operations from outside: −0.8 % / 0 / 0 in the model (all from outside: −2.4 % / −0.9 % / −3.0 %; a pipelined multiplier beside it for mul / mulw, about 0.2k LUTs and 10 DSPs, would win back the 0.8 % on -O2: `Plan/OOC.md` 23.4, a candidate to buy back at G1) | Applied as recommended (2026-10-29), **for the author to confirm** |
+| D-16 | mmRISC-2's CORE_MDU behind port 0 (`Plan/OOC.md` 23) | Take it without change: mul / mulw latency 2 but one every 2 cycles, the other operations from outside: −0.8 % / 0 / 0 in the model (all from outside: −2.4 % / −0.9 % / −3.0 %; a pipelined multiplier beside it for mul / mulw, about 0.2k LUTs and 10 DSPs, would win back the 0.8 % on -O2: `Plan/OOC.md` 23.4, a candidate to buy back at G1) | **Decided by the author (2026-10-28, `Doc/PROMPT.md` entry 81): variant A, the pipelined mul / mulw beside CORE_MDU** (`OOO_PMUL`, `Plan/OOC.md` 24) |

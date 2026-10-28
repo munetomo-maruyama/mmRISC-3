@@ -7,7 +7,7 @@
 #   vivado -mode batch -source synth_ooo.tcl -tclargs [top [period [impl [generics]]]]
 #
 #     top       OOC_ALU2 / OOC_FUSE / OOC_PRF / OOC_RENAME / OOO_IQ / OOO_UBTB / OOC_LSU / OOC_ROB
-#               / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC / OOC_IQPL / OOC_LSUDC / OOC_CTRL / OOC_DSREG / OOC_FERS / OOC_TRAP / OOC_SYS / OOC_CSRU / OOC_MDUP
+#               / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC / OOC_IQPL / OOC_LSUDC / OOC_CTRL / OOC_DSREG / OOC_FERS / OOC_TRAP / OOC_SYS / OOC_CSRU / OOC_MDUP / OOC_PMUL
 #                                                          OOC_ALU2
 #     period    clock period in ns                         20.0 (50 MHz)
 #     impl      1 = also place and route                   1
@@ -61,7 +61,7 @@ read_verilog -sv [list \
     $rtl/OOO_FETCH/OOO_FETCH.sv $core/CORE_DECOMP/CORE_DECOMP.sv $core/CORE_DEC/CORE_DEC.sv \
     $rtl/OOO_DEC/OOO_DEC.sv $rtl/OOO_IQPL/OOO_IQPL.sv $rtl/OOO_DCAD/OOO_DCAD.sv $rtl/OOO_CTRL/OOO_CTRL.sv \
     $rtl/OOO_DSREG/OOO_DSREG.sv $rtl/OOO_FERS/OOO_FERS.sv $rtl/OOO_TRAP/OOO_TRAP.sv $rtl/OOO_SYS/OOO_SYS.sv \
-    $core/CORE_CSR/CORE_CSR.sv $rtl/OOO_CSRU/OOO_CSRU.sv $core/CORE_MDU/CORE_MDU.sv $rtl/OOO_MDUP/OOO_MDUP.sv \
+    $core/CORE_CSR/CORE_CSR.sv $rtl/OOO_CSRU/OOO_CSRU.sv $core/CORE_MDU/CORE_MDU.sv $rtl/OOO_MDUP/OOO_MDUP.sv $rtl/OOO_PMUL/OOO_PMUL.sv \
     $cache/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv $cache/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv \
     $cache/DCACHE/DCACHE.sv ./rtl/OOC_WRAP.sv]
 

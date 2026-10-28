@@ -2944,3 +2944,36 @@ synth_ooo.bat OOC_SYS
 ```text
 Before deciding D-16, estimate what a pipelined multiplier beside CORE_MDU would cost in LUTs and DSPs.
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+CORE_MDU の横にパイプライン化した乗算器を置いた場合を、Yosys(Artix-7 向け、DSP48E1 を推論)で測りました。レイテンシ2の枠に合わせた2段構成で、EX でオペランドを DSP に入れ、次のサイクルで和を取ります。
+
+| 案 | LUT | DSP48E1 | FF | 得られるもの |
+|---|---|---|---|---|
+| **A: mul / mulw だけ**(下位64ビット) | 143 | 10 | 100 | CoreMark の乗算すべて → -O2 の 0.8% を取り戻す |
+| **B: mulh / mulhsu / mulhu も**(128ビット積、符号補正つき) | 499 | 16 | 326 | CoreMark ではそれ以上の得はない |
+
+- **CoreMark が使う乗除算:** 3つのビルドのトレースはどれも、1回あたり mulw が 93,960 回で、mulh も除算もありません。0.8% はすべて A で取り戻せます。
+- **周辺のコスト込みの見積もり:** ポート0の書き戻しに64ビットの入力が1本増えます(約64 LUT)。mul / mulw は MDU を通らなくなり、OOO_MDUP の mul 経路も不要になります。
+  - **A は約 0.2k LUT、DSP 10 個**です。DSP は mmRISC-2 で 240 個中 32 個しか使っておらず、余裕があります。
+  - **B は約 0.55k LUT、DSP 16 個**です。
+- **割の合い方:** A の 0.2k は不足分(中央 4.6k)の約4%で、効くのは -O2 の +0.8% だけです(他の2つのビルドは0)。これまで採ってきた削減策と同程度で、最も効率のよかった融合でも -O2 で 1k あたり約3%でした。
+
+**推奨:** D-16 はいまは CORE_MDU のままにして、A は G1 の全体実測で余裕が出たら買い戻す候補として残します。
+
+記録は Plan/OOC(_J).md の 23.4 節と、UARCH の D-16 の行です。コミット 6ad3c31 で dev に push 済みです。
+<!-- /answer -->
+
+## 81. 2026-10-28 22:53:40 JST
+
+```text
+Add the pipelined mul/mulw multiplier (variant A) beside CORE_MDU now, with tests and Vivado scripts.
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+The docs are ready. Still running in the background: the full suite (28 tests), extra seeds and the 293-mutation campaign. I'll commit once they report.
+<!-- /answer -->

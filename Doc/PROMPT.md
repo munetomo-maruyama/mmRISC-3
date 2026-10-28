@@ -2955,3 +2955,30 @@ synth_ooo.bat OOC_SYS
 ```text
 Before deciding D-16, estimate what a pipelined multiplier beside CORE_MDU would cost in LUTs and DSPs.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I measured a pipelined multiplier beside CORE_MDU with Yosys (for the Artix-7, DSP48E1 inferred). Two stages to fit the latency-2 slot: the operands go into the DSPs in EX, and the sum is taken in the next cycle.
+
+| Variant | LUT | DSP48E1 | FF | What it gains |
+|---|---|---|---|---|
+| **A: mul / mulw only** (the low 64 bits) | 143 | 10 | 100 | every multiply of CoreMark → wins back the 0.8 % on -O2 |
+| **B: mulh / mulhsu / mulhu too** (the 128-bit product, signs corrected) | 499 | 16 | 326 | nothing more for CoreMark |
+
+- **The multiplies and divides CoreMark uses:** the traces of all three builds have 93,960 mulw a run and no mulh, no divide. A wins back the whole 0.8 %.
+- **The estimate with what is around it:** port 0's write-back gets one more 64-bit input (about 64 LUTs). mul / mulw no longer go through the MDU, and OOO_MDUP's mul path is no longer needed.
+  - **A is about 0.2k LUTs and 10 DSPs.** mmRISC-2 uses only 32 of 240 DSPs, so there is room.
+  - **B is about 0.55k LUTs and 16 DSPs.**
+- **How it pays:** A's 0.2k is about 4 % of the gap (4.6k in the middle), and it helps only -O2's +0.8 % (0 on the other two builds). That is about the yield of the reductions taken so far; even fusion, the most efficient, was about 3 % per 1k on -O2.
+
+**Recommendation:** keep D-16 with CORE_MDU now, and leave A as a candidate to buy back if the whole measurement at G1 leaves room.
+
+Recorded in section 23.4 of Plan/OOC(_J).md and the D-16 row of UARCH; pushed to dev in commit 6ad3c31.
+<!-- /answer -->
+
+## 81. 2026-10-28 22:53:40 JST
+
+```text
+Add the pipelined mul/mulw multiplier (variant A) beside CORE_MDU now, with tests and Vivado scripts.
+```

@@ -1928,7 +1928,7 @@ FPU behind their ports, the I$ and the TLBs (Phase 2), debug, and the core's ass
 
 ---
 
-## 23. mmRISC-2's CSRs and MDU behind port 0 (2026-10-29)
+## 23. mmRISC-2's CSRs and MDU behind port 0 (2026-10-28)
 
 ### 23.1 What was done
 
@@ -1992,7 +1992,7 @@ FPU behind their ports, the I$ and the TLBs (Phase 2), debug, and the core's ass
   `synth_ooo.bat OOC_TRAP` and `synth_ooo.bat OOC_SYS`. The budget is updated with them (L1 measured instead of
   estimated).
 
-### 23.4 D-16: what a pipelined multiplier beside CORE_MDU would cost (2026-10-29)
+### 23.4 D-16: what a pipelined multiplier beside CORE_MDU would cost (2026-10-28)
 
 Measured with Yosys (`synth_xilinx -family xc7`, DSP48E1 inferred), two cycles as the latency-2 slot gives (the
 operands into the DSPs in EX, the sum in the cycle after):
@@ -2009,3 +2009,47 @@ operands into the DSPs in EX, the sum in the cycle after):
 - Against the gap (4.6k in the middle), A is 4 % of it for +0.8 % on -O2 only (0 on the other two): about the yield
   of the levers taken (fusion, the best, is about 3 % per 1k on -O2). Recommendation: keep D-16 as it is now, and put A
   on the list of things to buy back at G1 if the whole-core measurement leaves room.
+
+---
+
+## 24. D-16 variant A: the pipelined mul / mulw beside CORE_MDU (2026-10-28)
+
+The author decided D-16 for variant A of 23.4 (`Doc/PROMPT.md` entry 81).
+
+### 24.1 What was done
+
+| Block | What was done |
+|---|---|
+| `OOO_PMUL` (new) | mul / mulw on port 0, one a cycle, latency 2: in EX the operands go into the DSP blocks (three 32 × 32 products: a_lo × b_lo whole, the cross ones to 32 bits), the cycle after they are summed into port 0's write-back register (mulw: the low 32 bits sign extended). Killed by mask or flush in EX or in the cycle after (that cycle keeps EX's clears, as the LSU's M) |
+| `OOO_MDUP` | Only mulh*, clmul* and the divides now (all answered from outside): the mul path, `iss_md_long` and the long / short flag are gone; it writes when port 0's write-back slot is free (`slot_busy`: a latency-1 writer in EX or OOO_PMUL's result) |
+| `OOO_IQ` | The MDU bit marks only those (`disp_md`: mul / mulw are latency-2 µops of OOO_PMUL); `iss_md_long` gone. Port 0's write slot after a multiply stays (OOO_PMUL writes there) |
+
+- Performance back to the model's pipelined multiplier: 6.243 / 6.680 / 6.066 (D-15 included); CoreMark has only
+  mulw (23.4). Cost: about 0.2k LUTs and 10 DSP blocks (Vivado to confirm).
+- **Contract for the assembly**: `disp_md` = an MDU µop answered from outside (decode's `cls` 6 with `ext_ans`); a
+  mul / mulw goes to OOO_PMUL from port 0's EX and completes with its result; `slot_busy` = port 0's EX holds a
+  latency-1 writer, or OOO_PMUL's `res_valid`.
+
+### 24.2 Verification
+
+- **`tb_pmul`** (new): back-to-back mul / mulw with operands on the signs and the 32-bit edges, branch masks, kills,
+  clears, flushes in either cycle (a closed id opens again 5 cycles later at the earliest, as in the core): every µop
+  not killed written the cycle after EX with its tag, ROB index and product. 400,000 cycles, 4 seeds.
+- **`tb_mdup`**: port 0 now also issues muls for OOO_PMUL (their result takes the slot 3 cycles after the issue); a
+  quarter of the time a latency-1 writer every cycle it may and no mul, where the slot comes only by p0_hold.
+- **`tb_iq`**: MDU µops only among those answered from outside.
+- **Bug injection**: M315 / M316 / M317 / M318 / M319 / M320 retargeted (their lines changed or went), 5 new
+  (M325–M329); all detected. Two holes of my test benches found by them: tb_pmul gave a µop the ids open after the
+  cycle's kill (so it never carried the killed bit), and tb_mdup's busy phase still had muls, which left the slot free
+  without p0_hold.
+
+### 24.3 Size (Yosys), and the Vivado runs asked of the author
+
+| Block | Yosys | |
+|---|---|---|
+| `OOC_PMUL` | 149 (10 DSP48E1) | new |
+| `OOC_MDUP` | 3,759 | the multipliers in LUTs in Yosys; Vivado uses DSP blocks |
+| `OOO_IQ` | 2,985 | `iss_md_long` gone |
+
+- **Please run** `synth_ooo.bat OOC_PMUL` (new in the list) with the five of 23.3: `OOC_CSRU`, `OOC_MDUP`, `OOO_IQ`,
+  `OOC_TRAP`, `OOC_SYS`.

@@ -25,6 +25,7 @@
 //   OOC_SYS     the system µops (FENCE.I and so on)
 //   OOC_CSRU    the CSR unit (CORE_CSR)
 //   OOC_MDUP    port 0's MDU (CORE_MDU)
+//   OOC_PMUL    the pipelined mul / mulw beside it
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -1013,22 +1014,22 @@ module OOC_CSRU
 endmodule : OOC_CSRU
 
 //---------------------------------------------------------------------------
-// OOC_MDUP: port 0's MDU (CORE_MDU) with its inputs and outputs registered (Plan/OOC.md 23)
+// OOC_MDUP: port 0's MDU (CORE_MDU: mulh*, clmul*, divides) with its inputs and
+// outputs registered (Plan/OOC.md 23, 24)
 //---------------------------------------------------------------------------
 module OOC_MDUP
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [172:0]  in,
+        input  logic [171:0]  in,
         output logic [84:0]  out
     );
-    logic [172:0] q;
+    logic [171:0] q;
     always_ff @(posedge clk) q <= in;
     logic flush;
     logic [5:0] kill;
     logic [5:0] clr;
     logic iss_md;
-    logic iss_md_long;
     logic [5:0] iss_bm;
     logic ex_valid;
     logic [3:0] ex_op;
@@ -1038,7 +1039,7 @@ module OOC_MDUP
     logic [4:0] ex_rob;
     logic [5:0] ex_dst;
     logic [5:0] ex_bm;
-    logic ex_lat1_wr;
+    logic slot_busy;
     logic mdu_ok;
     logic p0_hold;
     logic res_valid;
@@ -1047,8 +1048,40 @@ module OOC_MDUP
     logic [4:0] res_rob;
     logic ext_valid;
     logic [5:0] ext_tag;
-    assign {flush, kill, clr, iss_md, iss_md_long, iss_bm, ex_valid, ex_op, ex_word, ex_a, ex_b, ex_rob, ex_dst, ex_bm, ex_lat1_wr} = q;
+    assign {flush, kill, clr, iss_md, iss_bm, ex_valid, ex_op, ex_word, ex_a, ex_b, ex_rob, ex_dst, ex_bm, slot_busy} = q;
     OOO_MDUP #(.ROBW(5), .TAGW(6), .NCK(6)) u_mdup
-        (.flush(flush), .kill(kill), .clr(clr), .iss_md(iss_md), .iss_md_long(iss_md_long), .iss_bm(iss_bm), .ex_valid(ex_valid), .ex_op(ex_op), .ex_word(ex_word), .ex_a(ex_a), .ex_b(ex_b), .ex_rob(ex_rob), .ex_dst(ex_dst), .ex_bm(ex_bm), .ex_lat1_wr(ex_lat1_wr), .mdu_ok(mdu_ok), .p0_hold(p0_hold), .res_valid(res_valid), .res_tag(res_tag), .res_data(res_data), .res_rob(res_rob), .ext_valid(ext_valid), .ext_tag(ext_tag), .clk(clk), .rst_n(rst_n));
+        (.flush(flush), .kill(kill), .clr(clr), .iss_md(iss_md), .iss_bm(iss_bm), .ex_valid(ex_valid), .ex_op(ex_op), .ex_word(ex_word), .ex_a(ex_a), .ex_b(ex_b), .ex_rob(ex_rob), .ex_dst(ex_dst), .ex_bm(ex_bm), .slot_busy(slot_busy), .mdu_ok(mdu_ok), .p0_hold(p0_hold), .res_valid(res_valid), .res_tag(res_tag), .res_data(res_data), .res_rob(res_rob), .ext_valid(ext_valid), .ext_tag(ext_tag), .clk(clk), .rst_n(rst_n));
     always_ff @(posedge clk) out <= {mdu_ok, p0_hold, res_valid, res_tag, res_data, res_rob, ext_valid, ext_tag};
 endmodule : OOC_MDUP
+
+//---------------------------------------------------------------------------
+// OOC_PMUL: the pipelined mul / mulw beside CORE_MDU (D-16 variant A, Plan/OOC.md 24),
+// inputs and outputs registered: the operands' register, the DSPs, the sum
+//---------------------------------------------------------------------------
+module OOC_PMUL
+    (
+        input  logic          clk,
+        input  logic          rst_n,
+        input  logic [153:0]  in,
+        output logic [75:0]  out
+    );
+    logic [153:0] q;
+    always_ff @(posedge clk) q <= in;
+    logic flush;
+    logic [5:0] kill;
+    logic ex_valid;
+    logic ex_word;
+    logic [63:0] ex_a;
+    logic [63:0] ex_b;
+    logic [4:0] ex_rob;
+    logic [5:0] ex_dst;
+    logic [5:0] ex_bm;
+    logic res_valid;
+    logic [5:0] res_tag;
+    logic [63:0] res_data;
+    logic [4:0] res_rob;
+    assign {flush, kill, ex_valid, ex_word, ex_a, ex_b, ex_rob, ex_dst, ex_bm} = q;
+    OOO_PMUL #(.ROBW(5), .TAGW(6), .NCK(6)) u_pmul
+        (.flush(flush), .kill(kill), .ex_valid(ex_valid), .ex_word(ex_word), .ex_a(ex_a), .ex_b(ex_b), .ex_rob(ex_rob), .ex_dst(ex_dst), .ex_bm(ex_bm), .res_valid(res_valid), .res_tag(res_tag), .res_data(res_data), .res_rob(res_rob), .clk(clk), .rst_n(rst_n));
+    always_ff @(posedge clk) out <= {res_valid, res_tag, res_data, res_rob};
+endmodule : OOC_PMUL

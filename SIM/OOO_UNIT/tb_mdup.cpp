@@ -1,25 +1,26 @@
 //---------------------------------------------------------------------------
-// tb_mdup.cpp : OOO_MDUP (CORE_MDU behind port 0) with port 0 played by the
-// issue queue's rules
+// tb_mdup.cpp : OOO_MDUP (CORE_MDU behind port 0 for mulh*, clmul*, divides)
+// with port 0 played by the issue queue's rules
 //
-// Every cycle port 0 issues an MDU µop (only with mdu_ok), a latency-1 µop
-// that writes (not in the cycle after a mul issued on port 0, nor with
-// p0_hold), or nothing; an issued µop is in RR the cycle after and in EX the
-// one after that (ex_valid for an MDU one, ex_lat1_wr for the other). The
-// MDU µops are random mul / mulh / mulhsu / mulhu / div / divu / rem / remu,
-// their W forms, clmul / clmulr / clmulh, with random operands (small ones,
+// Every cycle port 0 issues an MDU µop (only with mdu_ok), a mul for the
+// pipelined multiplier beside it (OOO_PMUL: its result takes port 0's
+// write-back slot 3 cycles after its issue), a latency-1 µop that writes
+// (not in the cycle after a mul, nor with p0_hold), or nothing; an issued
+// µop is in RR the cycle after and in EX the one after that. slot_busy:
+// a latency-1 writer in EX or a mul's result now. The MDU µops are random
+// mulh / mulhsu / mulhu / div / divu / rem / remu, the W forms of the
+// divides, clmul / clmulr / clmulh, with random operands (small ones,
 // zero, -1 and the most negative now and then: division by zero and the
 // overflow). Each carries the mask of the branch ids open when it issued;
 // kills of an open id, clears, and now and then a flush. A quarter of the
-// time port 0 gives a latency-1 writer every cycle it may (the slot a long
-// result needs comes only by p0_hold).
+// time port 0 gives a latency-1 writer every cycle it may and no mul (the
+// slot a long result needs comes only by p0_hold).
 //
 // Checked: every MDU µop not killed or flushed writes once, with its tag,
 // its ROB index and the value of the reference (the M / Zbc semantics);
-// one that is killed or flushed writes nothing; a mul writes exactly 3
-// cycles after its issue (the issue queue woke its dependents for that);
-// a long one never in a cycle with a latency-1 writer in EX, and with its
-// wakeup (ext_*); no MDU µop waits more than 200 cycles to be written, and
+// one that is killed or flushed writes nothing; none in a cycle with the
+// slot busy, and always with its wakeup (ext_*); no MDU µop waits more than
+// 200 cycles to be written, and
 // mdu_ok is never low for 200 cycles with no MDU µop in flight.
 //---------------------------------------------------------------------------
 #include "VOOO_MDUP.h"
@@ -99,7 +100,7 @@ int main(int argc, char** argv)
     std::deque<Op> ops;                         // MDU µops issued, not yet written or dropped
     std::vector<int> open;                      // branch ids open
     // port 0's pipeline: what was issued 1 and 2 cycles ago
-    struct P { bool v = false, md = false, l1 = false; Op o; } rr, ex;
+    struct P { bool v = false, md = false, l1 = false, mul = false; Op o; } rr, ex, m3;   // m3: a mul summing now
     bool mul_last = false;                      // a mul issued on port 0 in the cycle before
     long nmd = 0, nl1 = 0, nkill = 0, nflush = 0, nlong = 0, nmul = 0, nwait = 0;
     int next_tag = 1;
@@ -121,13 +122,14 @@ int main(int argc, char** argv)
         unsigned bm = 0; for (int o : open) bm |= 1u << o;
         if (r < 2 && mdu_ok) {
             Op o; o.iss = cyc; o.bm = bm;
-            int k = rng() % 12;
-            if (k < 4) { o.op = 0; o.w = rng() & 1; }                        // mul / mulw (often)
-            else if (k < 7) { o.op = 1 + rng() % 3; o.w = false; }           // mulh*
-            else if (k < 10) { o.op = 4 + rng() % 4; o.w = rng() & 1; }     // divides
+            int k = rng() % 9;
+            if (k < 3) { o.op = 1 + rng() % 3; o.w = false; }                // mulh*
+            else if (k < 6) { o.op = 4 + rng() % 4; o.w = rng() & 1; }      // divides
             else { o.op = 9 + rng() % 3; o.w = false; }                      // clmul*
             o.a = operand(); o.b = operand(); o.rob = rng() % 24; o.tag = next_tag; next_tag = next_tag % 63 + 1;
             is.v = true; is.md = true; is.o = o; nmd++;
+        } else if (r == 2 && !busy_phase && rng() % 2) {
+            is.v = true; is.mul = true; nmul++;                             // a mul for OOO_PMUL
         } else if (r < 4 && !blk0) {
             is.v = true; is.l1 = true; nl1++;
         }
@@ -136,8 +138,9 @@ int main(int argc, char** argv)
         }
         // ---- drive
         d.flush = flush; d.kill = killm; d.clr = clrm;
-        d.iss_md = is.v && is.md; d.iss_md_long = is.v && is.md && is.o.op != 0; d.iss_bm = is.v ? is.o.bm : rng() & 63;
-        d.ex_valid = ex.v && ex.md; d.ex_lat1_wr = ex.v && ex.l1;
+        bool slot = (ex.v && ex.l1) || (m3.v && m3.mul);
+        d.iss_md = is.v && is.md; d.iss_bm = is.v ? is.o.bm : rng() & 63;
+        d.ex_valid = ex.v && ex.md; d.slot_busy = slot;
         d.ex_op = ex.o.op; d.ex_word = ex.o.w; d.ex_a = ex.o.a; d.ex_b = ex.o.b; d.ex_rob = ex.o.rob; d.ex_dst = ex.o.tag; d.ex_bm = ex.o.bm;
         d.eval();
 
@@ -150,11 +153,9 @@ int main(int argc, char** argv)
                 if ((uint64_t)d.res_data != e) FAIL("op %d w %d (%016llx, %016llx): %016llx, expected %016llx", f->op, f->w,
                     (unsigned long long)f->a, (unsigned long long)f->b, (unsigned long long)d.res_data, (unsigned long long)e);
                 if ((int)d.res_rob != f->rob) FAIL("rob %d, expected %d", (int)d.res_rob, f->rob);
-                if (f->op == 0 && cyc != f->iss + 3) FAIL("mul issued in %ld written in %ld", f->iss, cyc);
-                if (f->op != 0 && ex.v && ex.l1) FAIL("a long result written with a latency-1 writer in EX");
-                bool xv = d.ext_valid;
-                if (xv != (f->op != 0) || (xv && (int)d.ext_tag != f->tag)) FAIL("ext wakeup %d for op %d", (int)xv, f->op);
-                if (f->op == 0) nmul++; else nlong++;
+                if (slot) FAIL("a result written with port 0's slot busy");
+                if (!d.ext_valid || (int)d.ext_tag != f->tag) FAIL("ext wakeup %d for op %d", (int)d.ext_valid, f->op);
+                nlong++;
                 f->done = true;
             }
         } else if (d.ext_valid) FAIL("a wakeup without a write");
@@ -165,21 +166,21 @@ int main(int argc, char** argv)
         else if (killm) for (auto& o : ops) if (o.bm & killm) { if (!o.dead) nkill++; o.dead = true; }
         for (auto& o : ops) o.bm &= ~clrm;
         // the pipeline moves on (the stages drop what is killed or flushed)
-        ex = rr; rr = is;
+        m3 = ex; ex = rr; rr = is;
         if (flush) { ex.v = false; rr.v = false; }
         if (killm) { if (ex.v && ex.md && (ex.o.bm & killm)) ex.v = false; if (rr.v && rr.md && (rr.o.bm & killm)) rr.v = false; }
         if (ex.v && ex.md) ex.o.bm &= ~clrm;
         if (rr.v && rr.md) rr.o.bm &= ~clrm;
         if (is.v && is.md) { Op o = is.o; if (flush || (o.bm & killm)) o.dead = true; o.bm &= ~clrm; ops.push_back(o); if (rr.v && rr.md) rr.o.bm = o.bm; }
-        mul_last = is.v && is.md && is.o.op == 0 && !flush && !(is.o.bm & killm);
+        mul_last = is.v && is.mul && !flush;
         while (!ops.empty() && (ops.front().done || ops.front().dead) && cyc - ops.front().iss > 3) ops.pop_front();
         bool inflight = false; for (auto& o : ops) inflight |= !o.done && !o.dead;
         ok_low = (d.mdu_ok || inflight) ? 0 : ok_low + 1;
         if (ok_low == 200) FAIL("mdu_ok low for 200 cycles with nothing in flight");
         for (auto& o : ops) if (!o.done && !o.dead && cyc - o.iss > 200) { FAIL("op %d issued in %ld not written", o.op, o.iss); o.dead = true; nwait++; }
     }
-    printf("tb_mdup: %ld cycles, %ld MDU µops (%ld muls, %ld long ones written), %ld latency-1 writers, %ld killed, %ld flushes, %ld mismatches: %s\n",
-           cyc, nmd, nmul, nlong, nl1, nkill, nflush, bad, bad ? "FAIL" : "PASS");
+    printf("tb_mdup: %ld cycles, %ld MDU µops (%ld written), %ld muls beside, %ld latency-1 writers, %ld killed, %ld flushes, %ld mismatches: %s\n",
+           cyc, nmd, nlong, nmul, nl1, nkill, nflush, bad, bad ? "FAIL" : "PASS");
     (void)nwait;
     return bad ? 1 : 0;
 }
