@@ -1,0 +1,30 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Wed Oct 28 21:18:38 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_TRAP/utilization_synth.rpt
+| Design       : OOC_TRAP
+| Device       : xc7a100tcsg324-1
+| Speed File   : -1
+| Design State : Synthesized
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++--------------+----------+------------+------------+---------+------+-----+--------+--------+------------+
+|   Instance   |  Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs | RAMB36 | RAMB18 | DSP Blocks |
++--------------+----------+------------+------------+---------+------+-----+--------+--------+------------+
+| OOC_TRAP     |    (top) |        204 |        204 |       0 |    0 | 657 |      0 |      0 |          0 |
+|   (OOC_TRAP) |    (top) |          7 |          7 |       0 |    0 | 583 |      0 |      0 |          0 |
+|   u_trap     | OOO_TRAP |        197 |        197 |       0 |    0 |  74 |      0 |      0 |          0 |
++--------------+----------+------------+------------+---------+------+-----+--------+--------+------------+
+
+

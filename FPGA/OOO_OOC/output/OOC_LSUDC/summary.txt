@@ -1,9 +1,9 @@
 OOC_LSUDC   (period 20.0 ns, I/O delay 6.0 ns each side on the ports)
-after synthesis: 7671 LUTs (7601 logic + 70 LUT RAM; 8870 LUT cells), 7356 FF, 0 DSP, 18 LUT RAM cells, 6.0 BRAM tiles
-after place and route: 7562 LUTs (7492 logic + 70 LUT RAM; 8871 LUT cells), WNS 1.552 ns, register to register 1.552 ns (20 logic levels)
+after synthesis: 7793 LUTs (7723 logic + 70 LUT RAM; 8998 LUT cells), 7522 FF, 0 DSP, 18 LUT RAM cells, 6.0 BRAM tiles
+after place and route: 7678 LUTs (7608 logic + 70 LUT RAM; 8989 LUT cells), WNS 0.820 ns, register to register 0.820 ns (21 logic levels)
 instances (after place and route):
-    u_dc                   DCACHE                 5215 LUTs (5215 logic + 0 LUT RAM), 5012 FF
-      u_dat                CACHE_DATA_ARRAY       1183 LUTs (1183 logic + 0 LUT RAM), 0 FF
-      u_tag                CACHE_TAG_ARRAY        1945 LUTs (1945 logic + 0 LUT RAM), 520 FF
-    u_dcad                 OOO_DCAD                199 LUTs (129 logic + 70 LUT RAM), 94 FF
-    u_lsu                  OOO_LSU                2151 LUTs (2151 logic + 0 LUT RAM), 1748 FF
+    u_dc                   DCACHE                 5325 LUTs (5325 logic + 0 LUT RAM), 5137 FF
+      u_dat                CACHE_DATA_ARRAY       1087 LUTs (1087 logic + 0 LUT RAM), 0 FF
+      u_tag                CACHE_TAG_ARRAY        2091 LUTs (2091 logic + 0 LUT RAM), 520 FF
+    u_dcad                 OOO_DCAD                203 LUTs (133 logic + 70 LUT RAM), 102 FF
+    u_lsu                  OOO_LSU                2153 LUTs (2153 logic + 0 LUT RAM), 1754 FF

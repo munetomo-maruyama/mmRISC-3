@@ -2807,3 +2807,60 @@ What is left of the control is its last part, exceptions and interrupts.
 ```text
 Go on with the control's last part: exceptions and interrupts (trap vector and CSR writes, interrupts at a µop boundary, refetch with fusion off after an exception inside a pair, FENCE.I / SFENCE.VMA).
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I built the control's last part, exceptions, interrupts and the system µops; all five items of the control are now there. All 25 tests PASS and all 260 mutations are detected; pushed to dev in commit 8118131. Not yet confirmed in Vivado.
+
+**OOO_TRAP (new): what happens at the ROB head**
+- **Interrupts:** taken before the head µop. The ROB empties without committing anything, mepc gets the head's pc, mcause the interrupt cause, mtval 0, and fetch goes to mtvec (mtvec + 4 × cause when vectored).
+  - Not taken while the head is a non-speculative µop that has issued (a CSR write, an MMIO load, WFI): its effect has already happened, so discarding it here would run it twice.
+  - An interrupt wins over an exception at the head.
+- **Exceptions:** mepc and mcause are written; mtval gets the tval of the oldest exception reported.
+- **An exception inside a fused pair:** no CSR is written. The pair is fetched again from its pc with fusion off, and stays unfused until two instructions have committed or the next trap comes.
+- **MRET:** its replay goes to mepc and updates mstatus.
+
+**OOO_SYS (new): the system µops at the head**
+- **FENCE:** waits until every committed store is in the D$.
+- **FENCE.I:** waits the same, then FLUSHes the D$ and invalidates the I$ in mmRISC-2's order, and fetches again by replay.
+  - The D$ FLUSH was added to OOO_DCAD as a fourth request.
+  - The predictors are not cleared: predecode reads targets from the instructions themselves, so a stale entry costs only a misprediction.
+- **SFENCE.VMA:** waits for the stores, flushes the TLBs (TLBs come in Phase 2), and replays.
+- **WFI:** completes when an interrupt is pending in mie.
+
+**Found in testing**
+- Reports of tval from flushed or killed µops still on their way must not be taken; taken, such a stale report hides the next real one. None are taken in the cycles of flush_all and of a restore.
+- The check "is the tval held the head's?" turned out redundant in bug injection and was removed.
+- tb_sys's failures on other seeds were the tb's: the 200-cycle limit on WFI's wakeup was exceeded by chance about once a run. The limit was widened and five other seeds PASS.
+
+**Size (Yosys)**
+
+| Block | LUT |
+|---|---|
+| OOC_TRAP | 644 |
+| OOC_SYS | 18 |
+
+OOC_TRAP is larger than I expected; most of it, I think, is holding the oldest tval (three 64-bit report ports and their ROB-age compares). If Vivado also finds it large, the tval can be narrowed to 40 bits or the two dispatch slots can share one port.
+
+**What is left before the assembly (G1):** the CSRs (`CORE_CSR`), MUL/DIV and the FPU, the I$ and the TLBs, debug, and the core's assembly itself. The contract for the CSRs' inputs and outputs is in section 22.1.
+
+Recorded in chapter 22 of Plan/OOC(_J).md, 3.8 / 3.9 of Doc/UARCH(_J).md, the READMEs and PROMPT.md (the English of answer 76).
+
+Please run these five in Vivado. OOC_TRAP and OOC_SYS have been added to the list in synth_ooo.bat.
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_TRAP
+synth_ooo.bat OOC_SYS
+synth_ooo.bat OOC_ROB
+synth_ooo.bat OOC_CTRL
+synth_ooo.bat OOC_LSUDC
+```
+<!-- /answer -->
+
+## 78. 2026-10-28 21:57:49 JST
+
+```text
+I ran synth_ooo.bat for OOC_TRAP, OOC_SYS, OOC_ROB, OOC_CTRL and OOC_LSUDC. Please check output/*/summary.txt.
+```

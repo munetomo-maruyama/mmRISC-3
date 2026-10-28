@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Mon Oct 26 23:47:10 2026
+| Date         : Wed Oct 28 21:53:06 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOC_LSUDC/utilization_synth.rpt
 | Design       : OOC_LSUDC
@@ -22,14 +22,14 @@ Table of Contents
 +---------------+------------------+------------+------------+---------+------+------+--------+--------+------------+
 |    Instance   |      Module      | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
 +---------------+------------------+------------+------------+---------+------+------+--------+--------+------------+
-| OOC_LSUDC     |            (top) |       7671 |       7601 |      70 |    0 | 7356 |      4 |      4 |          0 |
-|   (OOC_LSUDC) |            (top) |          0 |          0 |       0 |    0 |  502 |      0 |      0 |          0 |
-|   u_dc        |           DCACHE |       5305 |       5305 |       0 |    0 | 5012 |      4 |      4 |          0 |
-|     (u_dc)    |           DCACHE |       2124 |       2124 |       0 |    0 | 4492 |      0 |      0 |          0 |
-|     u_dat     | CACHE_DATA_ARRAY |       1211 |       1211 |       0 |    0 |    0 |      4 |      0 |          0 |
-|     u_tag     |  CACHE_TAG_ARRAY |       1970 |       1970 |       0 |    0 |  520 |      0 |      4 |          0 |
-|   u_dcad      |         OOO_DCAD |        204 |        134 |      70 |    0 |   94 |      0 |      0 |          0 |
-|   u_lsu       |          OOO_LSU |       2162 |       2162 |       0 |    0 | 1748 |      0 |      0 |          0 |
+| OOC_LSUDC     |            (top) |       7793 |       7723 |      70 |    0 | 7522 |      4 |      4 |          0 |
+|   (OOC_LSUDC) |            (top) |          0 |          0 |       0 |    0 |  529 |      0 |      0 |          0 |
+|   u_dc        |           DCACHE |       5417 |       5417 |       0 |    0 | 5137 |      4 |      4 |          0 |
+|     (u_dc)    |           DCACHE |       2187 |       2187 |       0 |    0 | 4617 |      0 |      0 |          0 |
+|     u_dat     | CACHE_DATA_ARRAY |       1116 |       1116 |       0 |    0 |    0 |      4 |      0 |          0 |
+|     u_tag     |  CACHE_TAG_ARRAY |       2114 |       2114 |       0 |    0 |  520 |      0 |      4 |          0 |
+|   u_dcad      |         OOO_DCAD |        211 |        141 |      70 |    0 |  102 |      0 |      0 |          0 |
+|   u_lsu       |          OOO_LSU |       2165 |       2165 |       0 |    0 | 1754 |      0 |      0 |          0 |
 +---------------+------------------+------------+------------+---------+------+------+--------+--------+------------+
 
 

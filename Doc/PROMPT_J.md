@@ -2800,5 +2800,56 @@ Go on with the control's last part: exceptions and interrupts (trap vector and C
 <!-- answer -->
 **Claude Codeの回答**
 
-The docs and scripts are ready. The background run (all 25 tests, extra seeds and the full 258-mutation campaign) is still going, and I'll commit once it reports.
+制御の最後の部分、例外と割り込みとシステムのµopを作り、これで制御の5項目がすべて揃いました。テストは25本すべてPASS、バグ注入は260件すべて検出で、コミット 8118131 で dev に push 済みです。Vivado での確認はまだです。
+
+**OOO_TRAP(新規): ROB の先頭で起きること**
+- **割り込み:** 先頭のµopの前で取ります。何もコミットせずに ROB を空にし、mepc に先頭の pc、mcause に割り込みの要因、mtval に0を入れ、mtvec へ飛びます。ベクタモードでは mtvec + 4 × 要因です。
+  - 先頭が発行済みの非投機のµop(CSR の書き込み、MMIO のロード、WFI)のときは取りません。効果がもう出ているので、ここで捨てると二重に実行されるからです。
+  - 先頭に例外があっても、割り込みを優先します。
+- **例外:** mepc、mcause を書き、mtval には報告されたうちで最も古い例外の tval を入れます。
+- **融合したペアの中の例外:** CSR は書きません。ペアをその pc から融合を切って取り直し、2命令がコミットするか次のトラップが来るまで融合しません。
+- **MRET:** そのリプレイの行き先を mepc にして、mstatus を更新します。
+
+**OOO_SYS(新規): 先頭のシステムのµop**
+- **FENCE:** コミット済みのストアがすべて D$ に入るまで待ちます。
+- **FENCE.I:** 同じく待ったあと、mmRISC-2 と同じ順で D$ を FLUSH し、I$ を無効化して、リプレイで取り直します。
+  - D$ の FLUSH は OOO_DCAD に4つ目の要求として足しました。
+  - 予測器は消しません。プリデコードが命令そのものから飛び先を読むので、古いエントリが残っても予測ミスで済むからです。
+- **SFENCE.VMA:** ストアを待ってから TLB をフラッシュし(TLB は Phase 2)、リプレイします。
+- **WFI:** mie で割り込みが保留になったら完了します。
+
+**テストで見つけたこと**
+- 途中に残っているフラッシュ済み / kill 済みのµopの tval 報告を拾ってはいけません。拾うと、その古い報告が次の本物の報告を隠してしまいます。flush_all と復元のサイクルには取らないようにしました。
+- 「持っている tval が先頭のものか」の確認は、バグ注入で冗長だと分かったので外しました。
+- tb_sys の別シードでの失敗は tb 側の問題でした。WFI の起床待ちに 200 サイクルの上限を付けていたため、確率的に1回ほど超えていました。上限を広げ、別シード5つで PASS を確認しました。
+
+**規模(Yosys)**
+
+| ブロック | LUT |
+|---|---|
+| OOC_TRAP | 644 |
+| OOC_SYS | 18 |
+
+OOC_TRAP は予想より大きく、その大半は最も古い tval を保持する部分(64ビットの報告ポート3つと、ROB 上の年齢の比較)だと見ています。Vivado でも大きければ、tval を40ビットに狭めるか、ディスパッチの2スロットを1ポートにまとめます。
+
+**組み立て(G1)までに残るもの:** CSR(`CORE_CSR`)、MUL/DIV と FPU、I$ と TLB、デバッグ、それとコアの組み立てそのものです。CSR に求める入出力の約束は 22.1 節に書きました。
+
+記録先は Plan/OOC(_J).md の22章、Doc/UARCH(_J).md の 3.8 / 3.9、各 README、PROMPT.md(回答76の英訳)です。
+
+次の5件を Vivado で回してください。OOC_TRAP と OOC_SYS は synth_ooo.bat の一覧に追加済みです。
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_TRAP
+synth_ooo.bat OOC_SYS
+synth_ooo.bat OOC_ROB
+synth_ooo.bat OOC_CTRL
+synth_ooo.bat OOC_LSUDC
+```
 <!-- /answer -->
+
+## 78. 2026-10-28 21:57:49 JST
+
+```text
+I ran synth_ooo.bat for OOC_TRAP, OOC_SYS, OOC_ROB, OOC_CTRL and OOC_LSUDC. Please check output/*/summary.txt.
+```

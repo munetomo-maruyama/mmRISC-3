@@ -1906,7 +1906,22 @@ Item 5 of 18.7.
 - **Please run** `synth_ooo.bat OOC_TRAP`, `synth_ooo.bat OOC_SYS` (both new in the list), `synth_ooo.bat OOC_ROB`,
   `synth_ooo.bat OOC_CTRL` and `synth_ooo.bat OOC_LSUDC`.
 
-### 22.4 The control is written
+### 22.4 The Vivado results (2026-10-28)
+
+| Run | LUT | Before | Worst slack | |
+|---|---|---|---|---|
+| OOC_TRAP | **203** | (Yosys 644) | +6.577 ns (13 levels) | the worst path is the tval's update: a report's ROB index → the age compares → the enable of `tv_d` |
+| OOC_SYS | **15** | (Yosys 18) | +11.501 ns | |
+| OOC_ROB | **1,235** | 1,246 | +9.615 ns (17 levels, was 8) | `irq` into the commit and the pointers |
+| OOC_CTRL | **351** | 351 | +11.501 ns | `ns_busy` is a register already there |
+| OOC_LSUDC | **7,678** | 7,562 | +0.820 ns (was +1.552) | the LSU +2, the adapter 203 (+4); the D$ +110: the adapter can now send FLUSH, so Vivado keeps the D$'s flush machinery it had trimmed (only LOAD and STORE came before). The worst path is still the D$'s stage 1 → the LSU's fill buffer |
+
+- All close at 50 MHz. Yosys's 644 for OOC_TRAP was not Vivado's: no narrowing of the tval is needed.
+- **The budget**: the trap unit (203) and the system unit (15) go inside the control's estimate (the control so far
+  351 + 69 + 37 + 203 + 15 = 675, against 1.5k to 2.5k); the ROB −11 and the adapter +4 move nothing at 0.1k; the D$
+  is counted at mmRISC-2's measured size, which has its flush. The gap stays **3.2k / 4.6k / 5.9k**.
+
+### 22.5 The control is written
 
 All five items of 18.7 are done. What is left before the assembly: the CSRs (`CORE_CSR` with L1), MUL / DIV and the
 FPU behind their ports, the I$ and the TLBs (Phase 2), debug, and the core's assembly itself (G1).
