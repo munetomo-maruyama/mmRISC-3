@@ -1,0 +1,157 @@
+# Phase 1のステップ4: 整数コアの組み立て(G1までの計画)
+
+[English](CORE.md)
+
+- 日付: 2026-10-29
+- 目的: `Doc/UARCH_J.md` 8章のステップ4。`RTL/CPU/OOO`と`RTL/CPU/CORE`のブロックは書け、単体でテストされ、Vivadoで測られている(`Plan/OOC_J.md` 1〜25)。この計画はそれらを整数のアウトオブオーダーコア(Mモード、ベアメタル、`Doc/STRATEGY_J.md`のPhase 1)に組み立て、**G1**まで立ち上げる。`Plan/OOC_J.md`と`Doc/UARCH_J.md`に残した「組み立てへの約束」を1か所に集め、まだ書くものと、その順を言う。
+- Phase 1に入らないもの: FPU、MMU / TLBとS / Uモードの使用(CORE_CSRは持っているが、何もそこへ移らない)、PMP、デバッグ、デバイスからの割り込み、LiteX。Phase 2で入る。
+
+---
+
+## 1. コアのトップ(`OOO_CORE`)
+
+```
+            +---------------------------- フロントエンド ---------------------+
+  I$ <----> | OOO_FETCH (uBTB, PREDEC, TAGE, BTB, RAS) --> OOO_FTQ            |
+            |      |  be_stop / be_redirect <-- OOO_FERS <-- FTQ (rsポート)   |
+            |      v                                                          |
+            |   OOO_FBUF --> OOO_DEC x4 --> OOO_FUSE (µop 2つ)               |
+            +--------------------------------|--------------------------------+
+                                             v
+   D2  OOO_RENAME  <--- r_go --- OOO_CTRL (マスク、進行、回復、コミット、ns_ok)
+                                             |
+   DS  OOO_DSREG (ペイロード、readyの見張り) ---> OOO_ROB、OOO_IQ + OOO_IQPL、OOO_LSU (LQ / SQ)
+                                             |
+   IS  OOO_IQ: ポート0 (ALU0、CSR、MUL、MDU、システム)、ポート1 (ALU1)、ポート2 (LSU)
+   RR  OOO_STAGE + OOO_PRF (読み出し6) + OOO_IQPL (読み出し3)
+   EX  ポート0: OOO_ALU2 (フル) / OOO_CSRU / OOO_PMUL / OOO_MDUP / OOO_SYS
+       ポート1: OOO_ALU2 (FULL = 0)      ポート2: OOO_LSU (E、M) -- OOO_DCAD -- D$
+   WB  レジスタファイルの書き込み3つ(ポート0、ポート1、LSU)、OOO_ROBへの完了
+   CM  OOO_ROB (1サイクルに2つ) -- OOO_TRAP (例外、割り込み、MRET) -- CTRL (フリーリスト、LQ / SQ、FTQのpop)
+```
+
+| ブロック | 個数 | 何か(`Plan/OOC_J.md`の章) |
+|---|---|---|
+| `OOO_FETCH` | 1 | uBTB、プリデコード、TAGE-S、BTB、RASつきのF0〜F2(14)。`be_stop`(21) |
+| `OOO_FTQ` | 1 | 8ブロック、それぞれフロントエンドの状態312ビット(TAGE 270、RAS 42)(13、21) |
+| `OOO_FERS` | 1 | フロントエンドの復元(21) |
+| `OOO_FBUF` | 1 | 4ブロック、4命令を出す(13) |
+| `OOO_DEC` | 1(4スロット) | スロットごとにCORE_DECOMP + CORE_DEC(16) |
+| `OOO_FUSE` | 1 | 4命令 → µop 2つ、レベル2(7、16) |
+| `OOO_RENAME` | 1 | レジスタ64、チェックポイント6、busyビットはwakeupで消す(10、20) |
+| `OOO_CTRL` | 1 | ブランチマスク、進行、回復、ns_ok、コミットの後始末、FTQのpop(18〜22) |
+| `OOO_DSREG` | 1 | DSレジスタのペイロード、readyの見張り(20) |
+| `OOO_ROB` | 1 | 24 µop、完了ポート4つ(12、19、21、22) |
+| `OOO_IQ` + `OOO_IQPL` | 1 + 1 | 10エントリ、発行3つ。ペイロードの記録(15、17、23) |
+| `OOO_PRF` | 1 | 64 × 64、書き込み3 / 読み出し6(9) |
+| `OOO_STAGE` | 6〜8 | ポートのパイプラインレジスタ(RR、EX、WB)(20) |
+| `OOO_ALU2` | 2 | ポート0はフル、ポート1は`FULL = 0`(8。L7: `Doc/UARCH_J.md` 6.12) |
+| `OOO_CSRU` | 1 | CORE_CSR(HPMカウンタ2つ)(23) |
+| `OOO_PMUL`、`OOO_MDUP` | 1 + 1 | mul / mulwはパイプライン。残りはCORE_MDU(23、24) |
+| `OOO_SYS`、`OOO_TRAP` | 1 + 1 | システムのµop。例外と割り込み(22、23) |
+| `OOO_LSU` + `OOO_DCAD` + `DCACHE` | 1 + 1 + 1 | LQ / SQ 8、アダプタ、mmRISC-2のD$(11、17) |
+| I$ | 1 | 16バイトに広げたmmRISC-2のICACHE(まだこのリポジトリにない)、またはモデル(5章) |
+
+---
+
+## 2. ブロックのあいだの形式
+
+### 2.1 融合からディスパッチまでのµop
+
+リネームとDSレジスタが2つのµopそれぞれについて受け取るもの。ほとんどは、`OOO_FUSE`の`u*_slot` / `u*_kind`で選んだ、そのµopの命令のデコードのフィールド(`OOO_DEC`)。
+
+| フィールド | ビット | どこから | どこへ |
+|---|---|---|---|
+| valid | 1 | FUSE | RENAME、CTRL(`r_valid`) |
+| use、src(アーキテクチャ) | 2 + 2 × 5 | ペアの半分ずつのDEC。後半が前半のrdを読むものは除く | RENAME |
+| wr、dst | 1 + 5 | 書く方の半分(W1: 多くて1つ) | RENAME、ROB |
+| ckpt | 1 | µopに条件分岐かjalrがある(jalは予測ミスにならない) | RENAME、CTRL |
+| pc | 38 | FTQのブロックのpc(`rd_pc`) + 前半のパーセル | ROB(`disp_pc`)、pcの配列(3.2) |
+| len | 3 | µopのハーフワード数(1〜4) | ROB |
+| ftq | 3 | **後ろ半分のブロック**(命令がラインをまたぐときは+1: `Plan/OOC_J.md` 21.1) | ROB、CTRL(`ds_ftq`) |
+| exc、cause、tval | 1 + 5 + 64 | デコード: 不正命令(tvalは命令のビット)、フェッチの障害、ECALL(要因はレベルで)、EBREAK | ROB(`disp_exc`)、OOO_TRAPの`tv_*`(ディスパッチのポート) |
+| port、lat2、ext_ans、ns、md | 2 + 1 + 1 + 1 + 1 | FUSEの`u*_port`。DEC。`md` = 外から答えるMDUのµop | IQ |
+| fused | 1 | `u*_kind` ≠ 0 | ROB(instretで2と数える)、OOO_TRAP(`head_fused`) |
+| ld、st | 2 | µopにロード / ストアがある | LSU、CTRL、ROB |
+| 記録 | W(2.2) | RRとEXが読むものすべて | IQPL |
+| insn ×2 | 64 | 命令のビット(シミュレーションだけ) | トレース(3.9) |
+
+- ディスパッチはIQのエントリに`disp_wr` = キューがwakeupする枠(レイテンシ1か2)で書く、で書く。外から答えるµop(MDUの長いもの、のちにAMO)は`disp_wr` 0でディスパッチし、`ext_*`で起きる。
+- デコードの`cut`は、まれな種類(スロット0だけ)の前でグループを終え、`valid & ~cut`としてFBUFとFUSEへ行く。
+
+### 2.2 ペイロードの記録(`OOO_IQPL`、Wビット)
+
+記録はDSで書き、RRでエントリで読む。ポート2は下位W2ビットだけ読む(`Plan/OOC_J.md` 17.1、G0bのG3)。決める配置(17.1で数えたとおり約96ビット。費用はWに比例):
+
+| ビット | フィールド | ポート |
+|---|---|---|
+| 下位(W2 = 48) | rob 5、lq 3、sq 3、オフセット12、サイズ2、符号1、メモリのコマンド5(ロード / ストア / AMO / cbo)、ペアの種類2(ALU + ロード、ストアのペア)、ALU + ロードの演算6、ftq 3、ckpt 3 | 2(と共通のもの) |
+| 上位 | imm 32(ALUの即値、分岐のオフセット)、alu_op 6、a_uw、a_shift 2、a1_sel 2、b1_imm、word_op、is_br、br_op 3、br_fused、br_res1_a、br_o_sel 2、is_jal、is_jalr、call、ret、pred_taken、ブロックの中のオフセット3(pc、3.2)、mdu_op 4、CSRのフィールド(addr 12、op 2、immの選択)またはsysのop 3 | 0、1 |
+
+- pcは記録に入れない(38ビット): RRでpcの配列から来る(3.2)。jalrの予測先はターゲットの配列から来る(3.4)。
+- csr_addrは即値と上位ビットを共有する(CSRのµopにはALUの即値がない)。
+
+### 2.3 ROBのディスパッチのフィールド
+
+`disp_pc`、`disp_wr`、`disp_arch`、`disp_new` / `disp_old`(リネームから)、`disp_ld` / `disp_st`、`disp_fused`、`disp_ns`、`disp_len`、`disp_ftq`、`disp_exc` / `disp_cause`。完了ポート(NCMP 4): ポート0の書き戻し、ポート1の書き戻し、LSUのロード、LSUのストア。
+
+---
+
+## 3. まだ書くつなぎ
+
+| # | つなぎ | 何か | メモ |
+|---|---|---|---|
+| 3.1 | `OOO_CORE`とD2 / DSの結線 | デコードと融合からの2.1のµop。ディスパッチでのリネーム、CTRL、DSREG、ROB、IQ / IQPL、LSU。CTRLの回復をすべてのブロックへ | `Plan/OOC_J.md` 20.1、21.1、22.1、23.1、24.1の約束 |
+| 3.2 | ポートのパイプライン | ポートごと: IS(RR)とRR(EX)のあとのOOO_STAGE、PRFの読み出し(ポートあたり2)、IQPLの記録、オペランドの選択(レジスタ、即値、pc)、結果を書き戻しのレジスタ(OOO_STAGE)へ | pc: RRで読み出し2つの**pcの配列**(FTQのブロックのpc、8 × 38ビット) + オフセット(決めること4.1) |
+| 3.3 | バイパスとレジスタファイルの書き込み | オペランドはPRFか、3つの書き戻しのレジスタ(ポート0、ポート1、LSU)の1つから来る: `OOC_ALU2`を測った4つの入力。そのため、結果は書き戻しのレジスタに入るのと同じクロックの端でPRFに書く | OOO_LSUはPRFのためにMの結果(WBレジスタのD入力)を出さなければならない(決めること4.2) |
+| 3.4 | 分岐の解決 | ALUポートごとにEXで: 方向(OOO_ALU2の`take_branch`)と`pred_taken`。jalrの飛び先とその予測先(**ターゲットの配列**、FTQのブロックの予測した次のアドレス、RRで読む)。CTRLとROBへ`br_valid` / `br_mispred` / `br_ckpt` / `br_next`、OOO_FERSへ`br_e` / `br_taken` / `br_call` / `br_ret`。間接ジャンプでBTBに書く(`bt_*`) | 分岐の飛び先はpc + imm(直接の飛び先はF2で正しかった) |
+| 3.5 | ポート0のユニット | ALU0、OOO_CSRU(EX、先頭で)、OOO_PMUL、OOO_MDUP、OOO_SYS。結果をポート0のWBへ(ALU / CSRはEXで、PMULは1サイクル後、MDUPは枠が空いたとき)。`slot_busy`。`iss_md` / `mdu_ok` / `p0_hold`。OOO_SYSの完了。ポート0のtvalのポート(CSRUとSYS、一度に1つ) | OOO_SYSは書かずに完了する: 決めること4.3 |
+| 3.6 | ポート2のフィールドとペア | RR / EXからのLSUの`iss_*`(base、imm、data、サイズ、符号、dst、rob / lq / sq、bm)。**ALU + ロード**: baseはALUの結果(アドレスの加算器の前にALU)。**ストア + ストア**: 1つのµopにSQのエントリ2つ | どちらのペアもまだOOO_LSUにない(決めること4.4) |
+| 3.7 | コミット | ROB → リネームのコミット状態、CTRL(フリーリスト、LQ / SQの数、FTQのpop)、CSRUの`instret_inc`、OOO_TRAP。**TAGEの更新**: popしたFTQのブロックごとのスロットの結果(`up_ex` / `up_tk`、解決でブロックごとに持つ)とそのメタデータ | 結果は分岐の解決から来る(3.4) |
+| 3.8 | フロントエンド | OOO_FETCHのブロックをFBUFとFTQへ(pc、次、taken、終わり、TAGEのメタデータ、RASのスナップショット)。FBUFとFTQからの`credit`。デコードのFTQの読み出し(`rd_pc`、2ブロック)。FERSの読み出し。I$のポート | FTQはここで312ビットに広げる |
+| 3.9 | コミットのトレース(シミュレーションだけ) | `SIM/LOCKSTEP`の`Commit`の記録のため: ROBのエントリごとに、命令のビット(ペアは2つ)、書いた値(書き戻しで取る)、ストアのアドレスとデータ(EのLSUから)、トラップの要因の影。ペアの前半は`rd_skip`の印 | ハードウェアの費用なし: トップの中の`ifdef` |
+| 3.10 | シミュレーションのメモリ | ELFの読み込みとHTIF(`tohost`)つきのAXI4のメモリのモデルにI$とD$。はじめはそれぞれのキャッシュの簡単なモデル | tb_dcadのメモリのモデルとLOCKSTEPの規則 |
+
+---
+
+## 4. 途中で決めること(推奨)
+
+| # | 項目 | 推奨 | 理由 |
+|---|---|---|---|
+| 4.1 | EXでのµopのpc | RRで読み出し2つのpcの配列(FTQのブロックのpc) + オフセット。記録に38ビットは入れない | 10エントリ × 2バンク × 読み出し3に38ビット足すかわりに、小さなLUTRAMの読み出し2つ(数十LUT) |
+| 4.2 | PRFに書くとき | 結果が書き戻しのレジスタに入る端(書き戻しのレジスタは次のサイクルのバイパスの入力)。OOO_LSUはそのためにMの結果を出す | 測った4入力のバイパスを保つ。代わりの書き戻しのレジスタの2段目は、ALUのループの5つ目の入力になる。LSUのM → PRFの書き込みの経路は測る(そのMはOOC_LSUDCの最悪の経路、+0.820 ns) |
+| 4.3 | OOO_SYSの完了 | ポート0の完了の枠が空いたときに(OOO_MDUPの`slot_busy`の規則) | ROBの5つ目の完了ポートはエントリごとに比較がかかる。システムのµopはまれで、先頭にある |
+| 4.4 | ポート2のペア(ALU + ロード、ストアのペア) | 融合を切ってコアを立ち上げ、次にALUポートの種類(lui + addi、auipc + x、slli + srli、ALU + 分岐)を入れ、それから2つのLSUのペアを書き、残す前にモデルでその得を測る | 新しいLSUの論理が要る種類はこの2つだけ |
+| 4.5 | jalrの予測先 | RRで読み出し1つのターゲットの配列(FTQのブロックの次のアドレス、8 × 38) | FTQの3つ目の読み出しポートはOOO_FERSのもの |
+| 4.6 | 立ち上げのI$ | はじめはモデル(ヒットで2サイクル、OOO_FETCHが期待するとおり)。CoreMarkの前に16バイトに広げたmmRISC-2のICACHE | キャッシュの前にフェッチとデコードを立ち上げられる |
+
+---
+
+## 5. 立ち上げの順
+
+| ステップ | 動くもの | 確かめ方 | 済むとき |
+|---|---|---|---|
+| B0 | テストベンチ: ELFの読み込み、メモリのモデル、HTIF、`SIM/LOCKSTEP`へのコミットのトレース | Spikeからの流れでのロックステップの自己テスト | ベンチが`selftest`の流れを走らせる |
+| B1 | フロントエンドだけ: I$のモデルを通したフェッチ、FBUF、デコード、融合なし。デコードした流れ | Spikeのpcの列と(tb_fetchのように、すべてのµopを取り本当の道をたどる後段) | rv64uiのプログラムが順にフェッチ、デコードされる |
+| B2 | ALUのµopだけのコア(ポート0 / 1)、メモリなし、融合なし | すべてのコミットでロックステップ | 直線のALUのプログラム、次に分岐とjal / jalr(予測ミス、復元) |
+| B3 | ロードとストア: D$のモデルつきのLSU、次にOOO_DCADと本物のD$ | ロックステップ | rv64uiのロードとストア、ストアのフォワーディングのテスト |
+| B4 | riscv-arch-test: I、M、C、Zba / Zbb / Zbc / Zbs、Zicond、Zicsr、特権のM(CSR、トラップ、MRET、FENCE.I) | ロックステップとスイートのシグネチャ | すべて通る(mmRISC-2も落とすものを除く) |
+| B5 | 種類ごとに融合を入れる。MDUとPMUL。割り込み(タイマのモデル) | ロックステップ(前半は`rd_skip`) | 融合ありでもう一度B4 |
+| B6 | 本物のキャッシュでCoreMark(`Plan/trace`の3つのビルド) | そのサイクル数をモデルと | モデルの±5%以内(G1) |
+| B7 | `OOO_CORE`をVivadoで単体合成 | `synth_ooo.tcl` | LUTと50MHz(G1) |
+
+- どのステップでも単体テスト(`SIM/OOO_UNIT/run.sh`)とバグ注入は緑のまま。コアにはB2から自分のバグ注入をつける(つなぎの変更をロックステップが捕まえなければならない)。
+
+---
+
+## 6. G1で測るもの
+
+| 項目 | 基準 | 参照 |
+|---|---|---|
+| 正しさ | riscv-arch-test(B4のスイート)とCoreMarkがSpikeとのロックステップで不一致なし | `SIM/LOCKSTEP` |
+| 性能 | RTLのシミュレーションのCoreMark/MHzが、ビルドごとにモデルの±5%以内: 6.243(g14 -O2)、6.680(g14 sf + -flto)、6.066(g13 -O2) | `Plan/model/results/g0b.txt`(L7、D-15、D-16の案A) |
+| サイクルの行き先 | 同じ実行でのモデルのカウンタ(フロントエンド、IQ、LQ / SQで止まったディスパッチ、予測ミス、上書き)をRTLから | 2%を超える差を説明するため |
+| 規模 | Vivadoでの`OOO_CORE`の単体合成(物理LUT): アウトオブオーダーの部分がその予算の行(`Doc/UARCH_J.md` 4.4)に入り、コアの合計を超過(いま3.5k / 4.9k / 6.2k)と比べる | 単体はコア全体には公正(`Plan/OOC_J.md` 25.3) |
+| タイミング | 単体での配置配線のあとで50MHz(20 ns) | ここまでのブロックの余裕: 最悪 +0.569 ns(CSRユニット)、+0.820 ns(D$つきのLSU) |
+
+G1で、予備の手段(`Doc/UARCH_J.md` 6.3のL10、B4 / B5)を測ったコアに対して決める。

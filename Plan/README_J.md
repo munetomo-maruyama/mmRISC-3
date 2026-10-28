@@ -10,6 +10,7 @@ mmRISC-3の事前検討(`Doc/STRATEGY_J.md`のPhase 0)。RTLより先に行う�
 | [`OOC_J.md`](OOC_J.md) / [英語版](OOC.md) | Phase 0-4: 融合構成のRTLブロック(RTL/CPU/OOO)、単体テストとバグ注入、Yosysの見積り、レジスタファイルのポートと性能、VivadoのOOC合成 |
 | [`PRESTUDY_MMRISC2_J.md`](PRESTUDY_MMRISC2_J.md) / [英語版](PRESTUDY_MMRISC2.md) | mmRISC-2開発時の事前検討メモ(2026-10-13): Arty A7-100TでのOoO RV64GC。資源、NaxRiscv、Linuxと非投機化、妥協案 |
 | [`ICOUNT_J.md`](ICOUNT_J.md) / [英語版](ICOUNT.md) | Phase 0-1: CoreMark 1回あたりの命令数(コンパイラ・オプション・拡張命令別)と、目標に必要なIPC |
+| [`CORE_J.md`](CORE_J.md) / [英語版](CORE.md) | Phase 1のステップ4: G1までの整数コアの組み立て: トップ、ブロックのあいだの形式、まだ書くつなぎ、途中で決めること、立ち上げの順、G1で測るもの |
 | [`ISSUES_J.md`](ISSUES_J.md) / [英語版](ISSUES.md) | G0までの残りの検討項目(課題と対策)、mmRISC-2 Rev.02の資源の実測と予算の見直し、作者が決めること |
 | [`REDUCE_J.md`](REDUCE_J.md) / [英語版](REDUCE.md) | 論理規模の削減案(トリガ、PMP、D$バッファ / TLB / CSRのLUTRAM化、PMU、Zbc、FPU、LiteX)。mmRISC-2のRTLをYosysで合成して削減量を実測 |
 | [`TRACE_J.md`](TRACE_J.md) / [英語版](TRACE.md) | Phase 0-2: CoreMarkのトレース解析。命令ミックス、分岐予測器(mmRISC-2のgshare、TAGE)、SFBと融合の候補、校正前の限界モデル |

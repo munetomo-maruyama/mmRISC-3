@@ -11,6 +11,7 @@ working files and documents.
 | [`OOC.md`](OOC.md) / [`_J`](OOC_J.md) | Phase 0-4: RTL blocks of the fusion configuration (RTL/CPU/OOO), their tests and bug injection, Yosys estimates, register-file ports against performance, the Vivado OOC runs |
 | [`PRESTUDY_MMRISC2.md`](PRESTUDY_MMRISC2.md) / [`_J`](PRESTUDY_MMRISC2_J.md) | The study memo made during mmRISC-2 (2026-10-13): an out-of-order RV64GC on the Arty A7-100T; resources, NaxRiscv, Linux and non-speculative execution, compromises |
 | [`ICOUNT.md`](ICOUNT.md) / [`_J`](ICOUNT_J.md) | Phase 0-1: CoreMark instructions per iteration by compiler, options and ISA extensions; the IPC the goals need |
+| [`CORE.md`](CORE.md) / [`_J`](CORE_J.md) | Phase 1 step 4: putting the integer core together to G1: the top, the formats between the blocks, the glue still to write, decisions on the way, the bring-up order, what G1 measures |
 | [`ISSUES.md`](ISSUES.md) / [`_J`](ISSUES_J.md) | Remaining study items of Phase 0 up to G0, with problems and countermeasures; the measured resources of mmRISC-2 Rev.02 and the revised budget; decisions for the author |
 | [`REDUCE.md`](REDUCE.md) / [`_J`](REDUCE_J.md) | Options to reduce the logic (triggers, PMP, LUTRAM for D$ buffers / TLBs / CSRs, PMU, Zbc, FPU, LiteX), with savings measured by Yosys on mmRISC-2's RTL |
 | [`TRACE.md`](TRACE.md) / [`_J`](TRACE_J.md) | Phase 0-2: trace analysis of CoreMark: instruction mix, branch predictors (gshare of mmRISC-2, TAGE), SFB and fusion candidates, an uncalibrated limit model |

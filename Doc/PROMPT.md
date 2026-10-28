@@ -3168,3 +3168,43 @@ Recorded in section 25.3 of Plan/OOC(_J).md, 4.1 of Doc/UARCH(_J).md and PROMPT.
 ```text
 I want to go on to the next step: where should I start?
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Next is step 4 of the plan, putting the integer core together (UARCH chapter 8): run it in M-mode, bare metal, bring it up in lock-step with Spike and aim at G1.
+
+G1 has two pass criteria.
+- CoreMark in simulation within ±5 % of the model.
+- The core synthesized alone in Vivado for its LUT count and 50 MHz.
+
+The parts are almost all there, and the control is confirmed in Vivado. The lock-step framework (SIM/LOCKSTEP) exists too. The FPU, the MMU / TLBs and S mode come in Phase 2 or later, so they are not needed here.
+
+**The "glue" not written yet**
+1. **The ALU ports' pipelines:** the RR → EX → WB registers, the bypass network, branch resolution (deciding mispredictions, making `br_*`), the result multiplexer (ALU / CSR / PMUL / MDU).
+2. **The format µops are passed in:** the fields from decode to DS, IQPL and ROB, and the wiring by the contracts such as `disp_md`.
+3. **The predictors' update paths:** the TAGE update at commit and the BTB update at resolution.
+4. **The I$:** mmRISC-2's ICACHE widened to 16 bytes. The first bring-up can use a simulation memory model instead and switch to the real one later.
+5. **The commit-trace port:** to connect to the lock-step.
+6. **The top OOO_CORE:** the wiring of every block.
+
+**The recommended way**
+- **I recommend writing the integration plan Plan/CORE(_J).md first:** the top's structure, the formats, the list of glue, the bring-up order and what G1 measures.
+  - The blocks so far have their "contracts for the assembly" scattered over the chapters. Gathering them once before the biggest step keeps anything from being missed.
+- The order after that:
+  1. The ALU ports' pipelines with the bypass and branch resolution (with unit tests)
+  2. Wiring OOO_CORE with memory models
+  3. Straight-line integer programs
+  4. riscv-arch-test
+  5. CoreMark against the model
+  6. Switching to the real I$ / D$
+  7. The core alone in Vivado (G1)
+
+It is also possible to skip the plan and start writing the ALU ports' pipelines straight away.
+<!-- /answer -->
+
+## 87. 2026-10-29 00:34:24 JST
+
+```text
+Start with the integration plan: write Plan/CORE(_J).md with the core's top, the payload formats, the glue still missing, the bring-up order and what G1 measures.
+```
