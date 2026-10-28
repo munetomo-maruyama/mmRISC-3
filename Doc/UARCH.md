@@ -87,8 +87,9 @@ most optimization (sf + `-flto`). From `Plan/model/results/g0.txt`:
 | (M) | Loads: D$ access, result 2 cycles after issue to the dependents (hit speculated) |
 | WB, CM | Register-file write (3 ports); commit 2 µops a cycle from the ROB head |
 
-A misprediction costs 9 cycles from EX to EX. The model is the reference for the timing (`fe_depth` 3, `dec_depth`
-2, `iss_to_ex` 2, `redirect` 1, `override_at` 2).
+A misprediction costs 10 cycles from EX to EX (D-15: fetch restarts a cycle after the resolution, with the history and
+the RAS from the FTQ, `Plan/OOC.md` 21; 9 with the redirect straight from EX). The model is the reference for the
+timing (`fe_depth` 3, `dec_depth` 2, `iss_to_ex` 2, `redirect` 2 since D-15, `override_at` 2).
 
 ### 3.2 Front end
 
@@ -99,7 +100,7 @@ A misprediction costs 9 cycles from EX to EX. The model is the reference for the
 | uBTB | `OOO_UBTB`: **8 entries** (G0b L5; 16 before), fully associative, 12-bit partial tags, the first taken hit of the block in parallel, round-robin replacement, returns from the RAS top |
 | TAGE-S | `OOO_TAGE`: per fetch block, as it can be built in block RAM (decided at step 2, `Plan/OOC.md` 14.1): 4 tagged tables of 1024 rows indexed by the fetch address and the history, each row with 3 direction counters for the 1st, 2nd and 3rd conditional branch of the block; base table of 2-bit counters per parcel; one history bit per slot branch. A 4th branch in a block is predicted not taken (none in CoreMark). Updated at commit through the FTQ. Against the model's TAGE per branch: about −0.2 % / −0.5 % |
 | BTB, RAS | `OOO_BTB`: for indirect jumps only (256 rows in block RAM, read with the fetch address); the targets of branches and jal come from predecode (`OOO_PREDEC`), those of returns from the RAS. `OOO_RAS`: 16 entries in LUTRAM; each block keeps the pointer and the entry a push would overwrite, for recovery |
-| FTQ | `OOO_FTQ`: 8 entries, one per fetch block: PC, next address and prediction state for the update and the recovery (LUTRAM). The front end needs 312 bits of state a block (TAGE 270, RAS 42), and the outcomes of the slot branches for the update at commit: the FTQ grows at the core's assembly (`Plan/OOC.md` 14.2) |
+| FTQ | `OOO_FTQ`: 8 entries, one per fetch block: PC, next address and prediction state for the update and the recovery (LUTRAM). The front end needs 312 bits of state a block (TAGE 270, RAS 42), and the outcomes of the slot branches for the update at commit: the FTQ grows at the core's assembly (`Plan/OOC.md` 14.2). Its third read is the restore's (`OOO_FERS`, `Plan/OOC.md` 21) |
 
 ### 3.3 Decode and fusion
 
@@ -663,3 +664,4 @@ is kept** (that of mmRISC-2 Rev.02); everything else as recommended. **G0b (D-11
 | D-12 | Replay policy again: the trap at commit with an issue queue of 10 (G4) | Take it (about 1.9k, +0.2 % CoreMark; code that misses pays a refetch) | **As recommended (2026-10-26)** |
 | D-13 | L4 to L6, and L7 after it is modelled | Take L4 to L6 (1.2k, −1.7 %); L7 if about 1 % or less | **As recommended (2026-10-26)**; L6 taken back after Vivado (6.10) |
 | D-14 | The end state | A: fusion level 2 now; the 54k ceiling and no PMP / HPM as the reserve, decided at G1 | **As recommended (2026-10-26)** |
+| D-15 | The front end's restore (`Plan/OOC.md` 21) | Restart fetch a cycle after the resolution (`redirect` 2): −0.27 % / −0.22 % / −0.26 % in the model; keeps the resolution → ROB → control → FTQ → history → TAGE address chain out of one cycle | Applied as recommended (2026-10-28), **for the author to confirm** |

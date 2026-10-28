@@ -2642,3 +2642,37 @@ synth_ooo.bat OOC_DSREG
 ```text
 I ran synth_ooo.bat for OOC_RENAME, OOO_IQ, OOC_LSU and OOC_DSREG. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+4件とも 50 MHz に入りました。busy ビットは、遅い時刻に来る wakeup タグを直接取っても間に合うことが確認できました。
+
+| ブロック | LUT | 前回 | 最悪の余裕 | 備考 |
+|---|---|---|---|---|
+| OOC_RENAME | **2,702** | 2,464 | **+3.443 ns** | 最悪パスは新しい経路: `wk_tag`(13 nsで到着)→ `busy`、3段で4.477 ns |
+| OOO_IQ | **1,874** | 1,866 | +1.248 ns | wakeup タグを出力にした分で +8 |
+| OOC_LSU | **1,942** | 2,290 | +6.875 ns | −348 |
+| OOC_DSREG | **69** | 新規 | +6.835 ns | Yosys の見積もりは 121 |
+
+- **リネーム:** タグの到着を 13 ns と仮定しても 3.4 ns 余ります。前回挙げた代わりの案(1サイクル遅らせ、DSレジスタは2サイクル前まで見張る形)は要りません。
+- **LSU の −348:** 変更内容から見込める減り方より大きく、理由ははっきりしません。
+  - LQ / SQ の書き込み条件をすべて共通の `e_iss` にまとめたので、Vivado がそこを簡単にできたのだろうと考えています。
+  - フリップフロップは見込みどおり +18(`m_bm` とハーネスの入力12)なので、何かが削られたわけではありません。
+- **予算:** リネーム +238、LSU −348、IQ +8 を加えました。DSREG の 69 は制御の見積もりの中に入れています(制御はここまで 350 + 69)。
+  - 不足は **3.2k / 4.6k / 5.9k LUT**(少なめ / 中央 / 多め)になり、前回より 0.1k 減りました。
+
+記録は Plan/OOC(_J).md の 20.4 節と Doc/UARCH(_J).md の 4.4 節に追記し、回答71の英訳も PROMPT.md に入れました。コミット 921385d で dev に push 済みです。
+<!-- /answer -->
+
+## 73. 2026-10-28 18:39:36 JST
+
+```text
+Go on with the control's next part: the front end's restore (the FTQ entry's history and RAS state into OOO_FETCH).
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+Everything else is ready to commit. The background run (all 23 tests, extra seeds and the full 232-mutation campaign) is still going, and I'll commit once it reports.
+<!-- /answer -->

@@ -1754,3 +1754,72 @@ Item 3 of 18.7.
 Items 4 and 5 of 18.7: the front end's restore (the FTQ entry's history and RAS state into `OOO_FETCH`), exceptions
 and interrupts (the trap vector and the CSR writes, interrupts at a µop boundary, the refetch with fusion off after an
 exception inside a pair, FENCE.I / SFENCE.VMA).
+
+---
+
+## 21. The control, fourth part: the front end's restore (2026-10-28)
+
+Item 4 of 18.7.
+
+### 21.1 What was done
+
+| Block | What was done |
+|---|---|
+| `OOO_FERS` (new) | Takes the point of a redirect into a register in cycle R (a restore: the block from the checkpoint table, the last parcel, outcome and call / return of the port that resolved the branch; a trap or a replay: the µop's block and last parcel from the ROB), reads that block's FTQ entry in R + 1 and gives `OOO_FETCH` the restart: `fe_pc`, the block's history, its slot branches up to the point (before it not taken, the point's own slot with its outcome; for a trap or a replay only those before it), the RAS snapshot and the point's own push (the parcel after a call) or pop |
+| `OOO_FETCH` | `be_stop` (the control's redirect in cycle R): no request and no block in that cycle; the restart comes with `be_redirect` in R + 1 |
+| `OOO_CTRL` | `restore_port`: the ALU port whose branch restores (it also chooses `fe_pc`) |
+| `OOO_ROB` | `rcv_ftq` / `rcv_end`: the block and last parcel of the µop a trap (the head) or a replay (the marked µop, at the head or the one after it) goes back to |
+
+- **The restart a cycle after the resolution** (D-15, for the author to confirm). The history must be in TAGE's register
+  before the first fetch reads the tables with it; straight from the resolution, the branch's comparison, the ROB's
+  choice of the oldest misprediction, the control, the checkpoint table, the FTQ read, the push into the history and
+  TAGE's block RAM address would be one cycle. A redirect in R + 1 costs 1 cycle a misprediction: −0.27 % / −0.22 % /
+  −0.26 % in the model (6.260 → 6.243 CoreMark/MHz on -O2; 1.44 mispredictions per thousand instructions). A
+  misprediction costs 10 cycles from EX to EX.
+- **The front end still stops at once.** If it went on until the restart, a wrong-path block could reach the fetch
+  buffer or the FTQ in R + 1 (the FTQ was restored in R) and be renamed. `be_stop` keeps both empty: no request, no
+  block; what is in flight is dropped by the restart.
+- **The block of a µop is the block of its last half.** Predecode puts an instruction across two lines in the second
+  block, with its slot and its prediction; the fetch buffer gives the first half's block. Decode must give the back end
+  the second block (+1 when the instruction crosses), and the checkpoint table, the ROB (`disp_ftq`, the FTQ's pops)
+  and the restore use it.
+- **Found while testing: a trap can be at a branch** (a debug trigger on it): the trap comes before the branch, so its
+  slot must not go into the history. I had thought only a resolved transfer ends at a slot's parcel; `tb_fers` makes
+  traps at any instruction, and the point's slot now counts only for a restore.
+- **Simplified**: the slot branches before the point go in not taken, not "as predicted": one predicted taken would
+  have ended the block before the point, so the predictions there are always 0 (the bit injection of "as predicted
+  → 0" was not detectable; the input is gone).
+- **The FTQ's read ports**: the third (the resolution's) is the restore's, in R + 1. A jalr's predicted target, which
+  the resolution needs to see a misprediction, travels with the µop (the payload), or needs a fourth read: for the
+  assembly.
+
+### 21.2 Verification
+
+- **`tb_fers`** (new): blocks built from their instructions (slot branches predicted by a coin until one is taken and
+  ends the block, a branch past the slots, calls, returns, other jalr), an FTQ of 8 that refills; redirects at any
+  instruction of a block (a restore of a mispredicted transfer on port 0 or 1 with random values on the other; a trap
+  or a replay at any instruction), often in two cycles in a row. The cycle after: the block read, the pc, the history,
+  the slot outcomes, the RAS snapshot, push / pop and push address. 400,000 cycles, 200,321 redirects, 4 seeds.
+- **`tb_fetch`**: the back end stops fetch a cycle before the restore, as the core will; no request and no block in a
+  cycle of a stop or a redirect. 11 programs.
+- **`tb_rob`**: `rcv_ftq` / `rcv_end` for every trap and replay. **`tb_ctrl`**: `restore_port` for every restore.
+- **Bug injection**: 13 new mutations (M254–M266) and M128 retargeted (its line now gates on `stop`); 232 of 232
+  detected.
+
+### 21.3 Size (Yosys), and the Vivado runs asked of the author
+
+| Block | Yosys | |
+|---|---|---|
+| `OOC_FERS` | 38 (88 LUT RAM) | new: the restore with the FTQ it reads (8 × 312 bits of the front end's state; Yosys keeps only the bits read) |
+| `OOC_FRONT` | 5,262 | `be_stop`: two gates (Yosys moves by ±0.3k between runs here) |
+| `OOC_ROB` | 1,688 | `rcv_*` |
+| `OOC_CTRL` | 399 | `restore_port` |
+
+- **Please run** `synth_ooo.bat OOC_FERS` (new in the list), `synth_ooo.bat OOC_FRONT`, `synth_ooo.bat OOC_ROB` and
+  `synth_ooo.bat OOC_CTRL`.
+
+### 21.4 What is left of the control
+
+Item 5 of 18.7: exceptions and interrupts (the trap vector and the CSR writes: mepc, mcause, mtval; interrupts at a
+µop boundary; the refetch with fusion off after an exception inside a pair; FENCE.I / SFENCE.VMA). The budget is
+updated with the Vivado results.

@@ -76,7 +76,7 @@ module OOO_ROB
         input  logic [1:0]                  disp_fused,  // two instructions
         input  logic [1:0]                  disp_ns,     // non-speculative: runs at the head
         input  logic [1:0][2:0]             disp_len,    // halfwords of the µop (1 .. 4)
-        input  logic [1:0][FTQW-1:0]        disp_ftq,    // its fetch block (of its first instruction)
+        input  logic [1:0][FTQW-1:0]        disp_ftq,    // its fetch block (of its last half: Plan/OOC.md 21)
         input  logic [1:0]                  disp_exc,    // an exception known at decode
         input  logic [1:0][4:0]             disp_cause,
         output logic [1:0][ROBW-1:0]        disp_rob,
@@ -116,7 +116,9 @@ module OOO_ROB
         output logic [4:0]                  trap_cause,
         output logic [VA-1:1]               trap_pc,
         output logic                        replay,      // a marked µop commits now: flush_all after it
-        output logic [VA-1:1]               replay_pc    // the next instruction, fetched again
+        output logic [VA-1:1]               replay_pc,   // the next instruction, fetched again
+        output logic [FTQW-1:0]             rcv_ftq,     // the trapping / replayed µop's block (OOO_FERS)
+        output logic [2:0]                  rcv_end      // and the parcel of its last half
     );
 
     localparam int H  = NROB / 2;
@@ -212,6 +214,18 @@ module OOO_ROB
                                      : p1[PW-1 -: VA-1] + (VA - 1)'(p1[FTQW+2:FTQW]);
         head_rob   = hi0;
         head_ns    = used != '0 && p0[FTQW+3] && !done[hi0];
+        // the µop the front end's history and RAS go back to (OOO_FERS): the
+        // head for a trap, the marked one for a replay
+        begin
+            /* verilator lint_off UNUSEDSIGNAL */
+            pay_t          pr;              // (its pc's parcel, length and block only)
+            logic [VA-1:1] ppc;
+            /* verilator lint_on UNUSEDSIGNAL */
+            pr      = (trap || (c0 && rp[hi0])) ? p0 : p1;
+            ppc     = pr[PW-1 -: VA-1];
+            rcv_ftq = pr[FTQW-1:0];
+            rcv_end = ppc[3:1] + pr[FTQW+2:FTQW] - 3'd1;
+        end
         cmt_valid  = {c1, c0};
         for (int u = 0; u < 2; u++) begin
             pay_t p;

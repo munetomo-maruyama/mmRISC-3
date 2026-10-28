@@ -16,7 +16,9 @@
 // the pc of the next instruction).
 //
 // Checked every cycle: rob_avail and the indices given at dispatch, the
-// head and head_ns, the trap (cause, pc), the replay (pc + length), every
+// head and head_ns, the trap (cause, pc), the replay (pc + length), the
+// point the front end goes back to (rcv_ftq, rcv_end: the trapping or
+// replayed µop's block and last parcel), every
 // commit (pc, destination, new and old registers, fetch block) and the load / store /
 // instret counts, and that a restore names the oldest mispredicted branch
 // in the ROB with its checkpoint.
@@ -167,6 +169,12 @@ int main(int argc, char** argv)
         if ((bool)d.replay != replay) FAIL("replay %d, expected %d", (int)d.replay, replay);
         else if (replay && (uint64_t)d.replay_pc != replay_pc)
             FAIL("replay pc %llx, expected %llx", (unsigned long long)d.replay_pc, (unsigned long long)replay_pc);
+        if (trap || replay) {
+            const auto& r = (trap || (c0 && rob[0].rp)) ? rob[0] : rob[1];
+            int ee = (int)((r.pc + r.len - 1) & 7);
+            if ((int)d.rcv_ftq != r.ftq || (int)d.rcv_end != ee)
+                FAIL("%s point: block %d parcel %d, expected %d %d", trap ? "trap" : "replay", (int)d.rcv_ftq, (int)d.rcv_end, r.ftq, ee);
+        }
         unsigned cvx = (c0 ? 1 : 0) | (c1 ? 2 : 0);
         if ((unsigned)d.cmt_valid != cvx) FAIL("cmt_valid %d, expected %d", (int)d.cmt_valid, cvx);
         int eld = 0, est = 0, eir = 0;

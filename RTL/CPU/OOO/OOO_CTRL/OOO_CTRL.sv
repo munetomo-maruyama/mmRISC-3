@@ -40,7 +40,7 @@
 //               its checkpoint): restore with that id (renaming), the LSU
 //               tails and the FTQ index of the table, kill = its bit, fetch
 //               from the branch's correct next pc (br_next of the port
-//               that resolved it)
+//               that resolved it: restore_port, also for OOO_FERS)
 //   The checkpoints younger than a restored one (their masks have its
 //   bit) and the restored one itself are free again; flush_all frees all.
 //
@@ -145,6 +145,7 @@ module OOO_CTRL
         output logic                        flush_all,  // the back end, a cycle later
         output logic                        restore,
         output logic [CW-1:0]               restore_id,
+        output logic                        restore_port, // the ALU port of the restoring branch (OOO_FERS)
         output logic [LW:0]                 restore_lq_tail,
         output logic [LW:0]                 restore_sq_tail,
         output logic [FTQW-1:0]             restore_ftq,
@@ -202,10 +203,11 @@ module OOO_CTRL
         restore_sq_tail = ck_sq[rob_restore_ckpt];
         restore_ftq     = ck_ftq[rob_restore_ckpt];
         rcv         = fe_flush || flush_q || restore;
+        restore_port = !(br_valid[0] && br_mispred[0] && br_ckpt[0] == rob_restore_ckpt);
         fe_redirect = fe_flush || restore;
         if (trap)                                                   fe_pc = trap_vec;
         else if (replay)                                            fe_pc = replay_pc;
-        else if (br_valid[0] && br_mispred[0] && br_ckpt[0] == rob_restore_ckpt) fe_pc = br_next[0];
+        else if (!restore_port)                                     fe_pc = br_next[0];
         else                                                        fe_pc = br_next[1];
     end
 

@@ -18,7 +18,8 @@
 // and walks them along the program's true path: an instruction whose true
 // next address is not the one predicted (the block's next address at its
 // end, the next instruction before it) is a misprediction; a few cycles
-// later fetch is redirected there with the history and the RAS put back
+// later fetch is stopped (be_stop, the back end's redirect) and the cycle
+// after that redirected there (OOO_FERS's timing) with the history and the RAS put back
 // from the block (its TAGE metadata and RAS snapshot) and the outcome of the
 // mispredicted transfer, the buffer is flushed and the block's later part
 // dropped. Blocks are committed in order (TAGE update with the slots that
@@ -32,6 +33,7 @@
 //     from mirrors of TAGE (tage_ref.h, read at the cycle of the request),
 //     the BTB, the RAS and the carried half, and predecode (predec_ref.h)
 //   - the credit is never exceeded, the program keeps going
+//   - no block and no request in the cycle of a stop or a redirect
 //---------------------------------------------------------------------------
 #include "VOOO_FETCH.h"
 #include "tage_ref.h"
@@ -241,7 +243,7 @@ int main(int argc, char** argv)
     uint64_t tp = BASE;                        // the next true instruction
     bool cross_pend = false;
     struct Rec { long when; uint64_t pc; Bits hist; int n, bits; int rptr; uint64_t rval; bool push, pop; uint64_t addr; };
-    bool rec_pend = false; Rec rec{};
+    bool rec_pend = false, stopped = false; Rec rec{};
     std::deque<std::pair<uint64_t, uint64_t>> btq;      // BTB updates to send
     uint64_t e_pc = 0;                         // where the next block must start
     bool started = false;
@@ -250,13 +252,16 @@ int main(int argc, char** argv)
 
     for (cyc = 0; cyc < 400000; cyc++) {
         // ---------- inputs
-        bool redirect = false;
+        bool redirect = false, stop = false;
         Rec rr{};
         if (cyc == 2) {                         // start the program
             redirect = true; rr.pc = BASE; rr.hist = Bits(TageRef::MW); rr.rptr = 0; rr.rval = 0;
+        } else if (rec_pend && stopped) {       // the restore, the cycle after the stop
+            redirect = true; rr = rec; rec_pend = false; stopped = false;
         } else if (rec_pend && rec.when <= cyc) {
-            redirect = true; rr = rec; rec_pend = false;
+            stop = true; stopped = true;
         }
+        d.be_stop = stop;
         d.be_redirect = redirect; d.be_pc = rr.pc;
         for (int k = 0; k < 3; k++) d.be_hist[k] = redirect ? (uint32_t)rr.hist.get(TageRef::M_HIST + 32 * k, k < 2 ? 32 : 6) : 0;
         d.be_hist_n = rr.n; d.be_hist_bits = rr.bits;
@@ -304,6 +309,7 @@ int main(int argc, char** argv)
             if (fl.size() > 3) FAIL("%zu requests in flight", fl.size());
         }
         if (d.ic_req_valid && credit <= 0) FAIL("request without credit");
+        if (d.ic_req_valid && (stop || redirect)) FAIL("a request in a cycle of %s", stop ? "a stop" : "a redirect");
 
         // ---------- the block (F2): what the front end must decide
         bool out = d.out_valid;
@@ -315,7 +321,7 @@ int main(int argc, char** argv)
                 Fl f = fl.front();
                 nresp++;
                 if (out) {
-                    if (redirect) FAIL("a block in a redirect cycle");
+                    if (redirect || stop) FAIL("a block in a cycle of %s", stop ? "a stop" : "a redirect");
                     uint64_t line = f.pc >> 3; int start = (int)(f.pc & 7);
                     if (f.pc != (uint64_t)d.out_pc) FAIL("out_pc %llx, request %llx", (unsigned long long)d.out_pc, (unsigned long long)f.pc);
                     if (started && f.pc != e_pc) FAIL("block at %llx, expected %llx", (unsigned long long)f.pc, (unsigned long long)e_pc);
@@ -441,7 +447,7 @@ int main(int argc, char** argv)
         // ---------- the clock
         d.clk = 1; d.eval(); d.clk = 0; d.eval();
         // mirrors
-        if (redirect) { for (auto& x : fl) x.bek = true; }
+        if (redirect || stop) { for (auto& x : fl) x.bek = true; }
         if (redirect || ovr) m_pc = redirect ? rr.pc : ub_utgt;
         else if (acc) { if (ub_next_known) m_pc = ub_next; else m_pc_known = false; }
         if (ub_upd) {

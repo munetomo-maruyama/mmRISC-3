@@ -41,7 +41,11 @@
 // A misprediction found in the back end (be_redirect) restarts fetch at
 // be_pc and puts back the history (the block's TAGE metadata and its slot
 // outcomes) and the RAS (its snapshot, and the push or pop of the
-// mispredicted transfer), all from the FTQ. TAGE is updated at commit
+// mispredicted transfer), all from the FTQ (OOO_FERS, a cycle after the
+// back end's redirect). In that cycle before, be_stop (OOO_CTRL's
+// redirect) stops fetch at once: nothing in flight is used and nothing is
+// asked, so no block of the wrong path reaches the fetch buffer or the FTQ
+// while the restore is read (Plan/OOC.md 21). TAGE is updated at commit
 // (up_*), the BTB at the resolution of an indirect jump (bt_*).
 //---------------------------------------------------------------------------
 
@@ -57,6 +61,7 @@ module OOO_FETCH
         input  logic                rst_n,
 
         // back end
+        input  logic                be_stop,    // OOO_CTRL fe_redirect: stop now (the restore comes next cycle)
         input  logic                be_redirect,
         input  logic [VA-1:1]       be_pc,
         input  logic [69:0]         be_hist,
@@ -128,7 +133,10 @@ module OOO_FETCH
         nlive = '0;
         for (int k = 0; k < 4; k++) if (3'(k) < qn && qlive[qh + 2'(k)]) nlive = nlive + 3'd1;
     end
-    assign ic_req_valid = !be_redirect && {1'b0, credit} > {2'b0, nlive};
+    logic stop;                         // a redirect now or the cycle before it (what is in
+                                        // flight then is dropped by the redirect)
+    assign stop         = be_stop || be_redirect;
+    assign ic_req_valid = !stop && {1'b0, credit} > {2'b0, nlive};
     assign ic_req_pc    = pc_q;
     assign acc          = ic_req_valid && ic_req_ready;
 
@@ -141,7 +149,7 @@ module OOO_FETCH
     logic [VA-1:1] hpc;                 // the oldest request's address, in a register of its own
     logic          carry_v;              // (not read from the queue: it starts the longest path, Plan/OOC.md 14.5)
     logic [15:0]   carry;
-    assign f2  = ic_resp_valid && qlive[qh] && !be_redirect;
+    assign f2  = ic_resp_valid && qlive[qh] && !stop;
 
     logic [7:0]          iv, br, jal, jalr, call, ret;
     logic [7:0][VA-1:1]  tgt;

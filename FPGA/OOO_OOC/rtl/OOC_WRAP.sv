@@ -20,6 +20,7 @@
 //   OOC_LSUDC   the LSU, the D$ adapter and mmRISC-2's D$ together
 //   OOC_CTRL    the control (branch masks, go, recovery, commit)
 //   OOC_DSREG   the DS register's payload: ready bits snooping the wakeups
+//   OOC_FERS    the front end's restore with the FTQ it reads
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -271,7 +272,7 @@ module OOC_ROB
         input  logic          clk,
         input  logic          rst_n,
         input  logic [217:0]  in,
-        output logic [236:0]  out
+        output logic [242:0]  out
     );
     logic [217:0] q;
     always_ff @(posedge clk) q <= in;
@@ -297,6 +298,7 @@ module OOC_ROB
     logic replay;
     logic [37:0] replay_pc;
     logic [5:0] cmt_ftq;
+    logic [2:0] rcv_ftq, rcv_end;
     OOO_ROB #(.NROB(24), .ROBW(5), .VA(39), .TAGW(6), .CW(3), .NCMP(4)) u_rob
         (.clk(clk), .rst_n(rst_n),
          .disp_valid(q[1:0]), .disp_pc(q[77:2]), .disp_wr(q[79:78]), .disp_arch(q[89:80]),
@@ -309,9 +311,9 @@ module OOC_ROB
          .cmt_wr(cmt_wr), .cmt_arch(cmt_arch), .cmt_new(cmt_new), .cmt_old(cmt_old),
          .cmt_pc(cmt_pc), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_instret(cmt_instret),
          .trap(trap), .trap_cause(trap_cause), .trap_pc(trap_pc),
-         .replay(replay), .replay_pc(replay_pc));
+         .replay(replay), .replay_pc(replay_pc), .rcv_ftq(rcv_ftq), .rcv_end(rcv_end));
     always_ff @(posedge clk)
-        out <= {rob_avail, disp_rob, restore, restore_rob, restore_ckpt, head_rob, head_ns, cmt_valid, cmt_wr, cmt_arch, cmt_new, cmt_old, cmt_pc, cmt_ld_n, cmt_st_n, cmt_instret, trap, trap_cause, trap_pc, replay, replay_pc, cmt_ftq};
+        out <= {rob_avail, disp_rob, restore, restore_rob, restore_ckpt, head_rob, head_ns, cmt_valid, cmt_wr, cmt_arch, cmt_new, cmt_old, cmt_pc, cmt_ld_n, cmt_st_n, cmt_instret, trap, trap_cause, trap_pc, replay, replay_pc, cmt_ftq, rcv_ftq, rcv_end};
 endmodule : OOC_ROB
 
 //---------------------------------------------------------------------------
@@ -400,10 +402,10 @@ module OOC_FRONT
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [683:0]  in,
+        input  logic [684:0]  in,
         output logic [559:0]  out
     );
-    logic [683:0] q;
+    logic [684:0] q;
     always_ff @(posedge clk) q <= in;
     logic ic_req_valid;
     logic [37:0] ic_req_pc;
@@ -418,7 +420,7 @@ module OOC_FRONT
     logic [37:0] out_ras_val;
     OOO_FETCH #(.VA(39), .MW(270)) u_fetch
         (
-         .clk(clk), .rst_n(rst_n), .be_redirect(q[0]), .be_pc(q[38:1]), .be_hist(q[108:39]),
+         .clk(clk), .rst_n(rst_n), .be_stop(q[684]), .be_redirect(q[0]), .be_pc(q[38:1]), .be_hist(q[108:39]),
          .be_hist_n(q[110:109]), .be_hist_bits(q[113:111]), .be_ras_ptr(q[117:114]), .be_ras_val(q[155:118]),
          .be_ras_push(q[156]), .be_ras_addr(q[194:157]), .be_ras_pop(q[195]), .credit(q[199:196]),
          .ic_req_ready(q[200]), .ic_resp_valid(q[201]), .ic_resp_data(q[329:202]), .up_valid(q[330]),
@@ -676,7 +678,7 @@ module OOC_CTRL
         input  logic          clk,
         input  logic          rst_n,
         input  logic [240:0]  in,
-        output logic [113:0]  out
+        output logic [114:0]  out
     );
     logic [240:0] q;
     always_ff @(posedge clk) q <= in;
@@ -695,7 +697,7 @@ module OOC_CTRL
             replay, replay_pc, trap_vec, head_ns, cmt_valid, cmt_wr, cmt_old, cmt_ld_n, cmt_st_n, cmt_ftq, iss_ns} = q;
     logic [1:0]       r_go, ds_valid, d_go;
     logic [1:0][5:0]  d_bmask;
-    logic             flush_all, restore, fe_redirect, fe_flush, ns_ok, ds_load;
+    logic             flush_all, restore, restore_port, fe_redirect, fe_flush, ns_ok, ds_load;
     logic [1:0]       free_valid, lq_commit, sq_commit, ftq_pop;
     logic [1:0][5:0]  free_tag;
     logic [2:0]       restore_id, restore_ftq;
@@ -713,12 +715,12 @@ module OOC_CTRL
          .replay_pc(replay_pc), .trap_vec(trap_vec), .head_ns(head_ns), .cmt_valid(cmt_valid), .cmt_wr(cmt_wr),
          .cmt_old(cmt_old), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_ftq(cmt_ftq), .iss_ns(iss_ns), .ns_ok(ns_ok),
          .fe_flush(fe_flush),
-         .flush_all(flush_all), .restore(restore), .restore_id(restore_id), .restore_lq_tail(restore_lq_tail),
+         .flush_all(flush_all), .restore(restore), .restore_id(restore_id), .restore_port(restore_port), .restore_lq_tail(restore_lq_tail),
          .restore_sq_tail(restore_sq_tail), .restore_ftq(restore_ftq), .kill(kill), .clr(clr),
          .fe_redirect(fe_redirect), .fe_pc(fe_pc), .live(live), .free_valid(free_valid), .free_tag(free_tag),
          .lq_commit(lq_commit), .sq_commit(sq_commit), .ftq_pop(ftq_pop));
     always_ff @(posedge clk)
-        out <= {r_go, ds_valid, ds_load, d_go, d_bmask, flush_all, restore, restore_id, restore_lq_tail, restore_sq_tail,
+        out <= {r_go, ds_valid, ds_load, d_go, d_bmask, flush_all, restore, restore_port, restore_id, restore_lq_tail, restore_sq_tail,
                 restore_ftq, kill, clr, fe_redirect, fe_pc, live, ns_ok, fe_flush, free_valid, free_tag, lq_commit,
                 sq_commit, ftq_pop};
 endmodule : OOC_CTRL
@@ -751,3 +753,68 @@ module OOC_DSREG
          .ds_src(ds_src), .ds_use(ds_use), .ds_rdy(ds_rdy), .ds_data(ds_data));
     always_ff @(posedge clk) out <= {ds_src, ds_use, ds_rdy, ds_data};
 endmodule : OOC_DSREG
+
+//---------------------------------------------------------------------------
+// OOC_FERS: the front end's restore (Plan/OOC.md 21) with the FTQ it reads
+// (8 entries of the front end's 312 bits: TAGE's 270, the RAS snapshot 42),
+// inputs and outputs registered: the path is the restore point's register
+// -> the FTQ's read (LUTRAM) -> the history's slot bits and the RAS address
+// -> be_* (into OOO_FETCH's TAGE history and RAS in the core)
+//---------------------------------------------------------------------------
+module OOC_FERS
+    (
+        input  logic          clk,
+        input  logic          rst_n,
+        input  logic [461:0]  in,
+        output logic [199:0]  out
+    );
+    logic [461:0] q;
+    always_ff @(posedge clk) q <= in;
+    // the FTQ's side
+    logic             push_valid, push_taken, restore, flush_all;
+    logic [37:0]      push_pc, push_target;
+    logic [2:0]       push_end, restore_idx;
+    logic [311:0]     push_meta;
+    logic [1:0]       pop;
+    // the restore's side
+    logic             fe_redirect, fe_flush, restore_port;
+    logic [37:0]      fe_pc;
+    logic [2:0]       restore_ftq, rcv_ftq, rcv_end;
+    logic [1:0][2:0]  br_e;
+    logic [1:0]       br_taken, br_call, br_ret;
+    assign {push_valid, push_pc, push_target, push_taken, push_end, push_meta, pop, restore, restore_idx, flush_all,
+            fe_redirect, fe_flush, fe_pc, restore_ftq, restore_port, br_e, br_taken, br_call, br_ret, rcv_ftq, rcv_end} = q;
+
+    logic             push_ready;
+    logic [2:0]       push_idx, rs_idx;
+    logic [37:0]      ft_pc, ft_target;
+    logic             ft_taken;
+    logic [2:0]       ft_end;
+    logic [311:0]     ft_meta;
+    OOO_FTQ #(.NFTQ(8), .FTQW(3), .VA(39), .MW(312)) u_ftq
+        (.clk(clk), .rst_n(rst_n), .push_ready(push_ready), .push_valid(push_valid), .push_pc(push_pc),
+         .push_target(push_target), .push_taken(push_taken), .push_end(push_end), .push_meta(push_meta),
+         .push_idx(push_idx), .rd_idx('0), .rd_pc(), .br_idx(rs_idx), .br_pc(ft_pc), .br_target(ft_target),
+         .br_taken(ft_taken), .br_end(ft_end), .br_meta(ft_meta), .pop(pop), .restore(restore),
+         .restore_idx(restore_idx), .flush_all(flush_all));
+
+    // the metadata: TAGE's (history, predictions, slot valid bits, parcels at its top), then the RAS snapshot
+    logic             be_redirect, be_ras_push, be_ras_pop;
+    logic [37:0]      be_pc, be_ras_val, be_ras_addr;
+    logic [69:0]      be_hist;
+    logic [1:0]       be_hist_n;
+    logic [2:0]       be_hist_bits;
+    logic [3:0]       be_ras_ptr;
+    OOO_FERS #(.VA(39), .FTQW(3), .HL(70), .RW(4)) u_fers
+        (.clk(clk), .rst_n(rst_n), .fe_redirect(fe_redirect), .fe_flush(fe_flush), .fe_pc(fe_pc),
+         .restore_ftq(restore_ftq), .restore_port(restore_port), .br_e(br_e), .br_taken(br_taken),
+         .br_call(br_call), .br_ret(br_ret), .rcv_ftq(rcv_ftq), .rcv_end(rcv_end),
+         .rs_idx(rs_idx), .ft_line(ft_pc[38:4]), .ft_hist(ft_meta[311:242]),
+         .ft_sv(ft_meta[238:236]), .ft_par(ft_meta[235:227]), .ft_ras_ptr(ft_meta[41:38]), .ft_ras_val(ft_meta[37:0]),
+         .be_redirect(be_redirect), .be_pc(be_pc), .be_hist(be_hist), .be_hist_n(be_hist_n),
+         .be_hist_bits(be_hist_bits), .be_ras_ptr(be_ras_ptr), .be_ras_val(be_ras_val),
+         .be_ras_push(be_ras_push), .be_ras_addr(be_ras_addr), .be_ras_pop(be_ras_pop));
+    always_ff @(posedge clk)
+        out <= {push_ready, push_idx, be_redirect, be_pc, be_hist, be_hist_n, be_hist_bits, be_ras_ptr, be_ras_val,
+                be_ras_push, be_ras_addr, be_ras_pop};
+endmodule : OOC_FERS

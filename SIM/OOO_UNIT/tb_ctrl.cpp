@@ -27,6 +27,7 @@
 //   - restore: the id, the LSU tails and the FTQ index given at the
 //     branch's dispatch
 //   - the redirect: trap vector, replay pc, or the restoring branch's next pc
+//     and its port (restore_port, for OOO_FERS)
 //   - trap / replay: fe_flush at once, flush_all a cycle later, and nothing
 //     renamed, dispatched or cleared in either cycle
 //   - ns_ok: registered: the head non-speculative and not run yet in the
@@ -188,6 +189,7 @@ int main(int argc, char** argv)
                 FAIL("restore tails %d %d ftq %d, expected %d %d %d", (int)d.restore_lq_tail, (int)d.restore_sq_tail, (int)d.restore_ftq, rs->lqt, rs->sqt, rs->ftq);
             uint64_t e = nxt[rs == br[0] ? 0 : 1];
             if (fepc != e) FAIL("fe_pc %llx, expected %llx (restore)", (unsigned long long)fepc, (unsigned long long)e);
+            if ((int)d.restore_port != (rs == br[0] ? 0 : 1)) FAIL("restore_port %d, expected %d", (int)d.restore_port, rs == br[0] ? 0 : 1);
         }
         if (trap && fepc != tvec) FAIL("fe_pc %llx, expected the trap vector %llx", (unsigned long long)fepc, (unsigned long long)tvec);
         if (replay && fepc != rpc) FAIL("fe_pc %llx, expected the replay pc %llx", (unsigned long long)fepc, (unsigned long long)rpc);

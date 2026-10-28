@@ -2653,3 +2653,31 @@ synth_ooo.bat OOC_DSREG
 ```text
 I ran synth_ooo.bat for OOC_RENAME, OOO_IQ, OOC_LSU and OOC_DSREG. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+All four fit in 50 MHz. The busy bits can take the late wakeup tags directly.
+
+| Block | LUT | Before | Worst slack | Note |
+|---|---|---|---|---|
+| OOC_RENAME | **2,702** | 2,464 | **+3.443 ns** | the worst path is the new one: `wk_tag` (arriving at 13 ns) → `busy`, 3 levels, 4.477 ns |
+| OOO_IQ | **1,874** | 1,866 | +1.248 ns | +8 for the wakeup tags as outputs |
+| OOC_LSU | **1,942** | 2,290 | +6.875 ns | −348 |
+| OOC_DSREG | **69** | new | +6.835 ns | Yosys estimated 121 |
+
+- **Renaming:** 3.4 ns to spare even with the tags assumed at 13 ns. The alternative raised last time (a cycle later, the DS register snooping two cycles back) is not needed.
+- **The LSU's −348:** more than the change explains, and the reason is not clear.
+  - I think Vivado could simplify the LQ / SQ write conditions now that they all share `e_iss`.
+  - Flip-flops are +18 as expected (`m_bm` and the harness's 12 inputs), so nothing was trimmed away.
+- **Budget:** renaming +238, the LSU −348, the IQ +8 added. DSREG's 69 stays inside the control's estimate (the control so far 350 + 69).
+  - The gap is now **3.2k / 4.6k / 5.9k LUTs** (low / middle / high), 0.1k less than before.
+
+Recorded in section 20.4 of Plan/OOC(_J).md and 4.4 of Doc/UARCH(_J).md, with the English of answer 71 in PROMPT.md; pushed to dev in commit 921385d.
+<!-- /answer -->
+
+## 73. 2026-10-28 18:39:36 JST
+
+```text
+Go on with the control's next part: the front end's restore (the FTQ entry's history and RAS state into OOO_FETCH).
+```
