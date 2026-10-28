@@ -2100,3 +2100,41 @@ The author decided D-16 for variant A of 23.4 (`Doc/PROMPT.md` entry 81).
   chip, every block of it summed so that boundary effects cancel) run out of context with this flow gives the ratio
   for a whole core.
 
+
+---
+
+## 25. The calibration: mmRISC-2's whole CPU_CORE out of context (2026-10-28)
+
+Asked by 24.5: the same RTL was 1.06 × to 1.74 × larger in mmRISC-2's chip than out of context, and the out-of-order
+engine (about 21k LUTs) is measured out of context only.
+
+### 25.1 The run
+
+`synth_ooo.bat MM2_CPU_CORE`: `synth_ooo.tcl` reads mmRISC-2 Rev.02's CPU_CORE alone from `../../../mmRISC-2/RTL`
+(beside this repository; mmRISC-3's copies of CORE_CSR / CORE_DEC have the same module names) and synthesizes it with
+the same flow (xc7a100tcsg324-1, 20 ns, out of context, place and route), into `output/MM2_CPU_CORE/summary.txt` with
+the rows of its instances. CPU_CORE's parameter defaults are those of the chip build (PMP 8, ITLB 16 / DTLB 32, BTB
+256, the fetch queue 16 parcels, MEM_BASE 0x8000_0000). The sources lint clean alone (Verilator).
+
+| Block in the chip (`Plan/ISSUES.md` 2) | LUT in the chip | Out of context |
+|---|---|---|
+| CPU_CORE | **32,929** | (this run) |
+| FPU_PIPE | 8,815 | |
+| CORE_IFU | 5,738 | |
+| CORE_CSR | 4,750 | 2,732 (24.5, through OOC_CSRU) |
+| CORE_MMU | 4,190 | |
+| CORE_MDU | 3,423 | 3,240 (24.4, through OOC_MDUP) |
+| CPU_CORE's own logic | 2,511 | |
+| CORE_EXU | 1,670 | |
+
+### 25.2 What it decides
+
+- The ratio R = 32,929 / the run's total, for a whole core: the sum of every block, so logic that moves across the
+  hierarchy's boundaries in the chip cancels out.
+- **R about 1.0 to 1.15**: out of context is a fair measure of a core; the per-block differences of 24.5 are logic
+  attributed to other blocks in the chip. The budget stands.
+- **R about 1.3 or more**: the chip really needs more LUTs than out of context (placement at 79 % LUTs and 93 %
+  slices, timing-driven replication). The out-of-order engine's 21k would count about 21k × R in the chip: the gap
+  grows by (R − 1) × 21k, 6k at R = 1.3. Then a whole-chip trial comes before G1 (as L10 already wants) and the plan
+  of the levers is redone.
+- The rows of the instances give R block by block, against the chip's rows above.

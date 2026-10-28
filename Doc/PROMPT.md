@@ -3076,3 +3076,33 @@ synth_ooo.bat OOC_CSRU 20.0 1 "HPM=4"
 ```text
 I ran synth_ooo.bat OOC_CSRU 20.0 1 "HPM=4". Please check output/OOC_CSRU_HPM4/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+L1's saving measured out of context is **233 LUTs**. The budget, true to its base, keeps the −0.65k measured in the chip, so the gap stays at 3.5k / 4.9k / 6.2k LUTs. But comparing them brought out a large risk for the whole budget.
+
+| Run | LUT | FF | WNS |
+|---|---|---|---|
+| 4 HPM counters (mmRISC-2's configuration) | **2,770** (CORE_CSR 2,732 of it) | 2,623 | +2.081 ns |
+| 2 HPM counters (L1 applied) | 2,537 (CORE_CSR 2,499 of it) | 2,475 | +0.569 ns |
+| **L1's saving (out of context)** | **−233** | **−148** | |
+| L1's saving (measured in mmRISC-2's chip, REDUCE B1) | −0.65k | −0.15k | |
+
+- **How the budget takes it:** the budget counts mmRISC-2's blocks at their in-chip sizes, and B1's −0.65k was measured in the chip too. So L1 stays at −0.65k.
+
+**The risk found (a calibration is needed)**
+- The 4-counter configuration is exactly mmRISC-2's CORE_CSR (2,623 flip-flops here, 2,629 in the chip). Yet its LUTs are 2,732 alone and 4,750 in the chip: **1.74×**.
+- The other blocks with both numbers lean the same way: the D$ 1.41×, CORE_MDU 1.06×, L1's difference 2.8×.
+  - The flip-flops agree, so the logic is the same and the chip adds LUTs. Possible causes: the crowded placement at 79 % LUTs / 93 % slices, replication for timing, logic moving across the hierarchy, LiteX's synthesis settings.
+- **The out-of-order part (about 21k LUTs) has only out-of-context numbers.** If it grows the same way in the chip, the gap may grow by 1k (1.06×) to 15k (1.74×).
+- So before G1 I propose a calibration measuring the ratio for a whole core: mmRISC-2's whole CPU_CORE (32,929 LUTs in the chip) synthesized alone with this flow. Summing every block cancels the differences at the hierarchy's boundaries.
+
+Recorded in section 24.5 of Plan/OOC(_J).md, 4.1 / 6.4 of Doc/UARCH(_J).md and PROMPT.md (the English of answer 82); pushed to dev in commit b367994.
+<!-- /answer -->
+
+## 84. 2026-10-28 23:55:11 JST
+
+```text
+Set up the calibration: a synth_ooo run of mmRISC-2's whole CPU_CORE out of context, to compare with its 32,929 LUTs in the chip.
+```

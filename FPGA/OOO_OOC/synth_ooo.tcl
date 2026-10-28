@@ -8,6 +8,7 @@
 #
 #     top       OOC_ALU2 / OOC_FUSE / OOC_PRF / OOC_RENAME / OOO_IQ / OOO_UBTB / OOC_LSU / OOC_ROB
 #               / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC / OOC_IQPL / OOC_LSUDC / OOC_CTRL / OOC_DSREG / OOC_FERS / OOC_TRAP / OOC_SYS / OOC_CSRU / OOC_MDUP / OOC_PMUL
+#               / MM2_CPU_CORE (the calibration: mmRISC-2's whole CPU_CORE, below)
 #                                                          OOC_ALU2
 #     period    clock period in ns                         20.0 (50 MHz)
 #     impl      1 = also place and route                   1
@@ -17,6 +18,15 @@
 # utilization.rpt, timing_summary.rpt, timing_reg2reg.rpt, summary.txt
 # (the numbers in one place; for a harness of several blocks, the rows of
 # their instances too). Plan/OOC.md says what each run is for.
+#
+# MM2_CPU_CORE (Plan/OOC.md 25): mmRISC-2 Rev.02's CPU_CORE as it was in its
+# chip (CORE_IFU / EXU / LSU / RF / FRF / DEC / DECOMP / CSR / MDU, FPU_PIPE,
+# CORE_MMU; the parameters of its chip build are CPU_CORE's defaults), from
+# ../../../mmRISC-2/RTL beside this repository, read alone (mmRISC-3's
+# copies of CORE_CSR / CORE_DEC have the same names). Its LUTs out of
+# context against 32,929 in mmRISC-2's chip (Plan/ISSUES.md 2) give the
+# ratio of chip to out of context for a whole core. The ports are the
+# core's own, with the 30 % I/O delay: only the LUT count is the point.
 #
 # The OOC_* tops are register-to-register harnesses (rtl/OOC_WRAP.sv): the
 # path that counts is between flip-flops, as in the core. OOO_IQ and
@@ -52,6 +62,18 @@ file mkdir $outdir
 puts "INFO: $top $gens, clock period $period ns, place and route: $impl"
 
 set_part $part
+set synth_top $top
+if {$top eq "MM2_CPU_CORE"} {
+    set mm2 ../../../mmRISC-2/RTL/CPU
+    read_verilog -sv [list \
+        $mm2/CPU_MMU/MMU_PMP/MMU_PMP.sv $mm2/CPU_MMU/MMU_TLB/MMU_TLB.sv $mm2/CPU_MMU/MMU_PTW/MMU_PTW.sv \
+        $mm2/CPU_MMU/CORE_MMU/CORE_MMU.sv $mm2/CPU_CORE/CORE_DEC/CORE_DEC.sv $mm2/CPU_CORE/CORE_DECOMP/CORE_DECOMP.sv \
+        $mm2/CPU_CORE/CORE_CSR/CORE_CSR.sv $mm2/CPU_CORE/CORE_MDU/CORE_MDU.sv $mm2/CPU_CORE/CORE_FRF/CORE_FRF.sv \
+        $mm2/CPU_FPU/FPU_ROUND/FPU_ROUND.sv $mm2/CPU_FPU/FPU_PIPE/FPU_PIPE.sv $mm2/CPU_CORE/CORE_RF/CORE_RF.sv \
+        $mm2/CPU_CORE/CORE_BTB/CORE_BTB.sv $mm2/CPU_CORE/CORE_IFU/CORE_IFU.sv $mm2/CPU_CORE/CORE_EXU/CORE_EXU.sv \
+        $mm2/CPU_CORE/CORE_LSU/CORE_LSU.sv $mm2/CPU_CORE/CPU_CORE/CPU_CORE.sv]
+    set synth_top CPU_CORE
+} else {
 read_verilog -sv [list \
     $rtl/OOO_ALU/OOO_ALU.sv $rtl/OOO_ALU2/OOO_ALU2.sv $rtl/OOO_FUSE/OOO_FUSE.sv \
     $rtl/OOO_PRF/OOO_PRF.sv $rtl/OOO_RENAME/OOO_RENAME.sv $rtl/OOO_IQ/OOO_IQ.sv \
@@ -64,10 +86,11 @@ read_verilog -sv [list \
     $core/CORE_CSR/CORE_CSR.sv $rtl/OOO_CSRU/OOO_CSRU.sv $core/CORE_MDU/CORE_MDU.sv $rtl/OOO_MDUP/OOO_MDUP.sv $rtl/OOO_PMUL/OOO_PMUL.sv \
     $cache/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv $cache/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv \
     $cache/DCACHE/DCACHE.sv ./rtl/OOC_WRAP.sv]
+}
 
 set gargs {}
 foreach g $gens { lappend gargs -generic $g }
-synth_design -top $top -part $part -mode out_of_context {*}$gargs
+synth_design -top $synth_top -part $part -mode out_of_context {*}$gargs
 
 create_clock -name clk -period $period [get_ports clk]
 set io_dly [expr {0.3 * $period}]

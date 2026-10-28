@@ -5,6 +5,7 @@ REM
 REM   synth_ooo.bat            all runs below, 50 MHz, with place and route
 REM   synth_ooo.bat prf        the five register files only
 REM   synth_ooo.bat OOC_ALU2   one top only (the arguments of synth_ooo.tcl)
+REM   synth_ooo.bat MM2_CPU_CORE   the calibration: mmRISC-2's CPU_CORE (not in the loop below: it is long)
 REM
 REM vivado is itself a batch file: without "call" this one would end after
 REM the first run outside a loop (the register files did not run, 2026-10-24)
