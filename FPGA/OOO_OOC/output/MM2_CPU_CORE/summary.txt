@@ -1,0 +1,20 @@
+MM2_CPU_CORE   (period 20.0 ns, I/O delay 6.0 ns each side on the ports)
+after synthesis: 33286 LUTs (31155 logic + 1960 LUT RAM; 35800 LUT cells), 16270 FF, 32 DSP, 490 LUT RAM cells, 0.0 BRAM tiles
+after place and route: 33014 LUTs (30951 logic + 1960 LUT RAM; 35758 LUT cells), WNS -2.496 ns, register to register 0.002 ns (28 logic levels)
+instances (after place and route):
+    u_csr                  CORE_CSR               8251 LUTs (8251 logic + 0 LUT RAM), 2631 FF
+    u_fpu                  FPU_PIPE               8660 LUTs (8557 logic + 0 LUT RAM), 2690 FF
+      u_round              FPU_ROUND               963 LUTs (963 logic + 0 LUT RAM), 84 FF
+    u_frf                  CORE_FRF                549 LUTs (285 logic + 264 LUT RAM), 32 FF
+    u_ifu                  CORE_IFU               6614 LUTs (5094 logic + 1520 LUT RAM), 2650 FF
+      u_btb                CORE_BTB               3791 LUTs (2271 logic + 1520 LUT RAM), 256 FF
+    u_lsu                  CORE_LSU               1142 LUTs (1142 logic + 0 LUT RAM), 45 FF
+    u_mdu                  CORE_MDU               3410 LUTs (3410 logic + 0 LUT RAM), 925 FF
+    u_mmu                  CORE_MMU               4269 LUTs (4269 logic + 0 LUT RAM), 4621 FF
+      u_dtlb               MMU_TLB__parameterized0   2619 LUTs (2619 logic + 0 LUT RAM), 3109 FF
+      u_itlb               MMU_TLB                1146 LUTs (1146 logic + 0 LUT RAM), 1252 FF
+      u_pmp_d              MMU_PMP                   0 LUTs (0 logic + 0 LUT RAM), 0 FF
+      u_pmp_i              MMU_PMP_0                 0 LUTs (0 logic + 0 LUT RAM), 0 FF
+      u_pmp_w              MMU_PMP_1                 0 LUTs (0 logic + 0 LUT RAM), 0 FF
+      u_ptw                MMU_PTW                 382 LUTs (382 logic + 0 LUT RAM), 130 FF
+    u_rf                   CORE_RF                 390 LUTs (214 logic + 176 LUT RAM), 32 FF

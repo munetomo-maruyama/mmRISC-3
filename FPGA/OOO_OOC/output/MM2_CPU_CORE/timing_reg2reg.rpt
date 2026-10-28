@@ -1,0 +1,1156 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Thu Oct 29 00:23:03 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_timing -max_paths 10 -nworst 1 -path_type full -from [all_registers] -to [all_registers] -file ./output/MM2_CPU_CORE/timing_reg2reg.rpt
+| Design       : CPU_CORE
+| Device       : 7a100t-csg324
+| Speed File   : -1  PRODUCTION 1.23 2018-06-13
+| Design State : Routed
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             0.002ns  (required time - arrival time)
+  Source:                 fwd_a_wb_reg/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            mr_paddr_reg[17]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        19.943ns  (logic 6.193ns (31.054%)  route 13.750ns (68.946%))
+  Logic Levels:           28  (CARRY4=15 LUT3=2 LUT4=3 LUT5=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X36Y101        FDCE                         0.000     0.973 r  fwd_a_wb_reg/C
+    SLICE_X36Y101        FDCE (Prop_fdce_C_Q)         0.456     1.429 r  fwd_a_wb_reg/Q
+                         net (fo=64, routed)          1.277     2.706    u_mdu/fwd_a_wb
+    SLICE_X32Y99         LUT3 (Prop_lut3_I1_O)        0.154     2.860 r  u_mdu/pp_lh0__1_i_25/O
+                         net (fo=2, routed)           1.052     3.912    u_fpu/pp_lh0__1_i_25_n_0_alias
+    SLICE_X33Y112        LUT6 (Prop_lut6_I5_O)        0.327     4.239 r  u_fpu/wb_data[9]_i_1_comp_1/O
+                         net (fo=2, routed)           1.489     5.728    u_mdu/ma_size_reg[0]_repN_1_alias
+    SLICE_X43Y94         LUT6 (Prop_lut6_I2_O)        0.124     5.852 r  u_mdu/pp_lh0__1_i_8_comp_1_replica/O
+                         net (fo=1, routed)           0.616     6.468    u_ifu/u_btb/ex_a_fwd[9]_repN_alias
+    SLICE_X44Y98         CARRY4 (Prop_carry4_DI[1]_CO[3])
+                                                      0.507     6.975 r  u_ifu/u_btb/d_req_addr[11]_INST_0_i_2/CO[3]
+                         net (fo=1, routed)           0.000     6.975    u_ifu/u_btb/d_req_addr[11]_INST_0_i_2_n_0
+    SLICE_X44Y99         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.089 r  u_ifu/u_btb/d_req_addr[15]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.001     7.090    u_ifu/u_btb/d_req_addr[15]_INST_0_i_1_n_0
+    SLICE_X44Y100        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.204 r  u_ifu/u_btb/d_req_addr[19]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.204    u_ifu/u_btb/d_req_addr[19]_INST_0_i_1_n_0
+    SLICE_X44Y101        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.318 r  u_ifu/u_btb/d_req_addr[23]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.318    u_ifu/u_btb/d_req_addr[23]_INST_0_i_1_n_0
+    SLICE_X44Y102        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.432 r  u_ifu/u_btb/d_req_addr[27]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.432    u_ifu/u_btb/d_req_addr[27]_INST_0_i_1_n_0
+    SLICE_X44Y103        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.546 r  u_ifu/u_btb/d_req_addr[31]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.546    u_ifu/u_btb/d_req_addr[31]_INST_0_i_1_n_0
+    SLICE_X44Y104        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.894 r  u_ifu/u_btb/d_req_addr[35]_INST_0_i_1/O[1]
+                         net (fo=6, routed)           0.765     8.659    u_mmu/for_d_reg_i_4_0[33]
+    SLICE_X50Y104        LUT3 (Prop_lut3_I2_O)        0.303     8.962 r  u_mmu/ptw_vpn_r[21]_i_2/O
+                         net (fo=99, routed)          1.245    10.207    u_mmu/u_dtlb/ptw_vpn_r_reg[21]
+    SLICE_X52Y99         LUT6 (Prop_lut6_I1_O)        0.124    10.331 r  u_mmu/u_dtlb/mr_paddr[55]_i_395/O
+                         net (fo=1, routed)           0.000    10.331    u_mmu/u_dtlb/mr_paddr[55]_i_395_n_0
+    SLICE_X52Y99         CARRY4 (Prop_carry4_S[3]_CO[3])
+                                                      0.401    10.732 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_237/CO[3]
+                         net (fo=1, routed)           0.001    10.733    u_mmu/u_dtlb/mr_paddr_reg[55]_i_237_n_0
+    SLICE_X52Y100        CARRY4 (Prop_carry4_CI_CO[0])
+                                                      0.271    11.004 f  u_mmu/u_dtlb/mr_paddr_reg[55]_i_111/CO[0]
+                         net (fo=1, routed)           0.667    11.671    u_mmu/u_dtlb/vpn_match0052_out
+    SLICE_X58Y103        LUT5 (Prop_lut5_I2_O)        0.373    12.044 f  u_mmu/u_dtlb/mr_paddr[55]_i_40/O
+                         net (fo=2, routed)           1.124    13.168    u_mmu/u_dtlb/mr_paddr[55]_i_40_n_0
+    SLICE_X68Y106        LUT4 (Prop_lut4_I0_O)        0.124    13.292 r  u_mmu/u_dtlb/for_d_i_59/O
+                         net (fo=2, routed)           0.000    13.292    u_mmu/u_dtlb/mr_paddr[55]_i_97_n_0
+    SLICE_X68Y106        CARRY4 (Prop_carry4_S[2]_CO[3])
+                                                      0.398    13.690 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_36/CO[3]
+                         net (fo=1, routed)           0.000    13.690    u_mmu/u_dtlb/mr_paddr_reg[55]_i_36_n_0
+    SLICE_X68Y107        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.804 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_46/CO[3]
+                         net (fo=1, routed)           0.000    13.804    u_mmu/u_dtlb/mr_paddr_reg[55]_i_46_n_0
+    SLICE_X68Y108        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.918 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_49/CO[3]
+                         net (fo=1, routed)           0.000    13.918    u_mmu/u_dtlb/mr_paddr_reg[55]_i_49_n_0
+    SLICE_X68Y109        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.032 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_118/CO[3]
+                         net (fo=1, routed)           0.000    14.032    u_mmu/u_dtlb/mr_paddr_reg[55]_i_118_n_0
+    SLICE_X68Y110        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.146 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_64/CO[3]
+                         net (fo=1, routed)           0.000    14.146    u_mmu/u_dtlb/mr_paddr_reg[55]_i_64_n_0
+    SLICE_X68Y111        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334    14.480 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_67/O[1]
+                         net (fo=1, routed)           0.312    14.793    u_mmu/u_dtlb/mr_paddr_reg[55]_i_67_n_6
+    SLICE_X70Y111        LUT5 (Prop_lut5_I0_O)        0.303    15.096 f  u_mmu/u_dtlb/mr_paddr[55]_i_55/O
+                         net (fo=52, routed)          1.345    16.440    u_mmu/u_dtlb/mr_paddr[55]_i_55_n_0
+    SLICE_X68Y98         LUT4 (Prop_lut4_I0_O)        0.124    16.564 r  u_mmu/u_dtlb/mr_paddr[29]_i_45/O
+                         net (fo=1, routed)           0.294    16.859    u_mmu/u_dtlb/mr_paddr[29]_i_45_n_0
+    SLICE_X69Y98         LUT5 (Prop_lut5_I4_O)        0.124    16.983 r  u_mmu/u_dtlb/mr_paddr[29]_i_25/O
+                         net (fo=1, routed)           0.550    17.533    u_mmu/u_dtlb/mr_paddr[29]_i_25_n_0
+    SLICE_X69Y97         LUT4 (Prop_lut4_I1_O)        0.124    17.657 r  u_mmu/u_dtlb/mr_paddr[29]_i_8/O
+                         net (fo=2, routed)           0.972    18.629    u_mmu/u_dtlb/mr_paddr[29]_i_8_n_0
+    SLICE_X72Y99         LUT6 (Prop_lut6_I2_O)        0.124    18.753 r  u_mmu/u_dtlb/mr_paddr[20]_i_2/O
+                         net (fo=9, routed)           2.039    20.792    u_mmu/u_dtlb/mr_paddr[20]_i_2_n_0
+    SLICE_X83Y73         LUT6 (Prop_lut6_I1_O)        0.124    20.916 r  u_mmu/u_dtlb/mr_paddr[17]_i_1/O
+                         net (fo=1, routed)           0.000    20.916    d_tr_paddr[17]
+    SLICE_X83Y73         FDCE                                         r  mr_paddr_reg[17]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X83Y73         FDCE (Setup_fdce_C_D)        0.029    20.918    mr_paddr_reg[17]
+  -------------------------------------------------------------------
+                         required time                         20.918    
+                         arrival time                         -20.916    
+  -------------------------------------------------------------------
+                         slack                                  0.002    
+
+Slack (MET) :             0.079ns  (required time - arrival time)
+  Source:                 fwd_a_wb_reg/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            mr_paddr_reg[16]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        19.866ns  (logic 6.193ns (31.173%)  route 13.673ns (68.827%))
+  Logic Levels:           28  (CARRY4=15 LUT3=2 LUT4=3 LUT5=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X36Y101        FDCE                         0.000     0.973 r  fwd_a_wb_reg/C
+    SLICE_X36Y101        FDCE (Prop_fdce_C_Q)         0.456     1.429 r  fwd_a_wb_reg/Q
+                         net (fo=64, routed)          1.277     2.706    u_mdu/fwd_a_wb
+    SLICE_X32Y99         LUT3 (Prop_lut3_I1_O)        0.154     2.860 r  u_mdu/pp_lh0__1_i_25/O
+                         net (fo=2, routed)           1.052     3.912    u_fpu/pp_lh0__1_i_25_n_0_alias
+    SLICE_X33Y112        LUT6 (Prop_lut6_I5_O)        0.327     4.239 r  u_fpu/wb_data[9]_i_1_comp_1/O
+                         net (fo=2, routed)           1.489     5.728    u_mdu/ma_size_reg[0]_repN_1_alias
+    SLICE_X43Y94         LUT6 (Prop_lut6_I2_O)        0.124     5.852 r  u_mdu/pp_lh0__1_i_8_comp_1_replica/O
+                         net (fo=1, routed)           0.616     6.468    u_ifu/u_btb/ex_a_fwd[9]_repN_alias
+    SLICE_X44Y98         CARRY4 (Prop_carry4_DI[1]_CO[3])
+                                                      0.507     6.975 r  u_ifu/u_btb/d_req_addr[11]_INST_0_i_2/CO[3]
+                         net (fo=1, routed)           0.000     6.975    u_ifu/u_btb/d_req_addr[11]_INST_0_i_2_n_0
+    SLICE_X44Y99         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.089 r  u_ifu/u_btb/d_req_addr[15]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.001     7.090    u_ifu/u_btb/d_req_addr[15]_INST_0_i_1_n_0
+    SLICE_X44Y100        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.204 r  u_ifu/u_btb/d_req_addr[19]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.204    u_ifu/u_btb/d_req_addr[19]_INST_0_i_1_n_0
+    SLICE_X44Y101        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.318 r  u_ifu/u_btb/d_req_addr[23]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.318    u_ifu/u_btb/d_req_addr[23]_INST_0_i_1_n_0
+    SLICE_X44Y102        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.432 r  u_ifu/u_btb/d_req_addr[27]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.432    u_ifu/u_btb/d_req_addr[27]_INST_0_i_1_n_0
+    SLICE_X44Y103        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.546 r  u_ifu/u_btb/d_req_addr[31]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.546    u_ifu/u_btb/d_req_addr[31]_INST_0_i_1_n_0
+    SLICE_X44Y104        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.894 r  u_ifu/u_btb/d_req_addr[35]_INST_0_i_1/O[1]
+                         net (fo=6, routed)           0.765     8.659    u_mmu/for_d_reg_i_4_0[33]
+    SLICE_X50Y104        LUT3 (Prop_lut3_I2_O)        0.303     8.962 r  u_mmu/ptw_vpn_r[21]_i_2/O
+                         net (fo=99, routed)          1.245    10.207    u_mmu/u_dtlb/ptw_vpn_r_reg[21]
+    SLICE_X52Y99         LUT6 (Prop_lut6_I1_O)        0.124    10.331 r  u_mmu/u_dtlb/mr_paddr[55]_i_395/O
+                         net (fo=1, routed)           0.000    10.331    u_mmu/u_dtlb/mr_paddr[55]_i_395_n_0
+    SLICE_X52Y99         CARRY4 (Prop_carry4_S[3]_CO[3])
+                                                      0.401    10.732 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_237/CO[3]
+                         net (fo=1, routed)           0.001    10.733    u_mmu/u_dtlb/mr_paddr_reg[55]_i_237_n_0
+    SLICE_X52Y100        CARRY4 (Prop_carry4_CI_CO[0])
+                                                      0.271    11.004 f  u_mmu/u_dtlb/mr_paddr_reg[55]_i_111/CO[0]
+                         net (fo=1, routed)           0.667    11.671    u_mmu/u_dtlb/vpn_match0052_out
+    SLICE_X58Y103        LUT5 (Prop_lut5_I2_O)        0.373    12.044 f  u_mmu/u_dtlb/mr_paddr[55]_i_40/O
+                         net (fo=2, routed)           1.124    13.168    u_mmu/u_dtlb/mr_paddr[55]_i_40_n_0
+    SLICE_X68Y106        LUT4 (Prop_lut4_I0_O)        0.124    13.292 r  u_mmu/u_dtlb/for_d_i_59/O
+                         net (fo=2, routed)           0.000    13.292    u_mmu/u_dtlb/mr_paddr[55]_i_97_n_0
+    SLICE_X68Y106        CARRY4 (Prop_carry4_S[2]_CO[3])
+                                                      0.398    13.690 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_36/CO[3]
+                         net (fo=1, routed)           0.000    13.690    u_mmu/u_dtlb/mr_paddr_reg[55]_i_36_n_0
+    SLICE_X68Y107        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.804 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_46/CO[3]
+                         net (fo=1, routed)           0.000    13.804    u_mmu/u_dtlb/mr_paddr_reg[55]_i_46_n_0
+    SLICE_X68Y108        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.918 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_49/CO[3]
+                         net (fo=1, routed)           0.000    13.918    u_mmu/u_dtlb/mr_paddr_reg[55]_i_49_n_0
+    SLICE_X68Y109        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.032 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_118/CO[3]
+                         net (fo=1, routed)           0.000    14.032    u_mmu/u_dtlb/mr_paddr_reg[55]_i_118_n_0
+    SLICE_X68Y110        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.146 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_64/CO[3]
+                         net (fo=1, routed)           0.000    14.146    u_mmu/u_dtlb/mr_paddr_reg[55]_i_64_n_0
+    SLICE_X68Y111        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334    14.480 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_67/O[1]
+                         net (fo=1, routed)           0.312    14.793    u_mmu/u_dtlb/mr_paddr_reg[55]_i_67_n_6
+    SLICE_X70Y111        LUT5 (Prop_lut5_I0_O)        0.303    15.096 f  u_mmu/u_dtlb/mr_paddr[55]_i_55/O
+                         net (fo=52, routed)          1.345    16.440    u_mmu/u_dtlb/mr_paddr[55]_i_55_n_0
+    SLICE_X68Y98         LUT4 (Prop_lut4_I0_O)        0.124    16.564 r  u_mmu/u_dtlb/mr_paddr[29]_i_45/O
+                         net (fo=1, routed)           0.294    16.859    u_mmu/u_dtlb/mr_paddr[29]_i_45_n_0
+    SLICE_X69Y98         LUT5 (Prop_lut5_I4_O)        0.124    16.983 r  u_mmu/u_dtlb/mr_paddr[29]_i_25/O
+                         net (fo=1, routed)           0.550    17.533    u_mmu/u_dtlb/mr_paddr[29]_i_25_n_0
+    SLICE_X69Y97         LUT4 (Prop_lut4_I1_O)        0.124    17.657 r  u_mmu/u_dtlb/mr_paddr[29]_i_8/O
+                         net (fo=2, routed)           0.972    18.629    u_mmu/u_dtlb/mr_paddr[29]_i_8_n_0
+    SLICE_X72Y99         LUT6 (Prop_lut6_I2_O)        0.124    18.753 r  u_mmu/u_dtlb/mr_paddr[20]_i_2/O
+                         net (fo=9, routed)           1.963    20.715    u_mmu/u_dtlb/mr_paddr[20]_i_2_n_0
+    SLICE_X83Y70         LUT6 (Prop_lut6_I1_O)        0.124    20.839 r  u_mmu/u_dtlb/mr_paddr[16]_i_1/O
+                         net (fo=1, routed)           0.000    20.839    d_tr_paddr[16]
+    SLICE_X83Y70         FDCE                                         r  mr_paddr_reg[16]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X83Y70         FDCE (Setup_fdce_C_D)        0.029    20.918    mr_paddr_reg[16]
+  -------------------------------------------------------------------
+                         required time                         20.918    
+                         arrival time                         -20.839    
+  -------------------------------------------------------------------
+                         slack                                  0.079    
+
+Slack (MET) :             0.323ns  (required time - arrival time)
+  Source:                 fwd_a_wb_reg/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            mr_paddr_reg[19]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        19.622ns  (logic 6.193ns (31.561%)  route 13.429ns (68.439%))
+  Logic Levels:           28  (CARRY4=15 LUT3=2 LUT4=3 LUT5=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X36Y101        FDCE                         0.000     0.973 r  fwd_a_wb_reg/C
+    SLICE_X36Y101        FDCE (Prop_fdce_C_Q)         0.456     1.429 r  fwd_a_wb_reg/Q
+                         net (fo=64, routed)          1.277     2.706    u_mdu/fwd_a_wb
+    SLICE_X32Y99         LUT3 (Prop_lut3_I1_O)        0.154     2.860 r  u_mdu/pp_lh0__1_i_25/O
+                         net (fo=2, routed)           1.052     3.912    u_fpu/pp_lh0__1_i_25_n_0_alias
+    SLICE_X33Y112        LUT6 (Prop_lut6_I5_O)        0.327     4.239 r  u_fpu/wb_data[9]_i_1_comp_1/O
+                         net (fo=2, routed)           1.489     5.728    u_mdu/ma_size_reg[0]_repN_1_alias
+    SLICE_X43Y94         LUT6 (Prop_lut6_I2_O)        0.124     5.852 r  u_mdu/pp_lh0__1_i_8_comp_1_replica/O
+                         net (fo=1, routed)           0.616     6.468    u_ifu/u_btb/ex_a_fwd[9]_repN_alias
+    SLICE_X44Y98         CARRY4 (Prop_carry4_DI[1]_CO[3])
+                                                      0.507     6.975 r  u_ifu/u_btb/d_req_addr[11]_INST_0_i_2/CO[3]
+                         net (fo=1, routed)           0.000     6.975    u_ifu/u_btb/d_req_addr[11]_INST_0_i_2_n_0
+    SLICE_X44Y99         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.089 r  u_ifu/u_btb/d_req_addr[15]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.001     7.090    u_ifu/u_btb/d_req_addr[15]_INST_0_i_1_n_0
+    SLICE_X44Y100        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.204 r  u_ifu/u_btb/d_req_addr[19]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.204    u_ifu/u_btb/d_req_addr[19]_INST_0_i_1_n_0
+    SLICE_X44Y101        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.318 r  u_ifu/u_btb/d_req_addr[23]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.318    u_ifu/u_btb/d_req_addr[23]_INST_0_i_1_n_0
+    SLICE_X44Y102        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.432 r  u_ifu/u_btb/d_req_addr[27]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.432    u_ifu/u_btb/d_req_addr[27]_INST_0_i_1_n_0
+    SLICE_X44Y103        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.546 r  u_ifu/u_btb/d_req_addr[31]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.546    u_ifu/u_btb/d_req_addr[31]_INST_0_i_1_n_0
+    SLICE_X44Y104        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.894 r  u_ifu/u_btb/d_req_addr[35]_INST_0_i_1/O[1]
+                         net (fo=6, routed)           0.765     8.659    u_mmu/for_d_reg_i_4_0[33]
+    SLICE_X50Y104        LUT3 (Prop_lut3_I2_O)        0.303     8.962 r  u_mmu/ptw_vpn_r[21]_i_2/O
+                         net (fo=99, routed)          1.245    10.207    u_mmu/u_dtlb/ptw_vpn_r_reg[21]
+    SLICE_X52Y99         LUT6 (Prop_lut6_I1_O)        0.124    10.331 r  u_mmu/u_dtlb/mr_paddr[55]_i_395/O
+                         net (fo=1, routed)           0.000    10.331    u_mmu/u_dtlb/mr_paddr[55]_i_395_n_0
+    SLICE_X52Y99         CARRY4 (Prop_carry4_S[3]_CO[3])
+                                                      0.401    10.732 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_237/CO[3]
+                         net (fo=1, routed)           0.001    10.733    u_mmu/u_dtlb/mr_paddr_reg[55]_i_237_n_0
+    SLICE_X52Y100        CARRY4 (Prop_carry4_CI_CO[0])
+                                                      0.271    11.004 f  u_mmu/u_dtlb/mr_paddr_reg[55]_i_111/CO[0]
+                         net (fo=1, routed)           0.667    11.671    u_mmu/u_dtlb/vpn_match0052_out
+    SLICE_X58Y103        LUT5 (Prop_lut5_I2_O)        0.373    12.044 f  u_mmu/u_dtlb/mr_paddr[55]_i_40/O
+                         net (fo=2, routed)           1.124    13.168    u_mmu/u_dtlb/mr_paddr[55]_i_40_n_0
+    SLICE_X68Y106        LUT4 (Prop_lut4_I0_O)        0.124    13.292 r  u_mmu/u_dtlb/for_d_i_59/O
+                         net (fo=2, routed)           0.000    13.292    u_mmu/u_dtlb/mr_paddr[55]_i_97_n_0
+    SLICE_X68Y106        CARRY4 (Prop_carry4_S[2]_CO[3])
+                                                      0.398    13.690 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_36/CO[3]
+                         net (fo=1, routed)           0.000    13.690    u_mmu/u_dtlb/mr_paddr_reg[55]_i_36_n_0
+    SLICE_X68Y107        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.804 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_46/CO[3]
+                         net (fo=1, routed)           0.000    13.804    u_mmu/u_dtlb/mr_paddr_reg[55]_i_46_n_0
+    SLICE_X68Y108        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.918 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_49/CO[3]
+                         net (fo=1, routed)           0.000    13.918    u_mmu/u_dtlb/mr_paddr_reg[55]_i_49_n_0
+    SLICE_X68Y109        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.032 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_118/CO[3]
+                         net (fo=1, routed)           0.000    14.032    u_mmu/u_dtlb/mr_paddr_reg[55]_i_118_n_0
+    SLICE_X68Y110        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.146 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_64/CO[3]
+                         net (fo=1, routed)           0.000    14.146    u_mmu/u_dtlb/mr_paddr_reg[55]_i_64_n_0
+    SLICE_X68Y111        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334    14.480 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_67/O[1]
+                         net (fo=1, routed)           0.312    14.793    u_mmu/u_dtlb/mr_paddr_reg[55]_i_67_n_6
+    SLICE_X70Y111        LUT5 (Prop_lut5_I0_O)        0.303    15.096 f  u_mmu/u_dtlb/mr_paddr[55]_i_55/O
+                         net (fo=52, routed)          1.345    16.440    u_mmu/u_dtlb/mr_paddr[55]_i_55_n_0
+    SLICE_X68Y98         LUT4 (Prop_lut4_I0_O)        0.124    16.564 r  u_mmu/u_dtlb/mr_paddr[29]_i_45/O
+                         net (fo=1, routed)           0.294    16.859    u_mmu/u_dtlb/mr_paddr[29]_i_45_n_0
+    SLICE_X69Y98         LUT5 (Prop_lut5_I4_O)        0.124    16.983 r  u_mmu/u_dtlb/mr_paddr[29]_i_25/O
+                         net (fo=1, routed)           0.550    17.533    u_mmu/u_dtlb/mr_paddr[29]_i_25_n_0
+    SLICE_X69Y97         LUT4 (Prop_lut4_I1_O)        0.124    17.657 r  u_mmu/u_dtlb/mr_paddr[29]_i_8/O
+                         net (fo=2, routed)           0.972    18.629    u_mmu/u_dtlb/mr_paddr[29]_i_8_n_0
+    SLICE_X72Y99         LUT6 (Prop_lut6_I2_O)        0.124    18.753 r  u_mmu/u_dtlb/mr_paddr[20]_i_2/O
+                         net (fo=9, routed)           1.719    20.471    u_mmu/u_dtlb/mr_paddr[20]_i_2_n_0
+    SLICE_X82Y77         LUT6 (Prop_lut6_I1_O)        0.124    20.595 r  u_mmu/u_dtlb/mr_paddr[19]_i_1/O
+                         net (fo=1, routed)           0.000    20.595    d_tr_paddr[19]
+    SLICE_X82Y77         FDCE                                         r  mr_paddr_reg[19]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X82Y77         FDCE (Setup_fdce_C_D)        0.029    20.918    mr_paddr_reg[19]
+  -------------------------------------------------------------------
+                         required time                         20.918    
+                         arrival time                         -20.595    
+  -------------------------------------------------------------------
+                         slack                                  0.323    
+
+Slack (MET) :             0.536ns  (required time - arrival time)
+  Source:                 fwd_a_wb_reg/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            mr_paddr_reg[20]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        19.409ns  (logic 6.193ns (31.908%)  route 13.216ns (68.092%))
+  Logic Levels:           28  (CARRY4=15 LUT3=2 LUT4=3 LUT5=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X36Y101        FDCE                         0.000     0.973 r  fwd_a_wb_reg/C
+    SLICE_X36Y101        FDCE (Prop_fdce_C_Q)         0.456     1.429 r  fwd_a_wb_reg/Q
+                         net (fo=64, routed)          1.277     2.706    u_mdu/fwd_a_wb
+    SLICE_X32Y99         LUT3 (Prop_lut3_I1_O)        0.154     2.860 r  u_mdu/pp_lh0__1_i_25/O
+                         net (fo=2, routed)           1.052     3.912    u_fpu/pp_lh0__1_i_25_n_0_alias
+    SLICE_X33Y112        LUT6 (Prop_lut6_I5_O)        0.327     4.239 r  u_fpu/wb_data[9]_i_1_comp_1/O
+                         net (fo=2, routed)           1.489     5.728    u_mdu/ma_size_reg[0]_repN_1_alias
+    SLICE_X43Y94         LUT6 (Prop_lut6_I2_O)        0.124     5.852 r  u_mdu/pp_lh0__1_i_8_comp_1_replica/O
+                         net (fo=1, routed)           0.616     6.468    u_ifu/u_btb/ex_a_fwd[9]_repN_alias
+    SLICE_X44Y98         CARRY4 (Prop_carry4_DI[1]_CO[3])
+                                                      0.507     6.975 r  u_ifu/u_btb/d_req_addr[11]_INST_0_i_2/CO[3]
+                         net (fo=1, routed)           0.000     6.975    u_ifu/u_btb/d_req_addr[11]_INST_0_i_2_n_0
+    SLICE_X44Y99         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.089 r  u_ifu/u_btb/d_req_addr[15]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.001     7.090    u_ifu/u_btb/d_req_addr[15]_INST_0_i_1_n_0
+    SLICE_X44Y100        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.204 r  u_ifu/u_btb/d_req_addr[19]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.204    u_ifu/u_btb/d_req_addr[19]_INST_0_i_1_n_0
+    SLICE_X44Y101        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.318 r  u_ifu/u_btb/d_req_addr[23]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.318    u_ifu/u_btb/d_req_addr[23]_INST_0_i_1_n_0
+    SLICE_X44Y102        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.432 r  u_ifu/u_btb/d_req_addr[27]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.432    u_ifu/u_btb/d_req_addr[27]_INST_0_i_1_n_0
+    SLICE_X44Y103        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.546 r  u_ifu/u_btb/d_req_addr[31]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.546    u_ifu/u_btb/d_req_addr[31]_INST_0_i_1_n_0
+    SLICE_X44Y104        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.894 r  u_ifu/u_btb/d_req_addr[35]_INST_0_i_1/O[1]
+                         net (fo=6, routed)           0.765     8.659    u_mmu/for_d_reg_i_4_0[33]
+    SLICE_X50Y104        LUT3 (Prop_lut3_I2_O)        0.303     8.962 r  u_mmu/ptw_vpn_r[21]_i_2/O
+                         net (fo=99, routed)          1.245    10.207    u_mmu/u_dtlb/ptw_vpn_r_reg[21]
+    SLICE_X52Y99         LUT6 (Prop_lut6_I1_O)        0.124    10.331 r  u_mmu/u_dtlb/mr_paddr[55]_i_395/O
+                         net (fo=1, routed)           0.000    10.331    u_mmu/u_dtlb/mr_paddr[55]_i_395_n_0
+    SLICE_X52Y99         CARRY4 (Prop_carry4_S[3]_CO[3])
+                                                      0.401    10.732 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_237/CO[3]
+                         net (fo=1, routed)           0.001    10.733    u_mmu/u_dtlb/mr_paddr_reg[55]_i_237_n_0
+    SLICE_X52Y100        CARRY4 (Prop_carry4_CI_CO[0])
+                                                      0.271    11.004 f  u_mmu/u_dtlb/mr_paddr_reg[55]_i_111/CO[0]
+                         net (fo=1, routed)           0.667    11.671    u_mmu/u_dtlb/vpn_match0052_out
+    SLICE_X58Y103        LUT5 (Prop_lut5_I2_O)        0.373    12.044 f  u_mmu/u_dtlb/mr_paddr[55]_i_40/O
+                         net (fo=2, routed)           1.124    13.168    u_mmu/u_dtlb/mr_paddr[55]_i_40_n_0
+    SLICE_X68Y106        LUT4 (Prop_lut4_I0_O)        0.124    13.292 r  u_mmu/u_dtlb/for_d_i_59/O
+                         net (fo=2, routed)           0.000    13.292    u_mmu/u_dtlb/mr_paddr[55]_i_97_n_0
+    SLICE_X68Y106        CARRY4 (Prop_carry4_S[2]_CO[3])
+                                                      0.398    13.690 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_36/CO[3]
+                         net (fo=1, routed)           0.000    13.690    u_mmu/u_dtlb/mr_paddr_reg[55]_i_36_n_0
+    SLICE_X68Y107        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.804 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_46/CO[3]
+                         net (fo=1, routed)           0.000    13.804    u_mmu/u_dtlb/mr_paddr_reg[55]_i_46_n_0
+    SLICE_X68Y108        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.918 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_49/CO[3]
+                         net (fo=1, routed)           0.000    13.918    u_mmu/u_dtlb/mr_paddr_reg[55]_i_49_n_0
+    SLICE_X68Y109        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.032 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_118/CO[3]
+                         net (fo=1, routed)           0.000    14.032    u_mmu/u_dtlb/mr_paddr_reg[55]_i_118_n_0
+    SLICE_X68Y110        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.146 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_64/CO[3]
+                         net (fo=1, routed)           0.000    14.146    u_mmu/u_dtlb/mr_paddr_reg[55]_i_64_n_0
+    SLICE_X68Y111        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334    14.480 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_67/O[1]
+                         net (fo=1, routed)           0.312    14.793    u_mmu/u_dtlb/mr_paddr_reg[55]_i_67_n_6
+    SLICE_X70Y111        LUT5 (Prop_lut5_I0_O)        0.303    15.096 f  u_mmu/u_dtlb/mr_paddr[55]_i_55/O
+                         net (fo=52, routed)          1.345    16.440    u_mmu/u_dtlb/mr_paddr[55]_i_55_n_0
+    SLICE_X68Y98         LUT4 (Prop_lut4_I0_O)        0.124    16.564 r  u_mmu/u_dtlb/mr_paddr[29]_i_45/O
+                         net (fo=1, routed)           0.294    16.859    u_mmu/u_dtlb/mr_paddr[29]_i_45_n_0
+    SLICE_X69Y98         LUT5 (Prop_lut5_I4_O)        0.124    16.983 r  u_mmu/u_dtlb/mr_paddr[29]_i_25/O
+                         net (fo=1, routed)           0.550    17.533    u_mmu/u_dtlb/mr_paddr[29]_i_25_n_0
+    SLICE_X69Y97         LUT4 (Prop_lut4_I1_O)        0.124    17.657 r  u_mmu/u_dtlb/mr_paddr[29]_i_8/O
+                         net (fo=2, routed)           0.972    18.629    u_mmu/u_dtlb/mr_paddr[29]_i_8_n_0
+    SLICE_X72Y99         LUT6 (Prop_lut6_I2_O)        0.124    18.753 r  u_mmu/u_dtlb/mr_paddr[20]_i_2/O
+                         net (fo=9, routed)           1.505    20.258    u_mmu/u_dtlb/mr_paddr[20]_i_2_n_0
+    SLICE_X85Y79         LUT6 (Prop_lut6_I1_O)        0.124    20.382 r  u_mmu/u_dtlb/mr_paddr[20]_i_1/O
+                         net (fo=1, routed)           0.000    20.382    d_tr_paddr[20]
+    SLICE_X85Y79         FDCE                                         r  mr_paddr_reg[20]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X85Y79         FDCE (Setup_fdce_C_D)        0.029    20.918    mr_paddr_reg[20]
+  -------------------------------------------------------------------
+                         required time                         20.918    
+                         arrival time                         -20.382    
+  -------------------------------------------------------------------
+                         slack                                  0.536    
+
+Slack (MET) :             0.626ns  (required time - arrival time)
+  Source:                 fwd_a_wb_reg/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            mr_paddr_reg[14]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        19.319ns  (logic 6.193ns (32.056%)  route 13.126ns (67.944%))
+  Logic Levels:           28  (CARRY4=15 LUT3=2 LUT4=3 LUT5=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X36Y101        FDCE                         0.000     0.973 r  fwd_a_wb_reg/C
+    SLICE_X36Y101        FDCE (Prop_fdce_C_Q)         0.456     1.429 r  fwd_a_wb_reg/Q
+                         net (fo=64, routed)          1.277     2.706    u_mdu/fwd_a_wb
+    SLICE_X32Y99         LUT3 (Prop_lut3_I1_O)        0.154     2.860 r  u_mdu/pp_lh0__1_i_25/O
+                         net (fo=2, routed)           1.052     3.912    u_fpu/pp_lh0__1_i_25_n_0_alias
+    SLICE_X33Y112        LUT6 (Prop_lut6_I5_O)        0.327     4.239 r  u_fpu/wb_data[9]_i_1_comp_1/O
+                         net (fo=2, routed)           1.489     5.728    u_mdu/ma_size_reg[0]_repN_1_alias
+    SLICE_X43Y94         LUT6 (Prop_lut6_I2_O)        0.124     5.852 r  u_mdu/pp_lh0__1_i_8_comp_1_replica/O
+                         net (fo=1, routed)           0.616     6.468    u_ifu/u_btb/ex_a_fwd[9]_repN_alias
+    SLICE_X44Y98         CARRY4 (Prop_carry4_DI[1]_CO[3])
+                                                      0.507     6.975 r  u_ifu/u_btb/d_req_addr[11]_INST_0_i_2/CO[3]
+                         net (fo=1, routed)           0.000     6.975    u_ifu/u_btb/d_req_addr[11]_INST_0_i_2_n_0
+    SLICE_X44Y99         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.089 r  u_ifu/u_btb/d_req_addr[15]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.001     7.090    u_ifu/u_btb/d_req_addr[15]_INST_0_i_1_n_0
+    SLICE_X44Y100        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.204 r  u_ifu/u_btb/d_req_addr[19]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.204    u_ifu/u_btb/d_req_addr[19]_INST_0_i_1_n_0
+    SLICE_X44Y101        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.318 r  u_ifu/u_btb/d_req_addr[23]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.318    u_ifu/u_btb/d_req_addr[23]_INST_0_i_1_n_0
+    SLICE_X44Y102        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.432 r  u_ifu/u_btb/d_req_addr[27]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.432    u_ifu/u_btb/d_req_addr[27]_INST_0_i_1_n_0
+    SLICE_X44Y103        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.546 r  u_ifu/u_btb/d_req_addr[31]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.546    u_ifu/u_btb/d_req_addr[31]_INST_0_i_1_n_0
+    SLICE_X44Y104        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.894 r  u_ifu/u_btb/d_req_addr[35]_INST_0_i_1/O[1]
+                         net (fo=6, routed)           0.765     8.659    u_mmu/for_d_reg_i_4_0[33]
+    SLICE_X50Y104        LUT3 (Prop_lut3_I2_O)        0.303     8.962 r  u_mmu/ptw_vpn_r[21]_i_2/O
+                         net (fo=99, routed)          1.245    10.207    u_mmu/u_dtlb/ptw_vpn_r_reg[21]
+    SLICE_X52Y99         LUT6 (Prop_lut6_I1_O)        0.124    10.331 r  u_mmu/u_dtlb/mr_paddr[55]_i_395/O
+                         net (fo=1, routed)           0.000    10.331    u_mmu/u_dtlb/mr_paddr[55]_i_395_n_0
+    SLICE_X52Y99         CARRY4 (Prop_carry4_S[3]_CO[3])
+                                                      0.401    10.732 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_237/CO[3]
+                         net (fo=1, routed)           0.001    10.733    u_mmu/u_dtlb/mr_paddr_reg[55]_i_237_n_0
+    SLICE_X52Y100        CARRY4 (Prop_carry4_CI_CO[0])
+                                                      0.271    11.004 f  u_mmu/u_dtlb/mr_paddr_reg[55]_i_111/CO[0]
+                         net (fo=1, routed)           0.667    11.671    u_mmu/u_dtlb/vpn_match0052_out
+    SLICE_X58Y103        LUT5 (Prop_lut5_I2_O)        0.373    12.044 f  u_mmu/u_dtlb/mr_paddr[55]_i_40/O
+                         net (fo=2, routed)           1.124    13.168    u_mmu/u_dtlb/mr_paddr[55]_i_40_n_0
+    SLICE_X68Y106        LUT4 (Prop_lut4_I0_O)        0.124    13.292 r  u_mmu/u_dtlb/for_d_i_59/O
+                         net (fo=2, routed)           0.000    13.292    u_mmu/u_dtlb/mr_paddr[55]_i_97_n_0
+    SLICE_X68Y106        CARRY4 (Prop_carry4_S[2]_CO[3])
+                                                      0.398    13.690 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_36/CO[3]
+                         net (fo=1, routed)           0.000    13.690    u_mmu/u_dtlb/mr_paddr_reg[55]_i_36_n_0
+    SLICE_X68Y107        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.804 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_46/CO[3]
+                         net (fo=1, routed)           0.000    13.804    u_mmu/u_dtlb/mr_paddr_reg[55]_i_46_n_0
+    SLICE_X68Y108        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.918 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_49/CO[3]
+                         net (fo=1, routed)           0.000    13.918    u_mmu/u_dtlb/mr_paddr_reg[55]_i_49_n_0
+    SLICE_X68Y109        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.032 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_118/CO[3]
+                         net (fo=1, routed)           0.000    14.032    u_mmu/u_dtlb/mr_paddr_reg[55]_i_118_n_0
+    SLICE_X68Y110        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.146 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_64/CO[3]
+                         net (fo=1, routed)           0.000    14.146    u_mmu/u_dtlb/mr_paddr_reg[55]_i_64_n_0
+    SLICE_X68Y111        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334    14.480 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_67/O[1]
+                         net (fo=1, routed)           0.312    14.793    u_mmu/u_dtlb/mr_paddr_reg[55]_i_67_n_6
+    SLICE_X70Y111        LUT5 (Prop_lut5_I0_O)        0.303    15.096 f  u_mmu/u_dtlb/mr_paddr[55]_i_55/O
+                         net (fo=52, routed)          1.345    16.440    u_mmu/u_dtlb/mr_paddr[55]_i_55_n_0
+    SLICE_X68Y98         LUT4 (Prop_lut4_I0_O)        0.124    16.564 r  u_mmu/u_dtlb/mr_paddr[29]_i_45/O
+                         net (fo=1, routed)           0.294    16.859    u_mmu/u_dtlb/mr_paddr[29]_i_45_n_0
+    SLICE_X69Y98         LUT5 (Prop_lut5_I4_O)        0.124    16.983 r  u_mmu/u_dtlb/mr_paddr[29]_i_25/O
+                         net (fo=1, routed)           0.550    17.533    u_mmu/u_dtlb/mr_paddr[29]_i_25_n_0
+    SLICE_X69Y97         LUT4 (Prop_lut4_I1_O)        0.124    17.657 r  u_mmu/u_dtlb/mr_paddr[29]_i_8/O
+                         net (fo=2, routed)           0.972    18.629    u_mmu/u_dtlb/mr_paddr[29]_i_8_n_0
+    SLICE_X72Y99         LUT6 (Prop_lut6_I2_O)        0.124    18.753 r  u_mmu/u_dtlb/mr_paddr[20]_i_2/O
+                         net (fo=9, routed)           1.416    20.168    u_mmu/u_dtlb/mr_paddr[20]_i_2_n_0
+    SLICE_X83Y79         LUT6 (Prop_lut6_I1_O)        0.124    20.292 r  u_mmu/u_dtlb/mr_paddr[14]_i_1/O
+                         net (fo=1, routed)           0.000    20.292    d_tr_paddr[14]
+    SLICE_X83Y79         FDCE                                         r  mr_paddr_reg[14]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X83Y79         FDCE (Setup_fdce_C_D)        0.029    20.918    mr_paddr_reg[14]
+  -------------------------------------------------------------------
+                         required time                         20.918    
+                         arrival time                         -20.292    
+  -------------------------------------------------------------------
+                         slack                                  0.626    
+
+Slack (MET) :             0.844ns  (required time - arrival time)
+  Source:                 fwd_a_wb_reg/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            mr_tr_fault_reg[1]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        19.101ns  (logic 6.203ns (32.475%)  route 12.898ns (67.524%))
+  Logic Levels:           28  (CARRY4=14 LUT3=2 LUT4=3 LUT5=3 LUT6=6)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X36Y101        FDCE                         0.000     0.973 r  fwd_a_wb_reg/C
+    SLICE_X36Y101        FDCE (Prop_fdce_C_Q)         0.456     1.429 r  fwd_a_wb_reg/Q
+                         net (fo=64, routed)          1.277     2.706    u_mdu/fwd_a_wb
+    SLICE_X32Y99         LUT3 (Prop_lut3_I1_O)        0.154     2.860 r  u_mdu/pp_lh0__1_i_25/O
+                         net (fo=2, routed)           1.052     3.912    u_fpu/pp_lh0__1_i_25_n_0_alias
+    SLICE_X33Y112        LUT6 (Prop_lut6_I5_O)        0.327     4.239 r  u_fpu/wb_data[9]_i_1_comp_1/O
+                         net (fo=2, routed)           1.489     5.728    u_mdu/ma_size_reg[0]_repN_1_alias
+    SLICE_X43Y94         LUT6 (Prop_lut6_I2_O)        0.124     5.852 r  u_mdu/pp_lh0__1_i_8_comp_1_replica/O
+                         net (fo=1, routed)           0.616     6.468    u_ifu/u_btb/ex_a_fwd[9]_repN_alias
+    SLICE_X44Y98         CARRY4 (Prop_carry4_DI[1]_CO[3])
+                                                      0.507     6.975 r  u_ifu/u_btb/d_req_addr[11]_INST_0_i_2/CO[3]
+                         net (fo=1, routed)           0.000     6.975    u_ifu/u_btb/d_req_addr[11]_INST_0_i_2_n_0
+    SLICE_X44Y99         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.089 r  u_ifu/u_btb/d_req_addr[15]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.001     7.090    u_ifu/u_btb/d_req_addr[15]_INST_0_i_1_n_0
+    SLICE_X44Y100        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.204 r  u_ifu/u_btb/d_req_addr[19]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.204    u_ifu/u_btb/d_req_addr[19]_INST_0_i_1_n_0
+    SLICE_X44Y101        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.318 r  u_ifu/u_btb/d_req_addr[23]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.318    u_ifu/u_btb/d_req_addr[23]_INST_0_i_1_n_0
+    SLICE_X44Y102        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.432 r  u_ifu/u_btb/d_req_addr[27]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.432    u_ifu/u_btb/d_req_addr[27]_INST_0_i_1_n_0
+    SLICE_X44Y103        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.546 r  u_ifu/u_btb/d_req_addr[31]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.546    u_ifu/u_btb/d_req_addr[31]_INST_0_i_1_n_0
+    SLICE_X44Y104        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.894 r  u_ifu/u_btb/d_req_addr[35]_INST_0_i_1/O[1]
+                         net (fo=6, routed)           0.765     8.659    u_mmu/for_d_reg_i_4_0[33]
+    SLICE_X50Y104        LUT3 (Prop_lut3_I2_O)        0.303     8.962 r  u_mmu/ptw_vpn_r[21]_i_2/O
+                         net (fo=99, routed)          1.245    10.207    u_mmu/u_dtlb/ptw_vpn_r_reg[21]
+    SLICE_X52Y99         LUT6 (Prop_lut6_I1_O)        0.124    10.331 r  u_mmu/u_dtlb/mr_paddr[55]_i_395/O
+                         net (fo=1, routed)           0.000    10.331    u_mmu/u_dtlb/mr_paddr[55]_i_395_n_0
+    SLICE_X52Y99         CARRY4 (Prop_carry4_S[3]_CO[3])
+                                                      0.401    10.732 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_237/CO[3]
+                         net (fo=1, routed)           0.001    10.733    u_mmu/u_dtlb/mr_paddr_reg[55]_i_237_n_0
+    SLICE_X52Y100        CARRY4 (Prop_carry4_CI_CO[0])
+                                                      0.271    11.004 f  u_mmu/u_dtlb/mr_paddr_reg[55]_i_111/CO[0]
+                         net (fo=1, routed)           0.667    11.671    u_mmu/u_dtlb/vpn_match0052_out
+    SLICE_X58Y103        LUT5 (Prop_lut5_I2_O)        0.373    12.044 f  u_mmu/u_dtlb/mr_paddr[55]_i_40/O
+                         net (fo=2, routed)           1.124    13.168    u_mmu/u_dtlb/mr_paddr[55]_i_40_n_0
+    SLICE_X68Y106        LUT4 (Prop_lut4_I0_O)        0.124    13.292 r  u_mmu/u_dtlb/for_d_i_59/O
+                         net (fo=2, routed)           0.000    13.292    u_mmu/u_dtlb/mr_paddr[55]_i_97_n_0
+    SLICE_X68Y106        CARRY4 (Prop_carry4_S[2]_CO[3])
+                                                      0.398    13.690 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_36/CO[3]
+                         net (fo=1, routed)           0.000    13.690    u_mmu/u_dtlb/mr_paddr_reg[55]_i_36_n_0
+    SLICE_X68Y107        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.804 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_46/CO[3]
+                         net (fo=1, routed)           0.000    13.804    u_mmu/u_dtlb/mr_paddr_reg[55]_i_46_n_0
+    SLICE_X68Y108        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.918 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_49/CO[3]
+                         net (fo=1, routed)           0.000    13.918    u_mmu/u_dtlb/mr_paddr_reg[55]_i_49_n_0
+    SLICE_X68Y109        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.032 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_118/CO[3]
+                         net (fo=1, routed)           0.000    14.032    u_mmu/u_dtlb/mr_paddr_reg[55]_i_118_n_0
+    SLICE_X68Y110        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334    14.366 f  u_mmu/u_dtlb/mr_paddr_reg[55]_i_64/O[1]
+                         net (fo=1, routed)           0.472    14.838    u_mmu/u_dtlb/mr_paddr_reg[55]_i_64_n_6
+    SLICE_X67Y113        LUT5 (Prop_lut5_I0_O)        0.303    15.141 r  u_mmu/u_dtlb/mr_paddr[55]_i_116/O
+                         net (fo=52, routed)          0.889    16.030    u_mmu/u_dtlb/mr_paddr[55]_i_116_n_0
+    SLICE_X67Y115        LUT4 (Prop_lut4_I0_O)        0.124    16.154 f  u_mmu/u_dtlb/mr_tr_fault[1]_i_107/O
+                         net (fo=1, routed)           0.567    16.721    u_mmu/u_dtlb/mr_tr_fault[1]_i_107_n_0
+    SLICE_X62Y115        LUT5 (Prop_lut5_I4_O)        0.124    16.845 f  u_mmu/u_dtlb/mr_tr_fault[1]_i_51/O
+                         net (fo=1, routed)           0.806    17.651    u_mmu/u_dtlb/mr_tr_fault[1]_i_51_n_0
+    SLICE_X61Y116        LUT4 (Prop_lut4_I0_O)        0.124    17.775 f  u_mmu/u_dtlb/mr_tr_fault[1]_i_20/O
+                         net (fo=1, routed)           0.846    18.620    u_mmu/u_dtlb/mr_tr_fault[1]_i_20_n_0
+    SLICE_X61Y111        LUT6 (Prop_lut6_I1_O)        0.124    18.744 r  u_mmu/u_dtlb/mr_tr_fault[1]_i_9/O
+                         net (fo=1, routed)           0.648    19.393    u_mmu/u_dtlb/mr_tr_fault[1]_i_9_n_0
+    SLICE_X61Y111        LUT6 (Prop_lut6_I4_O)        0.124    19.517 r  u_mmu/u_dtlb/mr_tr_fault[1]_i_3/O
+                         net (fo=1, routed)           0.433    19.950    u_lsu/d_tr_fault[1]
+    SLICE_X61Y111        LUT6 (Prop_lut6_I1_O)        0.124    20.074 r  u_lsu/mr_tr_fault[1]_i_1/O
+                         net (fo=1, routed)           0.000    20.074    u_lsu_n_675
+    SLICE_X61Y111        FDCE                                         r  mr_tr_fault_reg[1]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X61Y111        FDCE (Setup_fdce_C_D)        0.029    20.918    mr_tr_fault_reg[1]
+  -------------------------------------------------------------------
+                         required time                         20.918    
+                         arrival time                         -20.074    
+  -------------------------------------------------------------------
+                         slack                                  0.844    
+
+Slack (MET) :             0.865ns  (required time - arrival time)
+  Source:                 fwd_a_wb_reg/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            mr_paddr_reg[12]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        19.082ns  (logic 6.193ns (32.454%)  route 12.889ns (67.546%))
+  Logic Levels:           28  (CARRY4=15 LUT3=2 LUT4=3 LUT5=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X36Y101        FDCE                         0.000     0.973 r  fwd_a_wb_reg/C
+    SLICE_X36Y101        FDCE (Prop_fdce_C_Q)         0.456     1.429 r  fwd_a_wb_reg/Q
+                         net (fo=64, routed)          1.277     2.706    u_mdu/fwd_a_wb
+    SLICE_X32Y99         LUT3 (Prop_lut3_I1_O)        0.154     2.860 r  u_mdu/pp_lh0__1_i_25/O
+                         net (fo=2, routed)           1.052     3.912    u_fpu/pp_lh0__1_i_25_n_0_alias
+    SLICE_X33Y112        LUT6 (Prop_lut6_I5_O)        0.327     4.239 r  u_fpu/wb_data[9]_i_1_comp_1/O
+                         net (fo=2, routed)           1.489     5.728    u_mdu/ma_size_reg[0]_repN_1_alias
+    SLICE_X43Y94         LUT6 (Prop_lut6_I2_O)        0.124     5.852 r  u_mdu/pp_lh0__1_i_8_comp_1_replica/O
+                         net (fo=1, routed)           0.616     6.468    u_ifu/u_btb/ex_a_fwd[9]_repN_alias
+    SLICE_X44Y98         CARRY4 (Prop_carry4_DI[1]_CO[3])
+                                                      0.507     6.975 r  u_ifu/u_btb/d_req_addr[11]_INST_0_i_2/CO[3]
+                         net (fo=1, routed)           0.000     6.975    u_ifu/u_btb/d_req_addr[11]_INST_0_i_2_n_0
+    SLICE_X44Y99         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.089 r  u_ifu/u_btb/d_req_addr[15]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.001     7.090    u_ifu/u_btb/d_req_addr[15]_INST_0_i_1_n_0
+    SLICE_X44Y100        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.204 r  u_ifu/u_btb/d_req_addr[19]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.204    u_ifu/u_btb/d_req_addr[19]_INST_0_i_1_n_0
+    SLICE_X44Y101        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.318 r  u_ifu/u_btb/d_req_addr[23]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.318    u_ifu/u_btb/d_req_addr[23]_INST_0_i_1_n_0
+    SLICE_X44Y102        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.432 r  u_ifu/u_btb/d_req_addr[27]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.432    u_ifu/u_btb/d_req_addr[27]_INST_0_i_1_n_0
+    SLICE_X44Y103        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.546 r  u_ifu/u_btb/d_req_addr[31]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.546    u_ifu/u_btb/d_req_addr[31]_INST_0_i_1_n_0
+    SLICE_X44Y104        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.894 r  u_ifu/u_btb/d_req_addr[35]_INST_0_i_1/O[1]
+                         net (fo=6, routed)           0.765     8.659    u_mmu/for_d_reg_i_4_0[33]
+    SLICE_X50Y104        LUT3 (Prop_lut3_I2_O)        0.303     8.962 r  u_mmu/ptw_vpn_r[21]_i_2/O
+                         net (fo=99, routed)          1.245    10.207    u_mmu/u_dtlb/ptw_vpn_r_reg[21]
+    SLICE_X52Y99         LUT6 (Prop_lut6_I1_O)        0.124    10.331 r  u_mmu/u_dtlb/mr_paddr[55]_i_395/O
+                         net (fo=1, routed)           0.000    10.331    u_mmu/u_dtlb/mr_paddr[55]_i_395_n_0
+    SLICE_X52Y99         CARRY4 (Prop_carry4_S[3]_CO[3])
+                                                      0.401    10.732 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_237/CO[3]
+                         net (fo=1, routed)           0.001    10.733    u_mmu/u_dtlb/mr_paddr_reg[55]_i_237_n_0
+    SLICE_X52Y100        CARRY4 (Prop_carry4_CI_CO[0])
+                                                      0.271    11.004 f  u_mmu/u_dtlb/mr_paddr_reg[55]_i_111/CO[0]
+                         net (fo=1, routed)           0.667    11.671    u_mmu/u_dtlb/vpn_match0052_out
+    SLICE_X58Y103        LUT5 (Prop_lut5_I2_O)        0.373    12.044 f  u_mmu/u_dtlb/mr_paddr[55]_i_40/O
+                         net (fo=2, routed)           1.124    13.168    u_mmu/u_dtlb/mr_paddr[55]_i_40_n_0
+    SLICE_X68Y106        LUT4 (Prop_lut4_I0_O)        0.124    13.292 r  u_mmu/u_dtlb/for_d_i_59/O
+                         net (fo=2, routed)           0.000    13.292    u_mmu/u_dtlb/mr_paddr[55]_i_97_n_0
+    SLICE_X68Y106        CARRY4 (Prop_carry4_S[2]_CO[3])
+                                                      0.398    13.690 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_36/CO[3]
+                         net (fo=1, routed)           0.000    13.690    u_mmu/u_dtlb/mr_paddr_reg[55]_i_36_n_0
+    SLICE_X68Y107        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.804 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_46/CO[3]
+                         net (fo=1, routed)           0.000    13.804    u_mmu/u_dtlb/mr_paddr_reg[55]_i_46_n_0
+    SLICE_X68Y108        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.918 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_49/CO[3]
+                         net (fo=1, routed)           0.000    13.918    u_mmu/u_dtlb/mr_paddr_reg[55]_i_49_n_0
+    SLICE_X68Y109        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.032 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_118/CO[3]
+                         net (fo=1, routed)           0.000    14.032    u_mmu/u_dtlb/mr_paddr_reg[55]_i_118_n_0
+    SLICE_X68Y110        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.146 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_64/CO[3]
+                         net (fo=1, routed)           0.000    14.146    u_mmu/u_dtlb/mr_paddr_reg[55]_i_64_n_0
+    SLICE_X68Y111        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334    14.480 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_67/O[1]
+                         net (fo=1, routed)           0.312    14.793    u_mmu/u_dtlb/mr_paddr_reg[55]_i_67_n_6
+    SLICE_X70Y111        LUT5 (Prop_lut5_I0_O)        0.303    15.096 f  u_mmu/u_dtlb/mr_paddr[55]_i_55/O
+                         net (fo=52, routed)          1.345    16.440    u_mmu/u_dtlb/mr_paddr[55]_i_55_n_0
+    SLICE_X68Y98         LUT4 (Prop_lut4_I0_O)        0.124    16.564 r  u_mmu/u_dtlb/mr_paddr[29]_i_45/O
+                         net (fo=1, routed)           0.294    16.859    u_mmu/u_dtlb/mr_paddr[29]_i_45_n_0
+    SLICE_X69Y98         LUT5 (Prop_lut5_I4_O)        0.124    16.983 r  u_mmu/u_dtlb/mr_paddr[29]_i_25/O
+                         net (fo=1, routed)           0.550    17.533    u_mmu/u_dtlb/mr_paddr[29]_i_25_n_0
+    SLICE_X69Y97         LUT4 (Prop_lut4_I1_O)        0.124    17.657 r  u_mmu/u_dtlb/mr_paddr[29]_i_8/O
+                         net (fo=2, routed)           0.972    18.629    u_mmu/u_dtlb/mr_paddr[29]_i_8_n_0
+    SLICE_X72Y99         LUT6 (Prop_lut6_I2_O)        0.124    18.753 r  u_mmu/u_dtlb/mr_paddr[20]_i_2/O
+                         net (fo=9, routed)           1.179    19.931    u_mmu/u_dtlb/mr_paddr[20]_i_2_n_0
+    SLICE_X71Y79         LUT6 (Prop_lut6_I1_O)        0.124    20.055 r  u_mmu/u_dtlb/mr_paddr[12]_i_1/O
+                         net (fo=1, routed)           0.000    20.055    d_tr_paddr[12]
+    SLICE_X71Y79         FDCE                                         r  mr_paddr_reg[12]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X71Y79         FDCE (Setup_fdce_C_D)        0.031    20.920    mr_paddr_reg[12]
+  -------------------------------------------------------------------
+                         required time                         20.920    
+                         arrival time                         -20.055    
+  -------------------------------------------------------------------
+                         slack                                  0.865    
+
+Slack (MET) :             0.902ns  (required time - arrival time)
+  Source:                 fwd_a_wb_reg/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            mr_paddr_reg[22]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        19.045ns  (logic 6.193ns (32.517%)  route 12.852ns (67.483%))
+  Logic Levels:           28  (CARRY4=15 LUT3=2 LUT4=3 LUT5=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X36Y101        FDCE                         0.000     0.973 r  fwd_a_wb_reg/C
+    SLICE_X36Y101        FDCE (Prop_fdce_C_Q)         0.456     1.429 r  fwd_a_wb_reg/Q
+                         net (fo=64, routed)          1.277     2.706    u_mdu/fwd_a_wb
+    SLICE_X32Y99         LUT3 (Prop_lut3_I1_O)        0.154     2.860 r  u_mdu/pp_lh0__1_i_25/O
+                         net (fo=2, routed)           1.052     3.912    u_fpu/pp_lh0__1_i_25_n_0_alias
+    SLICE_X33Y112        LUT6 (Prop_lut6_I5_O)        0.327     4.239 r  u_fpu/wb_data[9]_i_1_comp_1/O
+                         net (fo=2, routed)           1.489     5.728    u_mdu/ma_size_reg[0]_repN_1_alias
+    SLICE_X43Y94         LUT6 (Prop_lut6_I2_O)        0.124     5.852 r  u_mdu/pp_lh0__1_i_8_comp_1_replica/O
+                         net (fo=1, routed)           0.616     6.468    u_ifu/u_btb/ex_a_fwd[9]_repN_alias
+    SLICE_X44Y98         CARRY4 (Prop_carry4_DI[1]_CO[3])
+                                                      0.507     6.975 r  u_ifu/u_btb/d_req_addr[11]_INST_0_i_2/CO[3]
+                         net (fo=1, routed)           0.000     6.975    u_ifu/u_btb/d_req_addr[11]_INST_0_i_2_n_0
+    SLICE_X44Y99         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.089 r  u_ifu/u_btb/d_req_addr[15]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.001     7.090    u_ifu/u_btb/d_req_addr[15]_INST_0_i_1_n_0
+    SLICE_X44Y100        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.204 r  u_ifu/u_btb/d_req_addr[19]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.204    u_ifu/u_btb/d_req_addr[19]_INST_0_i_1_n_0
+    SLICE_X44Y101        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.318 r  u_ifu/u_btb/d_req_addr[23]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.318    u_ifu/u_btb/d_req_addr[23]_INST_0_i_1_n_0
+    SLICE_X44Y102        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.432 r  u_ifu/u_btb/d_req_addr[27]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.432    u_ifu/u_btb/d_req_addr[27]_INST_0_i_1_n_0
+    SLICE_X44Y103        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.546 r  u_ifu/u_btb/d_req_addr[31]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.546    u_ifu/u_btb/d_req_addr[31]_INST_0_i_1_n_0
+    SLICE_X44Y104        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.894 r  u_ifu/u_btb/d_req_addr[35]_INST_0_i_1/O[1]
+                         net (fo=6, routed)           0.765     8.659    u_mmu/for_d_reg_i_4_0[33]
+    SLICE_X50Y104        LUT3 (Prop_lut3_I2_O)        0.303     8.962 r  u_mmu/ptw_vpn_r[21]_i_2/O
+                         net (fo=99, routed)          1.245    10.207    u_mmu/u_dtlb/ptw_vpn_r_reg[21]
+    SLICE_X52Y99         LUT6 (Prop_lut6_I1_O)        0.124    10.331 r  u_mmu/u_dtlb/mr_paddr[55]_i_395/O
+                         net (fo=1, routed)           0.000    10.331    u_mmu/u_dtlb/mr_paddr[55]_i_395_n_0
+    SLICE_X52Y99         CARRY4 (Prop_carry4_S[3]_CO[3])
+                                                      0.401    10.732 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_237/CO[3]
+                         net (fo=1, routed)           0.001    10.733    u_mmu/u_dtlb/mr_paddr_reg[55]_i_237_n_0
+    SLICE_X52Y100        CARRY4 (Prop_carry4_CI_CO[0])
+                                                      0.271    11.004 f  u_mmu/u_dtlb/mr_paddr_reg[55]_i_111/CO[0]
+                         net (fo=1, routed)           0.667    11.671    u_mmu/u_dtlb/vpn_match0052_out
+    SLICE_X58Y103        LUT5 (Prop_lut5_I2_O)        0.373    12.044 f  u_mmu/u_dtlb/mr_paddr[55]_i_40/O
+                         net (fo=2, routed)           1.124    13.168    u_mmu/u_dtlb/mr_paddr[55]_i_40_n_0
+    SLICE_X68Y106        LUT4 (Prop_lut4_I0_O)        0.124    13.292 r  u_mmu/u_dtlb/for_d_i_59/O
+                         net (fo=2, routed)           0.000    13.292    u_mmu/u_dtlb/mr_paddr[55]_i_97_n_0
+    SLICE_X68Y106        CARRY4 (Prop_carry4_S[2]_CO[3])
+                                                      0.398    13.690 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_36/CO[3]
+                         net (fo=1, routed)           0.000    13.690    u_mmu/u_dtlb/mr_paddr_reg[55]_i_36_n_0
+    SLICE_X68Y107        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.804 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_46/CO[3]
+                         net (fo=1, routed)           0.000    13.804    u_mmu/u_dtlb/mr_paddr_reg[55]_i_46_n_0
+    SLICE_X68Y108        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.918 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_49/CO[3]
+                         net (fo=1, routed)           0.000    13.918    u_mmu/u_dtlb/mr_paddr_reg[55]_i_49_n_0
+    SLICE_X68Y109        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.032 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_118/CO[3]
+                         net (fo=1, routed)           0.000    14.032    u_mmu/u_dtlb/mr_paddr_reg[55]_i_118_n_0
+    SLICE_X68Y110        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.146 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_64/CO[3]
+                         net (fo=1, routed)           0.000    14.146    u_mmu/u_dtlb/mr_paddr_reg[55]_i_64_n_0
+    SLICE_X68Y111        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334    14.480 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_67/O[1]
+                         net (fo=1, routed)           0.312    14.793    u_mmu/u_dtlb/mr_paddr_reg[55]_i_67_n_6
+    SLICE_X70Y111        LUT5 (Prop_lut5_I0_O)        0.303    15.096 f  u_mmu/u_dtlb/mr_paddr[55]_i_55/O
+                         net (fo=52, routed)          1.345    16.440    u_mmu/u_dtlb/mr_paddr[55]_i_55_n_0
+    SLICE_X68Y98         LUT4 (Prop_lut4_I0_O)        0.124    16.564 r  u_mmu/u_dtlb/mr_paddr[29]_i_45/O
+                         net (fo=1, routed)           0.294    16.859    u_mmu/u_dtlb/mr_paddr[29]_i_45_n_0
+    SLICE_X69Y98         LUT5 (Prop_lut5_I4_O)        0.124    16.983 r  u_mmu/u_dtlb/mr_paddr[29]_i_25/O
+                         net (fo=1, routed)           0.550    17.533    u_mmu/u_dtlb/mr_paddr[29]_i_25_n_0
+    SLICE_X69Y97         LUT4 (Prop_lut4_I1_O)        0.124    17.657 r  u_mmu/u_dtlb/mr_paddr[29]_i_8/O
+                         net (fo=2, routed)           0.650    18.307    u_mmu/u_dtlb/mr_paddr[29]_i_8_n_0
+    SLICE_X72Y96         LUT6 (Prop_lut6_I2_O)        0.124    18.431 r  u_mmu/u_dtlb/mr_paddr[29]_i_2/O
+                         net (fo=9, routed)           1.463    19.894    u_mmu/u_dtlb/mr_paddr[29]_i_2_n_0
+    SLICE_X82Y77         LUT6 (Prop_lut6_I1_O)        0.124    20.018 r  u_mmu/u_dtlb/mr_paddr[22]_i_1/O
+                         net (fo=1, routed)           0.000    20.018    d_tr_paddr[22]
+    SLICE_X82Y77         FDCE                                         r  mr_paddr_reg[22]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X82Y77         FDCE (Setup_fdce_C_D)        0.031    20.920    mr_paddr_reg[22]
+  -------------------------------------------------------------------
+                         required time                         20.920    
+                         arrival time                         -20.018    
+  -------------------------------------------------------------------
+                         slack                                  0.902    
+
+Slack (MET) :             0.902ns  (required time - arrival time)
+  Source:                 fwd_a_wb_reg/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            mr_paddr_reg[25]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        19.045ns  (logic 6.193ns (32.517%)  route 12.852ns (67.482%))
+  Logic Levels:           28  (CARRY4=15 LUT3=2 LUT4=3 LUT5=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X36Y101        FDCE                         0.000     0.973 r  fwd_a_wb_reg/C
+    SLICE_X36Y101        FDCE (Prop_fdce_C_Q)         0.456     1.429 r  fwd_a_wb_reg/Q
+                         net (fo=64, routed)          1.277     2.706    u_mdu/fwd_a_wb
+    SLICE_X32Y99         LUT3 (Prop_lut3_I1_O)        0.154     2.860 r  u_mdu/pp_lh0__1_i_25/O
+                         net (fo=2, routed)           1.052     3.912    u_fpu/pp_lh0__1_i_25_n_0_alias
+    SLICE_X33Y112        LUT6 (Prop_lut6_I5_O)        0.327     4.239 r  u_fpu/wb_data[9]_i_1_comp_1/O
+                         net (fo=2, routed)           1.489     5.728    u_mdu/ma_size_reg[0]_repN_1_alias
+    SLICE_X43Y94         LUT6 (Prop_lut6_I2_O)        0.124     5.852 r  u_mdu/pp_lh0__1_i_8_comp_1_replica/O
+                         net (fo=1, routed)           0.616     6.468    u_ifu/u_btb/ex_a_fwd[9]_repN_alias
+    SLICE_X44Y98         CARRY4 (Prop_carry4_DI[1]_CO[3])
+                                                      0.507     6.975 r  u_ifu/u_btb/d_req_addr[11]_INST_0_i_2/CO[3]
+                         net (fo=1, routed)           0.000     6.975    u_ifu/u_btb/d_req_addr[11]_INST_0_i_2_n_0
+    SLICE_X44Y99         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.089 r  u_ifu/u_btb/d_req_addr[15]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.001     7.090    u_ifu/u_btb/d_req_addr[15]_INST_0_i_1_n_0
+    SLICE_X44Y100        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.204 r  u_ifu/u_btb/d_req_addr[19]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.204    u_ifu/u_btb/d_req_addr[19]_INST_0_i_1_n_0
+    SLICE_X44Y101        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.318 r  u_ifu/u_btb/d_req_addr[23]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.318    u_ifu/u_btb/d_req_addr[23]_INST_0_i_1_n_0
+    SLICE_X44Y102        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.432 r  u_ifu/u_btb/d_req_addr[27]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.432    u_ifu/u_btb/d_req_addr[27]_INST_0_i_1_n_0
+    SLICE_X44Y103        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.546 r  u_ifu/u_btb/d_req_addr[31]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.546    u_ifu/u_btb/d_req_addr[31]_INST_0_i_1_n_0
+    SLICE_X44Y104        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.894 r  u_ifu/u_btb/d_req_addr[35]_INST_0_i_1/O[1]
+                         net (fo=6, routed)           0.765     8.659    u_mmu/for_d_reg_i_4_0[33]
+    SLICE_X50Y104        LUT3 (Prop_lut3_I2_O)        0.303     8.962 r  u_mmu/ptw_vpn_r[21]_i_2/O
+                         net (fo=99, routed)          1.245    10.207    u_mmu/u_dtlb/ptw_vpn_r_reg[21]
+    SLICE_X52Y99         LUT6 (Prop_lut6_I1_O)        0.124    10.331 r  u_mmu/u_dtlb/mr_paddr[55]_i_395/O
+                         net (fo=1, routed)           0.000    10.331    u_mmu/u_dtlb/mr_paddr[55]_i_395_n_0
+    SLICE_X52Y99         CARRY4 (Prop_carry4_S[3]_CO[3])
+                                                      0.401    10.732 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_237/CO[3]
+                         net (fo=1, routed)           0.001    10.733    u_mmu/u_dtlb/mr_paddr_reg[55]_i_237_n_0
+    SLICE_X52Y100        CARRY4 (Prop_carry4_CI_CO[0])
+                                                      0.271    11.004 f  u_mmu/u_dtlb/mr_paddr_reg[55]_i_111/CO[0]
+                         net (fo=1, routed)           0.667    11.671    u_mmu/u_dtlb/vpn_match0052_out
+    SLICE_X58Y103        LUT5 (Prop_lut5_I2_O)        0.373    12.044 f  u_mmu/u_dtlb/mr_paddr[55]_i_40/O
+                         net (fo=2, routed)           1.124    13.168    u_mmu/u_dtlb/mr_paddr[55]_i_40_n_0
+    SLICE_X68Y106        LUT4 (Prop_lut4_I0_O)        0.124    13.292 r  u_mmu/u_dtlb/for_d_i_59/O
+                         net (fo=2, routed)           0.000    13.292    u_mmu/u_dtlb/mr_paddr[55]_i_97_n_0
+    SLICE_X68Y106        CARRY4 (Prop_carry4_S[2]_CO[3])
+                                                      0.398    13.690 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_36/CO[3]
+                         net (fo=1, routed)           0.000    13.690    u_mmu/u_dtlb/mr_paddr_reg[55]_i_36_n_0
+    SLICE_X68Y107        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.804 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_46/CO[3]
+                         net (fo=1, routed)           0.000    13.804    u_mmu/u_dtlb/mr_paddr_reg[55]_i_46_n_0
+    SLICE_X68Y108        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.918 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_49/CO[3]
+                         net (fo=1, routed)           0.000    13.918    u_mmu/u_dtlb/mr_paddr_reg[55]_i_49_n_0
+    SLICE_X68Y109        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.032 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_118/CO[3]
+                         net (fo=1, routed)           0.000    14.032    u_mmu/u_dtlb/mr_paddr_reg[55]_i_118_n_0
+    SLICE_X68Y110        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.146 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_64/CO[3]
+                         net (fo=1, routed)           0.000    14.146    u_mmu/u_dtlb/mr_paddr_reg[55]_i_64_n_0
+    SLICE_X68Y111        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334    14.480 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_67/O[1]
+                         net (fo=1, routed)           0.312    14.793    u_mmu/u_dtlb/mr_paddr_reg[55]_i_67_n_6
+    SLICE_X70Y111        LUT5 (Prop_lut5_I0_O)        0.303    15.096 f  u_mmu/u_dtlb/mr_paddr[55]_i_55/O
+                         net (fo=52, routed)          1.345    16.440    u_mmu/u_dtlb/mr_paddr[55]_i_55_n_0
+    SLICE_X68Y98         LUT4 (Prop_lut4_I0_O)        0.124    16.564 r  u_mmu/u_dtlb/mr_paddr[29]_i_45/O
+                         net (fo=1, routed)           0.294    16.859    u_mmu/u_dtlb/mr_paddr[29]_i_45_n_0
+    SLICE_X69Y98         LUT5 (Prop_lut5_I4_O)        0.124    16.983 r  u_mmu/u_dtlb/mr_paddr[29]_i_25/O
+                         net (fo=1, routed)           0.550    17.533    u_mmu/u_dtlb/mr_paddr[29]_i_25_n_0
+    SLICE_X69Y97         LUT4 (Prop_lut4_I1_O)        0.124    17.657 r  u_mmu/u_dtlb/mr_paddr[29]_i_8/O
+                         net (fo=2, routed)           0.650    18.307    u_mmu/u_dtlb/mr_paddr[29]_i_8_n_0
+    SLICE_X72Y96         LUT6 (Prop_lut6_I2_O)        0.124    18.431 r  u_mmu/u_dtlb/mr_paddr[29]_i_2/O
+                         net (fo=9, routed)           1.463    19.894    u_mmu/u_dtlb/mr_paddr[29]_i_2_n_0
+    SLICE_X82Y77         LUT6 (Prop_lut6_I1_O)        0.124    20.018 r  u_mmu/u_dtlb/mr_paddr[25]_i_1/O
+                         net (fo=1, routed)           0.000    20.018    d_tr_paddr[25]
+    SLICE_X82Y77         FDCE                                         r  mr_paddr_reg[25]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X82Y77         FDCE (Setup_fdce_C_D)        0.031    20.920    mr_paddr_reg[25]
+  -------------------------------------------------------------------
+                         required time                         20.920    
+                         arrival time                         -20.018    
+  -------------------------------------------------------------------
+                         slack                                  0.902    
+
+Slack (MET) :             0.975ns  (required time - arrival time)
+  Source:                 fwd_a_wb_reg/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            mr_paddr_reg[29]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
+  Data Path Delay:        18.972ns  (logic 6.193ns (32.643%)  route 12.779ns (67.357%))
+  Logic Levels:           28  (CARRY4=15 LUT3=2 LUT4=3 LUT5=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X36Y101        FDCE                         0.000     0.973 r  fwd_a_wb_reg/C
+    SLICE_X36Y101        FDCE (Prop_fdce_C_Q)         0.456     1.429 r  fwd_a_wb_reg/Q
+                         net (fo=64, routed)          1.277     2.706    u_mdu/fwd_a_wb
+    SLICE_X32Y99         LUT3 (Prop_lut3_I1_O)        0.154     2.860 r  u_mdu/pp_lh0__1_i_25/O
+                         net (fo=2, routed)           1.052     3.912    u_fpu/pp_lh0__1_i_25_n_0_alias
+    SLICE_X33Y112        LUT6 (Prop_lut6_I5_O)        0.327     4.239 r  u_fpu/wb_data[9]_i_1_comp_1/O
+                         net (fo=2, routed)           1.489     5.728    u_mdu/ma_size_reg[0]_repN_1_alias
+    SLICE_X43Y94         LUT6 (Prop_lut6_I2_O)        0.124     5.852 r  u_mdu/pp_lh0__1_i_8_comp_1_replica/O
+                         net (fo=1, routed)           0.616     6.468    u_ifu/u_btb/ex_a_fwd[9]_repN_alias
+    SLICE_X44Y98         CARRY4 (Prop_carry4_DI[1]_CO[3])
+                                                      0.507     6.975 r  u_ifu/u_btb/d_req_addr[11]_INST_0_i_2/CO[3]
+                         net (fo=1, routed)           0.000     6.975    u_ifu/u_btb/d_req_addr[11]_INST_0_i_2_n_0
+    SLICE_X44Y99         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.089 r  u_ifu/u_btb/d_req_addr[15]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.001     7.090    u_ifu/u_btb/d_req_addr[15]_INST_0_i_1_n_0
+    SLICE_X44Y100        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.204 r  u_ifu/u_btb/d_req_addr[19]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.204    u_ifu/u_btb/d_req_addr[19]_INST_0_i_1_n_0
+    SLICE_X44Y101        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.318 r  u_ifu/u_btb/d_req_addr[23]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.318    u_ifu/u_btb/d_req_addr[23]_INST_0_i_1_n_0
+    SLICE_X44Y102        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.432 r  u_ifu/u_btb/d_req_addr[27]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.432    u_ifu/u_btb/d_req_addr[27]_INST_0_i_1_n_0
+    SLICE_X44Y103        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.546 r  u_ifu/u_btb/d_req_addr[31]_INST_0_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.546    u_ifu/u_btb/d_req_addr[31]_INST_0_i_1_n_0
+    SLICE_X44Y104        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.894 r  u_ifu/u_btb/d_req_addr[35]_INST_0_i_1/O[1]
+                         net (fo=6, routed)           0.765     8.659    u_mmu/for_d_reg_i_4_0[33]
+    SLICE_X50Y104        LUT3 (Prop_lut3_I2_O)        0.303     8.962 r  u_mmu/ptw_vpn_r[21]_i_2/O
+                         net (fo=99, routed)          1.245    10.207    u_mmu/u_dtlb/ptw_vpn_r_reg[21]
+    SLICE_X52Y99         LUT6 (Prop_lut6_I1_O)        0.124    10.331 r  u_mmu/u_dtlb/mr_paddr[55]_i_395/O
+                         net (fo=1, routed)           0.000    10.331    u_mmu/u_dtlb/mr_paddr[55]_i_395_n_0
+    SLICE_X52Y99         CARRY4 (Prop_carry4_S[3]_CO[3])
+                                                      0.401    10.732 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_237/CO[3]
+                         net (fo=1, routed)           0.001    10.733    u_mmu/u_dtlb/mr_paddr_reg[55]_i_237_n_0
+    SLICE_X52Y100        CARRY4 (Prop_carry4_CI_CO[0])
+                                                      0.271    11.004 f  u_mmu/u_dtlb/mr_paddr_reg[55]_i_111/CO[0]
+                         net (fo=1, routed)           0.667    11.671    u_mmu/u_dtlb/vpn_match0052_out
+    SLICE_X58Y103        LUT5 (Prop_lut5_I2_O)        0.373    12.044 f  u_mmu/u_dtlb/mr_paddr[55]_i_40/O
+                         net (fo=2, routed)           1.124    13.168    u_mmu/u_dtlb/mr_paddr[55]_i_40_n_0
+    SLICE_X68Y106        LUT4 (Prop_lut4_I0_O)        0.124    13.292 r  u_mmu/u_dtlb/for_d_i_59/O
+                         net (fo=2, routed)           0.000    13.292    u_mmu/u_dtlb/mr_paddr[55]_i_97_n_0
+    SLICE_X68Y106        CARRY4 (Prop_carry4_S[2]_CO[3])
+                                                      0.398    13.690 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_36/CO[3]
+                         net (fo=1, routed)           0.000    13.690    u_mmu/u_dtlb/mr_paddr_reg[55]_i_36_n_0
+    SLICE_X68Y107        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.804 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_46/CO[3]
+                         net (fo=1, routed)           0.000    13.804    u_mmu/u_dtlb/mr_paddr_reg[55]_i_46_n_0
+    SLICE_X68Y108        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    13.918 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_49/CO[3]
+                         net (fo=1, routed)           0.000    13.918    u_mmu/u_dtlb/mr_paddr_reg[55]_i_49_n_0
+    SLICE_X68Y109        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.032 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_118/CO[3]
+                         net (fo=1, routed)           0.000    14.032    u_mmu/u_dtlb/mr_paddr_reg[55]_i_118_n_0
+    SLICE_X68Y110        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    14.146 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_64/CO[3]
+                         net (fo=1, routed)           0.000    14.146    u_mmu/u_dtlb/mr_paddr_reg[55]_i_64_n_0
+    SLICE_X68Y111        CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334    14.480 r  u_mmu/u_dtlb/mr_paddr_reg[55]_i_67/O[1]
+                         net (fo=1, routed)           0.312    14.793    u_mmu/u_dtlb/mr_paddr_reg[55]_i_67_n_6
+    SLICE_X70Y111        LUT5 (Prop_lut5_I0_O)        0.303    15.096 f  u_mmu/u_dtlb/mr_paddr[55]_i_55/O
+                         net (fo=52, routed)          1.345    16.440    u_mmu/u_dtlb/mr_paddr[55]_i_55_n_0
+    SLICE_X68Y98         LUT4 (Prop_lut4_I0_O)        0.124    16.564 r  u_mmu/u_dtlb/mr_paddr[29]_i_45/O
+                         net (fo=1, routed)           0.294    16.859    u_mmu/u_dtlb/mr_paddr[29]_i_45_n_0
+    SLICE_X69Y98         LUT5 (Prop_lut5_I4_O)        0.124    16.983 r  u_mmu/u_dtlb/mr_paddr[29]_i_25/O
+                         net (fo=1, routed)           0.550    17.533    u_mmu/u_dtlb/mr_paddr[29]_i_25_n_0
+    SLICE_X69Y97         LUT4 (Prop_lut4_I1_O)        0.124    17.657 r  u_mmu/u_dtlb/mr_paddr[29]_i_8/O
+                         net (fo=2, routed)           0.650    18.307    u_mmu/u_dtlb/mr_paddr[29]_i_8_n_0
+    SLICE_X72Y96         LUT6 (Prop_lut6_I2_O)        0.124    18.431 r  u_mmu/u_dtlb/mr_paddr[29]_i_2/O
+                         net (fo=9, routed)           1.390    19.821    u_mmu/u_dtlb/mr_paddr[29]_i_2_n_0
+    SLICE_X83Y79         LUT6 (Prop_lut6_I1_O)        0.124    19.945 r  u_mmu/u_dtlb/mr_paddr[29]_i_1/O
+                         net (fo=1, routed)           0.000    19.945    d_tr_paddr[29]
+    SLICE_X83Y79         FDCE                                         r  mr_paddr_reg[29]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       20.000    20.000 r  
+                         propagated clock network latency
+                                                      0.924    20.924    
+                         clock pessimism              0.000    20.924    
+                         clock uncertainty           -0.035    20.889    
+    SLICE_X83Y79         FDCE (Setup_fdce_C_D)        0.031    20.920    mr_paddr_reg[29]
+  -------------------------------------------------------------------
+                         required time                         20.920    
+                         arrival time                         -19.945    
+  -------------------------------------------------------------------
+                         slack                                  0.975    
+
+
+
+

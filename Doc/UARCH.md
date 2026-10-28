@@ -201,10 +201,11 @@ measurement. "Measured" is Vivado out of context (`Plan/OOC.md`) or mmRISC-2's p
 structure, with the basis given. The ceiling is about 52k LUTs (80 to 82 % of 63,400; mmRISC-2 was at 79 % with 93 %
 of the slices).
 
-**Calibration (2026-10-28, `Plan/OOC.md` 24.5)**: the same RTL in the same configuration is larger in mmRISC-2's chip
-than out of context: CORE_CSR 1.74 ×, the D$ 1.41 ×, CORE_MDU 1.06 ×, with the same flip-flops. The out-of-order
-engine has only out-of-context numbers; a ratio for a whole core (mmRISC-2's CPU_CORE out of context against 32,929
-in its chip) is needed before G1.
+**Calibration (2026-10-29, `Plan/OOC.md` 24.5, 25.3)**: block by block the same RTL looked up to 1.74 × larger in
+mmRISC-2's chip than out of context (CORE_CSR), but mmRISC-2's whole CPU_CORE out of context is 33,014 LUTs against
+32,929 in its chip: **the ratio for a whole core is 1.00**. The block differences are where Vivado puts logic across
+the hierarchy (the PMP checks went into CORE_CSR), so the out-of-context numbers of the out-of-order engine stand;
+sums over whole units are what to compare.
 
 ### 4.2 The whole chip
 

@@ -1,0 +1,45 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Thu Oct 29 00:07:30 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/MM2_CPU_CORE/utilization_synth.rpt
+| Design       : CPU_CORE
+| Device       : xc7a100tcsg324-1
+| Speed File   : -1
+| Design State : Synthesized
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++--------------+-------------------------+------------+------------+---------+------+-------+--------+--------+------------+
+|   Instance   |          Module         | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs  | RAMB36 | RAMB18 | DSP Blocks |
++--------------+-------------------------+------------+------------+---------+------+-------+--------+--------+------------+
+| CPU_CORE     |                   (top) |      33286 |      31155 |    1960 |  171 | 16270 |      0 |      0 |         32 |
+|   (CPU_CORE) |                   (top) |        141 |        141 |       0 |    0 |  2636 |      0 |      0 |          0 |
+|   u_csr      |                CORE_CSR |       8297 |       8297 |       0 |    0 |  2631 |      0 |      0 |          0 |
+|   u_fpu      |                FPU_PIPE |       8774 |       8603 |       0 |  171 |  2698 |      0 |      0 |         16 |
+|     (u_fpu)  |                FPU_PIPE |       7786 |       7615 |       0 |  171 |  2614 |      0 |      0 |         16 |
+|     u_round  |               FPU_ROUND |        988 |        988 |       0 |    0 |    84 |      0 |      0 |          0 |
+|   u_frf      |                CORE_FRF |        560 |        296 |     264 |    0 |    32 |      0 |      0 |          0 |
+|   u_ifu      |                CORE_IFU |       6605 |       5085 |    1520 |    0 |  2650 |      0 |      0 |          0 |
+|     (u_ifu)  |                CORE_IFU |       2827 |       2827 |       0 |    0 |  2394 |      0 |      0 |          0 |
+|     u_btb    |                CORE_BTB |       3778 |       2258 |    1520 |    0 |   256 |      0 |      0 |          0 |
+|   u_lsu      |                CORE_LSU |       1134 |       1134 |       0 |    0 |    45 |      0 |      0 |          0 |
+|   u_mdu      |                CORE_MDU |       3426 |       3426 |       0 |    0 |   925 |      0 |      0 |         16 |
+|   u_mmu      |                CORE_MMU |       4305 |       4305 |       0 |    0 |  4621 |      0 |      0 |          0 |
+|     (u_mmu)  |                CORE_MMU |        108 |        108 |       0 |    0 |   130 |      0 |      0 |          0 |
+|     u_dtlb   | MMU_TLB__parameterized0 |       2649 |       2649 |       0 |    0 |  3109 |      0 |      0 |          0 |
+|     u_itlb   |                 MMU_TLB |       1168 |       1168 |       0 |    0 |  1252 |      0 |      0 |          0 |
+|     u_ptw    |                 MMU_PTW |        380 |        380 |       0 |    0 |   130 |      0 |      0 |          0 |
+|   u_rf       |                 CORE_RF |        402 |        226 |     176 |    0 |    32 |      0 |      0 |          0 |
++--------------+-------------------------+------------+------------+---------+------+-------+--------+--------+------------+
+
+

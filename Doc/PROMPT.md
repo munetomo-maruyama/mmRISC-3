@@ -3106,3 +3106,36 @@ Recorded in section 24.5 of Plan/OOC(_J).md, 4.1 / 6.4 of Doc/UARCH(_J).md and P
 ```text
 Set up the calibration: a synth_ooo run of mmRISC-2's whole CPU_CORE out of context, to compare with its 32,929 LUTs in the chip.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I set up the calibration run. It synthesizes mmRISC-2's whole CPU_CORE alone with the same flow as before. It has not run yet, so please run it in Vivado. The result is compared with the 32,929 LUTs in the chip.
+
+**What was set up**
+- **synth_ooo.tcl:** a new top name `MM2_CPU_CORE`.
+  - It reads mmRISC-2 Rev.02's CPU_CORE from the repository beside this one, `../../../mmRISC-2/RTL`: IFU / EXU / LSU / RF / FRF / DEC / DECOMP / CSR / MDU, FPU_PIPE and CORE_MMU.
+  - mmRISC-3's copies of CORE_CSR / CORE_DEC have the same module names, so this run reads only mmRISC-2's sources.
+  - The settings are the same as before (xc7a100tcsg324-1, 20 ns, alone, place and route).
+- **Parameters:** CPU_CORE's defaults were checked to be the chip build's (PMP 8, TLBs 16/32, BTB 256, the fetch queue 16 parcels).
+- **Checks:** the sources pass Verilator's lint alone, and the script is complete Tcl.
+- **synth_ooo.bat:** the command is noted. It takes long, so it is not in the loop of all runs.
+- **Output:** summary.txt has the rows of the sub-blocks (u_*) too, for a block-by-block comparison with the chip's report.
+
+**What the result decides** (the ratio R = 32,929 / the total alone)
+- **R about 1.0 to 1.15:** synthesis alone is a fair measure of a whole core. The differences block by block seen in section 24.5 are logic counted in other blocks in the chip. The budget can stay as it is.
+- **R about 1.3 or more:** the chip really adds LUTs. The out-of-order part's about 21k has to be counted again as "21k × R"; at R = 1.3 the gap grows by about 6k. Then I propose a trial synthesis of the whole chip before G1 and redoing the plan of reduction measures.
+
+Recorded in chapter 25 of Plan/OOC(_J).md and PROMPT.md (the English of answer 83); pushed to dev in commit a2df4e0.
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat MM2_CPU_CORE
+```
+<!-- /answer -->
+
+## 85. 2026-10-29 00:23:46 JST
+
+```text
+I ran synth_ooo.bat MM2_CPU_CORE. Please check output/MM2_CPU_CORE/summary.txt.
+```

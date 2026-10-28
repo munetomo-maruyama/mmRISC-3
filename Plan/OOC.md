@@ -2138,3 +2138,27 @@ the rows of its instances. CPU_CORE's parameter defaults are those of the chip b
   grows by (R − 1) × 21k, 6k at R = 1.3. Then a whole-chip trial comes before G1 (as L10 already wants) and the plan
   of the levers is redone.
 - The rows of the instances give R block by block, against the chip's rows above.
+
+### 25.3 The result (2026-10-29)
+
+| Block | In the chip | This run (out of context) | |
+|---|---|---|---|
+| **CPU_CORE** | **32,929** | **33,014** (16,270 FF, 32 DSP) | **R = 1.00** |
+| FPU_PIPE | 8,815 | 8,660 | |
+| CORE_IFU (with CORE_BTB) | 5,738 | 6,614 (BTB 3,791) | |
+| CORE_CSR | 4,750 | **8,251** (2,631 FF) | alone in OOC_CSRU: 2,732 |
+| CORE_MMU | 4,190 | 4,269 | its three MMU_PMP: **0** |
+| CORE_MDU | 3,423 | 3,410 | |
+| CORE_LSU | 946 | 1,142 | |
+| CORE_RF / CORE_FRF | 384 / 544 | 390 / 549 | |
+
+- **Out of context measures a whole core as the chip does**: 33,014 against 32,929 (+0.3 %). The risk of 24.5 is gone:
+  the out-of-order engine's out-of-context numbers stand, and so does the budget (3.5k / 4.9k / 6.2k).
+- **The differences block by block were where Vivado puts logic, not more of it.** Here the PMP checkers (inside
+  CORE_MMU, fed by the CSRs' pmpaddr / pmpmask) have 0 LUTs and CORE_CSR 8,251: Vivado optimized the checks across the
+  boundary into the CSR block. In the chip a part of them went there (CSR 4,750), alone none (2,732). The D$'s 1.41 ×
+  is the same kind of thing. So a block's number is only as good as the boundary it was measured at; sums over whole
+  units are what the budget should compare, which it does.
+- **Timing**: register to register +0.002 ns, 28 levels: mmRISC-2's core just closes at 50 MHz out of context, as in
+  its chip. The worst slack with the ports (−2.496 ns) is the 6 ns of I/O delay on the core's combinational port
+  paths (the caches' interface), which the chip does not have.

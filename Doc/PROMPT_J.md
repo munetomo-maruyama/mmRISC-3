@@ -3095,3 +3095,36 @@ L1 の削減は、単体合成で測ると **233 LUT** でした。予算は基�
 ```text
 Set up the calibration: a synth_ooo run of mmRISC-2's whole CPU_CORE out of context, to compare with its 32,929 LUTs in the chip.
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+較正の実行を用意しました。mmRISC-2 の CPU_CORE 全体を、これまでと同じ流れで単体合成します。まだ実行はしていないので、Vivado で回してください。結果はチップ内の 32,929 LUT と比べます。
+
+**用意したもの**
+- **synth_ooo.tcl:** トップ名 `MM2_CPU_CORE` を追加しました。
+  - mmRISC-2 Rev.02 の CPU_CORE を、隣のリポジトリ `../../../mmRISC-2/RTL` から読みます。中身は IFU / EXU / LSU / RF / FRF / DEC / DECOMP / CSR / MDU、FPU_PIPE、CORE_MMU です。
+  - mmRISC-3 の CORE_CSR / CORE_DEC のコピーはモジュール名が同じなので、この実行では mmRISC-2 のソースだけを読むようにしました。
+  - 設定はこれまでと同じです(xc7a100tcsg324-1、20 ns、単体、配置配線)。
+- **パラメータ:** CPU_CORE の既定値が、チップのビルドと同じであることを確かめました(PMP 8、TLB 16/32、BTB 256、フェッチキュー 16 パーセル)。
+- **確認:** ソースは単独で Verilator の lint を通り、スクリプトは Tcl として完結しています。
+- **synth_ooo.bat:** コマンドを注記しました。時間がかかるので、全件ループには入れていません。
+- **出力:** summary.txt にはサブブロックの行(u_*)も出るので、チップのレポートとブロックごとに比べられます。
+
+**結果で決まること**(比 R = 32,929 / 単体の合計)
+- **R が約 1.0〜1.15 の場合:** 単体合成はコア全体の公正な測り方と言えます。24.5 節で見たブロックごとの差は、チップでは論理が別のブロックに数えられていた分です。予算はこのままでよいことになります。
+- **R が約 1.3 以上の場合:** チップでは本当に LUT が増えます。アウトオブオーダー部分の約 21k は「21k × R」と数え直す必要があり、R = 1.3 なら不足が約 6k 増えます。その場合は、G1 より前にチップ全体の試し合成を行い、削減策の計画を立て直すことを提案します。
+
+記録は Plan/OOC(_J).md の25章と、PROMPT.md(回答83の英訳)です。コミット a2df4e0 で dev に push 済みです。
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat MM2_CPU_CORE
+```
+<!-- /answer -->
+
+## 85. 2026-10-29 00:23:46 JST
+
+```text
+I ran synth_ooo.bat MM2_CPU_CORE. Please check output/MM2_CPU_CORE/summary.txt.
+```
