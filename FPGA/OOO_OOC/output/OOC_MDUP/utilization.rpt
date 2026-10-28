@@ -1,0 +1,32 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Wed Oct 28 23:33:21 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_MDUP/utilization.rpt
+| Design       : OOC_MDUP
+| Device       : xc7a100tcsg324-1
+| Speed File   : -1
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++--------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+|   Instance   |  Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++--------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+| OOC_MDUP     |    (top) |       3258 |       3258 |       0 |    0 | 1198 |      0 |      0 |         16 |
+|   (OOC_MDUP) |    (top) |          0 |          0 |       0 |    0 |  251 |      0 |      0 |          0 |
+|   u_mdup     | OOO_MDUP |       3258 |       3258 |       0 |    0 |  947 |      0 |      0 |         16 |
+|     u_mdu    | CORE_MDU |       3240 |       3240 |       0 |    0 |  920 |      0 |      0 |         16 |
++--------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
+
+

@@ -2975,5 +2975,53 @@ Add the pipelined mul/mulw multiplier (variant A) beside CORE_MDU now, with test
 <!-- answer -->
 **Claude Codeの回答**
 
-The docs are ready. Still running in the background: the full suite (28 tests), extra seeds and the 293-mutation campaign. I'll commit once they report.
+D-16 の案A、つまり CORE_MDU の横に mul / mulw 専用のパイプライン乗算器を入れました。テストは28本すべてPASS、バグ注入は293件すべて検出で、コミット db85eec で dev に push 済みです。Vivado での確認はまだです。
+
+**変更**
+- **OOO_PMUL(新規):** ポート0で mul / mulw を1サイクルに1つ、レイテンシ2で処理します。
+  - EX でオペランドを DSP に入れ、次のサイクルに3つの 32×32 積を足して、ポート0の書き戻しレジスタへ書きます。
+  - 下位64ビットだけ求めるので、符号は関係ありません。mulw は下位32ビットを符号拡張します。
+  - どちらのサイクルでもマスクかフラッシュで kill されます。
+- **OOO_MDUP:** CORE_MDU は mulh、clmul、除算だけを受け持ちます。
+  - mul 経路と長短の区別は不要になったので削りました。
+  - 書き込むのは、ポート0の書き戻し枠が空いているときです。EX にレイテンシ1の書き手がおらず、PMUL の結果も出ていないサイクルです。
+- **OOO_IQ:** MDU ビットは長い演算だけに付けます。`iss_md_long` は削除しました。
+- **性能:** モデルではパイプライン乗算器のときの値 6.243 / 6.680 / 6.066 に戻ります。コストは約 0.2k LUT と DSP 10 個です。
+- **D-16:** 作者の決定(案A)として UARCH に記録しました。
+
+**テスト**
+- **tb_pmul(新規):** 連続する mul / mulw を、符号や32ビット境界に当たるオペランドで流し、積と照合しました。マスク、kill、フラッシュも混ぜています。
+- **tb_mdup:** ポート0に PMUL 行きの mul も混ぜました。また4分の1の期間は mul を出さずに毎サイクルレイテンシ1の書き手を出し、`p0_hold` がないと書けない状況を作っています。
+- **バグ注入:** 新しいミューテーションが、私のテストベンチの穴を2つ見つけました。
+  - tb_pmul は、kill した後の番号でマスクを作っていたので、kill されたビットを持つ µop が一度も出ていませんでした。
+  - tb_mdup の忙しい期間に mul が混ざっていて、`p0_hold` がなくても枠が空いてしまっていました。
+  - どちらも直し、そのミューテーションが検出されることを確認しました。
+
+**その他:** 23章で日付を誤って 2026-10-29 と書いていたので、2026-10-28 に直しました。
+
+**規模(Yosys)**
+
+| ブロック | Yosys |
+|---|---|
+| OOC_PMUL | 149 LUT、DSP48E1 10個 |
+
+記録先は Plan/OOC(_J).md の24章、Doc/UARCH(_J).md の 3.6 と D-16、各 README、PROMPT.md(回答80の英訳)です。
+
+次の6件を Vivado で回してください。OOC_PMUL は synth_ooo.bat の一覧に追加済みです。
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_PMUL
+synth_ooo.bat OOC_CSRU
+synth_ooo.bat OOC_MDUP
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_TRAP
+synth_ooo.bat OOC_SYS
+```
 <!-- /answer -->
+
+## 82. 2026-10-28 23:40:52 JST
+
+```text
+I ran synth_ooo.bat for OOC_PMUL, OOC_CSRU, OOC_MDUP, OOO_IQ, OOC_TRAP and OOC_SYS. Please check output/*/summary.txt.
+```

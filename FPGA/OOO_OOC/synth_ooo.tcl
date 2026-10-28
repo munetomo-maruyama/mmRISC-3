@@ -11,7 +11,7 @@
 #                                                          OOC_ALU2
 #     period    clock period in ns                         20.0 (50 MHz)
 #     impl      1 = also place and route                   1
-#     generics  for OOC_PRF, e.g. "NW=3 NR=8"; OOC_ALU2 "FULL=0" is ALU1   (the defaults)
+#     generics  for OOC_PRF, e.g. "NW=3 NR=8"; OOC_ALU2 "FULL=0" is ALU1; OOC_CSRU "HPM=4" (the defaults)
 #
 # Outputs in ./output/<top>[_<generics>]/ : utilization_synth.rpt /
 # utilization.rpt, timing_summary.rpt, timing_reg2reg.rpt, summary.txt

@@ -266,6 +266,8 @@ of the slices).
 | **Over, 2026-10-27 night** | **3.3k** | **4.7k** | **6.0k** |
 | Needed, 2026-10-28 (the control's third part measured, `Plan/OOC.md` 20.4: renaming 2,702 with 6 wakeup buses clearing the busy bits, +238; the LSU with the masks 1,942, −348; issue queue 1,874, +8; the DS register's 69 inside the control's estimate) | 21.1k | 21.7k | 22.3k |
 | **Over, 2026-10-28** | **3.2k** | **4.6k** | **5.9k** |
+| Needed, 2026-10-28 late (`Plan/OOC.md` 24.4: CORE_CSR and CORE_MDU brought in; they stay at mmRISC-2's in-chip sizes, with L1 at its estimate until the run with 4 HPM counters; D-16's pipelined multiplier `OOO_PMUL` 164 and its write-back input about 64, 10 DSP blocks; issue queue +20) | 21.4k | 22.0k | 22.6k |
+| **Over, 2026-10-28 late** | **3.5k** | **4.9k** | **6.2k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is

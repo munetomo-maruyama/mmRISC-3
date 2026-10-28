@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Wed Oct 28 21:19:31 2026
+| Date         : Wed Oct 28 23:38:40 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOC_TRAP/utilization.rpt
 | Design       : OOC_TRAP
@@ -22,9 +22,9 @@ Table of Contents
 +--------------+----------+------------+------------+---------+------+-----+--------+--------+------------+
 |   Instance   |  Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs | RAMB36 | RAMB18 | DSP Blocks |
 +--------------+----------+------------+------------+---------+------+-----+--------+--------+------------+
-| OOC_TRAP     |    (top) |        203 |        203 |       0 |    0 | 657 |      0 |      0 |          0 |
-|   (OOC_TRAP) |    (top) |          7 |          7 |       0 |    0 | 583 |      0 |      0 |          0 |
-|   u_trap     | OOO_TRAP |        196 |        196 |       0 |    0 |  74 |      0 |      0 |          0 |
+| OOC_TRAP     |    (top) |        217 |        217 |       0 |    0 | 697 |      0 |      0 |          0 |
+|   (OOC_TRAP) |    (top) |         44 |         44 |       0 |    0 | 622 |      0 |      0 |          0 |
+|   u_trap     | OOO_TRAP |        173 |        173 |       0 |    0 |  75 |      0 |      0 |          0 |
 +--------------+----------+------------+------------+---------+------+-----+--------+--------+------------+
 * Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
 

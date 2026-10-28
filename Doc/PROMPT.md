@@ -2982,3 +2982,57 @@ Recorded in section 23.4 of Plan/OOC(_J).md and the D-16 row of UARCH; pushed to
 ```text
 Add the pipelined mul/mulw multiplier (variant A) beside CORE_MDU now, with tests and Vivado scripts.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I added D-16's variant A, a pipelined multiplier for mul / mulw only, beside CORE_MDU. All 28 tests PASS and all 293 mutations are detected; pushed to dev in commit db85eec. Not yet confirmed in Vivado.
+
+**Changes**
+- **OOO_PMUL (new):** mul / mulw on port 0, one a cycle, at latency 2.
+  - The operands go into the DSPs in EX; the next cycle the three 32×32 products are added and written into port 0's write-back register.
+  - Only the low 64 bits are computed, so signs do not matter. mulw sign extends the low 32 bits.
+  - It is killed by mask or flush in either cycle.
+- **OOO_MDUP:** CORE_MDU now handles only mulh, clmul and the divides.
+  - The mul path and the long / short distinction are no longer needed and were removed.
+  - It writes when port 0's write-back slot is free: a cycle with no latency-1 writer in EX and no PMUL result.
+- **OOO_IQ:** the MDU bit marks only the long operations. `iss_md_long` was removed.
+- **Performance:** in the model, back to the pipelined multiplier's 6.243 / 6.680 / 6.066. Cost about 0.2k LUTs and 10 DSPs.
+- **D-16:** recorded in UARCH as the author's decision (variant A).
+
+**Tests**
+- **tb_pmul (new):** back-to-back mul / mulw with operands on the signs and the 32-bit edges, against the product, with masks, kills and flushes.
+- **tb_mdup:** port 0 now also issues muls for PMUL. And for a quarter of the time it issues no mul and a latency-1 writer every cycle, a situation where nothing can be written without `p0_hold`.
+- **Bug injection:** the new mutations found two holes in my test benches.
+  - tb_pmul built the mask from the ids left after the kill, so a µop never carried the killed bit.
+  - tb_mdup's busy phase had muls mixed in, which left the slot free even without `p0_hold`.
+  - Both were fixed, and those mutations are detected.
+
+**Other:** in chapter 23 I had written the date as 2026-10-29 by mistake; corrected to 2026-10-28.
+
+**Size (Yosys)**
+
+| Block | Yosys |
+|---|---|
+| OOC_PMUL | 149 LUTs, 10 DSP48E1 |
+
+Recorded in chapter 24 of Plan/OOC(_J).md, 3.6 and D-16 of Doc/UARCH(_J).md, the READMEs and PROMPT.md (the English of answer 80).
+
+Please run these six in Vivado. OOC_PMUL has been added to the list in synth_ooo.bat.
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_PMUL
+synth_ooo.bat OOC_CSRU
+synth_ooo.bat OOC_MDUP
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_TRAP
+synth_ooo.bat OOC_SYS
+```
+<!-- /answer -->
+
+## 82. 2026-10-28 23:40:52 JST
+
+```text
+I ran synth_ooo.bat for OOC_PMUL, OOC_CSRU, OOC_MDUP, OOO_IQ, OOC_TRAP and OOC_SYS. Please check output/*/summary.txt.
+```

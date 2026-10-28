@@ -1,0 +1,33 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Wed Oct 28 23:30:10 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_CSRU/utilization.rpt
+| Design       : OOC_CSRU
+| Device       : xc7a100tcsg324-1
+| Speed File   : -1
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++--------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+|   Instance   |  Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++--------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+| OOC_CSRU     |    (top) |       2537 |       2537 |       0 |    0 | 4454 |      0 |      0 |          0 |
+|   (OOC_CSRU) |    (top) |          0 |          0 |       0 |    0 | 1979 |      0 |      0 |          0 |
+|   u_csru     | OOO_CSRU |       2537 |       2537 |       0 |    0 | 2475 |      0 |      0 |          0 |
+|     (u_csru) | OOO_CSRU |         50 |         50 |       0 |    0 |    0 |      0 |      0 |          0 |
+|     u_csr    | CORE_CSR |       2499 |       2499 |       0 |    0 | 2475 |      0 |      0 |          0 |
++--------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
+
+

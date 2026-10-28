@@ -1,0 +1,6 @@
+OOC_MDUP   (period 20.0 ns, I/O delay 6.0 ns each side on the ports)
+after synthesis: 3280 LUTs (3280 logic + 0 LUT RAM; 3957 LUT cells), 1198 FF, 16 DSP, 0 LUT RAM cells, 0.0 BRAM tiles
+after place and route: 3258 LUTs (3258 logic + 0 LUT RAM; 3957 LUT cells), WNS 5.921 ns, register to register 5.921 ns (14 logic levels)
+instances (after place and route):
+    u_mdup                 OOO_MDUP               3258 LUTs (3258 logic + 0 LUT RAM), 947 FF
+      u_mdu                CORE_MDU               3240 LUTs (3240 logic + 0 LUT RAM), 920 FF

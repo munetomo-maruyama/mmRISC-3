@@ -2053,3 +2053,27 @@ The author decided D-16 for variant A of 23.4 (`Doc/PROMPT.md` entry 81).
 
 - **Please run** `synth_ooo.bat OOC_PMUL` (new in the list) with the five of 23.3: `OOC_CSRU`, `OOC_MDUP`, `OOO_IQ`,
   `OOC_TRAP`, `OOC_SYS`.
+
+### 24.4 The Vivado results (2026-10-28)
+
+| Run | LUT | DSP | Before | Worst slack | |
+|---|---|---|---|---|---|
+| OOC_PMUL | **164** | 10 | (Yosys 149) | +11.501 ns (register to register +12.305, 11 levels) | new |
+| OOC_CSRU | **2,537** (CORE_CSR 2,499) | 0 | (Yosys 2,823) | **+0.569 ns** (28 levels: the CSR read) | new |
+| OOC_MDUP | **3,258** (CORE_MDU 3,240) | 16 | (Yosys 3,759) | +5.921 ns | new |
+| OOO_IQ | **1,894** | | 1,874 | +1.165 ns | +20: the MDU bit, port 0's write slot |
+| OOC_TRAP | **217** | | 203 | +6.915 ns | the CSRs' vector, SRET |
+| OOC_SYS | **23** | | 15 | +11.501 ns | SRET, the privilege checks |
+
+- **All close at 50 MHz**; the CSR unit with the least margin (its read mux, as in mmRISC-2's EX).
+- **In context or out of it.** mmRISC-2's hierarchical report of the whole chip gave CORE_CSR 4,750 LUTs and 2,629
+  flip-flops; out of context here it is 2,499 LUTs with 2,475 flip-flops (two HPM counters fewer). The flip-flops say
+  the logic is the same; the LUTs differ by more than L1 can (estimated 0.65k). The D$ shows the same kind of gap
+  (7,497 in the chip, 5,325 here in OOC_LSUDC), CORE_MDU hardly any (3,423, 3,240). The budget counts mmRISC-2's blocks
+  at their in-chip sizes, so it keeps doing that and takes only what was measured as a change; the whole core at G1
+  settles which is right.
+- **L1 measured**: please run `synth_ooo.bat OOC_CSRU 20.0 1 "HPM=4"` (the harness now has the parameter): the
+  difference to this run is what L1 saves, which then replaces its estimate.
+- **The budget** (`Doc/UARCH.md` 4.4): D-16's multiplier 164 and its input into port 0's write-back (about 64), the
+  issue queue +20; the trap and system units (217, 23) inside the control's estimate (the control so far 697). The gap
+  goes to **3.5k / 4.9k / 6.2k**. DSP blocks: 42 of 240 (mmRISC-2's 32 and the multiplier's 10).

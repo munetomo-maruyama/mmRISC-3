@@ -931,6 +931,9 @@ endmodule : OOC_SYS
 // and the core use at the assembly
 //---------------------------------------------------------------------------
 module OOC_CSRU
+    #(
+        parameter int HPM = 2           // 2: G0b L1; "HPM=4" measures what L1 saves (Plan/OOC.md 24.4)
+    )
     (
         input  logic          clk,
         input  logic          rst_n,
@@ -1008,7 +1011,7 @@ module OOC_CSRU
     logic [255:0] trig_addr;
     logic tcontrol_mte;
     assign {ex_valid, ex_op, ex_addr, ex_rs1, ex_src, ex_rob, ex_inst, trap_en, trap_int, trap_cause, trap_epc, trap_tval, mret_en, sret_en, irq_m_soft, irq_m_timer, irq_m_ext, irq_s_ext, mtime, instret_inc, hpm_ev, fflags_we, fflags_set, fs_dirty, dbg_access, dbg_addr, dbg_enter, dbg_cause, dbg_pc, dbg_resume, trig_fired} = q;
-    OOO_CSRU #(.VA(39), .ROBW(5), .PMP_ENTRIES(8), .PMP_CSRS(16), .TRIGGERS(4), .HPM_COUNTERS(2), .HPM_EVENTS(20)) u_csru
+    OOO_CSRU #(.VA(39), .ROBW(5), .PMP_ENTRIES(8), .PMP_CSRS(16), .TRIGGERS(4), .HPM_COUNTERS(HPM), .HPM_EVENTS(20)) u_csru
         (.ex_valid(ex_valid), .ex_op(ex_op), .ex_addr(ex_addr), .ex_rs1(ex_rs1), .ex_src(ex_src), .ex_rob(ex_rob), .ex_inst(ex_inst), .trap_en(trap_en), .trap_int(trap_int), .trap_cause(trap_cause), .trap_epc(trap_epc), .trap_tval(trap_tval), .mret_en(mret_en), .sret_en(sret_en), .irq_m_soft(irq_m_soft), .irq_m_timer(irq_m_timer), .irq_m_ext(irq_m_ext), .irq_s_ext(irq_s_ext), .mtime(mtime), .instret_inc(instret_inc), .hpm_ev(hpm_ev), .fflags_we(fflags_we), .fflags_set(fflags_set), .fs_dirty(fs_dirty), .dbg_access(dbg_access), .dbg_addr(dbg_addr), .dbg_enter(dbg_enter), .dbg_cause(dbg_cause), .dbg_pc(dbg_pc), .dbg_resume(dbg_resume), .trig_fired(trig_fired), .ex_res(ex_res), .ex_exc(ex_exc), .ex_rp(ex_rp), .tv_valid(tv_valid), .tv_rob(tv_rob), .tv_val(tv_val), .tvec(tvec), .mepc(mepc), .sepc(sepc), .irq_pend(irq_pend), .irq_cause(irq_cause), .wfi_wake(wfi_wake), .priv(priv), .satp(satp), .mstatus_sum(mstatus_sum), .mstatus_mxr(mstatus_mxr), .mstatus_mprv(mstatus_mprv), .mstatus_mpp(mstatus_mpp), .mstatus_tvm(mstatus_tvm), .mstatus_tw(mstatus_tw), .mstatus_tsr(mstatus_tsr), .menvcfg_cbze(menvcfg_cbze), .senvcfg_cbze(senvcfg_cbze), .pmpcfg(pmpcfg), .pmpaddr(pmpaddr), .pmpmask(pmpmask), .frm(frm), .fs(fs), .dbg_rdata(dbg_rdata), .dcsr_step(dcsr_step), .dcsr_ebreakm(dcsr_ebreakm), .dcsr_ebreaks(dcsr_ebreaks), .dcsr_ebreaku(dcsr_ebreaku), .dpc(dpc), .trig_cfg(trig_cfg), .trig_addr(trig_addr), .tcontrol_mte(tcontrol_mte), .clk(clk), .rst_n(rst_n));
     always_ff @(posedge clk) out <= {ex_res, ex_exc, ex_rp, tv_valid, tv_rob, tv_val, tvec, mepc, sepc, irq_pend, irq_cause, wfi_wake, priv, satp, mstatus_sum, mstatus_mxr, mstatus_mprv, mstatus_mpp, mstatus_tvm, mstatus_tw, mstatus_tsr, menvcfg_cbze, senvcfg_cbze, pmpcfg, pmpaddr, pmpmask, frm, fs, dbg_rdata, dcsr_step, dcsr_ebreakm, dcsr_ebreaks, dcsr_ebreaku, dpc, trig_cfg, trig_addr, tcontrol_mte};
 endmodule : OOC_CSRU

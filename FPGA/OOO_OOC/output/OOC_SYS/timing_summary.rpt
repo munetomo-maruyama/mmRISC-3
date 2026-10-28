@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Wed Oct 28 21:30:19 2026
+| Date         : Wed Oct 28 23:40:37 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_timing_summary -file ./output/OOC_SYS/timing_summary.rpt
 | Design       : OOC_SYS
@@ -138,7 +138,7 @@ Table of Contents
 
     WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
     -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
-     11.501        0.000                      0                   70        0.123        0.000                      0                   70        9.500        0.000                       0                    43  
+     11.501        0.000                      0                  189        0.162        0.000                      0                  189        9.500        0.000                       0                   121  
 
 
 All user specified timing constraints are met.
@@ -161,7 +161,7 @@ clk    {0.000 10.000}     20.000          50.000
 
 Clock             WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
 -----             -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
-clk                11.501        0.000                      0                   70        0.123        0.000                      0                   70        9.500        0.000                       0                    43  
+clk                11.501        0.000                      0                  189        0.162        0.000                      0                  189        9.500        0.000                       0                   121  
 
 
 ------------------------------------------------------------------------------------------------
@@ -193,7 +193,7 @@ From Clock:  clk
   To Clock:  clk
 
 Setup :            0  Failing Endpoints,  Worst Slack       11.501ns,  Total Violation        0.000ns
-Hold  :            0  Failing Endpoints,  Worst Slack        0.123ns,  Total Violation        0.000ns
+Hold  :            0  Failing Endpoints,  Worst Slack        0.162ns,  Total Violation        0.000ns
 PW    :            0  Failing Endpoints,  Worst Slack        9.500ns,  Total Violation        0.000ns
 ---------------------------------------------------------------------------------------------------
 
@@ -201,9 +201,9 @@ PW    :            0  Failing Endpoints,  Worst Slack        9.500ns,  Total Vio
 Max Delay Paths
 --------------------------------------------------------------------------------------
 Slack (MET) :             11.501ns  (required time - arrival time)
-  Source:                 out_reg[6]/C
+  Source:                 out_reg[29]/C
                             (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            out[6]
+  Destination:            out[29]
                             (output port clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Max at Slow Process Corner
@@ -225,12 +225,12 @@ Slack (MET) :             11.501ns  (required time - arrival time)
   -------------------------------------------------------------------    -------------------
                          (clock clk rise edge)        0.000     0.000 r  
                                                       0.000     0.000 r  clk (IN)
-                         net (fo=42, unset)           0.973     0.973    clk
-    SLICE_X12Y43         FDRE                                         r  out_reg[6]/C
+                         net (fo=120, unset)          0.973     0.973    clk
+    SLICE_X54Y100        FDRE                                         r  out_reg[29]/C
   -------------------------------------------------------------------    -------------------
-    SLICE_X12Y43         FDRE (Prop_fdre_C_Q)         0.518     1.491 r  out_reg[6]/Q
-                         net (fo=0)                   0.973     2.464    out[6]
-                                                                      r  out[6] (OUT)
+    SLICE_X54Y100        FDRE (Prop_fdre_C_Q)         0.518     1.491 r  out_reg[29]/Q
+                         net (fo=0)                   0.973     2.464    out[29]
+                                                                      r  out[29] (OUT)
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)       20.000    20.000 r  
@@ -249,15 +249,15 @@ Slack (MET) :             11.501ns  (required time - arrival time)
 
 Min Delay Paths
 --------------------------------------------------------------------------------------
-Slack (MET) :             0.123ns  (arrival time - required time)
-  Source:                 u_sys/cmp_rob_reg[1]/C
+Slack (MET) :             0.162ns  (arrival time - required time)
+  Source:                 u_sys/cmp_rob_reg[4]/C
                             (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            out_reg[2]/D
+  Destination:            out_reg[76]/D
                             (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Hold (Min at Fast Process Corner)
   Requirement:            0.000ns  (clk rise@0.000ns - clk rise@0.000ns)
-  Data Path Delay:        0.192ns  (logic 0.141ns (73.465%)  route 0.051ns (26.535%))
+  Data Path Delay:        0.259ns  (logic 0.141ns (54.469%)  route 0.118ns (45.531%))
   Logic Levels:           0  
   Clock Path Skew:        0.022ns (DCD - SCD - CPR)
     Destination Clock Delay (DCD):    0.432ns
@@ -268,25 +268,25 @@ Slack (MET) :             0.123ns  (arrival time - required time)
   -------------------------------------------------------------------    -------------------
                          (clock clk rise edge)        0.000     0.000 r  
                                                       0.000     0.000 r  clk (IN)
-                         net (fo=42, unset)           0.410     0.410    u_sys/clk
-    SLICE_X16Y42         FDRE                                         r  u_sys/cmp_rob_reg[1]/C
+                         net (fo=120, unset)          0.410     0.410    u_sys/clk
+    SLICE_X25Y41         FDRE                                         r  u_sys/cmp_rob_reg[4]/C
   -------------------------------------------------------------------    -------------------
-    SLICE_X16Y42         FDRE (Prop_fdre_C_Q)         0.141     0.551 r  u_sys/cmp_rob_reg[1]/Q
-                         net (fo=1, routed)           0.051     0.602    cmp_rob[1]
-    SLICE_X17Y42         FDRE                                         r  out_reg[2]/D
+    SLICE_X25Y41         FDRE (Prop_fdre_C_Q)         0.141     0.551 r  u_sys/cmp_rob_reg[4]/Q
+                         net (fo=1, routed)           0.118     0.669    cmp_rob[4]
+    SLICE_X24Y41         FDRE                                         r  out_reg[76]/D
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)        0.000     0.000 r  
                                                       0.000     0.000 r  clk (IN)
-                         net (fo=42, unset)           0.432     0.432    clk
-    SLICE_X17Y42         FDRE                                         r  out_reg[2]/C
+                         net (fo=120, unset)          0.432     0.432    clk
+    SLICE_X24Y41         FDRE                                         r  out_reg[76]/C
                          clock pessimism              0.000     0.432    
-    SLICE_X17Y42         FDRE (Hold_fdre_C_D)         0.047     0.479    out_reg[2]
+    SLICE_X24Y41         FDRE (Hold_fdre_C_D)         0.075     0.507    out_reg[76]
   -------------------------------------------------------------------
-                         required time                         -0.479    
-                         arrival time                           0.602    
+                         required time                         -0.507    
+                         arrival time                           0.669    
   -------------------------------------------------------------------
-                         slack                                  0.123    
+                         slack                                  0.162    
 
 
 
@@ -299,10 +299,10 @@ Waveform(ns):       { 0.000 10.000 }
 Period(ns):         20.000
 Sources:            { clk }
 
-Check Type        Corner  Lib Pin  Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location      Pin
-Min Period        n/a     FDRE/C   n/a            1.000         20.000      19.000     SLICE_X17Y42  out_reg[0]/C
-Low Pulse Width   Slow    FDRE/C   n/a            0.500         10.000      9.500      SLICE_X17Y42  out_reg[0]/C
-High Pulse Width  Slow    FDRE/C   n/a            0.500         10.000      9.500      SLICE_X17Y42  out_reg[0]/C
+Check Type        Corner  Lib Pin  Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location       Pin
+Min Period        n/a     FDRE/C   n/a            1.000         20.000      19.000     SLICE_X49Y100  out_reg[0]/C
+Low Pulse Width   Slow    FDRE/C   n/a            0.500         10.000      9.500      SLICE_X49Y100  out_reg[0]/C
+High Pulse Width  Slow    FDRE/C   n/a            0.500         10.000      9.500      SLICE_X49Y100  out_reg[0]/C
 
 
 
