@@ -167,14 +167,17 @@ the free list; renaming gets them (about 0.3k LUTs).
   and fetched again with fusion off for that group, so the two instructions run one at a time and `mepc` / `mtval`
   and the registers are exact (with one write per pair, the first half's result may never have been written).
 - Debug halts and single steps are taken at commit; no fusion while single-stepping or with triggers armed.
+- **Built** (`OOO_TRAP`, `Plan/OOC.md` 22): an interrupt is not taken while the head is a non-speculative µop that has
+  issued (its effect has happened) and wins over the head's exception; the refetch of a pair keeps fusion off until two
+  instructions have committed; mtval is the tval of the oldest exception reported; MRET's replay fetches from mepc.
 
 ### 3.9 What runs only at the ROB head (non-speculative list)
 
 | Kind | Handling |
 |---|---|
 | CSR instructions (including `fcsr`, `satp`, counters) | Serialized at the head: issued only there (`OOO_IQ` with `ns_ok`, `Plan/OOC.md` 19); a write completes marked for replay after commit, so younger µops are fetched again |
-| ECALL, EBREAK, MRET, SRET, WFI | At the head |
-| FENCE, FENCE.I, SFENCE.VMA | At the head; FENCE.I and SFENCE.VMA flush the front end |
+| ECALL, EBREAK, MRET, SRET, WFI | At the head (ECALL / EBREAK exceptions at decode; MRET and WFI in `OOO_SYS`: MRET completes marked for replay to mepc, WFI when an interrupt is pending in mie) |
+| FENCE, FENCE.I, SFENCE.VMA | At the head (`OOO_SYS`, `Plan/OOC.md` 22): all wait for the committed stores to be in the D$; FENCE.I then FLUSHes the D$ and invalidates the I$, SFENCE.VMA flushes the TLBs; both complete marked for replay (the front end fetches again) |
 | AMO, LR, SC | At the head, with the store queue drained |
 | Loads from non-cacheable memory (MMIO) | Known after translation; held until the head, then performed |
 | Stores | To the D$ (or MMIO) only after commit |

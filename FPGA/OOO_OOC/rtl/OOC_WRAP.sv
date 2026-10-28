@@ -21,6 +21,8 @@
 //   OOC_CTRL    the control (branch masks, go, recovery, commit)
 //   OOC_DSREG   the DS register's payload: ready bits snooping the wakeups
 //   OOC_FERS    the front end's restore with the FTQ it reads
+//   OOC_TRAP    exceptions and interrupts at the ROB head
+//   OOC_SYS     the system µops (FENCE.I and so on)
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -201,7 +203,7 @@ module OOC_LSU
         input  logic          clk,
         input  logic          rst_n,
         input  logic [332:0]  in,
-        output logic [299:0]  out
+        output logic [300:0]  out
     );
     logic [332:0] q;
     always_ff @(posedge clk) q <= in;
@@ -226,7 +228,7 @@ module OOC_LSU
     logic [7:0]   ck_lq_tail, ck_sq_tail;
     logic [7:0]   st_known, dc_kill;
     logic         dc_req_valid, dc_fill_ready, dc_st_valid, wb_valid, wb_late, ld_cancel;
-    logic         cmp_ld_valid, cmp_ld_exc, cmp_ld_rp, cmp_st_valid, cmp_st_exc;
+    logic         cmp_ld_valid, cmp_ld_exc, cmp_ld_rp, cmp_st_valid, cmp_st_exc, sq_drained;
     logic [39:0]  dc_req_addr, dc_st_addr;
     logic [2:0]   dc_req_tag;
     logic [63:0]  dc_st_data, wb_data;
@@ -245,7 +247,7 @@ module OOC_LSU
          .dc_req_valid(dc_req_valid), .dc_req_addr(dc_req_addr), .dc_req_tag(dc_req_tag),
          .dc_hit(dc_hit), .dc_rdata(dc_rdata),
          .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),
-         .dc_fill_ready(dc_fill_ready), .dc_kill(dc_kill),
+         .dc_fill_ready(dc_fill_ready), .dc_kill(dc_kill), .sq_drained(sq_drained),
          .dc_st_valid(dc_st_valid), .dc_st_addr(dc_st_addr), .dc_st_data(dc_st_data), .dc_st_mask(dc_st_mask),
          .dc_st_ready(dc_st_ready),
          .wb_valid(wb_valid), .wb_late(wb_late), .wb_tag(wb_tag), .wb_data(wb_data),
@@ -256,7 +258,7 @@ module OOC_LSU
          .restore(restore), .kill(kill), .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all(flush_all));
 
     always_ff @(posedge clk)
-        out <= {lq_avail, sq_avail, disp_lq, disp_sq, ck_lq_tail, ck_sq_tail, st_known, dc_kill,
+        out <= {sq_drained, lq_avail, sq_avail, disp_lq, disp_sq, ck_lq_tail, ck_sq_tail, st_known, dc_kill,
                 dc_req_valid, dc_req_addr, dc_req_tag, dc_fill_ready, dc_st_valid, dc_st_addr,
                 dc_st_data, dc_st_mask, wb_valid, wb_late, wb_tag, wb_data, ld_cancel, ld_cancel_tag,
                 cmp_ld_valid, cmp_ld_rob, cmp_ld_exc, cmp_ld_rp, cmp_st_valid, cmp_st_rob, cmp_st_exc};
@@ -271,10 +273,10 @@ module OOC_ROB
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [217:0]  in,
-        output logic [242:0]  out
+        input  logic [218:0]  in,
+        output logic [244:0]  out
     );
-    logic [217:0] q;
+    logic [218:0] q;
     always_ff @(posedge clk) q <= in;
     logic [1:0] rob_avail;
     logic [9:0] disp_rob;
@@ -299,6 +301,7 @@ module OOC_ROB
     logic [37:0] replay_pc;
     logic [5:0] cmt_ftq;
     logic [2:0] rcv_ftq, rcv_end;
+    logic head_valid, head_fused;
     OOO_ROB #(.NROB(24), .ROBW(5), .VA(39), .TAGW(6), .CW(3), .NCMP(4)) u_rob
         (.clk(clk), .rst_n(rst_n),
          .disp_valid(q[1:0]), .disp_pc(q[77:2]), .disp_wr(q[79:78]), .disp_arch(q[89:80]),
@@ -311,9 +314,10 @@ module OOC_ROB
          .cmt_wr(cmt_wr), .cmt_arch(cmt_arch), .cmt_new(cmt_new), .cmt_old(cmt_old),
          .cmt_pc(cmt_pc), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_instret(cmt_instret),
          .trap(trap), .trap_cause(trap_cause), .trap_pc(trap_pc),
-         .replay(replay), .replay_pc(replay_pc), .rcv_ftq(rcv_ftq), .rcv_end(rcv_end));
+         .replay(replay), .replay_pc(replay_pc), .rcv_ftq(rcv_ftq), .rcv_end(rcv_end),
+         .irq(q[218]), .head_valid(head_valid), .head_fused(head_fused));
     always_ff @(posedge clk)
-        out <= {rob_avail, disp_rob, restore, restore_rob, restore_ckpt, head_rob, head_ns, cmt_valid, cmt_wr, cmt_arch, cmt_new, cmt_old, cmt_pc, cmt_ld_n, cmt_st_n, cmt_instret, trap, trap_cause, trap_pc, replay, replay_pc, cmt_ftq, rcv_ftq, rcv_end};
+        out <= {rob_avail, disp_rob, restore, restore_rob, restore_ckpt, head_rob, head_ns, cmt_valid, cmt_wr, cmt_arch, cmt_new, cmt_old, cmt_pc, cmt_ld_n, cmt_st_n, cmt_instret, trap, trap_cause, trap_pc, replay, replay_pc, cmt_ftq, rcv_ftq, rcv_end, head_valid, head_fused};
 endmodule : OOC_ROB
 
 //---------------------------------------------------------------------------
@@ -549,10 +553,10 @@ module OOC_LSUDC
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [272:0]  in,
-        output logic [325:0]  out
+        input  logic [273:0]  in,
+        output logic [328:0]  out
     );
-    logic [272:0] q;
+    logic [273:0] q;
     always_ff @(posedge clk) q <= in;
 
     // LSU core side, in
@@ -593,6 +597,7 @@ module OOC_LSUDC
     logic [63:0]      wdata;
 
     // between the blocks
+    logic             sq_drained, fl_take, fl_done;
     logic             dc_req_valid, dc_hit, dc_fill_valid, dc_fill_ready, dc_st_valid, dc_st_ready;
     logic [39:0]      dc_req_addr, dc_st_addr;
     logic [2:0]       dc_req_tag, dc_fill_tag;
@@ -615,7 +620,7 @@ module OOC_LSUDC
          .dc_req_valid(dc_req_valid), .dc_req_addr(dc_req_addr), .dc_req_tag(dc_req_tag),
          .dc_hit(dc_hit), .dc_rdata(dc_rdata),
          .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),
-         .dc_fill_ready(dc_fill_ready), .dc_kill(),
+         .dc_fill_ready(dc_fill_ready), .dc_kill(), .sq_drained(sq_drained),
          .dc_st_valid(dc_st_valid), .dc_st_addr(dc_st_addr), .dc_st_data(dc_st_data), .dc_st_mask(dc_st_mask),
          .dc_st_ready(dc_st_ready),
          .wb_valid(wb_valid), .wb_late(wb_late), .wb_tag(wb_tag), .wb_data(wb_data),
@@ -633,7 +638,7 @@ module OOC_LSUDC
          .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),
          .dc_fill_ready(dc_fill_ready),
          .dc_st_valid(dc_st_valid), .dc_st_addr(dc_st_addr), .dc_st_data(dc_st_data), .dc_st_mask(dc_st_mask),
-         .dc_st_ready(dc_st_ready),
+         .dc_st_ready(dc_st_ready), .fl_req(q[273]), .fl_take(fl_take), .fl_done(fl_done),
          .d_req_valid(d_req_valid), .d_req_ready(d_req_ready), .d_req_addr(d_req_addr),
          .d_req_size(d_req_size), .d_req_cmd(d_req_cmd), .d_req_wdata(d_req_wdata),
          .d_req_paddr(d_req_paddr), .d_req_cancel(d_req_cancel),
@@ -662,7 +667,7 @@ module OOC_LSUDC
          .ev_miss(), .ev_vic_copy());
 
     always_ff @(posedge clk)
-        out <= {lq_avail, sq_avail, disp_lq, disp_sq, ck_lq_tail, ck_sq_tail, st_known,
+        out <= {sq_drained, fl_take, fl_done, lq_avail, sq_avail, disp_lq, disp_sq, ck_lq_tail, ck_sq_tail, st_known,
                 wb_valid, wb_late, wb_tag, wb_data, ld_cancel, ld_cancel_tag,
                 cmp_ld_valid, cmp_ld_rob, cmp_ld_exc, cmp_ld_rp, cmp_st_valid, cmp_st_rob, cmp_st_exc,
                 awid, awaddr, awlen, awsize, awburst, awvalid, wdata, wstrb, wlast, wvalid, bready,
@@ -678,7 +683,7 @@ module OOC_CTRL
         input  logic          clk,
         input  logic          rst_n,
         input  logic [240:0]  in,
-        output logic [114:0]  out
+        output logic [115:0]  out
     );
     logic [240:0] q;
     always_ff @(posedge clk) q <= in;
@@ -697,7 +702,7 @@ module OOC_CTRL
             replay, replay_pc, trap_vec, head_ns, cmt_valid, cmt_wr, cmt_old, cmt_ld_n, cmt_st_n, cmt_ftq, iss_ns} = q;
     logic [1:0]       r_go, ds_valid, d_go;
     logic [1:0][5:0]  d_bmask;
-    logic             flush_all, restore, restore_port, fe_redirect, fe_flush, ns_ok, ds_load;
+    logic             flush_all, restore, restore_port, ns_busy, fe_redirect, fe_flush, ns_ok, ds_load;
     logic [1:0]       free_valid, lq_commit, sq_commit, ftq_pop;
     logic [1:0][5:0]  free_tag;
     logic [2:0]       restore_id, restore_ftq;
@@ -713,14 +718,14 @@ module OOC_CTRL
          .br_valid(br_valid), .br_mispred(br_mispred), .br_ckpt(br_ckpt), .br_next(br_next),
          .rob_restore(rob_restore), .rob_restore_ckpt(rob_restore_ckpt), .trap(trap), .replay(replay),
          .replay_pc(replay_pc), .trap_vec(trap_vec), .head_ns(head_ns), .cmt_valid(cmt_valid), .cmt_wr(cmt_wr),
-         .cmt_old(cmt_old), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_ftq(cmt_ftq), .iss_ns(iss_ns), .ns_ok(ns_ok),
+         .cmt_old(cmt_old), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_ftq(cmt_ftq), .iss_ns(iss_ns), .ns_ok(ns_ok), .ns_busy(ns_busy),
          .fe_flush(fe_flush),
          .flush_all(flush_all), .restore(restore), .restore_id(restore_id), .restore_port(restore_port), .restore_lq_tail(restore_lq_tail),
          .restore_sq_tail(restore_sq_tail), .restore_ftq(restore_ftq), .kill(kill), .clr(clr),
          .fe_redirect(fe_redirect), .fe_pc(fe_pc), .live(live), .free_valid(free_valid), .free_tag(free_tag),
          .lq_commit(lq_commit), .sq_commit(sq_commit), .ftq_pop(ftq_pop));
     always_ff @(posedge clk)
-        out <= {r_go, ds_valid, ds_load, d_go, d_bmask, flush_all, restore, restore_port, restore_id, restore_lq_tail, restore_sq_tail,
+        out <= {ns_busy, r_go, ds_valid, ds_load, d_go, d_bmask, flush_all, restore, restore_port, restore_id, restore_lq_tail, restore_sq_tail,
                 restore_ftq, kill, clr, fe_redirect, fe_pc, live, ns_ok, fe_flush, free_valid, free_tag, lq_commit,
                 sq_commit, ftq_pop};
 endmodule : OOC_CTRL
@@ -818,3 +823,63 @@ module OOC_FERS
         out <= {push_ready, push_idx, be_redirect, be_pc, be_hist, be_hist_n, be_hist_bits, be_ras_ptr, be_ras_val,
                 be_ras_push, be_ras_addr, be_ras_pop};
 endmodule : OOC_FERS
+
+//---------------------------------------------------------------------------
+// OOC_TRAP: exceptions and interrupts at the ROB head (Plan/OOC.md 22), inputs
+// and outputs registered
+//---------------------------------------------------------------------------
+module OOC_TRAP
+    (
+        input  logic          clk,
+        input  logic          rst_n,
+        input  logic [394:0]  in,
+        output logic [188:0]  out
+    );
+    logic [394:0] q;
+    always_ff @(posedge clk) q <= in;
+    logic             rob_trap, head_valid, head_fused, rob_replay, restore, ns_busy, flush_all, x_mret, irq_pend;
+    logic [4:0]       rob_cause, head_rob, restore_rob, irq_cause;
+    logic [37:0]      rob_pc, rob_replay_pc, mepc;
+    logic [38:0]      mtvec;
+    logic [2:0]       cmt_instret, tv_valid;
+    logic [2:0][4:0]  tv_rob;
+    logic [2:0][63:0] tv_val;
+    assign {rob_trap, rob_cause, rob_pc, head_valid, head_fused, head_rob, rob_replay, rob_replay_pc, cmt_instret,
+            restore, restore_rob, ns_busy, flush_all, x_mret, tv_valid, tv_rob, tv_val, irq_pend, irq_cause, mtvec, mepc} = q;
+    logic             irq, take, csr_trap, csr_int, csr_mret, no_fuse;
+    logic [37:0]      vec, rp_pc, csr_epc;
+    logic [4:0]       csr_cause;
+    logic [63:0]      csr_tval;
+    OOO_TRAP #(.VA(39), .NROB(24), .ROBW(5), .NTV(3)) u_trap
+        (.clk(clk), .rst_n(rst_n), .rob_trap(rob_trap), .rob_cause(rob_cause), .rob_pc(rob_pc),
+         .head_valid(head_valid), .head_fused(head_fused), .head_rob(head_rob), .rob_replay(rob_replay),
+         .rob_replay_pc(rob_replay_pc), .cmt_instret(cmt_instret), .restore(restore), .restore_rob(restore_rob),
+         .irq(irq), .ns_busy(ns_busy), .flush_all(flush_all), .take(take), .vec(vec), .rp_pc(rp_pc),
+         .x_mret(x_mret), .tv_valid(tv_valid), .tv_rob(tv_rob), .tv_val(tv_val), .irq_pend(irq_pend),
+         .irq_cause(irq_cause), .mtvec(mtvec), .mepc(mepc), .csr_trap(csr_trap), .csr_epc(csr_epc),
+         .csr_int(csr_int), .csr_cause(csr_cause), .csr_tval(csr_tval), .csr_mret(csr_mret), .no_fuse(no_fuse));
+    always_ff @(posedge clk)
+        out <= {irq, take, vec, rp_pc, csr_trap, csr_epc, csr_int, csr_cause, csr_tval, csr_mret, no_fuse};
+endmodule : OOC_TRAP
+
+//---------------------------------------------------------------------------
+// OOC_SYS: the system µops (Plan/OOC.md 22), inputs and outputs registered
+//---------------------------------------------------------------------------
+module OOC_SYS
+    (
+        input  logic          clk,
+        input  logic          rst_n,
+        input  logic [14:0]   in,
+        output logic [10:0]   out
+    );
+    logic [14:0] q;
+    always_ff @(posedge clk) q <= in;
+    logic       fl_req, ic_flush, tlb_flush, x_mret, cmp_valid, cmp_rp;
+    logic [4:0] cmp_rob;
+    OOO_SYS #(.ROBW(5)) u_sys
+        (.clk(clk), .rst_n(rst_n), .flush(q[0]), .sys_valid(q[1]), .sys_op(q[4:2]), .sys_rob(q[9:5]),
+         .sq_drained(q[10]), .fl_req(fl_req), .fl_take(q[11]), .fl_done(q[12]), .ic_flush(ic_flush), .ic_done(q[13]),
+         .tlb_flush(tlb_flush), .x_mret(x_mret), .wfi_wake(q[14]),
+         .cmp_valid(cmp_valid), .cmp_rob(cmp_rob), .cmp_rp(cmp_rp));
+    always_ff @(posedge clk) out <= {fl_req, ic_flush, tlb_flush, x_mret, cmp_valid, cmp_rob, cmp_rp};
+endmodule : OOC_SYS

@@ -2770,3 +2770,35 @@ synth_ooo.bat OOC_FERS
 ```text
 I ran synth_ooo.bat OOC_FERS. Please check output/OOC_FERS/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+OOC_FERS も 50 MHz に入りました。これでフロントエンドの復元は、Vivado での確認まで終わりです。
+
+| 項目 | 値 |
+|---|---|
+| LUT | **151**(ロジック 37 + LUT RAM 114) |
+| レジスタ間 | +13.393 ns(10段) |
+| ポートを含む最悪 | +11.501 ns |
+
+- **LUT RAM 114:** ハーネスに入れた FTQ の分です。読み出すビットだけが残っています。
+- **最長経路:** 復元の地点のレジスタ → FTQ の読み出し → スロットの比較 → 履歴のビット、で10段です。
+- **予算:** 復元のロジック 37 は制御の見積もりの中に入れました(制御はここまで 351 + 69 + 37)。FTQ をブロックあたり 312 ビットに広げる分は FTQ 側の話なので、組み立てのときに数えます。不足は 3.2k / 4.6k / 5.9k LUT のままです。
+
+記録は Plan/OOC(_J).md の 21.4 節と、PROMPT.md(回答75の英訳)です。コミット ea49d54 で dev に push 済みです。
+
+制御で残っているのは最後の部分、例外と割り込みです。
+<!-- /answer -->
+
+## 77. 2026-10-28 20:36:28 JST
+
+```text
+Go on with the control's last part: exceptions and interrupts (trap vector and CSR writes, interrupts at a µop boundary, refetch with fusion off after an exception inside a pair, FENCE.I / SFENCE.VMA).
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+The docs and scripts are ready. The background run (all 25 tests, extra seeds and the full 258-mutation campaign) is still going, and I'll commit once it reports.
+<!-- /answer -->

@@ -30,7 +30,9 @@
 // 3.9) runs only at the head: head_ns says the head is one that has not run
 // yet. An exception at the head is a trap: trap gives its cause and pc, and
 // the ROB empties (flush_all for the rest of the core). A trap wins over a
-// restore in the same cycle.
+// restore in the same cycle. irq (OOO_TRAP) takes an interrupt before the
+// head: nothing commits, and the ROB empties as for a trap (head_fused
+// tells OOO_TRAP that an exception at the head is inside a fused pair).
 //
 // Replay after commit (Doc/UARCH.md 6.3, D-12): a load that could not give
 // its result in its expected cycle (ld_cancel) had its dependents woken on
@@ -100,6 +102,9 @@ module OOO_ROB
         // the head
         output logic [ROBW-1:0]             head_rob,
         output logic                        head_ns,     // a non-speculative µop at the head, not run yet
+        output logic                        head_valid,  // the ROB is not empty
+        output logic                        head_fused,  // the head is a fused pair
+        input  logic                        irq,         // OOO_TRAP: take an interrupt before the head now
 
         // commit
         output logic [1:0]                  cmt_valid,
@@ -204,7 +209,7 @@ module OOO_ROB
 
     logic c0, c1;
     always @(*) begin
-        c0 = used != '0 && done[hi0] && !exc[hi0];
+        c0 = used != '0 && done[hi0] && !exc[hi0] && !irq;
         c1 = c0 && !rp[hi0] && used >= (ROBW + 1)'(2) && done[hi1] && !exc[hi1];
         trap       = used != '0 && done[hi0] && exc[hi0];
         trap_cause = cause[hi0];
@@ -214,6 +219,8 @@ module OOO_ROB
                                      : p1[PW-1 -: VA-1] + (VA - 1)'(p1[FTQW+2:FTQW]);
         head_rob   = hi0;
         head_ns    = used != '0 && p0[FTQW+3] && !done[hi0];
+        head_valid = used != '0;
+        head_fused = p0[FTQW+4];
         // the µop the front end's history and RAS go back to (OOO_FERS): the
         // head for a trap, the marked one for a replay
         begin
@@ -221,7 +228,7 @@ module OOO_ROB
             pay_t          pr;              // (its pc's parcel, length and block only)
             logic [VA-1:1] ppc;
             /* verilator lint_on UNUSEDSIGNAL */
-            pr      = (trap || (c0 && rp[hi0])) ? p0 : p1;
+            pr      = (trap || irq || (c0 && rp[hi0])) ? p0 : p1;
             ppc     = pr[PW-1 -: VA-1];
             rcv_ftq = pr[FTQW-1:0];
             rcv_end = ppc[3:1] + pr[FTQW+2:FTQW] - 3'd1;
@@ -252,14 +259,14 @@ module OOO_ROB
         end else begin
             restore_rob = br_rob[1]; restore_ckpt = br_ckpt[1];
         end
-        restore = (r0 || r1) && !trap && !replay;
+        restore = (r0 || r1) && !trap && !irq && !replay;
     end
 
     // ---- pointers
     ptr_t head_n, tail_n;
     always @(*) begin
         head_n = nxt(head, 2'(c0) + 2'(c1));
-        if (trap) begin
+        if (trap || irq) begin
             tail_n = head;                     // empty
         end else if (replay) begin
             tail_n = head_n;                   // empty after the commits
@@ -276,7 +283,7 @@ module OOO_ROB
             head <= '0;
             tail <= '0;
         end else begin
-            head <= trap ? head : head_n;
+            head <= (trap || irq) ? head : head_n;
             tail <= tail_n;
         end
     end

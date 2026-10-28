@@ -28,7 +28,8 @@
 //   - ld_cancel: raised for a load from port 2 exactly when it gives no
 //     result in its expected cycle; such a load, and only such a load,
 //     completes marked for replay after commit (cmp_ld_rp)
-//   - the stores reach the D$ in commit order with their data and byte mask
+//   - the stores reach the D$ in commit order with their data and byte mask;
+//     sq_drained exactly when none committed is left
 //   - lsu_st_known is never set for a load with an older store whose
 //     address is not known
 //   - no deadlock: the oldest µop commits within a bound
@@ -116,6 +117,8 @@ int main(int argc, char** argv)
     };
 
     for (cyc = 0; cyc < 300000; cyc++) {
+        // sq_drained (OOO_SYS's FENCE / FENCE.I): every committed store is in the D$
+        { d.eval(); if ((bool)d.sq_drained != st_expect.empty()) FAIL("sq_drained %d with %zu committed stores to drain", (int)d.sq_drained, st_expect.size()); }
         // ================= inputs of this cycle =================
         // -- recovery first: an exception at the head, else a mispredicted branch
         int flush_all = 0, restore = 0; unsigned r_lq = 0, r_sq = 0;

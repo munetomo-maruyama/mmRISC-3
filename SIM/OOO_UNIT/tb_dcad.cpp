@@ -15,7 +15,10 @@
 // are held now and then (tb_hold, in bursts), so that the adapter has to
 // keep answers.
 //
-// Branch masks, kills and issues in cycles of recovery as in tb_lsu.
+// Branch masks, kills and issues in cycles of recovery as in tb_lsu. Now
+// and then, when every committed store has drained (sq_drained), FENCE.I's
+// FLUSH of the D$ (fl_req): when it is answered (fl_done), the memory must
+// hold every store the D$ took before it (the dirty lines written back).
 //
 // Checked: everything tb_lsu checks (every load's value against program
 // order, loads complete once, ld_cancel, the stores in commit order with
@@ -67,6 +70,7 @@ static long bad = 0;
 
 static uint8_t arch[8 * NWORD];    // memory after the committed stores
 static std::map<uint64_t, uint64_t> mem;   // the AXI4 memory: 8-byte words
+static uint8_t taken[8 * NWORD];   // memory after the stores the D$ has taken
 
 int main(int argc, char** argv)
 {
@@ -76,7 +80,8 @@ int main(int argc, char** argv)
     long cyc = 0;
     d.clk = 0; d.rst_n = 1; d.eval(); d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
     for (int k = 0; k < 8; k++) for (int j = 0; j < 8; j++) mem[(addr_of(2 * k) & ~63ull) + 8 * j] = rng();
-    for (int i = 0; i < 8 * NWORD; i++) arch[i] = (uint8_t)(mem[addr_of(i / 8)] >> (8 * (i % 8)));
+    for (int i = 0; i < 8 * NWORD; i++) taken[i] = arch[i] = (uint8_t)(mem[addr_of(i / 8)] >> (8 * (i % 8)));
+    int fst = 0; uint8_t snap[8 * NWORD]; long nfl = 0;
 
     std::deque<Uop> win;                       // in flight, program order
     long seq = 0;
@@ -225,6 +230,8 @@ int main(int argc, char** argv)
           d.kill = km; }
         if (hold_left > 0) hold_left--; else if (rng() % 40 == 0) hold_left = 1 + rng() % 12;
         d.tb_hold = hold_left > 0;
+        if (fst == 0 && d.sq_drained && rng() % 300 == 0) fst = 1;
+        d.fl_req = fst == 1;
         d.eval();
 
         // ================= outputs of this cycle =================
@@ -312,7 +319,22 @@ int main(int argc, char** argv)
                 for (int b = 0; b < 8; b++) if ((d.mon_st_mask >> b) & 1) {
                     uint8_t got = (uint8_t)(d.mon_st_data >> (8 * b)), want = (uint8_t)((dat << (8 * (a & 7))) >> (8 * b));
                     if (got != want) { FAIL("D$ store data byte %d: %02x, expected %02x", b, got, want); break; }
+                    taken[idx(d.mon_st_addr) + b] = got;
                 }
+            }
+        }
+        // FENCE.I's FLUSH: taken, then answered with every taken store in memory
+        if (fst == 1 && d.fl_take) { for (int i = 0; i < 8 * NWORD; i++) snap[i] = taken[i]; fst = 2; }
+        else if (d.fl_take) FAIL("fl_take without fl_req");
+        if (d.fl_done) {
+            if (fst != 2) FAIL("fl_done without a FLUSH taken");
+            else {
+                for (int w = 0; w < NWORD; w++) {
+                    uint64_t m = mem[addr_of(w)], e = 0;
+                    for (int b = 0; b < 8; b++) e |= (uint64_t)snap[8 * w + b] << (8 * b);
+                    if (m != e) { FAIL("after the FLUSH, memory word %llx is %016llx, expected %016llx", (unsigned long long)addr_of(w), (unsigned long long)m, (unsigned long long)e); break; }
+                }
+                fst = 0; nfl++;
             }
         }
         // the memory's handshakes of this cycle
@@ -373,8 +395,8 @@ int main(int argc, char** argv)
         for (auto& u : win) if ((u.k == OT || u.k == BR) && !u.done) u.done = true;
         if (cyc - last_commit > 2000 && !win.empty()) { FAIL("deadlock: µop %ld (kind %d) at the head", win.front().seq, win.front().k); break; }
     }
-    printf("tb_dcad: %ld cycles, %ld loads (%ld late; %ld D$ reads, %ld hits in M, %ld fills), %ld stores, %ld line fills, %ld write-backs, %ld cancels, %ld restores, %ld flushes, %ld issued in recovery and kept, %ld killed at issue, %ld mismatches: %s\n",
-           cyc, nld, nlate, nreq_ld, nhit, nfill, nst, nrd, nwr, ncancel, nrestore, nflush, nrec_iss, nkilled_iss, bad, bad ? "FAIL" : "PASS");
+    printf("tb_dcad: %ld cycles, %ld loads (%ld late; %ld D$ reads, %ld hits in M, %ld fills), %ld stores, %ld line fills, %ld write-backs, %ld cancels, %ld restores, %ld flushes, %ld issued in recovery and kept, %ld killed at issue, %ld FLUSHes, %ld mismatches: %s\n",
+           cyc, nld, nlate, nreq_ld, nhit, nfill, nst, nrd, nwr, ncancel, nrestore, nflush, nrec_iss, nkilled_iss, nfl, bad, bad ? "FAIL" : "PASS");
     (void)nfwd_chk;
     return bad ? 1 : 0;
 }

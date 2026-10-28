@@ -18,7 +18,8 @@
 // Checked every cycle: rob_avail and the indices given at dispatch, the
 // head and head_ns, the trap (cause, pc), the replay (pc + length), the
 // point the front end goes back to (rcv_ftq, rcv_end: the trapping or
-// replayed µop's block and last parcel), every
+// replayed µop's block and last parcel), an interrupt taken before the head
+// (irq: nothing commits, the ROB empties; head_valid, head_fused), every
 // commit (pc, destination, new and old registers, fetch block) and the load / store /
 // instret counts, and that a restore names the oldest mispredicted branch
 // in the ROB with its checkpoint.
@@ -57,11 +58,12 @@ int main(int argc, char** argv)
     d.clk = 0; d.rst_n = 1; d.eval(); d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
     std::deque<E> rob;
     int tail_idx = 0;                          // the index the next entry gets
-    long ncommit = 0, ntrap = 0, nrestore = 0, ninstret = 0, n2restore = 0, nreplay = 0;
+    long ncommit = 0, ntrap = 0, nrestore = 0, ninstret = 0, n2restore = 0, nreplay = 0, nirq = 0;
     for (cyc = 0; cyc < 400000; cyc++) {
         // ---------- the reference before the clock
         bool trap = !rob.empty() && rob[0].done && rob[0].exc;
-        bool c0 = !rob.empty() && rob[0].done && !rob[0].exc;
+        bool irq = !rob.empty() && rng() % 60 == 0;  // OOO_TRAP takes an interrupt before the head
+        bool c0 = !rob.empty() && rob[0].done && !rob[0].exc && !irq;
         bool c1 = c0 && !rob[0].rp && rob.size() >= 2 && rob[1].done && !rob[1].exc;
         bool replay = (c0 && rob[0].rp) || (c1 && rob[1].rp);
         const uint64_t PCM = (1ull << 38) - 1;
@@ -115,11 +117,11 @@ int main(int argc, char** argv)
             for (int k = 0; k < (int)rob.size(); k++)
                 if (rob[k].idx == idx && (rpos < 0 || k < rpos)) { rpos = k; rck = (bck >> (3 * p)) & 7; }
         }
-        bool restore = rpos >= 0 && !trap && !replay;
+        bool restore = rpos >= 0 && !trap && !irq && !replay;
         if (restore && __builtin_popcount(bmis & bv) == 2) n2restore++;
         // ---------- dispatch (also in a cycle of trap / restore, now and then: it must not go in)
         int nd = 0;
-        if ((!trap && !restore && !replay) || rng() % 4 == 0) {
+        if ((!trap && !irq && !restore && !replay) || rng() % 4 == 0) {
             nd = rng() % 3;
             if (nd > avail) nd = avail;
         }
@@ -151,6 +153,7 @@ int main(int argc, char** argv)
         d.disp_len = dlen; d.disp_ftq = dftq;
         d.cmp_valid = cv; d.cmp_rob = crob; d.cmp_exc = cexc; d.cmp_cause = ccause; d.cmp_rp = crp;
         d.br_valid = bv; d.br_rob = brob; d.br_mispred = bmis; d.br_ckpt = bck;
+        d.irq = irq;
         d.eval();
 
         // ---------- outputs
@@ -160,7 +163,9 @@ int main(int argc, char** argv)
             if ((int)d.head_rob != rob[0].idx) FAIL("head %d, expected %d", (int)d.head_rob, rob[0].idx);
             bool hn = rob[0].ns && !rob[0].done;
             if ((bool)d.head_ns != hn) FAIL("head_ns %d, expected %d", (int)d.head_ns, hn);
+            if ((bool)d.head_fused != (bool)rob[0].fused) FAIL("head_fused %d, expected %d", (int)d.head_fused, rob[0].fused);
         } else if (d.head_ns) FAIL("head_ns with an empty ROB");
+        if ((bool)d.head_valid != !rob.empty()) FAIL("head_valid %d, expected %d", (int)d.head_valid, !rob.empty());
         if ((bool)d.trap != trap) FAIL("trap %d, expected %d", (int)d.trap, trap);
         if (trap) {
             if ((int)d.trap_cause != rob[0].cause) FAIL("trap cause %d, expected %d", (int)d.trap_cause, rob[0].cause);
@@ -169,8 +174,8 @@ int main(int argc, char** argv)
         if ((bool)d.replay != replay) FAIL("replay %d, expected %d", (int)d.replay, replay);
         else if (replay && (uint64_t)d.replay_pc != replay_pc)
             FAIL("replay pc %llx, expected %llx", (unsigned long long)d.replay_pc, (unsigned long long)replay_pc);
-        if (trap || replay) {
-            const auto& r = (trap || (c0 && rob[0].rp)) ? rob[0] : rob[1];
+        if (trap || replay || irq) {
+            const auto& r = (trap || irq || (c0 && rob[0].rp)) ? rob[0] : rob[1];
             int ee = (int)((r.pc + r.len - 1) & 7);
             if ((int)d.rcv_ftq != r.ftq || (int)d.rcv_end != ee)
                 FAIL("%s point: block %d parcel %d, expected %d %d", trap ? "trap" : "replay", (int)d.rcv_ftq, (int)d.rcv_end, r.ftq, ee);
@@ -211,8 +216,8 @@ int main(int argc, char** argv)
                 if ((crp >> p) & 1) e.rp = true;
             }
         }
-        if (trap) {
-            rob.clear(); ntrap++;
+        if (trap || irq) {
+            rob.clear(); if (irq) nirq++; else ntrap++;
             tail_idx = (int)d.head_rob;        // checked next cycle: the head stays where it was
         } else {
             int nc = (c0 ? 1 : 0) + (c1 ? 1 : 0);
@@ -235,7 +240,7 @@ int main(int argc, char** argv)
         }
         if (ns_seen) for (auto& e : rob) if (e.idx == ns_idx) e.ns_go = true;
     }
-    printf("tb_rob: %ld cycles, %ld µops committed (%ld instructions), %ld traps, %ld replays, %ld restores (%ld with two mispredicted), %ld mismatches: %s\n",
-           cyc, ncommit, ninstret, ntrap, nreplay, nrestore, n2restore, bad, bad ? "FAIL" : "PASS");
+    printf("tb_rob: %ld cycles, %ld µops committed (%ld instructions), %ld traps, %ld interrupts, %ld replays, %ld restores (%ld with two mispredicted), %ld mismatches: %s\n",
+           cyc, ncommit, ninstret, ntrap, nirq, nreplay, nrestore, n2restore, bad, bad ? "FAIL" : "PASS");
     return bad ? 1 : 0;
 }

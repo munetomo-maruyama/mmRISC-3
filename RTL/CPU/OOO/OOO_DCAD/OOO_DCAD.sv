@@ -12,6 +12,9 @@
 //   3. the store the LSU drains (dc_st_*: the byte mask becomes a size and
 //      an offset, the data is shifted down); the LSU never drains one in a
 //      cycle with a load in E, and stores wait while loads are pending
+//   4. FLUSH for FENCE.I (OOO_SYS fl_req, Plan/OOC.md 22: the dirty lines
+//      written back, as mmRISC-2 does before invalidating the I$): fl_take
+//      when the D$ takes it, fl_done when its answer comes in order
 // The physical address is the address of the cycle before (Phase 1 has no
 // translation): d_req_paddr is registered when a request is taken.
 //
@@ -81,6 +84,11 @@ module OOO_DCAD
         input  logic [7:0]                  dc_st_mask,
         output logic                        dc_st_ready,
 
+        // OOO_SYS: FENCE.I
+        input  logic                        fl_req,
+        output logic                        fl_take,
+        output logic                        fl_done,
+
         // DCACHE
         output logic                        d_req_valid,
         input  logic                        d_req_ready,
@@ -100,6 +108,7 @@ module OOO_DCAD
     localparam int DW = $clog2(DEPTH);
     localparam logic [4:0] CMD_LOAD  = 5'd0;
     localparam logic [4:0] CMD_STORE = 5'd1;
+    localparam logic [4:0] CMD_FLUSH = 5'd14;
 
     // ---- loads waiting to be sent, by LQ entry
     logic [NLQ-1:0] pnd;
@@ -108,7 +117,7 @@ module OOO_DCAD
     logic [NLQ-1:0] fr;
     (* ram_style = "distributed" *) logic [63:0] fd [NLQ];
     // ---- the requests the D$ has taken, in order
-    logic [DEPTH-1:0] q_ld, q_live;
+    logic [DEPTH-1:0] q_ld, q_live, q_fl;
     logic [LW-1:0]    q_tag [DEPTH];
     logic [DW-1:0]    q_head, q_tail;
     // ---- the request in the D$'s stage 1
@@ -124,7 +133,7 @@ module OOO_DCAD
     endfunction
 
     // ---- the request of this cycle
-    logic          e_go, p_go, s_go, take;
+    logic          e_go, p_go, s_go, f_go, take;
     logic [LW-1:0] p_sel;
     logic [2:0]    s_off;
     logic [1:0]    s_size;
@@ -133,6 +142,7 @@ module OOO_DCAD
         e_go  = dc_req_valid;
         p_go  = !dc_req_valid && pnd != '0;
         s_go  = !dc_req_valid && pnd == '0 && dc_st_valid;
+        f_go  = !dc_req_valid && pnd == '0 && !dc_st_valid && fl_req;
         s_off = '0;
         for (int b = 7; b >= 0; b--) if (dc_st_mask[b]) s_off = 3'(b);
         case (dc_st_mask)
@@ -141,17 +151,19 @@ module OOO_DCAD
             8'h03, 8'h0c, 8'h30, 8'hc0: s_size = 2'd1;
             default:                    s_size = 2'd0;
         endcase
-        d_req_valid  = e_go || p_go || s_go;
+        d_req_valid  = e_go || p_go || s_go || f_go;
         d_req_addr   = e_go ? {dc_req_addr[PAW-1:3], 3'b000}
                      : p_go ? {pa[p_sel], 3'b000}
                      :        {dc_st_addr[PAW-1:3], s_off};
         d_req_size   = s_go ? s_size : 2'd3;
-        d_req_cmd    = s_go ? CMD_STORE : CMD_LOAD;
+        d_req_cmd    = s_go ? CMD_STORE : f_go ? CMD_FLUSH : CMD_LOAD;
         d_req_wdata  = dc_st_data >> {s_off, 3'b000};
         d_req_paddr  = s1_pa;
         d_req_cancel = 1'b0;
         dc_st_ready  = !dc_req_valid && pnd == '0 && d_req_ready;
         take         = d_req_valid && d_req_ready;
+        fl_take      = f_go && d_req_ready;
+        fl_done      = d_resp_valid && q_fl[q_head];
     end
 
     // ---- M: the hit of the LSU's load
@@ -213,8 +225,9 @@ module OOO_DCAD
             if (d_resp_valid) q_head <= (q_head == DW'(DEPTH - 1)) ? '0 : q_head + 1'b1;
             if (take) begin
                 q_tail          <= (q_tail == DW'(DEPTH - 1)) ? '0 : q_tail + 1'b1;
-                q_ld[q_tail]    <= !s_go;
-                q_live[q_tail]  <= !s_go;
+                q_ld[q_tail]    <= !s_go && !f_go;
+                q_live[q_tail]  <= !s_go && !f_go;
+                q_fl[q_tail]    <= f_go;
                 q_tag[q_tail]   <= e_go ? dc_req_tag : p_sel;
             end
             s1_e <= take && e_go;

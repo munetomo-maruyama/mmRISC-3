@@ -1838,3 +1838,75 @@ Item 4 of 18.7.
 Item 5 of 18.7: exceptions and interrupts (the trap vector and the CSR writes: mepc, mcause, mtval; interrupts at a
 µop boundary; the refetch with fusion off after an exception inside a pair; FENCE.I / SFENCE.VMA). The budget is
 updated with the Vivado results.
+
+---
+
+## 22. The control, last part: exceptions, interrupts and the system µops (2026-10-28)
+
+Item 5 of 18.7.
+
+### 22.1 What was done
+
+| Block | What was done |
+|---|---|
+| `OOO_TRAP` (new) | What happens at the ROB head. **An interrupt** (`irq_pend` and its cause from the CSRs) is taken before the head µop (`irq` empties the ROB, nothing commits): mepc = its pc, the interrupt cause, mtval 0, mtvec (+ 4 × cause when vectored); not while the head is a non-speculative µop that has issued (`ns_busy`: its effect has happened), and it wins over the head's exception. **An exception**: mepc, mcause, mtval = the tval of the oldest exception reported, mtvec. **An exception in a fused pair**: no CSR written, the pair fetched again from its pc with fusion off (`no_fuse`, until two instructions have committed or the next trap). **MRET**: its replay goes to mepc and updates mstatus (`csr_mret`). Its outputs are OOO_CTRL's `trap`, `trap_vec` and `replay_pc` |
+| `OOO_SYS` (new) | The system µops at the head, one at a time: FENCE waits for every committed store to be in the D$ (`sq_drained`); FENCE.I the same, then FLUSH of the D$ (the dirty lines to memory) and the I$ invalidated, as mmRISC-2 does, then a replay; SFENCE.VMA waits for the stores, flushes the TLBs (Phase 2), replay; MRET `x_mret` and replay; WFI completes when an interrupt is pending in mie |
+| `OOO_DCAD` | FLUSH as a fourth request (after loads and stores): `fl_req`, `fl_take`, `fl_done` when its answer comes in order |
+| `OOO_ROB` | `irq` (empty before the head, nothing commits; the point for OOO_FERS is the head), `head_valid`, `head_fused` |
+| `OOO_CTRL` | `ns_busy` out. `OOO_LSU`: `sq_drained` (the committed stores all in the D$) |
+
+- **Interrupts and non-speculative µops.** A CSR write, an MMIO load or WFI at the head has its effect when it runs,
+  before it commits; an interrupt taken then would discard the µop after its effect (an MMIO read twice, a CSR write
+  done and then done again). So no interrupt while the head's non-speculative µop has issued (`ns_busy`, which the
+  control already had for `ns_ok`). WFI is non-speculative too: it completes when an interrupt is pending, commits,
+  and the interrupt is taken before the next µop (mepc after the WFI, as the specification wants).
+- **tval**: every unit that reports an exception reports its tval with it (address, instruction bits, or 0) on a
+  `tv_*` port (dispatch 2, the LSU); the oldest by ROB position is kept, so the head's own is there when it traps.
+  Found while testing: reports of flushed or killed µops still on their way must not be kept (none in the cycle of
+  `flush_all`, none younger than the restored branch in the cycle of a restore): kept, a stale one at a small distance
+  from the head would look older than the next real one and hide it. The check that the report kept is the head's
+  turned out redundant (bug injection), and is gone.
+- **FENCE.I does not clear the predictors**: predecode reads the targets of branches and jal from the instructions,
+  so after new code a stale uBTB or BTB entry is a misprediction, not a wrong instruction.
+- **Contracts for the assembly**: the CSRs (mmRISC-2's `CORE_CSR`) take `csr_trap` / `csr_mret` and give `mtvec`,
+  `mepc`, `irq_pend` / `irq_cause` (enabled and pending, by priority) and `wfi_wake`; CSR writes complete marked for
+  replay; ECALL / EBREAK / illegal instructions are exceptions at decode with their tval; the units that wake from
+  outside, and every unit that reports an exception, follow 20.1 and the tval contract above.
+
+### 22.2 Verification
+
+- **`tb_trap`** (new): OOO_TRAP inside a model ROB of 24: µops dispatched (fused pairs, exceptions), completing out
+  of order (an exception with its tval on one of three ports, `done` a cycle later as in the ROB), committing; restores
+  at a branch resolving now, replays, MRETs, issued non-speculative heads, interrupts (mtvec direct or vectored), and
+  stale reports in the cycles of flush_all and of a restore. Checked: irq, take, the vector, the CSR writes (mepc,
+  mcause, mtval), the refetch with no_fuse and its end, the replay pc after MRET. 400,000 cycles, 7,631 traps, 2,477
+  refetches, 9,075 interrupts, 4 seeds. Two of my model's mistakes were found on the way (a trap in the cycle of its
+  report, a restore at a µop committing then): neither can happen in the core.
+- **`tb_sys`** (new): every system µop's steps in order and within 3 cycles of what they wait for, with random answers
+  (also answers nobody asked for) and abandoned µops. 400,000 cycles, 4 seeds.
+- **`tb_dcad`**: FENCE.I's FLUSH through the adapter to the real D$: after its answer the memory holds every store the
+  D$ took before it (102 FLUSHes a run, 5 seeds in both line layouts).
+- **`tb_rob`**: interrupts (nothing commits, the ROB empties, the point is the head), head_valid / head_fused.
+  **`tb_lsu`**: sq_drained exactly when no committed store is left. **`tb_ctrl`**: ns_busy.
+- **Bug injection**: 28 new mutations (M267–M295 but M289) and M197 / M265 retargeted (their ROB lines now have
+  `irq`); 260 of 260 detected.
+
+### 22.3 Size (Yosys), and the Vivado runs asked of the author
+
+| Block | Yosys | |
+|---|---|---|
+| `OOC_TRAP` | 644 | new: mostly the oldest tval (3 report ports of 64 bits and their ROB-age compares) |
+| `OOC_SYS` | 18 | new |
+| `OOC_ROB` | 1,680 | `irq` |
+| `OOC_CTRL` | 399 | `ns_busy` |
+| `OOO_DCAD` | 440 | the FLUSH request |
+
+- If OOC_TRAP is as large in Vivado, the tval can be narrower (40 bits: addresses and instruction bits) or take one
+  port for the dispatch slots together.
+- **Please run** `synth_ooo.bat OOC_TRAP`, `synth_ooo.bat OOC_SYS` (both new in the list), `synth_ooo.bat OOC_ROB`,
+  `synth_ooo.bat OOC_CTRL` and `synth_ooo.bat OOC_LSUDC`.
+
+### 22.4 The control is written
+
+All five items of 18.7 are done. What is left before the assembly: the CSRs (`CORE_CSR` with L1), MUL / DIV and the
+FPU behind their ports, the I$ and the TLBs (Phase 2), debug, and the core's assembly itself (G1).

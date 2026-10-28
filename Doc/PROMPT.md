@@ -2781,3 +2781,29 @@ synth_ooo.bat OOC_FERS
 ```text
 I ran synth_ooo.bat OOC_FERS. Please check output/OOC_FERS/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+OOC_FERS fits in 50 MHz too. That finishes the front end's restore, confirmed in Vivado.
+
+| Item | Value |
+|---|---|
+| LUT | **151** (37 logic + 114 LUT RAM) |
+| Register to register | +13.393 ns (10 levels) |
+| Worst with the ports | +11.501 ns |
+
+- **LUT RAM 114:** the FTQ put in the harness; only the bits read are kept.
+- **Longest path:** the restore point's register → the FTQ read → the slot compares → the history bits, 10 levels.
+- **Budget:** the restore's 37 logic LUTs go inside the control's estimate (the control so far 351 + 69 + 37). Widening the FTQ to 312 bits a block is the FTQ's matter and is counted at the assembly. The gap stays 3.2k / 4.6k / 5.9k LUTs.
+
+Recorded in section 21.4 of Plan/OOC(_J).md and PROMPT.md (the English of answer 75); pushed to dev in commit ea49d54.
+
+What is left of the control is its last part, exceptions and interrupts.
+<!-- /answer -->
+
+## 77. 2026-10-28 20:36:28 JST
+
+```text
+Go on with the control's last part: exceptions and interrupts (trap vector and CSR writes, interrupts at a µop boundary, refetch with fusion off after an exception inside a pair, FENCE.I / SFENCE.VMA).
+```

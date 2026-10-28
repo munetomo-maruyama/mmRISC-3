@@ -67,6 +67,10 @@ module LSU_DC
         input  logic [$clog2(NSQ):0]        restore_sq_tail,
         input  logic                        flush_all,
         input  logic                        tb_hold,       // no fill to the LSU now
+        input  logic                        fl_req,        // FENCE.I's FLUSH of the D$ (OOO_SYS)
+        output logic                        fl_take,
+        output logic                        fl_done,
+        output logic                        sq_drained,
         // the store port between the LSU and the adapter (for the test bench)
         output logic                        mon_st,        // a store taken now
         output logic [PAW-1:0]              mon_st_addr,
@@ -124,7 +128,7 @@ module LSU_DC
          .iss_dst, .iss_bm, .lsu_st_known,
          .dc_req_valid, .dc_req_addr, .dc_req_tag, .dc_hit, .dc_rdata,
          .dc_fill_valid(l_fill_valid), .dc_fill_tag, .dc_fill_data, .dc_fill_ready(l_fill_ready), .dc_kill,
-         .dc_st_valid, .dc_st_addr, .dc_st_data, .dc_st_mask, .dc_st_ready,
+         .sq_drained, .dc_st_valid, .dc_st_addr, .dc_st_data, .dc_st_mask, .dc_st_ready,
          .wb_valid, .wb_late, .wb_tag, .wb_data, .ld_cancel, .ld_cancel_tag,
          .cmp_ld_valid, .cmp_ld_rob, .cmp_ld_exc, .cmp_ld_rp, .cmp_st_valid, .cmp_st_rob, .cmp_st_exc,
          .lq_commit, .sq_commit, .restore, .kill, .restore_lq_tail, .restore_sq_tail, .flush_all);
@@ -140,6 +144,7 @@ module LSU_DC
          .dc_req_valid, .dc_req_addr, .dc_req_tag, .dc_hit, .dc_rdata,
          .dc_fill_valid, .dc_fill_tag, .dc_fill_data, .dc_fill_ready,
          .dc_st_valid, .dc_st_addr, .dc_st_data, .dc_st_mask, .dc_st_ready,
+         .fl_req, .fl_take, .fl_done,
          .d_req_valid, .d_req_ready, .d_req_addr, .d_req_size, .d_req_cmd, .d_req_wdata,
          .d_req_paddr, .d_req_cancel, .d_resp_valid, .d_resp_data, .d_hit_now, .d_hit_now_data);
 

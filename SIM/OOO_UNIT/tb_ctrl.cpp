@@ -30,6 +30,8 @@
 //     and its port (restore_port, for OOO_FERS)
 //   - trap / replay: fe_flush at once, flush_all a cycle later, and nothing
 //     renamed, dispatched or cleared in either cycle
+//   - ns_busy (OOO_TRAP: no interrupt then): the head's non-speculative µop
+//     has issued and not committed
 //   - ns_ok: registered: the head non-speculative and not run yet in the
 //     cycle before (head_ns random, an issue of it random, cleared when the
 //     head commits or a flush)
@@ -170,6 +172,7 @@ int main(int argc, char** argv)
         if ((bool)d.fe_redirect != (flush || restore)) FAIL("fe_redirect %d, expected %d", (int)d.fe_redirect, flush || restore);
         // non-speculative µops, the commit fan-out, the FTQ pops
         if ((bool)d.ns_ok != ns_ok_q) FAIL("ns_ok %d, expected %d", (int)d.ns_ok, ns_ok_q);
+        if ((bool)d.ns_busy != ns_busy) FAIL("ns_busy %d, expected %d", (int)d.ns_busy, ns_busy);
         nnsok += ns_ok_q;
         for (int k = 0; k < 2; k++) {
             bool fv = ((cv >> k) & 1) && ((cwr >> k) & 1);

@@ -124,6 +124,7 @@ module OOO_LSU
         input  logic [63:0]                 dc_fill_data,
         output logic                        dc_fill_ready,
         output logic [NLQ-1:0]              dc_kill,      // LQ entries freed now: drop their pending fills
+        output logic                        sq_drained,   // every committed store is in the D$ (OOO_SYS: FENCE / FENCE.I)
         output logic                        dc_st_valid,
         output logic [PAW-1:0]              dc_st_addr,   // 8-byte aligned
         output logic [63:0]                 dc_st_data,
@@ -472,6 +473,7 @@ module OOO_LSU
         dc_st_data  = sdata[sq_head[SW-1:0]];
         dc_st_mask  = smask[sq_head[SW-1:0]];
         s_drain     = dc_st_valid && dc_st_ready;
+        sq_drained  = sq_head == sq_cmt;
     end
 
     // ---- pointers

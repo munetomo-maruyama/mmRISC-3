@@ -139,6 +139,7 @@ module OOO_CTRL
         // OOO_IQ
         input  logic                        iss_ns,     // a non-speculative µop issued now
         output logic                        ns_ok,
+        output logic                        ns_busy,    // the head's non-speculative µop has issued (OOO_TRAP: no interrupt)
 
         // recovery
         output logic                        fe_flush,   // trap / replay: the front end now
@@ -182,7 +183,6 @@ module OOO_CTRL
     logic [NCKPT-1:0] killset;                 // the restored checkpoint and those younger
     logic             rcv;                     // nothing renamed or dispatched
     logic             flush_q;                 // trap / replay of the cycle before
-    logic             ns_busy;                 // the head's non-speculative µop has issued
     logic             ns_busy_n;
     logic [FTQW-1:0]  ftq_hd, ftq_tgt;         // the FTQ's head (a mirror); pop up to the target
     always @(*) begin
