@@ -2681,3 +2681,53 @@ Recorded in section 20.4 of Plan/OOC(_J).md and 4.4 of Doc/UARCH(_J).md, with th
 ```text
 Go on with the control's next part: the front end's restore (the FTQ entry's history and RAS state into OOO_FETCH).
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+As the control's fourth part, I built the front end's restore. All 23 tests PASS and all 232 mutations are detected; pushed to dev in commit 958d318. Not yet confirmed in Vivado.
+
+**How it works**
+- **Cycle R (the cycle the control redirects):** the front end stops at once with `be_stop` and issues no request and no block. Without the stop, a wrong-path block would enter the FTQ or the fetch buffer and go on to renaming.
+  - In the same cycle OOO_FERS (new) takes the point to go back to into a register: for a misprediction the transfer of the ALU port that resolved it, for a trap or a replay the ROB's µop.
+- **Cycle R+1:** it reads the FTQ entry of the point's block and restarts fetch.
+  - The history is the block's history plus the slot branches up to the point: those before it not taken, the point itself with its actual outcome.
+  - The RAS is the block's snapshot with the point's own push (call) or pop (return).
+
+**For you to decide (D-15):** with the restart a cycle after the resolution, a misprediction costs 10 cycles from EX to EX instead of 9.
+- −0.27 % / −0.22 % / −0.26 % in the model (6.260 → 6.243 CoreMark/MHz on -O2).
+- Restarting in the same cycle would need the branch compare → the ROB's choice → the control → the checkpoint table → the FTQ read → the history push → TAGE's BRAM address in one cycle, which I judged impossible at 20 ns.
+- It is applied as recommended and recorded as waiting for your confirmation.
+
+**Found**
+- **A trap can happen at a branch:** when a debug trigger is on a branch. The trap comes before the branch, so that branch's slot is kept out of the history. At first I thought it happens only at a resolved branch; tb_fers found it.
+- **One more contract with the back end:** a µop's block is the block holding the last half of its instruction.
+  - An instruction across two lines belongs to the second block in predecode, but the fetch buffer gives the first half's block number.
+  - Decode has to add 1 to the block of such an instruction before passing it on.
+
+**Other changes**
+- `restore_port` added to OOO_CTRL.
+- `rcv_ftq` / `rcv_end`, the point of a trap / replay, added to OOO_ROB. A replay can be the µop after the head.
+- The bits of the slots before the point are always 0, so the prediction-bit input was removed.
+- M128's target line was rewritten, so the mutation was retargeted.
+
+**Size (Yosys):** OOC_FERS's logic is about 38 LUTs, plus 88 LUT RAM of the FTQ put in the harness.
+
+Recorded in chapter 21 of Plan/OOC(_J).md, 3.1 / 3.2 and D-15 of Doc/UARCH(_J).md, the READMEs and PROMPT.md (the English of answer 72).
+
+If you accept D-15, please also run these four in Vivado. OOC_FERS has been added to the list in synth_ooo.bat.
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_FERS
+synth_ooo.bat OOC_FRONT
+synth_ooo.bat OOC_ROB
+synth_ooo.bat OOC_CTRL
+```
+<!-- /answer -->
+
+## 74. 2026-10-28 19:56:35 JST
+
+```text
+I accept D-15 (restart a cycle after the resolution). I will run synth_ooo.bat for OOC_FERS, OOC_FRONT, OOC_ROB and OOC_CTRL.
+```

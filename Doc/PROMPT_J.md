@@ -2674,5 +2674,49 @@ Go on with the control's next part: the front end's restore (the FTQ entry's his
 <!-- answer -->
 **Claude Codeの回答**
 
-Everything else is ready to commit. The background run (all 23 tests, extra seeds and the full 232-mutation campaign) is still going, and I'll commit once it reports.
+制御の4つ目として、フロントエンドの復元を作りました。テストは23本すべてPASS、バグ注入は232件すべて検出で、コミット 958d318 で dev に push 済みです。Vivado での確認はまだです。
+
+**動き**
+- **サイクルR(制御がリダイレクトを出すサイクル):** フロントエンドは `be_stop` ですぐ止まり、要求もブロックも出しません。止めないと、間違った道のブロックが FTQ やフェッチバッファに入り、リネームまで進んでしまうからです。
+  - 同じサイクルに、OOO_FERS(新規)が戻る地点をレジスタに取ります。予測ミスなら解決したALUポートの転送、トラップかリプレイならROBのµopです。
+- **サイクルR+1:** その地点のブロックの FTQ エントリを読み、フェッチを再開します。
+  - 履歴は、ブロックの履歴に、地点までのスロットの分岐を足したものです。地点より前は not taken、地点自身は実際の結果です。
+  - RAS は、ブロックのスナップショットに地点自身の push(call)か pop(return)を加えたものです。
+
+**決めてほしいこと(D-15):** 再開を解決の1サイクル後にしたので、予測ミスの損失は EX から EX まで9サイクルから10サイクルに増えます。
+- モデルでは −0.27% / −0.22% / −0.26% です(-O2 で 6.260 → 6.243 CoreMark/MHz)。
+- 同じサイクルで再開するには、分岐の比較 → ROB の選択 → 制御 → チェックポイントの表 → FTQ の読み出し → 履歴の push → TAGE の BRAM アドレスを1サイクルに収める必要があり、20 ns では無理だと判断しました。
+- 推奨どおりに入れてありますが、作者の確認待ちとして記録しています。
+
+**見つけたこと**
+- **トラップが分岐の上で起こることがある:** デバッグトリガが分岐に掛かっている場合です。トラップは分岐より前なので、その分岐のスロットは履歴に入れません。最初は解決した分岐でしか起きないと考えていて、tb_fers が見つけました。
+- **後段とのあいだの約束を1つ足しました:** µopのブロックは、その命令の後ろ半分があるブロックとします。
+  - 2行にまたがる命令は、プリデコードでは2つ目のブロックに属しますが、フェッチバッファは前半のブロック番号を渡します。
+  - デコードでは、またがる命令のブロックを+1して後段に渡す必要があります。
+
+**その他の変更**
+- OOO_CTRL に `restore_port` を追加しました。
+- OOO_ROB に、トラップ / リプレイの地点を示す `rcv_ftq` / `rcv_end` を追加しました。リプレイは先頭の次のµopのこともあります。
+- 地点より前のスロットのビットは常に0なので、予測ビットの入力を削りました。
+- M128 は対象の行を書き換えたので、書き直しました。
+
+**規模(Yosys):** OOC_FERS のロジックは約38 LUT です。ほかに、ハーネスに入れた FTQ の LUT RAM が 88 あります。
+
+記録先は Plan/OOC(_J).md の21章、Doc/UARCH(_J).md の 3.1 / 3.2 と D-15、各 README、PROMPT.md(回答72の英訳)です。
+
+D-15 を受け入れてもらえる場合は、次の4件も Vivado で回してください。OOC_FERS は synth_ooo.bat の一覧に追加済みです。
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_FERS
+synth_ooo.bat OOC_FRONT
+synth_ooo.bat OOC_ROB
+synth_ooo.bat OOC_CTRL
+```
 <!-- /answer -->
+
+## 74. 2026-10-28 19:56:35 JST
+
+```text
+I accept D-15 (restart a cycle after the resolution). I will run synth_ooo.bat for OOC_FERS, OOC_FRONT, OOC_ROB and OOC_CTRL.
+```

@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Mon Oct 26 23:42:09 2026
+| Date         : Wed Oct 28 19:25:38 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOC_FRONT/utilization.rpt
 | Design       : OOC_FRONT
@@ -22,14 +22,14 @@ Table of Contents
 +---------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
 |    Instance   |   Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
 +---------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
-| OOC_FRONT     |     (top) |       2588 |       2506 |      82 |    0 | 2111 |      5 |      1 |          0 |
-|   (OOC_FRONT) |     (top) |          0 |          0 |       0 |    0 | 1150 |      0 |      0 |          0 |
-|   u_fetch     | OOO_FETCH |       2588 |       2506 |      82 |    0 |  961 |      5 |      1 |          0 |
+| OOC_FRONT     |     (top) |       2611 |       2529 |      82 |    0 | 2112 |      5 |      1 |          0 |
+|   (OOC_FRONT) |     (top) |          0 |          0 |       0 |    0 | 1151 |      0 |      0 |          0 |
+|   u_fetch     | OOO_FETCH |       2611 |       2529 |      82 |    0 |  961 |      5 |      1 |          0 |
 |     (u_fetch) | OOO_FETCH |         39 |          9 |      30 |    0 |   68 |      0 |      0 |          0 |
-|     u_btb     |   OOO_BTB |         35 |         35 |       0 |    0 |   52 |      1 |      0 |          0 |
-|     u_ras     |   OOO_RAS |        252 |        200 |      52 |    0 |    4 |      0 |      0 |          0 |
-|     u_tage    |  OOO_TAGE |       1035 |       1035 |       0 |    0 |  332 |      4 |      1 |          0 |
-|     u_ubtb    |  OOO_UBTB |       1242 |       1242 |       0 |    0 |  505 |      0 |      0 |          0 |
+|     u_btb     |   OOO_BTB |        110 |        110 |       0 |    0 |   52 |      1 |      0 |          0 |
+|     u_ras     |   OOO_RAS |        371 |        319 |      52 |    0 |    4 |      0 |      0 |          0 |
+|     u_tage    |  OOO_TAGE |        833 |        833 |       0 |    0 |  332 |      4 |      1 |          0 |
+|     u_ubtb    |  OOO_UBTB |       1269 |       1269 |       0 |    0 |  505 |      0 |      0 |          0 |
 +---------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
 * Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
 

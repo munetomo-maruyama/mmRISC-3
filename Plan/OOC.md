@@ -1770,7 +1770,7 @@ Item 4 of 18.7.
 | `OOO_CTRL` | `restore_port`: the ALU port whose branch restores (it also chooses `fe_pc`) |
 | `OOO_ROB` | `rcv_ftq` / `rcv_end`: the block and last parcel of the µop a trap (the head) or a replay (the marked µop, at the head or the one after it) goes back to |
 
-- **The restart a cycle after the resolution** (D-15, for the author to confirm). The history must be in TAGE's register
+- **The restart a cycle after the resolution** (D-15, decided by the author as recommended on 2026-10-28). The history must be in TAGE's register
   before the first fetch reads the tables with it; straight from the resolution, the branch's comparison, the ROB's
   choice of the oldest misprediction, the control, the checkpoint table, the FTQ read, the push into the history and
   TAGE's block RAM address would be one cycle. A redirect in R + 1 costs 1 cycle a misprediction: −0.27 % / −0.22 % /

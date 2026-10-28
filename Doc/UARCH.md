@@ -651,7 +651,8 @@ pair is complex when its ALU part is.
 
 Decided by the author on 2026-10-24 (`Doc/PROMPT.md` entry 23): **Zbc stays, and as a principle the instruction set
 is kept** (that of mmRISC-2 Rev.02); everything else as recommended. **G0b (D-11 to D-14) decided by the author on
-2026-10-26 (`Doc/PROMPT.md` entry 54): as recommended; tier 1 applied first (6.4).**
+2026-10-26 (`Doc/PROMPT.md` entry 54): as recommended; tier 1 applied first (6.4). D-15 decided by the author on
+2026-10-28 (entry 74): as recommended.**
 
 | # | Item | Recommendation | **Decision (2026-10-24)** |
 |---|---|---|---|
@@ -664,4 +665,4 @@ is kept** (that of mmRISC-2 Rev.02); everything else as recommended. **G0b (D-11
 | D-12 | Replay policy again: the trap at commit with an issue queue of 10 (G4) | Take it (about 1.9k, +0.2 % CoreMark; code that misses pays a refetch) | **As recommended (2026-10-26)** |
 | D-13 | L4 to L6, and L7 after it is modelled | Take L4 to L6 (1.2k, −1.7 %); L7 if about 1 % or less | **As recommended (2026-10-26)**; L6 taken back after Vivado (6.10) |
 | D-14 | The end state | A: fusion level 2 now; the 54k ceiling and no PMP / HPM as the reserve, decided at G1 | **As recommended (2026-10-26)** |
-| D-15 | The front end's restore (`Plan/OOC.md` 21) | Restart fetch a cycle after the resolution (`redirect` 2): −0.27 % / −0.22 % / −0.26 % in the model; keeps the resolution → ROB → control → FTQ → history → TAGE address chain out of one cycle | Applied as recommended (2026-10-28), **for the author to confirm** |
+| D-15 | The front end's restore (`Plan/OOC.md` 21) | Restart fetch a cycle after the resolution (`redirect` 2): −0.27 % / −0.22 % / −0.26 % in the model; keeps the resolution → ROB → control → FTQ → history → TAGE address chain out of one cycle | **As recommended (2026-10-28, `Doc/PROMPT.md` entry 74)** |
