@@ -2890,5 +2890,57 @@ Go on: bring mmRISC-2's CORE_CSR (with L1) and CORE_MDU into mmRISC-3, wired to 
 <!-- answer -->
 **Claude Codeの回答**
 
-The docs are ready. Still running in the background: the full suite (27 tests), extra seeds, the 288-mutation campaign and the model's G0b table. I'll commit once they report.
+mmRISC-2 の CORE_CSR(L1 を適用)と CORE_MDU を持ってきて、ポート0の後ろに置き、OOO_TRAP / OOO_SYS につなぎました。テストは27本すべてPASS、バグ注入は288件すべて検出で、コミット 5344aff で dev に push 済みです。Vivado での確認はまだです。
+
+**持ってきたもの(RTL/CPU/CORE)**
+- **CORE_CSR:** 変更は1か所だけです。`instret_inc` を1ビットから「1サイクルにリタイアした命令数(0〜4)」にしました。2 µop がそれぞれ融合ペアなら4命令になるためです。
+- **CORE_MDU:** 変更なしです。
+- どちらも mmRISC-2 Rev.02 と同一であることを確認しました。
+
+**新しいブロック**
+- **OOO_CSRU:** CORE_CSR を `HPM_COUNTERS = 2` で使います(L1 の適用)。
+  - CSR の µop は非投機なので、ROB の先頭のEXで CSR を読み、検査し、書きます。
+  - 書いた µop はリプレイの印を付けて完了します。違反は、命令ビットを tval にした不正命令例外にします。
+  - トラップの入口、MRET / SRET、ベクタ、mepc / sepc、取るべき割り込み、WFI の起床は、OOO_TRAP / OOO_SYS とやり取りします。
+- **OOO_MDUP:** CORE_MDU をポート0の後ろに置きます。
+  - mul / mulw はレイテンシ2です。
+  - mulh、clmul、除算は外から答える扱いで、ポート0の書き込み枠が空いたときに書き、wakeup を出します。
+  - 発行キューには `mdu_ok` と `p0_hold` を返します。
+
+**作業中に見つけたこと**
+- **ポート0の書き込み枠の衝突:** 発行キューは、乗算の次のサイクルにポート0でレイテンシ1の µop を出していました。これだと両方が同じサイクルに、ポート0に1本しかない書き込みポートを使います。いまはそのサイクルにはポート0に出しません(ポート1へは行けます)。
+- **OOO_TRAP のベクタ:** CSR が計算するものを使うようにしました。S モードへの委譲も CSR 側で済むので、mtvec からの自前計算はやめました。
+- **SRET と特権チェックを追加:** M 未満での MRET、TSR が立っているときの SRET、TVM が立っているときの SFENCE.VMA、TW が立っているときの WFI は不正命令にしました。
+
+**決めてほしいこと(D-16):** CORE_MDU は一度に1演算しかできないので、mul は2サイクルに1つまでになります。
+- モデルでは −0.8% / 0 / 0 です。-O2 の行列計算だけに効きます。そのため、このモデルに MDU の占有を表すオプションを足しました。
+- 全演算を外から答える扱いにすると −2.4% / −0.9% / −3.0% になります。
+- CORE_MDU の横にパイプライン化した乗算器を置けば 0.8% は取り戻せますが、LUT と DSP を使います。
+- 予算が厳しいので、推奨どおり CORE_MDU をそのまま使う形で入れてあります。作者の確認待ちとして記録しました。
+
+**規模(Yosys、目安だけ)**
+
+| ブロック | Yosys | 参考 |
+|---|---|---|
+| OOC_CSRU | 2,823 | mmRISC-2 の CSR は Vivado で 4,750(HPM 4本)。L1 の削減見積もりは −0.65k |
+| OOC_MDUP | 3,742 | Yosys はここで乗算器を LUT で作っています。Vivado は DSP を使います(mmRISC-2 の MDU は 3,423) |
+
+記録先は Plan/OOC(_J).md の23章、Doc/UARCH(_J).md の 3.6 / 6.4 / D-16、RTL/CPU/CORE と OOO の README、PROMPT.md(回答78の英訳)です。
+
+D-16 を受け入れてもらえる場合は、次の5件も Vivado で回してください。OOC_CSRU と OOC_MDUP は synth_ooo.bat の一覧に追加済みです。
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_CSRU
+synth_ooo.bat OOC_MDUP
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_TRAP
+synth_ooo.bat OOC_SYS
+```
 <!-- /answer -->
+
+## 80. 2026-10-28 22:47:46 JST
+
+```text
+Before deciding D-16, estimate what a pipelined multiplier beside CORE_MDU would cost in LUTs and DSPs.
+```

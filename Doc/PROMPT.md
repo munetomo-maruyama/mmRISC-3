@@ -2897,3 +2897,61 @@ What is left before the assembly (G1) are the blocks to bring from mmRISC-2 (CSR
 ```text
 Go on: bring mmRISC-2's CORE_CSR (with L1) and CORE_MDU into mmRISC-3, wired to OOO_TRAP / OOO_SYS and port 0, with tests and Vivado scripts.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I brought mmRISC-2's CORE_CSR (with L1 applied) and CORE_MDU in, put them behind port 0 and wired them to OOO_TRAP / OOO_SYS. All 27 tests PASS and all 288 mutations are detected; pushed to dev in commit 5344aff. Not yet confirmed in Vivado.
+
+**Brought in (RTL/CPU/CORE)**
+- **CORE_CSR:** one change only: `instret_inc` went from one bit to "the number of instructions retired in a cycle (0 to 4)", since two µops that are fused pairs make four instructions.
+- **CORE_MDU:** without change.
+- Both were checked identical to mmRISC-2 Rev.02.
+
+**New blocks**
+- **OOO_CSRU:** CORE_CSR with `HPM_COUNTERS = 2` (L1 applied).
+  - CSR µops are non-speculative, so they read, check and write their CSR in EX at the ROB head.
+  - A µop that wrote completes marked for replay. A violation is an illegal instruction exception with the instruction bits as tval.
+  - Trap entry, MRET / SRET, the vector, mepc / sepc, the interrupt to take and WFI's wakeup go to and from OOO_TRAP / OOO_SYS.
+- **OOO_MDUP:** CORE_MDU behind port 0.
+  - mul / mulw at latency 2.
+  - mulh, clmul and the divides answer from outside: written when port 0's write slot is free, with their wakeup.
+  - It gives the issue queue `mdu_ok` and `p0_hold`.
+
+**Found on the way**
+- **Port 0's write slot taken twice:** the issue queue let port 0 issue a latency-1 µop in the cycle after a multiply, so both used port 0's only write port in the same cycle. Now port 0 does not take it in that cycle (port 1 can).
+- **OOO_TRAP's vector:** now the one the CSRs compute; delegation to S mode is done there too, so the own computation from mtvec is gone.
+- **SRET and privilege checks added:** MRET below M, SRET under TSR, SFENCE.VMA under TVM and WFI under TW are illegal instructions.
+
+**For you to decide (D-16):** CORE_MDU does one operation at a time, so mul goes at most one every 2 cycles.
+- In the model −0.8 % / 0 / 0, only the matrix code of -O2; for this I added an option for the MDU's occupancy to the model.
+- With every operation answered from outside: −2.4 % / −0.9 % / −3.0 %.
+- A pipelined multiplier beside CORE_MDU would win the 0.8 % back, for LUTs and DSPs.
+- As the budget is tight, it is in as recommended with CORE_MDU as it is, recorded as waiting for your confirmation.
+
+**Size (Yosys, a hint only)**
+
+| Block | Yosys | For comparison |
+|---|---|---|
+| OOC_CSRU | 2,823 | mmRISC-2's CSR is 4,750 in Vivado (4 HPM); L1's estimated saving −0.65k |
+| OOC_MDUP | 3,742 | Yosys builds the multipliers of LUTs here; Vivado uses DSPs (mmRISC-2's MDU is 3,423) |
+
+Recorded in chapter 23 of Plan/OOC(_J).md, 3.6 / 6.4 / D-16 of Doc/UARCH(_J).md, the READMEs of RTL/CPU/CORE and OOO, and PROMPT.md (the English of answer 78).
+
+If you accept D-16, please also run these five in Vivado. OOC_CSRU and OOC_MDUP have been added to the list in synth_ooo.bat.
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_CSRU
+synth_ooo.bat OOC_MDUP
+synth_ooo.bat OOO_IQ
+synth_ooo.bat OOC_TRAP
+synth_ooo.bat OOC_SYS
+```
+<!-- /answer -->
+
+## 80. 2026-10-28 22:47:46 JST
+
+```text
+Before deciding D-16, estimate what a pipelined multiplier beside CORE_MDU would cost in LUTs and DSPs.
+```

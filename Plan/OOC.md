@@ -1991,3 +1991,21 @@ FPU behind their ports, the I$ and the TLBs (Phase 2), debug, and the core's ass
 - **Please run** `synth_ooo.bat OOC_CSRU`, `synth_ooo.bat OOC_MDUP` (both new in the list), `synth_ooo.bat OOO_IQ`,
   `synth_ooo.bat OOC_TRAP` and `synth_ooo.bat OOC_SYS`. The budget is updated with them (L1 measured instead of
   estimated).
+
+### 23.4 D-16: what a pipelined multiplier beside CORE_MDU would cost (2026-10-29)
+
+Measured with Yosys (`synth_xilinx -family xc7`, DSP48E1 inferred), two cycles as the latency-2 slot gives (the
+operands into the DSPs in EX, the sum in the cycle after):
+
+| Variant | LUT | DSP48E1 | FF | What it wins |
+|---|---|---|---|---|
+| A: mul / mulw only (the low 64 bits: three 32 × 32 products, the cross ones to 32 bits) | 143 | 10 | 100 | every multiply of CoreMark: the traces of all three builds have 93,960 mulw a run and no mulh, no divide; the 0.8 % on -O2 |
+| B: also mulh / mulhsu / mulhu (the 128-bit product, signs corrected) | 499 | 16 | 326 | nothing more for CoreMark; mulh at latency 2 for division by a constant elsewhere |
+
+- Around it: port 0's write-back takes one more 64-bit source (about 64 LUTs), and mul / mulw stop being MDU µops (the
+  issue queue's MDU bit only for the long ones, OOO_MDUP's mul path goes): **A is about 0.2k LUTs and 10 DSPs** (32
+  of 240 used in mmRISC-2), **B about 0.55k and 16**. CORE_MDU stays as it is for the rest (with A, its multiplier
+  still does mulh; with B it would be unused but kept).
+- Against the gap (4.6k in the middle), A is 4 % of it for +0.8 % on -O2 only (0 on the other two): about the yield
+  of the levers taken (fusion, the best, is about 3 % per 1k on -O2). Recommendation: keep D-16 as it is now, and put A
+  on the list of things to buy back at G1 if the whole-core measurement leaves room.
