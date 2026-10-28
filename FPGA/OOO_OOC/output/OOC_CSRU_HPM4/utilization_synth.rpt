@@ -1,0 +1,32 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Wed Oct 28 23:47:50 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_CSRU_HPM4/utilization_synth.rpt
+| Design       : OOC_CSRU
+| Device       : xc7a100tcsg324-1
+| Speed File   : -1
+| Design State : Synthesized
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++--------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+|   Instance   |  Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++--------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+| OOC_CSRU     |    (top) |       2790 |       2790 |       0 |    0 | 4602 |      0 |      0 |          0 |
+|   (OOC_CSRU) |    (top) |          0 |          0 |       0 |    0 | 1979 |      0 |      0 |          0 |
+|   u_csru     | OOO_CSRU |       2790 |       2790 |       0 |    0 | 2623 |      0 |      0 |          0 |
+|     (u_csru) | OOO_CSRU |         53 |         53 |       0 |    0 |    0 |      0 |      0 |          0 |
+|     u_csr    | CORE_CSR |       2749 |       2749 |       0 |    0 | 2623 |      0 |      0 |          0 |
++--------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+
+

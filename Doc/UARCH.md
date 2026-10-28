@@ -201,6 +201,11 @@ measurement. "Measured" is Vivado out of context (`Plan/OOC.md`) or mmRISC-2's p
 structure, with the basis given. The ceiling is about 52k LUTs (80 to 82 % of 63,400; mmRISC-2 was at 79 % with 93 %
 of the slices).
 
+**Calibration (2026-10-28, `Plan/OOC.md` 24.5)**: the same RTL in the same configuration is larger in mmRISC-2's chip
+than out of context: CORE_CSR 1.74 ×, the D$ 1.41 ×, CORE_MDU 1.06 ×, with the same flip-flops. The out-of-order
+engine has only out-of-context numbers; a ratio for a whole core (mmRISC-2's CPU_CORE out of context against 32,929
+in its chip) is needed before G1.
+
 ### 4.2 The whole chip
 
 | Part | LUT | Basis |
@@ -414,7 +419,7 @@ The decisions are D-11 to D-14 (section 9).
 | G1 | `OOO_RENAME` | `NCKPT` 8 → 6. The checkpoints are given out in a ring of 6 (an add modulo NCKPT; 6 is not a power of two). The control must keep at most 6 transfers unresolved | `OOC_RENAME` 3,769 → 3,456 LUTs | `tb_rename` PASS on 4 seeds, with the ring full about 32,000 times each |
 | G2 | `OOO_DEC` | The rare classes (illegal, FP, CSR and system, SFENCE.VMA, AMO / LR / SC, cbo.zero) are decoded in slot 0 only: their fields are 0 in slots 1 to 3, and a new output `cut` ends the group before one in slot 1 to 3 (it comes to slot 0 next cycle). `CORE_DEC` is kept as it is | `OOC_DEC` 2,246 → 2,078 LUTs (the estimate was −0.4k to −0.7k: the logic that recognizes them stays) | `tb_dec` PASS; each RVC encoding is now also tried in slot 0. CoreMark has 2 such instructions in 3 million (the timer reads) |
 | G3 | `OOO_IQPL` | Port 2 reads the low `W2` = 48 bits of a record (the LSU's fields go there when the record is laid out) | `OOC_IQPL` 1,202 → 1,008 LUTs; the LUT RAM stays 384 (a RAM32M has 3 read ports in any case: only the bank choice goes) | `tb_iqpl` PASS on 4 seeds |
-| L1 | `CORE_CSR` | **Applied 2026-10-28** (`Plan/OOC.md` 23): `RTL/CPU/CORE/CORE_CSR` brought in, `HPM_COUNTERS` = 2 in `OOO_CSRU` | | Counted at its estimate until Vivado |
+| L1 | `CORE_CSR` | **Applied 2026-10-28** (`Plan/OOC.md` 23): `RTL/CPU/CORE/CORE_CSR` brought in, `HPM_COUNTERS` = 2 in `OOO_CSRU` | | Out of context −233 LUTs / −148 FFs (`Plan/OOC.md` 24.5); the budget keeps mmRISC-2's in-chip −0.65k, like its base |
 | L3 | FPU | A design task (C2 shared multiplier, C3 a small iterative unit): in Phase 2, with the FPU | | Counted at its estimate |
 | L8 | LiteX | At the LiteX build | | Counted at its estimate |
 

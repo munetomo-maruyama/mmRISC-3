@@ -2077,3 +2077,26 @@ The author decided D-16 for variant A of 23.4 (`Doc/PROMPT.md` entry 81).
 - **The budget** (`Doc/UARCH.md` 4.4): D-16's multiplier 164 and its input into port 0's write-back (about 64), the
   issue queue +20; the trap and system units (217, 23) inside the control's estimate (the control so far 697). The gap
   goes to **3.5k / 4.9k / 6.2k**. DSP blocks: 42 of 240 (mmRISC-2's 32 and the multiplier's 10).
+
+### 24.5 L1 measured, and what out of context means against the chip (2026-10-28)
+
+| Run | LUT | FF | WNS |
+|---|---|---|---|
+| OOC_CSRU, 4 HPM counters (mmRISC-2's configuration) | **2,770** (CORE_CSR 2,732) | 2,623 | +2.081 ns |
+| OOC_CSRU, 2 (L1) | 2,537 (CORE_CSR 2,499) | 2,475 | +0.569 ns |
+| **L1, out of context** | **−233** | **−148** | |
+| L1 in mmRISC-2's chip builds (`Plan/REDUCE.md` B1, measured) | −0.65k (0.4k to 0.9k) | −0.15k | |
+
+- **The budget keeps L1 at −0.65k**: its base is mmRISC-2's in-chip sizes, and B1 is an in-chip measurement too. The
+  gap stays **3.5k / 4.9k / 6.2k**.
+- **A calibration point, and a risk.** With 4 counters this is mmRISC-2's CORE_CSR exactly (2,623 flip-flops here,
+  2,629 in the chip), yet 2,732 LUTs out of context against 4,750 in the chip: **1.74 ×**. The others with both
+  numbers: the D$ 1.41 × (5,325 in OOC_LSUDC, 7,497), CORE_MDU 1.06 × (3,240, 3,423), L1's difference 2.8 ×. The flip-flops
+  agree, so the logic is the same; the chip adds LUTs (placement at 79 % LUTs / 93 % slices, timing-driven
+  replication, logic moved across hierarchy boundaries, LiteX's synthesis settings). **The out-of-order engine is
+  measured out of context only** (about 21k LUTs: the ALU ports, issue queue and payload, renaming, register file,
+  front end, fetch buffer, FTQ, decode, fusion, ROB, LSU and adapter, the control): if it grew like these in the chip,
+  the gap would grow by 1k (1.06 ×) to 15k (1.74 ×). This needs a calibration before G1: mmRISC-2's whole CPU_CORE (32,929 LUTs in the
+  chip, every block of it summed so that boundary effects cancel) run out of context with this flow gives the ratio
+  for a whole core.
+

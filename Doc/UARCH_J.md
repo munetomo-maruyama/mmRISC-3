@@ -163,6 +163,8 @@ L1 / L2キャッシュ(D$はアダプタつき)、MMU(TLB、PTW、PMP)、CSR、�
 
 物理LUT(Vivadoの階層別レポートの「Total LUTs」。LUTRAMを含む)で、mmRISC-2の実測と同じ単位。「実測」はVivadoの単体合成(`Plan/OOC_J.md`)かmmRISC-2の配置後の設計、「見積り」は構造からで、根拠を示す。上限は約52k LUT(63,400の80〜82%。mmRISC-2はLUT 79%、スライス93%だった)。
 
+**較正(2026-10-28、`Plan/OOC_J.md` 24.5)**: 同じRTLの同じ構成でも、mmRISC-2のチップの中は単体より大きい: CORE_CSR 1.74倍、D$ 1.41倍、CORE_MDU 1.06倍、フリップフロップは同じ。アウトオブオーダーの部分には単体の数しかない。G1の前にコア全体の比(mmRISC-2のCPU_CORE単体と、チップの32,929)が要る。
+
 ### 4.2 チップ全体
 
 | 部分 | LUT | 根拠 |
@@ -347,7 +349,7 @@ L1 / L2キャッシュ(D$はアダプタつき)、MMU(TLB、PTW、PMP)、CSR、�
 | G1 | `OOO_RENAME` | `NCKPT` 8 → 6。チェックポイントは6の輪で与える(NCKPTを法とする足し算。6は2のべき乗でない)。制御は未解決の分岐を6つまでに抑える | `OOC_RENAME` 3,769 → 3,456 LUT | `tb_rename`は4つのシードでPASS。それぞれ約32,000回、輪がいっぱいになる |
 | G2 | `OOO_DEC` | まれな種類(illegal、FP、CSRとシステム、SFENCE.VMA、AMO / LR / SC、cbo.zero)はスロット0だけでデコードする: スロット1〜3ではそのフィールドは0で、新しい出力`cut`が、スロット1〜3にそれがあればグループをその前で終える(次のサイクルにスロット0に来る)。`CORE_DEC`はそのまま | `OOC_DEC` 2,246 → 2,078 LUT(見積りは−0.4k〜−0.7k: 見分ける論理は残る) | `tb_dec`はPASS。各RVCの符号はスロット0でも試すようにした。CoreMarkでは300万命令中2つ(タイマーの読み出し) |
 | G3 | `OOO_IQPL` | ポート2は記録の下位`W2` = 48ビットだけを読む(記録の並びを決めるとき、LSUのフィールドをそこに置く) | `OOC_IQPL` 1,202 → 1,008 LUT。LUT RAMは384のまま(RAM32Mはどのみち読み出し3つ: 減るのはバンクの選択だけ) | `tb_iqpl`は4つのシードでPASS |
-| L1 | `CORE_CSR` | **2026-10-28に適用**(`Plan/OOC_J.md` 23): `RTL/CPU/CORE/CORE_CSR`を持ってきて、`OOO_CSRU`で`HPM_COUNTERS` = 2 | | Vivadoまで見積りで数える |
+| L1 | `CORE_CSR` | **2026-10-28に適用**(`Plan/OOC_J.md` 23): `RTL/CPU/CORE/CORE_CSR`を持ってきて、`OOO_CSRU`で`HPM_COUNTERS` = 2 | | 単体で−233 LUT / −148 FF(`Plan/OOC_J.md` 24.5)。予算は基準と同じくmmRISC-2のチップ内の−0.65kのまま |
 | L3 | FPU | 設計の作業(C2 乗算器の共有、C3 小さな反復ユニット): Phase 2でFPUとともに | | 見積りで数える |
 | L8 | LiteX | LiteXのビルドで | | 見積りで数える |
 

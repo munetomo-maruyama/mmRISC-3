@@ -1,0 +1,6 @@
+OOC_CSRU HPM=4  (period 20.0 ns, I/O delay 6.0 ns each side on the ports)
+after synthesis: 2790 LUTs (2790 logic + 0 LUT RAM; 3353 LUT cells), 4602 FF, 0 DSP, 0 LUT RAM cells, 0.0 BRAM tiles
+after place and route: 2770 LUTs (2770 logic + 0 LUT RAM; 3353 LUT cells), WNS 2.081 ns, register to register 2.081 ns (26 logic levels)
+instances (after place and route):
+    u_csru                 OOO_CSRU               2770 LUTs (2770 logic + 0 LUT RAM), 2623 FF
+      u_csr                CORE_CSR               2732 LUTs (2732 logic + 0 LUT RAM), 2623 FF

@@ -3036,3 +3036,43 @@ synth_ooo.bat OOC_SYS
 ```text
 I ran synth_ooo.bat for OOC_PMUL, OOC_CSRU, OOC_MDUP, OOO_IQ, OOC_TRAP and OOC_SYS. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+All six fit in 50 MHz. But in the budget the gap grew by 0.3k, mostly for the multiplier added, to 3.5k / 4.9k / 6.2k LUTs.
+
+| Block | LUT | DSP | Before | Worst slack |
+|---|---|---|---|---|
+| OOC_PMUL | **164** | 10 | (Yosys 149) | +11.501 ns |
+| OOC_CSRU | **2,537** (CORE_CSR 2,499 of it) | 0 | (Yosys 2,823) | **+0.569 ns** (28 levels, the CSR read) |
+| OOC_MDUP | **3,258** (CORE_MDU 3,240 of it) | 16 | (Yosys 3,759) | +5.921 ns |
+| OOO_IQ | **1,894** | | 1,874 | +1.165 ns |
+| OOC_TRAP | **217** | | 203 | +6.915 ns |
+| OOC_SYS | **23** | | 15 | +11.501 ns |
+
+- **The least margin is the CSR unit's**, +0.569 ns. The CSR read multiplexer is deep, the same structure as mmRISC-2's EX.
+- **The size of the CSRs:** CORE_CSR synthesized alone is 2,499 LUTs, much smaller than the 4,750 LUTs of mmRISC-2's whole-chip report.
+  - The flip-flops, 2,475 against 2,629, are nearly the same, so the circuit is the same. The LUT difference cannot be explained by L1 alone (two HPM counters fewer, estimated 0.65k).
+  - The D$ shows the same kind of difference (7,497 in the chip against 5,325 alone), while the MDU hardly any (3,423 against 3,240).
+  - The budget has counted mmRISC-2's blocks at their in-chip sizes, so that stays, and only what changed this time is added. Which way of counting is right will be settled by synthesizing the whole core at G1.
+- **Measuring L1:** I added a parameter for the number of HPM counters to the harness. A run with 4 counters gives, by its difference to this run (2), what L1 saves, to replace the estimate.
+- **Budget:** the multiplier's 164, its write-back input (about 64) and the issue queue's +20 were added. The trap and system units go inside the control's estimate (the control so far 697 in all).
+  - The gap is **3.5k / 4.9k / 6.2k LUTs** (3.2k / 4.6k / 5.9k before).
+  - DSPs: 42 of 240 (mmRISC-2's 32 plus the multiplier's 10).
+
+Recorded in section 24.4 of Plan/OOC(_J).md, 4.4 of Doc/UARCH(_J).md and PROMPT.md (the English of answer 81); pushed to dev in commit 073a76f.
+
+To measure L1, please run this one.
+
+```bat
+cd FPGA\OOO_OOC
+synth_ooo.bat OOC_CSRU 20.0 1 "HPM=4"
+```
+<!-- /answer -->
+
+## 83. 2026-10-28 23:49:29 JST
+
+```text
+I ran synth_ooo.bat OOC_CSRU 20.0 1 "HPM=4". Please check output/OOC_CSRU_HPM4/summary.txt.
+```
