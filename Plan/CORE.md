@@ -181,6 +181,39 @@ Three rules came out of it:
 3. **The architectural memory holds without translation**: a store commits its virtual address. Phase 2 (the MMU)
    gives the trace the physical address too.
 
+### 5.2 B1: the front end alone (done 2026-10-29)
+
+`RTL/CPU/OOO/OOO_FRONT` puts the front end together up to the D1 / D2 register (glue 3.8); `SIM/CORE/tb_front`
+fetches and decodes real programs with it against Spike's path (`SIM/CORE/README.md`).
+
+Decisions made on the way:
+
+| # | Item | What | Why |
+|---|---|---|---|
+| B1-1 | D1 / D2 | The group register (4 decoded instructions) takes a new group only when D2 empties it; a **skid** keeps one raw group (4 × 41 bits) that the fetch buffer gave meanwhile, decoded when the group register takes it. The fetch buffer's consume is its valid instructions up to decode's cut, 0 while the skid is full | The contract of `Plan/OOC.md` 13.6: consume must not depend on what D2 computes (fusion, renaming's go). Without the skid every group is followed by a bubble (4 instructions in 3 cycles); the skid's select is on 164 raw bits in front of decode, not on the 680 decoded ones |
+| B1-2 | FTQ | 312 bits a block (TAGE 270, RAS 42); a **fourth read, the head's**, for the TAGE update at the pop; `free_n` for the credit | the update needs the popped block's metadata |
+| B1-3 | FTQ pops | **one a cycle** (OOO_CTRL changed from 2; M330 in `SIM/OOO_UNIT/mutate.py`) | TAGE takes one block's update a cycle; two pops would need a second head read of 270 bits. The blocks wait in the FTQ a little longer |
+| B1-4 | the slot branches' outcomes | in OOO_FRONT by block and parcel (8 + 8 flip-flops a block): cleared at the push, written when a conditional branch resolves (`rs_*`: block, last parcel, outcome), cleared after the point of a restore, turned into slots at the pop with the parcels in the metadata | the ALU ports may resolve two a cycle; by parcel, the resolution needs no read of the metadata |
+| B1-5 | the target array (4.5) | in OOO_FRONT: written at the push, read by `ta_idx` | |
+| B1-6 | decode's FP fields | not in the group register in Phase 1 (`is_fp` only) | no FPU |
+
+Results (`SIM/CORE/results/front.txt`):
+
+- 175 riscv-tests `-p-` on 2 seeds and the two g14 CoreMark builds: all fetched and decoded in Spike's order to the
+  exit. Every TAGE update (1.74 M in the CoreMark runs) carries the popped block's metadata and the right slots and
+  outcomes, and every restore reads back what its block's push wrote: the bench checks the glue exactly, since a
+  wrong slice of the history or the RAS only costs predictions.
+- What the front end delivers (D2 taking 2 a cycle, no I$ miss, each misprediction resolved 2 to 7 cycles after D2):
+  1.51 / 1.56 instructions a cycle on g14 -O2 / sf + -flto.
+- The unit tests of OOO_CTRL, OOO_FBUF, OOO_FTQ, OOO_FERS, OOO_FETCH pass; the bug injection into the glue detected 35 of 35 changes (`SIM/CORE/results/mutate_front.txt`; the restore's RAS fields and fetch's stop in cycle R needed exact checks in the bench, since they cost only predictions or nothing visible).
+- **Mispredicted conditional branches: 6,466 / 5,870 against the model's 4,772 / 4,177.** The model updates TAGE at
+  once (`Plan/model/tageblk.h`); here a block's update comes at its pop, after its last instruction commits, and the
+  blocks predicted meanwhile use tables not yet updated. With commit a cycle after D2 it is 5,980 (+25 %), with D2 at
+  full speed and commit 4 to 10 cycles after it 8,244 (+73 %). In the core, commit is about 6 cycles after D2, so
+  expect +40 to +70 %: 2k to 3k more mispredictions of about 10 cycles, **1 to 1.5 % of CoreMark's cycles**, which
+  the model does not have. To be put into the model (an update delay) before B6 compares the two.
+- **Vivado**: `synth_ooo.bat OOC_FE` (the whole front end, `g_take` arriving at 12 ns as from fusion and renaming).
+
 ---
 
 ## 6. What G1 measures

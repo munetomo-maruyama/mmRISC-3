@@ -232,6 +232,7 @@ M = [
     ('M226', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', 'flush_all  = flush_q;', 'flush_all  = fe_flush;', 'the back end flushed in the cycle of the replay'),
     ('M227', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "if (cmt_valid != 2'b00) tgt = (cmt_valid[1] ? cmt_ftq[1] : cmt_ftq[0]) + FTQW'(replay);", "if (cmt_valid != 2'b00) tgt = (cmt_valid[1] ? cmt_ftq[1] : cmt_ftq[0]);", "the replayed load's block not popped"),
     ('M228', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "ftq_tgt <= fe_flush ? ftq_hd + FTQW'(ftq_pop) : tgt;", 'ftq_tgt <= tgt;', 'blocks of a flushed FTQ still popped'),
+    ('M330', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "ftq_pop = (ndone != '0) ? 2'd1 : 2'd0;", "ftq_pop = (ndone >= FTQW'(2)) ? 2'd2 : 2'(ndone);", 'two FTQ pops a cycle (TAGE takes one update)'),
     ('M229', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', 'free_valid[k] = cmt_valid[k] && cmt_wr[k];', 'free_valid[k] = cmt_valid[k];', 'a mapping freed for a µop that writes none'),
     ('M230', 'OOO_IQ/OOO_IQ.sv', 'iq', "(!ns[i] || (ns_ok && (older[i] & v & ns) == '0));", '(!ns[i] || ns_ok);', 'a younger non-speculative µop issued first'),
     ('M231', 'OOO_IQ/OOO_IQ.sv', 'iq', "assign iss_ns      = ((g0 | g1 | g2) & ns) != '0;", "assign iss_ns      = ((g0 | g1) & ns) != '0;", 'a non-speculative LSU µop not reported'),

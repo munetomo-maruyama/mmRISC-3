@@ -181,7 +181,7 @@ int main(int argc, char** argv)
         }
         if ((unsigned)d.lq_commit != cldn || (unsigned)d.sq_commit != cstn) FAIL("lq / sq commit %d %d, expected %u %u", (int)d.lq_commit, (int)d.sq_commit, cldn, cstn);
         int tgt = cv ? ((int)((cftq >> ((cv & 2) ? 3 : 0)) & 7) + (replay ? 1 : 0)) % 8 : ftgt;
-        int nd = (tgt - fhd + 8) % 8, epop = nd > 2 ? 2 : nd;
+        int nd = (tgt - fhd + 8) % 8, epop = nd > 1 ? 1 : nd;
         if ((int)d.ftq_pop != epop) FAIL("ftq_pop %d, expected %d (head %d, target %d)", (int)d.ftq_pop, epop, fhd, tgt);
         unsigned kill = restore ? 1u << rs->id : 0;
         if ((unsigned)d.kill != kill) FAIL("kill %02x, expected %02x", (unsigned)d.kill, kill);

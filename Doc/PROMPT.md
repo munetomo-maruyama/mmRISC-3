@@ -3258,3 +3258,47 @@ All of these are in the plan. It is linked from Plan/README and from step 4 of U
 ```text
 I accept the plan's recommendations (4.1 to 4.6). Start with B0: the core's test bench (ELF loader, memory model, HTIF, the commit trace into SIM/LOCKSTEP).
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+B0 (the core's test bench) is done. It is in `SIM/CORE`, pushed to dev as commit fffec6d; no RTL was changed.
+
+**What the bench contains** ([bench.h](SIM/CORE/bench.h), [bench.cc](SIM/CORE/bench.cc))
+- **Memory:** a sparse memory model holding the RAM region (64 MB from 0x8000_0000) in 4 KB pages, only as many as are used.
+  - The ELF loader is written apart from LOCKSTEP's, so a wrong image shows as a mismatch.
+  - The models of the I$ / D$ ports from B1 on read and write this memory.
+- **HTIF:**
+  - The exit and the console are taken from the committed stores. That gives them correctly in program order, whatever the caches still hold.
+  - tohost is put back to 0 on the memory side, when the write reaches the memory.
+- **The commit-trace port:** 2 slots a cycle. Each slot has the pc, 1 or 2 instructions, whether it is a fused pair, the trap, the one write (with `wr_first`) and each instruction's store. These are turned into LOCKSTEP's Commit records. The specification of the RTL's signals is in the README.
+- **Also:**
+  - Lock-step comparison.
+  - A watchdog.
+  - The architectural memory (the ELF plus the committed stores). B4's riscv-arch-test signature comes from it, so the write-back D$ does not affect it.
+  - On a failure, the last 16 commits disassembled.
+
+**Verification** ([results/standin.txt](SIM/CORE/results/standin.txt), [results/mutate.txt](SIM/CORE/results/mutate.txt))
+- The stand-in core is a second Spike running on the bench's memory.
+  - Stores to tohost are delayed 0 to 24 cycles in a queue, imitating being behind the SQ and the D$.
+  - Commits go through the port, 0 to 2 slots a cycle, fused at random.
+- All 177 programs passed: 175 riscv-tests and 2 CoreMark builds.
+  - Exit codes and console output agree with the reference, and so does the memory.
+  - The only nonzero exit codes are ma_data and amocas_*, which are nonzero on the reference too.
+- All 2,019 cases with a broken port field were caught by the lock-step.
+- Bug injection into the bench itself: 18/18 detected. It found one redundant piece of code, which I removed, and where detection fell short I added a unit check of HTIF.
+- LOCKSTEP's own self-test still passes.
+
+**Rules decided (recorded in Plan/CORE section 5.1)**
+1. **Polling tohost:** in the core a character's store reaches the memory later than in Spike, so `while (tohost)` loops more times. I changed LOCKSTEP so that, as for the counters, loads of tohost / fromhost give the core's value to the reference. In CoreMark there are 3,667 and 6,715 such extra loads, and the reference loops the same number of times.
+2. **tohost's line is not kept in the D$ (to do at B3):** with the real write-back D$ the core would read back the character it wrote for ever. At B3, when the D$ comes in, this line is made non-cacheable as a bench parameter.
+3. **The architectural memory is right only without address translation:** stores commit with their virtual address. The physical address is added to the trace in Phase 2. The comparison is left out for rv64si-p-dirty, which uses translation.
+
+Decisions 4.1 to 4.6 are recorded as accepted in Plan/CORE(_J), and answer 87 and prompt 88 were added to PROMPT.md.
+<!-- /answer -->
+
+## 89. 2026-10-29 17:55:34 JST
+
+```text
+Go on with B1: the front end alone (fetch through the I$ model, FBUF, decode, fusion off), checked against Spike's pc sequence.
+```

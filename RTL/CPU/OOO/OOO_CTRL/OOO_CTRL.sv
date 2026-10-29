@@ -71,11 +71,12 @@
 // Commit: the old mappings of the committed µops go back to the free list
 // (free_*), the LQ / SQ get the counts (lq_commit / sq_commit; renaming
 // takes the committed state straight from the ROB). The FTQ pops the
-// blocks before the block of the latest committed µop (cmt_ftq), up to 2 a
-// cycle (the rest the next cycles); after a replay the load's own block
-// too (what follows it comes in new blocks). A trap or a replay flushes the
-// FTQ: blocks still to pop then go without their predictor update (only
-// when more than 2 blocks end in a cycle).
+// blocks before the block of the latest committed µop (cmt_ftq), one a
+// cycle (the rest the next cycles: TAGE takes one block's update a cycle,
+// its metadata from the FTQ's head read, Plan/CORE.md 5.2); after a replay
+// the load's own block too (what follows it comes in new blocks). A trap or
+// a replay flushes the FTQ: blocks still to pop then go without their
+// predictor update.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -226,7 +227,7 @@ module OOO_CTRL
         if (cmt_valid != 2'b00) tgt = (cmt_valid[1] ? cmt_ftq[1] : cmt_ftq[0]) + FTQW'(replay);
         else                    tgt = ftq_tgt;
         ndone   = tgt - ftq_hd;               // blocks done, not popped
-        ftq_pop = (ndone >= FTQW'(2)) ? 2'd2 : 2'(ndone);
+        ftq_pop = (ndone != '0) ? 2'd1 : 2'd0;
     end
 
     // ---- DS: dispatch, all of the register's µops or none

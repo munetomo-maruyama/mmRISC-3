@@ -12,11 +12,13 @@
 //   meta    what the predictors need back at resolution (TAGE's provider
 //           and tags, the history; MW bits, opaque here)
 //
-// In LUTRAM: one write a cycle (the push at F2) and three reads (two for
-// decode, whose window spans up to two blocks, and one for the resolution
-// of a branch). Entries are freed in order (pop, from commit). A
-// misprediction keeps the branch's block and drops the younger ones
-// (restore); flush_all empties the queue.
+// In LUTRAM: one write a cycle (the push at F2) and four reads (two for
+// decode, whose window spans up to two blocks, one for the restore after a
+// misprediction or a trap, OOO_FERS, and the head's metadata for the TAGE
+// update at its pop, Plan/CORE.md 5.2). Entries are freed in order (pop,
+// from commit). A misprediction keeps the branch's block and drops the
+// younger ones (restore); flush_all empties the queue. free_n (blocks it
+// can take) is from the pointers alone, for fetch's credit.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -51,6 +53,10 @@ module OOO_FTQ
         output logic [2:0]                  br_end,
         output logic [MW-1:0]               br_meta,
 
+        output logic [FTQW-1:0]             hd_idx,     // the head (the next block to pop)
+        output logic [MW-1:0]               hd_meta,
+        output logic [FTQW:0]               free_n,
+
         input  logic [1:0]                  pop,        // blocks done (committed)
         input  logic                        restore,    // keep up to restore_idx, drop the rest
         input  logic [FTQW-1:0]             restore_idx,
@@ -66,6 +72,8 @@ module OOO_FTQ
     assign used       = tail - head;
     assign push_ready = used != (FTQW + 1)'(NFTQ);
     assign push_idx   = tail[FTQW-1:0];
+    assign hd_idx     = head[FTQW-1:0];
+    assign free_n     = (FTQW + 1)'(NFTQ) - used;
 
     logic push;
     assign push = push_valid && push_ready;    // (during restore / flush_all into a slot left free: harmless)
@@ -80,6 +88,8 @@ module OOO_FTQ
         end
         e = mem[br_idx];
         {br_pc, br_target, br_taken, br_end, br_meta} = e;
+        e = mem[head[FTQW-1:0]];
+        hd_meta = e[MW-1:0];
     end
 
     always_ff @(posedge clk or negedge rst_n) begin

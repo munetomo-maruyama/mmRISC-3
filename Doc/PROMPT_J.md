@@ -3251,5 +3251,43 @@ I accept the plan's recommendations (4.1 to 4.6). Start with B0: the core's test
 <!-- answer -->
 **Claude Codeの回答**
 
-The bug injection and the checker's self-test are still running; I'll finish recording and commit once they report.
+B0(コアのテストベンチ)ができました。`SIM/CORE` に置き、コミット fffec6d で dev に push 済みです。RTL は変えていません。
+
+**ベンチの中身** ([bench.h](../SIM/CORE/bench.h)、[bench.cc](../SIM/CORE/bench.cc))
+- **メモリ:** RAM 領域(0x8000_0000 から 64 MB)を 4 KB ページで必要な分だけ持つ、疎なメモリモデルです。
+  - ELF ローダは LOCKSTEP のものとは別に書きました。イメージが間違っていれば不一致として見えます。
+  - B1 以降の I$ / D$ ポートのモデルは、このメモリを読み書きします。
+- **HTIF:**
+  - 終了とコンソールは、コミットしたストアから取ります。キャッシュに何が残っていても、プログラムの順で正しく取れます。
+  - tohost を 0 に戻すのはメモリ側で、書き込みがメモリに届いた時点です。
+- **コミットトレースのポート:** 1サイクルに2スロットです。各スロットは pc、命令1〜2個、融合ペアかどうか、トラップ、書き込み1本(`wr_first` 付き)、命令ごとのストアを持ちます。これを LOCKSTEP の Commit 記録に変換します。RTL 側の信号の仕様は README に書きました。
+- **その他:**
+  - ロックステップ比較。
+  - ウォッチドッグ。
+  - アーキテクチャのメモリ(ELF にコミット済みのストアを足したもの)。B4 の riscv-arch-test のシグネチャはここから出すので、ライトバックの D$ に影響されません。
+  - 失敗したときは、直前16コミットを逆アセンブルして表示します。
+
+**検証** ([results/standin.txt](../SIM/CORE/results/standin.txt)、[results/mutate.txt](../SIM/CORE/results/mutate.txt))
+- 代役のコアは2つ目の Spike で、ベンチのメモリの上で動かしました。
+  - tohost へのストアは、キューで 0〜24 サイクル遅らせます。SQ と D$ の後ろにあるのを真似たものです。
+  - コミットは1サイクル0〜2スロットで、ランダムに融合しながらポートに流します。
+- riscv-tests 175本と CoreMark 2ビルドの計177本が、すべて通りました。
+  - 終了コードとコンソール出力は参照と一致し、メモリも一致しました。
+  - 終了コードが0でないのは、参照でも0でない ma_data と amocas_* だけです。
+- ポートのフィールドを壊したケースは、2,019個すべてをロックステップが検出しました。
+- ベンチ自体へのバグ注入は 18/18 を検出しました。この注入で冗長な処理を1つ見つけて削除し、検出が足りなかった箇所には HTIF の単体確認を追加しました。
+- LOCKSTEP 自身の自己テストも、引き続き PASS です。
+
+**決めた規則(Plan/CORE 5.1 節に記録)**
+1. **tohost のポーリング:** コアでは文字のストアがメモリに届くのが Spike より遅いので、`while (tohost)` の回る回数が増えます。そこで LOCKSTEP を変更し、カウンタと同じく tohost / fromhost のロードはコアの値を参照に渡すようにしました。CoreMark では、こうした余分なロードが 3,667 回と 6,715 回あり、参照も同じ回数ループします。
+2. **tohost のラインは D$ に置かない(B3 で実装):** 本物のライトバック D$ だと、コアが自分の書いた文字をいつまでも読み返してしまいます。D$ を入れる B3 で、ベンチのパラメータとしてこのラインをキャッシュ対象外にします。
+3. **アーキテクチャのメモリは、アドレス変換なしの前提でのみ正しい:** ストアは仮想アドレスでコミットされるためです。物理アドレスは Phase 2 でトレースに加えます。変換を使う rv64si-p-dirty では比較を外しています。
+
+決定 4.1〜4.6 を承認済みとして Plan/CORE(_J) に記録し、PROMPT.md に回答 87 とプロンプト 88 を追加しました。
 <!-- /answer -->
+
+## 89. 2026-10-29 17:55:34 JST
+
+```text
+Go on with B1: the front end alone (fetch through the I$ model, FBUF, decode, fusion off), checked against Spike's pc sequence.
+```

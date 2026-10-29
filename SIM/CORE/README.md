@@ -3,8 +3,7 @@
 [日本語](README_J.md)
 
 Step B0 of `Plan/CORE.md` (section 5.1): the C++ side of the test bench of `OOO_CORE`, done before the core, and
-tested with a stand-in core. The Verilator bench of B1 / B2 adds the model of the core's ports and a few lines that copy
-the commit-trace port into `TraceSlot`.
+tested with a stand-in core. Step B1 (section 5.2): the front end alone (`OOO_FRONT`) on it, against Spike's path.
 
 | File | Content |
 |---|---|
@@ -13,6 +12,10 @@ the commit-trace port into `TraceSlot`.
 | `build.sh` | Builds `obj/standin` against `~/RISCV/toolchain/spike-install` |
 | `run_standin.sh` | The stand-in on riscv-tests and CoreMark → `results/standin.txt` |
 | `mutate.py` | Bug injection into the bench and the checker's rules → `results/mutate.txt` |
+| `ports.h` | Models of the core's memory ports on `Memory`: `ICacheModel` (B1) |
+| `tb_front.cpp` | B1: `OOO_FRONT` under Verilator, a back end of the bench on Spike's path |
+| `build_front.sh` / `run_front.sh` | Build it (`obj/front`); run it on riscv-tests and CoreMark → `results/front.txt` |
+| `mutate_front.py` | Bug injection into the front end's glue → `results/mutate_front.txt` |
 
 ## What the bench gives
 
@@ -106,3 +109,41 @@ riscv-tests and a CoreMark build: **18 of 18 detected** (`results/mutate.txt`). 
   the `tohost` word out (removed);
 - "the committed `tohost` not cleared after an action" survived, as no program here writes part of `tohost` after a
   character: the HTIF unit check of `standin.cc` covers it now.
+
+## B1: the front end alone (`tb_front`, 2026-10-29)
+
+`OOO_FRONT` (fetch, the FTQ, the restore, the fetch buffer, the skid, decode, the D1 / D2 group register) under
+Verilator, fetching through `ICacheModel` (8 % misses) from the bench's `Memory`, with Spike's run as the true path.
+The bench stands in for D2 and the back end:
+
+| Part | What it does |
+|---|---|
+| D2 | takes 0 to 2 instructions a cycle from the group register (at most one predicted taken: its target from the target array). On the true path each must be Spike's next instruction (pc, bits, length, last parcel); decode's illegal only where Spike traps so; CSR / FP / system classes as the bits say (the classes decode gives in slot 0 only) |
+| resolution | the predicted next address against Spike's: a misprediction redirects 2 to 7 cycles later (restore: block, last parcel, outcome, call / return, on a random ALU port); meanwhile D2 takes the wrong path and resolves some of its branches at random (they must not reach the TAGE update). A trap, a SYSTEM instruction and FENCE.I redirect at their commit (flush) |
+| commit | in order, 4 to 10 cycles after D2, 2 a cycle; stores go into `Memory` (FENCE.I sees the new code); the FTQ pops as OOO_CTRL pops it (one a cycle; a flush drops the rest) |
+| the glue, exactly | **every TAGE update**: the popped block's metadata as its push wrote it, the slots that ran and their outcomes as the bench resolved them on the true path; **every restore** (R + 1) reads back what the block's push wrote (line, history, slots, RAS snapshot); no I$ request in cycle R. These see faults that only cost predictions |
+| options | `-full`: no I$ miss and D2 takes 2 a cycle (what the front end delivers); `-lag n`: commit n cycles after D2; `-mpki-max x`: fail above x mispredictions per 1000 instructions |
+
+`./run_front.sh`:
+
+| Run | Result |
+|---|---|
+| 175 riscv-tests `-p-`, 2 seeds | all fetched and decoded in Spike's order to the exit |
+| CoreMark g14 -O2 / sf + -flto | pass; every TAGE update (1.74 M) and restore checked |
+| delivered (`-full`) | 1.51 / 1.56 instructions a cycle, with every misprediction resolved 2 to 7 cycles after D2 |
+| mispredicted conditional branches | 6,466 / 5,870 (8,244 / 5,998 with `-full`); the model: 4,772 / 4,177 |
+
+The model updates TAGE at once; here a block's update comes at its pop, after its last instruction commits. With
+commit a cycle after D2 the count is 5,980 (g14 -O2, `-full -lag 1`); with the bench's delays more blocks are
+predicted before the update. See `Plan/CORE.md` 5.2.
+
+## B1's bug injection (`mutate_front.py`)
+
+35 changes of the front end's glue (OOO_FRONT: credit, recovery, the restore's and the update's fields, the
+outcomes, the target array, the pc, the skid, the group register; the FTQ's head read and free count; the fetch
+buffer's free count), each built and run on 8 riscv-tests and CoreMark with a budget of 2.3 mispredictions per 1000
+instructions: **35 of 35 detected** (`results/mutate_front.txt`). The first campaign left 4: the RAS snapshot's
+slices and the call's line cost only predictions, CoreMark never needs some of them (the pointer slice: returns 59 →
+275, within the budget), and fetch not stopped in cycle R changes nothing visible (the FTQ restore and the buffer's
+flush are in R too; a dead I$ request can only hold the I$ on a miss). The bench now checks those exactly: each
+restore and each update against what the block's push wrote, no I$ request in R.

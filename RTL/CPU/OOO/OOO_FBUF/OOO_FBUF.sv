@@ -50,6 +50,7 @@ module OOO_FBUF
 
         // from fetch: one block a cycle
         output logic                        in_ready,
+        output logic [$clog2(NB):0]         free_n,     // blocks it can take (fetch's credit)
         input  logic                        in_valid,
         input  logic [127:0]                in_data,    // parcel k in bits 16k+15 .. 16k
         input  logic [2:0]                  in_start,
@@ -81,6 +82,7 @@ module OOO_FBUF
     logic [2:0]      hoff;                     // the head block's next parcel
 
     assign in_ready = nblk != (BW + 1)'(NB);
+    assign free_n   = (BW + 1)'(NB) - nblk;
 
     // ---- the window: the head block A from hoff, then the next block B
     logic [BW-1:0] ib;

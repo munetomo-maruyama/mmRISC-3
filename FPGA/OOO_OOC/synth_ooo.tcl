@@ -8,6 +8,7 @@
 #
 #     top       OOC_ALU2 / OOC_FUSE / OOC_PRF / OOC_RENAME / OOO_IQ / OOO_UBTB / OOC_LSU / OOC_ROB
 #               / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC / OOC_IQPL / OOC_LSUDC / OOC_CTRL / OOC_DSREG / OOC_FERS / OOC_TRAP / OOC_SYS / OOC_CSRU / OOC_MDUP / OOC_PMUL
+#               / OOC_FE (the whole front end, OOO_FRONT; not in synth_ooo.bat's loop)
 #               / MM2_CPU_CORE (the calibration: mmRISC-2's whole CPU_CORE, below)
 #                                                          OOC_ALU2
 #     period    clock period in ns                         20.0 (50 MHz)
@@ -80,7 +81,7 @@ read_verilog -sv [list \
     $rtl/OOO_UBTB/OOO_UBTB.sv $rtl/OOO_LSU/OOO_LSU.sv $rtl/OOO_ROB/OOO_ROB.sv \
     $rtl/OOO_FBUF/OOO_FBUF.sv $rtl/OOO_FTQ/OOO_FTQ.sv \
     $rtl/OOO_PREDEC/OOO_PREDEC.sv $rtl/OOO_TAGE/OOO_TAGE.sv $rtl/OOO_BTB/OOO_BTB.sv $rtl/OOO_RAS/OOO_RAS.sv \
-    $rtl/OOO_FETCH/OOO_FETCH.sv $core/CORE_DECOMP/CORE_DECOMP.sv $core/CORE_DEC/CORE_DEC.sv \
+    $rtl/OOO_FETCH/OOO_FETCH.sv $rtl/OOO_FRONT/OOO_FRONT.sv $core/CORE_DECOMP/CORE_DECOMP.sv $core/CORE_DEC/CORE_DEC.sv \
     $rtl/OOO_DEC/OOO_DEC.sv $rtl/OOO_IQPL/OOO_IQPL.sv $rtl/OOO_DCAD/OOO_DCAD.sv $rtl/OOO_CTRL/OOO_CTRL.sv \
     $rtl/OOO_DSREG/OOO_DSREG.sv $rtl/OOO_FERS/OOO_FERS.sv $rtl/OOO_TRAP/OOO_TRAP.sv $rtl/OOO_SYS/OOO_SYS.sv \
     $core/CORE_CSR/CORE_CSR.sv $rtl/OOO_CSRU/OOO_CSRU.sv $core/CORE_MDU/CORE_MDU.sv $rtl/OOO_MDUP/OOO_MDUP.sv $rtl/OOO_PMUL/OOO_PMUL.sv \
@@ -107,6 +108,8 @@ if {$top eq "OOO_IQ" && [llength [get_ports -quiet mdu_ok]]} { set_input_delay -
 if {($top eq "OOC_RENAME" || $top eq "OOC_DSREG") && [llength [get_ports -quiet wk_*]]} {
     set_input_delay -clock clk 13.0 [get_ports wk_*]
 }
+# OOC_FE's g_take: D2's count taken, from fusion and renaming's go late in the cycle (Plan/CORE.md 5.2)
+if {$top eq "OOC_FE" && [llength [get_ports -quiet g_take*]]} { set_input_delay -clock clk 12.0 [get_ports g_take*] }
 if {[llength [get_ports -quiet rst_n]]} { set_false_path -from [get_ports rst_n] }
 
 write_checkpoint -force $outdir/post_synth.dcp
