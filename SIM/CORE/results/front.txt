@@ -3,7 +3,7 @@ rv64mi-p-csr                 PASS       284 insns      1844 cycles  0.154 insns/
 rv64mi-p-illegal             PASS       369 insns      2253 cycles  0.164 insns/cycle     30 mispredicted (81.30 / 1000)    91 flushes     527 wrong-path  I$ 87 / 1016 missed
 rv64mi-p-instret_overflow    PASS       102 insns       577 cycles  0.177 insns/cycle      4 mispredicted (39.22 / 1000)    25 flushes     146 wrong-path  I$ 25 / 239 missed
 rv64mi-p-ma_addr             PASS       748 insns      3838 cycles  0.195 insns/cycle     15 mispredicted (20.05 / 1000)   176 flushes    1029 wrong-path  I$ 136 / 1630 missed
-rv64mi-p-ma_fetch            PASS       161 insns       930 cycles  0.173 insns/cycle     11 mispredicted (68.32 / 1000)    37 flushes     229 wrong-path  I$ 41 / 404 missed
+rv64mi-p-ma_fetch            PASS       161 insns       976 cycles  0.165 insns/cycle     11 mispredicted (68.32 / 1000)    37 flushes     237 wrong-path  I$ 43 / 427 missed
 rv64mi-p-mcsr                PASS       106 insns       644 cycles  0.165 insns/cycle      5 mispredicted (47.17 / 1000)    27 flushes     187 wrong-path  I$ 30 / 272 missed
 rv64mi-p-pmpaddr             PASS       100 insns       542 cycles  0.185 insns/cycle      4 mispredicted (40.00 / 1000)    23 flushes     129 wrong-path  I$ 25 / 213 missed
 rv64mi-p-sbreak              PASS       114 insns       655 cycles  0.174 insns/cycle     10 mispredicted (87.72 / 1000)    25 flushes     152 wrong-path  I$ 31 / 284 missed
@@ -11,7 +11,7 @@ rv64mi-p-scall               PASS        98 insns       551 cycles  0.178 insns/
 rv64mi-p-zicntr              PASS       123 insns       745 cycles  0.165 insns/cycle     11 mispredicted (89.43 / 1000)    28 flushes     167 wrong-path  I$ 34 / 329 missed
 rv64si-p-csr                 PASS       199 insns      1329 cycles  0.150 insns/cycle     20 mispredicted (100.50 / 1000)    47 flushes     294 wrong-path  I$ 58 / 574 missed
 rv64si-p-dirty               PASS       208 insns      1232 cycles  0.169 insns/cycle     23 mispredicted (110.58 / 1000)    41 flushes     263 wrong-path  I$ 56 / 543 missed
-rv64si-p-ma_fetch            PASS       129 insns       647 cycles  0.199 insns/cycle      7 mispredicted (54.26 / 1000)    23 flushes     155 wrong-path  I$ 29 / 265 missed
+rv64si-p-ma_fetch            PASS       129 insns       657 cycles  0.196 insns/cycle      7 mispredicted (54.26 / 1000)    23 flushes     158 wrong-path  I$ 29 / 265 missed
 rv64si-p-sbreak              PASS       108 insns       657 cycles  0.164 insns/cycle      5 mispredicted (46.30 / 1000)    27 flushes     155 wrong-path  I$ 28 / 257 missed
 rv64si-p-scall               PASS       115 insns       708 cycles  0.162 insns/cycle      5 mispredicted (43.48 / 1000)    30 flushes     187 wrong-path  I$ 31 / 278 missed
 rv64si-p-wfi                 PASS        94 insns       542 cycles  0.173 insns/cycle      2 mispredicted (21.28 / 1000)    25 flushes     142 wrong-path  I$ 24 / 200 missed
@@ -173,13 +173,13 @@ rv64uzbs-p-bset              PASS       704 insns      1898 cycles  0.371 insns/
 rv64uzbs-p-bseti             PASS       365 insns      1183 cycles  0.309 insns/cycle     34 mispredicted (93.15 / 1000)    19 flushes     199 wrong-path  I$ 52 / 520 missed
 rv64uzicond-p-czero_eqz      PASS       464 insns      1446 cycles  0.321 insns/cycle     47 mispredicted (101.29 / 1000)    19 flushes     234 wrong-path  I$ 61 / 648 missed
 rv64uzicond-p-czero_nez      PASS       463 insns      1435 cycles  0.323 insns/cycle     47 mispredicted (101.51 / 1000)    19 flushes     250 wrong-path  I$ 61 / 645 missed
-tb_front: 175 files, 64709 instructions, 214666 cycles, 5390 mispredicted, 0 failures: PASS
+tb_front: 175 files, 64709 instructions, 214722 cycles, 5390 mispredicted, 0 failures: PASS
 rv64mi-p-breakpoint          PASS       253 insns      1540 cycles  0.164 insns/cycle     25 mispredicted (98.81 / 1000)    58 flushes     412 wrong-path  I$ 51 / 653 missed
 rv64mi-p-csr                 PASS       284 insns      1819 cycles  0.156 insns/cycle     33 mispredicted (116.20 / 1000)    69 flushes     428 wrong-path  I$ 67 / 859 missed
 rv64mi-p-illegal             PASS       369 insns      2231 cycles  0.165 insns/cycle     30 mispredicted (81.30 / 1000)    91 flushes     571 wrong-path  I$ 87 / 1046 missed
 rv64mi-p-instret_overflow    PASS       102 insns       586 cycles  0.174 insns/cycle      4 mispredicted (39.22 / 1000)    25 flushes     151 wrong-path  I$ 20 / 242 missed
 rv64mi-p-ma_addr             PASS       748 insns      3829 cycles  0.195 insns/cycle     15 mispredicted (20.05 / 1000)   176 flushes    1001 wrong-path  I$ 130 / 1595 missed
-rv64mi-p-ma_fetch            PASS       161 insns       916 cycles  0.176 insns/cycle     11 mispredicted (68.32 / 1000)    37 flushes     234 wrong-path  I$ 35 / 428 missed
+rv64mi-p-ma_fetch            PASS       161 insns       916 cycles  0.176 insns/cycle     11 mispredicted (68.32 / 1000)    37 flushes     233 wrong-path  I$ 35 / 428 missed
 rv64mi-p-mcsr                PASS       106 insns       616 cycles  0.172 insns/cycle      5 mispredicted (47.17 / 1000)    27 flushes     171 wrong-path  I$ 22 / 260 missed
 rv64mi-p-pmpaddr             PASS       100 insns       539 cycles  0.186 insns/cycle      4 mispredicted (40.00 / 1000)    23 flushes     131 wrong-path  I$ 19 / 224 missed
 rv64mi-p-sbreak              PASS       114 insns       667 cycles  0.171 insns/cycle     10 mispredicted (87.72 / 1000)    25 flushes     167 wrong-path  I$ 24 / 301 missed
@@ -187,7 +187,7 @@ rv64mi-p-scall               PASS        98 insns       540 cycles  0.181 insns/
 rv64mi-p-zicntr              PASS       123 insns       716 cycles  0.172 insns/cycle     11 mispredicted (89.43 / 1000)    28 flushes     159 wrong-path  I$ 26 / 323 missed
 rv64si-p-csr                 PASS       199 insns      1201 cycles  0.166 insns/cycle     20 mispredicted (100.50 / 1000)    47 flushes     315 wrong-path  I$ 45 / 576 missed
 rv64si-p-dirty               PASS       208 insns      1170 cycles  0.178 insns/cycle     23 mispredicted (110.58 / 1000)    41 flushes     291 wrong-path  I$ 43 / 550 missed
-rv64si-p-ma_fetch            PASS       129 insns       610 cycles  0.211 insns/cycle      7 mispredicted (54.26 / 1000)    23 flushes     139 wrong-path  I$ 22 / 260 missed
+rv64si-p-ma_fetch            PASS       129 insns       610 cycles  0.211 insns/cycle      7 mispredicted (54.26 / 1000)    23 flushes     138 wrong-path  I$ 22 / 260 missed
 rv64si-p-sbreak              PASS       108 insns       608 cycles  0.178 insns/cycle      5 mispredicted (46.30 / 1000)    27 flushes     164 wrong-path  I$ 22 / 260 missed
 rv64si-p-scall               PASS       115 insns       670 cycles  0.172 insns/cycle      5 mispredicted (43.48 / 1000)    30 flushes     177 wrong-path  I$ 23 / 284 missed
 rv64si-p-wfi                 PASS        94 insns       524 cycles  0.179 insns/cycle      2 mispredicted (21.28 / 1000)    25 flushes     146 wrong-path  I$ 16 / 207 missed
@@ -213,7 +213,7 @@ rv64ua-p-amoswap_w           PASS       107 insns       517 cycles  0.207 insns/
 rv64ua-p-amoxor_d            PASS       109 insns       503 cycles  0.217 insns/cycle      5 mispredicted (45.87 / 1000)    19 flushes     131 wrong-path  I$ 17 / 214 missed
 rv64ua-p-amoxor_w            PASS       111 insns       518 cycles  0.214 insns/cycle      5 mispredicted (45.05 / 1000)    19 flushes     126 wrong-path  I$ 17 / 214 missed
 rv64ua-p-lrsc                PASS      6285 insns      7546 cycles  0.833 insns/cycle     19 mispredicted (3.02 / 1000)    19 flushes     162 wrong-path  I$ 187 / 2391 missed
-rv64uc-p-rvc                 PASS       302 insns      1072 cycles  0.282 insns/cycle     34 mispredicted (112.58 / 1000)    19 flushes     168 wrong-path  I$ 41 / 527 missed
+rv64uc-p-rvc                 PASS       302 insns      1072 cycles  0.282 insns/cycle     34 mispredicted (112.58 / 1000)    19 flushes     167 wrong-path  I$ 41 / 527 missed
 rv64ud-p-fadd                PASS       217 insns       997 cycles  0.218 insns/cycle     21 mispredicted (96.77 / 1000)    31 flushes     228 wrong-path  I$ 36 / 446 missed
 rv64ud-p-fclass              PASS       160 insns       644 cycles  0.248 insns/cycle     11 mispredicted (68.75 / 1000)    21 flushes     138 wrong-path  I$ 23 / 276 missed
 rv64ud-p-fcmp                PASS       267 insns      1293 cycles  0.206 insns/cycle     31 mispredicted (116.10 / 1000)    36 flushes     251 wrong-path  I$ 45 / 597 missed
@@ -355,7 +355,7 @@ rv64mi-p-csr                 PASS       284 insns      3758 cycles  0.076 insns/
 rv64mi-p-illegal             PASS       369 insns      4828 cycles  0.076 insns/cycle     30 mispredicted (81.30 / 1000)    91 flushes    3186 wrong-path  I$ 0 / 1887 missed
 rv64mi-p-instret_overflow    PASS       102 insns      1285 cycles  0.079 insns/cycle      4 mispredicted (39.22 / 1000)    25 flushes     804 wrong-path  I$ 0 / 466 missed
 rv64mi-p-ma_addr             PASS       748 insns      8843 cycles  0.085 insns/cycle     15 mispredicted (20.05 / 1000)   176 flushes   11184 wrong-path  I$ 0 / 3154 missed
-rv64mi-p-ma_fetch            PASS       161 insns      1964 cycles  0.082 insns/cycle     11 mispredicted (68.32 / 1000)    37 flushes    1677 wrong-path  I$ 0 / 756 missed
+rv64mi-p-ma_fetch            PASS       161 insns      1964 cycles  0.082 insns/cycle     11 mispredicted (68.32 / 1000)    37 flushes    1663 wrong-path  I$ 0 / 756 missed
 rv64mi-p-mcsr                PASS       106 insns      1378 cycles  0.077 insns/cycle      5 mispredicted (47.17 / 1000)    27 flushes    1144 wrong-path  I$ 0 / 497 missed
 rv64mi-p-pmpaddr             PASS       100 insns      1193 cycles  0.084 insns/cycle      4 mispredicted (40.00 / 1000)    23 flushes     758 wrong-path  I$ 0 / 437 missed
 rv64mi-p-sbreak              PASS       114 insns      1356 cycles  0.084 insns/cycle     10 mispredicted (87.72 / 1000)    25 flushes     743 wrong-path  I$ 0 / 527 missed
@@ -363,7 +363,7 @@ rv64mi-p-scall               PASS        98 insns      1246 cycles  0.079 insns/
 rv64mi-p-zicntr              PASS       123 insns      1521 cycles  0.081 insns/cycle     11 mispredicted (89.43 / 1000)    28 flushes     816 wrong-path  I$ 0 / 599 missed
 rv64si-p-csr                 PASS       199 insns      2533 cycles  0.079 insns/cycle     20 mispredicted (100.50 / 1000)    47 flushes    1303 wrong-path  I$ 0 / 991 missed
 rv64si-p-dirty               PASS       208 insns      2298 cycles  0.091 insns/cycle     23 mispredicted (110.58 / 1000)    41 flushes    1421 wrong-path  I$ 0 / 927 missed
-rv64si-p-ma_fetch            PASS       129 insns      1242 cycles  0.104 insns/cycle      7 mispredicted (54.26 / 1000)    23 flushes    1538 wrong-path  I$ 0 / 475 missed
+rv64si-p-ma_fetch            PASS       129 insns      1242 cycles  0.104 insns/cycle      7 mispredicted (54.26 / 1000)    23 flushes    1530 wrong-path  I$ 0 / 476 missed
 rv64si-p-sbreak              PASS       108 insns      1384 cycles  0.078 insns/cycle      5 mispredicted (46.30 / 1000)    27 flushes     828 wrong-path  I$ 0 / 507 missed
 rv64si-p-scall               PASS       115 insns      1522 cycles  0.076 insns/cycle      5 mispredicted (43.48 / 1000)    30 flushes    1002 wrong-path  I$ 0 / 546 missed
 rv64si-p-wfi                 PASS        94 insns      1249 cycles  0.075 insns/cycle      2 mispredicted (21.28 / 1000)    25 flushes    1652 wrong-path  I$ 0 / 436 missed

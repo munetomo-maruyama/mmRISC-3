@@ -199,6 +199,9 @@ M = [
     ('M337', 'OOO_RARE/OOO_RARE.sv', 'dec', "            5'b10100,                   // OP-FP\n", '', 'OP-FP not a rare class'),
     ('M338', 'OOO_RARE/OOO_RARE.sv', 'dec', "5'b10000, 5'b10001, 5'b10010, 5'b10011,", "5'b10000, 5'b10001, 5'b10010,", 'FNMADD not a rare class'),
     ('M339', 'OOO_DEC/OOO_DEC.sv', 'dec', 'illegal[k] = ill && (S0 || !rare[k]);', 'illegal[k] = S0 && ill;', 'illegal reported in slot 0 only'),
+    ('M340', 'OOO_FBUF/OOO_FBUF.sv', 'fbuf', 'out_rare[i]  = wr[s[2:0]];', "out_rare[i]  = wr[s[2:0] + 3'd1];", "rare from the parcel after the instruction's first"),
+    ('M341', 'OOO_FBUF/OOO_FBUF.sv', 'fbuf', 'OOO_RARE u_rare (.p(w[k]), .rare(wr[k]));', 'OOO_RARE u_rare (.p(w[0]), .rare(wr[k]));', "every window parcel told by the first one's opcode"),
+    ('M342', 'OOO_RARE/OOO_RARE.sv', 'fbuf', "            5'b01011,                   // AMO\n", '', 'AMO not a rare class (seen by the fetch buffer)'),
     ('M193', 'OOO_DEC/OOO_DEC.sv', 'dec', "assign mem_cmd[k]      = S0 ? l_mem_cmd : {4'd0, is_store};", "assign mem_cmd[k]      = S0 ? l_mem_cmd : {4'd0, is_load};", 'slots 1 to 3: loads as stores'),
     ('M194', 'OOO_IQPL/OOO_IQPL.sv', 'iqpl', 'rr_data[2][W2-1:0] = lvt[ra[2]] ? bank1[ra[2]][W2-1:0] : bank0[ra[2]][W2-1:0];', 'rr_data[2][W2-1:0] = bank0[ra[2]][W2-1:0];', 'port 2 without the live value table'),
     # 2026-10-26: D-12, replay after commit in place of the selective replay (Doc/UARCH.md 6.5;

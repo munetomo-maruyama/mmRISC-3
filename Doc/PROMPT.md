@@ -3583,3 +3583,50 @@ D-18 is marked decided in UARCH chapter 9. The FTQ depth is updated in UARCH, Pl
 ```text
 I ran synth_ooo.bat OOC_FE. Please check output/OOC_FE/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+OOC_FE fits 50 MHz (slack +0.622 ns). The D1a / D1b split worked as intended, and making the FTQ 16 barely grew the whole. But the worst path has moved to the fetch buffer's loop, and I think 0.622 ns is too thin. The result is recorded and pushed (d6ef8b4).
+
+**Results**
+
+| Path | Slack | Levels |
+|---|---|---|
+| The fetch buffer's loop (into `hb` / `hoff`) | **+0.622 ns** | 18 |
+| D1a (into R and the skid) | +5.005 ns | 14 |
+| D1b (R → decode → group register) | +5.752 ns | 15 |
+| Next: the uBTB's training from the I$ answer | +0.715 ns | 16 |
+
+- **Size:** 6,171 LUTs, only 9 more than before.
+  - The FTQ at 16 entries went 745 → 950 LUTs (+205); the LUTRAM stays 302, the logic grew.
+  - Decode, now reading from a register, no longer needs replicating: decode and around lost 163 LUTs, which nearly cancels the FTQ.
+  - FFs +319: R's 164 bits and the branch-outcome flip-flops.
+- **Budget:** a row is added to UARCH 4.4; the gap stays 4.0k / 5.4k / 6.6k.
+
+**The new worst path (the fetch buffer's loop)**
+
+| ns | Section |
+|---|---|
+| 1.0 → 5.0 | `hb` → LUTRAM read |
+| → 12.0 | window and length chain, to slot 3's first parcel (all 16 bits) |
+| → 15.1 | OOO_RARE and the group's run (4 levels) |
+| → 20.0 | `consume` → `npop` → `hb` |
+
+- In the fetch buffer alone (13.7, +3.5 ns), `consume` waited only for the slots' valid bits, which come early from the length chain.
+- OOO_RARE needs slot 3's parcel itself, which does not come out until 12.0 ns, so it is about 3 ns worse than 26.3 expected. The FTQ of 16 has nothing to do with this path.
+- The uBTB training (+0.715 ns) was already +0.574 ns in OOC_FRONT alone. It starts at the harness's register of the I$ answer, so its real timing depends on how the I$ gives its data in the core. Not touched now.
+
+**Proposal (Plan/OOC 26.11)**
+- In OOO_FBUF, OOO_RARE on each of the window's 8 parcels. It runs in parallel with the length chain, so each slot only takes its own bit with the same select as its length.
+- Slot 3's rare bit then arrives at about 10 ns. The loop gains about 2 to 3 ns, back near the +3.5 ns of the buffer alone.
+- Cost: about 20 to 40 LUTs, no storage.
+
+Recorded in Plan/OOC 26.10 to 26.11, UARCH 4.4 and PROMPT.md, in both languages.
+<!-- /answer -->
+
+## 96. 2026-10-29 23:25:29 JST
+
+```text
+Implement Plan/OOC 26.11: OOO_RARE on the window's parcels in OOO_FBUF (out_rare), with tb_fbuf, B1, the bug injection and the scripts.
+```

@@ -23,9 +23,14 @@
 //
 // For each instruction: its bits (an RVC one in the low 16), whether it is
 // RVC, the block (ftq) and parcel (off) of its first half, whether it is a
-// predicted-taken transfer (its last half is the end of a taken block), and
-// whether it follows the one before it directly (seq, for fusion). Decode
-// takes the first `consume` of them; flush (a redirect) empties the buffer.
+// predicted-taken transfer (its last half is the end of a taken block),
+// whether it follows the one before it directly (seq, for fusion), and
+// whether it is of a rare class (rare: OOO_RARE on each of the window's
+// parcels, in parallel with the chain of lengths, then taken with the
+// instruction's length bit; on the instruction's own bits it came after
+// them and set the loop of the count taken, Plan/OOC.md 26.10, 26.11).
+// Decode takes the first `consume` of them; flush (a redirect) empties the
+// buffer.
 //
 // Only two blocks feed the window, so a window that would need a third (the
 // head block and the next one both nearly empty) gives fewer instructions
@@ -66,6 +71,7 @@ module OOO_FBUF
         output logic [3:0][FTQW-1:0]        out_ftq,
         output logic [3:0]                  out_taken,
         output logic [3:0]                  out_seq,
+        output logic [3:0]                  out_rare,   // of a rare class (OOO_RARE on its first parcel)
         input  logic [2:0]                  consume     // instructions taken, at most the valid ones
     );
 
@@ -117,6 +123,12 @@ module OOO_FBUF
         end
     end
 
+    // the rare classes, for each parcel of the window as if an instruction started there
+    logic [7:0] wr;
+    for (genvar k = 0; k < 8; k++) begin : g_rare
+        OOO_RARE u_rare (.p(w[k]), .rare(wr[k]));
+    end
+
     // ---- up to 4 instructions out of the window
     logic [3:0] st [5];                        // where instruction i starts (st[4]: past the last)
     always @(*) begin
@@ -131,6 +143,7 @@ module OOO_FBUF
             ok   = run && s < 4'd8 && wv[s[2:0]] && (!len2 || (s < 4'd7 && wv[s[2:0] + 3'd1]));
             out_valid[i] = ok;
             out_rvc[i]   = !len2;
+            out_rare[i]  = wr[s[2:0]];
             out_inst[i]  = {len2 ? w[s[2:0] + 3'd1] : 16'd0, w[s[2:0]]};
             out_off[i]   = woff[s[2:0]];
             out_ftq[i]   = wb[s[2:0]] ? bftq[ib] : bftq[hb];

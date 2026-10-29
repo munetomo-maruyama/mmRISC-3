@@ -2428,3 +2428,22 @@ The author took D-18 (`Doc/PROMPT.md` entry 94).
   parcel's OOO_RARE.
 - **Recommended**: yes, before the core is put together. The alternative, storing a rare bit per parcel at the
   write, costs 32 bits of LUTRAM for the same timing.
+
+### 26.12 26.11 applied: the rare classes from the window (2026-10-29)
+
+- **OOO_FBUF**: OOO_RARE on each of the window's 8 parcels (`w[k]`), and a new output `out_rare[i] = wr[st[i]]`,
+  taken with the select that takes the instruction's length bit. **OOO_FRONT** cuts the group at `out_rare` and
+  loses its four OOO_RARE on the slots' bits.
+- **OOC_FBUF** cuts its group at `out_rare` too, as OOO_FRONT does (so that the harness's loop is the core's), gives
+  `out_rare` out (173 bits) and connects `free_n` (left out since B1). Lint (`-Wall`) of OOC_FBUF and OOC_FE: only
+  PINCONNECTEMPTY.
+- **tb_fbuf** checks every slot's `out_rare` against a predecode of its first parcel written in the test from the
+  opcode list (G2), with c.ebreak parcels put in the random program: 4 seeds PASS, about 270,000 to 370,000 rare
+  slots given each.
+- **All 28 unit tests PASS; B1 PASS**, with the same numbers as before (the group is cut the same way: 1.824 / 1.826
+  instructions a cycle with `-full`).
+- **Bug injection**: M340 to M342 added to SIM/OOO_UNIT (a slot's rare bit from the parcel after its own, every
+  window parcel told by the first one's opcode, AMO not rare as the fetch buffer sees it; 306 in all). With the fetch
+  buffer's other mutations and OOO_RARE's in tb_dec: 18 of 18 detected. The front end's campaign: 40 of 40.
+- **Please run** `synth_ooo.bat OOC_FE` (and `OOC_FBUF`, whose harness now has the loop of the core). Expected: the
+  loop at about +2.5 to 3.5 ns; the size about +20 to 40 LUTs.

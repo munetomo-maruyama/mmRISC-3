@@ -14,7 +14,9 @@
 // taken.
 //
 // Checked every cycle, for every slot: the instruction (bits, RVC), the
-// parcel offset and FTQ index of its first half, taken, seq, and that the
+// parcel offset and FTQ index of its first half, taken, seq, rare (against
+// a predecode of its first parcel written here from the opcode list of
+// Doc/UARCH.md 6.3 G2), and that the
 // valid slots are a prefix; and the number of instructions given exactly:
 // as many complete instructions as lie in the window (the rest of the head
 // block, then the next block, 8 parcels at most), up to 4.
@@ -36,6 +38,18 @@ static long bad = 0, cyc = 0;
 #define FAIL(...) do { if (bad++ < 12) { printf("cycle %ld: ", cyc); printf(__VA_ARGS__); printf("\n"); } } while (0)
 
 static uint16_t mem[MEMP];
+
+// a rare class (decoded in slot 0 only), from the first parcel: LOAD-FP, STORE-FP,
+// the FMAs, OP-FP, AMO, MISC-MEM, SYSTEM; c.fld / c.fsd / c.fldsp / c.fsdsp, c.ebreak
+static bool ref_rare(uint16_t p)
+{
+    if ((p & 3) == 3) {
+        int op = (p >> 2) & 31;
+        return op == 0x01 || op == 0x09 || (op >= 0x10 && op <= 0x14) || op == 0x0b || op == 0x03 || op == 0x1c;
+    }
+    int q = p & 3, f3 = (p >> 13) & 7;
+    return ((q == 0 || q == 2) && (f3 == 1 || f3 == 5)) || p == 0x9002;
+}
 struct Ins { uint32_t pc; int len; uint32_t bits; bool taken; long fblk = -1, lblk = -1; int off = 0; int ftq = 0; };
 static std::vector<Ins> ex;                    // the run, in order
 static uint32_t next_pc = 0;
@@ -67,6 +81,7 @@ int main(int argc, char** argv)
     Verilated::commandArgs(argc, argv);
     if (const char* e = getenv("FBUF_SEED")) rng.seed(strtoull(e, nullptr, 0));
     for (int i = 0; i < MEMP; i++) mem[i] = (uint16_t)rng();
+    for (int i = 5; i < MEMP; i += 61) mem[i] = 0x9002;     // some c.ebreak (rare as a whole parcel only)
     d.clk = 0; d.rst_n = 1; d.flush = 0; d.eval(); d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
 
     struct Blk { long id; int s, e; };
@@ -74,7 +89,7 @@ int main(int argc, char** argv)
     long fp = 0; bool cross = false;           // fetch: the next instruction (its second half if cross)
     long cons = 0;                             // the next instruction decode has not taken
     long blk_id = 0; int ftq = 0;
-    long ntaken = 0, ninst = 0, ncross = 0, nflush = 0, nfull4 = 0;
+    long ntaken = 0, ninst = 0, ncross = 0, nflush = 0, nfull4 = 0, nrare = 0;
     extend(64);
     for (cyc = 0; cyc < 400000; cyc++) {
         extend(fp + 64);
@@ -142,6 +157,9 @@ int main(int argc, char** argv)
             if ((int)((d.out_ftq >> (4 * i)) & 15) != I.ftq) FAIL("slot %d: ftq %d, expected %d", i, (int)((d.out_ftq >> (4 * i)) & 15), I.ftq);
             if ((bool)((d.out_taken >> i) & 1) != I.taken) FAIL("slot %d: taken %d, expected %d", i, (int)((d.out_taken >> i) & 1), I.taken);
             if (i > 0 && (bool)((d.out_seq >> i) & 1) != !ex[cons + i - 1].taken) FAIL("slot %d: seq wrong", i);
+            bool rare = ref_rare((uint16_t)I.bits);
+            if ((bool)((d.out_rare >> i) & 1) != rare) FAIL("slot %d (pc %x, %04x): rare %d, expected %d", i, I.pc, I.bits & 0xffff, (int)((d.out_rare >> i) & 1), rare);
+            nrare += rare;
         }
         if (nv == 4) nfull4++;
         // (no more than the model expects, so that a wrong RTL cannot run the model off its end)
@@ -175,7 +193,7 @@ int main(int argc, char** argv)
         d.in_valid = 0; d.consume = 0; d.flush = 0; d.eval();
         if ((bool)d.in_ready != (q.size() < (size_t)NB)) FAIL("in_ready %d with %zu blocks", (int)d.in_ready, q.size());
     }
-    printf("tb_fbuf: %ld cycles, %ld instructions taken (%ld taken transfers, %ld across blocks), 4 given in %ld cycles, %ld flushes, %ld mismatches: %s\n",
-           cyc, ninst, ntaken, ncross, nfull4, nflush, bad, bad ? "FAIL" : "PASS");
+    printf("tb_fbuf: %ld cycles, %ld instructions taken (%ld taken transfers, %ld across blocks), 4 given in %ld cycles, %ld rare slots given, %ld flushes, %ld mismatches: %s\n",
+           cyc, ninst, ntaken, ncross, nfull4, nrare, nflush, bad, bad ? "FAIL" : "PASS");
     return bad ? 1 : 0;
 }

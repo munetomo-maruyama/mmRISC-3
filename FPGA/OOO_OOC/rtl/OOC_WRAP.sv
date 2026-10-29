@@ -330,7 +330,8 @@ endmodule : OOC_ROB
 
 //---------------------------------------------------------------------------
 // OOC_FBUF: the fetch buffer with its inputs and outputs registered (4
-// blocks, 4 instructions out). Decode takes all the instructions given
+// blocks, 4 instructions out). Decode takes all the instructions given, up
+// to a rare class in slot 1 to 3 (out_rare, as OOO_FRONT; since 2026-10-29),
 // unless it is stalled (take, a flip-flop in the core as well), so the path
 // that counts runs from the buffer's state through the window and the
 // instruction lengths to the count taken, and back into the head pointer
@@ -341,7 +342,7 @@ module OOC_FBUF
         input  logic          clk,
         input  logic          rst_n,
         input  logic [140:0]  in,
-        output logic [168:0]  out
+        output logic [172:0]  out
     );
     logic [140:0] q;
     always_ff @(posedge clk) q <= in;
@@ -353,20 +354,25 @@ module OOC_FBUF
     logic [11:0] out_ftq;
     logic [3:0] out_taken;
     logic [3:0] out_seq;
+    logic [3:0] out_rare;
     logic [2:0] consume;
-    always @(*) begin
+    always @(*) begin                   // the valid ones up to a rare class in slot 1 to 3 (as OOO_FRONT)
+        logic run;
         consume = 3'd0;
-        if (q[140])
-            for (int i = 0; i < 4; i++) if (out_valid[i]) consume = 3'(i + 1);
+        run = q[140];
+        for (int i = 0; i < 4; i++) begin
+            run = run && out_valid[i] && (i == 0 || !out_rare[i]);
+            if (run) consume = 3'(i + 1);
+        end
     end
     OOO_FBUF #(.NB(4), .FTQW(3)) u_fbuf
         (
          .clk(clk), .rst_n(rst_n), .flush(q[0]), .in_valid(q[1]), .in_data(q[129:2]), .in_start(q[132:130]),
-         .in_end(q[135:133]), .in_taken(q[136]), .in_ftq(q[139:137]), .consume(consume), .in_ready(in_ready),
+         .in_end(q[135:133]), .in_taken(q[136]), .in_ftq(q[139:137]), .consume(consume), .in_ready(in_ready), .free_n(),
          .out_valid(out_valid), .out_inst(out_inst), .out_rvc(out_rvc), .out_off(out_off), .out_ftq(out_ftq),
-         .out_taken(out_taken), .out_seq(out_seq));
+         .out_taken(out_taken), .out_seq(out_seq), .out_rare(out_rare));
     always_ff @(posedge clk)
-        out <= {in_ready, out_valid, out_inst, out_rvc, out_off, out_ftq, out_taken, out_seq};
+        out <= {in_ready, out_valid, out_inst, out_rvc, out_off, out_ftq, out_taken, out_seq, out_rare};
 endmodule : OOC_FBUF
 
 //---------------------------------------------------------------------------

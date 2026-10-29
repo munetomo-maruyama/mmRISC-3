@@ -30,9 +30,10 @@
 // The read of the buffer and decode each have a cycle: in one cycle they
 // closed by 0.03 ns only (Plan/OOC.md 26.6, 26.7). The fetch buffer's
 // consume comes from its own valid instructions, up to the first of a rare
-// class in slot 1 to 3 (OOO_RARE on the buffer's own first parcels: a few
-// gates; decode's cut in that loop missed 50 MHz by 2.2 ns, Plan/OOC.md
-// 26), and S's occupancy, a register: the buffer gives while S is empty.
+// class in slot 1 to 3 (the buffer's out_rare: OOO_RARE on its window's
+// parcels, a few gates beside the chain of lengths; decode's cut in that
+// loop missed 50 MHz by 2.2 ns, Plan/OOC.md 26, and OOO_RARE on the slots'
+// bits left 0.6 ns, 26.10), and S's occupancy, a register: the buffer gives while S is empty.
 // R's freeing (late: it waits for g_take) only enables R and S; the select
 // in front of R is S's occupancy. So a group of 4 follows one D2 takes in
 // 2 cycles without a bubble.
@@ -286,7 +287,7 @@ module OOO_FRONT
     assign ta_tgt = ta_mem[ta_idx];
 
     // ---- D1a: the fetch buffer's group into R (or the skid S)
-    logic [3:0]            fb_v, fb_rvc, fb_tk, fb_seq;
+    logic [3:0]            fb_v, fb_rvc, fb_tk, fb_seq, fb_rare;
     logic [3:0][31:0]      fb_inst;
     logic [3:0][2:0]       fb_off;
     logic [3:0][FTQW-1:0]  fb_ftq;
@@ -297,7 +298,7 @@ module OOO_FRONT
          .in_ready(), .free_n(fb_free), .in_valid(out_valid), .in_data(out_data), .in_start(out_pc[3:1]),
          .in_end(out_end), .in_taken(out_taken), .in_ftq(push_idx),
          .out_valid(fb_v), .out_inst(fb_inst), .out_rvc(fb_rvc), .out_off(fb_off), .out_ftq(fb_ftq),
-         .out_taken(fb_tk), .out_seq(fb_seq), .consume(consume));
+         .out_taken(fb_tk), .out_seq(fb_seq), .out_rare(fb_rare), .consume(consume));
 
     // the skid S and the raw register R
     logic [3:0]            s_m /*verilator public_flat_rd*/;
@@ -367,11 +368,8 @@ module OOO_FRONT
     /* verilator lint_on PINCONNECTEMPTY */
 
     // the fetch buffer's group: its valid instructions up to the first of a
-    // rare class in slot 1 to 3, told from the first parcels it gives
-    logic [3:0] fb_rare, fb_m;
-    for (genvar k = 0; k < 4; k++) begin : g_rare
-        OOO_RARE u_rare (.p(fb_inst[k][15:0]), .rare(fb_rare[k]));
-    end
+    // rare class in slot 1 to 3 (out_rare)
+    logic [3:0] fb_m;
     always @(*) begin
         logic run;
         run = 1'b1;
