@@ -3630,3 +3630,38 @@ Recorded in Plan/OOC 26.10 to 26.11, UARCH 4.4 and PROMPT.md, in both languages.
 ```text
 Implement Plan/OOC 26.11: OOO_RARE on the window's parcels in OOO_FBUF (out_rare), with tb_fbuf, B1, the bug injection and the scripts.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I put Plan/OOC 26.11 in, checked it with the tests and the bug injection, and pushed it (50df306). The rare classes are now told from the fetch buffer's window parcels. Not yet measured in Vivado.
+
+**RTL**
+- **OOO_FBUF:** OOO_RARE on each of the window's 8 parcels, and a new output `out_rare`.
+  - Each slot takes its bit with the same select that takes its length bit. It runs in parallel with the length chain, so it does not wait for slot 3's parcel.
+- **OOO_FRONT:** cuts the group at `out_rare`, and drops its four OOO_RARE on the slots' bits. The group is cut the same way as before.
+- **OOC_FBUF harness:**
+  - It now cuts its group at the rare classes as the core does, so the harness's loop is the core's.
+  - `out_rare` goes to the output (173 bits).
+  - The `free_n` connection left out since B1 is fixed.
+  - Lint (-Wall): only the expected PINCONNECTEMPTY.
+
+**Verification**
+- **tb_fbuf:** every slot's `out_rare` checked against a predecode written in the test from the opcode list; c.ebreak put in the random program. 4 seeds PASS, about 270,000 to 370,000 rare slots each.
+- **Unit tests:** all 28 PASS.
+- **B1:** PASS, with exactly the same numbers (1.824 / 1.826 instructions a cycle with `-full`).
+- **Bug injection:**
+  - M340 to M342 added: a slot's bit from the next parcel, every window parcel told by the first, AMO missed. The unit campaign now has 306.
+  - With the fetch buffer's mutations and OOO_RARE's in tb_dec: 18/18 detected.
+  - Front-end side: 40/40.
+
+Recorded in Plan/OOC 26.12, Plan/CORE B1-1, the READMEs and PROMPT.md, in both languages.
+
+**Vivado request:** please run `synth_ooo.bat OOC_FE` and `synth_ooo.bat OOC_FBUF`. I expect the loop at about +2.5 to 3.5 ns, and about 20 to 40 LUTs more.
+<!-- /answer -->
+
+## 97. 2026-10-29 23:49:17 JST
+
+```text
+I ran synth_ooo.bat OOC_FE and synth_ooo.bat OOC_FBUF. Please check output/*/summary.txt.
+```

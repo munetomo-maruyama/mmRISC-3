@@ -2447,3 +2447,42 @@ The author took D-18 (`Doc/PROMPT.md` entry 94).
   buffer's other mutations and OOO_RARE's in tb_dec: 18 of 18 detected. The front end's campaign: 40 of 40.
 - **Please run** `synth_ooo.bat OOC_FE` (and `OOC_FBUF`, whose harness now has the loop of the core). Expected: the
   loop at about +2.5 to 3.5 ns; the size about +20 to 40 LUTs.
+
+### 26.13 The rerun with the rare classes from the window (2026-10-29)
+
+| Run | LUT | of it LUTRAM | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|---|
+| OOC_FBUF (13.7: the count taken from the valid instructions only) | 940 | 192 | 323 | +3.541 ns | 14 |
+| **OOC_FBUF (cut at `out_rare`, as in the core)** | **1,001** | 192 | 327 | **+3.078 ns** | 15 |
+| OOC_FE (26.10) | 6,171 | 602 | 3,015 | +0.622 ns | 18 |
+| **OOC_FE (`out_rare`)** | **6,231** | 602 | 3,015 | **+0.868 ns** | 18 |
+
+| OOC_FE's paths | 26.10 | Now |
+|---|---|---|
+| the fetch buffer's loop | +0.622 ns (18 levels) | **+1.016 ns** (17) |
+| D1a / D1b | +5.005 / +5.752 ns | +5.299 / +5.451 ns |
+| the TAGE update (the FTQ's head read → TAGE's update → its block RAM's write data) | (not among the ten) | **+0.868 ns** (18) |
+| the uBTB's training (fetch's `carry_v` → predecode → an entry's write enable) | +0.715 ns (from the harness's input) | **+0.943 ns** |
+
+- **The loop gained less than expected**: +0.39 ns, not 2 to 3 ns. The rare bit now arrives about 1.3 ns earlier (the
+  group's run ends at 14.2 ns, was 15.1 + 0.8), but in the whole front end the loop is 2 levels and about 1.8 ns of
+  routing longer than in OOC_FBUF alone (18.6 against 16.8 ns; 79 % routing; `hb` drives 150 loads). Alone, the cut
+  at `out_rare` costs only 0.46 ns against no cut at all.
+- **Size**: +60 LUTs in OOC_FE (+61 in OOC_FBUF: the 8 OOO_RARE and their selects), more than the 20 to 40 estimated.
+- **Three families of paths are now within 0.15 ns of one another (+0.87 to +1.02 ns)**, all about 80 % routing: the
+  TAGE update, the uBTB's training and the fetch buffer's loop. Placement decides which is worst; in the whole core
+  (about 3.5 times the LUTs) routing will be longer.
+
+### 26.14 What can be done next (proposed)
+
+| Way | Path | Cost | Effect on the predictions |
+|---|---|---|---|
+| **A. Register the TAGE update**: the popped block's metadata and outcomes into a register, TAGE updated from it a cycle later | the TAGE update: the FTQ's LUTRAM read and the update logic each get a cycle | about 280 FFs, a few LUTs | the update a cycle later (about half a block more than B1's 6.5 blocks): the RTL's algorithm with 6 → 7 blocks of delay gave +194 / +36 mispredicted branches (`Plan/model/results/tagedelay.txt`), about 0.1 % of CoreMark or less |
+| **B. Register the uBTB's training** (14.6: "the training can be registered and applied a cycle later") | the uBTB's training | about 50 FFs (the entry's tag, target, offset, the update's enable) | a uBTB entry written a cycle later; a block fetched in that cycle may miss it once |
+| C. Duplicate `hb` (fan-out 150) in the fetch buffer | the loop: its first nets | a few FFs | none |
+| D. Leave them for G1 | — | — | — |
+
+- **Recommended: A and B now, C at G1 if the loop is then the worst.** A and B are what 14.6 and 5.3 already planned
+  as the levers, each costs only flip-flops and changes the predictions by little, and they take two of the three
+  families off the edge; B1 checks both (the update against the push's record a cycle later, the mispredictions with
+  `-mpki-max`). The loop has +3.1 ns alone; whether its routing in the core needs C shows only there.

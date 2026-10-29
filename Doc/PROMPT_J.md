@@ -3623,5 +3623,34 @@ Implement Plan/OOC 26.11: OOO_RARE on the window's parcels in OOO_FBUF (out_rare
 <!-- answer -->
 **Claude Codeの回答**
 
-I'm waiting for the bug injection to finish.
+Plan/OOC 26.11 を入れ、テストとバグ注入で確かめて push しました(50df306)。まれな種類の判定を、フェッチバッファの窓のパーセルから取るようにしています。Vivado での実測はまだです。
+
+**RTL**
+- **OOO_FBUF:** 窓の 8 パーセルそれぞれに OOO_RARE をかけ、新しい出力 `out_rare` を出します。
+  - 各スロットのビットは、命令長のビットを取るのと同じ選択で取ります。命令長の連鎖と並行に求まるので、スロット 3 のパーセルが出てくるのを待ちません。
+- **OOO_FRONT:** グループを `out_rare` で切るようにし、スロットのビットにかけていた OOO_RARE 4 つを外しました。グループの切り方そのものは前と同じです。
+- **OOC_FBUF ハーネス:**
+  - コアと同じくまれな種類でグループを切るようにしたので、ハーネスのループがコアのループと同じになります。
+  - `out_rare` を出力に出しました(173 ビット)。
+  - B1 から抜けていた `free_n` の接続も直しました。
+  - lint(-Wall)は、予期した PINCONNECTEMPTY だけです。
+
+**検証**
+- **tb_fbuf:** 各スロットの `out_rare` を、オペコード一覧からテスト側に書いたプリデコードと照合します。ランダムなプログラムには c.ebreak も入れました。4 シードで PASS し、それぞれまれなスロットを約 27 万〜37 万照合しています。
+- **単体テスト:** 28 本すべて PASS です。
+- **B1:** PASS です。数値は前とまったく同じで、`-full` で 1.824 / 1.826 命令/サイクルです。
+- **バグ注入:**
+  - M340〜M342 を足しました。スロットのビットを隣のパーセルから取る、窓の全パーセルを先頭のパーセルで判定する、AMO を見落とす、の 3 つです。単体の注入は全部で 306 個になりました。
+  - フェッチバッファの変異と、tb_dec での OOO_RARE の変異を合わせて 18/18 を検出しました。
+  - フロントエンド側は 40/40 です。
+
+記録は Plan/OOC 26.12、Plan/CORE の B1-1、README、PROMPT.md に、英語・日本語の両方で入れました。
+
+**Vivado のお願い:** `synth_ooo.bat OOC_FE` と `synth_ooo.bat OOC_FBUF` を実行してください。ループのスラックは約 +2.5〜3.5 ns、規模の増加は LUT 約 20〜40 を見込んでいます。
 <!-- /answer -->
+
+## 97. 2026-10-29 23:49:17 JST
+
+```text
+I ran synth_ooo.bat OOC_FE and synth_ooo.bat OOC_FBUF. Please check output/*/summary.txt.
+```
