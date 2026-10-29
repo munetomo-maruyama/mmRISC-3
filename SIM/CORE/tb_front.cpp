@@ -33,7 +33,7 @@
 //     and the FTQ pops as OOO_CTRL pops it (the blocks before the block of
 //     the latest commit, one a cycle; a flush drops the rest).
 //   - D1a: the skid holds a group only while the raw register R does.
-// The FTQ has 8 entries (FTQW=4 at the build: 16).
+// The FTQ has 16 entries (D-18; FTQW=3 at the build: 8).
 // A run passes when Spike's run reaches its HTIF exit on the true path with
 // no mismatch. The mispredictions per 1000 instructions show whether the
 // predictors are trained (the TAGE update through the FTQ's head read).
@@ -57,7 +57,7 @@
 
 static const int VA = 39;
 #ifndef FTQW
-#define FTQW 3                      // the FTQ's index width (build_front.sh: FTQW=4 for 16 entries)
+#define FTQW 4                      // the FTQ's index width (build_front.sh: FTQW=3 for 8 entries)
 #endif
 static const int NFTQ = 1 << FTQW;
 static const unsigned FM = NFTQ - 1;
@@ -87,7 +87,7 @@ static void cti_kind(uint32_t x, bool& call, bool& ret, bool& ijmp)
 
 struct Opts { uint64_t seed = 1; int lag = -1; double mpki_max = 0; bool full = false; int miss = 8; uint64_t max = 20000000; bool verbose = false; };
 
-struct Result { bool pass = false; std::string why; std::map<uint64_t, long> by_pc; long updates = 0, restores = 0, lag_sum = 0, pushes = 0, insns = 0, cycles = 0, misp = 0, m_br = 0, m_ret = 0, m_ind = 0, m_other = 0, flush = 0, wrong = 0, taken_cyc = 0; long imiss = 0, ireq = 0; };
+struct Result { bool pass = false; std::string why; std::map<uint64_t, long> by_pc; long updates = 0, restores = 0, lag_sum = 0, pushes = 0, insns = 0, cycles = 0, misp = 0, m_br = 0, m_ret = 0, m_ind = 0, m_other = 0, flush = 0, wrong = 0, taken_cyc = 0, ftq_full = 0; long imiss = 0, ireq = 0; };
 
 static Result run(const std::string& elf, const Opts& o)
 {
@@ -188,6 +188,7 @@ static Result run(const std::string& elf, const Opts& o)
 
         auto* rp = d->rootp;
         if (R && d->ic_req_valid) fail("an I$ request in the cycle of a redirect");
+        res.ftq_full += rp->OOO_FRONT__DOT__ftq_free == 0;
         // D1a: the skid holds a group only while R does (else a group waits a cycle for nothing)
         if (rp->OOO_FRONT__DOT__s_m && !rp->OOO_FRONT__DOT__r_m) fail("the skid holds a group while R is empty");
         // the restore (cycle R + 1) reads back what the block's push wrote
@@ -361,8 +362,8 @@ int main(int argc, char** argv)
                r.insns ? 1000.0 * r.misp / r.insns : 0.0, r.flush, r.wrong, r.imiss, r.ireq);
         if (o.verbose) printf("    mispredicted: conditional branch %ld, return %ld, other jalr %ld, other %ld; %ld TAGE updates and %ld restores checked\n", r.m_br, r.m_ret, r.m_ind, r.m_other, r.updates, r.restores);
         if (o.verbose && r.updates)
-            printf("    blocks pushed between a block's push and its update: %.1f on average (%ld pushed, %ld updated: %.1f on the true path)\n",
-                   (double)r.lag_sum / r.updates, r.pushes, r.updates, (double)r.lag_sum / r.updates * r.updates / r.pushes);
+            printf("    blocks pushed between a block's push and its update: %.1f on average (%ld pushed, %ld updated: %.1f on the true path); FTQ full in %ld cycles\n",
+                   (double)r.lag_sum / r.updates, r.pushes, r.updates, (double)r.lag_sum / r.updates * r.updates / r.pushes, r.ftq_full);
         if (getenv("FRONT_BYPC")) {             // the conditional branches mispredicted most (pc count)
             std::vector<std::pair<long, uint64_t>> v;
             for (auto& x : r.by_pc) v.push_back({x.second, x.first});

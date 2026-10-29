@@ -130,8 +130,9 @@ The bench stands in for D2 and the back end:
 | Run | Result |
 |---|---|
 | 175 riscv-tests `-p-`, 2 seeds | all fetched and decoded in Spike's order to the exit |
+| the same, `-full -lag 40` (since D-18) | the same, with the FTQ of 16 full now and then (at B1's random delays it never fills) |
 | CoreMark g14 -O2 / sf + -flto | pass; every TAGE update (1.74 M) and restore checked |
-| delivered (`-full`) | 1.51 / 1.56 instructions a cycle, with every misprediction resolved 2 to 7 cycles after D2; **1.44 / 1.49 with D1a / D1b** (`Plan/OOC.md` 26.8), limited by the FTQ of 8 blocks: 1.82 / 1.83 with 16 (`ftqdepth.sh`) |
+| delivered (`-full`) | 1.51 / 1.56 instructions a cycle, with every misprediction resolved 2 to 7 cycles after D2; **1.44 / 1.49 with D1a / D1b** (`Plan/OOC.md` 26.8), limited by the FTQ of 8 blocks; **1.824 / 1.826 with the FTQ of 16** (D-18, the default since 2026-10-29; `ftqdepth.sh`) |
 | mispredicted conditional branches | 6,582 / 5,742 (8,426 / 6,106 with `-full`); the model: 4,772 / 4,177 |
 
 The model updates TAGE at once; here a block's update comes at its pop, after its last instruction commits, 6.4 to
@@ -142,11 +143,12 @@ changes with fetch's stalls (`Plan/CORE.md` 5.3, D-17).
 
 40 changes of the front end's glue (OOO_FRONT: credit, recovery, the restore's and the update's fields, the
 outcomes, the target array, the pc, the skid, D1a's register R, the group register; the FTQ's head read and free count; the fetch
-buffer's free count), each built and run on 8 riscv-tests and CoreMark with a budget of 2.3 mispredictions per 1000
+buffer's free count), each built and run on 8 riscv-tests (also with `-full -lag 40`, where the FTQ fills) and CoreMark with a budget of 2.3 mispredictions per 1000
 instructions: **40 of 40 detected** (`results/mutate_front.txt`; 35 before D1a / D1b). The first campaign left 4: the RAS snapshot's
 slices and the call's line cost only predictions, CoreMark never needs some of them (the pointer slice: returns 59 →
 275, within the budget), and fetch not stopped in cycle R changes nothing visible (the FTQ restore and the buffer's
 flush are in R too; a dead I$ request can only hold the I$ on a miss). The bench now checks those exactly: each
 restore and each update against what the block's push wrote, no I$ request in R. With D1a / D1b (2026-10-29) "R
 empty not counted as free" was left (a group waits in the skid a cycle for nothing): the bench checks that the skid
-holds a group only while R does.
+holds a group only while R does. With the FTQ of 16 (D-18) the two credit mutations of the FTQ were left: it never
+filled; the run with `-full -lag 40` fills it.

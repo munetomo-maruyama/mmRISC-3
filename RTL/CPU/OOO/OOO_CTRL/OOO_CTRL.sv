@@ -86,7 +86,7 @@ module OOO_CTRL
         parameter int NCKPT = 6,
         parameter int CW    = 3,        // checkpoint id bits
         parameter int VA    = 39,
-        parameter int FTQW  = 3,
+        parameter int FTQW  = 4,
         parameter int LW    = 3,        // LQ / SQ entry bits (the tails have one more)
         parameter int TAGW  = 6
     )

@@ -41,7 +41,7 @@
 module OOO_FBUF
     #(
         parameter int NB   = 4,         // blocks (a power of two; 2 measured no smaller, Doc/UARCH.md 6.10)
-        parameter int FTQW = 3
+        parameter int FTQW = 4
     )
     (
         input  logic                        clk,

@@ -3492,3 +3492,52 @@ If A is taken, I fix OOO_FRONT, B1 and the front end's bug injection, and add a 
 ```text
 Implement plan A of Plan/OOC 26.7 (a raw stage before decode), with B1, the bug injection and the Vivado script.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I put plan A (a raw stage before decode, D1a / D1b) in, checked it with B1 and the bug injection, and pushed it (d8de863). It is not yet measured in Vivado. B1 also found another problem: the FTQ's 8 blocks are too shallow and cap what the front end can deliver.
+
+**RTL (OOO_FRONT)**
+- **D1a:** the fetch buffer's group goes raw into a register R; when R is not freed that cycle, into the skid S.
+- **D1b:** R is decoded into the group register. The FTQ's two line reads also come from R, now a register.
+- Whether R is freed waits for D2's `g_take`, but it only enables R and S. `consume` is as before, from S's occupancy (a register) only. The 13.6 contract holds.
+- S holds a group only while R does, so groups of 4 follow without a bubble.
+- Lint (-Wall): only PINCONNECTEMPTY, as before.
+
+**Verification**
+- **B1:** 175 riscv-tests × 2 seeds and both CoreMark builds both ways: all PASS.
+- **Bug injection:** 40 of 40 detected.
+  - 5 added for R and S, 1 for R alone not flushed, 7 rewritten for the new lines.
+  - The first run left "R empty not counted as free", which only adds a bubble and changes no result. The bench now checks that S holds a group only while R does, which catches it.
+- **Vivado script:** OOC_FE's summary.txt now gives the worst path into each stage of D1 (the loop, D1a, D1b), with the full paths in timing_d1.rpt, so the loop's slack shows even when it is not among the ten worst.
+
+**What B1 found: the FTQ is too shallow**
+With `-full` the delivered rate fell from 1.504 / 1.560 to **1.442 / 1.488 instructions a cycle (−4 %)**, against the model's −0.3 %. The cause is the FTQ.
+
+| D2 to commit | before, FTQ 8 | now, FTQ 8 | now, FTQ 16 |
+|---|---|---|---|
+| 2 cycles | 1.834 | 1.814 | 1.826 |
+| 7 cycles | 1.668 | 1.572 | 1.824 |
+| 10 cycles | 1.455 | 1.386 | 1.825 |
+| 4 to 10 at random | 1.504 | 1.442 | **1.824** |
+
+(g14 -O2; sf + -flto shows the same.)
+
+- A block stays in the FTQ from its push to the pop after its last commit. With 8 blocks, with or without the stage, the rate falls the longer commit takes (9 % at 7 cycles, 21 % at 10).
+- In the real core the FTQ must cover the ROB (24 µops, about 7 blocks), the fetch buffer (4 blocks) and D1 / D2: 14 to 16 blocks.
+- The model has no FTQ, so its CoreMark numbers assume one deep enough.
+- With 16 blocks it delivers 1.82 to 1.83 instructions a cycle whatever the delay, and the raw stage then costs 0.0 to 0.5 %, as the model said.
+- The cost of 16 blocks is estimated at about +0.1k to 0.2k LUTs: the LUTRAM is the same, the slot branches' outcome flip-flops go from 128 to 256, and every FTQ index gets a bit.
+- I entered it as **D-18** in UARCH chapter 9, "Open". The script that measures it is SIM/CORE/ftqdepth.sh.
+
+Recorded in Plan/OOC 26.8, Plan/CORE B1-1, UARCH D-18, the READMEs and PROMPT.md, in both languages.
+
+**Vivado request:** please run `synth_ooo.bat OOC_FE`. I expect several ns of slack on both D1a and D1b, and about +0.2k in size. If you take D-18, running it after the FTQ is made 16 saves a second Vivado run.
+<!-- /answer -->
+
+## 94. 2026-10-29 22:22:55 JST
+
+```text
+I accept D-18. Make the FTQ 16 blocks (OOO_FRONT, OOO_FTQ, FERS, CTRL, ROB and their tests), then I will run synth_ooo.bat OOC_FE.
+```

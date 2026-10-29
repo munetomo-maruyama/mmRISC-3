@@ -8,8 +8,10 @@
 #
 # Every "-p-" test of rv64ui / um / ua / uc / uf / ud / uzba / uzbb / uzbc /
 # uzbs / uzicond / mi / si on 2 seeds (I$ misses, D2 taking 0 to 2 a cycle,
-# redirect and commit delays at random), and the two g14 CoreMark builds of
-# Plan/trace that way and with -full (no I$ miss, D2 takes 2 a cycle).
+# redirect and commit delays at random), once more with -full and commit 40
+# cycles after D2 (the FTQ of 16 fills, which it never does at the random
+# delays), and the two g14 CoreMark builds of Plan/trace that way and with
+# -full (no I$ miss, D2 takes 2 a cycle).
 #---------------------------------------------------------------------------
 cd "$(dirname "$0")"
 RVTESTS=${RVTESTS:-../../../mmRISC-2/SIM/SIM_CORE/rvtests}
@@ -21,8 +23,9 @@ W=../../Plan/trace/work
 {
 $T +verilator+rand+reset+2 -seed 1 $tests
 $T +verilator+rand+reset+2 -seed 2 $tests
+$T +verilator+rand+reset+2 -seed 3 -full -lag 40 $tests
 $T +verilator+rand+reset+2 -v $W/g14-o2-zbsc.elf $W/g14-sflto-zbsc.elf
 $T +verilator+rand+reset+2 -v -full $W/g14-o2-zbsc.elf $W/g14-sflto-zbsc.elf
 } | tee results/front.txt
-[ "$(grep -c ' 0 failures: PASS' results/front.txt)" = 4 ] || exit 1
+[ "$(grep -c ' 0 failures: PASS' results/front.txt)" = 5 ] || exit 1
 echo "run_front: PASS"

@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-// tb_ftq.cpp : OOO_FTQ (8 entries) against a reference queue
+// tb_ftq.cpp : OOO_FTQ (16 entries, D-18) against a reference queue
 //
 // Every cycle: now and then a push of a random entry (pc, target, taken,
 // end, meta); pops of up to 2 of the oldest entries (commit); now and then a
@@ -20,7 +20,7 @@ static VOOO_FTQ d;
 static long bad = 0, cyc = 0;
 #define FAIL(...) do { if (bad++ < 12) { printf("cycle %ld: ", cyc); printf(__VA_ARGS__); printf("\n"); } } while (0)
 
-static const int N = 8;
+static const int N = 16;
 static const uint64_t PCM = (1ull << 38) - 1;   // pc[38:1]
 
 struct Ent { uint64_t pc, target; int taken, end; uint32_t meta; };
@@ -58,7 +58,7 @@ int main(int argc, char** argv)
 
         d.push_valid = pv; d.push_pc = pe.pc; d.push_target = pe.target; d.push_taken = pe.taken;
         d.push_end = pe.end; d.push_meta = pe.meta;
-        d.rd_idx = rd[0] | rd[1] << 3; d.br_idx = br;
+        d.rd_idx = rd[0] | rd[1] << 4; d.br_idx = br;
         d.pop = pop; d.restore = restore; d.restore_idx = ridx; d.flush_all = flush_all;
         d.eval();
 

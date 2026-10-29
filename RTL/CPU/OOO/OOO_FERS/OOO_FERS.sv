@@ -46,7 +46,7 @@
 module OOO_FERS
     #(
         parameter int VA   = 39,
-        parameter int FTQW = 3,
+        parameter int FTQW = 4,
         parameter int HL   = 70,        // OOO_TAGE's history
         parameter int RW   = 4          // OOO_RAS's pointer
     )

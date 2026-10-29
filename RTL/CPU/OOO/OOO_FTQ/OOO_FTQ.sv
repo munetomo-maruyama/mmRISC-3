@@ -19,14 +19,18 @@
 // from commit). A misprediction keeps the branch's block and drops the
 // younger ones (restore); flush_all empties the queue. free_n (blocks it
 // can take) is from the pointers alone, for fetch's credit.
+//
+// 16 entries (D-18, Plan/OOC.md 26.8): a block waits in it through the
+// fetch buffer, D1, D2 and the ROB; with 8 the queue was full most of the
+// time and stopped fetch. The LUTRAM is the same at any depth up to 32.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
 
 module OOO_FTQ
     #(
-        parameter int NFTQ = 8,         // a power of two
-        parameter int FTQW = 3,
+        parameter int NFTQ = 16,        // a power of two (D-18: 16)
+        parameter int FTQW = 4,
         parameter int VA   = 39,
         parameter int MW   = 32
     )

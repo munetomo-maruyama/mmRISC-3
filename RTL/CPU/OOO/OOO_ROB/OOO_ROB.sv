@@ -59,7 +59,7 @@ module OOO_ROB
         parameter int TAGW = 6,
         parameter int CW   = 3,        // checkpoint index
         parameter int NCMP = 4,        // completion ports
-        parameter int FTQW = 3         // FTQ index
+        parameter int FTQW = 4         // FTQ index
     )
     (
         input  logic                        clk,

@@ -139,7 +139,7 @@ int main(int argc, char** argv)
             if ((rvc ? (bits & 0xffff) : bits) != want || rvc != (I.len == 2))
                 FAIL("slot %d (insn %ld, pc %x): bits %08x rvc %d, expected %08x rvc %d", i, cons + i, I.pc, bits, rvc, want, I.len == 2);
             if ((int)((d.out_off >> (3 * i)) & 7) != I.off) FAIL("slot %d: off %d, expected %d", i, (int)((d.out_off >> (3 * i)) & 7), I.off);
-            if ((int)((d.out_ftq >> (3 * i)) & 7) != I.ftq) FAIL("slot %d: ftq %d, expected %d", i, (int)((d.out_ftq >> (3 * i)) & 7), I.ftq);
+            if ((int)((d.out_ftq >> (4 * i)) & 15) != I.ftq) FAIL("slot %d: ftq %d, expected %d", i, (int)((d.out_ftq >> (4 * i)) & 15), I.ftq);
             if ((bool)((d.out_taken >> i) & 1) != I.taken) FAIL("slot %d: taken %d, expected %d", i, (int)((d.out_taken >> i) & 1), I.taken);
             if (i > 0 && (bool)((d.out_seq >> i) & 1) != !ex[cons + i - 1].taken) FAIL("slot %d: seq wrong", i);
         }
@@ -162,7 +162,7 @@ int main(int argc, char** argv)
             for (long k : firsts) { ex[k].fblk = blk_id; ex[k].off = (ex[k].pc >> 1) & 7; ex[k].ftq = ftq; }
             for (long k : lasts) { ex[k].lblk = blk_id; if (k == fp && cross) ncross++; }
             q.push_back(nb);
-            blk_id++; ftq = (ftq + 1) % 8;
+            blk_id++; ftq = (ftq + 1) % 16;   // (FTQW = 4)
             fp = fp_n; cross = cross_n;
         }
         // the head block holds the first half of the oldest instruction not

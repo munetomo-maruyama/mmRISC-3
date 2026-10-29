@@ -14,7 +14,8 @@
 //          FTQ reads: the group's two blocks) and its parcel.
 //   D2     the group register (g_*): what fusion and renaming read.
 //
-// Credit: fetch asks only while the fetch buffer and the FTQ have room
+// Credit: fetch asks only while the fetch buffer and the FTQ (16 blocks,
+// D-18) have room
 // (free_n of both, from their pointers).
 //
 // D1a / D1b / D2, under the contract of Plan/OOC.md 13.6 (what the fetch
@@ -66,8 +67,8 @@
 module OOO_FRONT
     #(
         parameter int VA   = 39,
-        parameter int NFTQ = 8,
-        parameter int FTQW = 3,
+        parameter int NFTQ = 16,
+        parameter int FTQW = 4,
         parameter int MW   = 270        // OOO_TAGE's metadata (the field positions below are its layout)
     )
     (
@@ -194,16 +195,13 @@ module OOO_FRONT
     logic [FTQW-1:0]     push_idx /*verilator public_flat_rd*/;
     logic [FTQW-1:0]     rs_idx   /*verilator public_flat_rd*/;
     logic [FTQW-1:0]     hd_idx   /*verilator public_flat_rd*/;
-    logic [FTQW:0]       ftq_free;
+    logic [FTQW:0]       ftq_free /*verilator public_flat_rd*/;
     logic [1:0][FTQW-1:0] rd_idx;
     logic [1:0][VA-1:1]  rd_pc;
     logic [2:0]          fb_free;
 
-    always @(*) begin
-        logic [FTQW:0] m;
-        m = (FTQW + 1)'(fb_free) < ftq_free ? (FTQW + 1)'(fb_free) : ftq_free;
-        credit = 4'(m);
-    end
+    // the smaller of the two (at most the fetch buffer's 4 blocks)
+    assign credit = (FTQW + 1)'(fb_free) < ftq_free ? 4'(fb_free) : 4'(ftq_free);
 
     OOO_FETCH #(.VA(VA), .MW(MW)) u_fetch
         (.clk(clk), .rst_n(rst_n),

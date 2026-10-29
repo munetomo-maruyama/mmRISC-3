@@ -50,6 +50,7 @@
 #include <vector>
 
 static const int NCK = 6;
+static const int NQ = 16, QW = 4;               // the FTQ (D-18)
 static std::mt19937_64 rng(23);
 static VOOO_CTRL d;
 static long bad = 0, cyc = 0;
@@ -76,7 +77,7 @@ int main(int argc, char** argv)
     bool flushq = false;         // trap / replay in the cycle before: the back end flushes now
     bool ns_busy = false, ns_ok_q = false;
     int fhd = 0, ftgt = 0, cblk = 0;   // the FTQ's head, the pop target, the block commits are in
-    auto gen = [&]() { U u; u.seq = seq++; int r = rng() % 100; u.ck = r < 25; u.ld = r >= 25 && r < 45; u.st = r >= 45 && r < 60; u.ftq = rng() % 8; return u; };
+    auto gen = [&]() { U u; u.seq = seq++; int r = rng() % 100; u.ck = r < 25; u.ld = r >= 25 && r < 45; u.st = r >= 45 && r < 60; u.ftq = rng() % NQ; return u; };
     auto live_truth = [&]() { unsigned m = 0; for (auto& u : fl) if (u.ck && !u.resolved) m |= 1u << u.id; return m; };
     auto mask_of = [&](long s) { unsigned m = 0; for (auto& u : fl) { if (u.seq >= s) break; if (u.ck && !u.resolved) m |= 1u << u.id; } return m; };
 
@@ -93,7 +94,7 @@ int main(int argc, char** argv)
         // the DS register: the renamed µops not dispatched
         std::vector<U*> ds; for (auto& u : fl) if (u.renamed && !u.disp) ds.push_back(&u);
         unsigned dld = 0, dst = 0, dftq = 0;
-        for (size_t k = 0; k < ds.size() && k < 2; k++) { dld |= ds[k]->ld << k; dst |= ds[k]->st << k; dftq |= ds[k]->ftq << (3 * k); }
+        for (size_t k = 0; k < ds.size() && k < 2; k++) { dld |= ds[k]->ld << k; dst |= ds[k]->st << k; dftq |= ds[k]->ftq << (QW * k); }
         int ra = rng() % 3, ia = rng() % 3, la = rng() % 3, sa = rng() % 3;
         if (rng() % 3 == 0) ra = ia = la = sa = 2;
         unsigned lqt[2], sqt[2]; for (int k = 0; k < 2; k++) { lqt[k] = rng() % 16; sqt[k] = rng() % 16; }
@@ -116,8 +117,8 @@ int main(int argc, char** argv)
         unsigned cv = 0, cwr = 0, cold = 0, cldn = rng() % 3, cstn = rng() % 3, cftq = 0;
         if (!trap && !flushq && (replay || rng() % 3)) cv = (rng() % 2) ? 3 : 1;
         for (int k = 0; k < 2; k++) {
-            if ((cv >> k) & 1) { int step = rng() % 8; cblk = (cblk + (step < 5 ? 0 : step < 7 ? 1 : 2)) % 8; if ((cblk - fhd + 8) % 8 > 6) cblk = (fhd + 6) % 8; }
-            cftq |= (unsigned)cblk << (3 * k);
+            if ((cv >> k) & 1) { int step = rng() % 8; cblk = (cblk + (step < 5 ? 0 : step < 7 ? 1 : 2)) % NQ; if ((cblk - fhd + NQ) % NQ > NQ - 2) cblk = (fhd + NQ - 2) % NQ; }
+            cftq |= (unsigned)cblk << (QW * k);
             cwr |= (rng() & 1) << k; cold |= (unsigned)(rng() % 64) << (6 * k);
         }
         int head_ns = rng() % 3 == 0, iss_ns = rng() % 4 == 0;
@@ -180,8 +181,8 @@ int main(int argc, char** argv)
             if (fv && ((d.free_tag >> (6 * k)) & 63) != ((cold >> (6 * k)) & 63)) FAIL("free_tag[%d]", k);
         }
         if ((unsigned)d.lq_commit != cldn || (unsigned)d.sq_commit != cstn) FAIL("lq / sq commit %d %d, expected %u %u", (int)d.lq_commit, (int)d.sq_commit, cldn, cstn);
-        int tgt = cv ? ((int)((cftq >> ((cv & 2) ? 3 : 0)) & 7) + (replay ? 1 : 0)) % 8 : ftgt;
-        int nd = (tgt - fhd + 8) % 8, epop = nd > 1 ? 1 : nd;
+        int tgt = cv ? ((int)((cftq >> ((cv & 2) ? QW : 0)) & (NQ - 1)) + (replay ? 1 : 0)) % NQ : ftgt;
+        int nd = (tgt - fhd + NQ) % NQ, epop = nd > 1 ? 1 : nd;
         if ((int)d.ftq_pop != epop) FAIL("ftq_pop %d, expected %d (head %d, target %d)", (int)d.ftq_pop, epop, fhd, tgt);
         unsigned kill = restore ? 1u << rs->id : 0;
         if ((unsigned)d.kill != kill) FAIL("kill %02x, expected %02x", (unsigned)d.kill, kill);
@@ -202,7 +203,7 @@ int main(int argc, char** argv)
         d.clk = 1; d.eval(); d.clk = 0; d.eval();
         if (flush || flushq || (cv & 1)) ns_busy = false; else if (iss_ns) ns_busy = true;
         ns_ok_q = head_ns && !ns_busy && !flush && !flushq;
-        fhd = (fhd + epop) % 8; npop += epop;
+        fhd = (fhd + epop) % NQ; npop += epop;
         ftgt = flush ? fhd : tgt;
         if (flush) cblk = fhd;                      // the blocks fetched again start there
         // dispatch (with the tails of this cycle)

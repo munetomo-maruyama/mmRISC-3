@@ -26,6 +26,11 @@
 //   OOC_CSRU    the CSR unit (CORE_CSR)
 //   OOC_MDUP    port 0's MDU (CORE_MDU)
 //   OOC_PMUL    the pipelined mul / mulw beside it
+//   OOC_FE      the front end put together (OOO_FRONT)
+//
+// The FTQ has 16 blocks since D-18 (2026-10-29): OOC_FE has them. OOC_ROB,
+// OOC_FBUF, OOC_FTQ, OOC_CTRL and OOC_FERS keep the 8 (an index of 3 bits)
+// they were measured with (Plan/OOC.md 26.9).
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -305,7 +310,7 @@ module OOC_ROB
     logic [5:0] cmt_ftq;
     logic [2:0] rcv_ftq, rcv_end;
     logic head_valid, head_fused;
-    OOO_ROB #(.NROB(24), .ROBW(5), .VA(39), .TAGW(6), .CW(3), .NCMP(4)) u_rob
+    OOO_ROB #(.NROB(24), .ROBW(5), .VA(39), .TAGW(6), .CW(3), .NCMP(4), .FTQW(3)) u_rob
         (.clk(clk), .rst_n(rst_n),
          .disp_valid(q[1:0]), .disp_pc(q[77:2]), .disp_wr(q[79:78]), .disp_arch(q[89:80]),
          .disp_new(q[101:90]), .disp_old(q[113:102]), .disp_ld(q[115:114]), .disp_st(q[117:116]),
@@ -1091,8 +1096,8 @@ endmodule : OOC_PMUL
 
 //---------------------------------------------------------------------------
 // OOC_FE: the front end put together (OOO_FRONT, Plan/CORE.md 5.2: fetch,
-// the FTQ with its head read, the restore, the fetch buffer, the skid,
-// decode, the D1 / D2 group register, the outcomes of the slot branches,
+// the FTQ of 16 blocks with its head read, the restore, the fetch buffer,
+// D1a's raw register and skid, D1b's decode, the group register, the outcomes of the slot branches,
 // the target array), inputs and outputs registered except g_take: D2's
 // count taken comes late from fusion and renaming (an input delay in
 // synth_ooo.tcl). The instruction bits (simulation only) are left out
@@ -1101,32 +1106,32 @@ module OOC_FE
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [289:0]  in,
+        input  logic [294:0]  in,
         input  logic [2:0]    g_take,
-        output logic [748:0]  out
+        output logic [752:0]  out
     );
-    logic [289:0] q;
+    logic [294:0] q;
     always_ff @(posedge clk) q <= in;
     logic [0:0] fe_redirect;
     logic [0:0] fe_flush;
     logic [37:0] fe_pc;
-    logic [2:0] restore_ftq;
+    logic [3:0] restore_ftq;
     logic [0:0] restore_port;
     logic [5:0] br_e;
     logic [1:0] br_taken;
     logic [1:0] br_call;
     logic [1:0] br_ret;
-    logic [2:0] rcv_ftq;
+    logic [3:0] rcv_ftq;
     logic [2:0] rcv_end;
     logic [1:0] rs_valid;
-    logic [5:0] rs_ftq;
+    logic [7:0] rs_ftq;
     logic [5:0] rs_e;
     logic [1:0] rs_taken;
     logic [0:0] bt_valid;
     logic [37:0] bt_pc;
     logic [37:0] bt_tgt;
     logic [1:0] ftq_pop;
-    logic [2:0] ta_idx;
+    logic [3:0] ta_idx;
     logic [0:0] ic_req_ready;
     logic [0:0] ic_resp_valid;
     logic [127:0] ic_resp_data;
@@ -1137,7 +1142,7 @@ module OOC_FE
     logic [3:0] g_valid;
     logic [151:0] g_pc;
     logic [3:0] g_rvc;
-    logic [11:0] g_ftq;
+    logic [15:0] g_ftq;
     logic [11:0] g_end;
     logic [3:0] g_taken;
     logic [3:0] g_seq;
@@ -1177,7 +1182,7 @@ module OOC_FE
     logic [3:0] g_csr_wr;
     logic [3:0] g_csr_rd;
     logic [3:0] g_is_fp;
-    OOO_FRONT #(.VA(39), .NFTQ(8), .FTQW(3), .MW(270)) u_front
+    OOO_FRONT #(.VA(39), .NFTQ(16), .FTQW(4), .MW(270)) u_front
         (.fe_redirect(fe_redirect), .fe_flush(fe_flush), .fe_pc(fe_pc), .restore_ftq(restore_ftq), .restore_port(restore_port), .br_e(br_e), .br_taken(br_taken), .br_call(br_call), .br_ret(br_ret), .rcv_ftq(rcv_ftq), .rcv_end(rcv_end), .rs_valid(rs_valid), .rs_ftq(rs_ftq), .rs_e(rs_e), .rs_taken(rs_taken), .bt_valid(bt_valid), .bt_pc(bt_pc), .bt_tgt(bt_tgt), .ftq_pop(ftq_pop), .ta_idx(ta_idx), .ic_req_ready(ic_req_ready), .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data), .ta_tgt(ta_tgt), .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .g_valid(g_valid), .g_pc(g_pc), .g_rvc(g_rvc), .g_ftq(g_ftq), .g_end(g_end), .g_taken(g_taken), .g_seq(g_seq), .g_illegal(g_illegal), .g_cls(g_cls), .g_op(g_op), .g_rd(g_rd), .g_rs1(g_rs1), .g_rs2(g_rs2), .g_use_rs1(g_use_rs1), .g_use_rs2(g_use_rs2), .g_imm(g_imm), .g_port(g_port), .g_lat2(g_lat2), .g_ext_ans(g_ext_ans), .g_nonspec(g_nonspec), .g_alu_op(g_alu_op), .g_a_uw(g_a_uw), .g_a_shift(g_a_shift), .g_a_sel(g_a_sel), .g_b_sel(g_b_sel), .g_word_op(g_word_op), .g_is_branch(g_is_branch), .g_is_jal(g_is_jal), .g_is_jalr(g_is_jalr), .g_br_op(g_br_op), .g_mdu_op(g_mdu_op), .g_mem_cmd(g_mem_cmd), .g_mem_size(g_mem_size), .g_mem_signed(g_mem_signed), .g_sys(g_sys), .g_is_sfence(g_is_sfence), .g_is_csr(g_is_csr), .g_csr_addr(g_csr_addr), .g_csr_op(g_csr_op), .g_csr_imm_sel(g_csr_imm_sel), .g_csr_wr(g_csr_wr), .g_csr_rd(g_csr_rd), .g_is_fp(g_is_fp), .g_insn(), .g_take(g_take), .clk(clk), .rst_n(rst_n));
     always_ff @(posedge clk) out <= {ta_tgt, ic_req_valid, ic_req_pc, g_valid, g_pc, g_rvc, g_ftq, g_end, g_taken, g_seq, g_illegal, g_cls, g_op, g_rd, g_rs1, g_rs2, g_use_rs1, g_use_rs2, g_imm, g_port, g_lat2, g_ext_ans, g_nonspec, g_alu_op, g_a_uw, g_a_shift, g_a_sel, g_b_sel, g_word_op, g_is_branch, g_is_jal, g_is_jalr, g_br_op, g_mdu_op, g_mem_cmd, g_mem_size, g_mem_signed, g_sys, g_is_sfence, g_is_csr, g_csr_addr, g_csr_op, g_csr_imm_sel, g_csr_wr, g_csr_rd, g_is_fp};
 endmodule : OOC_FE

@@ -139,13 +139,13 @@ int main(int argc, char** argv)
             e.fused = !e.ld && !e.st && !e.ns && rng() % 3 == 0;
             e.ckpt = rng() % 8;
             e.len = e.fused ? 2 + rng() % 3 : 1 + rng() % 2;      // halfwords: RVC 1, 32-bit 2, a pair 2 .. 4
-            e.ftq = rng() % 8;
+            e.ftq = rng() % 16;                 // FTQW = 4 (D-18)
             bool dx = rng() % 40 == 0;
             e.done = e.exc = dx; e.cause = dx ? rng() % 32 : 0;
             e.ready_at = cyc + 1 + rng() % 10;
             dv |= 1u << u; dwr |= e.wr << u; dld |= e.ld << u; dst |= e.st << u; dfu |= e.fused << u; dns |= e.ns << u; dexc |= dx << u;
             darch |= e.arch << (5 * u); dnew |= e.nw << (6 * u); dold |= e.old << (6 * u); dcause |= e.cause << (5 * u);
-            dlen |= e.len << (3 * u); dftq |= e.ftq << (3 * u);
+            dlen |= e.len << (3 * u); dftq |= e.ftq << (4 * u);
             setw(d.disp_pc, 38 * u, 38, e.pc);
         }
         d.disp_valid = dv; d.disp_wr = dwr; d.disp_arch = darch; d.disp_new = dnew; d.disp_old = dold;
@@ -193,7 +193,7 @@ int main(int argc, char** argv)
             if ((int)((d.cmt_arch >> (5 * u)) & 31) != e.arch) FAIL("commit %d arch", u);
             if ((int)((d.cmt_new >> (6 * u)) & 63) != e.nw) FAIL("commit %d new", u);
             if ((int)((d.cmt_old >> (6 * u)) & 63) != e.old) FAIL("commit %d old", u);
-            if ((int)((d.cmt_ftq >> (3 * u)) & 7) != e.ftq) FAIL("commit %d ftq %d, expected %d", u, (int)((d.cmt_ftq >> (3 * u)) & 7), e.ftq);
+            if ((int)((d.cmt_ftq >> (4 * u)) & 15) != e.ftq) FAIL("commit %d ftq %d, expected %d", u, (int)((d.cmt_ftq >> (4 * u)) & 15), e.ftq);
         }
         if ((int)d.cmt_ld_n != eld || (int)d.cmt_st_n != est || (int)d.cmt_instret != eir)
             FAIL("counts ld %d st %d instret %d, expected %d %d %d", (int)d.cmt_ld_n, (int)d.cmt_st_n, (int)d.cmt_instret, eld, est, eir);

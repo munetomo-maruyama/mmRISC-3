@@ -2346,3 +2346,27 @@ paths in full, so that the loop's slack shows even when it is not among the ten 
 
 **Please run** `synth_ooo.bat OOC_FE`. Expected: D1a and D1b each with several ns of slack; the size about +0.2k
 (R's 164 bits and its select, now a register's input instead of decode's).
+
+### 26.9 D-18 applied: the FTQ of 16 blocks (2026-10-29)
+
+The author took D-18 (`Doc/PROMPT.md` entry 94).
+
+- **RTL**: the default FTQ is 16 entries, its index 4 bits (`NFTQ` 16, `FTQW` 4 in OOO_FTQ and OOO_FRONT; `FTQW` 4 in
+  OOO_FERS, OOO_FBUF, OOO_CTRL and OOO_ROB). Nothing else changes: every block was written for any power of two.
+  OOO_FRONT's credit (the smaller of the fetch buffer's and the FTQ's room) is written without a truncated
+  intermediate (lint with the 5-bit free count).
+- **Tests**: tb_ftq (16 entries), tb_fers (an FTQ of 16 blocks), tb_fbuf, tb_ctrl (the FTQ mirror), tb_rob (4-bit
+  indices), tb_fetch (its FTQ model of 16); `tb_front` and `build_front.sh` default to 16 (`FTQW=3` builds 8).
+- **Harnesses**: OOC_FE has the 16 (295 bits in, 753 out); OOC_ROB, OOC_FBUF, OOC_FTQ, OOC_CTRL and OOC_FERS keep the
+  8 (index of 3 bits) they were measured with. Lint (`-Wall`) of OOC_FE and OOC_ROB: only PINCONNECTEMPTY.
+- **Results**: all 28 unit tests PASS; B1 PASS (175 riscv-tests on 2 seeds, both CoreMark builds both ways). The
+  front end delivers **1.824 / 1.826** instructions a cycle with `-full` (1.442 / 1.488 with 8), 0.883 / 0.888 at
+  random (0.856 / 0.868).
+- **Bug injection**: the unit mutations of the blocks touched (FTQ, FERS, FBUF, CTRL, ROB, fetch): 84 of 84
+  detected. The front end's first run left 2 of 40: "credit: the FTQ not counted" and "FTQ: one free too many". With
+  16 blocks the FTQ never fills at B1's delays (4 to 10 cycles to commit), so a credit past it is never used. B1 now
+  also runs the riscv-tests with `-full` and commit 40 cycles after D2, where the FTQ is full in about 100 to 200
+  cycles a program (`tb_front -v` counts them), and the campaign runs that too: **40 of 40 detected**.
+- **Please run** `synth_ooo.bat OOC_FE` (D1a / D1b and the FTQ of 16 together). Expected: D1a and D1b with several
+  ns of slack; the size about +0.2k for R and +0.1k to 0.2k for the FTQ of 16. The budget (`Doc/UARCH.md` 4.4) is
+  updated with the result.

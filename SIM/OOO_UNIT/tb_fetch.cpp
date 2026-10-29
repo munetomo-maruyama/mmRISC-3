@@ -14,7 +14,7 @@
 // no request is accepted meanwhile.
 //
 // The back end (here): the blocks go into a fetch buffer (4 blocks) and an
-// FTQ (8, until commit), which give fetch its credit. Decode takes blocks
+// FTQ (16, D-18; until commit), which give fetch its credit. Decode takes blocks
 // and walks them along the program's true path: an instruction whose true
 // next address is not the one predicted (the block's next address at its
 // end, the next instruction before it) is a misprediction; a few cycles
@@ -267,7 +267,7 @@ int main(int argc, char** argv)
         d.be_hist_n = rr.n; d.be_hist_bits = rr.bits;
         d.be_ras_ptr = rr.rptr; d.be_ras_val = rr.rval; d.be_ras_push = rr.push; d.be_ras_pop = rr.pop; d.be_ras_addr = rr.addr;
         int nftq = (int)(fbuf.size() + ftq.size());
-        int credit = std::max(0, std::min(4 - (int)fbuf.size(), 8 - nftq));
+        int credit = std::max(0, std::min(4 - (int)fbuf.size(), 16 - nftq));
         d.credit = credit;
         bool ic_ready = miss_cnt == 0 && !(s1_v && s1_miss);
         d.ic_req_ready = ic_ready;
@@ -367,7 +367,7 @@ int main(int argc, char** argv)
                     b.m = Bits(TageRef::MW); for (int k = 0; k < 9; k++) b.m.w[k] = d.out_tmeta[k];
                     b.rptr = d.out_ras_ptr; b.rval = d.out_ras_val;
                     fbuf.push_back(b);
-                    if (fbuf.size() > 4 || fbuf.size() + ftq.size() > 8) FAIL("credit exceeded");
+                    if (fbuf.size() > 4 || fbuf.size() + ftq.size() > 16) FAIL("credit exceeded");
                     e_pc = b.next;
                     nblk++;
                     // F0 went on with the uBTB's guess: if that is not this block's next, F2

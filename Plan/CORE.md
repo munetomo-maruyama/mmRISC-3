@@ -38,7 +38,7 @@
 | Block | Instances | What it is (the chapter of `Plan/OOC.md`) |
 |---|---|---|
 | `OOO_FETCH` | 1 | F0 to F2 with uBTB, predecode, TAGE-S, BTB, RAS (14); `be_stop` (21) |
-| `OOO_FTQ` | 1 | 8 blocks, 312 bits of front-end state each (TAGE 270, RAS 42) (13, 21) |
+| `OOO_FTQ` | 1 | 16 blocks (D-18), 312 bits of front-end state each (TAGE 270, RAS 42) (13, 21) |
 | `OOO_FERS` | 1 | the front end's restore (21) |
 | `OOO_FBUF` | 1 | 4 blocks, 4 instructions out (13) |
 | `OOO_DEC` | 1 (4 slots) | CORE_DECOMP + CORE_DEC per slot (16) |
@@ -207,7 +207,7 @@ Results (`SIM/CORE/results/front.txt`):
   wrong slice of the history or the RAS only costs predictions.
 - What the front end delivers (D2 taking 2 a cycle, no I$ miss, each misprediction resolved 2 to 7 cycles after D2):
   1.51 / 1.56 instructions a cycle on g14 -O2 / sf + -flto. **Since D1a / D1b (`Plan/OOC.md` 26.8): 1.44 / 1.49, limited
-  by the FTQ of 8 blocks; with 16, 1.82 / 1.83 (D-18).**
+  by the FTQ of 8 blocks; with 16, 1.82 / 1.83 (D-18, taken: the FTQ has 16 blocks since 2026-10-29).**
 - The unit tests of OOO_CTRL, OOO_FBUF, OOO_FTQ, OOO_FERS, OOO_FETCH pass; the bug injection into the glue detected 35 of 35 changes (`SIM/CORE/results/mutate_front.txt`; the restore's RAS fields and fetch's stop in cycle R needed exact checks in the bench, since they cost only predictions or nothing visible).
 - **Mispredicted conditional branches: 6,582 / 5,742 against the model's 4,772 / 4,177** (`Plan/model/tageblk.h`,
   updated at once); 8,426 / 6,106 with D2 at full speed. Here a block's update comes at its pop, after its last

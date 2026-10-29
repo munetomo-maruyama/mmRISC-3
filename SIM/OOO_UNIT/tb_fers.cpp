@@ -2,7 +2,7 @@
 // tb_fers.cpp : OOO_FERS (the front end's restore) against blocks built
 // from their instructions
 //
-// The test bench keeps an FTQ of 8 blocks. A block is made as the front end
+// The test bench keeps an FTQ of NQ = 16 blocks (D-18). A block is made as the front end
 // makes it: a line, a start parcel, instructions of 1 or 2 parcels with
 // some conditional branches (the first three are its slots, predicted by a
 // coin until one is predicted taken, where the block ends), maybe a call,
@@ -39,6 +39,7 @@ static long bad = 0, cyc = 0;
 #define FAIL(...) do { if (bad++ < 12) { printf("cycle %ld: ", cyc); printf(__VA_ARGS__); printf("\n"); } } while (0)
 
 static const uint64_t AM = (1ull << 38) - 1;   // halfword addresses
+static const int NQ = 16;                       // the FTQ (OOO_FERS FTQW = 4)
 enum Kind { ALU, BR, CALL, RET, JALR };
 struct Ins { int first, last; Kind k; bool pred; int slot; };
 struct Blk {
@@ -87,14 +88,14 @@ int main(int argc, char** argv)
     if (const char* e = getenv("FERS_SEED")) rng.seed(strtoull(e, nullptr, 0));
     d.clk = 0; d.rst_n = 1; d.fe_redirect = 0; d.eval(); d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
 
-    Blk ftq[8];
-    for (int i = 0; i < 8; i++) ftq[i] = make_block();
+    Blk ftq[NQ];
+    for (int i = 0; i < NQ; i++) ftq[i] = make_block();
     struct Exp { bool v = false; uint64_t pc; int idx; int n, bits; bool push, pop; uint64_t addr; } exp;
     long nred = 0, nflush = 0, nslot = 0, nbr_past = 0, ncall = 0, nret = 0, nback = 0, nbits1 = 0;
 
     for (cyc = 0; cyc < 400000; cyc++) {
         // ---- a new block now and then (the FTQ refills; not the one being read)
-        int nb = rng() % 8;
+        int nb = rng() % NQ;
         if (!(exp.v && exp.idx == nb) && rng() % 3 == 0) ftq[nb] = make_block();
 
         // ---- a redirect now?
@@ -105,9 +106,9 @@ int main(int argc, char** argv)
         int port = rng() & 1, flush = 0, idx = 0, e = 0;
         for (int p = 0; p < 2; p++) { be |= (uint32_t)(rng() % 8) << (3 * p); bt |= (uint32_t)(rng() & 1) << p; bc |= (uint32_t)(rng() & 1) << p; br |= (uint32_t)(rng() & 1) << p; }
         uint64_t pc = rng() & AM;
-        int rcv_ftq = rng() % 8, rcv_end = rng() % 8, rftq = rng() % 8;
+        int rcv_ftq = rng() % NQ, rcv_end = rng() % 8, rftq = rng() % NQ;
         if (red) {
-            idx = rng() % 8;
+            idx = rng() % NQ;
             Blk& b = ftq[idx];
             const Ins& I = b.ins[rng() % b.ins.size()];
             flush = rng() % 4 == 0;
@@ -147,7 +148,7 @@ int main(int argc, char** argv)
         d.eval();
         // the FTQ's read (combinational from rs_idx)
         {
-            Blk& b = ftq[d.rs_idx & 7];
+            Blk& b = ftq[d.rs_idx & (NQ - 1)];
             d.ft_line = b.line;
             for (int k = 0; k < 3; k++) d.ft_hist[k] = (uint32_t)b.hist[k];
             d.ft_sv = b.sv;

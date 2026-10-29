@@ -9,7 +9,9 @@
 #
 # Each mutation is one textual change of a copy of RTL/CPU/OOO (it must
 # match exactly once, or it is NOT APPLIED); tb_front is built on the copy
-# and run on 8 riscv-tests and a CoreMark build with a budget of
+# and run on 8 riscv-tests, on them again with commit 40 cycles after D2
+# (-full: the FTQ of 16 fills, which it never does at B1's delays), and on
+# a CoreMark build with a budget of
 # mispredictions (-mpki-max: a fault in the history, the RAS or the TAGE
 # update breaks nothing but the predictions). DETECTED when a run fails.
 # Every line of the result is to be read: grep NOT.
@@ -27,8 +29,8 @@ MPKI = '2.3'
 
 F, Q, B = 'OOO_FRONT/OOO_FRONT.sv', 'OOO_FTQ/OOO_FTQ.sv', 'OOO_FBUF/OOO_FBUF.sv'
 MUT = [
-    (F, "m = (FTQW + 1)'(fb_free) < ftq_free ? (FTQW + 1)'(fb_free) : ftq_free;", "m = (FTQW + 1)'(fb_free);", 'credit: the FTQ not counted'),
-    (F, "m = (FTQW + 1)'(fb_free) < ftq_free ? (FTQW + 1)'(fb_free) : ftq_free;", "m = ftq_free;", 'credit: the fetch buffer not counted'),
+    (F, "assign credit = (FTQW + 1)'(fb_free) < ftq_free ? 4'(fb_free) : 4'(ftq_free);", "assign credit = 4'(fb_free);", 'credit: the FTQ not counted'),
+    (F, "assign credit = (FTQW + 1)'(fb_free) < ftq_free ? 4'(fb_free) : 4'(ftq_free);", "assign credit = 4'(ftq_free > 5'd15 ? 5'd15 : ftq_free);", 'credit: the fetch buffer not counted'),
     (F, '.be_stop(fe_redirect)', ".be_stop(1'b0)", 'fetch not stopped in cycle R'),
     (F, '.restore(fe_redirect && !fe_flush)', ".restore(1'b0)", 'FTQ: no restore'),
     (F, '.flush_all(fe_redirect && fe_flush)', ".flush_all(1'b0)", 'FTQ: no flush'),
@@ -94,7 +96,7 @@ def run(i, m):
         return i, 'BUILD FAILED', desc
     t = os.path.join(d, 'obj', 'VOOO_FRONT')
     try:
-        for args in (TESTS, ['-mpki-max', MPKI, CM]):
+        for args in (TESTS, ['-full', '-lag', '40'] + TESTS, ['-mpki-max', MPKI, CM]):
             if subprocess.run([t, '+verilator+rand+reset+2'] + args, capture_output=True, timeout=600).returncode:
                 shutil.rmtree(d, ignore_errors=True)
                 return i, 'DETECTED', desc
