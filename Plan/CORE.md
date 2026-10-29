@@ -84,7 +84,9 @@ instruction(s) (`OOO_DEC`), chosen by `OOO_FUSE`'s `u*_slot` / `u*_kind`.
 
 - Dispatch writes the IQ entry with `disp_wr` = it writes in a slot the queue wakes for (latency 1 or 2); a µop
   answered from outside (MDU long ones, AMO later) is dispatched with `disp_wr` 0 and wakes on `ext_*`.
-- `cut` from decode ends the group before a rare class (slot 0 only) and goes to FBUF and FUSE as `valid & ~cut`.
+- A rare class (decoded in slot 0 only) in slot 1 to 3 ends the fetch buffer's group: told by `OOO_RARE` from the first
+  parcel, not by decode (`Plan/OOC.md` 26: decode's `cut` in the fetch buffer's loop missed 50 MHz). Illegal
+  instructions are reported in every slot.
 
 ### 2.2 The payload record (`OOO_IQPL`, W bits)
 
@@ -190,7 +192,7 @@ Decisions made on the way:
 
 | # | Item | What | Why |
 |---|---|---|---|
-| B1-1 | D1 / D2 | The group register (4 decoded instructions) takes a new group only when D2 empties it; a **skid** keeps one raw group (4 × 41 bits) that the fetch buffer gave meanwhile, decoded when the group register takes it. The fetch buffer's consume is its valid instructions up to decode's cut, 0 while the skid is full | The contract of `Plan/OOC.md` 13.6: consume must not depend on what D2 computes (fusion, renaming's go). Without the skid every group is followed by a bubble (4 instructions in 3 cycles); the skid's select is on 164 raw bits in front of decode, not on the 680 decoded ones |
+| B1-1 | D1 / D2 | The group register (4 decoded instructions) takes a new group only when D2 empties it; a **skid** keeps one raw group (4 × 41 bits) that the fetch buffer gave meanwhile, decoded when the group register takes it. The fetch buffer's consume is its valid instructions up to the first of a rare class (`OOO_RARE` on its first parcels; first decode's `cut`, which missed 50 MHz: `Plan/OOC.md` 26), 0 while the skid is full | The contract of `Plan/OOC.md` 13.6: consume must not depend on what D2 computes (fusion, renaming's go). Without the skid every group is followed by a bubble (4 instructions in 3 cycles); the skid's select is on 164 raw bits in front of decode, not on the 680 decoded ones |
 | B1-2 | FTQ | 312 bits a block (TAGE 270, RAS 42); a **fourth read, the head's**, for the TAGE update at the pop; `free_n` for the credit | the update needs the popped block's metadata |
 | B1-3 | FTQ pops | **one a cycle** (OOO_CTRL changed from 2; M330 in `SIM/OOO_UNIT/mutate.py`) | TAGE takes one block's update a cycle; two pops would need a second head read of 270 bits. The blocks wait in the FTQ a little longer |
 | B1-4 | the slot branches' outcomes | in OOO_FRONT by block and parcel (8 + 8 flip-flops a block): cleared at the push, written when a conditional branch resolves (`rs_*`: block, last parcel, outcome), cleared after the point of a restore, turned into slots at the pop with the parcels in the metadata | the ALU ports may resolve two a cycle; by parcel, the resolution needs no read of the metadata |

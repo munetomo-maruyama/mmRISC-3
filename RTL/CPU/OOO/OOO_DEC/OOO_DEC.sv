@@ -36,13 +36,19 @@
 //   nonspec   runs only at the ROB head (Doc/UARCH.md 3.9: CSR, ECALL,
 //             EBREAK, MRET, SRET, WFI, FENCE, FENCE.I, SFENCE.VMA, AMO, LR,
 //             SC, cbo.zero)
-//   cut       slot k is not taken this cycle: the rare classes (illegal,
-//             FP, CSR and system, SFENCE.VMA, AMO / LR / SC, cbo.zero) are
-//             decoded in slot 0 only (G0b G2, Doc/UARCH.md 6.3), so a group
-//             ends before one in slot 1 to 3; it comes to slot 0 in the
-//             next cycle. In slots 1 to 3 the fields only those classes use
-//             are 0, and synthesis removes their decoding there. CoreMark
-//             has 2 such instructions in 3 million (the timer reads).
+//   cut       slot k is not taken this cycle: the rare classes (FP, CSR and
+//             system, SFENCE.VMA, AMO / LR / SC, cbo.zero, FENCE / FENCE.I)
+//             are decoded in slot 0 only (G0b G2, Doc/UARCH.md 6.3), so a
+//             group ends before one in slot 1 to 3; it comes to slot 0 in
+//             the next cycle. In slots 1 to 3 the fields only those classes
+//             use are 0, and synthesis removes their decoding there. CoreMark
+//             has 2 such instructions in 3 million (the timer reads). The
+//             class is told by OOO_RARE from the first parcel, not by
+//             decode: the fetch buffer's count taken depends on it
+//             (Plan/OOC.md 26), and OOO_FRONT takes it from there.
+//   illegal   in every slot (since Plan/OOC.md 26; in slot 0 only before):
+//             in slots 1 to 3 only for an encoding outside the rare opcodes
+//             (those are cut, and decoded in slot 0)
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -105,6 +111,12 @@ module OOO_DEC
     localparam logic [5:0] ALU_ADD = 6'd0, ALU_SUB = 6'd1, ALU_SLL = 6'd2, ALU_SLT = 6'd3, ALU_SLTU = 6'd4,
                            ALU_XOR = 6'd5, ALU_SRL = 6'd6, ALU_SRA = 6'd7, ALU_OR = 6'd8, ALU_AND = 6'd9;
     localparam logic [4:0] CMD_LOAD = 5'd0, CMD_STORE = 5'd1;
+
+    // the rare classes, from the first parcel (OOO_RARE)
+    logic [3:0] rare;
+    for (genvar k = 0; k < 4; k++) begin : g_rare
+        OOO_RARE u_rare (.p(in_inst[k][15:0]), .rare(rare[k]));
+    end
 
     for (genvar k = 0; k < 4; k++) begin : g_slot
         logic [31:0] x, xi;
@@ -176,8 +188,7 @@ module OOO_DEC
             sysm = l_csr || fe || fei || ecall || ebreak || mret || sret || wfi || l_sfence;
             alu  = !ill && !is_branch[k] && !is_jal[k] && !is_jalr[k] && !is_load && !is_store && !is_mdu &&
                    !sysm && !l_fp;
-            rare[k]    = ill || l_fp || is_fp_load || is_fp_store || sysm || amo || cbo;
-            illegal[k] = S0 && ill;
+            illegal[k] = ill && (S0 || !rare[k]);
             rd[k] = (we_rd && !ill) ? d_rd : 5'd0;
             // the class for fusion
             if (ill)                cls[k] = 3'd7;
@@ -218,7 +229,6 @@ module OOO_DEC
     end
 
     // a group ends before a rare class in slot 1 to 3
-    logic [3:0] rare;
     always @(*) begin
         cut[0] = 1'b0;
         for (int k = 1; k < 4; k++) cut[k] = cut[k-1] || rare[k];

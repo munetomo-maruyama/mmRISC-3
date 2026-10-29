@@ -16,11 +16,15 @@
 // slots get different instructions each round. Every output of every slot
 // is compared where it means something for that instruction.
 //
-// The rare classes (illegal, FP, CSR and system, SFENCE.VMA, AMO / LR / SC,
-// cbo.zero) are decoded in slot 0 only (G0b G2): in slots 1 to 3 only `cut`
-// is checked for them (the group ends before the first one), every other
-// field of the other instructions as in slot 0. Each RVC encoding is tried
-// in slot 0 as well as in slot (n mod 4).
+// The rare classes (FP, CSR and system, SFENCE.VMA, AMO / LR / SC, cbo.zero,
+// FENCE / FENCE.I) are decoded in slot 0 only (G0b G2) and told by OOO_RARE
+// from the first parcel (Plan/OOC.md 26): `cut` is checked against a
+// predecode written here from the opcode list, every legal instruction of
+// those classes must be caught by it (decode leaves their fields out in
+// slots 1 to 3), and in slots 1 to 3 nothing else is checked for an
+// instruction it catches. Illegal ones outside those opcodes are reported
+// in every slot. Each RVC encoding is tried in slot 0 as well as in slot
+// (n mod 4).
 //---------------------------------------------------------------------------
 #include "VOOO_DEC.h"
 #include "riscv/processor.h"
@@ -402,15 +406,30 @@ static std::string spike_name(uint32_t raw) { insn_t i(raw); return dis->disasse
 static int g1(uint32_t v, int k) { return (v >> k) & 1; }
 template <class T> static uint64_t gf(T v, int k, int w) { return ((uint64_t)v >> (k * w)) & ((1ull << w) - 1); }
 
-// decoded in slot 0 only
-static bool rare(const R& e) { return !e.legal || e.fp || e.fpmem || e.csr || e.sys || e.sfence || (e.mem && e.cmd != 0 && e.cmd != 1); }
+// the classes decoded in slot 0 only (legal instructions)
+static bool rare(const R& e) { return e.legal && (e.fp || e.fpmem || e.csr || e.sys || e.sfence || (e.mem && e.cmd != 0 && e.cmd != 1)); }
+// what OOO_RARE tells from the first parcel: the 32-bit major opcodes LOAD-FP,
+// STORE-FP, FMADD / FMSUB / FNMSUB / FNMADD, OP-FP, AMO, MISC-MEM, SYSTEM; c.fld,
+// c.fsd, c.fldsp, c.fsdsp, c.ebreak
+static bool pre_rare(uint32_t raw, bool rvc)
+{
+    uint32_t p = raw & 0xffff;
+    if (!rvc) {
+        static const int OP[] = {0x07, 0x27, 0x43, 0x47, 0x4b, 0x4f, 0x53, 0x2f, 0x0f, 0x73};
+        for (int o : OP) if ((p & 0x7f) == (uint32_t)o) return true;
+        return false;
+    }
+    uint32_t q = p & 3, f = (p >> 13) & 7;
+    return ((q == 0 || q == 2) && (f == 1 || f == 5)) || p == 0x9002;
+}
 
 static void check(int k, uint32_t raw, bool rvc, const R& e, long n, bool cut_exp)
 {
     char why[160] = "";
     #define CK(name, got, exp) do { if ((long)(got) != (long)(exp) && !why[0]) snprintf(why, sizeof why, "%s %ld, expected %ld", name, (long)(got), (long)(exp)); } while (0)
     CK("cut", g1(d.cut, k), cut_exp);
-    if (k > 0 && rare(e)) {                                  // only slot 0 decodes it
+    if (rare(e) && !pre_rare(raw, rvc)) CK("rare class not caught by OOO_RARE", 0, 1);
+    if (k > 0 && pre_rare(raw, rvc)) {                       // only slot 0 decodes it
         if (why[0] && bad++ < 15)
             printf("case %ld slot %d: %s %08x (%s): %s\n", n, k, rvc ? "rvc" : "insn", raw, spike_name(raw).c_str(), why);
         return;
@@ -486,7 +505,7 @@ static void check_group(const uint32_t* raws, const bool* rv, const R* es, long 
 {
     bool cut = false;
     for (int s = 0; s < 4; s++) {
-        if (s > 0 && rare(es[s])) cut = true;
+        if (s > 0 && pre_rare(raws[s], rv[s])) cut = true;
         check(s, raws[s], rv[s], es[s], n, cut);
     }
 }

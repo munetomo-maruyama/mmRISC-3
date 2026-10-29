@@ -55,7 +55,7 @@ MUT = [
     (F, 'else if (!g_load)   s_m <= fb_m;', "else if (!g_load)   s_m <= 4'd0;", 'skid: a group lost'),
     (F, "if (s_v)            s_m <= g_load ? 4'd0 : s_m;", "if (s_v)            s_m <= 4'd0;", 'skid: not held'),
     (F, "consume = s_v ? 3'd0 :", 'consume =', 'fetch buffer gives while the skid is full'),
-    (F, 'run     = run && fb_v[k] && !d_cut[k];', 'run     = run && fb_v[k];', 'decode\'s cut ignored'),
+    (F, 'run     = run && fb_v[k] && (k == 0 || !fb_rare[k]);', 'run     = run && fb_v[k];', 'the rare classes not cut'),
     (F, 'tm[k] = g_v[k] && n < g_take;', 'tm[k] = g_v[k] && n <= g_take;', 'group: one taken too many'),
     (F, "g_load = g_left == 4'd0 && i_m != 4'd0;", "g_load = i_m != 4'd0;", 'group overwritten while busy'),
     (F, """        end else if (fe_redirect) begin

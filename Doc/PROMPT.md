@@ -3345,3 +3345,51 @@ B1 (the front end alone) is done. It is pushed to dev as commit 04effe7.
 ```text
 Add the TAGE update delay to the model (tageblk.h / ooo.h) and measure how much it changes CoreMark's mispredictions and cycles, against B1's numbers.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I put the TAGE update delay into the model and compared it with B1. In short, **the loss from the update delay itself is small, and the main cause of B1's extra mispredictions lies elsewhere**: the history lag changes every time fetch stalls. Pushed to dev as commit 5e222fb.
+
+**What was added to the model** (`Plan/model`, [results/tagedelay.txt](Plan/model/results/tagedelay.txt))
+- **tage.h:** prediction and update are apart. As in the RTL, the update is computed from the entries as read at the prediction, and writes them back whole.
+- **ooo.h:** with `upd=1`, each branch's update is made at that branch's commit.
+- **tageblk.h:** with `delay`, a block's update comes the given number of blocks later.
+- **A new mode `model tageref`:** runs the RTL's TAGE algorithm itself (tage_ref.h, which tb_tage holds the RTL to) on the same blocks. The history lag, the update delay and fetch stalls can be set.
+- **tb_front:** now measures the distance from a block's prediction to its update (6.4 to 6.6 blocks on the true path). It can also give the mispredictions by branch address.
+
+**Results (mispredicted conditional branches, CoreMark/MHz in brackets)**
+
+| | g14 -O2 | g14 sf+flto |
+|---|---|---|
+| Model (TAGE per branch, updated at once) | 4,393 (6.193) | 3,291 (6.680) |
+| Model, updated at commit | 4,436 (6.191) | 3,393 (6.675) |
+| The RTL's algorithm, updated 6 blocks later | 5,279 | 4,526 |
+| The same, fetch stalled at 10 % / 30 % of the blocks | 7,177 / 9,643 | 6,225 / 7,295 |
+| **B1** (D2 at random / at full speed) | **6,582 / 8,426** | **5,742 / 6,106** |
+
+1. **The update at commit costs little:** −0.03 to −0.15 % of CoreMark/MHz with the per-branch TAGE. Even the RTL's per-block TAGE, delayed by B1's distance, gets only +700 / +600.
+2. **The main cause is the history lag varying:**
+   - The RTL's TAGE reads its tables at F0 with the history of that cycle. While fetch streams, the 2 blocks in F1/F2 are not in the history; right after a stall (a full FTQ, an I$ miss, an override, a restore) fewer are missing.
+   - So the same branch reads with another history, that is another row, and its training does not stick.
+   - In a loop of one block a pass (`core_bench_list` at 0x80000f18) the exit and one iteration are missed every time. 1,788 in B1; 1,687 in the model with 30 % stalls; almost 0 with a constant lag.
+3. **The size of the loss:** B1 mispredicts +2.2k to +4.0k (-O2) and +2.5k to +2.8k (sf+flto) more than the model, +1.4 to +2.5 % / +1.7 to +1.9 % in cycles. Inside G1's ±5 %, but a loss.
+4. **The fix (proposed as D-17, entered as open in UARCH chapter 9):**
+   - Fix the read's lag at 2 blocks always. The bits of the 2 blocks before are left out of the index even when they are already in the history.
+   - The cost is about 0.15k LUTs (a 7:1 shift before the fold, 2 more bits a block in the FTQ).
+   - Expected: about −1.2k to −3.1k mispredictions, **CoreMark +0.8 to +2.0 %**.
+5. **To do before B6:** even with D-17, the RTL's TAGE is +0.9k / +1.2k above the model's per-branch TAGE (cycles +0.6 % / +0.8 %). The model used as G1's reference (ooo.h) should get the RTL's TAGE structure and the commit timing.
+
+Besides that, with `-lag` the bench could resolve a branch after its commit, which made the update comparison fail falsely; I fixed it. After the fix I reran the whole B1 set, which all passed, and the bug injection is still 35/35.
+
+**The Vivado result of OOC_FE was there**
+- 6,602 LUTs, **WNS −2.168 ns** (23 levels): it does not reach 50 MHz.
+- The worst path is the loop: the fetch buffer's window → slot 2's decode → decode's `cut` → `consume` → the buffer's head parcel.
+- Putting `cut` into `consume` put a whole decode into the loop OOC 13.6 forbade. B1's RTL needs fixing.
+<!-- /answer -->
+
+## 91. 2026-10-29 19:41:01 JST
+
+```text
+Analyze the OOC_FE result (WNS -2.168 ns through decode's cut into the fetch buffer's consume) and fix the path, with tests and Vivado scripts.
+```

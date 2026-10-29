@@ -189,7 +189,16 @@ M = [
     # 2026-10-26: G0b tier 1 (Doc/UARCH.md 6.4)
     ('M190', 'OOO_RENAME/OOO_RENAME.sv', 'rename', "if (s >= (CW + 1)'(NCKPT)) s = s - (CW + 1)'(NCKPT);", "if (s > (CW + 1)'(NCKPT)) s = s - (CW + 1)'(NCKPT);", 'the checkpoint ring wraps at 7, not 6'),
     ('M191', 'OOO_DEC/OOO_DEC.sv', 'dec', 'for (int k = 1; k < 4; k++) cut[k] = cut[k-1] || rare[k];', 'for (int k = 1; k < 4; k++) cut[k] = rare[k];', 'the group goes on past a rare class'),
-    ('M192', 'OOO_DEC/OOO_DEC.sv', 'dec', 'rare[k]    = ill || l_fp || is_fp_load || is_fp_store || sysm || amo || cbo;', 'rare[k]    = ill || l_fp || is_fp_load || is_fp_store || sysm || cbo;', 'AMO decoded in slots 1 to 3'),
+    ('M192', 'OOO_RARE/OOO_RARE.sv', 'dec', "            5'b01011,                   // AMO\n", '', 'AMO not a rare class'),
+    ('M331', 'OOO_RARE/OOO_RARE.sv', 'dec', "            5'b00001,                   // LOAD-FP\n", '', 'FP loads not a rare class'),
+    ('M332', 'OOO_RARE/OOO_RARE.sv', 'dec', "            5'b11100:                   // SYSTEM\n", "            5'b11111:\n", 'SYSTEM not a rare class'),
+    ('M333', 'OOO_RARE/OOO_RARE.sv', 'dec', "            5'b00011,                   // MISC-MEM\n", '', 'FENCE / FENCE.I / cbo.zero not a rare class'),
+    ('M334', 'OOO_RARE/OOO_RARE.sv', 'dec', " || p == 16'h9002;", ';', 'c.ebreak not a rare class'),
+    ('M335', 'OOO_RARE/OOO_RARE.sv', 'dec', "rc = ((p[1:0] == 2'b00 || p[1:0] == 2'b10) && p[14:13] == 2'b01)", "rc = (p[1:0] == 2'b00 && p[14:13] == 2'b01)", 'c.fldsp / c.fsdsp not a rare class'),
+    ('M336', 'OOO_RARE/OOO_RARE.sv', 'dec', "assign rare = (p[1:0] == 2'b11) ? r32 : rc;", 'assign rare = r32;', 'RVC told by the 32-bit opcodes'),
+    ('M337', 'OOO_RARE/OOO_RARE.sv', 'dec', "            5'b10100,                   // OP-FP\n", '', 'OP-FP not a rare class'),
+    ('M338', 'OOO_RARE/OOO_RARE.sv', 'dec', "5'b10000, 5'b10001, 5'b10010, 5'b10011,", "5'b10000, 5'b10001, 5'b10010,", 'FNMADD not a rare class'),
+    ('M339', 'OOO_DEC/OOO_DEC.sv', 'dec', 'illegal[k] = ill && (S0 || !rare[k]);', 'illegal[k] = S0 && ill;', 'illegal reported in slot 0 only'),
     ('M193', 'OOO_DEC/OOO_DEC.sv', 'dec', "assign mem_cmd[k]      = S0 ? l_mem_cmd : {4'd0, is_store};", "assign mem_cmd[k]      = S0 ? l_mem_cmd : {4'd0, is_load};", 'slots 1 to 3: loads as stores'),
     ('M194', 'OOO_IQPL/OOO_IQPL.sv', 'iqpl', 'rr_data[2][W2-1:0] = lvt[ra[2]] ? bank1[ra[2]][W2-1:0] : bank0[ra[2]][W2-1:0];', 'rr_data[2][W2-1:0] = bank0[ra[2]][W2-1:0];', 'port 2 without the live value table'),
     # 2026-10-26: D-12, replay after commit in place of the selective replay (Doc/UARCH.md 6.5;

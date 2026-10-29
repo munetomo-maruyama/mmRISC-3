@@ -21,8 +21,10 @@
 // gives must not depend on what D2 computes in the same cycle): the group
 // register takes a new group only when D2 empties it (g_take: how many of
 // its instructions D2 took this cycle, oldest first). The fetch buffer's
-// consume comes from its own valid instructions (up to decode's first cut)
-// and one register, the skid: a group the fetch buffer gave while the
+// consume comes from its own valid instructions, up to the first of a rare
+// class in slot 1 to 3 (OOO_RARE on the buffer's own first parcels: a few
+// gates; decode's cut in that loop missed 50 MHz by 2.2 ns, Plan/OOC.md
+// 26), and one register, the skid: a group the fetch buffer gave while the
 // group register was still busy waits there raw (4 x 41 bits: bits, rvc,
 // parcel, block, taken, seq), and is decoded when the group register takes
 // it; meanwhile the fetch buffer gives nothing. So the next group follows
@@ -360,18 +362,23 @@ module OOO_FRONT
     logic [3:0] d_fp_int_signed;
     logic [3:0] d_fp_int_w;
     /* verilator lint_on UNUSEDSIGNAL */
-    logic [3:0] d_cut;
+    /* verilator lint_off PINCONNECTEMPTY */    // (decode's cut: the fetch buffer's group is cut below, before the skid's select)
     OOO_DEC u_dec
-        (.in_inst(i_inst), .in_rvc(i_rvc), .cut(d_cut),
+        (.in_inst(i_inst), .in_rvc(i_rvc), .cut(),
          .illegal(d_illegal), .cls(d_cls), .op(d_op), .rd(d_rd), .rs1(d_rs1), .rs2(d_rs2), .use_rs1(d_use_rs1), .use_rs2(d_use_rs2), .imm(d_imm), .port(d_port), .lat2(d_lat2), .ext_ans(d_ext_ans), .nonspec(d_nonspec), .alu_op(d_alu_op), .a_uw(d_a_uw), .a_shift(d_a_shift), .a_sel(d_a_sel), .b_sel(d_b_sel), .word_op(d_word_op), .is_branch(d_is_branch), .is_jal(d_is_jal), .is_jalr(d_is_jalr), .br_op(d_br_op), .mdu_op(d_mdu_op), .mem_cmd(d_mem_cmd), .mem_size(d_mem_size), .mem_signed(d_mem_signed), .sys(d_sys), .is_sfence(d_is_sfence), .is_csr(d_is_csr), .csr_addr(d_csr_addr), .csr_op(d_csr_op), .csr_imm_sel(d_csr_imm_sel), .csr_wr(d_csr_wr), .csr_rd(d_csr_rd), .is_fp(d_is_fp), .fp_op(d_fp_op), .fp_fmt(d_fp_fmt), .fp_rm(d_fp_rm), .use_fs(d_use_fs), .rs3(d_rs3), .fp_we_rd(d_fp_we_rd), .fp_int_signed(d_fp_int_signed), .fp_int_w(d_fp_int_w));
+    /* verilator lint_on PINCONNECTEMPTY */
 
-    // the fetch buffer's group: its valid instructions up to the first cut
-    logic [3:0] fb_m, i_m;
+    // the fetch buffer's group: its valid instructions up to the first of a
+    // rare class in slot 1 to 3, told from the first parcels it gives
+    logic [3:0] fb_rare, fb_m, i_m;
+    for (genvar k = 0; k < 4; k++) begin : g_rare
+        OOO_RARE u_rare (.p(fb_inst[k][15:0]), .rare(fb_rare[k]));
+    end
     always @(*) begin
         logic run;
         run = 1'b1;
         for (int k = 0; k < 4; k++) begin
-            run     = run && fb_v[k] && !d_cut[k];
+            run     = run && fb_v[k] && (k == 0 || !fb_rare[k]);
             fb_m[k] = run;
         end
         consume = s_v ? 3'd0 : 3'(fb_m[0]) + 3'(fb_m[1]) + 3'(fb_m[2]) + 3'(fb_m[3]);

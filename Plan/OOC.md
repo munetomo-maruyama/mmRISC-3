@@ -2162,3 +2162,73 @@ the rows of its instances. CPU_CORE's parameter defaults are those of the chip b
 - **Timing**: register to register +0.002 ns, 28 levels: mmRISC-2's core just closes at 50 MHz out of context, as in
   its chip. The worst slack with the ports (−2.496 ns) is the 6 ns of I/O delay on the core's combinational port
   paths (the caches' interface), which the chip does not have.
+
+## 26. The front end put together (OOC_FE), and decode out of the fetch buffer's loop (2026-10-29)
+
+The first Vivado run of the assembled front end (`OOO_FRONT`, B1 of `Plan/CORE.md` 5.2) in the harness `OOC_FE`.
+
+### 26.1 The result
+
+| Run | LUT | of it LUTRAM | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|---|
+| OOC_FE (first version) | 6,602 | 602 | 2,690 | **−2.168 ns** | 23 |
+
+| Instance | LUT | The same block alone |
+|---|---|---|
+| OOO_FETCH | 2,234 | 2,611 (OOC_FRONT) |
+| OOO_FBUF, with decode (Vivado put OOO_DEC's logic in it) | 3,240 | 940 + 1,823 (OOC_FBUF + OOC_DEC) |
+| OOO_FTQ (312 bits a block, 4 reads) | 750 | 148 (32 bits, 3 reads; with FERS's read of 312 bits: about 150) |
+| OOO_FERS | 53 | (in the 150 above) |
+| the rest of OOO_FRONT (skid, group register, outcomes, target array, credit) | about 325 | — |
+
+- **Size**: 1.08k above the parts measured alone (5.52k). Most of it is the FTQ with its four reads (+0.6k; the budget
+  had +0.15k to 0.25k for widening it, `Doc/UARCH.md` 4.4), the rest the glue of B1 (about 0.3k). The budget row is
+  updated after the rerun.
+- **Timing**: all ten worst paths are one loop, from the fetch buffer's head pointer back to it (`hb` → `hoff` / `hb`).
+
+### 26.2 The worst path
+
+| ns | Where |
+|---|---|
+| 0 → 3.5 | `hb` → the block data (LUTRAM read) |
+| → 10.0 | the window and the chain of instruction lengths, to slot 2's bits (through the skid's select) |
+| → 12.7 | RVC expansion (CORE_DECOMP) |
+| → 16.9 | CORE_DEC's illegal |
+| → 17.6 | decode's `cut` (a rare class in slot 1 to 3) |
+| → 22.8 | the count taken (`consume`), `npop`, the head parcel `hoff` |
+
+The contract of 13.6 (the count taken must not wait for anything decode computes) was broken by `cut`, which
+`Plan/CORE.md` 2.1 sent to the fetch buffer: a full decode, 7.6 ns, sat in the loop.
+
+### 26.3 The fix
+
+- **`OOO_RARE`** (new): whether an instruction is of a rare class (decoded in slot 0 only, G0b G2), **from its first
+  parcel alone**: the 32-bit major opcodes LOAD-FP, STORE-FP, the FMAs, OP-FP, AMO, MISC-MEM, SYSTEM; c.fld, c.fsd,
+  c.fldsp, c.fsdsp, c.ebreak. Every legal instruction of those classes is caught (and the illegal encodings in those
+  opcodes, which then go to slot 0). A few LUTs, 2 or 3 levels.
+- **OOO_FRONT** cuts the fetch buffer's group with OOO_RARE on the buffer's own first parcels, before the skid's
+  select; decode's `cut` is no longer used there.
+- **Illegal is no longer a cut class**: OOO_DEC reports it in every slot (in slots 1 to 3 for an encoding outside the
+  rare opcodes; those are cut). Plan/CORE.md 2.1's exception fields come from the µop's own slot. Its `cut` is now
+  OOO_RARE's too.
+- **The contract of 13.6, as it stands now**: the count taken comes from the buffer's own valid instructions, a
+  predecode of their first parcels of a few gates, and a registered stall; nothing of decode.
+- Expected: the loop loses the 7.6 ns of decode for about 1 ns of OOO_RARE, and the skid's select: about +4 ns.
+
+### 26.4 Verification
+
+- **`tb_dec`**: the expected `cut` from a predecode written in the test from the opcode list; every legal instruction
+  of a rare class must be caught by it (decode leaves their fields out in slots 1 to 3); illegal checked in every slot.
+  3 million instructions (1.5 million illegal) and every RVC encoding: PASS.
+- **B1** (`SIM/CORE/run_front.sh`): 175 riscv-tests on 2 seeds and both CoreMark builds in both modes: PASS (the bench
+  checks that the CSR / FP / system classes D2 sees are those of the bits, in every slot).
+- **Bug injection**: SIM/OOO_UNIT M192 rewritten and M331 to M339 added (OOO_RARE's opcodes, c.ebreak, the RVC FP
+  loads and stores, the RVC / 32-bit select; illegal in slot 0 only): all detected. `SIM/CORE/mutate_front.py`'s cut
+  mutation follows the new line. B1's campaign: 35 of 35. All 28 unit tests PASS; the unit campaign now has 303 mutations.
+- Not a mutation: in slots 1 to 3 illegal is masked by the rare opcodes only so that synthesis can drop the legality
+  decode of the rare classes there; without the mask nothing changes but the size.
+
+### 26.5 Please rerun
+
+- `synth_ooo.bat OOC_FE` (the fix), and `synth_ooo.bat OOC_DEC` (decode now reports illegal in every slot and takes
+  its cut from OOO_RARE: its size may move a little).
