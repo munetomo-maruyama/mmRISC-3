@@ -32,6 +32,8 @@
 //     cycle: its store goes into Memory (so FENCE.I sees the code written),
 //     and the FTQ pops as OOO_CTRL pops it (the blocks before the block of
 //     the latest commit, one a cycle; a flush drops the rest).
+//   - D1a: the skid holds a group only while the raw register R does.
+// The FTQ has 8 entries (FTQW=4 at the build: 16).
 // A run passes when Spike's run reaches its HTIF exit on the true path with
 // no mismatch. The mispredictions per 1000 instructions show whether the
 // predictors are trained (the TAGE update through the FTQ's head read).
@@ -54,6 +56,11 @@
 #include <vector>
 
 static const int VA = 39;
+#ifndef FTQW
+#define FTQW 3                      // the FTQ's index width (build_front.sh: FTQW=4 for 16 entries)
+#endif
+static const int NFTQ = 1 << FTQW;
+static const unsigned FM = NFTQ - 1;
 
 template <class W> static uint64_t wbits(const W& w, int lo, int n)
 {
@@ -113,10 +120,10 @@ static Result run(const std::string& elf, const Opts& o)
     std::deque<Rs> rsq;
     std::deque<std::pair<uint64_t, uint64_t>> btq;
     int fhd = 0, ftgt = 0;           // OOO_CTRL's FTQ head mirror and pop target
-    int exp_ex[8] = {0}, exp_tk[8] = {0};    // per FTQ block: the true path's conditional branches resolved, by parcel
+    int exp_ex[NFTQ] = {0}, exp_tk[NFTQ] = {0};    // per FTQ block: the true path's conditional branches resolved, by parcel
     struct Pushed { bool v = false; uint64_t line = 0, ras_val = 0; int ras_ptr = 0; uint32_t tmeta[9] = {0}; };
-    Pushed pushed[8];                         // per FTQ entry: what its push wrote
-    long npush = 0, push_at[8] = {0};         // blocks pushed, and the count when each entry was pushed
+    Pushed pushed[NFTQ];                       // per FTQ entry: what its push wrote
+    long npush = 0, push_at[NFTQ] = {0};       // blocks pushed, and the count when each entry was pushed
     long last_take = 0, last_ready = 0;
 
     d->clk = 0; d->rst_n = 1; d->eval(); d->rst_n = 0; d->eval(); d->rst_n = 1; d->eval();
@@ -157,7 +164,7 @@ static Result run(const std::string& elf, const Opts& o)
         unsigned rv = 0, rf = 0, re = 0, rt = 0, rwrong = 0;
         for (int k = 0, i = 0; k < 2 && i < (int)rsq.size();) {
             if (rsq[i].due <= cyc) {
-                rv |= 1u << k; rf |= (unsigned)rsq[i].ftq << (3 * k); re |= (unsigned)rsq[i].e << (3 * k); rt |= (unsigned)rsq[i].taken << k;
+                rv |= 1u << k; rf |= (unsigned)rsq[i].ftq << (FTQW * k); re |= (unsigned)rsq[i].e << (3 * k); rt |= (unsigned)rsq[i].taken << k;
                 rwrong |= (unsigned)rsq[i].wrong << k;
                 rsq.erase(rsq.begin() + i); k++;
             } else i++;
@@ -165,7 +172,7 @@ static Result run(const std::string& elf, const Opts& o)
         d->rs_valid = rv; d->rs_ftq = rf; d->rs_e = re; d->rs_taken = rt;
         for (int k = 0; k < 2; k++)
             if ((rv >> k) & 1 && (rwrong >> k & 1) == 0) {
-                int f = (rf >> (3 * k)) & 7, e = (re >> (3 * k)) & 7;
+                int f = (rf >> (FTQW * k)) & FM, e = (re >> (3 * k)) & 7;
                 exp_ex[f] |= 1 << e; exp_tk[f] = (exp_tk[f] & ~(1 << e)) | (int)((rt >> k) & 1) << e;
             }
         bool bt = !btq.empty();
@@ -181,6 +188,8 @@ static Result run(const std::string& elf, const Opts& o)
 
         auto* rp = d->rootp;
         if (R && d->ic_req_valid) fail("an I$ request in the cycle of a redirect");
+        // D1a: the skid holds a group only while R does (else a group waits a cycle for nothing)
+        if (rp->OOO_FRONT__DOT__s_m && !rp->OOO_FRONT__DOT__r_m) fail("the skid holds a group while R is empty");
         // the restore (cycle R + 1) reads back what the block's push wrote
         if (rp->OOO_FRONT__DOT__be_redirect && pushed[rp->OOO_FRONT__DOT__rs_idx].v) {
             const Pushed& w = pushed[rp->OOO_FRONT__DOT__rs_idx];
@@ -224,7 +233,7 @@ static Result run(const std::string& elf, const Opts& o)
         }
         int tslot = -1;
         for (int i = 0; i < take; i++) if ((d->g_taken >> (head + i)) & 1) tslot = head + i;
-        d->ta_idx = tslot >= 0 ? (int)((d->g_ftq >> (3 * tslot)) & 7) : 0;
+        d->ta_idx = tslot >= 0 ? (int)((d->g_ftq >> (FTQW * tslot)) & FM) : 0;
         d->g_take = take;
         d->eval();
         if (take) { res.taken_cyc++; last_take = cyc; }
@@ -233,7 +242,7 @@ static Result run(const std::string& elf, const Opts& o)
             uint64_t pc = wbits(d->g_pc, 38 * k, 38) << 1;
             uint32_t insn = (uint32_t)wbits(d->g_insn, 32 * k, 32);
             bool rvc = (d->g_rvc >> k) & 1, tk = (d->g_taken >> k) & 1, ill = (d->g_illegal >> k) & 1;
-            int ftq = (int)((d->g_ftq >> (3 * k)) & 7), e = (int)((d->g_end >> (3 * k)) & 7);
+            int ftq = (int)((d->g_ftq >> (FTQW * k)) & FM), e = (int)((d->g_end >> (3 * k)) & 7);
             bool isbr = (d->g_is_branch >> k) & 1;
             if (pend) {                                     // the wrong path: some branches resolved at random
                 res.wrong++;
@@ -305,10 +314,10 @@ static Result run(const std::string& elf, const Opts& o)
         d->clk = 1; d->eval(); d->clk = 0; d->eval();
         ic.clock(acc, rpc);
         if (pop) exp_ex[fhd] = 0;
-        fhd = (fhd + pop) % 8;
+        fhd = (fhd + pop) % NFTQ;
         ftgt = (R && rr.flush) ? fhd : tgt;
         if (R && !rr.flush) exp_ex[rr.ftq] &= (2 << rr.e) - 1;   // (only the true path's are recorded)
-        if (R && rr.flush) for (int f = 0; f < 8; f++) exp_ex[f] = 0;
+        if (R && rr.flush) for (int f = 0; f < NFTQ; f++) exp_ex[f] = 0;
         if (R) {                                          // the wrong path's resolutions still queued never come
             for (size_t i = 0; i < rsq.size();) if (rsq[i].wrong) rsq.erase(rsq.begin() + i); else i++;
             if (rr.flush) cq.clear();                     // (nothing younger than a flush is in it)

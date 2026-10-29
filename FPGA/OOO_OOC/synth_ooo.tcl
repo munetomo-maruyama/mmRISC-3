@@ -17,6 +17,7 @@
 #
 # Outputs in ./output/<top>[_<generics>]/ : utilization_synth.rpt /
 # utilization.rpt, timing_summary.rpt, timing_reg2reg.rpt, summary.txt
+# (OOC_FE also timing_d1.rpt)
 # (the numbers in one place; for a harness of several blocks, the rows of
 # their instances too). Plan/OOC.md says what each run is for.
 #
@@ -180,6 +181,27 @@ if {$impl} {
                       $s_tot $s_log $s_ram $n_lut $wns $r2r $lv]
     puts "INFO: $impl_msg"
     puts $fh $impl_msg
+    # OOC_FE: the worst path into each stage of D1 (Plan/OOC.md 26.8), also
+    # those that are not among the ten worst: the fetch buffer's loop (into
+    # its head pointer and head parcel), D1a (into R and the skid), D1b
+    # (into the group register's decoded fields); full paths in timing_d1.rpt
+    if {$top eq "OOC_FE"} {
+        set d1 [list loop {*u_fbuf/hb_reg* *u_fbuf/hoff_reg*} \
+                     D1a  {*u_front/r_*_reg* *u_front/s_*_reg*} \
+                     D1b  {*u_front/g_d_reg*}]
+        file delete -force $outdir/timing_d1.rpt
+        foreach {name pats} $d1 {
+            set cells {}
+            foreach pt $pats { lappend cells {*}[get_cells -quiet -hierarchical -filter "IS_SEQUENTIAL && NAME =~ $pt"] }
+            if {[llength $cells] == 0} { puts $fh "  $name: no cells"; continue }
+            set p [get_timing_paths -max_paths 1 -nworst 1 -setup -from [all_registers] -to $cells]
+            puts $fh [format "  %-4s worst %.3f ns (%d logic levels), from %s to %s" $name \
+                          [get_property SLACK $p] [get_property LOGIC_LEVELS $p] \
+                          [get_property STARTPOINT_PIN $p] [get_property ENDPOINT_PIN $p]]
+            report_timing -max_paths 3 -nworst 1 -path_type full -from [all_registers] -to $cells \
+                -name $name -append -file $outdir/timing_d1.rpt
+        }
+    }
 }
 set rows [inst_rows]
 if {[llength $rows] > 1} {

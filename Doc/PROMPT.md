@@ -3446,3 +3446,49 @@ I analyzed OOC_FE's timing violation and took decode out of the path that caused
 ```text
 I ran synth_ooo.bat OOC_FE and synth_ooo.bat OOC_DEC. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+OOC_FE now fits 50 MHz, but only by +0.030 ns. The loop from last time has left the worst paths; D1's forward path (read the buffer, decode slot 3) is the limit now. The results are recorded and pushed (57ba5e4).
+
+**Results**
+
+| Run | LUT | Slack | Levels |
+|---|---|---|---|
+| OOC_FE (before) | 6,602 | −2.168 ns | 23 |
+| **OOC_FE (now)** | **6,162** | **+0.030 ns** | 18 |
+| OOC_DEC | 1,823 → **1,807** | +7.813 → **+7.900 ns** | 9 |
+
+- **Size:** 440 LUTs fewer, nearly all in the fetch buffer with decode (3,240 → 2,849).
+- **Against the budget:** the budget counted the parts one by one (OOC_FRONT 2,588, FBUF 940, FTQ 148, DEC 1,808, the FTQ widened 0.15k to 0.25k). OOC_FE is +0.4k to 0.5k above them: the FTQ's four reads and the glue. UARCH 4.4 now uses the measured 6,162 instead, and the gap is **4.0k / 5.4k / 6.6k** (was 3.5k / 4.9k / 6.2k).
+
+**The new worst path**
+All ten worst paths are one forward path, not a loop, into `g_d[3]`:
+
+| ns | Section |
+|---|---|
+| 1.0 → 4.0 | `hb` (fan-out 150) → LUTRAM read |
+| → 10.9 | window and length chain to slot 3's bits (through the skid's select) |
+| → 20.4 | the whole decode of slot 3 (9 levels, 9.5 ns) |
+
+- This is D1 as planned (read and decode in one cycle), 80 % of it routing.
+- In 13.6 even 0.539 ns was judged too thin and fixed. Inside the whole core place and route gets worse, so 0.030 ns is not enough.
+- The loop's own slack is not in the reports (all ten end at `g_d[3]`).
+
+**What can be done (Plan/OOC 26.7)**
+- **A. One raw stage before decode (recommended)**
+  - The window goes into a raw register first and is decoded the next cycle. Both the read side and the decode side are expected at about 8 ns of slack.
+  - The cost is a cycle more from a redirect: in the model CoreMark/MHz 6.191 → 6.172, 6.675 → 6.660 (−0.3 % / −0.2 %); also about 170 FFs and a few tens of LUTs.
+  - To keep the fetch buffer's `consume` free of D2's `g_take` (the 13.6 contract), the current skid stays as a second raw entry.
+- **B. Trim D1 as it is:** duplicate `hb`, precompute the instruction starts. Expected 1 to 2 ns, not sure.
+- **Not possible:** decoding only slots 2–3 a cycle later, since OOO_FUSE may take all 4 slots in the cycle after the group arrives.
+
+If A is taken, I fix OOO_FRONT, B1 and the front end's bug injection, and add a report of the loop's own worst path to synth_ooo.tcl.
+<!-- /answer -->
+
+## 93. 2026-10-29 21:58:09 JST
+
+```text
+Implement plan A of Plan/OOC 26.7 (a raw stage before decode), with B1, the bug injection and the Vivado script.
+```

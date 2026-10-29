@@ -2290,3 +2290,59 @@ The contract of 13.6 (the count taken must not wait for anything decode computes
   front end is the one block whose timing the whole core cannot help (its paths are long and 80 % routing already
   alone). If it is taken: OOO_FRONT, B1 (`tb_front` follows the extra stage), the front end's mutations, and a report
   of the loop's own worst path in `synth_ooo.tcl` for OOC_FE.
+
+### 26.8 A applied: D1a / D1b (2026-10-29)
+
+**The RTL** (`OOO_FRONT`):
+
+| Stage | What | Its path |
+|---|---|---|
+| D1a | The fetch buffer's group goes raw (4 × 41 bits) into the register R when R is freed in this cycle (R empty, or moving into the group register), else into the skid S; R takes S's group when S holds one. The buffer gives while S is empty (`consume` as before: its valid instructions up to the first rare class, 0 while S is full) | `hb` → LUTRAM → window → the select of S or the buffer (by S's occupancy, a register) → R |
+| D1b | R is decoded, and its two lines read from the FTQ (`rd_idx` from R's blocks, a register now), into the group register when D2 empties it | R → decode → group register |
+| D2 | as before | |
+
+- R's freeing waits for `g_take` (D2) but only enables R and S; nothing of it reaches `consume` (13.6). S holds a group
+  only while R does, so a group of 4 still follows one D2 takes in 2 cycles without a bubble.
+- Lint (`-Wall`): only PINCONNECTEMPTY, as before.
+
+**B1** (`SIM/CORE/run_front.sh`): all pass (175 riscv-tests on 2 seeds, both CoreMark builds both ways, every TAGE
+update and restore checked).
+
+**What it costs, and what B1 found about the FTQ.** With `-full` (no I$ miss, D2 takes 2 a cycle) the front end
+delivered 1.504 / 1.560 instructions a cycle before, **1.442 / 1.488** now (g14 -O2 / sf + -flto): −4 %, not the
+−0.3 % of the model. The difference is the FTQ: a block stays in it from its push to the pop after its last commit,
+fetch asks only while it has room, and with 8 entries it is full most of the time; one stage more keeps each block a
+cycle longer. With 16 entries the stage costs almost nothing (`-full`, instructions a cycle, -O2 / sf + -flto; "old"
+is the RTL before this section, built from git):
+
+| Commit after D2 | old, FTQ 8 | new, FTQ 8 | old, FTQ 16 | **new, FTQ 16** |
+|---|---|---|---|---|
+| 2 cycles | 1.834 / 1.826 | 1.814 / 1.828 | 1.835 / 1.827 | 1.826 / 1.829 |
+| 4 cycles | 1.806 / 1.823 | 1.755 / 1.794 | 1.830 / 1.824 | 1.825 / 1.822 |
+| 7 cycles | 1.668 / 1.719 | 1.572 / 1.644 | 1.829 / 1.825 | 1.824 / 1.824 |
+| 10 cycles | 1.455 / 1.514 | 1.386 / 1.435 | 1.830 / 1.821 | 1.825 / 1.825 |
+| 4 to 10 at random (B1's default) | 1.504 / 1.560 | 1.442 / 1.488 | 1.833 / 1.821 | **1.824 / 1.826** |
+
+- **The FTQ of 8 blocks is too small, with or without the stage**: 7 cycles from D2 to commit already cost 9 %, 10
+  cycles 21 %. In the core a block waits for the ROB (24 µops, about 7 blocks of 3.3 instructions) besides the fetch
+  buffer (4 blocks) and D1 / D2: the FTQ must cover them all, about 14 to 16 blocks. **The model has no FTQ** (it
+  never stops fetch for it), so its CoreMark numbers assume one large enough.
+- **With 16 the stage costs 0.0 % to 0.5 %**, as the model said (−0.2 % / −0.3 % CoreMark/MHz for `dec_depth` 3).
+- **The cost of 16**: the FTQ's LUTRAM is the same (a RAM32M holds 32 rows at any depth up to 32), the target array
+  too; the outcomes of the slot branches grow from 128 to 256 flip-flops with 16:1 selects in place of 8:1 at the pop,
+  and every FTQ index gets a bit (the fetch buffer, OOO_FERS, OOO_CTRL, the ROB's payload). About +0.1k to 0.2k LUTs.
+  Proposed as **D-18** (`Doc/UARCH.md` chapter 9); `SIM/CORE/ftqdepth.sh` measures it (`tb_front` and
+  `build_front.sh` now take the FTQ's size, `FTQW`).
+
+**Bug injection** (`SIM/CORE/mutate_front.py`): the skid's and the group register's mutations follow the new lines
+(7 rewritten), 5 added for R (the skid's group or the buffer's, R's bits and blocks from the skid, R not freed when
+it moves, R empty not counted as free) and one for R alone not flushed: **40 of 40 detected**. The first run left
+"R empty not counted as free": a group then waits in the skid a cycle for nothing, which costs only cycles. The
+bench now checks that the skid holds a group only while R does.
+
+**Vivado** (`synth_ooo.tcl`): for OOC_FE, `summary.txt` now also gives the worst path into each stage of D1 (the
+fetch buffer's loop into `hb` / `hoff`, D1a into R and S, D1b into the group register), and `timing_d1.rpt` their
+paths in full, so that the loop's slack shows even when it is not among the ten worst.
+
+**Please run** `synth_ooo.bat OOC_FE`. Expected: D1a and D1b each with several ns of slack; the size about +0.2k
+(R's 164 bits and its select, now a register's input instead of decode's).

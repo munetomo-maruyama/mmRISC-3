@@ -9,30 +9,35 @@
 //          Each block it gives goes into the FTQ (pc, next address, end,
 //          taken, 312 bits of predictor state: TAGE's 270 and the RAS
 //          snapshot's 42) and into the fetch buffer with its FTQ index.
-//   D1     OOO_FBUF gives up to 4 instructions, OOO_DEC decodes them; the
-//          pc of each is its block's line (decode's two FTQ reads: the
-//          window's two blocks) and its parcel.
+//   D1a    OOO_FBUF gives up to 4 instructions, kept raw.
+//   D1b    OOO_DEC decodes them; the pc of each is its block's line (two
+//          FTQ reads: the group's two blocks) and its parcel.
 //   D2     the group register (g_*): what fusion and renaming read.
 //
 // Credit: fetch asks only while the fetch buffer and the FTQ have room
 // (free_n of both, from their pointers).
 //
-// D1 / D2, under the contract of Plan/OOC.md 13.6 (what the fetch buffer
-// gives must not depend on what D2 computes in the same cycle): the group
-// register takes a new group only when D2 empties it (g_take: how many of
-// its instructions D2 took this cycle, oldest first). The fetch buffer's
+// D1a / D1b / D2, under the contract of Plan/OOC.md 13.6 (what the fetch
+// buffer gives must not depend on what D2 computes in the same cycle):
+//   D1a  the fetch buffer's group goes raw (4 x 41 bits: bits, rvc, parcel,
+//        block, taken, seq) into the raw register R, or into the skid S
+//        when R is not freed this cycle.
+//   D1b  R is decoded (and its two lines read from the FTQ) into the group
+//        register, which takes a new group only when D2 empties it (g_take:
+//        how many of its instructions D2 took this cycle, oldest first); R
+//        is then freed and takes S's group, else the fetch buffer's.
+// The read of the buffer and decode each have a cycle: in one cycle they
+// closed by 0.03 ns only (Plan/OOC.md 26.6, 26.7). The fetch buffer's
 // consume comes from its own valid instructions, up to the first of a rare
 // class in slot 1 to 3 (OOO_RARE on the buffer's own first parcels: a few
 // gates; decode's cut in that loop missed 50 MHz by 2.2 ns, Plan/OOC.md
-// 26), and one register, the skid: a group the fetch buffer gave while the
-// group register was still busy waits there raw (4 x 41 bits: bits, rvc,
-// parcel, block, taken, seq), and is decoded when the group register takes
-// it; meanwhile the fetch buffer gives nothing. So the next group follows
-// one D2 takes in 2 cycles without a bubble. The skid costs a 2:1 select
-// in front of decode on 164 bits instead of one on the decoded group.
+// 26), and S's occupancy, a register: the buffer gives while S is empty.
+// R's freeing (late: it waits for g_take) only enables R and S; the select
+// in front of R is S's occupancy. So a group of 4 follows one D2 takes in
+// 2 cycles without a bubble.
 //
 // Recovery (cycle R: fe_redirect from OOO_CTRL): fetch stops at once
-// (be_stop), the fetch buffer, the skid and the group register are
+// (be_stop), the fetch buffer, R, S and the group register are
 // emptied, the FTQ drops the blocks after the mispredicted branch's
 // (restore) or all of them (fe_flush: a trap or a replay); at R + 1
 // OOO_FERS reads the block's FTQ entry and restarts fetch with the history
@@ -282,7 +287,7 @@ module OOO_FRONT
     always_ff @(posedge clk) if (out_valid) ta_mem[push_idx] <= out_next;
     assign ta_tgt = ta_mem[ta_idx];
 
-    // ---- D1: the fetch buffer (or the skid), decode
+    // ---- D1a: the fetch buffer's group into R (or the skid S)
     logic [3:0]            fb_v, fb_rvc, fb_tk, fb_seq;
     logic [3:0][31:0]      fb_inst;
     logic [3:0][2:0]       fb_off;
@@ -296,25 +301,19 @@ module OOO_FRONT
          .out_valid(fb_v), .out_inst(fb_inst), .out_rvc(fb_rvc), .out_off(fb_off), .out_ftq(fb_ftq),
          .out_taken(fb_tk), .out_seq(fb_seq), .consume(consume));
 
-    // the skid
-    logic [3:0]            s_m, s_rvc, s_tk, s_seq;
+    // the skid S and the raw register R
+    logic [3:0]            s_m /*verilator public_flat_rd*/;
+    logic [3:0]            s_rvc, s_tk, s_seq;
     logic [3:0][31:0]      s_inst;
     logic [3:0][2:0]       s_off;
     logic [3:0][FTQW-1:0]  s_ftq;
     logic                  s_v;
     assign s_v = s_m != 4'd0;
-
-    // decode's input: the skid's group, else the fetch buffer's
-    logic [3:0]            i_rvc, i_tk, i_seq;
-    logic [3:0][31:0]      i_inst;
-    logic [3:0][2:0]       i_off;
-    logic [3:0][FTQW-1:0]  i_ftq;
-    assign i_inst = s_v ? s_inst : fb_inst;
-    assign i_rvc  = s_v ? s_rvc  : fb_rvc;
-    assign i_off  = s_v ? s_off  : fb_off;
-    assign i_ftq  = s_v ? s_ftq  : fb_ftq;
-    assign i_tk   = s_v ? s_tk   : fb_tk;
-    assign i_seq  = s_v ? s_seq  : fb_seq;
+    logic [3:0]            r_m /*verilator public_flat_rd*/;
+    logic [3:0]            r_rvc, r_tk, r_seq;
+    logic [3:0][31:0]      r_inst;
+    logic [3:0][2:0]       r_off;
+    logic [3:0][FTQW-1:0]  r_ftq;
 
     logic [3:0] d_illegal;
     logic [3:0][2:0] d_cls;
@@ -362,15 +361,16 @@ module OOO_FRONT
     logic [3:0] d_fp_int_signed;
     logic [3:0] d_fp_int_w;
     /* verilator lint_on UNUSEDSIGNAL */
-    /* verilator lint_off PINCONNECTEMPTY */    // (decode's cut: the fetch buffer's group is cut below, before the skid's select)
+    // ---- D1b: decode of R
+    /* verilator lint_off PINCONNECTEMPTY */    // (decode's cut: the fetch buffer's group is cut below, as it is given)
     OOO_DEC u_dec
-        (.in_inst(i_inst), .in_rvc(i_rvc), .cut(),
+        (.in_inst(r_inst), .in_rvc(r_rvc), .cut(),
          .illegal(d_illegal), .cls(d_cls), .op(d_op), .rd(d_rd), .rs1(d_rs1), .rs2(d_rs2), .use_rs1(d_use_rs1), .use_rs2(d_use_rs2), .imm(d_imm), .port(d_port), .lat2(d_lat2), .ext_ans(d_ext_ans), .nonspec(d_nonspec), .alu_op(d_alu_op), .a_uw(d_a_uw), .a_shift(d_a_shift), .a_sel(d_a_sel), .b_sel(d_b_sel), .word_op(d_word_op), .is_branch(d_is_branch), .is_jal(d_is_jal), .is_jalr(d_is_jalr), .br_op(d_br_op), .mdu_op(d_mdu_op), .mem_cmd(d_mem_cmd), .mem_size(d_mem_size), .mem_signed(d_mem_signed), .sys(d_sys), .is_sfence(d_is_sfence), .is_csr(d_is_csr), .csr_addr(d_csr_addr), .csr_op(d_csr_op), .csr_imm_sel(d_csr_imm_sel), .csr_wr(d_csr_wr), .csr_rd(d_csr_rd), .is_fp(d_is_fp), .fp_op(d_fp_op), .fp_fmt(d_fp_fmt), .fp_rm(d_fp_rm), .use_fs(d_use_fs), .rs3(d_rs3), .fp_we_rd(d_fp_we_rd), .fp_int_signed(d_fp_int_signed), .fp_int_w(d_fp_int_w));
     /* verilator lint_on PINCONNECTEMPTY */
 
     // the fetch buffer's group: its valid instructions up to the first of a
     // rare class in slot 1 to 3, told from the first parcels it gives
-    logic [3:0] fb_rare, fb_m, i_m;
+    logic [3:0] fb_rare, fb_m;
     for (genvar k = 0; k < 4; k++) begin : g_rare
         OOO_RARE u_rare (.p(fb_inst[k][15:0]), .rare(fb_rare[k]));
     end
@@ -383,11 +383,10 @@ module OOO_FRONT
         end
         consume = s_v ? 3'd0 : 3'(fb_m[0]) + 3'(fb_m[1]) + 3'(fb_m[2]) + 3'(fb_m[3]);
     end
-    assign i_m = s_v ? s_m : fb_m;
 
-    // the window's two blocks: their lines
-    assign rd_idx[0] = i_ftq[0];
-    assign rd_idx[1] = i_ftq[0] + FTQW'(1);
+    // R's two blocks: their lines
+    assign rd_idx[0] = r_ftq[0];
+    assign rd_idx[1] = r_ftq[0] + FTQW'(1);
 
     // ---- D2: the group register
     typedef struct packed {
@@ -475,7 +474,7 @@ module OOO_FRONT
     logic [3:0][FTQW-1:0]  g_ftq_q;
     logic [3:0][31:0]      g_insn_q;
     logic [VA-1:4]         g_line0, g_line1;
-    logic                  g_load;
+    logic                  g_load, r_free;
     always @(*) begin
         logic [2:0] n;
         n = '0;
@@ -484,24 +483,28 @@ module OOO_FRONT
             n = n + 3'(g_v[k]);
         end
         g_left = g_v & ~tm;
-        g_load = g_left == 4'd0 && i_m != 4'd0;
+        g_load = g_left == 4'd0 && r_m != 4'd0;
+        r_free = r_m == 4'd0 || g_left == 4'd0;     // R empty, or moving into the group register
     end
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             g_v <= '0;
+            r_m <= '0;
             s_m <= '0;
         end else if (fe_redirect) begin
             g_v <= '0;
+            r_m <= '0;
             s_m <= '0;
         end else begin
-            g_v <= g_load ? i_m : g_left;
-            if (s_v)            s_m <= g_load ? 4'd0 : s_m;     // taken by the group register, or still waiting
-            else if (!g_load)   s_m <= fb_m;                    // the fetch buffer's group waits (or none)
+            g_v <= g_load ? r_m : g_left;
+            if (r_free)         r_m <= s_v ? s_m : fb_m;        // S's group, else the fetch buffer's (or none)
+            if (s_v)            s_m <= r_free ? 4'd0 : s_m;     // taken by R, or still waiting
+            else if (!r_free)   s_m <= fb_m;                    // the fetch buffer's group waits (or none)
         end
     end
     always_ff @(posedge clk) begin
-        if (!s_v && !g_load) begin
+        if (!s_v && !r_free) begin
             s_inst <= fb_inst;
             s_rvc  <= fb_rvc;
             s_off  <= fb_off;
@@ -509,19 +512,27 @@ module OOO_FRONT
             s_tk   <= fb_tk;
             s_seq  <= fb_seq;
         end
+        if (r_free) begin
+            r_inst <= s_v ? s_inst : fb_inst;
+            r_rvc  <= s_v ? s_rvc  : fb_rvc;
+            r_off  <= s_v ? s_off  : fb_off;
+            r_ftq  <= s_v ? s_ftq  : fb_ftq;
+            r_tk   <= s_v ? s_tk   : fb_tk;
+            r_seq  <= s_v ? s_seq  : fb_seq;
+        end
         if (g_load) begin
             g_d      <= gd;
             g_line0  <= rd_pc[0][VA-1:4];
             g_line1  <= rd_pc[1][VA-1:4];
             for (int k = 0; k < 4; k++) begin
-                g_bsel[k]   <= i_ftq[k] != i_ftq[0];
-                g_ftq_q[k]  <= i_ftq[k] + FTQW'(i_off[k] == 3'd7 && !i_rvc[k]);   // across two lines: the next block
+                g_bsel[k]   <= r_ftq[k] != r_ftq[0];
+                g_ftq_q[k]  <= r_ftq[k] + FTQW'(r_off[k] == 3'd7 && !r_rvc[k]);   // across two lines: the next block
             end
-            g_off    <= i_off;
-            g_rvc_q  <= i_rvc;
-            g_tk_q   <= i_tk;
-            g_seq_q  <= i_seq;
-            g_insn_q <= i_inst;
+            g_off    <= r_off;
+            g_rvc_q  <= r_rvc;
+            g_tk_q   <= r_tk;
+            g_seq_q  <= r_seq;
+            g_insn_q <= r_inst;
         end
     end
 

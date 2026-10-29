@@ -1,0 +1,11 @@
+instructions a cycle (mispredicted): g14 -O2, g14 sf + -flto
+FTQ  8  commit -lag 2       1.814 (5883)  1.828 (5114)  
+FTQ  8  commit -lag 4       1.755 (6376)  1.794 (4851)  
+FTQ  8  commit -lag 7       1.572 (7834)  1.644 (5651)  
+FTQ  8  commit -lag 10      1.386 (6954)  1.435 (5768)  
+FTQ  8  commit 4 to 10      1.442 (7148)  1.488 (5892)  
+FTQ 16  commit -lag 2       1.826 (6401)  1.829 (5655)  
+FTQ 16  commit -lag 4       1.825 (6444)  1.822 (6154)  
+FTQ 16  commit -lag 7       1.824 (6528)  1.824 (5919)  
+FTQ 16  commit -lag 10      1.825 (6480)  1.825 (5876)  
+FTQ 16  commit 4 to 10      1.824 (6511)  1.826 (5868)  

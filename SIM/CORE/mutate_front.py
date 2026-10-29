@@ -48,21 +48,32 @@ MUT = [
      'outcomes after the restore point not cleared'),
     (F, 'oc_tk[f][p] <= rs_taken[k];', "oc_tk[f][p] <= 1'b0;", 'outcomes: taken lost'),
     (F, 'if (out_valid) ta_mem[push_idx] <= out_next;', "if (out_valid) ta_mem[push_idx + FTQW'(1)] <= out_next;", 'target array: wrong entry'),
-    (F, 'g_bsel[k]   <= i_ftq[k] != i_ftq[0];', "g_bsel[k]   <= 1'b0;", 'pc: always the first block\'s line'),
-    (F, "assign rd_idx[1] = i_ftq[0] + FTQW'(1);", 'assign rd_idx[1] = i_ftq[0];', 'pc: the second line from the first block'),
-    (F, "g_ftq_q[k]  <= i_ftq[k] + FTQW'(i_off[k] == 3'd7 && !i_rvc[k]);", 'g_ftq_q[k]  <= i_ftq[k];', 'block of an instruction across two lines'),
+    (F, 'g_bsel[k]   <= r_ftq[k] != r_ftq[0];', "g_bsel[k]   <= 1'b0;", 'pc: always the first block\'s line'),
+    (F, "assign rd_idx[1] = r_ftq[0] + FTQW'(1);", 'assign rd_idx[1] = r_ftq[0];', 'pc: the second line from the first block'),
+    (F, "g_ftq_q[k]  <= r_ftq[k] + FTQW'(r_off[k] == 3'd7 && !r_rvc[k]);", 'g_ftq_q[k]  <= r_ftq[k];', 'block of an instruction across two lines'),
     (F, "assign g_end[k] = g_off[k] + 3'(!g_rvc_q[k]);", 'assign g_end[k] = g_off[k];', 'last parcel of a 32-bit instruction'),
-    (F, 'else if (!g_load)   s_m <= fb_m;', "else if (!g_load)   s_m <= 4'd0;", 'skid: a group lost'),
-    (F, "if (s_v)            s_m <= g_load ? 4'd0 : s_m;", "if (s_v)            s_m <= 4'd0;", 'skid: not held'),
+    (F, 'else if (!r_free)   s_m <= fb_m;', "else if (!r_free)   s_m <= 4'd0;", 'skid: a group lost'),
+    (F, "if (s_v)            s_m <= r_free ? 4'd0 : s_m;", "if (s_v)            s_m <= 4'd0;", 'skid: not held'),
+    (F, 'if (r_free)         r_m <= s_v ? s_m : fb_m;', 'if (r_free)         r_m <= fb_m;', 'R: the buffer\'s group over the skid\'s'),
+    (F, 'r_inst <= s_v ? s_inst : fb_inst;', 'r_inst <= fb_inst;', 'R: the skid\'s bits not taken'),
+    (F, 'r_ftq  <= s_v ? s_ftq  : fb_ftq;', 'r_ftq  <= fb_ftq;', 'R: the skid\'s blocks not taken'),
+    (F, "r_free = r_m == 4'd0 || g_left == 4'd0;", "r_free = r_m == 4'd0;", 'R: not freed when it moves into the group register'),
+    (F, "r_free = r_m == 4'd0 || g_left == 4'd0;", "r_free = g_left == 4'd0;", 'R: empty not counted as free (a bubble)'),
     (F, "consume = s_v ? 3'd0 :", 'consume =', 'fetch buffer gives while the skid is full'),
     (F, 'run     = run && fb_v[k] && (k == 0 || !fb_rare[k]);', 'run     = run && fb_v[k];', 'the rare classes not cut'),
     (F, 'tm[k] = g_v[k] && n < g_take;', 'tm[k] = g_v[k] && n <= g_take;', 'group: one taken too many'),
-    (F, "g_load = g_left == 4'd0 && i_m != 4'd0;", "g_load = i_m != 4'd0;", 'group overwritten while busy'),
+    (F, "g_load = g_left == 4'd0 && r_m != 4'd0;", "g_load = r_m != 4'd0;", 'group overwritten while busy'),
     (F, """        end else if (fe_redirect) begin
             g_v <= '0;
+            r_m <= '0;
             s_m <= '0;
-        end else begin""", """        end else begin""", 'group and skid not flushed'),
-    (F, 'assign i_inst = s_v ? s_inst : fb_inst;', 'assign i_inst = fb_inst;', 'decode does not read the skid'),
+        end else begin""", """        end else begin""", 'group, R and skid not flushed'),
+    (F, """            g_v <= '0;
+            r_m <= '0;
+            s_m <= '0;
+        end else begin""", """            g_v <= '0;
+            s_m <= '0;
+        end else begin""", 'R alone not flushed'),
     (Q, 'e = mem[head[FTQW-1:0]];', "e = mem[head[FTQW-1:0] + FTQW'(1)];", 'FTQ: head read of the next entry'),
     (Q, "assign free_n     = (FTQW + 1)'(NFTQ) - used;", "assign free_n     = (FTQW + 1)'(NFTQ) - used + (FTQW + 1)'(1);", 'FTQ: one free too many'),
     (B, "assign free_n   = (BW + 1)'(NB) - nblk;", "assign free_n   = (BW + 1)'(NB) - nblk + (BW + 1)'(1);", 'fetch buffer: one free too many'),

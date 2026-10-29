@@ -192,7 +192,7 @@ Decisions made on the way:
 
 | # | Item | What | Why |
 |---|---|---|---|
-| B1-1 | D1 / D2 | The group register (4 decoded instructions) takes a new group only when D2 empties it; a **skid** keeps one raw group (4 × 41 bits) that the fetch buffer gave meanwhile, decoded when the group register takes it. The fetch buffer's consume is its valid instructions up to the first of a rare class (`OOO_RARE` on its first parcels; first decode's `cut`, which missed 50 MHz: `Plan/OOC.md` 26), 0 while the skid is full | The contract of `Plan/OOC.md` 13.6: consume must not depend on what D2 computes (fusion, renaming's go). Without the skid every group is followed by a bubble (4 instructions in 3 cycles); the skid's select is on 164 raw bits in front of decode, not on the 680 decoded ones |
+| B1-1 | D1 / D2 | **Since 2026-10-29, D1a / D1b** (`Plan/OOC.md` 26.8): the fetch buffer's group goes raw (4 × 41 bits) into a register R (D1a), or into the **skid** when R is not freed that cycle; R is decoded into the group register (4 decoded instructions, D1b), which takes a new group only when D2 empties it, and R then takes the skid's group, else the buffer's. The fetch buffer's consume is its valid instructions up to the first of a rare class (`OOO_RARE` on its first parcels; first decode's `cut`, which missed 50 MHz: `Plan/OOC.md` 26), 0 while the skid is full | The contract of `Plan/OOC.md` 13.6: consume must not depend on what D2 computes (fusion, renaming's go); R's freeing waits for D2 and only enables R and the skid. Reading the buffer and decoding in one cycle closed by 0.03 ns (`Plan/OOC.md` 26.6): each has a cycle now, for one cycle more from a redirect to D2 |
 | B1-2 | FTQ | 312 bits a block (TAGE 270, RAS 42); a **fourth read, the head's**, for the TAGE update at the pop; `free_n` for the credit | the update needs the popped block's metadata |
 | B1-3 | FTQ pops | **one a cycle** (OOO_CTRL changed from 2; M330 in `SIM/OOO_UNIT/mutate.py`) | TAGE takes one block's update a cycle; two pops would need a second head read of 270 bits. The blocks wait in the FTQ a little longer |
 | B1-4 | the slot branches' outcomes | in OOO_FRONT by block and parcel (8 + 8 flip-flops a block): cleared at the push, written when a conditional branch resolves (`rs_*`: block, last parcel, outcome), cleared after the point of a restore, turned into slots at the pop with the parcels in the metadata | the ALU ports may resolve two a cycle; by parcel, the resolution needs no read of the metadata |
@@ -206,7 +206,8 @@ Results (`SIM/CORE/results/front.txt`):
   outcomes, and every restore reads back what its block's push wrote: the bench checks the glue exactly, since a
   wrong slice of the history or the RAS only costs predictions.
 - What the front end delivers (D2 taking 2 a cycle, no I$ miss, each misprediction resolved 2 to 7 cycles after D2):
-  1.51 / 1.56 instructions a cycle on g14 -O2 / sf + -flto.
+  1.51 / 1.56 instructions a cycle on g14 -O2 / sf + -flto. **Since D1a / D1b (`Plan/OOC.md` 26.8): 1.44 / 1.49, limited
+  by the FTQ of 8 blocks; with 16, 1.82 / 1.83 (D-18).**
 - The unit tests of OOO_CTRL, OOO_FBUF, OOO_FTQ, OOO_FERS, OOO_FETCH pass; the bug injection into the glue detected 35 of 35 changes (`SIM/CORE/results/mutate_front.txt`; the restore's RAS fields and fetch's stop in cycle R needed exact checks in the bench, since they cost only predictions or nothing visible).
 - **Mispredicted conditional branches: 6,582 / 5,742 against the model's 4,772 / 4,177** (`Plan/model/tageblk.h`,
   updated at once); 8,426 / 6,106 with D2 at full speed. Here a block's update comes at its pop, after its last

@@ -24,13 +24,18 @@
 23 DETECTED      last parcel of a 32-bit instruction
 24 DETECTED      skid: a group lost
 25 DETECTED      skid: not held
-26 DETECTED      fetch buffer gives while the skid is full
-27 DETECTED      the rare classes not cut
-28 DETECTED      group: one taken too many
-29 DETECTED      group overwritten while busy
-30 DETECTED      group and skid not flushed
-31 DETECTED      decode does not read the skid
-32 DETECTED      FTQ: head read of the next entry
-33 DETECTED      FTQ: one free too many
-34 DETECTED      fetch buffer: one free too many
-35 mutations, 35 detected
+26 DETECTED      R: the buffer's group over the skid's
+27 DETECTED      R: the skid's bits not taken
+28 DETECTED      R: the skid's blocks not taken
+29 DETECTED      R: not freed when it moves into the group register
+30 DETECTED      R: empty not counted as free (a bubble)
+31 DETECTED      fetch buffer gives while the skid is full
+32 DETECTED      the rare classes not cut
+33 DETECTED      group: one taken too many
+34 DETECTED      group overwritten while busy
+35 DETECTED      group, R and skid not flushed
+36 DETECTED      R alone not flushed
+37 DETECTED      FTQ: head read of the next entry
+38 DETECTED      FTQ: one free too many
+39 DETECTED      fetch buffer: one free too many
+40 mutations, 40 detected
