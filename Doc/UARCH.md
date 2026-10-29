@@ -274,6 +274,8 @@ sums over whole units are what to compare.
 | **Over, 2026-10-28** | **3.2k** | **4.6k** | **5.9k** |
 | Needed, 2026-10-28 late (`Plan/OOC.md` 24.4: CORE_CSR and CORE_MDU brought in; they stay at mmRISC-2's in-chip sizes, with L1 at its estimate until the run with 4 HPM counters; D-16's pipelined multiplier `OOO_PMUL` 164 and its write-back input about 64, 10 DSP blocks; issue queue +20) | 21.4k | 22.0k | 22.6k |
 | **Over, 2026-10-28 late** | **3.5k** | **4.9k** | **6.2k** |
+| Needed, 2026-10-29 (the front end put together, `Plan/OOC.md` 26.6: OOC_FE 6,162 with decode, in place of OOC_FRONT 2,588, fetch buffer 940, FTQ 148, decode 1,808 and the FTQ widened 0.15k to 0.25k: +0.4k to +0.5k, the FTQ's four reads and the glue) | 21.9k | 22.5k | 23.0k |
+| **Over, 2026-10-29** | **4.0k** | **5.4k** | **6.6k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is

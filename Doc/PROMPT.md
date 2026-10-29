@@ -3393,3 +3393,56 @@ Besides that, with `-lag` the bench could resolve a branch after its commit, whi
 ```text
 Analyze the OOC_FE result (WNS -2.168 ns through decode's cut into the fetch buffer's consume) and fix the path, with tests and Vivado scripts.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I analyzed OOC_FE's timing violation and took decode out of the path that caused it. Commit 2fbe489 is pushed to dev. Whether it now fits 50 MHz is not yet confirmed by a Vivado rerun.
+
+**Analysis (Plan/OOC chapter 26)**
+- All ten worst paths were one loop: from the fetch buffer's head pointer (`hb`) back to the head parcel (`hoff`) and `hb` itself.
+- The worst path, step by step:
+
+  | Section | Time |
+  |---|---|
+  | LUTRAM read | 3.5 ns |
+  | Window and length chain (to slot 2's bits) | 10.0 ns |
+  | RVC expansion | 12.7 ns |
+  | CORE_DEC's illegal | 16.9 ns |
+  | `cut` | 17.6 ns |
+  | `consume` → `npop` → `hoff` | 22.8 ns |
+
+- The **7.6 ns from 10.0 to 17.6 ns are a full decode**. Plan/CORE 2.1 sent decode's `cut` to the fetch buffer, which put decode into the loop that OOC 13.6 forbade.
+- Size: 6,602 LUTs, 1.08k more than the parts measured alone.
+  - Most of it is the FTQ with four read ports, +0.6k; the budget allowed only 0.15k to 0.25k for widening it.
+  - The remaining 0.3k or so is B1's glue.
+  - The budget table (UARCH 4.4) is updated after the rerun.
+
+**The fix**
+- **New module OOO_RARE:** tells from the first parcel alone whether an instruction is of a "rare class" decoded in slot 0 only. A few gates, 2 or 3 levels.
+  - 32-bit instructions by major opcode (LOAD-FP, STORE-FP, FMA, OP-FP, AMO, MISC-MEM, SYSTEM).
+  - Compressed: c.fld / c.fsd / c.fldsp / c.fsdsp / c.ebreak.
+- **OOO_FRONT:** the fetch buffer's group is cut with OOO_RARE on the buffer's own output, before the skid's select, so both decode and the skid's select leave the loop.
+- **OOO_DEC:** illegal is no longer a cut class; it is reported in every slot (in slots 1 to 3 for illegal encodings outside the rare opcodes).
+- The OOC 13.6 contract now reads: the count taken comes only from the buffer's own valid instructions, a predecode of a few gates and a registered stall; nothing of decode.
+- Expected: decode's 7.6 ns and the skid's select leave, OOO_RARE's ~1 ns enters: about +4 ns of slack.
+
+**Verification**
+- **tb_dec:** the expected `cut` checked against a predecode written in the test from the opcode list; every legal instruction of a rare class caught by OOO_RARE; illegal in every slot. 3 million instructions (1.5 million illegal) and every RVC encoding: PASS.
+- **Unit tests:** all 28 PASS.
+- **B1:** 175 riscv-tests × 2 seeds and both CoreMark builds PASS; CoreMark's numbers unchanged.
+- **Bug injection:**
+  - Unit side: 10 mutations (OOO_RARE's opcodes, c.ebreak, RVC FP loads/stores, the RVC/32-bit select, the old behaviour of illegal in slot 0 only; M192 rewritten, M331 to M339 added), all detected. The unit campaign now has 303.
+  - Front-end side: still 35/35.
+- **Scripts:** OOO_RARE added to synth_ooo.tcl and yosys_size.sh. The .bat unchanged. The first OOC_FE reports committed too.
+
+**Request:** please rerun in Vivado:
+- `synth_ooo.bat OOC_FE` (to check the fix)
+- `synth_ooo.bat OOC_DEC` (illegal now in every slot and cut taken from OOO_RARE, so its size may move a little)
+<!-- /answer -->
+
+## 92. 2026-10-29 21:39:05 JST
+
+```text
+I ran synth_ooo.bat OOC_FE and synth_ooo.bat OOC_DEC. Please check output/*/summary.txt.
+```

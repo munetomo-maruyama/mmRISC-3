@@ -2232,3 +2232,61 @@ The contract of 13.6 (the count taken must not wait for anything decode computes
 
 - `synth_ooo.bat OOC_FE` (the fix), and `synth_ooo.bat OOC_DEC` (decode now reports illegal in every slot and takes
   its cut from OOO_RARE: its size may move a little).
+
+### 26.6 The rerun (2026-10-29)
+
+| Run | LUT | of it LUTRAM | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|---|
+| OOC_FE (first version) | 6,602 | 602 | 2,690 | −2.168 ns | 23 |
+| **OOC_FE (fixed in 26.3)** | **6,162** | 602 | 2,696 | **+0.030 ns** | 18 |
+| OOC_DEC (before) | 1,823 | 0 | 504 | +7.813 ns | 9 |
+| **OOC_DEC (illegal in every slot, cut from OOO_RARE)** | **1,807** | 0 | 507 | **+7.900 ns** | 9 |
+
+| Instance | Before | Now |
+|---|---|---|
+| OOO_FBUF, with decode | 3,240 | **2,849** (940 + 1,807 alone: +0.1k) |
+| OOO_FETCH | 2,234 | 2,211 |
+| OOO_FTQ | 750 | 745 |
+| OOO_FERS | 53 | 54 |
+| the rest of OOO_FRONT | about 325 | about 303 |
+
+- **The loop is gone from the worst paths, and the size fell by 440 LUTs**: the fetch buffer with decode lost 391
+  (no `cut` from decode, and no longer squeezed to make the loop). Against the parts as the budget counts them
+  (OOC_FRONT 2,588, fetch buffer 940, FTQ 148, decode 1,808, the FTQ widened 0.15k to 0.25k) OOC_FE is **+0.4k to
+  +0.5k**: the FTQ's four reads beyond the widening allowed for, and the glue. The budget (`Doc/UARCH.md` 4.4) takes
+  the measured 6,162 in place of those parts.
+- **But it closes by 0.030 ns only.** All ten worst paths are one forward path, not a loop: the head pointer `hb` →
+  the block data (LUTRAM) → the window and the chain of instruction lengths to **slot 3**'s bits (through the skid's
+  select) → **the whole decode of slot 3** → the group register (`g_d[3]`: `rd`'s reset, `port`, `cls`, `ext_ans`,
+  `lat2`).
+
+| ns | Where |
+|---|---|
+| 1.0 → 4.0 | `hb` (fan-out 150) → the block data (LUTRAM read) |
+| → 10.9 | the window and the length chain, to slot 3's bits (the skid's select) |
+| → 20.4 | decode of slot 3 (RVC expansion, CORE_DEC, the slot's fields): 9 levels, 9.5 ns |
+
+  This is D1 as planned (read the buffer and decode in one cycle), 80 % of it routing. Inside the whole core, place
+  and route will be worse, and 13.6 judged 0.539 ns too thin: **this margin is not enough**. The loop's own slack is
+  not in the reports (all ten paths end at `g_d[3]`); without decode it is at least that of OOC_FBUF alone in 13.7
+  (+3.5 ns) less OOO_RARE.
+
+### 26.7 What can be done (proposed)
+
+| Way | Effect on the path | Cost |
+|---|---|---|
+| **A. A raw stage before decode** (D1a: the window into a raw register; D1b: decode from it into the group register) | The read and the window get a cycle (about 11 ns), decode gets a cycle (about 12 ns, as OOC_DEC alone): both with about 8 ns of slack | One cycle more from a redirect to D2: **−0.3 % / −0.2 % CoreMark/MHz** in the model (`dec_depth` 2 → 3: 6.191 → 6.172, 6.675 → 6.660); about 170 FFs and a few tens of LUTs |
+| B. Trim D1 as it is (`hb` duplicated against its fan-out of 150, the instruction starts precomputed when a block is written) | 1 to 2 ns, not sure | A few tens of LUTs; the starts need fetch's predecode to give them |
+| C. Keep it | — | The risk at G1 |
+
+- Not possible: decoding slots 2 and 3 a cycle later from the group register. Fusion (`OOO_FUSE`, 4 instructions → 2
+  µops) may take all 4 slots in the cycle after the group register loads.
+- **A, in detail**: the raw register R takes the fetch buffer's group; R moves into the group register (decoded)
+  when the group register empties (`g_left` = 0, which waits for D2's `g_take`). For the fetch buffer's `consume` to
+  stay free of `g_take` (13.6), the existing skid stays as a second raw entry: the buffer gives while the skid is
+  empty (a registered condition); R takes the skid's group, or the buffer's. The skid's select moves in front of R,
+  out of the path to decode.
+- **Recommended: A.** It costs 0.2 to 0.3 % and makes both halves of D1 close with room, where B is a guess, and the
+  front end is the one block whose timing the whole core cannot help (its paths are long and 80 % routing already
+  alone). If it is taken: OOO_FRONT, B1 (`tb_front` follows the extra stage), the front end's mutations, and a report
+  of the loop's own worst path in `synth_ooo.tcl` for OOC_FE.
