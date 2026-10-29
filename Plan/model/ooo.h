@@ -29,6 +29,7 @@
 // Caches always hit (as calibrated in inorder.h); no wrong path is run.
 //---------------------------------------------------------------------------
 #pragma once
+#include <deque>
 #include <queue>
 #include <unordered_map>
 #include <list>
@@ -46,6 +47,9 @@ struct OooCfg {
     int mdu_busy = 0;       // >0: one MDU, not pipelined (mmRISC-2's CORE_MDU): a multiply holds it this many cycles, a divide lat_div; a divide no longer holds ALU0
     int ubtb = 64;
     std::string pred = "S";     // perfect, gshare, S, M, L (TAGE)
+    int upd = 0;                // TAGE update: 0 at the prediction (trace-driven), 1 at the branch's commit
+    int upd_lag = 1;            // upd=1: cycles after the commit (the FTQ pop's write, read by the next F0)
+    bool stale = true;          // upd=1: the update from the entries as read at the prediction (OOO_TAGE)
     int fusion = 0;             // 0 none, 1 conservative, 2 + ALU + branch, 3 + ALU + ALU
     int chain = 1;
     bool fuse_1w = false;       // fuse only pairs that write at most one register
@@ -153,6 +157,8 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     }
     // predictors
     Tage tage = Tage::make(c.pred == "perfect" || c.pred == "gshare" ? "S" : c.pred.c_str());
+    struct TUpd { long when; Tage::Pred p; bool tk; };
+    std::deque<TUpd> tq;                        // upd=1: the updates not made yet (commit order)
     std::vector<uint8_t> pht(8192, 2);
     unsigned ghist = 0;
     Ubtb ub(c.ubtb);
@@ -373,6 +379,12 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                         dir = pht[pi] >= 2;
                         pht[pi] = tk ? (pht[pi] < 3 ? pht[pi] + 1 : 3) : (pht[pi] > 0 ? pht[pi] - 1 : 0);
                         ghist = ((ghist << 1) | tk) & 0xfff;
+                    } else if (c.upd) {
+                        // the updates of the branches committed before this block's F0 are in the tables
+                        while (!tq.empty() && tq.front().when <= blk_f0) { tage.update(tq.front().p, tq.front().tk, c.stale); tq.pop_front(); }
+                        Tage::Pred p = tage.predict(r.pc, tk);
+                        dir = p.pred;
+                        tq.push_back(TUpd{cmt + c.upd_lag, p, tk});
                     } else dir = tage.step(r.pc, tk);
                     mp_t = dir && known; mp_tgt = known ? bt->second : 0;
                 } else {

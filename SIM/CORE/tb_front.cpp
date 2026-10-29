@@ -3,7 +3,7 @@
 // through the I$ model, the FTQ, the restore, the fetch buffer, decode, the
 // D1 / D2 group register), on real programs against Spike's path
 //
-//   tb_front [-seed <n>] [-full] [-miss <%>] [-max <cycles>] [-v] <elf> ...
+//   tb_front [-seed <n>] [-full] [-miss <%>] [-lag <n>] [-mpki-max <x>] [-max <cycles>] [-v] <elf> ...
 //
 // The program is loaded into the bench's Memory (bench.h) and fetched
 // through ICacheModel (ports.h; -miss: % of the requests that miss, default
@@ -46,6 +46,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <deque>
+#include <algorithm>
+#include <map>
 #include <memory>
 #include <random>
 #include <string>
@@ -78,7 +80,7 @@ static void cti_kind(uint32_t x, bool& call, bool& ret, bool& ijmp)
 
 struct Opts { uint64_t seed = 1; int lag = -1; double mpki_max = 0; bool full = false; int miss = 8; uint64_t max = 20000000; bool verbose = false; };
 
-struct Result { bool pass = false; std::string why; long updates = 0, restores = 0, insns = 0, cycles = 0, misp = 0, m_br = 0, m_ret = 0, m_ind = 0, m_other = 0, flush = 0, wrong = 0, taken_cyc = 0; long imiss = 0, ireq = 0; };
+struct Result { bool pass = false; std::string why; std::map<uint64_t, long> by_pc; long updates = 0, restores = 0, lag_sum = 0, pushes = 0, insns = 0, cycles = 0, misp = 0, m_br = 0, m_ret = 0, m_ind = 0, m_other = 0, flush = 0, wrong = 0, taken_cyc = 0; long imiss = 0, ireq = 0; };
 
 static Result run(const std::string& elf, const Opts& o)
 {
@@ -114,6 +116,7 @@ static Result run(const std::string& elf, const Opts& o)
     int exp_ex[8] = {0}, exp_tk[8] = {0};    // per FTQ block: the true path's conditional branches resolved, by parcel
     struct Pushed { bool v = false; uint64_t line = 0, ras_val = 0; int ras_ptr = 0; uint32_t tmeta[9] = {0}; };
     Pushed pushed[8];                         // per FTQ entry: what its push wrote
+    long npush = 0, push_at[8] = {0};         // blocks pushed, and the count when each entry was pushed
     long last_take = 0, last_ready = 0;
 
     d->clk = 0; d->rst_n = 1; d->eval(); d->rst_n = 0; d->eval(); d->rst_n = 1; d->eval();
@@ -207,6 +210,7 @@ static Result run(const std::string& elf, const Opts& o)
                 fail(m);
             }
             res.updates++;
+            res.lag_sum += npush - push_at[fhd];
         }
 
         // ---- D2 takes from the group
@@ -270,9 +274,10 @@ static Result run(const std::string& elf, const Opts& o)
             uint32_t op = x.insn & 0x7f;
             bool sys = len == 4 && op == 0x73, fencei = len == 4 && op == 0x0f && ((x.insn >> 12) & 7) == 1;
             bool flush = x.trap || sys || fencei;
-            if (isbr && !x.trap) rsq.push_back(Rs{cyc + 1 + (long)(rng() % (flush || T != P ? 1 : 3)), ftq, e, T != pc + len, false});
+            // commit (the block may pop in its cycle), and before it the branch's resolution
+            long ready = std::max(last_ready, o.lag >= 0 ? cyc + std::max(o.lag, 2) : cyc + 4 + (long)(rng() % 7));
+            if (isbr && !x.trap) rsq.push_back(Rs{std::min(ready - 1, cyc + 1 + (long)(rng() % (flush || T != P ? 1 : 3))), ftq, e, T != pc + len, false});
             if (ijmp && !x.trap) btq.push_back({((pc >> 1) + len / 2 - 1), T >> 1});
-            long ready = std::max(last_ready, o.lag >= 0 ? cyc + o.lag : cyc + 4 + (long)(rng() % 7));
             last_ready = ready;
             cq.push_back(Cm{ready, ftq, x, flush, T, e});
             if (flush) { pend = true; rd = Redir{}; rd.when = ~0ul >> 1; res.flush++; }    // redirected at its commit
@@ -282,7 +287,8 @@ static Result run(const std::string& elf, const Opts& o)
                 rd.pc = T; rd.ftq = ftq; rd.e = e; rd.port = (int)(rng() % 2);
                 rd.taken = T != pc + len; rd.call = call; rd.ret = ret;
                 res.misp++;
-                if (isbr) res.m_br++; else if (ret) res.m_ret++; else if (ijmp) res.m_ind++; else res.m_other++;
+                // (by_pc[pc | 1]: those taken, predicted not taken)
+                if (isbr) { res.m_br++; res.by_pc[pc]++; if (T != pc + len) res.by_pc[pc | 1]++; } else if (ret) res.m_ret++; else if (ijmp) res.m_ind++; else res.m_other++;
             }
         }
 
@@ -290,6 +296,7 @@ static Result run(const std::string& elf, const Opts& o)
         if (rp->OOO_FRONT__DOT__out_valid) {
             Pushed& w = pushed[rp->OOO_FRONT__DOT__push_idx];
             w.v = true; w.line = (uint64_t)rp->OOO_FRONT__DOT__out_pc >> 3;
+            push_at[rp->OOO_FRONT__DOT__push_idx] = npush++;
             w.ras_ptr = rp->OOO_FRONT__DOT__out_ras_ptr; w.ras_val = rp->OOO_FRONT__DOT__out_ras_val;
             for (int k = 0; k < 9; k++) w.tmeta[k] = rp->OOO_FRONT__DOT__out_tmeta[k];
         }
@@ -313,7 +320,7 @@ static Result run(const std::string& elf, const Opts& o)
         char m[96]; snprintf(m, sizeof m, "%.2f mispredictions per 1000 instructions, more than %.2f", 1000.0 * res.misp / res.insns, o.mpki_max);
         fail(m); res.pass = false;
     }
-    res.imiss = ic.misses; res.ireq = ic.reqs;
+    res.imiss = ic.misses; res.ireq = ic.reqs; res.pushes = npush;
     d->final();
     return res;
 }
@@ -344,6 +351,15 @@ int main(int argc, char** argv)
                name.c_str(), r.pass ? "PASS" : "FAIL", r.insns, r.cycles, r.cycles ? (double)r.insns / r.cycles : 0.0, r.misp,
                r.insns ? 1000.0 * r.misp / r.insns : 0.0, r.flush, r.wrong, r.imiss, r.ireq);
         if (o.verbose) printf("    mispredicted: conditional branch %ld, return %ld, other jalr %ld, other %ld; %ld TAGE updates and %ld restores checked\n", r.m_br, r.m_ret, r.m_ind, r.m_other, r.updates, r.restores);
+        if (o.verbose && r.updates)
+            printf("    blocks pushed between a block's push and its update: %.1f on average (%ld pushed, %ld updated: %.1f on the true path)\n",
+                   (double)r.lag_sum / r.updates, r.pushes, r.updates, (double)r.lag_sum / r.updates * r.updates / r.pushes);
+        if (getenv("FRONT_BYPC")) {             // the conditional branches mispredicted most (pc count)
+            std::vector<std::pair<long, uint64_t>> v;
+            for (auto& x : r.by_pc) v.push_back({x.second, x.first});
+            std::sort(v.rbegin(), v.rend());
+            for (size_t k = 0; k < v.size() && k < 25; k++) printf("    bypc %llx %ld\n", (unsigned long long)v[k].second, v[k].first);
+        }
         if (!r.pass) { printf("    %s\n", r.why.c_str()); fails++; }
         ti += r.insns; tc += r.cycles; tm += r.misp;
     }

@@ -122,7 +122,7 @@ The bench stands in for D2 and the back end:
 | resolution | the predicted next address against Spike's: a misprediction redirects 2 to 7 cycles later (restore: block, last parcel, outcome, call / return, on a random ALU port); meanwhile D2 takes the wrong path and resolves some of its branches at random (they must not reach the TAGE update). A trap, a SYSTEM instruction and FENCE.I redirect at their commit (flush) |
 | commit | in order, 4 to 10 cycles after D2, 2 a cycle; stores go into `Memory` (FENCE.I sees the new code); the FTQ pops as OOO_CTRL pops it (one a cycle; a flush drops the rest) |
 | the glue, exactly | **every TAGE update**: the popped block's metadata as its push wrote it, the slots that ran and their outcomes as the bench resolved them on the true path; **every restore** (R + 1) reads back what the block's push wrote (line, history, slots, RAS snapshot); no I$ request in cycle R. These see faults that only cost predictions |
-| options | `-full`: no I$ miss and D2 takes 2 a cycle (what the front end delivers); `-lag n`: commit n cycles after D2; `-mpki-max x`: fail above x mispredictions per 1000 instructions |
+| options | `-full`: no I$ miss and D2 takes 2 a cycle (what the front end delivers); `-lag n`: commit n cycles after D2 (at least 2: a branch resolves before its commit); `-mpki-max x`: fail above x mispredictions per 1000 instructions; `-v`: mispredictions by kind and the blocks pushed between a block's push and its update; `FRONT_BYPC=1`: the conditional branches mispredicted most |
 
 `./run_front.sh`:
 
@@ -131,11 +131,11 @@ The bench stands in for D2 and the back end:
 | 175 riscv-tests `-p-`, 2 seeds | all fetched and decoded in Spike's order to the exit |
 | CoreMark g14 -O2 / sf + -flto | pass; every TAGE update (1.74 M) and restore checked |
 | delivered (`-full`) | 1.51 / 1.56 instructions a cycle, with every misprediction resolved 2 to 7 cycles after D2 |
-| mispredicted conditional branches | 6,466 / 5,870 (8,244 / 5,998 with `-full`); the model: 4,772 / 4,177 |
+| mispredicted conditional branches | 6,582 / 5,742 (8,426 / 6,106 with `-full`); the model: 4,772 / 4,177 |
 
-The model updates TAGE at once; here a block's update comes at its pop, after its last instruction commits. With
-commit a cycle after D2 the count is 5,980 (g14 -O2, `-full -lag 1`); with the bench's delays more blocks are
-predicted before the update. See `Plan/CORE.md` 5.2.
+The model updates TAGE at once; here a block's update comes at its pop, after its last instruction commits, 6.4 to
+6.6 blocks after its prediction. That is a small part of the difference; most of it is TAGE's history lag, which
+changes with fetch's stalls (`Plan/CORE.md` 5.3, D-17).
 
 ## B1's bug injection (`mutate_front.py`)
 

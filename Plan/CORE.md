@@ -206,13 +206,59 @@ Results (`SIM/CORE/results/front.txt`):
 - What the front end delivers (D2 taking 2 a cycle, no I$ miss, each misprediction resolved 2 to 7 cycles after D2):
   1.51 / 1.56 instructions a cycle on g14 -O2 / sf + -flto.
 - The unit tests of OOO_CTRL, OOO_FBUF, OOO_FTQ, OOO_FERS, OOO_FETCH pass; the bug injection into the glue detected 35 of 35 changes (`SIM/CORE/results/mutate_front.txt`; the restore's RAS fields and fetch's stop in cycle R needed exact checks in the bench, since they cost only predictions or nothing visible).
-- **Mispredicted conditional branches: 6,466 / 5,870 against the model's 4,772 / 4,177.** The model updates TAGE at
-  once (`Plan/model/tageblk.h`); here a block's update comes at its pop, after its last instruction commits, and the
-  blocks predicted meanwhile use tables not yet updated. With commit a cycle after D2 it is 5,980 (+25 %), with D2 at
-  full speed and commit 4 to 10 cycles after it 8,244 (+73 %). In the core, commit is about 6 cycles after D2, so
-  expect +40 to +70 %: 2k to 3k more mispredictions of about 10 cycles, **1 to 1.5 % of CoreMark's cycles**, which
-  the model does not have. To be put into the model (an update delay) before B6 compares the two.
+- **Mispredicted conditional branches: 6,582 / 5,742 against the model's 4,772 / 4,177** (`Plan/model/tageblk.h`,
+  updated at once); 8,426 / 6,106 with D2 at full speed. Here a block's update comes at its pop, after its last
+  instruction commits (6.4 to 6.6 blocks after its prediction). **Measured in 5.3: the update delay is a small part;
+  most of it is TAGE's history lag, which changes with fetch's stalls** (D-17).
 - **Vivado**: `synth_ooo.bat OOC_FE` (the whole front end, `g_take` arriving at 12 ns as from fusion and renaming).
+
+### 5.3 The TAGE update at commit, and the history lag (2026-10-29)
+
+B1 mispredicts 25 to 73 % more conditional branches than the model (5.2). The question was whether the update at
+commit is the cause. It is a small part; most of it is **the history lag varying with fetch's timing**.
+
+What was added to the model (`Plan/model`, `results/tagedelay.txt` from `tagedelay.sh`):
+
+- `tage.h`: `predict()` and `update()` apart, the update computed from the entries as read at the prediction and
+  writing them whole (what OOO_TAGE does at commit); `step()` unchanged (4,404 on the branches alone, as before).
+- `ooo.h`: `upd=1`, each branch's update at its commit (+ `upd_lag` cycles, the pop's write); `stale`.
+- `tageblk.h`: `delay`, the block's update that many blocks after its prediction (predictions from the rows as read).
+- `model tageref`: **OOO_TAGE's own algorithm** (`SIM/OOO_UNIT/tage_ref.h`, the mirror `tb_tage` holds the RTL to)
+  on the same blocks, with the history lag, the delay (and its spread) and fetch stalls.
+- `SIM/CORE/tb_front`: the blocks pushed between a block's push and its update (6.4 to 6.6 on the true path in every
+  mode), and the mispredictions by branch (`FRONT_BYPC`).
+
+Mispredicted conditional branches (CoreMark/MHz of the cycle model in brackets):
+
+| | g14 -O2 | g14 sf + -flto |
+|---|---|---|
+| `ooo.h`, TAGE per branch updated at once (G0b, D-16) | 4,393 (6.193) | 3,291 (6.680) |
+| `ooo.h`, updated at the branch's commit / 4 cycles after it | 4,436 (6.191) / 4,516 (6.188) | 3,393 (6.675) / 3,498 (6.670) |
+| `tageblk.h`, updated at once / 8 / 16 blocks later | 4,752 / 4,985 / 5,583 | 4,153 / 4,209 / 4,317 |
+| OOO_TAGE's algorithm, lag 2, updated at once | 4,576 | 3,935 |
+| the same, updated 6 blocks later (B1's distance) / 6 ± 3 | 5,279 / 5,418 | 4,526 / 4,569 |
+| the same, lag 0 after 10 / 30 / 50 % of the blocks (fetch stalls) | 7,177 / 9,643 / 8,789 | 6,225 / 7,295 / 7,019 |
+| **B1** (D2 at random / at full speed) | **6,582 / 8,426** | **5,742 / 6,106** |
+
+1. **The update at commit costs little**: −0.03 % to −0.15 % of CoreMark/MHz with the per-branch TAGE; with
+   OOO_TAGE's per-block rows at B1's distance, +700 / +600 mispredictions.
+2. **The history lag**: OOO_TAGE reads its tables at F0 with the history of that cycle, which lacks the blocks still
+   in F1 and F2: 2 blocks while fetch streams, fewer after a stall (a full FTQ or fetch buffer, an I$ miss, an
+   override, a restore). The same branch then reads with another history, another row. In a loop of one block a pass
+   (`core_bench_list` at 0x80000f18) both the exit and an iteration are missed every time: 1,788 in B1 (912 taken,
+   876 not taken), 1,687 in the model with 30 % stalls, almost none with a constant lag.
+3. **The cost**: B1 is +2.2k to +4.0k (-O2) and +2.5k to +2.8k (sf + -flto) above the G0b model; at the model's
+   10.2 cycles a misprediction (dispatch held after one), **+1.4 to +2.5 % / +1.7 to +1.9 % of the cycles**: 6.193 / 6.680
+   would become about 6.04 to 6.11 / 6.56. Inside G1's ±5 %, but a loss.
+4. **The fix (proposed D-17, `Doc/UARCH.md` 9): read with a constant lag of 2 blocks.** The index uses the history
+   without the bits of the 2 blocks before the one read, whichever of them are already in it (fetch knows how many
+   are in flight). Hardware: the bit counts of the last 2 blocks pushed (2 × 2 bits), a shift of the 70-bit history by
+   0 to 6 before the fold (a 7:1 select chosen early from registers, about 0.15k LUTs, on the F0 path to the block
+   RAM addresses), and the count of the block before in each FTQ entry (+2 bits) for the restore. Expected: the
+   model's 5,279 / 4,526 instead of B1's, **about −1.2k to −3.1k mispredictions, +0.8 to +2.0 % CoreMark**.
+5. **For B6**: even then OOO_TAGE (per block, updated at commit) is +0.9k / +1.2k above the per-branch TAGE of
+   `ooo.h` (+0.6 % / +0.8 % of the cycles). The model's reference for G1 should get OOO_TAGE's structure with the
+   commit timing (`tage_ref.h` in `ooo.h`) before B6 compares the two.
 
 ---
 

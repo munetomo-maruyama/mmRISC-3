@@ -3302,3 +3302,46 @@ Decisions 4.1 to 4.6 are recorded as accepted in Plan/CORE(_J), and answer 87 an
 ```text
 Go on with B1: the front end alone (fetch through the I$ model, FBUF, decode, fusion off), checked against Spike's pc sequence.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+B1 (the front end alone) is done. It is pushed to dev as commit 04effe7.
+
+**What I built**
+- **[OOO_FRONT.sv](RTL/CPU/OOO/OOO_FRONT/OOO_FRONT.sv):** a module that puts the front end together up to the D1/D2 register. OOO_CORE will use it as it is.
+  - It holds fetch, the FTQ, the restore (FERS), the fetch buffer, decode, and the group register of 4 decoded instructions.
+  - Besides those, it has the credit (the fetch buffer's and the FTQ's free room), the branch outcomes kept for the TAGE update, and the target array for jalr.
+- **[tb_front.cpp](SIM/CORE/tb_front.cpp):** a bench that fetches and decodes real programs through the I$ model and compares them with Spike's path.
+  - The bench stands in for D2 and the back end (redirect on a misprediction, flush on traps and FENCE.I, commit, the FTQ's pops).
+  - Every TAGE update and every restore is compared with what the block's push wrote.
+
+**Decided on the way (Plan/CORE section 5.2)**
+- **A skid between D1 and D2:** there is the contract (OOC 13.6) that the fetch buffer's consume must not depend on D2's result. Without the skid every group leaves a 1-cycle gap, 4 instructions in 3 cycles. The skid's select is on the 164 raw bits before decode, cheaper than on the 680 bits after it.
+- **FTQ:** widened to 312 bits a block, with a fourth read port, reading the head, for the TAGE update.
+- **One FTQ pop a cycle:** OOO_CTRL changed from 2 to 1, because TAGE can update only one block a cycle. Its unit test and the bug injection (M330) were updated too.
+- **How the branch outcomes are kept:** in flip-flops by block × parcel, turned into slots at the pop.
+- In Phase 1 the FP fields are not put in the group register.
+
+**Results**
+- 175 riscv-tests (2 seeds) and 2 CoreMark builds all ran to their exit in the same order as Spike.
+  - CoreMark's 1.74 million TAGE updates and its restores all matched too.
+- What the front end can deliver, with 2 instructions taken a cycle and no I$ miss: 1.51 / 1.56 instructions a cycle.
+- Bug injection into the front end's glue: 35/35 detected.
+  - At first 4 slipped through. A wrong RAS slice or not stopping fetch in cycle R only costs a few predictions, or shows nothing outside.
+  - So the bench got an exact comparison with what was pushed, and a check that "there is no I$ request in cycle R".
+- For the changed FTQ / FBUF / CTRL, the unit tests and the unit bug injection (35/35) pass as well.
+
+**The gap with the model (to look at before B6)**
+- Mispredicted conditional branches are 6,466 / 5,870, 25 to 73 % more than the model's 4,772 / 4,177.
+- The updates' contents were all checked correct, so the cause is the update's timing. The model updates TAGE at once, but in the real core it is not updated until the block's last instruction commits and the block is popped.
+- In the core commit comes about 6 cycles after D2, so I expect CoreMark's cycles to grow by 1 to 1.5 %. The model does not have this.
+
+**Request:** please run `synth_ooo.bat OOC_FE` in Vivado. It checks the LUTs and 50 MHz of the whole front end. The .bat is unchanged; only synth_ooo.tcl and OOC_WRAP.sv were changed.
+<!-- /answer -->
+
+## 90. 2026-10-29 19:04:07 JST
+
+```text
+Add the TAGE update delay to the model (tageblk.h / ooo.h) and measure how much it changes CoreMark's mispredictions and cycles, against B1's numbers.
+```

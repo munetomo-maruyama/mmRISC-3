@@ -1,0 +1,34 @@
+== g14-o2-zbsc
+ooo upd=0            branches mispredicted  4393  CoreMark/MHz 6.193
+ooo upd=1            branches mispredicted  4436  CoreMark/MHz 6.191
+ooo upd=1 upd_lag=4  branches mispredicted  4516  CoreMark/MHz 6.188
+tageblk delay 0         mispredicted  4752
+tageblk delay 4         mispredicted  4825
+tageblk delay 8         mispredicted  4985
+tageblk delay 12        mispredicted  5369
+tageblk delay 16        mispredicted  5583
+tageref lag=2 delay=0            mispredicted  4576
+tageref lag=2 delay=6            mispredicted  5279
+tageref lag=2 delay=7            mispredicted  5473
+tageref lag=2 delay=6 spread=3   mispredicted  5418
+tageref lag=0 delay=6            mispredicted  4696
+tageref lag=2 delay=6 stall=10   mispredicted  7177
+tageref lag=2 delay=6 stall=30   mispredicted  9643
+tageref lag=2 delay=6 stall=50   mispredicted  8789
+== g14-sflto-zbsc
+ooo upd=0            branches mispredicted  3291  CoreMark/MHz 6.680
+ooo upd=1            branches mispredicted  3393  CoreMark/MHz 6.675
+ooo upd=1 upd_lag=4  branches mispredicted  3498  CoreMark/MHz 6.670
+tageblk delay 0         mispredicted  4153
+tageblk delay 4         mispredicted  4078
+tageblk delay 8         mispredicted  4209
+tageblk delay 12        mispredicted  4248
+tageblk delay 16        mispredicted  4317
+tageref lag=2 delay=0            mispredicted  3935
+tageref lag=2 delay=6            mispredicted  4526
+tageref lag=2 delay=7            mispredicted  4562
+tageref lag=2 delay=6 spread=3   mispredicted  4569
+tageref lag=0 delay=6            mispredicted  4103
+tageref lag=2 delay=6 stall=10   mispredicted  6225
+tageref lag=2 delay=6 stall=30   mispredicted  7295
+tageref lag=2 delay=6 stall=50   mispredicted  7019

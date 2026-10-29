@@ -10,17 +10,26 @@
 //       issue_w, fetch_bytes, fb, fe_depth, dec_depth, iss_to_ex, redirect,
 //       override_at, rob, iq, lq, sq, ckpt, alu, lsu, mul, mul_shared,
 //       lat_load, lat_mul, mdu_busy, ubtb, pred (perfect / gshare / S / M / L),
-//       fusion (0-3), chain, fuse_1w, fuse_2src, ck1, ck_jal, mem_cons, fwd, keep_spec, alu_split, iters
+//       fusion (0-3), chain, fuse_1w, fuse_2src, ck1, ck_jal, mem_cons, fwd, keep_spec, alu_split,
+//       upd (TAGE update 0 at once, 1 at commit), upd_lag, stale, iters
 //   model tage <trace.bin>
 //       the conditional branches through TAGE-S / M / L (to hold against
 //       ../trace/analyze.py)
-//   model tageblk <trace.bin> [slots=2 hist=0 lag=0 halve=1]
-//       TAGE-S as it can be built in block RAM, per fetch block (tageblk.h)
+//   model tageblk <trace.bin> [slots=2 hist=0 lag=0 halve=1 delay=0 stale=1]
+//       TAGE-S as it can be built in block RAM, per fetch block (tageblk.h);
+//       delay: blocks between a block's prediction and its update
+//   model tageref <trace.bin> [lag=2 stall=0 delay=0 spread=0 seed=1]
+//       OOO_TAGE's algorithm (SIM/OOO_UNIT/tage_ref.h) on the same blocks
 //---------------------------------------------------------------------------
 #include "inorder.h"
 #include "tage.h"
 #include "ooo.h"
 #include "tageblk.h"
+#include "../../SIM/OOO_UNIT/tage_ref.h"
+#include <deque>
+#include <map>
+#include <algorithm>
+#include <random>
 
 static void print_inorder(const InorderResult& r, long iters)
 {
@@ -89,6 +98,9 @@ int main(int argc, char** argv)
         c.fwd = o.get("fwd", c.fwd);
         c.keep_spec = (int)o.get("keep_spec", c.keep_spec);
         c.alu_split = (int)o.get("alu_split", c.alu_split);
+        c.upd = (int)o.get("upd", c.upd);
+        c.upd_lag = (int)o.get("upd_lag", c.upd_lag);
+        c.stale = o.get("stale", c.stale);
         auto it = o.kv.find("pred");
         if (it != o.kv.end()) { c.pred = it->second; o.kv.erase(it); }
         o.check();
@@ -115,14 +127,69 @@ int main(int argc, char** argv)
     } else if (mode == "tageblk") {
         int slots = (int)o.get("slots", 2), hist = (int)o.get("hist", 0), lag = (int)o.get("lag", 0);
         bool halve = o.get("halve", 1);
+        int delay = (int)o.get("delay", 0);
+        bool stale = o.get("stale", 1);
         o.check();
         TageBlk tb(slots, hist, lag);
         tb.halve = halve;
+        tb.delay = delay;
+        tb.stale = stale;
         tb.run(t);
-        printf("TAGE-S per block (slots %d, hist %d, lag %d, halve %d): blocks %ld  conditional branches %ld  mispredicted %ld (%.3f %%)  past the slots %ld\n",
-               slots, hist, lag, (int)halve, tb.stat_blocks, tb.stat_br, tb.stat_miss, 100.0 * tb.stat_miss / tb.stat_br, tb.stat_past);
+        printf("TAGE-S per block (slots %d, hist %d, lag %d, halve %d, delay %d%s): blocks %ld  conditional branches %ld  mispredicted %ld (%.3f %%)  past the slots %ld\n",
+               slots, hist, lag, (int)halve, delay, delay ? (stale ? " stale" : " fresh") : "", tb.stat_blocks, tb.stat_br, tb.stat_miss, 100.0 * tb.stat_miss / tb.stat_br, tb.stat_past);
         printf("blocks by branches used: 0 %ld  1 %ld  2 %ld  3 %ld  4+ %ld\n", tb.stat_nbr[0], tb.stat_nbr[1],
                tb.stat_nbr[2], tb.stat_nbr[3], tb.stat_nbr[4] + tb.stat_nbr[5] + tb.stat_nbr[6] + tb.stat_nbr[7]);
+    } else if (mode == "tageref") {
+        // OOO_TAGE's own algorithm (SIM/OOO_UNIT/tage_ref.h, which tb_tage holds the RTL to) on the
+        // blocks of tageblk.h: lag blocks not yet in the history at a block's read, its update
+        // `delay` blocks after its prediction, from the rows as read (Plan/CORE.md 5.3)
+        int lag = (int)o.get("lag", 2), delay = (int)o.get("delay", 0), spread = (int)o.get("spread", 0);
+        int stall = (int)o.get("stall", 0);     // % of the blocks read after a fetch stall: every block before is in the history
+        long seed = o.get("seed", 1);
+        o.check();
+        std::mt19937_64 rng(seed);
+        int target = delay;                     // spread: the blocks pending before an update vary in delay +- spread
+        TageBlk tb(3, 1, 0);
+        TageRef ref;
+        struct Push { int n, bits; };
+        struct Upd { Bits m; int ex, tk; };
+        std::deque<Push> hq; std::deque<Upd> uq;
+        long nblk = 0, nbr = 0, nmiss = 0, past = 0;
+        std::map<uint64_t, long> bypc;          // by the address of the branch's last parcel
+        tb.other = [&](uint64_t start, const std::vector<TageBlk::Br>& br, size_t& stop) {
+            int l = (stall && (int)(rng() % 100) < stall) ? 0 : lag;
+            while ((int)hq.size() > l) { ref.push(hq.front().n, hq.front().bits); hq.pop_front(); }
+            TageRef::Rd r = ref.read(start >> 1);
+            int sv = 0, par[3] = {0, 0, 0};
+            for (size_t s = 0; s < br.size() && s < 3; s++) { sv |= 1 << s; par[s] = (int)((br[s].pc_end >> 1) & 7); }
+            int pred, bb; Bits m;
+            ref.f2(r, sv, par, pred, bb, m);
+            stop = br.size();
+            int ex = 0, tk = 0, n = 0;
+            for (size_t s = 0; s < br.size(); s++) {
+                bool p = s < 3 ? (pred >> s) & 1 : false;          // a 4th branch: not taken
+                nbr++;
+                if (s >= 3) past++;
+                if (s < 3) { ex |= 1 << s; tk |= (int)br[s].tk << s; n++; }
+                if (p != br[s].tk) { nmiss++; bypc[br[s].pc_end]++; stop = s; break; }
+            }
+            nblk++;
+            hq.push_back(Push{n, tk});
+            uq.push_back(Upd{m, ex, tk});
+            while ((int)uq.size() > target) {
+                ref.update(uq.front().m, uq.front().ex, uq.front().tk); uq.pop_front();
+                if (spread) target = delay - spread + (int)(rng() % (2 * spread + 1));
+            }
+        };
+        tb.run(t);
+        printf("OOO_TAGE (tage_ref.h, lag %d (0 after %d %% stalls), delay %d +- %d): blocks %ld  conditional branches %ld  mispredicted %ld (%.3f %%)  past the slots %ld\n",
+               lag, stall, delay, spread, nblk, nbr, nmiss, 100.0 * nmiss / nbr, past);
+        if (o.get("bypc", 0) || getenv("TAGE_BYPC")) {
+            std::vector<std::pair<long, uint64_t>> v;
+            for (auto& x : bypc) v.push_back({x.second, x.first});
+            std::sort(v.rbegin(), v.rend());
+            for (size_t k = 0; k < v.size() && k < 25; k++) printf("    bypc %llx %ld\n", (unsigned long long)v[k].second, v[k].first);
+        }
     } else {
         fprintf(stderr, "unknown mode %s\n", mode.c_str());
         return 1;

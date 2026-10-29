@@ -32,6 +32,7 @@
 //---------------------------------------------------------------------------
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <vector>
 #include "model.h"
 
@@ -68,11 +69,134 @@ struct TageBlk {
     }
 
     struct Br { uint64_t pc_end; bool tk; };
+
+    // ---- delay > 0 (Plan/CORE.md 5.3): every prediction of a block is
+    // made from the rows as read (OOO_TAGE at F2), and the block's update
+    // comes `delay` blocks later (at commit, the FTQ's pop), computed from
+    // those rows (stale) or from the rows as they are then, the rows it
+    // writes written whole. delay = 0 keeps the trace-driven block() below.
+    int delay = 0;
+    bool stale = true;
+    struct Row { int tag; uint8_t u; uint8_t ctr[8]; };
+    struct Pend {
+        int idx[8], tg[8];
+        Row row[8];
+        unsigned bi[8]; uint8_t base[8];
+        std::vector<Br> br; size_t nb;
+    };
+    std::vector<Pend> pend;     // the blocks predicted, not updated yet (oldest first)
+
+    void update_block(const Pend& p)
+    {
+        Row e[8]; uint8_t eb[8];
+        for (int j = 0; j < n; j++) {
+            if (stale) e[j] = p.row[j];
+            else { e[j].tag = tag[j][p.idx[j]]; e[j].u = u[j][p.idx[j]]; for (int q = 0; q < slots; q++) e[j].ctr[q] = ctr[j][p.idx[j]][q]; }
+        }
+        for (size_t s = 0; s < p.nb; s++) eb[s] = stale ? p.base[s] : base[p.bi[s]];
+        bool wr[8] = {false}, wbase[8] = {false};
+        int prov = -1, alt = -1;
+        for (int j = n - 1; j >= 0; j--)
+            if (e[j].tag == p.tg[j]) { if (prov < 0) prov = j; else { alt = j; break; } }
+        for (size_t s = 0; s < p.nb; s++) {
+            bool tk = p.br[s].tk;
+            auto upd = [tk](uint8_t& c, int mx) { c = tk ? (c < mx ? c + 1 : mx) : (c > 0 ? c - 1 : 0); };
+            bool base_p = eb[s] >= 2;
+            if ((int)s >= slots) { upd(eb[s], 3); wbase[s] = true; }
+            else {
+                bool alt_p = alt >= 0 ? e[alt].ctr[s] >= 4 : base_p;
+                bool prov_p, pred;
+                if (prov >= 0) {
+                    int c = e[prov].ctr[s];
+                    prov_p = c >= 4;
+                    bool weak = (c == 3 || c == 4) && e[prov].u == 0;
+                    pred = (weak && use_alt >= 8) ? alt_p : prov_p;
+                    if (weak && prov_p != alt_p)
+                        use_alt = alt_p == tk ? (use_alt < 15 ? use_alt + 1 : 15) : (use_alt > 0 ? use_alt - 1 : 0);
+                } else prov_p = pred = base_p;
+                if (pred != tk && prov < n - 1) {
+                    int fr[8], nf = 0;
+                    for (int j = prov + 1; j < n; j++) if (e[j].u == 0) fr[nf++] = j;
+                    if (nf) {
+                        int j = (nf == 1 || (nbr & 1)) ? fr[0] : fr[1];
+                        e[j].tag = p.tg[j];
+                        for (int q = 0; q < slots; q++) {
+                            bool ap = alt >= 0 ? e[alt].ctr[q] >= 4 : base_p;
+                            e[j].ctr[q] = (q == (int)s ? tk : ap) ? 4 : 3;
+                        }
+                        e[j].u = 0; wr[j] = true;
+                    } else {
+                        for (int j = prov + 1; j < n; j++) if (e[j].u > 0) { e[j].u--; wr[j] = true; }
+                    }
+                }
+                if (prov >= 0) {
+                    upd(e[prov].ctr[s], 7); wr[prov] = true;
+                    if (prov_p != alt_p) e[prov].u = prov_p == tk ? (e[prov].u < 3 ? e[prov].u + 1 : 3) : (e[prov].u > 0 ? e[prov].u - 1 : 0);
+                    if (alt < 0 && e[prov].u == 0) { upd(eb[s], 3); wbase[s] = true; }
+                } else { upd(eb[s], 3); wbase[s] = true; }
+            }
+            nbr++;
+            if (halve && (nbr & 0x3ffff) == 0)
+                for (auto& t : u) for (auto& x : t) x >>= 1;
+        }
+        for (int j = 0; j < n; j++)
+            if (wr[j]) { tag[j][p.idx[j]] = e[j].tag; u[j][p.idx[j]] = e[j].u; for (int q = 0; q < slots; q++) ctr[j][p.idx[j]][q] = e[j].ctr[q]; }
+        for (size_t s = 0; s < p.nb; s++) if (wbase[s]) base[p.bi[s]] = eb[s];
+    }
+
+    int block_delayed(uint64_t start, const std::vector<Br>& br, size_t& stop)
+    {
+        stat_blocks++;
+        size_t hl = blk_hlen.size() > (size_t)lag ? blk_hlen[blk_hlen.size() - 1 - lag] : 0;
+        uint64_t pcs = start >> 1;
+        unsigned nmask = (1u << nlog) - 1;
+        Pend p;
+        for (int j = 0; j < n; j++) {
+            unsigned fi = fold(hl, hists[j], nlog);
+            unsigned f1 = fold(hl, hists[j], tags[j]), f2 = fold(hl, hists[j], tags[j] - 1);
+            p.idx[j] = (int)((pcs ^ (pcs >> (nlog - j)) ^ fi) & nmask);
+            p.tg[j] = (int)((pcs ^ f1 ^ ((uint64_t)f2 << 1)) & ((1u << tags[j]) - 1));
+            p.row[j].tag = tag[j][p.idx[j]]; p.row[j].u = u[j][p.idx[j]];
+            for (int q = 0; q < slots; q++) p.row[j].ctr[q] = ctr[j][p.idx[j]][q];
+        }
+        int prov = -1, alt = -1;
+        for (int j = n - 1; j >= 0; j--)
+            if (p.row[j].tag == p.tg[j]) { if (prov < 0) prov = j; else { alt = j; break; } }
+        int misses = 0;
+        stop = br.size();
+        for (size_t s = 0; s < br.size() && s < 8; s++) {
+            bool tk = br[s].tk;
+            p.bi[s] = (unsigned)((br[s].pc_end >> 1) & ((1u << blog) - 1));
+            p.base[s] = base[p.bi[s]];
+            bool base_p = p.base[s] >= 2, pred;
+            stat_br++;
+            if ((int)s >= slots) { stat_past++; pred = base_p; }
+            else {
+                bool alt_p = alt >= 0 ? p.row[alt].ctr[s] >= 4 : base_p;
+                if (prov >= 0) {
+                    int c = p.row[prov].ctr[s];
+                    bool weak = (c == 3 || c == 4) && p.row[prov].u == 0;
+                    pred = (weak && use_alt >= 8) ? alt_p : c >= 4;
+                } else pred = base_p;
+            }
+            if (hist == 0 || (hist == 1 && (int)s < slots)) gh.push_back(tk);
+            if (pred != tk) { misses++; stat_miss++; stop = s; break; }
+        }
+        p.nb = stop < br.size() ? stop + 1 : std::min<size_t>(br.size(), 8);
+        p.br.assign(br.begin(), br.begin() + p.nb);
+        stat_nbr[p.nb < 7 ? p.nb : 7]++;
+        blk_hlen.push_back(gh.size());
+        pend.push_back(p);
+        while ((int)pend.size() > delay) { update_block(pend.front()); pend.erase(pend.begin()); }
+        return misses;
+    }
+
     // one block: its fetch address and its conditional branches in order.
     // Returns the number mispredicted (0 or 1); `stop` = the index of the
     // first mispredicted branch (the block ends there), or the count.
     int block(uint64_t start, const std::vector<Br>& br, size_t& stop)
     {
+        if (delay > 0) return block_delayed(start, br, stop);
         stat_blocks++;
         size_t hl = blk_hlen.size() > (size_t)lag ? blk_hlen[blk_hlen.size() - 1 - lag] : 0;
         uint64_t pcs = start >> 1;
@@ -150,6 +274,9 @@ struct TageBlk {
         return misses;
     }
 
+    // another predictor on the same blocks (model.cpp tageref): it says where the block stops
+    std::function<void(uint64_t, const std::vector<Br>&, size_t&)> other;
+
     // the correct path of a trace cut into blocks (see the header)
     void run(const std::vector<Rec>& t)
     {
@@ -158,7 +285,7 @@ struct TageBlk {
         std::vector<size_t> bri;       // trace index of each branch of the block
         auto close = [&](size_t next_i) -> size_t {   // returns where the next block starts
             size_t stop;
-            block(start, br, stop);
+            if (other) other(start, br, stop); else block(start, br, stop);
             size_t r = next_i;
             if (stop < br.size()) r = bri[stop] + 1;    // fetch restarts after the miss
             br.clear(); bri.clear(); open = false;
