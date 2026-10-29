@@ -1,13 +1,16 @@
 OOC_FE   (period 20.0 ns, I/O delay 6.0 ns each side on the ports)
-after synthesis: 6243 LUTs (5627 logic + 616 LUT RAM; 6749 LUT cells), 2696 FF, 0 DSP, 161 LUT RAM cells, 5.5 BRAM tiles
-after place and route: 6162 LUTs (5560 logic + 602 LUT RAM; 6710 LUT cells), WNS 0.030 ns, register to register 0.030 ns (18 logic levels)
+after synthesis: 6260 LUTs (5644 logic + 616 LUT RAM; 6658 LUT cells), 3015 FF, 0 DSP, 161 LUT RAM cells, 5.5 BRAM tiles
+after place and route: 6171 LUTs (5569 logic + 602 LUT RAM; 6619 LUT cells), WNS 0.622 ns, register to register 0.622 ns (18 logic levels)
+  loop worst 0.622 ns (18 logic levels), from u_front/u_fbuf/hb_reg[0]/C to u_front/u_fbuf/hb_reg[1]/D
+  D1a  worst 5.005 ns (14 logic levels), from u_front/u_fbuf/hb_reg[0]/C to u_front/r_m_reg[3]/D
+  D1b  worst 5.752 ns (15 logic levels), from u_front/r_inst_reg[1][9]/C to u_front/g_d_reg[1][rd][0]/R
 instances (after place and route):
-    u_front                OOO_FRONT              6162 LUTs (5560 logic + 602 LUT RAM), 1797 FF
-      u_fbuf               OOO_FBUF               2849 LUTs (2657 logic + 192 LUT RAM), 14 FF
-      u_fers               OOO_FERS                 54 LUTs (54 logic + 0 LUT RAM), 49 FF
-      u_fetch              OOO_FETCH              2211 LUTs (2129 logic + 82 LUT RAM), 961 FF
+    u_front                OOO_FRONT              6171 LUTs (5569 logic + 602 LUT RAM), 2107 FF
+      u_fbuf               OOO_FBUF               1030 LUTs (838 logic + 192 LUT RAM), 14 FF
+      u_fers               OOO_FERS                 23 LUTs (23 logic + 0 LUT RAM), 50 FF
+      u_fetch              OOO_FETCH              2209 LUTs (2127 logic + 82 LUT RAM), 961 FF
         u_btb              OOO_BTB                  64 LUTs (64 logic + 0 LUT RAM), 52 FF
         u_ras              OOO_RAS                 324 LUTs (272 logic + 52 LUT RAM), 4 FF
-        u_tage             OOO_TAGE                520 LUTs (520 logic + 0 LUT RAM), 332 FF
-        u_ubtb             OOO_UBTB               1268 LUTs (1268 logic + 0 LUT RAM), 505 FF
-      u_ftq                OOO_FTQ                 745 LUTs (443 logic + 302 LUT RAM), 78 FF
+        u_tage             OOO_TAGE                519 LUTs (519 logic + 0 LUT RAM), 332 FF
+        u_ubtb             OOO_UBTB               1269 LUTs (1269 logic + 0 LUT RAM), 505 FF
+      u_ftq                OOO_FTQ                 950 LUTs (648 logic + 302 LUT RAM), 10 FF

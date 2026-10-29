@@ -276,6 +276,8 @@ sums over whole units are what to compare.
 | **Over, 2026-10-28 late** | **3.5k** | **4.9k** | **6.2k** |
 | Needed, 2026-10-29 (the front end put together, `Plan/OOC.md` 26.6: OOC_FE 6,162 with decode, in place of OOC_FRONT 2,588, fetch buffer 940, FTQ 148, decode 1,808 and the FTQ widened 0.15k to 0.25k: +0.4k to +0.5k, the FTQ's four reads and the glue) | 21.9k | 22.5k | 23.0k |
 | **Over, 2026-10-29** | **4.0k** | **5.4k** | **6.6k** |
+| Needed, 2026-10-29 later (`Plan/OOC.md` 26.10: OOC_FE 6,171 with D1a / D1b and the FTQ of 16 (D-18), +9) | 21.9k | 22.5k | 23.0k |
+| **Over, 2026-10-29 later** | **4.0k** | **5.4k** | **6.6k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is

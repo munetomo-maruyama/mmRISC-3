@@ -3541,3 +3541,45 @@ Recorded in Plan/OOC 26.8, Plan/CORE B1-1, UARCH D-18, the READMEs and PROMPT.md
 ```text
 I accept D-18. Make the FTQ 16 blocks (OOO_FRONT, OOO_FTQ, FERS, CTRL, ROB and their tests), then I will run synth_ooo.bat OOC_FE.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The FTQ is now 16 blocks (D-18), on top of D1a / D1b. All tests and both bug-injection campaigns pass, and it is pushed as 724f535. Next is your Vivado run of OOC_FE.
+
+**RTL**
+- OOO_FTQ and OOO_FRONT now default to 16 entries with a 4-bit index; OOO_FERS, OOO_FBUF, OOO_CTRL and OOO_ROB default to a 4-bit index too.
+- Every block was already written for any power-of-two depth, so nothing else in the logic had to change.
+- I rewrote the credit (the smaller of the fetch buffer's and the FTQ's free room) without a truncated intermediate, because `-Wall` lint warned once the FTQ's free count grew to 5 bits.
+
+**Tests**
+- Unit tests updated for 16 entries: tb_ftq, tb_fers, tb_fbuf, tb_ctrl, tb_rob and tb_fetch.
+- B1 (`tb_front` / `build_front.sh`) now defaults to 16; `FTQW=3` still builds the 8-entry version.
+
+| Check | Result |
+|---|---|
+| Unit tests (28) | All PASS |
+| B1 | All PASS |
+| Delivered rate (`-full`) | **1.824 / 1.826** instructions/cycle (1.442 / 1.488 with 8) |
+| Unit bug injection (FTQ, FERS, FBUF, CTRL, ROB, fetch) | 84 of 84 detected |
+| Front-end bug injection | 40 of 40 detected |
+
+**A gap the change opened, now closed**
+- With 16 blocks, the FTQ never fills at B1's commit delays (4–10 cycles). So two mutations went undetected at first: "credit: the FTQ not counted" and "FTQ: one free too many".
+- B1 now also runs the riscv-tests with `-full` and commit 40 cycles after D2. There the FTQ fills for about 100–200 cycles per program; `tb_front -v` reports the count.
+- The bug-injection campaign runs that case as well, and both mutations are now caught.
+
+**Harnesses**
+- OOC_FE now uses the 16-block FTQ (295 bits in, 753 out), and `-Wall` lint shows only the expected PINCONNECTEMPTY.
+- OOC_ROB, OOC_FBUF, OOC_FTQ, OOC_CTRL and OOC_FERS stay at the 8 blocks their reports were measured with. I added an explicit `FTQW(3)` to OOC_ROB, since it had been relying on the default.
+
+D-18 is marked decided in UARCH chapter 9. The FTQ depth is updated in UARCH, Plan/CORE and the READMEs, and the work is recorded in Plan/OOC 26.9, all in both languages. PROMPT.md is updated too.
+
+**Please run `synth_ooo.bat OOC_FE`.** It measures D1a / D1b and the 16-block FTQ together. I expect several ns of slack on both D1a and D1b, and the size to grow by about 0.2k for the raw register plus 0.1k–0.2k for the deeper FTQ. I will update the UARCH 4.4 budget from the result.
+<!-- /answer -->
+
+## 95. 2026-10-29 23:20:37 JST
+
+```text
+I ran synth_ooo.bat OOC_FE. Please check output/OOC_FE/summary.txt.
+```

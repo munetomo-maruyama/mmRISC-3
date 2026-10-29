@@ -2370,3 +2370,61 @@ The author took D-18 (`Doc/PROMPT.md` entry 94).
 - **Please run** `synth_ooo.bat OOC_FE` (D1a / D1b and the FTQ of 16 together). Expected: D1a and D1b with several
   ns of slack; the size about +0.2k for R and +0.1k to 0.2k for the FTQ of 16. The budget (`Doc/UARCH.md` 4.4) is
   updated with the result.
+
+### 26.10 The rerun with D1a / D1b and the FTQ of 16 (2026-10-29)
+
+| Run | LUT | of it LUTRAM | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|---|
+| OOC_FE (26.3: decode out of the loop) | 6,162 | 602 | 2,696 | +0.030 ns | 18 |
+| **OOC_FE (D1a / D1b, FTQ 16)** | **6,171** | 602 | 3,015 | **+0.622 ns** | 18 |
+
+| Path (the new report of `synth_ooo.tcl`) | Slack | Levels |
+|---|---|---|
+| the fetch buffer's loop (into `hb` / `hoff`) | **+0.622 ns** | 18 |
+| D1a (into R and the skid) | +5.005 ns | 14 |
+| D1b (R → decode → group register) | +5.752 ns | 15 |
+| next: fetch's training of the uBTB from the I$ answer (a harness input) | +0.715 ns | 16 |
+
+| Instance | Before | Now |
+|---|---|---|
+| OOO_FBUF | 2,849 (decode put in it) | 1,030 (decode now in OOO_FRONT) |
+| OOO_FTQ | 745 | **950** (16 entries: the LUTRAM the same, 302; the logic +205) |
+| OOO_FETCH | 2,211 | 2,209 |
+| OOO_FERS | 54 | 23 |
+| the rest of OOO_FRONT (decode, R, the skid, the group register, outcomes, target array) | about 303 | about 1,959 |
+
+- **D1 splits as planned**: D1a and D1b each have 5 to 6 ns. Decode, now from a register, is no longer replicated for
+  timing: the fetch buffer with decode, R and the rest come to 163 LUTs less than before, which pays for the FTQ of 16
+  (+205 in OOO_FTQ; 128 flip-flops more for the outcomes). **The whole is +9 LUTs**; FFs +319 (R's 164 bits, the
+  outcomes, the skid's place).
+- **The worst path is now the fetch buffer's loop, +0.622 ns** (19.0 ns, 18 levels):
+
+| ns | Where |
+|---|---|
+| 1.0 → 5.0 | `hb` (fan-out 150) → the block data (LUTRAM read) |
+| → 12.0 | the window and the length chain, to **slot 3's first parcel** (all its 16 bits) |
+| → 15.1 | OOO_RARE on it and the group's run (4 levels) |
+| → 15.9 | `consume` |
+| → 20.0 | `npop`, `nblk` → `hb` |
+
+  In OOC_FBUF alone (13.7, +3.5 ns) `consume` waited only for the slots' valid bits, which come from the length chain
+  without the whole parcel. OOO_RARE needs slot 3's parcel, which comes out of the slot's select at 12.0 ns, and adds
+  its levels after it: about 3 ns more than expected in 26.3. The FTQ of 16 is not on the path.
+- **The uBTB's training (+0.715 ns)** starts at the harness's register of the I$ answer: predecode → the uBTB's
+  update enables. It was +0.574 ns in OOC_FRONT alone (`Doc/UARCH.md` 6.10) and its start depends on how the I$ gives
+  its data in the core; not changed here.
+
+### 26.11 The rare classes told from the window's parcels (proposed)
+
+- **Where**: OOO_FBUF. OOO_RARE on each of the window's 8 parcels (`w[k]`, out of the LUTRAM before any instruction
+  is picked), in parallel with the length chain; each slot then takes the bit of its own first parcel with the
+  select that already takes its length (`w[st[i]][1:0]`). A new output `out_rare[3:0]`, which OOO_FRONT uses in place
+  of its four OOO_RARE on the slots' bits.
+- **Effect**: slot 3's rare bit arrives with its length bit (about 10 ns) instead of at 15.1 ns: the loop gains
+  about 2 to 3 ns, back near OOC_FBUF alone (+3.5 ns).
+- **Cost**: 8 OOO_RARE in place of 4 (about +20 to 40 LUTs) and four 1-bit 8:1 selects; no storage.
+- **Tests**: tb_fbuf checks `out_rare` of each slot against the predecode of its first parcel; B1 unchanged (the
+  group's cut is the same); a mutation of the select (a slot's bit from the parcel after its own) and of a window
+  parcel's OOO_RARE.
+- **Recommended**: yes, before the core is put together. The alternative, storing a rare bit per parcel at the
+  write, costs 32 bits of LUTRAM for the same timing.
