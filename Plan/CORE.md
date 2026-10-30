@@ -349,10 +349,46 @@ Results (`SIM/CORE/results/core.txt`; `./run_core.sh`):
   with the D$ model. The same holds off stores behind any load-heavy loop until the SQ fills. To fix next
   (proposed): drain when the load in E is to another 8-byte word (a compare; the common case), and when the oldest
   committed store has waited some cycles, drain anyway and send that load to wait in the LQ and be tried again (as an
-  older store without its address does).
+  older store without its address does). **Done in 5.6** (the second part only).
 - **Bug injection** (`SIM/CORE/mutate_core.py`): B2's 35 mutations and 20 for port 2 and the LSU (the record's LQ / SQ entries; loads and stores at dispatch to the LSU, the ROB and the control; the LSU's operands, the offset, the size and sign; the bypass of the base, of a store's data and of the LSU's result; the register-file write of loads; the replay mark; the SQ's restore and commit), each run on 20 random programs and on 10 riscv-tests and the console, on OOO_CORE with the D$ model: 54 of 55 detected. The one left, the late load's external wakeup, was redundant and is gone (B3-3). **54 of 54 detected** (`results/mutate_core.txt`).
 - Also changed: `OOO_LSU` (`rf_*`; `tb_lsu` checks that the register file is written with what the WB register
   takes next; M347 / M348 added, 312 unit mutations now), `DCACHE` (`sim_uc_line` under `DCACHE_SIM_UC`).
+
+### 5.6 The store drain no longer held off by loads (2026-10-31)
+
+5.5 found that a stream of loads holds a committed store off: `OOO_LSU` drains one only in a cycle with no load in E.
+
+- **Why only the second half of 5.5's proposal**: the D$ takes one request a cycle. `OOO_DCAD` sends the load in E
+  first, then a pending load, then a store, and takes no store while a load is in E or pending. Draining past a load
+  to another 8-byte word would need two requests in a cycle, so it cannot happen with the real D$; it was not done.
+- **What was done** (`OOO_LSU`, parameter `DRAIN_WAIT` = 8): a counter of the cycles a load in E has held the oldest
+  committed store (with its address) off; the cycles it waits for a busy D$ do not count. When it reaches
+  `DRAIN_WAIT` the store takes the D$ port: the load in E sends no request,
+  goes to wait in M as a load does when an older store has no address (`ld_cancel` for a load from port 2: it completes
+  marked and is replayed after commit, D-12) and is tried again from the LQ once the store has left, from the D$. A
+  few flip-flops and gates.
+- **Counting only the cycles a load holds the store off**: the first version counted every cycle the store waited,
+  also for a busy D$, and its forced drains cost replays (the load that gives the port up raises `ld_cancel`): the 20
+  `ls` programs on `OOO_CPU` took 0.3 % to 4 % more cycles, `ld_st` 3.6 %. Counted this way:
+
+| `OOO_CPU` (cycles) | before 5.6 | `DRAIN_WAIT` 4 | **8** | 16 |
+|---|---|---|---|---|
+| the console (25 characters) | 301,300 | 2,005 | **2,240** | 2,611 |
+| `rv64ui-ld_st` / `st_ld` | 4,594 / 1,788 | 4,594 / 1,788 | **4,594 / 1,788** | 4,594 / 1,788 |
+| the 20 `ls` programs | 159,485 | 159,986 | **159,366** | 159,490 |
+
+- **Tests**: `tb_lsu` and `tb_dcad` have bursts of loads (1,000 cycles in every 4,000: mostly loads, issued 7 cycles in
+  8, the D$ always ready); every other burst of `tb_lsu` is a polling loop (only loads, of the last store's word, no
+  store after it). `tb_lsu` checks that no load request and store go to the D$ in the same cycle, that loads in E
+  never hold a committed store off more than `DRAIN_WAIT` cycles, and that a load gives the port up to no store held
+  off less. Every load's value is checked as before. 4 seeds each: PASS.
+- **Bug injection**: M46 follows the new line; M349 to M355 (never forced, the load that gave up the port lost,
+  taking an answer it never asked for, both requests in a cycle, not tried again, the wait not counted again for the
+  next store, the busy D$'s cycles counted): 8 of 8 detected; 319 unit mutations now. "Not tried again" needs the
+  polling loop: a load tried again from the LQ that gives the port up in the cycle its store drains has its retry bit
+  cleared by that retry, and with no store after it nothing sets it again (the console hangs on `OOO_CPU` with it).
+- **The rest still passes**: all 28 unit tests; every LSU and D$-adapter mutation (47 of 47); B2 and B3 on both tops
+  (`run_core.sh`, the 7 runs); the core's glue mutations (54 of 54).
 
 ---
 

@@ -84,8 +84,8 @@ ls-2.elf                     PASS  exit 0  5617 insns  5617 uops  8050 cycles  I
     121 restores (mispredicted branches and jalr), 104 replays, I$ 302 / 3842 missed, D$ 155 / 783 loads missed, 1181 stores
 ls-3.elf                     PASS  exit 0  3908 insns  3908 uops  4695 cycles  IPC 0.832
     87 restores (mispredicted branches and jalr), 36 replays, I$ 188 / 2305 missed, D$ 47 / 283 loads missed, 497 stores
-ls-4.elf                     PASS  exit 0  6633 insns  6633 uops  7410 cycles  IPC 0.895
-    114 restores (mispredicted branches and jalr), 59 replays, I$ 301 / 3810 missed, D$ 110 / 515 loads missed, 692 stores
+ls-4.elf                     PASS  exit 0  6633 insns  6633 uops  7320 cycles  IPC 0.906
+    116 restores (mispredicted branches and jalr), 52 replays, I$ 294 / 3770 missed, D$ 98 / 490 loads missed, 690 stores
 ls-5.elf                     PASS  exit 0  3688 insns  3688 uops  5242 cycles  IPC 0.704
     128 restores (mispredicted branches and jalr), 38 replays, I$ 216 / 2629 missed, D$ 57 / 320 loads missed, 400 stores
 ls-6.elf                     PASS  exit 0  3058 insns  3058 uops  4661 cycles  IPC 0.656
@@ -162,7 +162,7 @@ br-20.elf                    PASS  exit 0  9089 insns  9089 uops  10769 cycles  
 ls-1.elf                     PASS  exit 0  3891 insns  3891 uops  5726 cycles  IPC 0.680
 ls-2.elf                     PASS  exit 0  5617 insns  5617 uops  8079 cycles  IPC 0.695
 ls-3.elf                     PASS  exit 0  3908 insns  3908 uops  4950 cycles  IPC 0.789
-ls-4.elf                     PASS  exit 0  6633 insns  6633 uops  7310 cycles  IPC 0.907
+ls-4.elf                     PASS  exit 0  6633 insns  6633 uops  7434 cycles  IPC 0.892
 ls-5.elf                     PASS  exit 0  3688 insns  3688 uops  5527 cycles  IPC 0.667
 ls-6.elf                     PASS  exit 0  3058 insns  3058 uops  4185 cycles  IPC 0.731
 ls-7.elf                     PASS  exit 0  2352 insns  2352 uops  3202 cycles  IPC 0.735
@@ -176,7 +176,7 @@ ls-14.elf                    PASS  exit 0  4383 insns  4383 uops  7060 cycles  I
 ls-15.elf                    PASS  exit 0  3469 insns  3469 uops  4625 cycles  IPC 0.750
 ls-16.elf                    PASS  exit 0  3872 insns  3872 uops  4958 cycles  IPC 0.781
 ls-17.elf                    PASS  exit 0  3396 insns  3396 uops  4921 cycles  IPC 0.690
-ls-18.elf                    PASS  exit 0  4013 insns  4013 uops  5342 cycles  IPC 0.751
+ls-18.elf                    PASS  exit 0  4013 insns  4013 uops  5778 cycles  IPC 0.695
 ls-19.elf                    PASS  exit 0  2718 insns  2718 uops  3877 cycles  IPC 0.701
 ls-20.elf                    PASS  exit 0  2613 insns  2613 uops  3804 cycles  IPC 0.687
 tb_core: 60 files, 0 failures: PASS
@@ -266,8 +266,8 @@ ls-2.elf                     PASS  exit 0  5617 insns  5617 uops  15301 cycles  
     172 restores (mispredicted branches and jalr), 489 replays, I$ 0 / 9089 missed, D$ 1554 / 1554 loads missed, 1181 stores
 ls-3.elf                     PASS  exit 0  3908 insns  3908 uops  6971 cycles  IPC 0.561
     128 restores (mispredicted branches and jalr), 168 replays, I$ 0 / 4347 missed, D$ 474 / 474 loads missed, 497 stores
-ls-4.elf                     PASS  exit 0  6633 insns  6633 uops  8997 cycles  IPC 0.737
-    144 restores (mispredicted branches and jalr), 186 replays, I$ 0 / 5833 missed, D$ 732 / 732 loads missed, 694 stores
+ls-4.elf                     PASS  exit 0  6633 insns  6633 uops  9063 cycles  IPC 0.732
+    153 restores (mispredicted branches and jalr), 186 replays, I$ 0 / 5899 missed, D$ 743 / 743 loads missed, 694 stores
 ls-5.elf                     PASS  exit 0  3688 insns  3688 uops  8411 cycles  IPC 0.438
     197 restores (mispredicted branches and jalr), 217 replays, I$ 0 / 5479 missed, D$ 726 / 726 loads missed, 400 stores
 ls-6.elf                     PASS  exit 0  3058 insns  3058 uops  6856 cycles  IPC 0.446
@@ -276,8 +276,8 @@ ls-7.elf                     PASS  exit 0  2352 insns  2352 uops  5076 cycles  I
     87 restores (mispredicted branches and jalr), 135 replays, I$ 0 / 3076 missed, D$ 446 / 446 loads missed, 398 stores
 ls-8.elf                     PASS  exit 0  3863 insns  3863 uops  8856 cycles  IPC 0.436
     87 restores (mispredicted branches and jalr), 269 replays, I$ 0 / 5028 missed, D$ 989 / 989 loads missed, 624 stores
-ls-9.elf                     PASS  exit 0  3301 insns  3301 uops  7734 cycles  IPC 0.427
-    116 restores (mispredicted branches and jalr), 227 replays, I$ 0 / 4819 missed, D$ 772 / 772 loads missed, 584 stores
+ls-9.elf                     PASS  exit 0  3301 insns  3301 uops  7706 cycles  IPC 0.428
+    115 restores (mispredicted branches and jalr), 227 replays, I$ 0 / 4812 missed, D$ 766 / 766 loads missed, 584 stores
 ls-10.elf                    PASS  exit 0  3188 insns  3188 uops  6276 cycles  IPC 0.508
     142 restores (mispredicted branches and jalr), 139 replays, I$ 0 / 3917 missed, D$ 431 / 431 loads missed, 425 stores
 ls-11.elf                    PASS  exit 0  3584 insns  3584 uops  9865 cycles  IPC 0.363
@@ -301,7 +301,7 @@ ls-19.elf                    PASS  exit 0  2718 insns  2718 uops  6767 cycles  I
 ls-20.elf                    PASS  exit 0  2613 insns  2613 uops  6535 cycles  IPC 0.400
     90 restores (mispredicted branches and jalr), 190 replays, I$ 0 / 3820 missed, D$ 584 / 584 loads missed, 534 stores
 tb_core: 60 files, 0 failures: PASS
-htif.elf                     PASS  exit 0  324 insns  324 uops  1275 cycles  IPC 0.254
+htif.elf                     PASS  exit 0  350 insns  350 uops  1269 cycles  IPC 0.276
 rv64uc-rvc.elf               PASS  exit 0  255 insns  255 uops  717 cycles  IPC 0.356
 rv64ui-add.elf               PASS  exit 0  464 insns  464 uops  1016 cycles  IPC 0.457
 rv64ui-addi.elf              PASS  exit 0  239 insns  239 uops  556 cycles  IPC 0.430
@@ -398,7 +398,7 @@ rv64uzbs-bseti.elf           PASS  exit 0  317 insns  317 uops  645 cycles  IPC 
 rv64uzicond-czero_eqz.elf    PASS  exit 0  416 insns  416 uops  875 cycles  IPC 0.475
 rv64uzicond-czero_nez.elf    PASS  exit 0  415 insns  415 uops  865 cycles  IPC 0.480
 tb_core: 96 files, 0 failures: PASS
-htif.elf                     PASS  exit 0  328 insns  328 uops  1509 cycles  IPC 0.217
+htif.elf                     PASS  exit 0  330 insns  330 uops  1540 cycles  IPC 0.214
 rv64uc-rvc.elf               PASS  exit 0  255 insns  255 uops  745 cycles  IPC 0.342
 rv64ui-add.elf               PASS  exit 0  464 insns  464 uops  951 cycles  IPC 0.488
 rv64ui-addi.elf              PASS  exit 0  239 insns  239 uops  555 cycles  IPC 0.431
@@ -577,46 +577,46 @@ br-20.elf                    PASS  exit 0  9089 insns  9089 uops  10797 cycles  
     268 restores (mispredicted branches and jalr), 0 replays, I$ 433 / 5649 missed, memory 0 line reads 0 line writes, uncached 0 reads 0 writes
 ls-1.elf                     PASS  exit 0  3891 insns  3891 uops  7985 cycles  IPC 0.487
     78 restores (mispredicted branches and jalr), 106 replays, I$ 244 / 2968 missed, memory 229 line reads 17 line writes, uncached 0 reads 0 writes
-ls-2.elf                     PASS  exit 0  5617 insns  5617 uops  9982 cycles  IPC 0.563
-    128 restores (mispredicted branches and jalr), 89 replays, I$ 301 / 3835 missed, memory 244 line reads 17 line writes, uncached 0 reads 0 writes
-ls-3.elf                     PASS  exit 0  3908 insns  3908 uops  7701 cycles  IPC 0.507
-    104 restores (mispredicted branches and jalr), 70 replays, I$ 235 / 2868 missed, memory 213 line reads 9 line writes, uncached 0 reads 0 writes
-ls-4.elf                     PASS  exit 0  6633 insns  6633 uops  10282 cycles  IPC 0.645
-    138 restores (mispredicted branches and jalr), 88 replays, I$ 342 / 4371 missed, memory 234 line reads 16 line writes, uncached 0 reads 0 writes
-ls-5.elf                     PASS  exit 0  3688 insns  3688 uops  8038 cycles  IPC 0.459
-    148 restores (mispredicted branches and jalr), 67 replays, I$ 253 / 3185 missed, memory 206 line reads 13 line writes, uncached 0 reads 0 writes
-ls-6.elf                     PASS  exit 0  3058 insns  3058 uops  7059 cycles  IPC 0.433
-    131 restores (mispredicted branches and jalr), 79 replays, I$ 240 / 2930 missed, memory 203 line reads 15 line writes, uncached 0 reads 0 writes
-ls-7.elf                     PASS  exit 0  2352 insns  2352 uops  6388 cycles  IPC 0.368
-    85 restores (mispredicted branches and jalr), 79 replays, I$ 185 / 2296 missed, memory 206 line reads 6 line writes, uncached 0 reads 0 writes
-ls-8.elf                     PASS  exit 0  3863 insns  3863 uops  8419 cycles  IPC 0.459
-    78 restores (mispredicted branches and jalr), 99 replays, I$ 235 / 2875 missed, memory 266 line reads 30 line writes, uncached 0 reads 0 writes
+ls-2.elf                     PASS  exit 0  5617 insns  5617 uops  9920 cycles  IPC 0.566
+    127 restores (mispredicted branches and jalr), 89 replays, I$ 295 / 3770 missed, memory 247 line reads 23 line writes, uncached 0 reads 0 writes
+ls-3.elf                     PASS  exit 0  3908 insns  3908 uops  7633 cycles  IPC 0.512
+    101 restores (mispredicted branches and jalr), 66 replays, I$ 234 / 2806 missed, memory 212 line reads 7 line writes, uncached 0 reads 0 writes
+ls-4.elf                     PASS  exit 0  6633 insns  6633 uops  10256 cycles  IPC 0.647
+    138 restores (mispredicted branches and jalr), 85 replays, I$ 342 / 4361 missed, memory 233 line reads 16 line writes, uncached 0 reads 0 writes
+ls-5.elf                     PASS  exit 0  3688 insns  3688 uops  8076 cycles  IPC 0.457
+    151 restores (mispredicted branches and jalr), 68 replays, I$ 253 / 3173 missed, memory 207 line reads 12 line writes, uncached 0 reads 0 writes
+ls-6.elf                     PASS  exit 0  3058 insns  3058 uops  6823 cycles  IPC 0.448
+    129 restores (mispredicted branches and jalr), 76 replays, I$ 236 / 2886 missed, memory 202 line reads 14 line writes, uncached 0 reads 0 writes
+ls-7.elf                     PASS  exit 0  2352 insns  2352 uops  6395 cycles  IPC 0.368
+    85 restores (mispredicted branches and jalr), 80 replays, I$ 187 / 2302 missed, memory 206 line reads 7 line writes, uncached 0 reads 0 writes
+ls-8.elf                     PASS  exit 0  3863 insns  3863 uops  8489 cycles  IPC 0.455
+    76 restores (mispredicted branches and jalr), 101 replays, I$ 236 / 2876 missed, memory 266 line reads 28 line writes, uncached 0 reads 0 writes
 ls-9.elf                     PASS  exit 0  3301 insns  3301 uops  7736 cycles  IPC 0.427
     86 restores (mispredicted branches and jalr), 87 replays, I$ 229 / 2737 missed, memory 228 line reads 11 line writes, uncached 0 reads 0 writes
-ls-10.elf                    PASS  exit 0  3188 insns  3188 uops  7506 cycles  IPC 0.425
-    141 restores (mispredicted branches and jalr), 81 replays, I$ 250 / 3096 missed, memory 197 line reads 8 line writes, uncached 0 reads 0 writes
-ls-11.elf                    PASS  exit 0  3584 insns  3584 uops  7404 cycles  IPC 0.484
-    69 restores (mispredicted branches and jalr), 85 replays, I$ 205 / 2492 missed, memory 238 line reads 19 line writes, uncached 0 reads 0 writes
-ls-12.elf                    PASS  exit 0  5120 insns  5120 uops  9670 cycles  IPC 0.529
-    155 restores (mispredicted branches and jalr), 115 replays, I$ 332 / 4189 missed, memory 226 line reads 17 line writes, uncached 0 reads 0 writes
-ls-13.elf                    PASS  exit 0  3517 insns  3517 uops  7807 cycles  IPC 0.450
-    100 restores (mispredicted branches and jalr), 98 replays, I$ 248 / 3022 missed, memory 230 line reads 12 line writes, uncached 0 reads 0 writes
-ls-14.elf                    PASS  exit 0  4383 insns  4383 uops  9372 cycles  IPC 0.468
-    153 restores (mispredicted branches and jalr), 97 replays, I$ 297 / 3788 missed, memory 220 line reads 15 line writes, uncached 0 reads 0 writes
-ls-15.elf                    PASS  exit 0  3469 insns  3469 uops  6800 cycles  IPC 0.510
-    115 restores (mispredicted branches and jalr), 63 replays, I$ 234 / 2795 missed, memory 187 line reads 7 line writes, uncached 0 reads 0 writes
-ls-16.elf                    PASS  exit 0  3872 insns  3872 uops  7985 cycles  IPC 0.485
-    127 restores (mispredicted branches and jalr), 77 replays, I$ 251 / 3135 missed, memory 217 line reads 10 line writes, uncached 0 reads 0 writes
+ls-10.elf                    PASS  exit 0  3188 insns  3188 uops  7479 cycles  IPC 0.426
+    139 restores (mispredicted branches and jalr), 83 replays, I$ 247 / 3017 missed, memory 196 line reads 7 line writes, uncached 0 reads 0 writes
+ls-11.elf                    PASS  exit 0  3584 insns  3584 uops  7499 cycles  IPC 0.478
+    72 restores (mispredicted branches and jalr), 89 replays, I$ 210 / 2559 missed, memory 238 line reads 16 line writes, uncached 0 reads 0 writes
+ls-12.elf                    PASS  exit 0  5120 insns  5120 uops  9686 cycles  IPC 0.529
+    155 restores (mispredicted branches and jalr), 116 replays, I$ 334 / 4216 missed, memory 227 line reads 16 line writes, uncached 0 reads 0 writes
+ls-13.elf                    PASS  exit 0  3517 insns  3517 uops  7759 cycles  IPC 0.453
+    100 restores (mispredicted branches and jalr), 96 replays, I$ 246 / 3015 missed, memory 230 line reads 11 line writes, uncached 0 reads 0 writes
+ls-14.elf                    PASS  exit 0  4383 insns  4383 uops  9345 cycles  IPC 0.469
+    157 restores (mispredicted branches and jalr), 93 replays, I$ 301 / 3816 missed, memory 223 line reads 18 line writes, uncached 0 reads 0 writes
+ls-15.elf                    PASS  exit 0  3469 insns  3469 uops  6915 cycles  IPC 0.502
+    123 restores (mispredicted branches and jalr), 65 replays, I$ 235 / 2849 missed, memory 187 line reads 6 line writes, uncached 0 reads 0 writes
+ls-16.elf                    PASS  exit 0  3872 insns  3872 uops  7921 cycles  IPC 0.489
+    128 restores (mispredicted branches and jalr), 77 replays, I$ 251 / 3146 missed, memory 217 line reads 9 line writes, uncached 0 reads 0 writes
 ls-17.elf                    PASS  exit 0  3396 insns  3396 uops  7392 cycles  IPC 0.459
     90 restores (mispredicted branches and jalr), 85 replays, I$ 225 / 2693 missed, memory 240 line reads 27 line writes, uncached 0 reads 0 writes
-ls-18.elf                    PASS  exit 0  4013 insns  4013 uops  7524 cycles  IPC 0.533
+ls-18.elf                    PASS  exit 0  4013 insns  4013 uops  7521 cycles  IPC 0.534
     73 restores (mispredicted branches and jalr), 89 replays, I$ 241 / 2941 missed, memory 215 line reads 12 line writes, uncached 0 reads 0 writes
-ls-19.elf                    PASS  exit 0  2718 insns  2718 uops  7356 cycles  IPC 0.369
-    108 restores (mispredicted branches and jalr), 83 replays, I$ 212 / 2603 missed, memory 245 line reads 24 line writes, uncached 0 reads 0 writes
+ls-19.elf                    PASS  exit 0  2718 insns  2718 uops  7298 cycles  IPC 0.372
+    101 restores (mispredicted branches and jalr), 78 replays, I$ 205 / 2494 missed, memory 246 line reads 24 line writes, uncached 0 reads 0 writes
 ls-20.elf                    PASS  exit 0  2613 insns  2613 uops  7079 cycles  IPC 0.369
     75 restores (mispredicted branches and jalr), 85 replays, I$ 194 / 2364 missed, memory 221 line reads 17 line writes, uncached 0 reads 0 writes
 tb_core: 60 files, 0 failures: PASS
-htif.elf                     PASS  exit 0  361190 insns  361190 uops  301300 cycles  IPC 1.199
+htif.elf                     PASS  exit 0  394 insns  394 uops  2240 cycles  IPC 0.176
 rv64uc-rvc.elf               PASS  exit 0  255 insns  255 uops  707 cycles  IPC 0.361
 rv64ui-add.elf               PASS  exit 0  464 insns  464 uops  1016 cycles  IPC 0.457
 rv64ui-addi.elf              PASS  exit 0  239 insns  239 uops  556 cycles  IPC 0.430

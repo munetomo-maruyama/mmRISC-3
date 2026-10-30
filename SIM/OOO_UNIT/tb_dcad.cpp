@@ -120,6 +120,7 @@ int main(int argc, char** argv)
     };
 
     for (cyc = 0; cyc < 300000; cyc++) {
+        bool burst = (cyc / 1000) % 4 == 3;     // a burst of loads, issued every cycle (the store drain forced)
         // ================= inputs of this cycle =================
         // -- recovery first: an exception at the head, else a mispredicted branch
         int flush_all = 0, restore = 0; unsigned r_lq = 0, r_sq = 0;
@@ -159,6 +160,7 @@ int main(int argc, char** argv)
                 }
                 int r = rng() % 100;
                 u.k = r < 35 ? LD : r < 65 ? ST : r < 75 ? BR : OT;
+                if (burst && r < 85) u.k = LD;
                 if (u.k == LD && (lroom <= 0 || free_tags.empty())) break;
                 if (u.k == ST && sroom <= 0) break;
                 if (u.k == BR) {
@@ -189,7 +191,7 @@ int main(int argc, char** argv)
         // -- issue to port 2: one LSU µop dispatched before this cycle (in a
         // cycle of recovery too)
         int iv = 0; Uop* iu = nullptr;
-        if (rng() % 5) {
+        if (burst || rng() % 5) {
             std::vector<Uop*> cand;
             for (auto& u : win)
                 if ((u.k == LD || u.k == ST) && !u.issued && u.disp_cyc < cyc) {

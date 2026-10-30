@@ -29,7 +29,13 @@
 //     result in its expected cycle; such a load, and only such a load,
 //     completes marked for replay after commit (cmp_ld_rp)
 //   - the stores reach the D$ in commit order with their data and byte mask;
-//     sq_drained exactly when none committed is left
+//     sq_drained exactly when none committed is left; never a load request
+//     and a store in the same cycle (the D$ takes one request); a committed
+//     store is held off by loads in E at most DRAIN_WAIT cycles, then a load in
+//     E gives it up, and not before (bursts of loads, 1,000 cycles in every
+//     4,000, make it happen; every other burst polls the last store's word
+//     with no store after it, where a load that gave the port up and is not
+//     tried again would wait for ever)
 //   - lsu_st_known is never set for a load with an older store whose
 //     address is not known
 //   - no deadlock: the oldest µop commits within a bound
@@ -92,7 +98,10 @@ int main(int argc, char** argv)
     std::deque<std::pair<uint64_t, std::pair<uint64_t, int>>> st_expect;   // committed stores to drain: addr, data, size
     struct Pend { bool v = false; long seq; };
     Pend m_iss, wb_iss;                         // a load from port 2 now in M / expected in WB
-    long last_commit = 0, nld = 0, nst = 0, nlate = 0, ncancel = 0, nrestore = 0, nflush = 0, nfwd_chk = 0;
+    long last_commit = 0, nld = 0, nst = 0, nlate = 0, ncancel = 0, nrestore = 0, nflush = 0, nfwd_chk = 0, nforced = 0;
+    int st_wait = 0;                           // cycles the oldest committed store has waited for the D$ port
+    uint64_t poll_word = BASE;                 // the word of the last store dispatched (the polling loops read it)
+    const int DRAIN_WAIT = 8;                  // OOO_LSU's
     long dreq_pending_seq = -1; uint64_t dreq_word = 0; bool dreq_v = false, dreq_hit = false;
     bool ck_used[6] = {false};
     long nkilled_iss = 0, nrec_iss = 0;
@@ -118,8 +127,11 @@ int main(int argc, char** argv)
     };
 
     for (cyc = 0; cyc < 300000; cyc++) {
+        bool burst = (cyc / 1000) % 4 == 3;     // a burst of loads, issued 7 cycles in 8
+        bool poll  = (cyc / 1000) % 8 == 7;     // and every other burst a polling loop: only loads, of the last store's word
         // sq_drained (OOO_SYS's FENCE / FENCE.I): every committed store is in the D$
         { d.eval(); if ((bool)d.sq_drained != st_expect.empty()) FAIL("sq_drained %d with %zu committed stores to drain", (int)d.sq_drained, st_expect.size()); }
+        bool st_pend = !st_expect.empty();    // a store committed before this cycle waits for the D$ port
         // ================= inputs of this cycle =================
         // -- recovery first: an exception at the head, else a mispredicted branch
         int flush_all = 0, restore = 0; unsigned r_lq = 0, r_sq = 0;
@@ -159,6 +171,8 @@ int main(int argc, char** argv)
                 }
                 int r = rng() % 100;
                 u.k = r < 35 ? LD : r < 65 ? ST : r < 75 ? BR : OT;
+                if (burst && r < 85) u.k = LD;                 // a burst of loads (with the stores before it committed)
+                if (poll && u.k != BR) u.k = LD;
                 if (u.k == LD && (lroom <= 0 || free_tags.empty())) break;
                 if (u.k == ST && sroom <= 0) break;
                 if (u.k == BR) {
@@ -170,6 +184,8 @@ int main(int argc, char** argv)
                 if (u.k == ST) sroom--;
                 u.size = rng() % 4;
                 u.addr = BASE + (rng() % (8 * NWORD));
+                if (poll) u.addr = poll_word + (rng() % 8);
+                if (u.k == ST) poll_word = u.addr & ~7ull;
                 if (rng() % 20) u.addr &= ~(uint64_t)((1 << u.size) - 1);      // mostly aligned
                 u.mis = (u.addr & ((1 << u.size) - 1)) != 0;
                 if (u.addr + (1 << u.size) > BASE + 8 * NWORD) u.addr -= 8;   // stay inside
@@ -187,7 +203,7 @@ int main(int argc, char** argv)
         // -- issue to port 2: one LSU µop dispatched before this cycle (in a
         // cycle of recovery too)
         int iv = 0; Uop* iu = nullptr;
-        if (rng() % 5) {
+        if (burst ? rng() % 8 != 0 : rng() % 5 != 0) {   // (a gap now and then in a burst: a load waiting in the LQ is tried again in E)
             std::vector<Uop*> cand;
             for (auto& u : win)
                 if ((u.k == LD || u.k == ST) && !u.issued && u.disp_cyc < cyc) {
@@ -201,7 +217,7 @@ int main(int argc, char** argv)
         if (!fills.empty() && fills.front().at <= cyc) {
             fill_v = 1; fill_tag = fills.front().tag; fill_data = word_of(dmem, fills.front().addr);
         }
-        int st_ready = rng() % 10 < 7;
+        int st_ready = burst || rng() % 10 < 7;
 
         // drive
         d.disp_valid = dv; d.disp_ld = dld; d.disp_st = dst; d.disp_rob = drob;
@@ -305,6 +321,16 @@ int main(int argc, char** argv)
             if (!wrote) FAIL("load %ld: not cancelled, but no result in its expected cycle", wb_iss.seq);
         }
         // the store write port
+        // the D$ port: one request a cycle; a committed store waits at most DRAIN_WAIT cycles for it
+        if (d.dc_req_valid && d.dc_st_valid) FAIL("a load request and a store to the D$ in the same cycle");
+        bool ld_in_e = iss_live && iu->k == LD;
+        if (st_pend && st_wait >= DRAIN_WAIT && st_ready && !d.dc_st_valid)
+            FAIL("a committed store held off for %d cycles", st_wait);
+        if (st_pend && st_wait >= DRAIN_WAIT && d.dc_st_valid && ld_in_e) nforced++;
+        if (d.dc_st_valid && ld_in_e && st_wait < DRAIN_WAIT)
+            FAIL("a load in E gave the D$ port to a store that waited %d cycles only", st_wait);
+        // (the LSU counts the cycles a load in E holds the store off: one it sent to the D$, or a misaligned one)
+        if (!st_pend || (d.dc_st_valid && st_ready)) st_wait = 0; else if (d.dc_req_valid || (ld_in_e && iu->mis)) st_wait++;
         if (d.dc_st_valid && st_ready) {
             if (st_expect.empty()) FAIL("a store written to the D$ before any was committed");
             else {
@@ -370,8 +396,8 @@ int main(int argc, char** argv)
         for (auto& u : win) if ((u.k == OT || u.k == BR) && !u.done) u.done = true;
         if (cyc - last_commit > 2000 && !win.empty()) { FAIL("deadlock: µop %ld (kind %d) at the head", win.front().seq, win.front().k); break; }
     }
-    printf("tb_lsu: %ld cycles, %ld loads (%ld late), %ld stores, %ld cancels, %ld restores, %ld flushes, %ld issued in recovery and kept, %ld killed at issue, %ld mismatches: %s\n",
-           cyc, nld, nlate, nst, ncancel, nrestore, nflush, nrec_iss, nkilled_iss, bad, bad ? "FAIL" : "PASS");
+    printf("tb_lsu: %ld cycles, %ld loads (%ld late), %ld stores, %ld cancels, %ld restores, %ld flushes, %ld issued in recovery and kept, %ld killed at issue, %ld stores drained past a load in E, %ld mismatches: %s\n",
+           cyc, nld, nlate, nst, ncancel, nrestore, nflush, nrec_iss, nkilled_iss, nforced, bad, bad ? "FAIL" : "PASS");
     (void)nfwd_chk; (void)dreq_pending_seq;
     return bad ? 1 : 0;
 }

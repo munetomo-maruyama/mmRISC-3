@@ -39,6 +39,14 @@
 // (taken at dispatch, cleared as they drain), and an age matrix of the SQ
 // gives the youngest matching store as a one-hot select.
 //
+// The D$ takes one request a cycle (OOO_DCAD), a load in E first: a
+// committed store drains in a cycle with no load in E. A stream of loads
+// (a loop polling a word, any load-heavy loop) would hold it off, so once
+// loads in E have held the oldest committed store off for DRAIN_WAIT cycles
+// (not counting those the D$ is busy) it takes the D$ port: the load in E sends no request, goes to wait in the LQ (raising
+// ld_cancel, as a load that waits for an older store's address does) and
+// is tried again after the store has left, from the D$ (Plan/CORE.md 5.6).
+//
 // Queues: the LQ and the SQ are allocated in program order at dispatch (up
 // to 2 a cycle) and freed in order: the LQ at commit, the SQ when a
 // committed store has been written to the D$. What is in flight for an LQ
@@ -82,7 +90,8 @@ module OOO_LSU
         parameter int PAW  = 40,        // physical address bits (mmRISC-2's PADDR_WIDTH)
         parameter int TAGW = 6,         // physical register tags
         parameter int ROBW = 5,         // ROB index (24 entries)
-        parameter int NCK  = 6          // checkpoints (branch-mask bits)
+        parameter int NCK  = 6,         // checkpoints (branch-mask bits)
+        parameter int DRAIN_WAIT = 8    // cycles a load holds a committed store off before it gives the store the D$ port
     )
     (
         input  logic                        clk,
@@ -288,7 +297,12 @@ module OOO_LSU
     end
     always_ff @(posedge clk) r_q <= r_next;
 
-    logic          e_v, e_ld, e_iss, e_retry, e_mis;
+    logic          e_v, e_ld, e_iss, e_retry, e_mis, e_yield;
+    // the oldest committed store with its address, and whether loads in E have held it off DRAIN_WAIT cycles
+    logic          s_pend, s_force;
+    logic [$clog2(DRAIN_WAIT + 1)-1:0] s_wait;
+    assign s_pend  = sq_head != sq_cmt && sknown[sq_head[SW-1:0]];
+    assign s_force = s_pend && s_wait == ($clog2(DRAIN_WAIT + 1))'(DRAIN_WAIT);
     logic [LW-1:0] e_lq;
     logic [PAW-1:0] e_addr;
     logic [1:0]    e_size;
@@ -311,7 +325,8 @@ module OOO_LSU
         // misaligned: the issued µop's from its own address (a store's SQ write
         // waits on it), a retried load's from the LQ
         e_mis = iss_valid ? misal(iss_size, e_sum[2:0]) : misal(lsize[r_e], laddr[r_e][2:0]);
-        dc_req_valid = e_v && e_ld && !e_mis;
+        e_yield      = e_v && e_ld && !e_mis && s_force;   // the D$ port goes to the store: the load waits
+        dc_req_valid = e_v && e_ld && !e_mis && !s_force;
         dc_req_addr  = e_addr;
         dc_req_tag   = e_lq;
     end
@@ -329,7 +344,7 @@ module OOO_LSU
     end
 
     // ---- M: the registers between E and M
-    logic          m_v, m_retry, m_mis;
+    logic          m_v, m_retry, m_mis, m_yield;
     logic [LW-1:0] m_lq;
     logic [PAW-1:0] m_addr;
     logic [1:0]    m_size;
@@ -344,6 +359,7 @@ module OOO_LSU
         m_bm    <= e_retry ? '0 : iss_bm;
         m_retry <= e_retry;
         m_mis   <= e_mis;
+        m_yield <= e_yield;
         m_lq    <= e_lq;
         m_addr  <= e_addr;
         m_size  <= e_size;
@@ -400,9 +416,9 @@ module OOO_LSU
     always @(*) begin
         m_rec     = flush_all || (m_retry ? restore : (m_bm & kill) != '0);
         m_exc     = m_live && !m_rec && m_mis;
-        m_to_wait = m_live && (m_rec || (!m_mis && (m_unknown || (m_fwd_any && !m_cover))));
-        m_ok      = m_live && !m_rec && !m_mis && !m_unknown && (m_fwd_any ? m_cover : dc_hit);
-        m_to_miss = m_live && !m_rec && !m_mis && !m_unknown && !m_fwd_any && !dc_hit;
+        m_to_wait = m_live && (m_rec || (!m_mis && (m_yield || m_unknown || (m_fwd_any && !m_cover))));
+        m_ok      = m_live && !m_rec && !m_mis && !m_yield && !m_unknown && (m_fwd_any ? m_cover : dc_hit);
+        m_to_miss = m_live && !m_rec && !m_mis && !m_yield && !m_unknown && !m_fwd_any && !dc_hit;
         // the dependents of a load from port 2 were woken for WB
         ld_cancel     = m_v && !m_retry && !m_ok;
         ld_cancel_tag = m_dst;
@@ -476,12 +492,17 @@ module OOO_LSU
     // next cycle, so the store must still be in the SQ then
     logic s_drain;
     always @(*) begin
-        dc_st_valid = sq_head != sq_cmt && sknown[sq_head[SW-1:0]] && !(e_v && e_ld);
+        dc_st_valid = s_pend && (!(e_v && e_ld) || s_force);
         dc_st_addr  = {swa[sq_head[SW-1:0]], 3'b000};
         dc_st_data  = sdata[sq_head[SW-1:0]];
         dc_st_mask  = smask[sq_head[SW-1:0]];
         s_drain     = dc_st_valid && dc_st_ready;
         sq_drained  = sq_head == sq_cmt;
+    end
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)                  s_wait <= '0;
+        else if (!s_pend || s_drain) s_wait <= '0;
+        else if (!s_force && e_v && e_ld) s_wait <= s_wait + 1'b1;     // (held off by a load in E, not by the D$)
     end
 
     // ---- pointers
@@ -571,7 +592,7 @@ module OOO_LSU
                 end else if (f_v && f_e == LW'(e)) begin
                     lst[e] <= L_DONE;
                 end
-                if (m_live && m_lq == LW'(e) && m_rec)  lretry[e] <= 1'b1;   // put back by a recovery
+                if (m_live && m_lq == LW'(e) && (m_rec || m_yield)) lretry[e] <= 1'b1;   // put back by a recovery or the drain
                 else if (e_retry && r_e == LW'(e))      lretry[e] <= 1'b0;
                 else if (st_event)                      lretry[e] <= 1'b1;
             end

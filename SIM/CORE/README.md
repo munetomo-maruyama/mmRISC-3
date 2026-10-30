@@ -197,8 +197,9 @@ D$'s or the buses' counts.
 
 `./run_core.sh` (`results/core.txt`): on `OOO_CORE` the 60 random programs (`b2`: ALU, branches, loads and stores) on 2
 seeds and with no I$ miss and no D$ hit, and the 96 programs of `b3` (riscv-tests, the console) on 2 seeds; on
-`OOO_CPU` both sets: **all pass**. The console on `OOO_CPU` takes 301,300 cycles for 25 characters: a store waits for
-a cycle with no load in E, and the polling loop issues one nearly every cycle (`Plan/CORE.md` 5.5).
+`OOO_CPU` both sets: **all pass**. The console on `OOO_CPU` took 301,300 cycles for 25 characters: a store waited for a
+cycle with no load in E, and the polling loop issues one nearly every cycle (`Plan/CORE.md` 5.5). Since 5.6 (a store
+takes the D$ port after loads have held it off 8 cycles): 2,240.
 
 ## B3's bug injection
 

@@ -3833,3 +3833,43 @@ One thing for Vivado: the OOC_FE harness now includes the new pc-array ports. If
 I ran the OOC_FE by Vivado.
 Go on with B3: loads and stores, the LSU with a D$ model first, then OOO_DCAD and the real D$, in lock-step.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+B3 is done: loads and stores run in lock-step with Spike, first against a D$ model and then on OOO_DCAD with the real D$. Everything is pushed as 4e05b40. Your OOC_FE rerun is recorded too (pushed as 01bbaff): +70 LUTs for the pc array and the second target-array read, +1.703 ns, and no path under +1.7 ns.
+
+**RTL**
+- **OOO_CORE:** I added port 2 (the load/store port) and OOO_LSU. Port 2 has the same RR and EX stages as the ALU ports, because the LSU's address stage is the core's EX. The bypass now takes from three write-back registers: the two ALU ports and the LSU.
+- **OOO_LSU:** it now also outputs its M result, so the register file is written at the edge the load enters WB (decision 4.2). Writing from the WB register a cycle later would let a dependent read the old value.
+- **OOO_CPU (new):** OOO_CORE plus OOO_DCAD and mmRISC-2's D$, on an AXI4 memory bus and an AXI4-Lite peripheral bus. OOO_CORE keeps an abstract D$ port, the same way it keeps the I$ port.
+- **DCACHE:** for simulation only (`DCACHE_SIM_UC`), it can leave one line uncached. The bench uses this for tohost, so HTIF sees writes in memory (rule 2 of 5.1).
+
+**Tests**
+- **Random load/store programs (20):** every access size into a 24 KB buffer. They cover store→load forwarding, stores that only partly cover a load, values passed through memory, bursts that fill the store queue, and conflicts that make the D$ evict and write lines back.
+- **riscv-tests (95):** all of rv64ui except `ma_data` and `fence_i` (the load/store and forwarding tests included), plus rv64uc and the Zb*/Zicond tests. They need CSRs normally, so I built them on a minimal environment without CSRs. Plus a console test that prints through tohost.
+
+| Run | Result |
+|---|---|
+| OOO_CORE + D$ model: 60 random programs and 96 tests, several seeds and hit rates (0–100 %) | **All pass** |
+| OOO_CPU + real D$: the same 60 + 96 | **All pass** (about 230 line fills and 17 write-backs per program) |
+| Replay after a load miss (D-12) | 30–106 replays per program, all correct |
+| Core glue bug injection | **54 of 54 detected**: 20 new port-2 mutations; the one survivor was redundant logic, which I removed |
+| Unit tests | All 28 pass; unit mutations now 312 |
+
+**One redundant piece removed:** I had made a late load's result wake the issue queue again. The bug injection showed this does nothing, because the queue already wakes a load's dependents 2 cycles after issue, and anything that ran on that guess is replayed after commit.
+
+**A performance problem found (results stay correct)**
+- The LSU only writes a committed store to the D$ in a cycle when no load is in its address stage.
+- The console test's polling loop issues a load nearly every cycle. With the real D$, printing 25 characters took 301,300 cycles, against 1,509 with the D$ model.
+- The same thing holds back stores behind any load-heavy loop until the store queue fills.
+- **Proposed fix:** let a store drain when the load in the address stage is to a different 8-byte word; once a committed store has waited a few cycles, drain it anyway and send that load to wait in the load queue for a retry.
+
+Everything is recorded in Plan/CORE 5.5, the READMEs, UARCH and PROMPT.md, in both languages.
+<!-- /answer -->
+
+## 102. 2026-10-31 01:14:51 JST
+
+```text
+Fix the store drain in OOO_LSU as proposed in Plan/CORE 5.5 (drain when the load in E is to another word; after some cycles drain anyway and send the load to wait), with tests and the bug injection.
+```
