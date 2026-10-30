@@ -2544,3 +2544,16 @@ The author took D-18 (`Doc/PROMPT.md` entry 94).
 - **The budget** (`Doc/UARCH.md` 4.4): OOC_FE 6,184 in place of 6,231.
 - **The front end stands here until G1**: the loop's lever (duplicating `hb`, 26.14 C) waits for the whole core,
   where routing decides whether it is needed.
+
+### 26.17 OOC_FE with the pc array and the second target-array read (B2, 2026-10-31)
+
+| Run | LUT | of it LUTRAM | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|---|
+| OOC_FE (26.16) | 6,184 | 602 | 3,288 | +1.095 ns | 17 |
+| **OOC_FE (pc array, 2 target-array reads)** | **6,254** | 676 | 3,408 | **+1.703 ns** | 15 |
+
+- **+70 LUTs**, nearly all LUTRAM (+74): the pc array (16 × 35 bits) and the second read of the target array, as
+  `Plan/CORE.md` 4.1 / 4.5 expected ("tens of LUTs" each).
+- **The worst path is fetch's head pc → the RAS's LUTRAM write enable** (+1.703 ns, 15 levels); the fetch buffer's
+  loop is +2.019 ns this time (+1.095 before: placement), D1a / D1b +5.4 / +5.3 ns. No path is under +1.7 ns.
+- The budget (`Doc/UARCH.md` 4.4): OOC_FE 6,254 in place of 6,184.

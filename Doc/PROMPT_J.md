@@ -3782,5 +3782,45 @@ Go on with B2: the core with ALU µops only (port 0 / 1), no memory, fusion off,
 <!-- answer -->
 **Claude Codeの回答**
 
-I'm waiting for the B2 runs and the campaigns to finish.
+B2 is running: the core with ALU µops only (ports 0 and 1, fusion off, no memory) executes random programs in lock-step with Spike at every instruction. It is pushed as 0bffdf2.
+
+**What I built**
+- **OOO_CORE (new):** the B2 core with:
+  - the front end and D2 (fusion off, renaming, the control's go);
+  - the DS register, the ROB, the issue queue and its payload, the register file;
+  - two ALU ports (RR, EX, WB, bypass from the write-back registers);
+  - branch resolution, commit, and a commit trace for simulation.
+- **Front end:** OOO_FRONT now has a pc array and a second read of the target array (one read per ALU port). B1's bench checks them too.
+- **Bench:** tb_core, plus a generator for test programs. B2's programs have no memory, so they end at the symbol `pass` instead of the HTIF exit.
+
+**Two issues that came up while connecting the blocks**
+- **Combinational loop between renaming and the control.** Renaming's `ready` depended on its `in_valid`, which is the control's `r_go`, which waits for `ready`. The unit tests drove each block alone, so this never showed. I fixed renaming to count the µops offered instead (the same for µop 1's checkpoint id). tb_rename now offers µops the way the control does, and I added mutation M346 for it.
+- **D2 has to rotate the group (B2-1, not in the plan).** The group register leaves the remaining instructions in their slots after a partial take, but OOO_FUSE expects the group to start at slot 0. I rotated it to the oldest valid slot just before OOO_FUSE. I estimate this costs about 0.3k–0.5k LUTs, which is not in the budget. B7 will measure it.
+
+**Results**
+
+| Check | Result |
+|---|---|
+| 20 random ALU programs + 20 with branches, loops, calls and jumps; 2 seeds, plus a run with no I$ misses | **All pass in lock-step** |
+| ALU programs | IPC 1.58–1.63 |
+| Branch programs | 6k–16k instructions, 136–552 mispredictions each, IPC 0.70–0.98 |
+| Core glue bug injection | **35 of 35 detected** |
+| Unit tests (28), B1, front-end bug injection (43/43), renaming mutations (11/11) | All pass |
+
+- The first bug-injection run left 12 of 40.
+  - **7 are caught now:**
+    - by a new bench check of each resolved branch and jalr against its instruction (call/return, the last parcel, taken). Lock-step can't see these, since they only steer the predictors;
+    - by programs that now include c.jalr, jalr with an offset, a call through the other link register, and bursts of branches that use up the checkpoints.
+  - **5 I left out as equivalent at today's design**, with the reasons recorded in `mutate_core.py`. For example, a killed µop acts at most 2 cycles after a restore, while the restarted fetch reaches renaming no sooner than 6 cycles after it.
+
+Everything is recorded in Plan/CORE 5.4, the READMEs, UARCH and PROMPT.md, in both languages.
+
+One thing for Vivado: the OOC_FE harness now includes the new pc-array ports. If you want to measure them, rerun `synth_ooo.bat OOC_FE`; it isn't urgent.
 <!-- /answer -->
+
+## 101. 2026-10-31 00:05:56 JST
+
+```text
+I ran the OOC_FE by Vivado.
+Go on with B3: loads and stores, the LSU with a D$ model first, then OOO_DCAD and the real D$, in lock-step.
+```
