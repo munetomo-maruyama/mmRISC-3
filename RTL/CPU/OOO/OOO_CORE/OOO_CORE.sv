@@ -56,7 +56,8 @@
 
 module OOO_CORE
     #(
-        parameter int VA = 39
+        parameter int VA  = 39,
+        parameter int PAW = 40          // physical address bits (Phase 1: the address as it is)
     )
     (
         input  logic                        clk,
@@ -69,7 +70,23 @@ module OOO_CORE
         output logic [VA-1:1]               ic_req_pc,
         input  logic                        ic_req_ready,
         input  logic                        ic_resp_valid,
-        input  logic [127:0]                ic_resp_data
+        input  logic [127:0]                ic_resp_data,
+        // the D$ (OOO_LSU's abstract port: OOO_DCAD and the D$, or a model)
+        output logic                        dc_req_valid,
+        output logic [PAW-1:0]              dc_req_addr,
+        output logic [2:0]                  dc_req_tag,
+        input  logic                        dc_hit,
+        input  logic [63:0]                 dc_rdata,
+        input  logic                        dc_fill_valid,
+        input  logic [2:0]                  dc_fill_tag,
+        input  logic [63:0]                 dc_fill_data,
+        output logic                        dc_fill_ready,
+        output logic [7:0]                  dc_kill,
+        output logic                        dc_st_valid,
+        output logic [PAW-1:0]              dc_st_addr,
+        output logic [63:0]                 dc_st_data,
+        output logic [7:0]                  dc_st_mask,
+        input  logic                        dc_st_ready
 `ifdef OOO_TRACE
         ,
         // the commit trace: up to 2 µops a cycle, slot 0 the older
@@ -81,7 +98,11 @@ module OOO_CORE
         output logic [1:0][63:0]            tr_val,
         output logic                        tr_trap,
         output logic [4:0]                  tr_cause,
-        output logic [VA-1:1]               tr_trap_pc
+        output logic [VA-1:1]               tr_trap_pc,
+        output logic [1:0]                  tr_st,      // a store: its address, data and size
+        output logic [1:0][63:0]            tr_st_addr,
+        output logic [1:0][63:0]            tr_st_data,
+        output logic [1:0][1:0]             tr_st_size
 `endif
     );
 
@@ -92,9 +113,13 @@ module OOO_CORE
     localparam int NIQ   = 10, IQW  = 4;
     localparam int NWK   = 6;                   // wakeup buses (OOO_IQ: 4 + NEXT)
 
-    // the payload record (OOO_IQPL, 96 bits; B2's fields)
+    // the payload record (OOO_IQPL, 96 bits; the fields of B2 and B3)
     typedef struct packed {
-        logic [9:0]      pad;
+        logic [2:0]      lq;                    // a load's LQ entry, a store's SQ entry (OOO_LSU)
+        logic [2:0]      sq;
+        logic [1:0]      msize;                 // 0 byte .. 3 double
+        logic            uns;                   // a load zero extended
+        logic            is_ld;                 // (a µop of port 2: a load, else a store)
         logic            pred_taken;            // it ends a block predicted taken
         logic            ret;
         logic            call;
@@ -128,6 +153,7 @@ module OOO_CORE
         logic [TAGW-1:0] dst;
         logic [TAGW-1:0] old;
         logic            exc;
+        logic            ld, st;
         logic [1:0]      port;
         logic            lat2;
         logic [31:0]     insn;
@@ -178,7 +204,8 @@ module OOO_CORE
     logic [3:0][2:0]     g_br_op;
     logic [3:0][1:0]     g_mem_size;
     /* verilator lint_off UNUSEDSIGNAL */      // (decode's fields B2 does not use: MDU, memory, system, CSR, FP)
-    logic [3:0]          g_ext_ans, g_nonspec, g_mem_signed, g_is_sfence, g_is_csr, g_csr_imm_sel, g_csr_wr, g_csr_rd, g_is_fp;
+    logic [3:0]          g_mem_signed;
+    logic [3:0]          g_ext_ans, g_nonspec, g_is_sfence, g_is_csr, g_csr_imm_sel, g_csr_wr, g_csr_rd, g_is_fp;
     logic [3:0][3:0]     g_mdu_op;
     logic [3:0][4:0]     g_mem_cmd;
     logic [3:0][7:0]     g_sys;
@@ -310,6 +337,11 @@ module OOO_CORE
             d2[j].rec.e          = g_end[s];
             d2[j].rec.ckpt       = ren_ckpt_id[j];
             d2[j].rec.ftq        = g_ftq[s];
+            d2[j].rec.msize      = g_mem_size[s];
+            d2[j].rec.uns        = !g_mem_signed[s];
+            d2[j].rec.is_ld      = g_cls[s] == 3'd4;
+            d2[j].ld             = g_cls[s] == 3'd4;
+            d2[j].st             = g_cls[s] == 3'd5;
             d2[j].pc             = g_pc[s];
             d2[j].wr             = ren_wr[j];
             d2[j].arch           = g_rd[s];
@@ -364,33 +396,41 @@ module OOO_CORE
     logic [1:0][CW-1:0]        br_ckpt;
     logic [1:0][VA-1:1]        br_next;
     logic [1:0][ROBW-1:0]      br_rob   /*verilator public_flat_rd*/;
-    logic                      rob_restore, trap, replay, head_ns, iss_ns, ns_ok;
+    logic                      rob_restore, trap, head_ns, iss_ns, ns_ok;
+    logic                      replay /*verilator public_flat_rd*/;      // (counted by SIM/CORE/tb_core)
     logic [CW-1:0]             rob_restore_ckpt;
     logic [VA-1:1]             replay_pc;
     logic [ROBW-1:0]           head_rob;
     logic [4:0]                trap_cause;
     logic [VA-1:1]             trap_pc;
 
-    /* verilator lint_off PINCONNECTEMPTY */   // (what the LSU, OOO_TRAP and interrupts take: not in B2)
+    // the LSU's side of dispatch, commit and recovery
+    logic [1:0]                lq_avail, sq_avail, lq_commit, sq_commit;
+    logic [1:0][3:0]           ck_lq_tail, ck_sq_tail;
+    logic [3:0]                restore_lq_tail, restore_sq_tail;
+    logic [1:0][2:0]           disp_lq, disp_sq;
+
+    /* verilator lint_off PINCONNECTEMPTY */   // (what OOO_TRAP and interrupts take: not yet)
     OOO_CTRL #(.NCKPT(NCKPT), .CW(CW), .VA(VA), .FTQW(FTQW), .LW(3), .TAGW(TAGW)) u_ctrl
         (.clk(clk), .rst_n(rst_n),
          .r_valid(r_valid), .r_ckpt(r_ckpt), .r_ckpt_id(ren_ckpt_id), .r_ren_ready(ren_ready), .r_go(r_go),
-         .ds_valid(ds_valid), .ds_load(ds_load), .ds_ld(2'b00), .ds_st(2'b00),
+         .ds_valid(ds_valid), .ds_load(ds_load), .ds_ld({ds[1].ld, ds[0].ld}), .ds_st({ds[1].st, ds[0].st}),
          .ds_ftq({ds[1].rec.ftq, ds[0].rec.ftq}), .rob_avail(rob_avail), .iq_avail(iq_ready),
-         .lq_avail(2'd2), .sq_avail(2'd2), .ck_lq_tail('0), .ck_sq_tail('0), .d_go(d_go), .d_bmask(d_bmask),
+         .lq_avail(lq_avail), .sq_avail(sq_avail), .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail), .d_go(d_go), .d_bmask(d_bmask),
          .br_valid(br_valid), .br_mispred(br_mispred), .br_ckpt(br_ckpt), .br_next(br_next),
          .rob_restore(rob_restore), .rob_restore_ckpt(rob_restore_ckpt), .trap(trap), .replay(replay),
          .replay_pc(replay_pc), .trap_vec(trap_vec), .head_ns(head_ns),
          .cmt_valid(cmt_valid), .cmt_wr(cmt_wr), .cmt_old(cmt_old), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n),
          .cmt_ftq(cmt_ftq), .iss_ns(iss_ns), .ns_ok(ns_ok), .ns_busy(),
          .fe_flush(fe_flush), .flush_all(flush_all), .restore(restore), .restore_id(restore_id),
-         .restore_port(restore_port), .restore_lq_tail(), .restore_sq_tail(), .restore_ftq(restore_ftq),
+         .restore_port(restore_port), .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .restore_ftq(restore_ftq),
          .kill(kill), .clr(clr), .fe_redirect(fe_redirect), .fe_pc(fe_pc), .live(),
-         .free_valid(free_valid), .free_tag(free_tag), .lq_commit(), .sq_commit(), .ftq_pop(ftq_pop));
+         .free_valid(free_valid), .free_tag(free_tag), .lq_commit(lq_commit), .sq_commit(sq_commit), .ftq_pop(ftq_pop));
 
     // the ROB
-    logic [3:0]                cmp_valid;
+    logic [3:0]                cmp_valid, cmp_exc, cmp_rp;
     logic [3:0][ROBW-1:0]      cmp_rob;
+    logic [3:0][4:0]           cmp_cause;
     logic [1:0]                disp_go;
     assign disp_go = d_go;
     /* verilator lint_off UNUSEDSIGNAL */
@@ -401,11 +441,11 @@ module OOO_CORE
     OOO_ROB #(.NROB(NROB), .ROBW(ROBW), .VA(VA), .TAGW(TAGW), .CW(CW), .NCMP(4), .FTQW(FTQW)) u_rob
         (.clk(clk), .rst_n(rst_n), .rob_avail(rob_avail), .disp_valid(disp_go),
          .disp_pc({ds[1].pc, ds[0].pc}), .disp_wr({ds[1].wr, ds[0].wr}), .disp_arch({ds[1].arch, ds[0].arch}),
-         .disp_new({ds[1].dst, ds[0].dst}), .disp_old({ds[1].old, ds[0].old}), .disp_ld(2'b00), .disp_st(2'b00),
+         .disp_new({ds[1].dst, ds[0].dst}), .disp_old({ds[1].old, ds[0].old}), .disp_ld({ds[1].ld, ds[0].ld}), .disp_st({ds[1].st, ds[0].st}),
          .disp_fused(2'b00), .disp_ns(2'b00), .disp_len({ds[1].rec.len4 ? 3'd2 : 3'd1, ds[0].rec.len4 ? 3'd2 : 3'd1}),
          .disp_ftq({ds[1].rec.ftq, ds[0].rec.ftq}), .disp_exc({ds[1].exc, ds[0].exc}), .disp_cause({5'd2, 5'd2}),
          .disp_rob(disp_rob),
-         .cmp_valid(cmp_valid), .cmp_rob(cmp_rob), .cmp_exc(4'b0000), .cmp_cause('0), .cmp_rp(4'b0000),
+         .cmp_valid(cmp_valid), .cmp_rob(cmp_rob), .cmp_exc(cmp_exc), .cmp_cause(cmp_cause), .cmp_rp(cmp_rp),
          .br_valid(br_valid), .br_rob(br_rob), .br_mispred(br_mispred), .br_ckpt(br_ckpt),
          .restore(rob_restore), .restore_rob(rob_restore_rob), .restore_ckpt(rob_restore_ckpt),
          .head_rob(head_rob), .head_ns(head_ns), .head_valid(head_valid), .head_fused(head_fused), .irq(1'b0),
@@ -441,6 +481,8 @@ module OOO_CORE
         for (int j = 0; j < 2; j++) begin
             wrec[j]     = ds[j].rec;
             wrec[j].rob = disp_rob[j];
+            wrec[j].lq  = disp_lq[j];
+            wrec[j].sq  = disp_sq[j];
         end
     end
     OOO_IQPL #(.N(NIQ), .W($bits(rec_t)), .W2($bits(rec_t))) u_iqpl
@@ -448,7 +490,7 @@ module OOO_CORE
          .iss_entry(iss_entry), .rr_data(rr_rec));
     /* verilator lint_on PINCONNECTEMPTY */
 
-    // ---- the ALU ports: RR, EX, WB
+    // ---- the ports: RR, EX (and WB for the ALU ports; the LSU has its own M and WB)
     localparam int RRW = 3 * TAGW + 1;                          // sources, destination, writes
     typedef struct packed {
         logic [63:0]     v1, v2;                                // the sources as read in RR
@@ -461,13 +503,33 @@ module OOO_CORE
     } ex_t;
     localparam int WBW = TAGW + 64;
 
-    logic [3:0][TAGW-1:0]      prf_ra;
-    logic [3:0][63:0]          prf_rd;
-    logic [1:0]                prf_we;
-    logic [1:0][TAGW-1:0]      prf_wa;
-    logic [1:0][63:0]          prf_wd;
+    logic [5:0][TAGW-1:0]      prf_ra;
+    logic [5:0][63:0]          prf_rd;
+    logic [2:0]                prf_we;
+    logic [2:0][TAGW-1:0]      prf_wa;
+    logic [2:0][63:0]          prf_wd;
     logic [1:0]                wb_v;
     logic [1:0][WBW-1:0]       wb_d;
+    // the bypass sources: the ALU ports' WB registers and the LSU's
+    logic                      lsu_wb_v;
+    /* verilator lint_off UNUSEDSIGNAL */      // (a late load needs no wakeup: its dependents were woken two cycles after
+    logic                      lsu_wb_late;    //  its issue, and what ran on that guess is replayed after commit, D-12)
+    /* verilator lint_on UNUSEDSIGNAL */
+    logic [TAGW-1:0]           lsu_wb_t;
+    logic [63:0]               lsu_wb_d;
+    logic [2:0]                byp_v;
+    logic [2:0][TAGW-1:0]      byp_t;
+    logic [2:0][63:0]          byp_d;
+    always @(*) begin
+        for (int q = 0; q < 2; q++) begin
+            byp_v[q] = wb_v[q];
+            byp_t[q] = wb_d[q][WBW-1 -: TAGW];
+            byp_d[q] = wb_d[q][63:0];
+        end
+        byp_v[2] = lsu_wb_v;
+        byp_t[2] = lsu_wb_t;
+        byp_d[2] = lsu_wb_d;
+    end
     logic [1:0]                ex_v;
     ex_t  [1:0]                ex;
     logic [1:0][63:0]          ex_res;
@@ -518,9 +580,9 @@ module OOO_CORE
             // the bypass: the write-back registers (the results of the cycle before), else the RR read
             a = ex[p].v1;
             b = ex[p].v2;
-            for (int q = 0; q < 2; q++) begin
-                if (wb_v[q] && wb_d[q][WBW-1 -: TAGW] == ex[p].t1) a = wb_d[q][63:0];
-                if (wb_v[q] && wb_d[q][WBW-1 -: TAGW] == ex[p].t2) b = wb_d[q][63:0];
+            for (int q = 0; q < 3; q++) begin
+                if (byp_v[q] && byp_t[q] == ex[p].t1) a = byp_d[q];
+                if (byp_v[q] && byp_t[q] == ex[p].t2) b = byp_d[q];
             end
             pc    = {ex[p].line, ex[p].rec.off};
             ex_pc[p] = pc;
@@ -570,8 +632,81 @@ module OOO_CORE
              .in_valid(ex_v[p] && ex[p].wr), .in_bm(ex_bm), .in_data({ex[p].dst, ex_res[p]}),
              .out_valid(wb_v[p]), .out_bm(wb_bm), .out_data(wb_d[p]));
     end
-    assign cmp_valid[3:2] = 2'b00;
-    assign cmp_rob[3:2]   = '0;
+
+    // ---- port 2: RR, EX (the LSU's E), the LSU
+    logic            p2_rr_v, p2_ex_v, p2_rr_wr;
+    logic [NCKPT-1:0] p2_rr_bm, p2_ex_bm;
+    logic [RRW-1:0]  p2_rr_d;
+    logic [TAGW-1:0] p2_rr_t1, p2_rr_t2, p2_rr_dst;
+    ex_t             p2_rx;
+    /* verilator lint_off UNUSEDSIGNAL */      // (port 2 uses the record's memory fields only)
+    ex_t             p2;
+    /* verilator lint_on UNUSEDSIGNAL */
+    logic [63:0]     p2_a, p2_b;
+    OOO_STAGE #(.W(RRW), .NCK(NCKPT)) u_rr2
+        (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
+         .in_valid(iss_valid[2]), .in_bm(iss_bm[2]), .in_data({iss_src[2][1], iss_src[2][0], iss_dst[2], iss_wr[2]}),
+         .out_valid(p2_rr_v), .out_bm(p2_rr_bm), .out_data(p2_rr_d));
+    assign {p2_rr_t2, p2_rr_t1, p2_rr_dst, p2_rr_wr} = p2_rr_d;
+    assign prf_ra[4] = p2_rr_t1;                                // the base
+    assign prf_ra[5] = p2_rr_t2;                                // a store's data
+    always @(*) begin
+        p2_rx     = '0;
+        p2_rx.v1  = prf_rd[4];
+        p2_rx.v2  = prf_rd[5];
+        p2_rx.t1  = p2_rr_t1;
+        p2_rx.t2  = p2_rr_t2;
+        p2_rx.dst = p2_rr_dst;
+        p2_rx.wr  = p2_rr_wr;
+        p2_rx.rec = rr_rec[2];
+    end
+    OOO_STAGE #(.W($bits(ex_t)), .NCK(NCKPT)) u_ex2
+        (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
+         .in_valid(p2_rr_v), .in_bm(p2_rr_bm), .in_data(p2_rx), .out_valid(p2_ex_v), .out_bm(p2_ex_bm), .out_data(p2));
+    always @(*) begin
+        p2_a = p2.v1;
+        p2_b = p2.v2;
+        for (int q = 0; q < 3; q++) begin
+            if (byp_v[q] && byp_t[q] == p2.t1) p2_a = byp_d[q];
+            if (byp_v[q] && byp_t[q] == p2.t2) p2_b = byp_d[q];
+        end
+    end
+
+    /* verilator lint_off UNUSEDSIGNAL */      // (FENCE / FENCE.I: OOO_SYS, B4; ld_cancel: replay after commit, no selective replay)
+    logic [7:0]      lsu_st_known;
+    logic            sq_drained, ld_cancel;
+    logic [TAGW-1:0] ld_cancel_tag;
+    /* verilator lint_on UNUSEDSIGNAL */
+    logic            cmp_ld_v, cmp_ld_e, cmp_ld_rp, cmp_st_v, cmp_st_e;
+    logic [ROBW-1:0] cmp_ld_rob, cmp_st_rob;
+    OOO_LSU #(.NLQ(8), .NSQ(8), .PAW(PAW), .TAGW(TAGW), .ROBW(ROBW), .NCK(NCKPT)) u_lsu
+        (.clk(clk), .rst_n(rst_n),
+         .disp_valid(d_go), .disp_ld({ds[1].ld, ds[0].ld}), .disp_st({ds[1].st, ds[0].st}), .disp_rob(disp_rob),
+         .lq_avail(lq_avail), .sq_avail(sq_avail), .disp_lq(disp_lq), .disp_sq(disp_sq),
+         .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail),
+         .iss_valid(p2_ex_v), .iss_ld(p2.rec.is_ld), .iss_lq(p2.rec.lq), .iss_sq(p2.rec.sq), .iss_base(p2_a),
+         .iss_imm(p2.rec.imm[11:0]), .iss_data(p2_b), .iss_size(p2.rec.msize), .iss_uns(p2.rec.uns),
+         .iss_dst(p2.dst), .iss_bm(p2_ex_bm), .lsu_st_known(lsu_st_known),
+         .dc_req_valid(dc_req_valid), .dc_req_addr(dc_req_addr), .dc_req_tag(dc_req_tag), .dc_hit(dc_hit),
+         .dc_rdata(dc_rdata), .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),
+         .dc_fill_ready(dc_fill_ready), .dc_kill(dc_kill), .sq_drained(sq_drained), .dc_st_valid(dc_st_valid),
+         .dc_st_addr(dc_st_addr), .dc_st_data(dc_st_data), .dc_st_mask(dc_st_mask), .dc_st_ready(dc_st_ready),
+         .rf_valid(prf_we[2]), .rf_tag(prf_wa[2]), .rf_data(prf_wd[2]),
+         .wb_valid(lsu_wb_v), .wb_late(lsu_wb_late), .wb_tag(lsu_wb_t), .wb_data(lsu_wb_d),
+         .ld_cancel(ld_cancel), .ld_cancel_tag(ld_cancel_tag),
+         .cmp_ld_valid(cmp_ld_v), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_e), .cmp_ld_rp(cmp_ld_rp),
+         .cmp_st_valid(cmp_st_v), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_e),
+         .lq_commit(lq_commit), .sq_commit(sq_commit), .restore(restore), .kill(kill),
+         .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all(flush_all));
+
+    // completion: the ALU ports (no exception), the LSU's loads and stores (misaligned)
+    always @(*) begin
+        cmp_exc   = {cmp_st_e, cmp_ld_e, 2'b00};
+        cmp_rp    = {1'b0, cmp_ld_rp, 2'b00};
+        cmp_cause = {5'd6, 5'd4, 5'd0, 5'd0};                  // store / load address misaligned
+    end
+    assign cmp_valid[3:2] = {cmp_st_v, cmp_ld_v};
+    assign cmp_rob[3:2]   = {cmp_st_rob, cmp_ld_rob};
 
     // an indirect jump (a jalr not a return) writes the BTB: port 0's first
     always @(*) begin
@@ -583,7 +718,7 @@ module OOO_CORE
     end
 
     /* verilator lint_off PINCONNECTEMPTY */
-    OOO_PRF #(.NREG(64), .NW(2), .NR(4)) u_prf
+    OOO_PRF #(.NREG(64), .NW(3), .NR(6)) u_prf
         (.clk(clk), .ra(prf_ra), .rd(prf_rd), .we(prf_we), .wa(prf_wa), .wd(prf_wd));
     /* verilator lint_on PINCONNECTEMPTY */
 
@@ -591,9 +726,23 @@ module OOO_CORE
     // ---- the commit trace
     logic [31:0]     sh_insn [NROB] /*verilator public_flat_rd*/;
     logic [63:0]     sh_val  [NROB];
+    logic            sh_st   [NROB];
+    logic [63:0]     sh_sa   [NROB];
+    logic [63:0]     sh_sd   [NROB];
+    logic [1:0]      sh_ss   [NROB];
     always_ff @(posedge clk) begin
-        for (int j = 0; j < 2; j++) if (disp_go[j]) sh_insn[disp_rob[j]] <= ds[j].insn;
+        for (int j = 0; j < 2; j++) if (disp_go[j]) begin
+            sh_insn[disp_rob[j]] <= ds[j].insn;
+            sh_st[disp_rob[j]]   <= 1'b0;
+        end
         for (int p = 0; p < 2; p++) if (ex_v[p] && ex[p].wr) sh_val[ex[p].rec.rob] <= ex_res[p];
+        if (cmp_ld_v && lsu_wb_v) sh_val[cmp_ld_rob] <= lsu_wb_d;                 // a load's value with its completion
+        if (p2_ex_v && !p2.rec.is_ld) begin                                       // a store in E
+            sh_st[p2.rec.rob] <= 1'b1;
+            sh_sa[p2.rec.rob] <= p2_a + {{52{p2.rec.imm[11]}}, p2.rec.imm[11:0]};
+            sh_sd[p2.rec.rob] <= p2_b;
+            sh_ss[p2.rec.rob] <= p2.rec.msize;
+        end
     end
     always @(*) begin
         logic [ROBW-1:0] i1;
@@ -609,6 +758,14 @@ module OOO_CORE
         tr_trap    = trap;
         tr_cause   = trap_cause;
         tr_trap_pc = trap_pc;
+        tr_st[0]      = sh_st[head_rob];
+        tr_st[1]      = sh_st[i1];
+        tr_st_addr[0] = sh_sa[head_rob];
+        tr_st_addr[1] = sh_sa[i1];
+        tr_st_data[0] = sh_sd[head_rob];
+        tr_st_data[1] = sh_sd[i1];
+        tr_st_size[0] = sh_ss[head_rob];
+        tr_st_size[1] = sh_ss[i1];
     end
 `endif
 

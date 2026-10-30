@@ -17,6 +17,14 @@
 #            instructions only ALU0 has (port 1 idle), branches on an
 #            xorshift state (half of them mispredicted); x1, x3 to x7, x30
 #            and x31 are kept for them
+#     ls     (B3) the same, and loads and stores of every size into a 24 KB
+#            buffer through seven bases (x9 at its start for the compressed
+#            forms, x28 2 KB in, x23 to x27 4 KB apart from there: more
+#            lines on a set of the D$ than it has ways, so lines are evicted
+#            and written back): stores and loads of the same word soon after each
+#            other (forwarding), smaller stores under larger loads (a store
+#            that does not cover the load: it waits), values passed through
+#            memory to dependent loads, bursts of stores (the SQ fills)
 #---------------------------------------------------------------------------
 import random, sys
 
@@ -68,8 +76,21 @@ def main():
             out.append('    ' + alu(rnd, regs, few))
         out += ['    .globl pass', 'pass:', '    j pass']
     else:
-        regs = ['x%d' % r for r in range(2, 30) if r not in (3, 4, 5, 6, 7)]
-        few = ['x8', 'x9', 'x10', 'x11', 'x12', 'x13', 'x14', 'x15']
+        BASES = ['x9', 'x28', 'x27', 'x26', 'x25', 'x24', 'x23']
+        regs = ['x%d' % r for r in range(2, 30) if r not in (3, 4, 5, 6, 7) + ((9, 28, 27, 26, 25, 24, 23) if kind == 'ls' else ())]
+        LD = [('ld', 8), ('lw', 4), ('lwu', 4), ('lh', 2), ('lhu', 2), ('lb', 1), ('lbu', 1)]
+        ST = [('sd', 8), ('sw', 4), ('sh', 2), ('sb', 1)]
+
+        def mem_off(base, sz):                       # an aligned offset inside the buffer
+            if base == 'x9':
+                return rnd.randrange(0, 256, max(sz, 4) if sz >= 4 else sz)
+            return rnd.randrange(-2048, 2047 - sz + 1, sz) // sz * sz
+
+        def memop(store):
+            base = rnd.choice(BASES)
+            op, sz = rnd.choice(ST if store else LD)
+            return '    %s %s, %d(%s)' % (op, rnd.choice(few if base == 'x9' else regs), mem_off(base, sz), base)
+        few = [r for r in ['x8', 'x9', 'x10', 'x11', 'x12', 'x13', 'x14', 'x15'] if r in regs]   # (x9 is a base in ls)
         lab = [0]
         funcs = []
 
@@ -81,6 +102,33 @@ def main():
             body = []
             for _ in range(rnd.randint(1, 4)):
                 body.append('    ' + alu(rnd, regs, few))
+            if kind == 'ls' and rnd.random() < 0.5:        # memory
+                m = rnd.random()
+                base = rnd.choice(BASES)
+                if m < 0.3:                                # a few loads and stores at random
+                    for _ in range(rnd.randint(1, 5)):
+                        body.append(memop(rnd.random() < 0.5))
+                elif m < 0.55:                             # store, then load the same word soon after (forwarding, or a wait)
+                    sop, ssz = rnd.choice(ST)
+                    o = mem_off(base, 8)
+                    so = o + rnd.randrange(0, 8, ssz)
+                    body.append('    %s %s, %d(%s)' % (sop, rnd.choice(few if base == 'x9' else regs), so, base))
+                    for _ in range(rnd.randint(0, 3)):
+                        body.append('    ' + alu(rnd, regs, few))
+                    lop, lsz = rnd.choice(LD)
+                    body.append('    %s %s, %d(%s)' % (lop, rnd.choice(regs), o + rnd.randrange(0, 8, lsz), base))
+                elif m < 0.75:                             # a value through memory to a dependent load and its user
+                    r = rnd.choice(few)
+                    o = mem_off(base, 8)
+                    body.append('    sd %s, %d(%s)' % (r, o, base))
+                    body.append('    ld %s, %d(%s)' % (r, o, base))
+                    body.append('    add %s, %s, %s' % (rnd.choice(regs), r, rnd.choice(regs)))
+                else:                                      # a burst of stores (the SQ fills), then loads
+                    for _ in range(rnd.randint(6, 12)):
+                        body.append(memop(True))
+                    for _ in range(rnd.randint(1, 4)):
+                        body.append(memop(False))
+                return body
             k = rnd.random()
             if k < 0.35:                                   # a forward branch over a few instructions
                 l = new()
@@ -165,6 +213,8 @@ def main():
                 body.append(l + ':')
             return body
 
+        if kind == 'ls':
+            out += ['    la x9, buf', '    la x28, buf + 2048'] + ['    la x%d, buf + %d' % (27 - k, 2048 + 4096 * (k + 1)) for k in range(5)]
         for _ in range(n):
             out += seg(0)
         out += ['    .globl pass', 'pass:', '    j pass']
@@ -175,6 +225,8 @@ def main():
             out.append('    jr %s' % link)                 # (a return: c.jr ra / jalr x0, 0(t0))
     out += ['    .section .tohost, "aw", @progbits', '    .align 6', '    .globl tohost', 'tohost: .dword 0',
             '    .globl fromhost', 'fromhost: .dword 0']
+    if kind == 'ls':                                       # the buffer, filled with random words
+        out += ['    .section .data', '    .align 6', 'buf:'] + ['    .dword %d' % rnd.getrandbits(64) for _ in range(3072)]
     print('\n'.join(out))
 
 

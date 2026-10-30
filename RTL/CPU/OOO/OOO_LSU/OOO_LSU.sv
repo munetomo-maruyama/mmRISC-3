@@ -18,8 +18,10 @@
 //        - D$ miss: the load waits for the fill (dc_fill_*)
 //        - a matching store does not cover the load, or an older store has
 //          no address yet: the load waits and is tried again from the LQ
-//   WB the result register: the register-file write and the bypass, 2
-//      cycles after issue as far as the dependents are concerned
+//   WB the result register: the bypass, 2 cycles after issue as far as the
+//      dependents are concerned. The register file is written at the edge
+//      the result enters it (rf_*, Plan/CORE.md 4.2), so that a dependent
+//      that reads it in the cycle after finds the value there
 // A load that cannot give its result in WB (miss, wait, exception) raises
 // ld_cancel with its tag in M: the dependents woken for it may have run on
 // a wrong value. It gives its result later through the same write port,
@@ -132,7 +134,10 @@ module OOO_LSU
         input  logic                        dc_st_ready,
 
         // results
-        output logic                        wb_valid,     // register-file write
+        output logic                        rf_valid,     // the register-file write: what WB takes now (Plan/CORE.md 4.2)
+        output logic [TAGW-1:0]             rf_tag,
+        output logic [63:0]                 rf_data,
+        output logic                        wb_valid,     // the result register (the bypass of the cycle after)
         output logic                        wb_late,      // not in its expected cycle: needs a wakeup
         output logic [TAGW-1:0]             wb_tag,
         output logic [63:0]                 wb_data,
@@ -425,6 +430,9 @@ module OOO_LSU
     end
 
     // ---- WB: one write a cycle, M first, then a fill
+    assign rf_valid = m_ok || f_v;
+    assign rf_tag   = m_v ? m_dst : ldst[f_e];
+    assign rf_data  = m_v ? align(m_word, m_addr[2:0], m_size, m_uns) : align(f_word, laddr[f_e][2:0], lsize[f_e], luns[f_e]);
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             wb_valid     <= 1'b0;
@@ -444,15 +452,15 @@ module OOO_LSU
     always_ff @(posedge clk) begin
         if (m_v) begin
             wb_late    <= m_retry;
-            wb_tag     <= m_dst;
-            wb_data    <= align(m_word, m_addr[2:0], m_size, m_uns);
+            wb_tag     <= rf_tag;
+            wb_data    <= rf_data;
             cmp_ld_rob <= lrob[m_lq];
             cmp_ld_exc <= m_exc;
             cmp_ld_rp  <= lcan[m_lq];
         end else begin
             wb_late    <= 1'b1;
-            wb_tag     <= ldst[f_e];
-            wb_data    <= align(f_word, laddr[f_e][2:0], lsize[f_e], luns[f_e]);
+            wb_tag     <= rf_tag;
+            wb_data    <= rf_data;
             cmp_ld_rob <= lrob[f_e];
             cmp_ld_exc <= 1'b0;
             cmp_ld_rp  <= lcan[f_e];

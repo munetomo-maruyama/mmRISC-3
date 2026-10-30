@@ -4,7 +4,8 @@
 
 Step B0 of `Plan/CORE.md` (section 5.1): the C++ side of the test bench of `OOO_CORE`, done before the core, and
 tested with a stand-in core. Step B1 (section 5.2): the front end alone (`OOO_FRONT`) on it, against Spike's path.
-Step B2 (section 5.4): the core with ALU µops only (`OOO_CORE`), in lock-step with Spike.
+Step B2 (section 5.4): the core with ALU µops only (`OOO_CORE`), in lock-step with Spike. Step B3 (section 5.5): loads
+and stores, with a D$ model (`OOO_CORE`) and with OOO_DCAD and the real D$ (`OOO_CPU`).
 
 | File | Content |
 |---|---|
@@ -13,7 +14,7 @@ Step B2 (section 5.4): the core with ALU µops only (`OOO_CORE`), in lock-step w
 | `build.sh` | Builds `obj/standin` against `~/RISCV/toolchain/spike-install` |
 | `run_standin.sh` | The stand-in on riscv-tests and CoreMark → `results/standin.txt` |
 | `mutate.py` | Bug injection into the bench and the checker's rules → `results/mutate.txt` |
-| `ports.h` | Models of the core's memory ports on `Memory`: `ICacheModel` (B1) |
+| `ports.h` | Models of the core's memory ports on `Memory`: `ICacheModel` (B1), `DCacheModel` (the LSU's D$ port, B3), `Axi4Mem` / `AxiLite` (the D$'s buses, B3) |
 | `tb_front.cpp` | B1: `OOO_FRONT` under Verilator, a back end of the bench on Spike's path |
 | `build_front.sh` / `run_front.sh` | Build it (`obj/front`); run it on riscv-tests and CoreMark → `results/front.txt` |
 | `mutate_front.py` | Bug injection into the front end's glue → `results/mutate_front.txt` |
@@ -21,7 +22,8 @@ Step B2 (section 5.4): the core with ALU µops only (`OOO_CORE`), in lock-step w
 | `tb_core.cpp` | B2: `OOO_CORE` under Verilator on the bench, in lock-step; the branches' resolution checked against their instructions |
 | `build_core.sh` / `run_core.sh` | Build it (`obj/core`); run B2's programs → `results/core.txt`, `results/core_restores.txt` |
 | `mutate_core.py` | Bug injection into the core's glue → `results/mutate_core.txt` |
-| `b2/` | B2's programs: `gen_b2.py` (random ALU programs; branches, loops, calls, jumps), `link.ld`, `build.sh` → `b2/work` |
+| `b2/` | B2's and B3's programs: `gen_b2.py` (random ALU programs; branches, loops, calls, jumps; loads and stores), `link.ld`, `build.sh` → `b2/work` |
+| `b3/` | B3's riscv-tests on an environment without CSRs (`env/riscv_test.h`), the console test `htif.S`, `build.sh` → `b3/work` |
 
 ## What the bench gives
 
@@ -179,3 +181,25 @@ instructions with 136 to 552 restores (IPC 0.70 to 0.98). `results/core.txt`.
 ## B2's bug injection (`mutate_core.py`)
 
 40 changes of OOO_CORE's glue in the first campaign, each built and run on 4 ALU and 10 branch programs with a budget of restores; 12 were left. **Seven are caught now**: by the check of the resolution (a jalr call not marked a call, a jalr not taken for FERS) and by programs with what the first ones lacked (c.jalr's link, a jalr's offset, a call through the other link register, bursts of branches that run the checkpoints out, where renaming takes 1 µop of 2 and µop 1's checkpoint id matters). **Five are equivalent and left out** (the reasons in `mutate_core.py`): the wrap of the rotated slots (never valid: the mask is gone from the RTL), an empty µop's destination counted by renaming's ready (64 registers never run short with 26 in flight), the branch masks into RR and EX (a killed µop acts at most 2 cycles after a restore, and the restart reaches renaming 6 cycles after it at the earliest), the register file written by an empty EX stage (an empty stage carries wr 0). **35 of 35 detected** (`results/mutate_core.txt`).
+
+## B3: loads and stores (2026-10-31)
+
+`tb_core` built two ways (`./build_core.sh` / `./build_core.sh cpu`):
+
+| Top | The D$ | Notes |
+|---|---|---|
+| `OOO_CORE` | `DCacheModel` on the LSU's abstract port: a request in E answered in M (a hit at random, `-dhit`, default 80 %), a miss's fill later (out of order), dropped on `dc_kill`; stores written into `Memory` when taken (ready at random) | Memory is the D$: nothing incoherent |
+| `OOO_CPU` | `OOO_DCAD` and mmRISC-2's D$; `Axi4Mem` (bursts with random readies and delays) and `AxiLite` on `Memory` | `tohost`'s line is not cached (`sim_uc_line`, DCACHE_SIM_UC): HTIF clears it in the memory, which the console's polling loop sees |
+
+The commit trace gives each store's address, data and size; the bench's HTIF takes the exit and the console from the
+committed stores as in B0. `-v` also gives the replays (loads that raised `ld_cancel`, replayed after commit) and the
+D$'s or the buses' counts.
+
+`./run_core.sh` (`results/core.txt`): on `OOO_CORE` the 60 random programs (`b2`: ALU, branches, loads and stores) on 2
+seeds and with no I$ miss and no D$ hit, and the 96 programs of `b3` (riscv-tests, the console) on 2 seeds; on
+`OOO_CPU` both sets: **all pass**. The console on `OOO_CPU` takes 301,300 cycles for 25 characters: a store waits for
+a cycle with no load in E, and the polling loop issues one nearly every cycle (`Plan/CORE.md` 5.5).
+
+## B3's bug injection
+
+B2's 35 mutations and 20 for port 2 and the LSU (the record's LQ / SQ entries; loads and stores at dispatch to the LSU, the ROB and the control; the LSU's operands, the offset, the size and sign; the bypass of the base, of a store's data and of the LSU's result; the register-file write of loads; the replay mark; the SQ's restore and commit), each run on 20 random programs and on 10 riscv-tests and the console, on OOO_CORE with the D$ model: 54 of 55 detected. The one left, the late load's external wakeup, was redundant and is gone (B3-3). **54 of 54 detected** (`results/mutate_core.txt`).

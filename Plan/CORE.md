@@ -303,6 +303,57 @@ Results (`SIM/CORE/results/core.txt`; `./run_core.sh`):
 - Also changed: `tb_front` (B1) uses both reads of the target array and checks the pc array; the unit test of
   renaming (M346 added).
 
+### 5.5 B3: loads and stores (2026-10-31)
+
+`OOO_CORE` gets port 2 and `OOO_LSU`; `RTL/CPU/OOO/OOO_CPU` puts it together with `OOO_DCAD` and mmRISC-2's D$ on an
+AXI4 memory bus and an AXI4-Lite peripheral bus. `SIM/CORE/tb_core` runs both in lock-step: `OOO_CORE` with a model of
+the LSU's D$ port (B3a), `OOO_CPU` with AXI models on the bench's memory (B3b).
+
+Decisions made on the way:
+
+| # | Item | What | Why |
+|---|---|---|---|
+| B3-1 | Port 2 | RR and EX stages as the ALU ports; the LSU's E is the core's EX (it adds base and offset there), so the base and a store's data take the bypass in EX like any source; 3 bypass sources now (the two ALU ports' WB registers and the LSU's) | the LSU takes `iss_*` combinationally in E |
+| B3-2 | The register file and loads | **`OOO_LSU` gives `rf_*`**, its M result (what its WB register takes), and the register file is written with it at that edge | 4.2: a load's dependent issued 3 cycles after it reads the register file in RR; written from the WB register a cycle later, it would read the old value |
+| B3-3 | A late load (a miss, a wait) | **no wakeup of its own**: its WB (`wb_late`) wakes nothing. I first gave it the issue queue's external wakeup 0; the bug injection showed it redundant | the issue queue wakes a load's dependents two cycles after its issue whatever happens, and the load completes marked and is replayed after commit (D-12): nothing waits for a second wakeup |
+| B3-4 | The record | the LQ and SQ entries (from `disp_lq` / `disp_sq` at DS, as the ROB index), size, unsigned, load or store, in the 10 bits left | 96 bits in all |
+| B3-5 | The D$ in the core | `OOO_CORE` keeps the LSU's abstract D$ port, as it keeps the I$ port; `OOO_CPU` adds `OOO_DCAD` and `DCACHE` (and later the I$) | the bench can drive either |
+| B3-6 | `tohost` not cached (rule 2 of 5.1) | `DCACHE` takes, under `DCACHE_SIM_UC` (simulation), one line it does not cache, `sim_uc_line`: its accesses go to the AXI4-Lite bus as below MEM_BASE. The bench gives it `tohost`'s line | the console's polling loop must see the memory side clear `tohost` |
+| B3-7 | The trace | per ROB entry a store's address, data and size (taken in E), a load's value (with its completion) | the bench's HTIF and the architectural memory come from the committed stores |
+
+The programs:
+
+- `b2/gen_b2.py ls`: 20 random programs with B2's branches, loops and calls, and loads and stores of every size into a
+  24 KB buffer through seven bases (one for the compressed forms, five 4 KB apart: more lines on a set of the D$ than
+  its 4 ways, so lines are evicted and written back): stores and loads of the same word soon after each other
+  (forwarding, or a wait when the store does not cover the load), values passed through memory to dependent loads,
+  bursts of stores (the SQ fills).
+- `b3/build.sh`: riscv-tests' rv64ui (loads, stores, `ld_st`, `st_ld`; all but `ma_data` and `fence_i`), rv64uc and the
+  Zba / Zbb / Zbs / Zicond tests on `b3/env/riscv_test.h`, an environment without CSRs (every register 0 first; PASS /
+  FAIL write `tohost` themselves); `b3/htif.S`, the console through `tohost` with its polling loop.
+
+Results (`SIM/CORE/results/core.txt`; `./run_core.sh`):
+
+| Run | Result |
+|---|---|
+| OOO_CORE, the D$ model: 60 random programs, 2 seeds (8 % I$ misses, 80 % D$ hits); no I$ miss and no D$ hit | all pass |
+| OOO_CORE, the D$ model: the 95 riscv-tests and the console, 2 seeds (80 % / 30 % hits; also 0 %, 50 %, 100 % by hand) | all pass |
+| OOO_CPU, OOO_DCAD and the real D$: the 60 random programs and the 96 tests | all pass; the `ls` programs fill about 230 lines and write back about 17 each |
+
+- **The replay after commit works** (D-12): the `ls` programs replay 30 to 106 loads each (the D$ model's misses),
+  all in lock-step.
+- **Found: a store can be held off by a stream of loads** (performance, not values). `OOO_LSU` drains a committed
+  store only in a cycle with no load in E (that load reads the D$ now and searches the SQ next cycle). The console's
+  polling loop issues a load of `tohost` nearly every cycle, so the store of the next character waits for a cycle
+  with none: with the real D$ (each polling load an uncached read) 25 characters took 301,300 cycles, against 1,509
+  with the D$ model. The same holds off stores behind any load-heavy loop until the SQ fills. To fix next
+  (proposed): drain when the load in E is to another 8-byte word (a compare; the common case), and when the oldest
+  committed store has waited some cycles, drain anyway and send that load to wait in the LQ and be tried again (as an
+  older store without its address does).
+- **Bug injection** (`SIM/CORE/mutate_core.py`): B2's 35 mutations and 20 for port 2 and the LSU (the record's LQ / SQ entries; loads and stores at dispatch to the LSU, the ROB and the control; the LSU's operands, the offset, the size and sign; the bypass of the base, of a store's data and of the LSU's result; the register-file write of loads; the replay mark; the SQ's restore and commit), each run on 20 random programs and on 10 riscv-tests and the console, on OOO_CORE with the D$ model: 54 of 55 detected. The one left, the late load's external wakeup, was redundant and is gone (B3-3). **54 of 54 detected** (`results/mutate_core.txt`).
+- Also changed: `OOO_LSU` (`rf_*`; `tb_lsu` checks that the register file is written with what the WB register
+  takes next; M347 / M348 added, 312 unit mutations now), `DCACHE` (`sim_uc_line` under `DCACHE_SIM_UC`).
+
 ---
 
 ## 6. What G1 measures

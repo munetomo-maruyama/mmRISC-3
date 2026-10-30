@@ -1,8 +1,10 @@
 //---------------------------------------------------------------------------
 // DCACHE.sv
 //
-// (mmRISC-3: taken from mmRISC-2 Rev.02 with one addition, d_hit_now /
-// d_hit_now_data for OOO_DCAD; RTL/CPU/CACHE/README.md)
+// (mmRISC-3: taken from mmRISC-2 Rev.02 with two additions, d_hit_now /
+// d_hit_now_data for OOO_DCAD, and for simulation (DCACHE_SIM_UC) one line
+// not cached, sim_uc_line: the test bench's tohost, which HTIF must see in
+// the memory (Plan/CORE.md 5.1 rule 2); RTL/CPU/CACHE/README.md)
 //
 // mmRISC-2 L1 data cache (RTL/CPU/CPU_CACHE/CPU_CACHE_SPEC.md).
 //
@@ -162,6 +164,10 @@ module DCACHE
         // dirty victim of a miss is being copied out (alongside its fill)
         output logic                     ev_miss,
         output logic                     ev_vic_copy
+`ifdef DCACHE_SIM_UC
+        ,
+        input  logic [PADDR_WIDTH-1:6]   sim_uc_line        // simulation: this line is not cached (as below MEM_BASE)
+`endif
     );
 
     //=================================================================
@@ -713,7 +719,11 @@ module DCACHE
     // a store miss answered at once (STORE_ACK_LIMIT)
     logic s1_st_ack;
     assign s1_st_ack = ({s1_line, {OFF_BITS{1'b0}}} < PADDR_WIDTH'(STORE_ACK_LIMIT));
+`ifdef DCACHE_SIM_UC
+    assign s1_cacheable = (s1_paddr >= PADDR_WIDTH'(MEM_BASE)) && s1_paddr[PADDR_WIDTH-1:6] != sim_uc_line;
+`else
     assign s1_cacheable = (s1_paddr >= PADDR_WIDTH'(MEM_BASE));
+`endif
 
     //=================================================================
     // Stage 1 decode

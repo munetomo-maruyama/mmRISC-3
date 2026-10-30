@@ -21,16 +21,35 @@
 20 DETECTED      pc: the line of the last half's block
 21 DETECTED      jalr: the next block's predicted target
 22 DETECTED      RR: the second source from the first read
-23 DETECTED      a jalr never mispredicted
-24 DETECTED      a branch mispredicted when taken
-25 DETECTED      the next pc after an RVC instruction
-26 DETECTED      a jalr's offset left out
-27 DETECTED      a jalr predicted to the branch target
-28 DETECTED      jalrs not resolved
-29 DETECTED      FERS: a jalr not taken (the history)
-30 DETECTED      TAGE: every branch taken
-31 DETECTED      TAGE: no outcomes
-32 DETECTED      BTB: never written
-33 DETECTED      ROB: µops without a destination never complete
-34 DETECTED      ROB: port 1 completes port 0's entry
-35 mutations, 35 detected
+23 DETECTED      every µop of port 2 a load
+24 DETECTED      loads sign- and zero-extended the other way
+25 DETECTED      the record: µop 1 with µop 0's LQ entry
+26 DETECTED      the record: µop 1 with µop 0's SQ entry
+27 DETECTED      CTRL: loads not counted against the LQ
+28 DETECTED      ROB: loads not marked (the LQ never freed)
+29 DETECTED      LSU: stores not given SQ entries
+30 DETECTED      LSU: stores issued as loads
+31 DETECTED      LSU: a load's LQ entry from the SQ field
+32 DETECTED      LSU: the offset left out
+33 DETECTED      LSU: every access a double word
+34 DETECTED      LSU: lbu / lhu / lwu sign-extended
+35 DETECTED      port 2: no bypass for the base
+36 DETECTED      port 2: no bypass for a store's data
+37 DETECTED      bypass: the LSU's result not forwarded
+38 DETECTED      register file: loads not written
+39 DETECTED      ROB: no replay after a load that raised ld_cancel
+40 DETECTED      LSU: the SQ restored to the LQ's tail
+41 DETECTED      LSU: stores never committed
+42 DETECTED      a jalr never mispredicted
+43 DETECTED      a branch mispredicted when taken
+44 DETECTED      the next pc after an RVC instruction
+45 DETECTED      a jalr's offset left out
+46 DETECTED      a jalr predicted to the branch target
+47 DETECTED      jalrs not resolved
+48 DETECTED      FERS: a jalr not taken (the history)
+49 DETECTED      TAGE: every branch taken
+50 DETECTED      TAGE: no outcomes
+51 DETECTED      BTB: never written
+52 DETECTED      ROB: µops without a destination never complete
+53 DETECTED      ROB: port 1 completes port 0's entry
+54 mutations, 54 detected

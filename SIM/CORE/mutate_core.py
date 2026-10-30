@@ -9,7 +9,9 @@
 #
 # Each mutation is one textual change of a copy of RTL/CPU/OOO (it must
 # match exactly once, or it is NOT APPLIED); tb_core is built on the copy
-# and run on B2's programs (b2/work: 4 ALU, 10 with branches and jumps) with
+# and run on B2's and B3's programs (b2/work: 4 ALU, 10 with branches and
+# jumps, 6 with loads and stores; b3/work: 10 riscv-tests and the console,
+# to their HTIF exit) on OOO_CORE with the D$ model, with
 # a budget of restores (-restores-max: a fault in what only steers the
 # predictors costs mispredictions, not values). DETECTED when a run fails.
 # Every line of the result is to be read: grep NOT.
@@ -29,7 +31,11 @@
 #   - the register file written by an empty EX stage (we without ex_v): an
 #     empty stage carries wr 0 (the issue queue's outputs are an AND-OR of
 #     its grants, 0 with none); only a killed µop has wr with its valid
-#     bit off, and that is the case above.
+#     bit off, and that is the case above;
+#   - a late load's result as an external wakeup of the issue queue: the
+#     queue wakes a load's dependents two cycles after its issue whatever
+#     happens, and what ran on that guess is replayed after commit (D-12),
+#     so nothing waits for a second wakeup (the connection is gone).
 #---------------------------------------------------------------------------
 import glob, os, shutil, subprocess, sys
 from concurrent.futures import ThreadPoolExecutor
@@ -37,7 +43,11 @@ from concurrent.futures import ThreadPoolExecutor
 HERE = os.path.dirname(os.path.abspath(__file__))
 OOO = os.path.normpath(os.path.join(HERE, '../../RTL/CPU/OOO'))
 W = os.path.join(HERE, 'b2/work')
-PROGS = [os.path.join(W, 'alu-%d.elf' % i) for i in range(1, 5)] + [os.path.join(W, 'br-%d.elf' % i) for i in range(1, 11)]
+PROGS = ([os.path.join(W, 'alu-%d.elf' % i) for i in range(1, 5)] + [os.path.join(W, 'br-%d.elf' % i) for i in range(1, 11)] +
+         [os.path.join(W, 'ls-%d.elf' % i) for i in range(1, 7)])
+B3 = os.path.join(HERE, 'b3/work')
+HPROGS = [os.path.join(B3, t + '.elf') for t in ('rv64ui-ld_st', 'rv64ui-st_ld', 'rv64ui-lb', 'rv64ui-lhu', 'rv64ui-lwu', 'rv64ui-sb',
+                                                 'rv64ui-sh', 'rv64ui-sd', 'rv64ui-jalr', 'rv64uc-rvc', 'htif')]
 RMAX = '1.30'      # restores at most 1.3 times the clean run's, program by program (results/core_restores.txt)
 
 C = 'OOO_CORE/OOO_CORE.sv'
@@ -63,13 +73,35 @@ MUT = [
     (C, ".disp_ftq({ds[1].rec.ftq, ds[0].rec.ftq})", ".disp_ftq({ds[1].rec.ftq, ds[1].rec.ftq})", 'ROB: µop 0 with µop 1\'s block (FTQ pops)'),
     (C, ".disp_wr({ds[1].wr, ds[0].wr}), .disp_dst", ".disp_wr(2'b11), .disp_dst", 'IQ: every µop wakes for its destination'),
     # the ALU ports
-    (C, "if (wb_v[q] && wb_d[q][WBW-1 -: TAGW] == ex[p].t1) a = wb_d[q][63:0];", '', 'bypass: none for the first source'),
-    (C, "if (wb_v[q] && wb_d[q][WBW-1 -: TAGW] == ex[p].t2) b = wb_d[q][63:0];", '', 'bypass: none for the second source'),
-    (C, "for (int q = 0; q < 2; q++) begin\n                if (wb_v[q]", "for (int q = 0; q < 1; q++) begin\n                if (wb_v[q]", 'bypass: port 1\'s result not forwarded'),
+    (C, "if (byp_v[q] && byp_t[q] == ex[p].t1) a = byp_d[q];", '', 'bypass: none for the first source'),
+    (C, "if (byp_v[q] && byp_t[q] == ex[p].t2) b = byp_d[q];", '', 'bypass: none for the second source'),
+    (C, "byp_v[q] = wb_v[q];", "byp_v[q] = (q == 0) && wb_v[q];", 'bypass: port 1\'s result not forwarded'),
     (C, ".in_valid(ex_v[p] && ex[p].wr), .in_bm(ex_bm)", ".in_valid(ex_v[p]), .in_bm(ex_bm)", 'WB: a µop without a destination forwards'),
     (C, "assign pa_idx[p]     = rr_rec[p].ftq - FTQW'(rr_rec[p].xline);", "assign pa_idx[p]     = rr_rec[p].ftq;", 'pc: the line of the last half\'s block'),
     (C, "assign ta_idx[p]     = rr_rec[p].ftq;", "assign ta_idx[p]     = rr_rec[p].ftq + FTQW'(1);", 'jalr: the next block\'s predicted target'),
     (C, "rx.v2   = prf_rd[2*p+1];", "rx.v2   = prf_rd[2*p];", 'RR: the second source from the first read'),
+    # port 2 and the LSU (B3)
+    (C, "d2[j].rec.is_ld      = g_cls[s] == 3'd4;", "d2[j].rec.is_ld      = 1'b1;", 'every µop of port 2 a load'),
+    (C, "d2[j].rec.uns        = !g_mem_signed[s];", "d2[j].rec.uns        = g_mem_signed[s];", 'loads sign- and zero-extended the other way'),
+    (C, "wrec[j].lq  = disp_lq[j];", "wrec[j].lq  = disp_lq[0];", 'the record: µop 1 with µop 0\'s LQ entry'),
+    (C, "wrec[j].sq  = disp_sq[j];", "wrec[j].sq  = disp_sq[0];", 'the record: µop 1 with µop 0\'s SQ entry'),
+    (C, ".ds_ld({ds[1].ld, ds[0].ld}), .ds_st", ".ds_ld(2'b00), .ds_st", 'CTRL: loads not counted against the LQ'),
+    (C, ".disp_ld({ds[1].ld, ds[0].ld}), .disp_st({ds[1].st, ds[0].st}),\n         .disp_fused", ".disp_ld(2'b00), .disp_st({ds[1].st, ds[0].st}),\n         .disp_fused",
+     'ROB: loads not marked (the LQ never freed)'),
+    (C, ".disp_st({ds[1].st, ds[0].st}), .disp_rob(disp_rob)", ".disp_st(2'b00), .disp_rob(disp_rob)", 'LSU: stores not given SQ entries'),
+    (C, ".iss_ld(p2.rec.is_ld)", ".iss_ld(1'b1)", 'LSU: stores issued as loads'),
+    (C, ".iss_lq(p2.rec.lq), .iss_sq(p2.rec.sq)", ".iss_lq(p2.rec.sq), .iss_sq(p2.rec.sq)", 'LSU: a load\'s LQ entry from the SQ field'),
+    (C, ".iss_imm(p2.rec.imm[11:0])", ".iss_imm(12'd0)", 'LSU: the offset left out'),
+    (C, ".iss_size(p2.rec.msize)", ".iss_size(2'd3)", 'LSU: every access a double word'),
+    (C, ".iss_uns(p2.rec.uns)", ".iss_uns(1'b0)", 'LSU: lbu / lhu / lwu sign-extended'),
+    (C, "if (byp_v[q] && byp_t[q] == p2.t1) p2_a = byp_d[q];", "", 'port 2: no bypass for the base'),
+    (C, "if (byp_v[q] && byp_t[q] == p2.t2) p2_b = byp_d[q];", "", 'port 2: no bypass for a store\'s data'),
+    (C, "byp_v[2] = lsu_wb_v;", "byp_v[2] = 1'b0;", 'bypass: the LSU\'s result not forwarded'),
+    (C, ".rf_valid(prf_we[2]), .rf_tag(prf_wa[2])", ".rf_valid(), .rf_tag(prf_wa[2])", 'register file: loads not written'),
+    (C, "cmp_rp    = {1'b0, cmp_ld_rp, 2'b00};", "cmp_rp    = 4'b0000;", 'ROB: no replay after a load that raised ld_cancel'),
+    (C, ".restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all", ".restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_lq_tail), .flush_all",
+     'LSU: the SQ restored to the LQ\'s tail'),
+    (C, ".lq_commit(lq_commit), .sq_commit(sq_commit), .restore(restore)", ".lq_commit(lq_commit), .sq_commit(2'b00), .restore(restore)", 'LSU: stores never committed'),
     # resolution
     (C, "mis   = ex[p].rec.is_jalr ? nxt != pnx : ex_tk[p] != ex[p].rec.pred_taken;", "mis   = ex[p].rec.is_jalr ? 1'b0 : ex_tk[p] != ex[p].rec.pred_taken;", 'a jalr never mispredicted'),
     (C, "mis   = ex[p].rec.is_jalr ? nxt != pnx : ex_tk[p] != ex[p].rec.pred_taken;", "mis   = ex[p].rec.is_jalr ? nxt != pnx : ex_tk[p];", 'a branch mispredicted when taken'),
@@ -104,6 +136,8 @@ def run(i, m):
                             os.path.join(HERE, 'results/core_restores.txt'), '-restores-max', RMAX] + PROGS,
                            capture_output=True, timeout=900)
         det = r.returncode != 0
+        if not det:
+            det = subprocess.run([t, '+verilator+rand+reset+2'] + HPROGS, capture_output=True, timeout=900).returncode != 0
     except subprocess.TimeoutExpired:
         return i, 'NOT DETECTED', desc + ' (the run did not end)'
     shutil.rmtree(d, ignore_errors=True)

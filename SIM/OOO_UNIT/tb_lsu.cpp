@@ -66,6 +66,7 @@ struct Uop {
 static std::mt19937_64 rng(4242);
 static VOOO_LSU d;
 static long bad = 0;
+static struct { bool v; int tag; uint64_t data; } rf_prev = {false, 0, 0};   // OOO_LSU rf_*: the register-file write
 #define FAIL(...) do { if (bad++ < 12) { printf("cycle %ld: ", cyc); printf(__VA_ARGS__); printf("\n"); } } while (0)
 
 static uint8_t arch[8 * NWORD];    // memory after the committed stores
@@ -268,6 +269,10 @@ int main(int argc, char** argv)
             else if (canc) M->canc = true;
         } else if (canc) FAIL("ld_cancel without a load from port 2 in M");
         if (canc) ncancel++;
+        // the register-file write of last cycle (rf_*) is what the result register holds now
+        if ((bool)d.wb_valid != rf_prev.v || (rf_prev.v && ((int)d.wb_tag != rf_prev.tag || d.wb_data != rf_prev.data)))
+            FAIL("the register file was written with %d %d %016llx, the result register holds %d %d %016llx", rf_prev.v, rf_prev.tag,
+                 (unsigned long long)rf_prev.data, (int)d.wb_valid, (int)d.wb_tag, (unsigned long long)d.wb_data);
         // WB: the result register (from last cycle's M or a fill)
         if (d.cmp_ld_valid) {
             int rob = d.cmp_ld_rob;
@@ -319,6 +324,7 @@ int main(int argc, char** argv)
         unsigned kill = d.dc_kill;      // entries freed now: their pending fills are dropped
 
         // ================= the clock =================
+        rf_prev = {(bool)d.rf_valid, (int)d.rf_tag, d.rf_data};
         d.clk = 1; d.eval(); d.clk = 0; d.eval();
 
         // ================= the model after the clock =================
