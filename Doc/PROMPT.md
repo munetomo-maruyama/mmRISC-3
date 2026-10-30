@@ -3751,3 +3751,41 @@ Recorded in Plan/OOC 26.15, the READMEs and PROMPT.md, in both languages.
 ```text
 I ran synth_ooo.bat OOC_FE and synth_ooo.bat OOC_FRONT. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The TAGE update and the uBTB training are both off the list of worst paths. OOC_FE's margin is +1.095 ns. Only the fetch buffer's loop is still under 2 ns. The result is recorded and pushed (54f14a2).
+
+**Results**
+
+| Run | LUT | FF | Slack | Levels |
+|---|---|---|---|---|
+| OOC_FRONT (before) | 2,611 | 2,112 | +0.835 ns | 16 |
+| **OOC_FRONT (training registered)** | **2,570** | 2,119 | **+2.235 ns** | 15 |
+| OOC_FE (before) | 6,231 | 3,015 | +0.868 ns | 18 |
+| **OOC_FE (both registered)** | **6,184** | 3,288 | **+1.095 ns** | 17 |
+
+| OOC_FE's paths | Before | Now |
+|---|---|---|
+| Fetch buffer loop | +1.016 ns | **+1.095 ns** (all 7 of the worst) |
+| D1a / D1b | +5.3 / +5.5 ns | +5.9 / +5.1 ns |
+| TAGE update | +0.868 ns | not among the worst 10 |
+| uBTB training | +0.943 ns | not among the worst 10 |
+| Next: fetch's pc → the RAS's write enable | — | +2.683 ns |
+
+- **TAGE update and uBTB training:** both gained margin as expected. In fetch alone (OOC_FRONT) the uBTB training also left the worst path, +0.835 to +2.235 ns.
+- **Size:** OOC_FE lost 47 LUTs. The TAGE update logic no longer has to be squeezed into the cycle of the FTQ read, so it is built smaller. FFs +273.
+- **Budget:** UARCH 4.4 recounted with 6,184; the gap is 4.0k / 5.4k / 6.6k (was 4.1k / 5.5k / 6.7k).
+- **The loop:** the front end stops here until G1. The remaining lever is duplicating `hb` (26.14 C), but whether it is needed cannot be decided before seeing the routing in the whole core.
+
+Recorded in Plan/OOC 26.16, UARCH 4.4 and PROMPT.md, in both languages.
+
+With the front end at a break, the next step by the plan is B2 (the core with ALU µops only, in lock-step). D-17 (the TAGE history lag), still open, could also be decided first.
+<!-- /answer -->
+
+## 100. 2026-10-30 22:35:48 JST
+
+```text
+Go on with B2: the core with ALU µops only (port 0 / 1), no memory, fusion off, lock-step at every commit.
+```

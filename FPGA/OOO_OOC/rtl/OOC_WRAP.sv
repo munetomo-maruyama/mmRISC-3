@@ -1112,11 +1112,11 @@ module OOC_FE
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [294:0]  in,
+        input  logic [306:0]  in,
         input  logic [2:0]    g_take,
-        output logic [752:0]  out
+        output logic [860:0]  out
     );
-    logic [294:0] q;
+    logic [306:0] q;
     always_ff @(posedge clk) q <= in;
     logic [0:0] fe_redirect;
     logic [0:0] fe_flush;
@@ -1137,12 +1137,14 @@ module OOC_FE
     logic [37:0] bt_pc;
     logic [37:0] bt_tgt;
     logic [1:0] ftq_pop;
-    logic [3:0] ta_idx;
+    logic [7:0] ta_idx;
+    logic [7:0] pa_idx;
     logic [0:0] ic_req_ready;
     logic [0:0] ic_resp_valid;
     logic [127:0] ic_resp_data;
-    assign {fe_redirect, fe_flush, fe_pc, restore_ftq, restore_port, br_e, br_taken, br_call, br_ret, rcv_ftq, rcv_end, rs_valid, rs_ftq, rs_e, rs_taken, bt_valid, bt_pc, bt_tgt, ftq_pop, ta_idx, ic_req_ready, ic_resp_valid, ic_resp_data} = q;
-    logic [37:0] ta_tgt;
+    assign {fe_redirect, fe_flush, fe_pc, restore_ftq, restore_port, br_e, br_taken, br_call, br_ret, rcv_ftq, rcv_end, rs_valid, rs_ftq, rs_e, rs_taken, bt_valid, bt_pc, bt_tgt, ftq_pop, ta_idx, pa_idx, ic_req_ready, ic_resp_valid, ic_resp_data} = q;
+    logic [75:0] ta_tgt;
+    logic [69:0] pa_line;
     logic [0:0] ic_req_valid;
     logic [37:0] ic_req_pc;
     logic [3:0] g_valid;
@@ -1189,6 +1191,6 @@ module OOC_FE
     logic [3:0] g_csr_rd;
     logic [3:0] g_is_fp;
     OOO_FRONT #(.VA(39), .NFTQ(16), .FTQW(4), .MW(270)) u_front
-        (.fe_redirect(fe_redirect), .fe_flush(fe_flush), .fe_pc(fe_pc), .restore_ftq(restore_ftq), .restore_port(restore_port), .br_e(br_e), .br_taken(br_taken), .br_call(br_call), .br_ret(br_ret), .rcv_ftq(rcv_ftq), .rcv_end(rcv_end), .rs_valid(rs_valid), .rs_ftq(rs_ftq), .rs_e(rs_e), .rs_taken(rs_taken), .bt_valid(bt_valid), .bt_pc(bt_pc), .bt_tgt(bt_tgt), .ftq_pop(ftq_pop), .ta_idx(ta_idx), .ic_req_ready(ic_req_ready), .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data), .ta_tgt(ta_tgt), .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .g_valid(g_valid), .g_pc(g_pc), .g_rvc(g_rvc), .g_ftq(g_ftq), .g_end(g_end), .g_taken(g_taken), .g_seq(g_seq), .g_illegal(g_illegal), .g_cls(g_cls), .g_op(g_op), .g_rd(g_rd), .g_rs1(g_rs1), .g_rs2(g_rs2), .g_use_rs1(g_use_rs1), .g_use_rs2(g_use_rs2), .g_imm(g_imm), .g_port(g_port), .g_lat2(g_lat2), .g_ext_ans(g_ext_ans), .g_nonspec(g_nonspec), .g_alu_op(g_alu_op), .g_a_uw(g_a_uw), .g_a_shift(g_a_shift), .g_a_sel(g_a_sel), .g_b_sel(g_b_sel), .g_word_op(g_word_op), .g_is_branch(g_is_branch), .g_is_jal(g_is_jal), .g_is_jalr(g_is_jalr), .g_br_op(g_br_op), .g_mdu_op(g_mdu_op), .g_mem_cmd(g_mem_cmd), .g_mem_size(g_mem_size), .g_mem_signed(g_mem_signed), .g_sys(g_sys), .g_is_sfence(g_is_sfence), .g_is_csr(g_is_csr), .g_csr_addr(g_csr_addr), .g_csr_op(g_csr_op), .g_csr_imm_sel(g_csr_imm_sel), .g_csr_wr(g_csr_wr), .g_csr_rd(g_csr_rd), .g_is_fp(g_is_fp), .g_insn(), .g_take(g_take), .clk(clk), .rst_n(rst_n));
-    always_ff @(posedge clk) out <= {ta_tgt, ic_req_valid, ic_req_pc, g_valid, g_pc, g_rvc, g_ftq, g_end, g_taken, g_seq, g_illegal, g_cls, g_op, g_rd, g_rs1, g_rs2, g_use_rs1, g_use_rs2, g_imm, g_port, g_lat2, g_ext_ans, g_nonspec, g_alu_op, g_a_uw, g_a_shift, g_a_sel, g_b_sel, g_word_op, g_is_branch, g_is_jal, g_is_jalr, g_br_op, g_mdu_op, g_mem_cmd, g_mem_size, g_mem_signed, g_sys, g_is_sfence, g_is_csr, g_csr_addr, g_csr_op, g_csr_imm_sel, g_csr_wr, g_csr_rd, g_is_fp};
+        (.fe_redirect(fe_redirect), .fe_flush(fe_flush), .fe_pc(fe_pc), .restore_ftq(restore_ftq), .restore_port(restore_port), .br_e(br_e), .br_taken(br_taken), .br_call(br_call), .br_ret(br_ret), .rcv_ftq(rcv_ftq), .rcv_end(rcv_end), .rs_valid(rs_valid), .rs_ftq(rs_ftq), .rs_e(rs_e), .rs_taken(rs_taken), .bt_valid(bt_valid), .bt_pc(bt_pc), .bt_tgt(bt_tgt), .ftq_pop(ftq_pop), .ta_idx(ta_idx), .pa_idx(pa_idx), .ic_req_ready(ic_req_ready), .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data), .ta_tgt(ta_tgt), .pa_line(pa_line), .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .g_valid(g_valid), .g_pc(g_pc), .g_rvc(g_rvc), .g_ftq(g_ftq), .g_end(g_end), .g_taken(g_taken), .g_seq(g_seq), .g_illegal(g_illegal), .g_cls(g_cls), .g_op(g_op), .g_rd(g_rd), .g_rs1(g_rs1), .g_rs2(g_rs2), .g_use_rs1(g_use_rs1), .g_use_rs2(g_use_rs2), .g_imm(g_imm), .g_port(g_port), .g_lat2(g_lat2), .g_ext_ans(g_ext_ans), .g_nonspec(g_nonspec), .g_alu_op(g_alu_op), .g_a_uw(g_a_uw), .g_a_shift(g_a_shift), .g_a_sel(g_a_sel), .g_b_sel(g_b_sel), .g_word_op(g_word_op), .g_is_branch(g_is_branch), .g_is_jal(g_is_jal), .g_is_jalr(g_is_jalr), .g_br_op(g_br_op), .g_mdu_op(g_mdu_op), .g_mem_cmd(g_mem_cmd), .g_mem_size(g_mem_size), .g_mem_signed(g_mem_signed), .g_sys(g_sys), .g_is_sfence(g_is_sfence), .g_is_csr(g_is_csr), .g_csr_addr(g_csr_addr), .g_csr_op(g_csr_op), .g_csr_imm_sel(g_csr_imm_sel), .g_csr_wr(g_csr_wr), .g_csr_rd(g_csr_rd), .g_is_fp(g_is_fp), .g_insn(), .g_take(g_take), .clk(clk), .rst_n(rst_n));
+    always_ff @(posedge clk) out <= {ta_tgt, pa_line, ic_req_valid, ic_req_pc, g_valid, g_pc, g_rvc, g_ftq, g_end, g_taken, g_seq, g_illegal, g_cls, g_op, g_rd, g_rs1, g_rs2, g_use_rs1, g_use_rs2, g_imm, g_port, g_lat2, g_ext_ans, g_nonspec, g_alu_op, g_a_uw, g_a_shift, g_a_sel, g_b_sel, g_word_op, g_is_branch, g_is_jal, g_is_jalr, g_br_op, g_mdu_op, g_mem_cmd, g_mem_size, g_mem_signed, g_sys, g_is_sfence, g_is_csr, g_csr_addr, g_csr_op, g_csr_imm_sel, g_csr_wr, g_csr_rd, g_is_fp};
 endmodule : OOC_FE

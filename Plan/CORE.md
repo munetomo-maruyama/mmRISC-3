@@ -263,6 +263,46 @@ Mispredicted conditional branches (CoreMark/MHz of the cycle model in brackets):
    `ooo.h` (+0.6 % / +0.8 % of the cycles). The model's reference for G1 should get OOO_TAGE's structure with the
    commit timing (`tage_ref.h` in `ooo.h`) before B6 compares the two.
 
+### 5.4 B2: the core with ALU µops only (2026-10-30)
+
+`RTL/CPU/OOO/OOO_CORE` puts the core together for B2: the front end (`OOO_FRONT`), D2 (fusion off), renaming, the
+control, the DS register, the ROB, the issue queue and its payload, the register file and the two ALU ports (RR, EX,
+WB), branch resolution and commit; no memory, no CSRs, no MDU. `SIM/CORE/tb_core` runs it on the bench of B0 in
+lock-step with Spike at every instruction (`SIM/CORE/README.md`).
+
+Decisions made on the way:
+
+| # | Item | What | Why |
+|---|---|---|---|
+| B2-1 | D2's group | **Rotated to its oldest valid slot** (a 4:1 select by a registered head) before OOO_FUSE and the µops' fields. The group register keeps what D2 left in its slots (B1-1), while OOO_FUSE pairs from slot 0 | Not in the plan: shifting the group register at each take would put a select on all 680 decoded bits behind `g_take` (late). The rotation covers OOO_FUSE's inputs and the two µops' fields: about 0.3k to 0.5k LUTs, not in the budget; measured at B7 |
+| B2-2 | Renaming's `ready` | Counts the destinations of the µops **offered** (`in_wr`, given by the core for valid µops), not of those that go (`in_valid` = the control's `r_go`); µop 1's checkpoint id likewise counts µop 0's checkpoint as offered | A combinational loop found when the two blocks were joined: `ready` → `r_go` → `in_valid` → `ready`; the unit tests drove each alone. tb_rename now offers µop 1 only with µop 0, as the control does |
+| B2-3 | The record (OOO_IQPL, 96 bits) | B2's fields: ROB index, block, checkpoint, last and first parcel, line cross, length, a jalr's offset, the immediate, the ALU operation and operand choices, branch, jal / jalr, call / ret, the prediction | 2.2's layout with the LSU's fields comes with B3 |
+| B2-4 | jal / jalr | The link is the ALU's pc + length (the immediate replaced by the length, the operand by the pc); a jalr's offset goes apart in the record. A jal is never resolved | predecode's target of a jal is always right |
+| B2-5 | The pc and the jalr's predicted target in RR | Two reads each of the target array and of a **pc array** (the FTQ blocks' lines, 4.1) in OOO_FRONT; the pc is the line of the first half's block (the µop's block less one when it crosses) and the first half's parcel | 4.1, 4.5; one read per ALU port |
+| B2-6 | EX | Resolution and completion in EX; the register file written at the edge the result enters WB (4.2); the bypass from the 2 WB registers (the LSU's comes at B3) | |
+| B2-7 | The bench | `boot` / `boot_pc` start fetch; `trap_vec` is an input until the CSRs; B2's programs end at the symbol `pass` (`BenchCfg.exit_sym`), with no HTIF | no memory in B2 |
+
+The programs (`SIM/CORE/b2/gen_b2.py`): 20 random ALU programs (RV64I, Zba, Zbb, Zbs, Zicond, compressed where the
+assembler can) and 20 with forward branches, nested counted loops, jal, calls through x1 and x5 (jal, c.jalr, jalr
+with an offset, one through the other link register) and returns, indirect jumps (c.jr, jalr with an offset), bursts
+of branches behind a dependent chain (the checkpoints run out), long runs only ALU0 takes, and branches on an
+xorshift state (half mispredicted). Every register is set first.
+
+Results (`SIM/CORE/results/core.txt`; `./run_core.sh`):
+
+| Run | Result |
+|---|---|
+| 40 programs, I$ misses at random, 2 seeds; and with no I$ miss | all pass in lock-step to `pass` |
+| ALU programs | about 645 instructions in 400 cycles: **IPC 1.58 to 1.63** |
+| branch programs | 6k to 16k instructions, 136 to 552 restores each, IPC 0.70 to 0.98 |
+
+- **The resolution is checked against the instruction** (what lock-step cannot see: it only steers the predictors):
+  the last parcel, taken for a jalr, call / return as predecode tells them, a conditional branch's outcome to the
+  TAGE update, the BTB's write of an indirect jump at its last parcel.
+- **Bug injection** (`SIM/CORE/mutate_core.py`): 40 changes of OOO_CORE's glue in the first campaign, each built and run on 4 ALU and 10 branch programs with a budget of restores; 12 were left. **Seven are caught now**: by the check of the resolution (a jalr call not marked a call, a jalr not taken for FERS) and by programs with what the first ones lacked (c.jalr's link, a jalr's offset, a call through the other link register, bursts of branches that run the checkpoints out, where renaming takes 1 µop of 2 and µop 1's checkpoint id matters). **Five are equivalent and left out** (the reasons in `mutate_core.py`): the wrap of the rotated slots (never valid: the mask is gone from the RTL), an empty µop's destination counted by renaming's ready (64 registers never run short with 26 in flight), the branch masks into RR and EX (a killed µop acts at most 2 cycles after a restore, and the restart reaches renaming 6 cycles after it at the earliest), the register file written by an empty EX stage (an empty stage carries wr 0). **35 of 35 detected** (`results/mutate_core.txt`). The unit test of renaming got M346 (ready from the µops that go): 310 unit mutations now.
+- Also changed: `tb_front` (B1) uses both reads of the target array and checks the pc array; the unit test of
+  renaming (M346 added).
+
 ---
 
 ## 6. What G1 measures

@@ -116,6 +116,7 @@ struct BenchCfg {
     uint64_t    max_cycles = 200000000;
     uint64_t    hang_cycles = 100000;   // cycles without a commit
     std::string signature;              // file for [begin_signature, end_signature) at the exit
+    std::string exit_sym;               // the run ends when the instruction at this symbol commits (B2: programs without memory)
     int         tail = 16;              // commits shown when a run fails
     LockstepCfg ref;                    // the reference's machine (its elf is set from elf)
 };
@@ -153,6 +154,7 @@ private:
     std::unique_ptr<Lockstep> ref;
     std::deque<Commit> last;            // the last commits, for a failure's report
     uint64_t last_commit_cycle = 0;
+    uint64_t exit_pc = 0;               // exit_sym's address (0: none)
     bool over = false;
     std::string err;
     struct Dis;

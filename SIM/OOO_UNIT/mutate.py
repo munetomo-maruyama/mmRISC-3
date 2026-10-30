@@ -201,6 +201,7 @@ M = [
     ('M339', 'OOO_DEC/OOO_DEC.sv', 'dec', 'illegal[k] = ill && (S0 || !rare[k]);', 'illegal[k] = S0 && ill;', 'illegal reported in slot 0 only'),
     ('M340', 'OOO_FBUF/OOO_FBUF.sv', 'fbuf', 'out_rare[i]  = wr[s[2:0]];', "out_rare[i]  = wr[s[2:0] + 3'd1];", "rare from the parcel after the instruction's first"),
     ('M341', 'OOO_FBUF/OOO_FBUF.sv', 'fbuf', 'OOO_RARE u_rare (.p(w[k]), .rare(wr[k]));', 'OOO_RARE u_rare (.p(w[0]), .rare(wr[k]));', "every window parcel told by the first one's opcode"),
+    ('M346', 'OOO_RENAME/OOO_RENAME.sv', 'rename', "assign ready = (nfree >= (FW + 1)'(want_n))", "assign ready = (nfree >= (FW + 1)'(need))", 'ready from the µops that go (through r_go: a loop)'),
     ('M343', 'OOO_FETCH/OOO_FETCH.sv', 'fetch', 'else        ub_upd_q <= ub_upd;', "else        ub_upd_q <= 1'b0;", 'the uBTB never trained'),
     ('M344', 'OOO_FETCH/OOO_FETCH.sv', 'fetch', '.upd_valid(ub_upd_q), .upd_pc(ub_upd_pc_q)', '.upd_valid(ub_upd_q), .upd_pc(ub_upd_pc)', "the training at the next cycle's address"),
     ('M345', 'OOO_FETCH/OOO_FETCH.sv', 'fetch', '.upd_valid(ub_upd_q), .upd_pc', '.upd_valid(ub_upd), .upd_pc', 'trained in the cycle of the override with the last one'),

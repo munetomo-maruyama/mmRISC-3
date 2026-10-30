@@ -1,0 +1,36 @@
+ 0 DETECTED      D2: the group not rotated
+ 1 DETECTED      D2: µop 1 from µop 0's slot
+ 2 DETECTED      D2: both taken when only µop 0 goes
+ 3 DETECTED      D2: a jalr without a checkpoint
+ 4 DETECTED      D2: µop 1 with µop 0's checkpoint id
+ 5 DETECTED      link: pc + 4 for RVC too
+ 6 DETECTED      link: a jalr's from rs1
+ 7 DETECTED      pc: an instruction across two lines from its second
+ 8 DETECTED      every transfer predicted not taken
+ 9 DETECTED      a call through x1 / x5 counted as a return
+10 DETECTED      jalr calls not calls (the RAS on a restore)
+11 DETECTED      the record: µop 1 with µop 0's ROB entry
+12 DETECTED      ROB: the new mapping as the old
+13 DETECTED      CTRL: the checkpoints' blocks swapped
+14 DETECTED      ROB: µop 0 with µop 1's block (FTQ pops)
+15 DETECTED      IQ: every µop wakes for its destination
+16 DETECTED      bypass: none for the first source
+17 DETECTED      bypass: none for the second source
+18 DETECTED      bypass: port 1's result not forwarded
+19 DETECTED      WB: a µop without a destination forwards
+20 DETECTED      pc: the line of the last half's block
+21 DETECTED      jalr: the next block's predicted target
+22 DETECTED      RR: the second source from the first read
+23 DETECTED      a jalr never mispredicted
+24 DETECTED      a branch mispredicted when taken
+25 DETECTED      the next pc after an RVC instruction
+26 DETECTED      a jalr's offset left out
+27 DETECTED      a jalr predicted to the branch target
+28 DETECTED      jalrs not resolved
+29 DETECTED      FERS: a jalr not taken (the history)
+30 DETECTED      TAGE: every branch taken
+31 DETECTED      TAGE: no outcomes
+32 DETECTED      BTB: never written
+33 DETECTED      ROB: µops without a destination never complete
+34 DETECTED      ROB: port 1 completes port 0's entry
+35 mutations, 35 detected

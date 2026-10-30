@@ -4,6 +4,7 @@
 
 Step B0 of `Plan/CORE.md` (section 5.1): the C++ side of the test bench of `OOO_CORE`, done before the core, and
 tested with a stand-in core. Step B1 (section 5.2): the front end alone (`OOO_FRONT`) on it, against Spike's path.
+Step B2 (section 5.4): the core with ALU µops only (`OOO_CORE`), in lock-step with Spike.
 
 | File | Content |
 |---|---|
@@ -17,6 +18,10 @@ tested with a stand-in core. Step B1 (section 5.2): the front end alone (`OOO_FR
 | `build_front.sh` / `run_front.sh` | Build it (`obj/front`); run it on riscv-tests and CoreMark → `results/front.txt` |
 | `mutate_front.py` | Bug injection into the front end's glue → `results/mutate_front.txt` |
 | `ftqdepth.sh` | What the front end delivers with an FTQ of 8 and of 16 blocks, against the delay to commit → `results/ftqdepth.txt` |
+| `tb_core.cpp` | B2: `OOO_CORE` under Verilator on the bench, in lock-step; the branches' resolution checked against their instructions |
+| `build_core.sh` / `run_core.sh` | Build it (`obj/core`); run B2's programs → `results/core.txt`, `results/core_restores.txt` |
+| `mutate_core.py` | Bug injection into the core's glue → `results/mutate_core.txt` |
+| `b2/` | B2's programs: `gen_b2.py` (random ALU programs; branches, loops, calls, jumps), `link.ld`, `build.sh` → `b2/work` |
 
 ## What the bench gives
 
@@ -152,3 +157,25 @@ restore and each update against what the block's push wrote, no I$ request in R.
 empty not counted as free" was left (a group waits in the skid a cycle for nothing): the bench checks that the skid
 holds a group only while R does. With the FTQ of 16 (D-18) the two credit mutations of the FTQ were left: it never
 filled; the run with `-full -lag 40` fills it.
+
+## B2: the core with ALU µops only (`tb_core`, 2026-10-30)
+
+`OOO_CORE` (`RTL/CPU/OOO/OOO_CORE`: the front end, D2 with fusion off, renaming, the control, the DS register, the
+ROB, the issue queue, the register file, two ALU ports, branch resolution, commit) under Verilator, fetching through
+`ICacheModel` (8 % misses) from the bench's `Memory`. Its commit trace (`OOO_TRACE`: per ROB entry the instruction,
+written at dispatch, and the value, at completion) goes to `Bench` in lock-step with Spike at every instruction.
+
+| Part | What it does |
+|---|---|
+| start | `boot` / `boot_pc` (the ELF's entry) two cycles after reset; `trap_vec` 0 (no CSRs in B2) |
+| exit | B2's programs have no memory, so no HTIF: they end at the symbol `pass` (`-exit pass`, `BenchCfg.exit_sym`): the run passes when that instruction commits and every one before it matched |
+| the resolution, exactly | every branch and jalr resolved, against its instruction (the ROB entry's shadow): the last parcel, taken for a jalr, call / return (x1 / x5, as predecode), a branch's outcome and parcel to the TAGE update, the BTB's write of an indirect jump at its last parcel. Lock-step cannot see these: they only steer the predictors |
+| options | `-seed`, `-miss`, `-max`, `-v` (restores, I$ misses); `-restores-out` writes each program's restores, `-restores-ref` / `-restores-max x` fail a run above x times the reference (+ 4) |
+
+`./run_core.sh`: 20 ALU programs and 20 with branches (`b2/build.sh 20`), on 2 seeds and with no I$ miss: **all
+pass**. The ALU programs run about 645 instructions in 400 cycles (IPC 1.58 to 1.63), the branch programs 6k to 16k
+instructions with 136 to 552 restores (IPC 0.70 to 0.98). `results/core.txt`.
+
+## B2's bug injection (`mutate_core.py`)
+
+40 changes of OOO_CORE's glue in the first campaign, each built and run on 4 ALU and 10 branch programs with a budget of restores; 12 were left. **Seven are caught now**: by the check of the resolution (a jalr call not marked a call, a jalr not taken for FERS) and by programs with what the first ones lacked (c.jalr's link, a jalr's offset, a call through the other link register, bursts of branches that run the checkpoints out, where renaming takes 1 µop of 2 and µop 1's checkpoint id matters). **Five are equivalent and left out** (the reasons in `mutate_core.py`): the wrap of the rotated slots (never valid: the mask is gone from the RTL), an empty µop's destination counted by renaming's ready (64 registers never run short with 26 in flight), the branch masks into RR and EX (a killed µop acts at most 2 cycles after a restore, and the restart reaches renaming 6 cycles after it at the earliest), the register file written by an empty EX stage (an empty stage carries wr 0). **35 of 35 detected** (`results/mutate_core.txt`).

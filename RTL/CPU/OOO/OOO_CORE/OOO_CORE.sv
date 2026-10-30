@@ -1,0 +1,615 @@
+//---------------------------------------------------------------------------
+// OOO_CORE.sv
+//
+// The out-of-order integer core of mmRISC-3 (Plan/CORE.md 1), brought up
+// step by step (Plan/CORE.md 5). This is B2: the core with ALU µops only.
+//
+//   front end  OOO_FRONT (fetch, FTQ, restore, fetch buffer, D1a / D1b,
+//              the group register; the target array and the pc array)
+//   D2         the group rotated to its oldest valid slot (the group
+//              register keeps what D2 left in its place), OOO_FUSE (fusion
+//              off: no_fuse), OOO_RENAME, OOO_CTRL's r_go; g_take back to
+//              the front end
+//   DS         OOO_DSREG (tags, ready snoop, and the µop's payload: the
+//              record of OOO_IQPL, pc, destination, ...); OOO_CTRL's d_go
+//              writes OOO_ROB, OOO_IQ and OOO_IQPL
+//   IS         OOO_IQ: port 0 (ALU0, OOO_ALU2 full), port 1 (ALU1, FULL 0);
+//              port 2 (the LSU) is not here yet
+//   RR         OOO_STAGE; OOO_PRF (2 reads a port), OOO_IQPL's record, the
+//              pc array and the target array (OOO_FRONT)
+//   EX         OOO_STAGE; the operands from the RR read or the 2 write-back
+//              registers (the bypass), OOO_ALU2, branch resolution (the
+//              direction against the prediction, a jalr's target against
+//              the target array) to OOO_CTRL, OOO_ROB and OOO_FRONT (FERS,
+//              the TAGE outcomes, the BTB); the register file written at
+//              the edge the result enters its write-back register (Plan/
+//              CORE.md 4.2); completion to the ROB
+//   WB         OOO_STAGE: the bypass source of the cycle after
+//   commit     OOO_ROB 2 a cycle: renaming's committed state, OOO_CTRL
+//              (free list, FTQ pops), the commit trace
+//
+// What B2 leaves out: memory (no LSU: LQ / SQ always free, nothing to
+// port 2), CSRs, the MDU, system µops and traps' CSRs (trap_vec is an
+// input; an exception at decode still traps), interrupts, fusion.
+//
+// The µop's fields from decode (Plan/CORE.md 2.1), as B2 has them:
+//   - jal / jalr: the link (pc + length) is computed by the ALU (pc +
+//     imm, the immediate replaced by the length); a jalr's own offset goes
+//     in the record apart (joff). A jal is never resolved: its target was
+//     right at F2 (predecode).
+//   - a conditional branch and a jalr take a checkpoint; resolved in EX:
+//     a branch by its direction against pred_taken (a taken one's target
+//     pc + imm was right at F2), a jalr by its target against the one
+//     predicted (the block's next address from the target array if it
+//     ended a taken block, else the next instruction).
+//   - call / ret as predecode tells them (link registers x1 / x5).
+//   - the pc in EX: the pc array's line of the first half's block (the
+//     µop's block, of its last half, less one when it crosses a line) and
+//     the first half's parcel.
+//
+// The commit trace (OOO_TRACE, simulation only): per ROB entry the
+// instruction bits (written at dispatch) and the value written (at
+// completion); at commit with the ROB's pc and destination.
+//---------------------------------------------------------------------------
+
+`timescale 1ns/1ps
+
+module OOO_CORE
+    #(
+        parameter int VA = 39
+    )
+    (
+        input  logic                        clk,
+        input  logic                        rst_n,
+        input  logic                        boot,       // fetch from boot_pc (a cycle after reset)
+        input  logic [VA-1:1]               boot_pc,
+        input  logic [VA-1:1]               trap_vec,   // B2: no CSRs (mtvec)
+        // I$
+        output logic                        ic_req_valid,
+        output logic [VA-1:1]               ic_req_pc,
+        input  logic                        ic_req_ready,
+        input  logic                        ic_resp_valid,
+        input  logic [127:0]                ic_resp_data
+`ifdef OOO_TRACE
+        ,
+        // the commit trace: up to 2 µops a cycle, slot 0 the older
+        output logic [1:0]                  tr_valid,
+        output logic [1:0][VA-1:1]          tr_pc,
+        output logic [1:0][31:0]            tr_insn,
+        output logic [1:0]                  tr_wr,
+        output logic [1:0][4:0]             tr_rd,
+        output logic [1:0][63:0]            tr_val,
+        output logic                        tr_trap,
+        output logic [4:0]                  tr_cause,
+        output logic [VA-1:1]               tr_trap_pc
+`endif
+    );
+
+    localparam int NFTQ  = 16, FTQW = 4;        // D-18
+    localparam int NCKPT = 6,  CW   = 3;
+    localparam int TAGW  = 6;                   // 64 physical registers
+    localparam int NROB  = 24, ROBW = 5;
+    localparam int NIQ   = 10, IQW  = 4;
+    localparam int NWK   = 6;                   // wakeup buses (OOO_IQ: 4 + NEXT)
+
+    // the payload record (OOO_IQPL, 96 bits; B2's fields)
+    typedef struct packed {
+        logic [9:0]      pad;
+        logic            pred_taken;            // it ends a block predicted taken
+        logic            ret;
+        logic            call;
+        logic            is_jalr;
+        logic            is_jal;
+        logic [2:0]      br_op;
+        logic            is_br;
+        logic            word_op;
+        logic            b_sel;                 // imm
+        logic [1:0]      a_sel;                 // 0 rs1, 1 pc, 2 zero
+        logic [1:0]      a_shift;
+        logic            a_uw;
+        logic [5:0]      alu_op;
+        logic [31:0]     imm;                   // sign extended at its use
+        logic [11:0]     joff;                  // a jalr's offset
+        logic            len4;                  // 32-bit (else RVC)
+        logic            xline;                 // its first half in the block before
+        logic [2:0]      off;                   // the first half's parcel
+        logic [2:0]      e;                     // the last half's parcel
+        logic [CW-1:0]   ckpt;
+        logic [FTQW-1:0] ftq;                   // the block of its last half
+        logic [ROBW-1:0] rob;
+    } rec_t;
+
+    // what the DS register keeps besides the tags
+    typedef struct packed {
+        rec_t            rec;
+        logic [VA-1:1]   pc;
+        logic            wr;
+        logic [4:0]      arch;
+        logic [TAGW-1:0] dst;
+        logic [TAGW-1:0] old;
+        logic            exc;
+        logic [1:0]      port;
+        logic            lat2;
+        logic [31:0]     insn;
+    } dsp_t;
+
+    // ---- recovery and the front end
+    logic                fe_redirect, fe_flush, flush_all, restore_port;
+    logic                restore /*verilator public_flat_rd*/;     // (counted by SIM/CORE/tb_core)
+    logic [VA-1:1]       fe_pc;
+    logic [FTQW-1:0]     restore_ftq, rcv_ftq;
+    logic [2:0]          rcv_end;
+    logic [CW-1:0]       restore_id;
+    logic [NCKPT-1:0]    kill, clr;
+    logic [1:0]          ftq_pop;
+    logic [1:0][2:0]     br_e     /*verilator public_flat_rd*/;
+    // (the resolution's fields are read by SIM/CORE/tb_core, which checks them against the instruction)
+    logic [1:0]          br_taken /*verilator public_flat_rd*/;
+    logic [1:0]          br_call  /*verilator public_flat_rd*/;
+    logic [1:0]          br_ret   /*verilator public_flat_rd*/;
+    logic [1:0]          rs_valid /*verilator public_flat_rd*/;
+    logic [1:0]          rs_taken /*verilator public_flat_rd*/;
+    logic [1:0][FTQW-1:0] rs_ftq;
+    logic [1:0][2:0]     rs_e     /*verilator public_flat_rd*/;
+    logic                bt_valid /*verilator public_flat_rd*/;
+    logic [VA-1:1]       bt_pc    /*verilator public_flat_rd*/;
+    logic [VA-1:1]       bt_tgt;
+    logic [1:0][FTQW-1:0] ta_idx, pa_idx;
+    logic [1:0][VA-1:1]  ta_tgt;
+    logic [1:0][VA-1:4]  pa_line;
+    logic [2:0]          g_take;
+
+    logic [3:0]          g_valid, g_rvc, g_taken, g_seq;
+    logic [3:0][VA-1:1]  g_pc;
+    logic [3:0][31:0]    g_insn;
+    logic [3:0][FTQW-1:0] g_ftq;
+    logic [3:0][2:0]     g_end;
+    logic [3:0]          g_illegal;
+    logic [3:0][2:0]     g_cls, g_op;
+    logic [3:0][4:0]     g_rd, g_rs1, g_rs2;
+    logic [3:0]          g_use_rs1, g_use_rs2;
+    logic [3:0][31:0]    g_imm;
+    logic [3:0][1:0]     g_port;
+    logic [3:0]          g_lat2;
+    logic [3:0][5:0]     g_alu_op;
+    logic [3:0]          g_a_uw;
+    logic [3:0][1:0]     g_a_shift, g_a_sel;
+    logic [3:0]          g_b_sel, g_word_op, g_is_branch, g_is_jal, g_is_jalr;
+    logic [3:0][2:0]     g_br_op;
+    logic [3:0][1:0]     g_mem_size;
+    /* verilator lint_off UNUSEDSIGNAL */      // (decode's fields B2 does not use: MDU, memory, system, CSR, FP)
+    logic [3:0]          g_ext_ans, g_nonspec, g_mem_signed, g_is_sfence, g_is_csr, g_csr_imm_sel, g_csr_wr, g_csr_rd, g_is_fp;
+    logic [3:0][3:0]     g_mdu_op;
+    logic [3:0][4:0]     g_mem_cmd;
+    logic [3:0][7:0]     g_sys;
+    logic [3:0][11:0]    g_csr_addr;
+    logic [3:0][1:0]     g_csr_op;
+    /* verilator lint_on UNUSEDSIGNAL */
+
+    OOO_FRONT #(.VA(VA), .NFTQ(NFTQ), .FTQW(FTQW)) u_front
+        (.clk(clk), .rst_n(rst_n),
+         .fe_redirect(fe_redirect || boot), .fe_flush(fe_flush || boot), .fe_pc(boot ? boot_pc : fe_pc),
+         .restore_ftq(restore_ftq), .restore_port(restore_port), .br_e(br_e), .br_taken(br_taken),
+         .br_call(br_call), .br_ret(br_ret), .rcv_ftq(rcv_ftq), .rcv_end(rcv_end),
+         .rs_valid(rs_valid), .rs_ftq(rs_ftq), .rs_e(rs_e), .rs_taken(rs_taken),
+         .bt_valid(bt_valid), .bt_pc(bt_pc), .bt_tgt(bt_tgt), .ftq_pop(ftq_pop),
+         .ta_idx(ta_idx), .ta_tgt(ta_tgt), .pa_idx(pa_idx), .pa_line(pa_line),
+         .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ready(ic_req_ready),
+         .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data),
+         .g_valid(g_valid), .g_pc(g_pc), .g_insn(g_insn), .g_rvc(g_rvc), .g_ftq(g_ftq), .g_end(g_end),
+         .g_taken(g_taken), .g_seq(g_seq), .g_illegal(g_illegal), .g_cls(g_cls), .g_op(g_op), .g_rd(g_rd),
+         .g_rs1(g_rs1), .g_rs2(g_rs2), .g_use_rs1(g_use_rs1), .g_use_rs2(g_use_rs2), .g_imm(g_imm),
+         .g_port(g_port), .g_lat2(g_lat2), .g_ext_ans(g_ext_ans), .g_nonspec(g_nonspec), .g_alu_op(g_alu_op),
+         .g_a_uw(g_a_uw), .g_a_shift(g_a_shift), .g_a_sel(g_a_sel), .g_b_sel(g_b_sel), .g_word_op(g_word_op),
+         .g_is_branch(g_is_branch), .g_is_jal(g_is_jal), .g_is_jalr(g_is_jalr), .g_br_op(g_br_op),
+         .g_mdu_op(g_mdu_op), .g_mem_cmd(g_mem_cmd), .g_mem_size(g_mem_size), .g_mem_signed(g_mem_signed),
+         .g_sys(g_sys), .g_is_sfence(g_is_sfence), .g_is_csr(g_is_csr), .g_csr_addr(g_csr_addr),
+         .g_csr_op(g_csr_op), .g_csr_imm_sel(g_csr_imm_sel), .g_csr_wr(g_csr_wr), .g_csr_rd(g_csr_rd),
+         .g_is_fp(g_is_fp), .g_take(g_take));
+
+    // ---- D2: the group from its oldest valid slot. The valid slots run from
+    // hd to the last one given (D2 takes from the oldest, and the register
+    // takes a new group only when empty), so the slots that wrap round past
+    // slot 3 are below hd and never valid
+    logic [1:0]          hd;                    // the oldest valid slot
+    logic [3:0][1:0]     rs;                    // rotated slot k is group slot rs[k]
+    logic [3:0]          r_v;
+    always @(*) begin
+        hd = g_valid[0] ? 2'd0 : g_valid[1] ? 2'd1 : g_valid[2] ? 2'd2 : 2'd3;
+        for (int k = 0; k < 4; k++) begin
+            rs[k]  = hd + 2'(k);
+            r_v[k] = g_valid[rs[k]];
+        end
+    end
+
+    logic [3:0]          f_seq, f_use1, f_use2;
+    logic [3:0][2:0]     f_cls, f_op;
+    logic [3:0][4:0]     f_rd, f_rs1, f_rs2;
+    logic [3:0][11:0]    f_imm;
+    logic [3:0][1:0]     f_msize, f_port;
+    always @(*) begin
+        for (int k = 0; k < 4; k++) begin
+            f_seq[k]   = g_seq[rs[k]];
+            f_cls[k]   = g_cls[rs[k]];
+            f_op[k]    = g_op[rs[k]];
+            f_rd[k]    = g_rd[rs[k]];
+            f_rs1[k]   = g_rs1[rs[k]];
+            f_rs2[k]   = g_rs2[rs[k]];
+            f_use1[k]  = g_use_rs1[rs[k]];
+            f_use2[k]  = g_use_rs2[rs[k]];
+            f_imm[k]   = g_imm[rs[k]][11:0];
+            f_msize[k] = g_mem_size[rs[k]];
+            f_port[k]  = g_port[rs[k]];
+        end
+    end
+
+    logic                u0_valid, u1_valid;
+    logic [1:0]          u0_slot, u1_slot, u0_port, u1_port;
+    logic [3:0]          u0_kind;
+    /* verilator lint_off UNUSEDSIGNAL */      // (fusion off in B2)
+    logic [3:0]          u1_kind;
+    /* verilator lint_on UNUSEDSIGNAL */
+    logic [2:0]          consumed;
+    OOO_FUSE u_fuse
+        (.no_fuse(1'b1), .valid(r_v), .seq(f_seq), .cls(f_cls), .op(f_op), .rd(f_rd), .rs1(f_rs1), .rs2(f_rs2),
+         .use_rs1(f_use1), .use_rs2(f_use2), .imm(f_imm), .msize(f_msize), .port(f_port),
+         .u0_valid(u0_valid), .u0_slot(u0_slot), .u0_kind(u0_kind), .u0_port(u0_port),
+         .u1_valid(u1_valid), .u1_slot(u1_slot), .u1_kind(u1_kind), .u1_port(u1_port), .consumed(consumed));
+
+    // the two µops (fusion off: one instruction each)
+    logic [1:0]          r_valid, r_ckpt, r_go, ren_wr;
+    logic [1:0][1:0]     ren_use;
+    logic [1:0][1:0][4:0] ren_src;
+    logic [1:0][4:0]     ren_dst;
+    logic [1:0][CW-1:0]  ren_ckpt_id;
+    logic [1:0][1:0][TAGW-1:0] ren_osrc;
+    logic [1:0][1:0]     ren_ordy;
+    logic [1:0][TAGW-1:0] ren_odst, ren_oold;
+    logic                ren_ready;
+    dsp_t [1:0]          d2;
+    logic [1:0][1:0]     us;                    // the group slot of each µop
+    assign us[0]   = hd + u0_slot;
+    assign us[1]   = hd + u1_slot;
+    assign r_valid = {u1_valid, u0_valid};
+    always @(*) begin
+        for (int j = 0; j < 2; j++) begin
+            ren_use[j] = {g_use_rs2[us[j]], g_use_rs1[us[j]]};
+            ren_src[j] = {g_rs2[us[j]], g_rs1[us[j]]};
+            ren_wr[j]  = r_valid[j] && g_rd[us[j]] != 5'd0;   // (renaming's ready counts the destinations offered)
+            ren_dst[j] = g_rd[us[j]];
+            r_ckpt[j]  = g_is_branch[us[j]] || g_is_jalr[us[j]];
+        end
+    end
+    always @(*) begin
+        logic [1:0] s;
+        logic       jmp, link_rd, link_rs1;
+        for (int j = 0; j < 2; j++) begin
+            s        = us[j];
+            jmp      = g_is_jal[s] || g_is_jalr[s];
+            link_rd  = g_rd[s] == 5'd1 || g_rd[s] == 5'd5;
+            link_rs1 = g_rs1[s] == 5'd1 || g_rs1[s] == 5'd5;
+            d2[j]                = '0;
+            d2[j].rec.pred_taken = g_taken[s];
+            d2[j].rec.call       = g_is_jalr[s] && link_rd;
+            d2[j].rec.ret        = g_is_jalr[s] && link_rs1 && !link_rd;
+            d2[j].rec.is_jalr    = g_is_jalr[s];
+            d2[j].rec.is_jal     = g_is_jal[s];
+            d2[j].rec.br_op      = g_br_op[s];
+            d2[j].rec.is_br      = g_is_branch[s];
+            d2[j].rec.word_op    = jmp ? 1'b0 : g_word_op[s];
+            d2[j].rec.b_sel      = jmp ? 1'b1 : g_b_sel[s];
+            d2[j].rec.a_sel      = jmp ? 2'd1 : g_a_sel[s];             // the link: pc + length
+            d2[j].rec.a_shift    = jmp ? 2'd0 : g_a_shift[s];
+            d2[j].rec.a_uw       = jmp ? 1'b0 : g_a_uw[s];
+            d2[j].rec.alu_op     = jmp ? 6'd0 : g_alu_op[s];            // (ADD)
+            d2[j].rec.imm        = jmp ? (g_rvc[s] ? 32'd2 : 32'd4) : g_imm[s];
+            d2[j].rec.joff       = g_imm[s][11:0];
+            d2[j].rec.len4       = !g_rvc[s];
+            d2[j].rec.xline      = !g_rvc[s] && g_pc[s][3:1] == 3'd7;
+            d2[j].rec.off        = g_pc[s][3:1];
+            d2[j].rec.e          = g_end[s];
+            d2[j].rec.ckpt       = ren_ckpt_id[j];
+            d2[j].rec.ftq        = g_ftq[s];
+            d2[j].pc             = g_pc[s];
+            d2[j].wr             = ren_wr[j];
+            d2[j].arch           = g_rd[s];
+            d2[j].dst            = ren_odst[j];
+            d2[j].old            = ren_oold[j];
+            d2[j].exc            = g_illegal[s];
+            d2[j].port           = j == 0 ? u0_port : u1_port;
+            d2[j].lat2           = g_lat2[s];
+            d2[j].insn           = g_insn[s];
+        end
+    end
+    // instructions taken: µop 1 only with µop 0
+    assign g_take = r_go[1] ? consumed : r_go[0] ? ((u0_kind != 4'd0) ? 3'd2 : 3'd1) : 3'd0;
+
+    // ---- the wakeups, commit, the ROB, the issue queue (declared for renaming and CTRL)
+    logic [NWK-1:0]            wk_valid;
+    logic [NWK-1:0][TAGW-1:0]  wk_tag;
+    logic [1:0]                free_valid, cmt_valid, cmt_wr, cmt_ld_n, cmt_st_n;
+    logic [1:0][TAGW-1:0]      free_tag, cmt_new, cmt_old;
+    logic [1:0][4:0]           cmt_arch;
+    logic [1:0][VA-1:1]        cmt_pc;
+    logic [1:0][FTQW-1:0]      cmt_ftq;
+
+    OOO_RENAME #(.NREG(64), .TAGW(TAGW), .NCKPT(NCKPT), .NWK(NWK)) u_rename
+        (.clk(clk), .rst_n(rst_n), .ready(ren_ready), .in_valid(r_go), .in_use(ren_use), .in_src(ren_src),
+         .in_wr(ren_wr), .in_dst(ren_dst), .in_ckpt(r_ckpt), .out_ckpt_id(ren_ckpt_id),
+         .out_src(ren_osrc), .out_rdy(ren_ordy), .out_dst(ren_odst), .out_old(ren_oold),
+         .wk_valid(wk_valid), .wk_tag(wk_tag), .free_valid(free_valid), .free_tag(free_tag),
+         .restore(restore), .restore_id(restore_id),
+         .cmt_valid(cmt_valid), .cmt_wr(cmt_wr), .cmt_arch(cmt_arch), .cmt_new(cmt_new), .flush_all(flush_all));
+
+    // ---- DS
+    logic [1:0]                d_go, rob_avail, iq_ready;
+    /* verilator lint_off UNUSEDSIGNAL */      // (d_go says what dispatches)
+    logic [1:0]                ds_valid;
+    /* verilator lint_on UNUSEDSIGNAL */
+    logic                      ds_load;
+    logic [1:0][NCKPT-1:0]     d_bmask;
+    logic [1:0][1:0][TAGW-1:0] ds_src;
+    logic [1:0][1:0]           ds_use, ds_rdy;
+    dsp_t [1:0]                ds;
+    logic [1:0][ROBW-1:0]      disp_rob;
+    logic [1:0][IQW-1:0]       disp_entry;
+
+    OOO_DSREG #(.W($bits(dsp_t)), .TAGW(TAGW), .NB(NWK)) u_dsreg
+        (.clk(clk), .rst_n(rst_n), .load(ds_load), .in_src(ren_osrc), .in_use(ren_use), .in_rdy(ren_ordy),
+         .in_data(d2), .wk_valid(wk_valid), .wk_tag(wk_tag),
+         .ds_src(ds_src), .ds_use(ds_use), .ds_rdy(ds_rdy), .ds_data(ds));
+
+    logic [1:0]                br_valid /*verilator public_flat_rd*/;
+    logic [1:0]                br_mispred;
+    logic [1:0][CW-1:0]        br_ckpt;
+    logic [1:0][VA-1:1]        br_next;
+    logic [1:0][ROBW-1:0]      br_rob   /*verilator public_flat_rd*/;
+    logic                      rob_restore, trap, replay, head_ns, iss_ns, ns_ok;
+    logic [CW-1:0]             rob_restore_ckpt;
+    logic [VA-1:1]             replay_pc;
+    logic [ROBW-1:0]           head_rob;
+    logic [4:0]                trap_cause;
+    logic [VA-1:1]             trap_pc;
+
+    /* verilator lint_off PINCONNECTEMPTY */   // (what the LSU, OOO_TRAP and interrupts take: not in B2)
+    OOO_CTRL #(.NCKPT(NCKPT), .CW(CW), .VA(VA), .FTQW(FTQW), .LW(3), .TAGW(TAGW)) u_ctrl
+        (.clk(clk), .rst_n(rst_n),
+         .r_valid(r_valid), .r_ckpt(r_ckpt), .r_ckpt_id(ren_ckpt_id), .r_ren_ready(ren_ready), .r_go(r_go),
+         .ds_valid(ds_valid), .ds_load(ds_load), .ds_ld(2'b00), .ds_st(2'b00),
+         .ds_ftq({ds[1].rec.ftq, ds[0].rec.ftq}), .rob_avail(rob_avail), .iq_avail(iq_ready),
+         .lq_avail(2'd2), .sq_avail(2'd2), .ck_lq_tail('0), .ck_sq_tail('0), .d_go(d_go), .d_bmask(d_bmask),
+         .br_valid(br_valid), .br_mispred(br_mispred), .br_ckpt(br_ckpt), .br_next(br_next),
+         .rob_restore(rob_restore), .rob_restore_ckpt(rob_restore_ckpt), .trap(trap), .replay(replay),
+         .replay_pc(replay_pc), .trap_vec(trap_vec), .head_ns(head_ns),
+         .cmt_valid(cmt_valid), .cmt_wr(cmt_wr), .cmt_old(cmt_old), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n),
+         .cmt_ftq(cmt_ftq), .iss_ns(iss_ns), .ns_ok(ns_ok), .ns_busy(),
+         .fe_flush(fe_flush), .flush_all(flush_all), .restore(restore), .restore_id(restore_id),
+         .restore_port(restore_port), .restore_lq_tail(), .restore_sq_tail(), .restore_ftq(restore_ftq),
+         .kill(kill), .clr(clr), .fe_redirect(fe_redirect), .fe_pc(fe_pc), .live(),
+         .free_valid(free_valid), .free_tag(free_tag), .lq_commit(), .sq_commit(), .ftq_pop(ftq_pop));
+
+    // the ROB
+    logic [3:0]                cmp_valid;
+    logic [3:0][ROBW-1:0]      cmp_rob;
+    logic [1:0]                disp_go;
+    assign disp_go = d_go;
+    /* verilator lint_off UNUSEDSIGNAL */
+    logic                      head_valid, head_fused;
+    logic [ROBW-1:0]           rob_restore_rob;
+    logic [2:0]                cmt_instret;
+    /* verilator lint_on UNUSEDSIGNAL */
+    OOO_ROB #(.NROB(NROB), .ROBW(ROBW), .VA(VA), .TAGW(TAGW), .CW(CW), .NCMP(4), .FTQW(FTQW)) u_rob
+        (.clk(clk), .rst_n(rst_n), .rob_avail(rob_avail), .disp_valid(disp_go),
+         .disp_pc({ds[1].pc, ds[0].pc}), .disp_wr({ds[1].wr, ds[0].wr}), .disp_arch({ds[1].arch, ds[0].arch}),
+         .disp_new({ds[1].dst, ds[0].dst}), .disp_old({ds[1].old, ds[0].old}), .disp_ld(2'b00), .disp_st(2'b00),
+         .disp_fused(2'b00), .disp_ns(2'b00), .disp_len({ds[1].rec.len4 ? 3'd2 : 3'd1, ds[0].rec.len4 ? 3'd2 : 3'd1}),
+         .disp_ftq({ds[1].rec.ftq, ds[0].rec.ftq}), .disp_exc({ds[1].exc, ds[0].exc}), .disp_cause({5'd2, 5'd2}),
+         .disp_rob(disp_rob),
+         .cmp_valid(cmp_valid), .cmp_rob(cmp_rob), .cmp_exc(4'b0000), .cmp_cause('0), .cmp_rp(4'b0000),
+         .br_valid(br_valid), .br_rob(br_rob), .br_mispred(br_mispred), .br_ckpt(br_ckpt),
+         .restore(rob_restore), .restore_rob(rob_restore_rob), .restore_ckpt(rob_restore_ckpt),
+         .head_rob(head_rob), .head_ns(head_ns), .head_valid(head_valid), .head_fused(head_fused), .irq(1'b0),
+         .cmt_valid(cmt_valid), .cmt_wr(cmt_wr), .cmt_arch(cmt_arch), .cmt_new(cmt_new), .cmt_old(cmt_old),
+         .cmt_pc(cmt_pc), .cmt_ftq(cmt_ftq), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_instret(cmt_instret),
+         .trap(trap), .trap_cause(trap_cause), .trap_pc(trap_pc), .replay(replay), .replay_pc(replay_pc),
+         .rcv_ftq(rcv_ftq), .rcv_end(rcv_end));
+
+    // the issue queue and its payload (an exception at decode is never issued)
+    /* verilator lint_off UNUSEDSIGNAL */      // (port 2, the LSU's: not in B2)
+    logic [1:0]                iq_disp;
+    logic [2:0]                iss_valid, iss_wr;
+    logic [2:0][IQW-1:0]       iss_entry;
+    logic [2:0][1:0][TAGW-1:0] iss_src;
+    logic [2:0][TAGW-1:0]      iss_dst;
+    logic [2:0][NCKPT-1:0]     iss_bm;
+    /* verilator lint_off UNUSEDSIGNAL */
+    logic                      iss_md;
+    rec_t [2:0]                rr_rec;
+    /* verilator lint_on UNUSEDSIGNAL */
+    assign iq_disp = d_go & ~{ds[1].exc, ds[0].exc};
+    OOO_IQ #(.N(NIQ), .TAGW(TAGW), .NEXT(2), .NCK(NCKPT)) u_iq
+        (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .ns_ok(ns_ok), .mdu_ok(1'b0),
+         .p0_hold(1'b0), .disp_ready(iq_ready), .disp_entry(disp_entry), .disp_valid(iq_disp),
+         .disp_port({ds[1].port, ds[0].port}), .disp_use(ds_use), .disp_src(ds_src), .disp_rdy(ds_rdy),
+         .disp_wr({ds[1].wr, ds[0].wr}), .disp_dst({ds[1].dst, ds[0].dst}), .disp_lat2({ds[1].lat2, ds[0].lat2}),
+         .disp_bm(d_bmask), .disp_ns(2'b00), .disp_md(2'b00), .ext_valid(2'b00), .ext_tag('0),
+         .iss_valid(iss_valid), .iss_entry(iss_entry), .iss_src(iss_src), .iss_wr(iss_wr), .iss_dst(iss_dst),
+         .iss_bm(iss_bm), .iss_ns(iss_ns), .iss_md(iss_md), .wk_valid(wk_valid), .wk_tag(wk_tag));
+
+    rec_t [1:0]                wrec;
+    always @(*) begin
+        for (int j = 0; j < 2; j++) begin
+            wrec[j]     = ds[j].rec;
+            wrec[j].rob = disp_rob[j];
+        end
+    end
+    OOO_IQPL #(.N(NIQ), .W($bits(rec_t)), .W2($bits(rec_t))) u_iqpl
+        (.clk(clk), .rst_n(rst_n), .wr_valid(iq_disp), .wr_entry(disp_entry), .wr_data(wrec),
+         .iss_entry(iss_entry), .rr_data(rr_rec));
+    /* verilator lint_on PINCONNECTEMPTY */
+
+    // ---- the ALU ports: RR, EX, WB
+    localparam int RRW = 3 * TAGW + 1;                          // sources, destination, writes
+    typedef struct packed {
+        logic [63:0]     v1, v2;                                // the sources as read in RR
+        logic [TAGW-1:0] t1, t2;
+        logic [TAGW-1:0] dst;
+        logic            wr;
+        rec_t            rec;
+        logic [VA-1:4]   line;                                  // the pc array's line of its first half
+        logic [VA-1:1]   ta;                                    // the target array: its block's predicted next
+    } ex_t;
+    localparam int WBW = TAGW + 64;
+
+    logic [3:0][TAGW-1:0]      prf_ra;
+    logic [3:0][63:0]          prf_rd;
+    logic [1:0]                prf_we;
+    logic [1:0][TAGW-1:0]      prf_wa;
+    logic [1:0][63:0]          prf_wd;
+    logic [1:0]                wb_v;
+    logic [1:0][WBW-1:0]       wb_d;
+    logic [1:0]                ex_v;
+    ex_t  [1:0]                ex;
+    logic [1:0][63:0]          ex_res;
+    logic [1:0]                ex_tk;
+    logic [1:0][VA-1:1]        ex_pc /*verilator public_flat_rd*/;
+
+    for (genvar p = 0; p < 2; p++) begin : g_alu
+        // RR
+        logic            rr_v;
+        logic [NCKPT-1:0] rr_bm, ex_bm;
+        /* verilator lint_off UNUSEDSIGNAL */
+        logic [NCKPT-1:0] wb_bm;
+        /* verilator lint_on UNUSEDSIGNAL */
+        logic [RRW-1:0]  rr_d;
+        logic [TAGW-1:0] rr_t1, rr_t2, rr_dst;
+        logic            rr_wr;
+        ex_t             rx;
+        OOO_STAGE #(.W(RRW), .NCK(NCKPT)) u_rr
+            (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
+             .in_valid(iss_valid[p]), .in_bm(iss_bm[p]), .in_data({iss_src[p][1], iss_src[p][0], iss_dst[p], iss_wr[p]}),
+             .out_valid(rr_v), .out_bm(rr_bm), .out_data(rr_d));
+        assign {rr_t2, rr_t1, rr_dst, rr_wr} = rr_d;
+        assign prf_ra[2*p]   = rr_t1;
+        assign prf_ra[2*p+1] = rr_t2;
+        assign pa_idx[p]     = rr_rec[p].ftq - FTQW'(rr_rec[p].xline);
+        assign ta_idx[p]     = rr_rec[p].ftq;
+        always @(*) begin
+            rx      = '0;
+            rx.v1   = prf_rd[2*p];
+            rx.v2   = prf_rd[2*p+1];
+            rx.t1   = rr_t1;
+            rx.t2   = rr_t2;
+            rx.dst  = rr_dst;
+            rx.wr   = rr_wr;
+            rx.rec  = rr_rec[p];
+            rx.line = pa_line[p];
+            rx.ta   = ta_tgt[p];
+        end
+        // EX
+        OOO_STAGE #(.W($bits(ex_t)), .NCK(NCKPT)) u_ex
+            (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
+             .in_valid(rr_v), .in_bm(rr_bm), .in_data(rx), .out_valid(ex_v[p]), .out_bm(ex_bm), .out_data(ex[p]));
+
+        logic [63:0]     a, b, pc64, imm64;
+        logic [VA-1:1]   pc, pc_nx, b_tgt, j_tgt, nxt, pnx;
+        logic            mis;
+        always @(*) begin
+            // the bypass: the write-back registers (the results of the cycle before), else the RR read
+            a = ex[p].v1;
+            b = ex[p].v2;
+            for (int q = 0; q < 2; q++) begin
+                if (wb_v[q] && wb_d[q][WBW-1 -: TAGW] == ex[p].t1) a = wb_d[q][63:0];
+                if (wb_v[q] && wb_d[q][WBW-1 -: TAGW] == ex[p].t2) b = wb_d[q][63:0];
+            end
+            pc    = {ex[p].line, ex[p].rec.off};
+            ex_pc[p] = pc;
+            pc64  = {{(64 - VA){pc[VA-1]}}, pc, 1'b0};
+            imm64 = {{32{ex[p].rec.imm[31]}}, ex[p].rec.imm};
+        end
+        OOO_ALU2 #(.FULL(p == 0)) u_alu
+            (.s1(a), .s2(b), .imm1(imm64), .pc(pc64), .op1(ex[p].rec.alu_op), .uw1(ex[p].rec.a_uw),
+             .shift1(ex[p].rec.a_shift), .word1(ex[p].rec.word_op), .a1_sel(ex[p].rec.a_sel), .b1_imm(ex[p].rec.b_sel),
+             .is_br(ex[p].rec.is_br), .br_op(ex[p].rec.br_op), .br_fused(1'b0), .br_res1_a(1'b0), .br_o_sel(2'd0),
+             .res1(ex_res[p]), .take_branch(ex_tk[p]));
+        always @(*) begin
+            /* verilator lint_off UNUSEDSIGNAL */
+            logic [63:0] jt;
+            /* verilator lint_on UNUSEDSIGNAL */
+            pc_nx = pc + (ex[p].rec.len4 ? (VA - 1)'(2) : (VA - 1)'(1));
+            b_tgt = pc + (VA - 1)'({{32{ex[p].rec.imm[31]}}, ex[p].rec.imm} >> 1);
+            jt    = a + {{52{ex[p].rec.joff[11]}}, ex[p].rec.joff};
+            j_tgt = jt[VA-1:1];
+            nxt   = ex[p].rec.is_jalr ? j_tgt : ex_tk[p] ? b_tgt : pc_nx;
+            pnx   = ex[p].rec.pred_taken ? (ex[p].rec.is_jalr ? ex[p].ta : b_tgt) : pc_nx;
+            mis   = ex[p].rec.is_jalr ? nxt != pnx : ex_tk[p] != ex[p].rec.pred_taken;
+            // resolution: OOO_CTRL, OOO_ROB, OOO_FRONT (FERS, TAGE)
+            br_valid[p]   = ex_v[p] && (ex[p].rec.is_br || ex[p].rec.is_jalr);
+            br_mispred[p] = mis;
+            br_ckpt[p]    = ex[p].rec.ckpt;
+            br_next[p]    = nxt;
+            br_rob[p]     = ex[p].rec.rob;
+            br_e[p]       = ex[p].rec.e;
+            br_taken[p]   = ex[p].rec.is_jalr || ex_tk[p];
+            br_call[p]    = ex[p].rec.call;
+            br_ret[p]     = ex[p].rec.ret;
+            rs_valid[p]   = ex_v[p] && ex[p].rec.is_br;
+            rs_ftq[p]     = ex[p].rec.ftq;
+            rs_e[p]       = ex[p].rec.e;
+            rs_taken[p]   = ex_tk[p];
+            // the register file at the edge the result enters the write-back register; completion
+            prf_we[p]     = ex_v[p] && ex[p].wr;
+            prf_wa[p]     = ex[p].dst;
+            prf_wd[p]     = ex_res[p];
+            cmp_valid[p]  = ex_v[p];
+            cmp_rob[p]    = ex[p].rec.rob;
+        end
+        // WB
+        OOO_STAGE #(.W(WBW), .NCK(NCKPT)) u_wb
+            (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
+             .in_valid(ex_v[p] && ex[p].wr), .in_bm(ex_bm), .in_data({ex[p].dst, ex_res[p]}),
+             .out_valid(wb_v[p]), .out_bm(wb_bm), .out_data(wb_d[p]));
+    end
+    assign cmp_valid[3:2] = 2'b00;
+    assign cmp_rob[3:2]   = '0;
+
+    // an indirect jump (a jalr not a return) writes the BTB: port 0's first
+    always @(*) begin
+        logic [1:0] ij;
+        for (int p = 0; p < 2; p++) ij[p] = ex_v[p] && ex[p].rec.is_jalr && !ex[p].rec.ret;
+        bt_valid = ij != 2'b00;
+        bt_pc    = ij[0] ? ex_pc[0] + (VA - 1)'(ex[0].rec.len4) : ex_pc[1] + (VA - 1)'(ex[1].rec.len4);   // its last parcel
+        bt_tgt   = ij[0] ? br_next[0] : br_next[1];
+    end
+
+    /* verilator lint_off PINCONNECTEMPTY */
+    OOO_PRF #(.NREG(64), .NW(2), .NR(4)) u_prf
+        (.clk(clk), .ra(prf_ra), .rd(prf_rd), .we(prf_we), .wa(prf_wa), .wd(prf_wd));
+    /* verilator lint_on PINCONNECTEMPTY */
+
+`ifdef OOO_TRACE
+    // ---- the commit trace
+    logic [31:0]     sh_insn [NROB] /*verilator public_flat_rd*/;
+    logic [63:0]     sh_val  [NROB];
+    always_ff @(posedge clk) begin
+        for (int j = 0; j < 2; j++) if (disp_go[j]) sh_insn[disp_rob[j]] <= ds[j].insn;
+        for (int p = 0; p < 2; p++) if (ex_v[p] && ex[p].wr) sh_val[ex[p].rec.rob] <= ex_res[p];
+    end
+    always @(*) begin
+        logic [ROBW-1:0] i1;
+        i1 = (head_rob == ROBW'(NROB - 1)) ? '0 : head_rob + ROBW'(1);
+        tr_valid   = cmt_valid;
+        tr_pc      = cmt_pc;
+        tr_wr      = cmt_wr;
+        tr_rd      = cmt_arch;
+        tr_insn[0] = sh_insn[head_rob];
+        tr_insn[1] = sh_insn[i1];
+        tr_val[0]  = sh_val[head_rob];
+        tr_val[1]  = sh_val[i1];
+        tr_trap    = trap;
+        tr_cause   = trap_cause;
+        tr_trap_pc = trap_pc;
+    end
+`endif
+
+endmodule : OOO_CORE

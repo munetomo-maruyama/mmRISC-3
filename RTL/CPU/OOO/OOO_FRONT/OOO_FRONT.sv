@@ -58,7 +58,9 @@
 // logic in one cycle closed by 0.87 ns only (Plan/OOC.md 26.13, 26.14 A).
 //
 // The target array (Plan/CORE.md 4.5): each FTQ block's predicted next
-// address, written at the push, read by the resolution of a jalr (ta_*).
+// address, written at the push, read by the resolution of a jalr (ta_*, one
+// read per ALU port). The pc array (4.1): each FTQ block's line, written at
+// the push, read in RR for the µops' pc (pa_*, one read per ALU port).
 //
 // Phase 1 keeps decode's FP fields out of the group register (no FPU;
 // is_fp only), and the instruction bits go with each instruction for the
@@ -105,9 +107,11 @@ module OOO_FRONT
         // commit: OOO_CTRL's pops, at most one a cycle
         input  logic [1:0]                  ftq_pop,
 
-        // the target array
-        input  logic [FTQW-1:0]             ta_idx,
-        output logic [VA-1:1]               ta_tgt,
+        // the target array and the pc array (one read per ALU port)
+        input  logic [1:0][FTQW-1:0]        ta_idx,
+        output logic [1:0][VA-1:1]          ta_tgt,
+        input  logic [1:0][FTQW-1:0]        pa_idx,
+        output logic [1:0][VA-1:4]          pa_line,
 
         // I$
         output logic                        ic_req_valid,
@@ -296,10 +300,15 @@ module OOO_FRONT
         up_tk_q   <= up_tk;
     end
 
-    // ---- the target array
+    // ---- the target array and the pc array
     (* ram_style = "distributed" *) logic [VA-1:1] ta_mem [NFTQ];
+    (* ram_style = "distributed" *) logic [VA-1:4] pa_mem [NFTQ];
     always_ff @(posedge clk) if (out_valid) ta_mem[push_idx] <= out_next;
-    assign ta_tgt = ta_mem[ta_idx];
+    always_ff @(posedge clk) if (out_valid) pa_mem[push_idx] <= out_pc[VA-1:4];
+    for (genvar k = 0; k < 2; k++) begin : g_arr
+        assign ta_tgt[k]  = ta_mem[ta_idx[k]];
+        assign pa_line[k] = pa_mem[pa_idx[k]];
+    end
 
     // ---- D1a: the fetch buffer's group into R (or the skid S)
     logic [3:0]            fb_v, fb_rvc, fb_tk, fb_seq, fb_rare;

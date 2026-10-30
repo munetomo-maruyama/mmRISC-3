@@ -186,6 +186,7 @@ static Result run(const std::string& elf, const Opts& o)
         { uint32_t w[4]; ic.resp_data(w); for (int k = 0; k < 4; k++) d->ic_resp_data[k] = w[k]; }
         d->g_take = 0;
         d->ta_idx = 0;
+        d->pa_idx = 0;
         d->eval();
 
         auto* rp = d->rootp;
@@ -245,9 +246,23 @@ static Result run(const std::string& elf, const Opts& o)
         }
         int tslot = -1;
         for (int i = 0; i < take; i++) if ((d->g_taken >> (head + i)) & 1) tslot = head + i;
-        d->ta_idx = tslot >= 0 ? (int)((d->g_ftq >> (FTQW * tslot)) & FM) : 0;
+        {
+            unsigned ti = tslot >= 0 ? (unsigned)((d->g_ftq >> (FTQW * tslot)) & FM) : 0;
+            d->ta_idx = ti | ti << FTQW;                  // both reads of the target array at the taken one's block
+            unsigned pi = 0;                              // the pc array: the blocks of the first halves taken
+            for (int i = 0; i < take && i < 2; i++) {
+                int k = head + i;
+                uint64_t pc = wbits(d->g_pc, 38 * k, 38) << 1;
+                bool cross = !((d->g_rvc >> k) & 1) && ((pc >> 1) & 7) == 7;
+                pi |= (unsigned)((((d->g_ftq >> (FTQW * k)) & FM) - cross) & FM) << (FTQW * i);
+            }
+            d->pa_idx = pi;
+        }
         d->g_take = take;
         d->eval();
+        if (wbits(d->ta_tgt, 0, 38) != wbits(d->ta_tgt, 38, 38)) fail("the target array's two reads differ");
+        for (int i = 0; i < take && i < 2 && !pend; i++)
+            if (wbits(d->pa_line, 35 * i, 35) != wbits(d->g_pc, 38 * (head + i) + 3, 35)) fail("the pc array: not the line of the instruction's first half");
         if (take) { res.taken_cyc++; last_take = cyc; }
         for (int i = 0; i < take && res.why.empty(); i++) {
             int k = head + i;
@@ -289,7 +304,7 @@ static Result run(const std::string& elf, const Opts& o)
             if (last) { done = true; res.pass = true; break; }   // Spike's exit, reached on the true path
             fill(1);
             uint64_t T = tq.front().pc;
-            uint64_t P = tk ? (uint64_t)d->ta_tgt << 1 : pc + len;
+            uint64_t P = tk ? wbits(d->ta_tgt, 0, 38) << 1 : pc + len;
             bool call, ret, ijmp;
             cti_kind(x.insn, call, ret, ijmp);
             uint32_t op = x.insn & 0x7f;

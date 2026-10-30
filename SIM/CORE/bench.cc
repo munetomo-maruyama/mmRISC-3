@@ -213,6 +213,7 @@ Bench::Bench(const BenchCfg& cfg) : c(cfg)
     m->on_write = [this](uint64_t ad, size_t n) { h->mem_write(ad, n, *m); };
     if (c.lockstep) ref.reset(new Lockstep(c.ref));
     dis.reset(new Dis(c.ref));
+    if (!c.exit_sym.empty() && !(exit_pc = img.symbol(c.exit_sym))) throw std::runtime_error(c.elf + ": no " + c.exit_sym + " symbol");
 }
 
 Bench::~Bench() = default;
@@ -274,6 +275,7 @@ bool Bench::commit(const TraceSlot* s, int n)
             if ((int)last.size() > c.tail) last.pop_front();
             std::string why;
             if (ref && !ref->check(x, &why)) { fail("mismatch at instruction " + std::to_string(insns) + ": " + why); return false; }
+            if (exit_pc && x.pc == exit_pc && !x.trap) { over = true; return false; }      // (exit_sym: no HTIF)
             if (!x.st || x.trap) continue;
             a->poke(x.st_addr, &x.st_data, x.st_size);
             if (h->commit_store(x.st_addr, x.st_data, x.st_size) && h->exited) { finish(); return false; }

@@ -52,7 +52,11 @@
 //
 // x0 maps to physical register 0 forever, is never given out and is always
 // ready. Rename stalls (ready = 0) when the free list cannot cover the
-// destinations of both µops, and in the cycle of a restore.
+// destinations of both µops offered, and in the cycle of a restore. ready
+// counts the destinations from in_wr / in_dst, not from in_valid: in the
+// core in_valid is the control's r_go, which waits for ready (the caller
+// gives in_wr only for a µop it offers; Plan/CORE.md 5.4). For the same
+// reason µop 1's checkpoint id counts µop 0's checkpoint as offered.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -140,16 +144,21 @@ module OOO_RENAME
 
     // allocation: µop 0 takes the register at the head, µop 1 the next one
     // (or the head, when µop 0 writes none)
-    logic [1:0]           alloc;
-    logic [1:0]           need;
+    logic [1:0]           want, alloc;
+    logic [1:0]           want_n, need;
     logic [1:0][TAGW-1:0] new_tag;
+    // ready from the destinations offered, apart from in_valid (it waits for ready)
     always @(*) begin
-        for (int u = 0; u < 2; u++) alloc[u] = in_valid[u] && in_wr[u] && in_dst[u] != 5'd0;
+        for (int u = 0; u < 2; u++) want[u] = in_wr[u] && in_dst[u] != 5'd0;
+        want_n = 2'(want[0]) + 2'(want[1]);
+    end
+    assign ready = (nfree >= (FW + 1)'(want_n)) && !restore && !flush_all;
+    always @(*) begin
+        for (int u = 0; u < 2; u++) alloc[u] = in_valid[u] && want[u];
         need       = 2'(alloc[0]) + 2'(alloc[1]);
         new_tag[0] = alloc[0] ? fl[head[FW-1:0]] : '0;
         new_tag[1] = alloc[1] ? fl[FW'(head + (FW + 1)'(alloc[0]))] : '0;
     end
-    assign ready = (nfree >= (FW + 1)'(need)) && !restore && !flush_all;
 
     // rename
     always @(*) begin
@@ -169,7 +178,7 @@ module OOO_RENAME
             end
         if (alloc[0] && in_dst[0] == in_dst[1]) out_old[1] = new_tag[0];
         out_ckpt_id[0] = ck_next;
-        out_ckpt_id[1] = cadd(ck_next, 2'(in_valid[0] && in_ckpt[0]));
+        out_ckpt_id[1] = cadd(ck_next, 2'(in_ckpt[0]));   // (µop 1 goes only with µop 0: not from in_valid, which waits for these ids)
     end
 
     logic go;

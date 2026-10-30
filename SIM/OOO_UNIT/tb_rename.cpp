@@ -75,6 +75,7 @@ int main(int argc, char** argv)
             ckp[u] = (rng() % 3 == 0) && pending_ck.size() + (u ? ckp[0] : 0) < NCK;
             if (ckp[u] && pending_ck.size() + (u ? ckp[0] : 0) == NCK - 1) nfull++;
         }
+        if (!(valid & 1)) valid = 0;            // µop 1 only with µop 0 (OOO_CTRL's r_go)
         // wakeups: up to 6 registers given out
         int wbv = 0; uint64_t wbt = 0;
         for (int w = 0; w < 6; w++)
@@ -132,9 +133,10 @@ int main(int argc, char** argv)
         int alloc[2], nt[2];
         for (int u = 0; u < 2; u++) alloc[u] = ((valid >> u) & 1) && wr[u] && dst[u] != 0;
         int need = alloc[0] + alloc[1];
+        int want = (wr[0] && dst[0] != 0) + (wr[1] && dst[1] != 0);   // the destinations offered, valid or not (ready may not wait for in_valid)
         nt[0] = alloc[0] ? R.fl[R.head % 32] : 0;
         nt[1] = alloc[1] ? R.fl[(R.head + alloc[0]) % 32] : 0;
-        bool ready = R.nfree() >= need && !restore && !flush_all;
+        bool ready = R.nfree() >= want && !restore && !flush_all;
         bool ok = (bool)d.ready == ready;
         char why[200] = "ready";
         if (ready && valid) {
@@ -156,7 +158,7 @@ int main(int argc, char** argv)
                     if (gd != nt[u] || go != old) { ok = false; snprintf(why, sizeof why, "u%d dst (x%d): new p%d/%d old p%d/%d", u, dst[u], gd, nt[u], go, old); }
                 }
                 int gck = (d.out_ckpt_id >> (3 * u)) & 7;
-                int eck = (R.ck_next + (u == 1 && (valid & 1) && ckp[0])) % NCK;
+                int eck = (R.ck_next + (u == 1 && ckp[0])) % NCK;
                 if (ckp[u] && gck != eck) { ok = false; snprintf(why, sizeof why, "u%d ckpt %d/%d", u, gck, eck); }
             }
         }
