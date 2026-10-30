@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Thu Oct 29 23:43:20 2026
+| Date         : Fri Oct 30 22:03:37 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOC_FE/utilization.rpt
 | Design       : OOC_FE
@@ -22,19 +22,19 @@ Table of Contents
 +-----------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
 |     Instance    |   Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
 +-----------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
-| OOC_FE          |     (top) |       6231 |       5629 |     602 |    0 | 3015 |      5 |      1 |          0 |
+| OOC_FE          |     (top) |       6184 |       5582 |     602 |    0 | 3288 |      5 |      1 |          0 |
 |   (OOC_FE)      |     (top) |          0 |          0 |       0 |    0 |  908 |      0 |      0 |          0 |
-|   u_front       | OOO_FRONT |       6231 |       5629 |     602 |    0 | 2107 |      5 |      1 |          0 |
-|     (u_front)   | OOO_FRONT |       1957 |       1931 |      26 |    0 | 1072 |      0 |      0 |          0 |
-|     u_fbuf      |  OOO_FBUF |       1068 |        876 |     192 |    0 |   14 |      0 |      0 |          0 |
+|   u_front       | OOO_FRONT |       6184 |       5582 |     602 |    0 | 2380 |      5 |      1 |          0 |
+|     (u_front)   | OOO_FRONT |       1976 |       1950 |      26 |    0 | 1276 |      0 |      0 |          0 |
+|     u_fbuf      |  OOO_FBUF |       1070 |        878 |     192 |    0 |   14 |      0 |      0 |          0 |
 |     u_fers      |  OOO_FERS |         23 |         23 |       0 |    0 |   50 |      0 |      0 |          0 |
-|     u_fetch     | OOO_FETCH |       2233 |       2151 |      82 |    0 |  961 |      5 |      1 |          0 |
-|       (u_fetch) | OOO_FETCH |         43 |         13 |      30 |    0 |   68 |      0 |      0 |          0 |
-|       u_btb     |   OOO_BTB |         64 |         64 |       0 |    0 |   52 |      1 |      0 |          0 |
-|       u_ras     |   OOO_RAS |        324 |        272 |      52 |    0 |    4 |      0 |      0 |          0 |
-|       u_tage    |  OOO_TAGE |        527 |        527 |       0 |    0 |  332 |      4 |      1 |          0 |
-|       u_ubtb    |  OOO_UBTB |       1287 |       1287 |       0 |    0 |  505 |      0 |      0 |          0 |
-|     u_ftq       |   OOO_FTQ |        952 |        650 |     302 |    0 |   10 |      0 |      0 |          0 |
+|     u_fetch     | OOO_FETCH |       2455 |       2373 |      82 |    0 | 1030 |      5 |      1 |          0 |
+|       (u_fetch) | OOO_FETCH |         43 |         13 |      30 |    0 |  137 |      0 |      0 |          0 |
+|       u_btb     |   OOO_BTB |         65 |         65 |       0 |    0 |   52 |      1 |      0 |          0 |
+|       u_ras     |   OOO_RAS |        327 |        275 |      52 |    0 |    4 |      0 |      0 |          0 |
+|       u_tage    |  OOO_TAGE |        786 |        786 |       0 |    0 |  332 |      4 |      1 |          0 |
+|       u_ubtb    |  OOO_UBTB |       1242 |       1242 |       0 |    0 |  505 |      0 |      0 |          0 |
+|     u_ftq       |   OOO_FTQ |        663 |        361 |     302 |    0 |   10 |      0 |      0 |          0 |
 +-----------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
 * Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
 

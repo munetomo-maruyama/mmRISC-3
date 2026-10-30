@@ -2517,3 +2517,30 @@ The author took D-18 (`Doc/PROMPT.md` entry 94).
 - **Please run** `synth_ooo.bat OOC_FE` (and `OOC_FRONT`, the fetch side alone, for the uBTB's training). Expected:
   the TAGE update and the uBTB's training off the edge (each with several ns); the worst path the fetch buffer's
   loop at about +1 ns; about +360 flip-flops and a few LUTs.
+
+### 26.16 The rerun with the TAGE update and the uBTB's training registered (2026-10-30)
+
+| Run | LUT | of it LUTRAM | FF | Register-to-register slack | Logic levels |
+|---|---|---|---|---|---|
+| OOC_FRONT (fetch alone, 6.10: the uBTB's training) | 2,611 | 82 | 2,112 | +0.835 ns | 16 |
+| **OOC_FRONT (training registered)** | **2,570** | 82 | 2,119 | **+2.235 ns** | 15 |
+| OOC_FE (26.13) | 6,231 | 602 | 3,015 | +0.868 ns | 18 |
+| **OOC_FE (both registered)** | **6,184** | 602 | 3,288 | **+1.095 ns** | 17 |
+
+| OOC_FE's paths | 26.13 | Now |
+|---|---|---|
+| the fetch buffer's loop | +1.016 ns | **+1.095 ns** (the 7 worst paths, to +2.49 ns) |
+| D1a / D1b | +5.299 / +5.451 ns | +5.893 / +5.076 ns |
+| the TAGE update | +0.868 ns | not among the ten (above +2.68 ns) |
+| the uBTB's training | +0.943 ns | not among the ten |
+| next: fetch's head pc → the RAS's LUTRAM write enable | — | +2.683 ns (15 levels) |
+
+- **Both trainings are off the edge**, as expected: in OOC_FE neither is among the ten worst paths; in OOC_FRONT
+  (fetch alone) the uBTB's training gave way to the RAS's write enable, +0.835 → +2.235 ns.
+- **The fetch buffer's loop is now the only family under +2 ns**: +1.095 ns, 17 levels, its own seven paths.
+- **Size**: OOC_FE −47 LUTs (the TAGE update logic, no longer squeezed into one cycle with the FTQ's read, is
+  smaller; Vivado now puts it in OOO_TAGE, 527 → 786, the FTQ 952 → 663), +273 FFs (the two registers, 357 bits,
+  partly merged). OOC_FRONT −41 LUTs.
+- **The budget** (`Doc/UARCH.md` 4.4): OOC_FE 6,184 in place of 6,231.
+- **The front end stands here until G1**: the loop's lever (duplicating `hb`, 26.14 C) waits for the whole core,
+  where routing decides whether it is needed.

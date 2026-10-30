@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Thu Oct 29 23:43:22 2026
+| Date         : Fri Oct 30 22:03:39 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_timing_summary -file ./output/OOC_FE/timing_summary.rpt
 | Design       : OOC_FE
@@ -138,7 +138,7 @@ Table of Contents
 
     WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
     -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
-      0.868        0.000                      0                11858        0.028        0.000                      0                11858        8.750        0.000                       0                  4231  
+      1.095        0.000                      0                12131        0.028        0.000                      0                12131        8.750        0.000                       0                  4504  
 
 
 All user specified timing constraints are met.
@@ -161,7 +161,7 @@ clk    {0.000 10.000}     20.000          50.000
 
 Clock             WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
 -----             -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
-clk                 0.868        0.000                      0                11858        0.028        0.000                      0                11858        8.750        0.000                       0                  4231  
+clk                 1.095        0.000                      0                12131        0.028        0.000                      0                12131        8.750        0.000                       0                  4504  
 
 
 ------------------------------------------------------------------------------------------------
@@ -192,7 +192,7 @@ Path Group    From Clock    To Clock          WNS(ns)      TNS(ns)  TNS Failing 
 From Clock:  clk
   To Clock:  clk
 
-Setup :            0  Failing Endpoints,  Worst Slack        0.868ns,  Total Violation        0.000ns
+Setup :            0  Failing Endpoints,  Worst Slack        1.095ns,  Total Violation        0.000ns
 Hold  :            0  Failing Endpoints,  Worst Slack        0.028ns,  Total Violation        0.000ns
 PW    :            0  Failing Endpoints,  Worst Slack        8.750ns,  Total Violation        0.000ns
 ---------------------------------------------------------------------------------------------------
@@ -200,16 +200,16 @@ PW    :            0  Failing Endpoints,  Worst Slack        8.750ns,  Total Vio
 
 Max Delay Paths
 --------------------------------------------------------------------------------------
-Slack (MET) :             0.868ns  (required time - arrival time)
-  Source:                 u_front/u_ftq/head_reg[0]/C
+Slack (MET) :             1.095ns  (required time - arrival time)
+  Source:                 u_front/u_fbuf/hb_reg[0]/C
                             (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            u_front/u_fetch/u_tage/g_tbl[1].tbl_reg/DIADI[10]
-                            (rising edge-triggered cell RAMB36E1 clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_front/u_fbuf/hb_reg[1]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Setup (Max at Slow Process Corner)
   Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
-  Data Path Delay:        18.807ns  (logic 4.512ns (23.991%)  route 14.295ns (76.009%))
-  Logic Levels:           18  (CARRY4=1 LUT2=1 LUT4=4 LUT5=2 LUT6=7 MUXF7=2 RAMD32=1)
+  Data Path Delay:        18.538ns  (logic 4.218ns (22.753%)  route 14.320ns (77.247%))
+  Logic Levels:           17  (LUT1=1 LUT2=2 LUT3=3 LUT4=1 LUT5=2 LUT6=7 RAMD32=1)
   Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
     Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
     Source Clock Delay      (SCD):    0.973ns
@@ -224,65 +224,61 @@ Slack (MET) :             0.868ns  (required time - arrival time)
   -------------------------------------------------------------------    -------------------
                          (clock clk rise edge)        0.000     0.000 r  
                                                       0.000     0.000 r  clk (IN)
-                         net (fo=4230, unset)         0.973     0.973    u_front/u_ftq/clk
-    SLICE_X8Y52          FDCE                                         r  u_front/u_ftq/head_reg[0]/C
+                         net (fo=4503, unset)         0.973     0.973    u_front/u_fbuf/clk
+    SLICE_X35Y54         FDCE                                         r  u_front/u_fbuf/hb_reg[0]/C
   -------------------------------------------------------------------    -------------------
-    SLICE_X8Y52          FDCE (Prop_fdce_C_Q)         0.518     1.491 r  u_front/u_ftq/head_reg[0]/Q
-                         net (fo=281, routed)         1.833     3.324    u_front/u_ftq/mem_reg_r4_0_15_198_203/ADDRA0
-    SLICE_X12Y33         RAMD32 (Prop_ramd32_RADR0_O)
-                                                      0.150     3.474 r  u_front/u_ftq/mem_reg_r4_0_15_198_203/RAMA/O
-                         net (fo=3, routed)           1.184     4.658    u_front/u_ftq/hd_meta[198]
-    SLICE_X11Y31         LUT6 (Prop_lut6_I0_O)        0.328     4.986 r  u_front/u_ftq/g_tbl[0].tbl_reg_i_128/O
-                         net (fo=1, routed)           0.000     4.986    u_front/u_ftq/g_tbl[0].tbl_reg_i_128_n_0
-    SLICE_X11Y31         CARRY4 (Prop_carry4_S[2]_CO[2])
-                                                      0.314     5.300 r  u_front/u_ftq/g_tbl[0].tbl_reg_i_79/CO[2]
-                         net (fo=10, routed)          0.973     6.273    u_front/u_ftq/u_fetch/u_tage/pv25_out
-    SLICE_X7Y34          LUT2 (Prop_lut2_I0_O)        0.313     6.586 r  u_front/u_ftq/g_tbl[0].tbl_reg_i_85/O
-                         net (fo=5, routed)           0.587     7.173    u_front/u_ftq/u_fetch/u_tage/pv175_out
-    SLICE_X4Y36          LUT6 (Prop_lut6_I0_O)        0.124     7.297 r  u_front/u_ftq/g_tbl[0].tbl_reg_i_50/O
-                         net (fo=89, routed)          1.477     8.774    u_front/u_ftq/u_fetch/u_tage/pv
-    SLICE_X13Y39         LUT4 (Prop_lut4_I2_O)        0.152     8.926 f  u_front/u_ftq/g_tbl[0].tbl_reg_i_153/O
-                         net (fo=3, routed)           0.888     9.814    u_front/u_ftq/u_fetch/u_tage/(null)[0].t8_out
-    SLICE_X12Y39         LUT5 (Prop_lut5_I3_O)        0.326    10.140 r  u_front/u_ftq/btbl_reg_i_76/O
-                         net (fo=16, routed)          0.814    10.955    u_front/u_ftq/btbl_reg_i_76_n_0
-    SLICE_X16Y42         LUT6 (Prop_lut6_I0_O)        0.124    11.079 r  u_front/u_ftq/btbl_reg_i_59/O
-                         net (fo=4, routed)           0.609    11.688    u_front/u_ftq/btbl_reg_i_59_n_0
-    SLICE_X16Y43         LUT6 (Prop_lut6_I5_O)        0.124    11.812 r  u_front/u_ftq/g_tbl[0].tbl_reg_i_187/O
-                         net (fo=1, routed)           0.000    11.812    u_front/u_ftq/g_tbl[0].tbl_reg_i_187_n_0
-    SLICE_X16Y43         MUXF7 (Prop_muxf7_I1_O)      0.217    12.029 r  u_front/u_ftq/g_tbl[0].tbl_reg_i_149/O
-                         net (fo=5, routed)           0.738    12.766    u_front/u_ftq/g_tbl[0].tbl_reg_i_149_n_0
-    SLICE_X13Y42         LUT4 (Prop_lut4_I1_O)        0.293    13.059 f  u_front/u_ftq/g_tbl[0].tbl_reg_i_91/O
-                         net (fo=3, routed)           0.707    13.766    u_front/u_ftq/u_fetch/u_tage/(null)[0].t6_out
-    SLICE_X11Y40         LUT5 (Prop_lut5_I0_O)        0.326    14.092 r  u_front/u_ftq/btbl_reg_i_46/O
-                         net (fo=16, routed)          0.679    14.770    u_front/u_ftq/btbl_reg_i_46_n_0
-    SLICE_X14Y42         LUT6 (Prop_lut6_I0_O)        0.124    14.894 r  u_front/u_ftq/btbl_reg_i_25/O
-                         net (fo=4, routed)           0.924    15.819    u_front/u_ftq/btbl_reg_i_25_n_0
-    SLICE_X10Y40         LUT6 (Prop_lut6_I1_O)        0.124    15.943 r  u_front/u_ftq/use_alt[3]_i_15/O
-                         net (fo=1, routed)           0.000    15.943    u_front/u_ftq/use_alt[3]_i_15_n_0
-    SLICE_X10Y40         MUXF7 (Prop_muxf7_I1_O)      0.214    16.157 r  u_front/u_ftq/use_alt_reg[3]_i_8/O
-                         net (fo=5, routed)           0.642    16.798    u_front/u_ftq/u_fetch/u_tage/bp
-    SLICE_X9Y40          LUT4 (Prop_lut4_I1_O)        0.291    17.089 r  u_front/u_ftq/g_tbl[0].tbl_reg_i_83/O
-                         net (fo=3, routed)           0.562    17.651    u_front/u_ftq/u_fetch/u_tage/(null)[0].t4_out
-    SLICE_X9Y39          LUT4 (Prop_lut4_I0_O)        0.326    17.977 r  u_front/u_ftq/g_tbl[0].tbl_reg_i_49/O
-                         net (fo=4, routed)           0.619    18.596    u_front/u_ftq/g_tbl[0].tbl_reg_i_49_n_0
-    SLICE_X8Y37          LUT6 (Prop_lut6_I0_O)        0.124    18.720 r  u_front/u_ftq/g_tbl[1].tbl_reg_i_22/O
-                         net (fo=1, routed)           1.060    19.780    u_front/u_fetch/u_tage/g_tbl[1].tbl_reg_0[10]
-    RAMB36_X0Y4          RAMB36E1                                     r  u_front/u_fetch/u_tage/g_tbl[1].tbl_reg/DIADI[10]
+    SLICE_X35Y54         FDCE (Prop_fdce_C_Q)         0.456     1.429 f  u_front/u_fbuf/hb_reg[0]/Q
+                         net (fo=150, routed)         0.610     2.039    u_front/u_fbuf/hb_reg[0]
+    SLICE_X35Y54         LUT1 (Prop_lut1_I0_O)        0.152     2.191 r  u_front/u_fbuf/bdata_reg_r1_0_3_0_5_i_3/O
+                         net (fo=144, routed)         0.953     3.144    u_front/u_fbuf/bs_reg_r1_0_3_0_2/ADDRA0
+    SLICE_X34Y53         RAMD32 (Prop_ramd32_RADR0_O)
+                                                      0.332     3.476 r  u_front/u_fbuf/bs_reg_r1_0_3_0_2/RAMA_D1/O
+                         net (fo=18, routed)          0.984     4.460    u_front/u_fbuf/w3[1]
+    SLICE_X34Y51         LUT6 (Prop_lut6_I2_O)        0.124     4.584 r  u_front/u_fbuf/s_off[3][1]_i_7/O
+                         net (fo=35, routed)          1.002     5.586    u_front/u_fbuf/s_off[3][1]_i_7_n_0
+    SLICE_X39Y48         LUT6 (Prop_lut6_I2_O)        0.124     5.710 f  u_front/u_fbuf/s_inst[0][0]_i_4/O
+                         net (fo=2, routed)           0.594     6.304    u_front/u_fbuf/s_inst[0][0]_i_4_n_0
+    SLICE_X44Y50         LUT3 (Prop_lut3_I2_O)        0.124     6.428 f  u_front/u_fbuf/s_inst[2][0]_i_11/O
+                         net (fo=1, routed)           0.597     7.025    u_front/u_fbuf/s_inst[2][0]_i_11_n_0
+    SLICE_X40Y50         LUT5 (Prop_lut5_I4_O)        0.150     7.175 f  u_front/u_fbuf/s_inst[2][0]_i_4/O
+                         net (fo=6, routed)           0.973     8.149    u_front/u_fbuf/s_inst[2][0]_i_4_n_0
+    SLICE_X40Y47         LUT2 (Prop_lut2_I1_O)        0.354     8.503 f  u_front/u_fbuf/s_off[3][1]_i_9/O
+                         net (fo=4, routed)           1.134     9.637    u_front/u_fbuf/s_off[3][1]_i_9_n_0
+    SLICE_X44Y45         LUT3 (Prop_lut3_I0_O)        0.360     9.997 f  u_front/u_fbuf/s_off[3][1]_i_3/O
+                         net (fo=43, routed)          1.130    11.127    u_front/u_fbuf/s_off[3][1]_i_3_n_0
+    SLICE_X38Y45         LUT3 (Prop_lut3_I2_O)        0.356    11.483 r  u_front/u_fbuf/s_m[3]_i_30/O
+                         net (fo=2, routed)           0.735    12.218    u_front/u_fbuf/s_m[3]_i_30_n_0
+    SLICE_X34Y48         LUT6 (Prop_lut6_I2_O)        0.328    12.546 r  u_front/u_fbuf/s_m[3]_i_14/O
+                         net (fo=1, routed)           0.797    13.343    u_front/u_fbuf/s_m[3]_i_14_n_0
+    SLICE_X35Y49         LUT6 (Prop_lut6_I3_O)        0.124    13.467 r  u_front/u_fbuf/s_m[3]_i_6/O
+                         net (fo=7, routed)           0.623    14.090    u_front/u_fbuf/s_m[3]_i_6_n_0
+    SLICE_X30Y49         LUT4 (Prop_lut4_I2_O)        0.153    14.243 r  u_front/u_fbuf/r_m[3]_i_3/O
+                         net (fo=7, routed)           0.768    15.011    u_front/u_fbuf/consume[2]
+    SLICE_X30Y49         LUT6 (Prop_lut6_I5_O)        0.331    15.342 r  u_front/u_fbuf/hoff[1]_i_6/O
+                         net (fo=10, routed)          0.692    16.034    u_front/u_fbuf/hoff[1]_i_6_n_0
+    SLICE_X30Y52         LUT6 (Prop_lut6_I1_O)        0.124    16.158 f  u_front/u_fbuf/nblk[2]_i_5/O
+                         net (fo=1, routed)           0.655    16.813    u_front/u_fbuf/nblk[2]_i_5_n_0
+    SLICE_X31Y52         LUT6 (Prop_lut6_I0_O)        0.124    16.937 f  u_front/u_fbuf/nblk[2]_i_3/O
+                         net (fo=6, routed)           0.739    17.676    u_front/u_fbuf/nblk[2]_i_3_n_0
+    SLICE_X33Y55         LUT2 (Prop_lut2_I1_O)        0.150    17.826 r  u_front/u_fbuf/nblk[1]_i_2/O
+                         net (fo=2, routed)           0.800    18.626    u_front/u_fbuf/nblk[1]_i_2_n_0
+    SLICE_X35Y54         LUT5 (Prop_lut5_I4_O)        0.352    18.978 r  u_front/u_fbuf/hb[1]_i_1/O
+                         net (fo=1, routed)           0.533    19.511    u_front/u_fbuf/hb[1]_i_1_n_0
+    SLICE_X35Y54         FDCE                                         r  u_front/u_fbuf/hb_reg[1]/D
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)       20.000    20.000 r  
                                                       0.000    20.000 r  clk (IN)
-                         net (fo=4230, unset)         0.924    20.924    u_front/u_fetch/u_tage/clk
-    RAMB36_X0Y4          RAMB36E1                                     r  u_front/u_fetch/u_tage/g_tbl[1].tbl_reg/CLKARDCLK
+                         net (fo=4503, unset)         0.924    20.924    u_front/u_fbuf/clk
+    SLICE_X35Y54         FDCE                                         r  u_front/u_fbuf/hb_reg[1]/C
                          clock pessimism              0.000    20.924    
                          clock uncertainty           -0.035    20.889    
-    RAMB36_X0Y4          RAMB36E1 (Setup_ramb36e1_CLKARDCLK_DIADI[10])
-                                                     -0.241    20.648    u_front/u_fetch/u_tage/g_tbl[1].tbl_reg
+    SLICE_X35Y54         FDCE (Setup_fdce_C_D)       -0.283    20.606    u_front/u_fbuf/hb_reg[1]
   -------------------------------------------------------------------
-                         required time                         20.648    
-                         arrival time                         -19.780    
+                         required time                         20.606    
+                         arrival time                         -19.511    
   -------------------------------------------------------------------
-                         slack                                  0.868    
+                         slack                                  1.095    
 
 
 
@@ -309,20 +305,20 @@ Slack (MET) :             0.028ns  (arrival time - required time)
   -------------------------------------------------------------------    -------------------
                          (clock clk rise edge)        0.000     0.000 r  
                                                       0.000     0.000 r  clk (IN)
-                         net (fo=4230, unset)         0.410     0.410    u_front/u_fetch/u_tage/clk
-    SLICE_X9Y32          FDRE                                         r  u_front/u_fetch/u_tage/row2_reg[0][14]/C
+                         net (fo=4503, unset)         0.410     0.410    u_front/u_fetch/u_tage/clk
+    SLICE_X7Y52          FDRE                                         r  u_front/u_fetch/u_tage/row2_reg[0][14]/C
   -------------------------------------------------------------------    -------------------
-    SLICE_X9Y32          FDRE (Prop_fdre_C_Q)         0.141     0.551 r  u_front/u_fetch/u_tage/row2_reg[0][14]/Q
+    SLICE_X7Y52          FDRE (Prop_fdre_C_Q)         0.141     0.551 r  u_front/u_fetch/u_tage/row2_reg[0][14]/Q
                          net (fo=1, routed)           0.056     0.607    u_front/u_ftq/mem_reg_r4_0_15_132_137/DIA0
-    SLICE_X8Y32          RAMD32                                       r  u_front/u_ftq/mem_reg_r4_0_15_132_137/RAMA/I
+    SLICE_X6Y52          RAMD32                                       r  u_front/u_ftq/mem_reg_r4_0_15_132_137/RAMA/I
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)        0.000     0.000 r  
                                                       0.000     0.000 r  clk (IN)
-                         net (fo=4230, unset)         0.432     0.432    u_front/u_ftq/mem_reg_r4_0_15_132_137/WCLK
-    SLICE_X8Y32          RAMD32                                       r  u_front/u_ftq/mem_reg_r4_0_15_132_137/RAMA/CLK
+                         net (fo=4503, unset)         0.432     0.432    u_front/u_ftq/mem_reg_r4_0_15_132_137/WCLK
+    SLICE_X6Y52          RAMD32                                       r  u_front/u_ftq/mem_reg_r4_0_15_132_137/RAMA/CLK
                          clock pessimism              0.000     0.432    
-    SLICE_X8Y32          RAMD32 (Hold_ramd32_CLK_I)
+    SLICE_X6Y52          RAMD32 (Hold_ramd32_CLK_I)
                                                       0.147     0.579    u_front/u_ftq/mem_reg_r4_0_15_132_137/RAMA
   -------------------------------------------------------------------
                          required time                         -0.579    
@@ -342,9 +338,9 @@ Period(ns):         20.000
 Sources:            { clk }
 
 Check Type        Corner  Lib Pin             Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location      Pin
-Min Period        n/a     RAMB36E1/CLKARDCLK  n/a            2.944         20.000      17.056     RAMB36_X1Y5   u_front/u_fetch/u_btb/mem_reg/CLKARDCLK
-Low Pulse Width   Slow    RAMD32/CLK          n/a            1.250         10.000      8.750      SLICE_X60Y43  u_front/ta_mem_reg_0_15_0_5/RAMA/CLK
-High Pulse Width  Slow    RAMD32/CLK          n/a            1.250         10.000      8.750      SLICE_X60Y43  u_front/ta_mem_reg_0_15_0_5/RAMA/CLK
+Min Period        n/a     RAMB36E1/CLKARDCLK  n/a            2.944         20.000      17.056     RAMB36_X1Y10  u_front/u_fetch/u_btb/mem_reg/CLKARDCLK
+Low Pulse Width   Slow    RAMD32/CLK          n/a            1.250         10.000      8.750      SLICE_X70Y66  u_front/ta_mem_reg_0_15_0_5/RAMA/CLK
+High Pulse Width  Slow    RAMD32/CLK          n/a            1.250         10.000      8.750      SLICE_X70Y66  u_front/ta_mem_reg_0_15_0_5/RAMA/CLK
 
 
 

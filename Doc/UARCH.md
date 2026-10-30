@@ -280,6 +280,8 @@ sums over whole units are what to compare.
 | **Over, 2026-10-29 later** | **4.0k** | **5.4k** | **6.6k** |
 | Needed, 2026-10-29 night (`Plan/OOC.md` 26.13: OOC_FE 6,231 with the rare classes from the fetch buffer's window, +60) | 22.0k | 22.6k | 23.1k |
 | **Over, 2026-10-29 night** | **4.1k** | **5.5k** | **6.7k** |
+| Needed, 2026-10-30 (`Plan/OOC.md` 26.16: OOC_FE 6,184 with the TAGE update and the uBTB's training registered, −47) | 21.9k | 22.5k | 23.0k |
+| **Over, 2026-10-30** | **4.0k** | **5.4k** | **6.6k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is

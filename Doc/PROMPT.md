@@ -3711,3 +3711,43 @@ Everything is recorded in Plan/OOC 26.13–26.14, UARCH 4.4 and PROMPT.md, in bo
 ```text
 Implement Plan/OOC 26.14 A and B: register the TAGE update and the uBTB training, with the unit tests, B1, the bug injection and the scripts.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I put Plan/OOC 26.14 A and B in, checked them with the tests and the bug injection, and pushed them (a6c7639). Both the TAGE update and the uBTB training now go through a register and arrive a cycle later. Not yet measured in Vivado.
+
+**RTL**
+- **A (OOO_FRONT):** the popped block's update goes into a register of 277 FFs: valid, the 270 bits of metadata read from the FTQ's head, the slots that ran and their outcomes. TAGE is updated from it a cycle after the pop. OOO_FETCH and OOO_TAGE are unchanged.
+- **B (OOO_FETCH):** F2's training of the uBTB goes into a register of 80 FFs and reaches the uBTB a cycle after the override. The writes stay one a cycle and in order, so "no two entries with the same tag and parcel" holds.
+- Lint (-Wall): only the expected PINCONNECTEMPTY.
+
+**Tests**
+- **tb_fetch:** the uBTB mirror now trains a cycle late; every F0 address is checked against it. 4 seeds PASS.
+- **B1:** checks every cycle, all 270 bits, that the update TAGE receives is the pop's of the cycle before.
+- **Overall:** all 28 unit tests and B1's 5 runs PASS.
+
+**Effect on prediction (B1, both CoreMark builds)**
+
+| | Before | Now |
+|---|---|---|
+| Mispredicted (D2 at random) | 6,561 / 5,862 | 6,796 / 6,114 |
+| Mispredicted (`-full`) | 6,511 / 5,868 | 6,619 / 5,907 |
+| Instructions a cycle (`-full`) | 1.824 / 1.826 | 1.824 / 1.828 |
+
+- About 0.1k to 0.25k more mispredictions, as the model predicted; at 10 cycles each, 0.1 to 0.2 % of CoreMark's cycles.
+
+**Bug injection**
+- **Unit:** M343 to M345 added (the uBTB never trained, trained at the next cycle's address, trained in the override's cycle with the last training's fields). With the fetch and uBTB mutations, 29/29 detected; the unit campaign now has 309.
+- **Front end:** 3 added (TAGE never updated, the slots run taken from the outcomes, updated with the previous pop's metadata). 43/43 detected.
+
+Recorded in Plan/OOC 26.15, the READMEs and PROMPT.md, in both languages.
+
+**Vivado request:** please run `synth_ooo.bat OOC_FE` and the fetch side alone, `synth_ooo.bat OOC_FRONT`. I expect several ns of margin on both the TAGE update and the uBTB training, with the fetch buffer's loop (about +1 ns) as the worst path. Size: about 360 FFs and a few LUTs more.
+<!-- /answer -->
+
+## 99. 2026-10-30 22:32:50 JST
+
+```text
+I ran synth_ooo.bat OOC_FE and synth_ooo.bat OOC_FRONT. Please check output/*/summary.txt.
+```
