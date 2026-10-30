@@ -33,6 +33,7 @@
 //     and the FTQ pops as OOO_CTRL pops it (the blocks before the block of
 //     the latest commit, one a cycle; a flush drops the rest).
 //   - D1a: the skid holds a group only while the raw register R does.
+//   - TAGE's update (up_*_q) is the pop's of the cycle before.
 // The FTQ has 16 entries (D-18; FTQW=3 at the build: 8).
 // A run passes when Spike's run reaches its HTIF exit on the true path with
 // no mismatch. The mispredictions per 1000 instructions show whether the
@@ -125,6 +126,7 @@ static Result run(const std::string& elf, const Opts& o)
     Pushed pushed[NFTQ];                       // per FTQ entry: what its push wrote
     long npush = 0, push_at[NFTQ] = {0};       // blocks pushed, and the count when each entry was pushed
     long last_take = 0, last_ready = 0;
+    struct Up { bool v = false; int ex = 0, tk = 0; uint32_t meta[9] = {0}; } up_prev;   // the pop's update of the cycle before
 
     d->clk = 0; d->rst_n = 1; d->eval(); d->rst_n = 0; d->eval(); d->rst_n = 1; d->eval();
     fill(2);
@@ -189,6 +191,15 @@ static Result run(const std::string& elf, const Opts& o)
         auto* rp = d->rootp;
         if (R && d->ic_req_valid) fail("an I$ request in the cycle of a redirect");
         res.ftq_full += rp->OOO_FRONT__DOT__ftq_free == 0;
+        // TAGE takes the update a cycle after the pop, from a register (Plan/OOC.md 26.14 A)
+        {
+            bool ok = (bool)rp->OOO_FRONT__DOT__up_valid_q == up_prev.v;
+            if (ok && up_prev.v) {
+                ok = (int)rp->OOO_FRONT__DOT__up_ex_q == up_prev.ex && (int)rp->OOO_FRONT__DOT__up_tk_q == up_prev.tk;
+                for (int k = 0; k < 9 && ok; k++) ok = rp->OOO_FRONT__DOT__up_meta_q[k] == up_prev.meta[k];
+            }
+            if (!ok) fail("TAGE's update is not the pop's of the cycle before");
+        }
         // D1a: the skid holds a group only while R does (else a group waits a cycle for nothing)
         if (rp->OOO_FRONT__DOT__s_m && !rp->OOO_FRONT__DOT__r_m) fail("the skid holds a group while R is empty");
         // the restore (cycle R + 1) reads back what the block's push wrote
@@ -302,6 +313,8 @@ static Result run(const std::string& elf, const Opts& o)
             }
         }
 
+        up_prev.v = rp->OOO_FRONT__DOT__up_valid; up_prev.ex = rp->OOO_FRONT__DOT__up_ex; up_prev.tk = rp->OOO_FRONT__DOT__up_tk;
+        for (int k = 0; k < 9; k++) up_prev.meta[k] = rp->OOO_FRONT__DOT__up_meta[k];
         // ---- the clock (a block pushed now: what the restore and the update must read back)
         if (rp->OOO_FRONT__DOT__out_valid) {
             Pushed& w = pushed[rp->OOO_FRONT__DOT__push_idx];

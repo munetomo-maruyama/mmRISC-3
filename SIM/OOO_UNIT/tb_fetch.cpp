@@ -28,6 +28,8 @@
 // Checked:
 //   - every block starts where the one before said fetch goes next (or
 //     where the redirect sent it), and lies on the true path
+//   - the uBTB's mirror trained a cycle after the override (OOO_FETCH
+//     registers the training), so every F0 address is checked with it
 //   - every block exactly as the front end must decide it: end, taken,
 //     next address, the TAGE metadata (all 270 bits) and the RAS snapshot,
 //     from mirrors of TAGE (tage_ref.h, read at the cycle of the request),
@@ -227,6 +229,7 @@ int main(int argc, char** argv)
     struct UE { bool v = false; uint64_t tag = 0; int off = 0; uint64_t tgt = 0; int cnt = 0; bool cond = false, ret = false; };
     const int NUB = 8;                         // uBTB entries
     UE ubt[NUB]; int ub_rr = 0;
+    struct UU { bool v = false; uint64_t pc = 0, tgt = 0; bool tk = false, cond = false, ret = false; } ub_pend;   // the training, written a cycle later
     uint64_t m_pc = 0; bool m_pc_known = true;
     auto ubtag = [](uint64_t pc) { uint64_t b = pc >> 3; return (b ^ (b >> 12)) & 0xfff; };
     long novr = 0, novr_drop = 0;
@@ -450,17 +453,19 @@ int main(int argc, char** argv)
         if (redirect || stop) { for (auto& x : fl) x.bek = true; }
         if (redirect || ovr) m_pc = redirect ? rr.pc : ub_utgt;
         else if (acc) { if (ub_next_known) m_pc = ub_next; else m_pc_known = false; }
-        if (ub_upd) {
+        if (ub_pend.v) {                            // the training of the cycle before (OOO_FETCH's register)
+            const UU& u = ub_pend;
             int fnd = -1;
-            for (int e = 0; e < NUB; e++) if (ubt[e].v && ubt[e].tag == ubtag(ub_upc) && ubt[e].off == (int)(ub_upc & 7)) fnd = e;
+            for (int e = 0; e < NUB; e++) if (ubt[e].v && ubt[e].tag == ubtag(u.pc) && ubt[e].off == (int)(u.pc & 7)) fnd = e;
             if (fnd >= 0) {
-                if (ub_utk) { ubt[fnd].tgt = ub_utgt; if (ubt[fnd].cnt < 3) ubt[fnd].cnt++; }
+                if (u.tk) { ubt[fnd].tgt = u.tgt; if (ubt[fnd].cnt < 3) ubt[fnd].cnt++; }
                 else if (ubt[fnd].cnt > 0) ubt[fnd].cnt--;
-            } else if (ub_utk) {
-                ubt[ub_rr] = UE{true, ubtag(ub_upc), (int)(ub_upc & 7), ub_utgt, 2, ub_ucond, ub_uret};
+            } else if (u.tk) {
+                ubt[ub_rr] = UE{true, ubtag(u.pc), (int)(u.pc & 7), u.tgt, 2, u.cond, u.ret};
                 ub_rr = (ub_rr + 1) % NUB;
             }
         }
+        ub_pend = UU{ub_upd, ub_upc, ub_utgt, ub_utk, ub_ucond, ub_uret};
         if (up) { R.update(ub.m, ub.ex, ub.tk); ftq.pop_front(); ncommit++; }
         if (redirect) {
             R.restore(rr.hist, rr.n, rr.bits);

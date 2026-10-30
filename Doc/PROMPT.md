@@ -3665,3 +3665,49 @@ Recorded in Plan/OOC 26.12, Plan/CORE B1-1, the READMEs and PROMPT.md, in both l
 ```text
 I ran synth_ooo.bat OOC_FE and synth_ooo.bat OOC_FBUF. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+OOC_FE meets 50 MHz with +0.868 ns of slack. The loop improved less than I expected: +0.39 ns, not the 2–3 ns I estimated. Three groups of paths now sit at about +0.9–1.0 ns, so a fix to the loop alone would not widen the margin. The results and a proposal are recorded and pushed (5d4b356).
+
+**Results**
+
+| Run | LUT | Slack | Levels |
+|---|---|---|---|
+| OOC_FBUF (before, no cut) | 940 | +3.541 ns | 14 |
+| **OOC_FBUF (cut at `out_rare`, as in the core)** | **1,001** | **+3.078 ns** | 15 |
+| OOC_FE (before) | 6,171 | +0.622 ns | 18 |
+| **OOC_FE (`out_rare`)** | **6,231** | **+0.868 ns** | 18 |
+
+| OOC_FE's paths | Before | Now |
+|---|---|---|
+| Fetch buffer loop | +0.622 ns | +1.016 ns |
+| D1a / D1b | +5.0 / +5.8 ns | +5.3 / +5.5 ns |
+| TAGE update (FTQ head read → TAGE block RAM write) | not in the worst 10 | **+0.868 ns** |
+| uBTB training (fetch's `carry_v` → predecode → entry write) | +0.715 ns | +0.943 ns |
+
+- **The loop:** the rare-class bit now arrives about 1.3 ns earlier. Inside the whole front end, though, the loop is 2 levels and about 1.8 ns of routing longer than in OOC_FBUF alone. 79 % of its delay is routing, and `hb` has a fan-out of 150. On its own, cutting at `out_rare` costs only 0.46 ns compared with no cut.
+- **Size:** +60 LUTs, more than my estimate of 20–40.
+- **Budget:** I added a row to UARCH 4.4. The overshoot is now 4.1k / 5.5k / 6.7k (it was 4.0k / 5.4k / 6.6k).
+- **Three paths at the edge:** all three are about 80 % routing, so placement decides which one is worst. The whole core is about 3.5 times as large, so routing will get longer there.
+
+**Proposal (Plan/OOC 26.14)**
+- **A. Register the TAGE update.** The popped block's metadata and outcomes go into a register, and TAGE updates from it one cycle later.
+  - Cost: about 280 FFs.
+  - Effect on prediction: in the model, one more block of update delay (6 → 7) added +194 / +36 mispredicted branches. A cycle is only about half a block, so the cost should be about 0.1 % of CoreMark or less.
+- **B. Register the uBTB training.** This was already named as a fallback in 14.6.
+  - Cost: about 50 FFs.
+  - Effect: a block fetched in the cycle right after a training may miss that new entry once.
+- **C. Duplicate `hb` (fan-out 150).** I would leave this until G1, and do it only if the loop is the worst path there.
+
+I recommend A and B now. Both cost only flip-flops and barely change prediction, and together they take two of the three paths off the edge. B1 can check both. On its own the loop has +3.1 ns, so only the whole core will show whether it needs C.
+
+Everything is recorded in Plan/OOC 26.13–26.14, UARCH 4.4 and PROMPT.md, in both languages.
+<!-- /answer -->
+
+## 98. 2026-10-30 21:25:42 JST
+
+```text
+Implement Plan/OOC 26.14 A and B: register the TAGE update and the uBTB training, with the unit tests, B1, the bug injection and the scripts.
+```

@@ -122,7 +122,7 @@ The bench stands in for D2 and the back end:
 | D2 | takes 0 to 2 instructions a cycle from the group register (at most one predicted taken: its target from the target array). On the true path each must be Spike's next instruction (pc, bits, length, last parcel); decode's illegal only where Spike traps so; CSR / FP / system classes as the bits say (the classes decode gives in slot 0 only) |
 | resolution | the predicted next address against Spike's: a misprediction redirects 2 to 7 cycles later (restore: block, last parcel, outcome, call / return, on a random ALU port); meanwhile D2 takes the wrong path and resolves some of its branches at random (they must not reach the TAGE update). A trap, a SYSTEM instruction and FENCE.I redirect at their commit (flush) |
 | commit | in order, 4 to 10 cycles after D2, 2 a cycle; stores go into `Memory` (FENCE.I sees the new code); the FTQ pops as OOO_CTRL pops it (one a cycle; a flush drops the rest) |
-| the glue, exactly | **every TAGE update**: the popped block's metadata as its push wrote it, the slots that ran and their outcomes as the bench resolved them on the true path; **every restore** (R + 1) reads back what the block's push wrote (line, history, slots, RAS snapshot); no I$ request in cycle R; the skid holds a group only while D1a's R does. These see faults that only cost predictions or cycles |
+| the glue, exactly | **every TAGE update**: the popped block's metadata as its push wrote it, the slots that ran and their outcomes as the bench resolved them on the true path; **every restore** (R + 1) reads back what the block's push wrote (line, history, slots, RAS snapshot); no I$ request in cycle R; the skid holds a group only while D1a's R does; TAGE's update (registered) is the pop's of the cycle before. These see faults that only cost predictions or cycles |
 | options | `-full`: no I$ miss and D2 takes 2 a cycle (what the front end delivers); `-lag n`: commit n cycles after D2 (at least 2: a branch resolves before its commit); `-mpki-max x`: fail above x mispredictions per 1000 instructions; `-v`: mispredictions by kind and the blocks pushed between a block's push and its update; `FRONT_BYPC=1`: the conditional branches mispredicted most; `FTQW=4 ./build_front.sh`: an FTQ of 16 blocks (default 8) |
 
 `./run_front.sh`:
@@ -141,10 +141,10 @@ changes with fetch's stalls (`Plan/CORE.md` 5.3, D-17).
 
 ## B1's bug injection (`mutate_front.py`)
 
-40 changes of the front end's glue (OOO_FRONT: credit, recovery, the restore's and the update's fields, the
+43 changes of the front end's glue (OOO_FRONT: credit, recovery, the restore's and the update's fields, the
 outcomes, the target array, the pc, the skid, D1a's register R, the group register; the FTQ's head read and free count; the fetch
 buffer's free count), each built and run on 8 riscv-tests (also with `-full -lag 40`, where the FTQ fills) and CoreMark with a budget of 2.3 mispredictions per 1000
-instructions: **40 of 40 detected** (`results/mutate_front.txt`; 35 before D1a / D1b). The first campaign left 4: the RAS snapshot's
+instructions: **43 of 43 detected** (`results/mutate_front.txt`; 35 before D1a / D1b, 40 before the registered TAGE update). The first campaign left 4: the RAS snapshot's
 slices and the call's line cost only predictions, CoreMark never needs some of them (the pointer slice: returns 59 →
 275, within the budget), and fetch not stopped in cycle R changes nothing visible (the FTQ restore and the buffer's
 flush are in R too; a dead I$ request can only hold the I$ on a miss). The bench now checks those exactly: each

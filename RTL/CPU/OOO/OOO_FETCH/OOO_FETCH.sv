@@ -21,7 +21,9 @@
 //       predictions, the RAS the call's push or the return's pop. If the
 //       next address differs from the one fetch went on with (the uBTB's
 //       guess), F0 is redirected there (2 cycles lost, `override_at` 2 of
-//       the model) and the uBTB is trained.
+//       the model) and the uBTB is trained, a cycle later from a register
+//       (ub_upd_*_q: in the same cycle the training closed by 0.94 ns only,
+//       Plan/OOC.md 26.13, 26.14 B).
 //
 // The I$ (mmRISC-2's ICACHE, 16 bytes wide): a request accepted at F0 is
 // answered 2 cycles later on a hit, later on a miss, in order; a request
@@ -110,6 +112,8 @@ module OOO_FETCH
     logic [VA-1:1] ovr_pc;
     logic          ub_upd, ub_upd_taken, ub_upd_cond, ub_upd_ret;
     logic [VA-1:1] ub_upd_pc, ub_upd_tgt;
+    logic          ub_upd_q, ub_upd_taken_q, ub_upd_cond_q, ub_upd_ret_q;     // the training, a cycle later
+    logic [VA-1:1] ub_upd_pc_q, ub_upd_tgt_q;
     logic [VA-1:1] ras_top;
     logic          acc;
 
@@ -118,8 +122,8 @@ module OOO_FETCH
          .redirect(be_redirect || ovr), .redirect_pc(be_redirect ? be_pc : ovr_pc),
          .ras_top(ras_top), .stall(!acc),
          .fetch_pc(pc_q), .pred_taken(ub_taken), .pred_off(ub_off),
-         .upd_valid(ub_upd), .upd_pc(ub_upd_pc), .upd_taken(ub_upd_taken), .upd_target(ub_upd_tgt),
-         .upd_cond(ub_upd_cond), .upd_ret(ub_upd_ret));
+         .upd_valid(ub_upd_q), .upd_pc(ub_upd_pc_q), .upd_taken(ub_upd_taken_q), .upd_target(ub_upd_tgt_q),
+         .upd_cond(ub_upd_cond_q), .upd_ret(ub_upd_ret_q));
 
     // the requests in flight, oldest first: address, still wanted, the uBTB's guess
     logic [VA-1:1] qpc   [4];
@@ -223,6 +227,17 @@ module OOO_FETCH
         ub_upd_tgt   = nxt;
         ub_upd_cond  = br[e_end];
         ub_upd_ret   = ret[e_end];
+    end
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) ub_upd_q <= 1'b0;
+        else        ub_upd_q <= ub_upd;
+    end
+    always_ff @(posedge clk) begin
+        ub_upd_pc_q    <= ub_upd_pc;
+        ub_upd_taken_q <= ub_upd_taken;
+        ub_upd_tgt_q   <= ub_upd_tgt;
+        ub_upd_cond_q  <= ub_upd_cond;
+        ub_upd_ret_q   <= ub_upd_ret;
     end
 
     OOO_TAGE #(.VA(VA), .MW(MW)) u_tage

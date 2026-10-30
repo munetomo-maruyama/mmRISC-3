@@ -76,6 +76,10 @@ MUT = [
         end else begin""", """            g_v <= '0;
             s_m <= '0;
         end else begin""", 'R alone not flushed'),
+    (F, 'else        up_valid_q <= up_valid;', "else        up_valid_q <= 1'b0;", 'TAGE never updated'),
+    (F, 'up_ex_q   <= up_ex;', 'up_ex_q   <= up_tk;', "TAGE's update: the slots run taken from the outcomes"),
+    (F, '.up_valid(up_valid_q), .up_meta(up_meta_q), .up_ex(up_ex_q), .up_tk(up_tk_q),', '.up_valid(up_valid), .up_meta(up_meta_q), .up_ex(up_ex), .up_tk(up_tk),',
+     "TAGE updated at the pop with the metadata of the pop before"),
     (Q, 'e = mem[head[FTQW-1:0]];', "e = mem[head[FTQW-1:0] + FTQW'(1)];", 'FTQ: head read of the next entry'),
     (Q, "assign free_n     = (FTQW + 1)'(NFTQ) - used;", "assign free_n     = (FTQW + 1)'(NFTQ) - used + (FTQW + 1)'(1);", 'FTQ: one free too many'),
     (B, "assign free_n   = (BW + 1)'(NB) - nblk;", "assign free_n   = (BW + 1)'(NB) - nblk + (BW + 1)'(1);", 'fetch buffer: one free too many'),

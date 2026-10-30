@@ -53,7 +53,9 @@
 // its block and last parcel), cleared again after the point of a restore
 // (a younger branch of the same block may have resolved before the older
 // one was found mispredicted), and turned into slots at the pop with the
-// slots' parcels in the metadata.
+// slots' parcels in the metadata. The update goes to TAGE a cycle after
+// the pop, from a register (up_*_q): the FTQ's read and TAGE's update
+// logic in one cycle closed by 0.87 ns only (Plan/OOC.md 26.13, 26.14 A).
 //
 // The target array (Plan/CORE.md 4.5): each FTQ block's predicted next
 // address, written at the push, read by the resolution of a jalr (ta_*).
@@ -188,6 +190,10 @@ module OOO_FRONT
     logic                up_valid /*verilator public_flat_rd*/;     // (read by SIM/CORE/tb_front)
     logic [2:0]          up_ex    /*verilator public_flat_rd*/;
     logic [2:0]          up_tk    /*verilator public_flat_rd*/;
+    logic                up_valid_q /*verilator public_flat_rd*/;   // the same a cycle later, to TAGE
+    logic [2:0]          up_ex_q    /*verilator public_flat_rd*/;
+    logic [2:0]          up_tk_q    /*verilator public_flat_rd*/;
+    logic [MW-1:0]       up_meta_q  /*verilator public_flat_rd*/;
     /* verilator lint_off UNUSEDSIGNAL */
     logic [FW-1:0]       hd_meta /*verilator public_flat_rd*/;
     logic [FW-1:0]       ft_meta;           // (the fields the update and the restore do not read)
@@ -213,7 +219,7 @@ module OOO_FRONT
          .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data),
          .out_valid(out_valid), .out_pc(out_pc), .out_data(out_data), .out_end(out_end), .out_taken(out_taken),
          .out_next(out_next), .out_tmeta(out_tmeta), .out_ras_ptr(out_ras_ptr), .out_ras_val(out_ras_val),
-         .up_valid(up_valid), .up_meta(up_meta), .up_ex(up_ex), .up_tk(up_tk),
+         .up_valid(up_valid_q), .up_meta(up_meta_q), .up_ex(up_ex_q), .up_tk(up_tk_q),
          .bt_valid(bt_valid), .bt_pc(bt_pc), .bt_tgt(bt_tgt));
 
     OOO_FTQ #(.NFTQ(NFTQ), .FTQW(FTQW), .VA(VA), .MW(FW)) u_ftq
@@ -279,6 +285,15 @@ module OOO_FRONT
             up_ex[s] = sv[s] && oc_ex[hd_idx][par[s]];
             up_tk[s] = oc_tk[hd_idx][par[s]];
         end
+    end
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) up_valid_q <= 1'b0;
+        else        up_valid_q <= up_valid;
+    end
+    always_ff @(posedge clk) begin
+        up_meta_q <= up_meta;
+        up_ex_q   <= up_ex;
+        up_tk_q   <= up_tk;
     end
 
     // ---- the target array

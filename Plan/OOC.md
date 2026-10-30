@@ -2486,3 +2486,34 @@ The author took D-18 (`Doc/PROMPT.md` entry 94).
   as the levers, each costs only flip-flops and changes the predictions by little, and they take two of the three
   families off the edge; B1 checks both (the update against the push's record a cycle later, the mispredictions with
   `-mpki-max`). The loop has +3.1 ns alone; whether its routing in the core needs C shows only there.
+
+### 26.15 26.14 A and B applied: the TAGE update and the uBTB's training registered (2026-10-30)
+
+- **A (OOO_FRONT)**: the popped block's update (`up_valid`, the 270 bits of metadata from the FTQ's head read, the
+  slots run and their outcomes) goes into a register (`up_*_q`, 277 flip-flops); TAGE is updated from it a cycle
+  after the pop. OOO_FETCH and OOO_TAGE are unchanged.
+- **B (OOO_FETCH)**: F2's training of the uBTB (valid, pc, taken, target, cond, ret: 80 flip-flops) goes into a
+  register and reaches OOO_UBTB a cycle after the override. The uBTB's invariant (no two entries with the same tag
+  and parcel) holds: the writes stay one a cycle, in order, each matched against the table as it is then.
+- **Tests**:
+  - tb_fetch's mirror of the uBTB takes each training a cycle after the override (it checks every F0 address with
+    it): PASS on 4 seeds.
+  - `tb_front` checks every cycle that TAGE's update is the pop's of the cycle before (all 270 bits).
+  - All 28 unit tests PASS; B1 PASS (`run_front.sh`, the 5 runs).
+- **Predictions** (B1, CoreMark g14 -O2 / sf + -flto; the cycles hardly move):
+
+| B1 | before | registered |
+|---|---|---|
+| mispredicted, D2 at random | 6,561 / 5,862 | 6,796 / 6,114 (+235 / +252) |
+| mispredicted, `-full` | 6,511 / 5,868 | 6,619 / 5,907 (+108 / +39) |
+| instructions a cycle, `-full` | 1.824 / 1.826 | 1.824 / 1.828 |
+
+  About +0.1 to 0.25k mispredictions, as 26.14 expected from the model (6 → 7 blocks of delay: +194 / +36); at about
+  10 cycles each, 0.1 to 0.2 % of CoreMark's cycles.
+- **Bug injection**: SIM/OOO_UNIT M343 to M345 (the uBTB never trained, the training at the next cycle's address,
+  trained in the override's cycle with the last training's fields; 309 in all): with the fetch and uBTB mutations, 29
+  of 29 detected. The front end's campaign: 3 added (TAGE never updated, the slots run taken from the outcomes, TAGE
+  updated at the pop with the metadata of the pop before): **43 of 43**.
+- **Please run** `synth_ooo.bat OOC_FE` (and `OOC_FRONT`, the fetch side alone, for the uBTB's training). Expected:
+  the TAGE update and the uBTB's training off the edge (each with several ns); the worst path the fetch buffer's
+  loop at about +1 ns; about +360 flip-flops and a few LUTs.
