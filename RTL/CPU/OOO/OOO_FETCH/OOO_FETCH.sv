@@ -56,7 +56,7 @@
 module OOO_FETCH
     #(
         parameter int VA = 39,
-        parameter int MW = 270          // OOO_TAGE's metadata
+        parameter int MW = 272          // OOO_TAGE's metadata
     )
     (
         input  logic                clk,
@@ -66,7 +66,7 @@ module OOO_FETCH
         input  logic                be_stop,    // OOO_CTRL fe_redirect: stop now (the restore comes next cycle)
         input  logic                be_redirect,
         input  logic [VA-1:1]       be_pc,
-        input  logic [69:0]         be_hist,
+        input  logic [71:0]         be_hist,    // {cprev, history}: OOO_TAGE's metadata of the block
         input  logic [1:0]          be_hist_n,
         input  logic [2:0]          be_hist_bits,
         input  logic [3:0]          be_ras_ptr,
@@ -242,7 +242,7 @@ module OOO_FETCH
 
     OOO_TAGE #(.VA(VA), .MW(MW)) u_tage
         (.clk(clk), .rst_n(rst_n),
-         .f0_valid(acc), .f0_pc(pc_q),
+         .f0_valid(acc), .f0_pc(pc_q), .f0_live((nlive >= 3'd2) ? 2'd2 : nlive[1:0]),
          .f2_sv(sv), .f2_par(par), .f2_pred(tpred),
          .f2_push(f2), .f2_n(hn), .f2_meta(tmeta),
          .rs_valid(be_redirect), .rs_hist(be_hist), .rs_n(be_hist_n), .rs_bits(be_hist_bits),

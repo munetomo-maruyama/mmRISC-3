@@ -16,8 +16,19 @@
 //                  line; a branch uses the counter of its last parcel
 //   history        one bit per slot branch (taken / not taken), at most 3
 //                  a block; the folded histories are XORs of the last L
-//                  bits, computed directly from a 70-bit shift register
-//                  (no folded registers to save and restore)
+//                  bits, computed directly from a shift register (no
+//                  folded registers to save and restore)
+//
+// The history a block is read with lacks the 2 blocks before it, always
+// (D-17, Plan/CORE.md 5.3, 5.11): F0 reads with the history shifted past
+// those of the 2 blocks before that are already in it, by the bit counts
+// of the last 2 blocks pushed (c1, c2): none when both are still in flight
+// (f0_live, from fetch), c1 when one is, c1 + c2 when neither. The lag no
+// longer changes with fetch's stalls (a full FTQ or fetch buffer, an I$
+// miss, an override, a restore), so a branch reads one row. The register
+// keeps 76 bits (70 and the 6 a shift can take); a restore puts back 70
+// from the metadata (the 6 above as 0) and c2 from the block's cprev (the
+// bit count of the block pushed before it).
 //
 // The pipeline follows the I$ (OOO_FETCH): F0 f0_valid (the fetch
 // accepted) reads the rows; F1 compares the tags and keeps the results for
@@ -49,7 +60,7 @@
 module OOO_TAGE
     #(
         parameter int VA = 39,
-        parameter int MW = 270          // f2_meta / up_meta (see the packing below)
+        parameter int MW = 272          // f2_meta / up_meta (see the packing below)
     )
     (
         input  logic                clk,
@@ -58,6 +69,7 @@ module OOO_TAGE
         // F0: read
         input  logic                f0_valid,
         input  logic [VA-1:1]       f0_pc,
+        input  logic [1:0]          f0_live,    // blocks read before this one not pushed yet (2: 2 or more)
 
         // F2: the block read last
         input  logic [2:0]          f2_sv,      // slots that hold a branch (a prefix)
@@ -69,7 +81,7 @@ module OOO_TAGE
 
         // recovery
         input  logic                rs_valid,
-        input  logic [69:0]         rs_hist,
+        input  logic [71:0]         rs_hist,    // the block's metadata: {cprev, hist}
         input  logic [1:0]          rs_n,
         input  logic [2:0]          rs_bits,    // slot 0 first
 
@@ -80,7 +92,7 @@ module OOO_TAGE
         input  logic [2:0]          up_tk
     );
 
-    localparam int NT = 4, NLOG = 10, NROW = 1 << NLOG, HMAX = 70;
+    localparam int NT = 4, NLOG = 10, NROW = 1 << NLOG, HMAX = 70, HREG = 76;
     localparam int RW = 21;             // row: v, tag[8:0], u[1:0], ctr[2:0] x 3
     localparam int BLOG = 9;
 
@@ -104,12 +116,12 @@ module OOO_TAGE
         return v;
     endfunction
 
-    function automatic logic [HMAX-1:0] hpush(input logic [HMAX-1:0] h, input logic [1:0] n, input logic [2:0] b);
+    function automatic logic [HREG-1:0] hpush(input logic [HREG-1:0] h, input logic [1:0] n, input logic [2:0] b);
         case (n)
             2'd0:    return h;
-            2'd1:    return {h[HMAX-2:0], b[0]};
-            2'd2:    return {h[HMAX-3:0], b[0], b[1]};
-            default: return {h[HMAX-4:0], b[0], b[1], b[2]};
+            2'd1:    return {h[HREG-2:0], b[0]};
+            2'd2:    return {h[HREG-3:0], b[0], b[1]};
+            default: return {h[HREG-4:0], b[0], b[1], b[2]};
         endcase
     endfunction
 
@@ -124,6 +136,7 @@ module OOO_TAGE
 
     // ---- the metadata kept per block in the FTQ
     typedef struct packed {
+        logic [1:0]                cprev;   // the bit count of the block pushed before this one
         logic [HMAX-1:0]           hist;    // the history before the block's push
         logic [2:0]                pred;
         logic [2:0]                sv;
@@ -135,21 +148,26 @@ module OOO_TAGE
         logic [NT-1:0][NLOG-1:0]   idx;
     } meta_t;
 
-    logic [HMAX-1:0] h;                 // the speculative global history (h[0] newest)
+    logic [HREG-1:0] h;                 // the speculative global history (h[0] newest)
+    logic [1:0]      c1, c2;            // the bit counts of the last block pushed and the one before
     logic [3:0]      use_alt;
     logic            tick;
 
-    // ---- F0: index and tag of each table
+    // ---- F0: index and tag of each table, from the history lagging 2 blocks
     logic [NT-1:0][NLOG-1:0] idx0;
     logic [NT-1:0][8:0]      tag0;
+    logic [2:0]              hs;        // the bits of the blocks before that are in h already
+    logic [HMAX-1:0]         hr;        // the history read with
+    assign hs = (f0_live == 2'd2 || f0_live == 2'd3) ? 3'd0 : (f0_live == 2'd1) ? {1'b0, c1} : 3'(c1) + 3'(c2);
+    assign hr = HMAX'(h >> hs);
     /* verilator lint_off UNUSEDSIGNAL */     // (the folds to fewer than 10 bits, the top bit of tt)
     always @(*) begin
         for (int j = 0; j < NT; j++) begin
             logic [NLOG-1:0] fi, f1, f2;
             logic [9:0]      tt;
-            fi = fold(h, hl(j), NLOG);
-            f1 = fold(h, hl(j), tw(j));
-            f2 = fold(h, hl(j), tw(j) - 1);
+            fi = fold(hr, hl(j), NLOG);
+            f1 = fold(hr, hl(j), tw(j));
+            f2 = fold(hr, hl(j), tw(j) - 1);
             idx0[j] = f0_pc[NLOG:1] ^ f0_pc[NLOG - j + 1 +: NLOG] ^ fi;
             tt      = {1'b0, f0_pc[9:1]} ^ {1'b0, f1[8:0]} ^ {f2[8:0], 1'b0};
             tag0[j] = (j < 2) ? {1'b0, tt[7:0]} : tt[8:0];
@@ -234,7 +252,8 @@ module OOO_TAGE
             ap = av2 ? atk2[s] : bp;
             f2_pred[s] = pv2 ? ((pweak2[s] && use_alt[3]) ? ap : ptk2[s]) : bp;
         end
-        m2.hist = h;
+        m2.cprev = c1;
+        m2.hist = h[HMAX-1:0];
         m2.pred = f2_pred;
         m2.sv   = f2_sv;
         m2.par  = f2_par;
@@ -338,11 +357,20 @@ module OOO_TAGE
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             h       <= '0;
+            c1      <= '0;
+            c2      <= '0;
             use_alt <= 4'd8;
             tick    <= 1'b0;
         end else begin
-            if (rs_valid)     h <= hpush(rs_hist, rs_n, rs_bits);
-            else if (f2_push) h <= hpush(h, f2_n, f2_pred);
+            if (rs_valid) begin
+                h  <= hpush({(HREG - HMAX)'(0), rs_hist[HMAX-1:0]}, rs_n, rs_bits);
+                c1 <= rs_n;
+                c2 <= rs_hist[HMAX+1:HMAX];
+            end else if (f2_push) begin
+                h  <= hpush(h, f2_n, f2_pred);
+                c1 <= f2_n;
+                c2 <= c1;
+            end
             if (up_valid) begin
                 use_alt <= use_alt_n;
                 tick    <= tick_n;

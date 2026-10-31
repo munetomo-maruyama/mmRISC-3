@@ -247,4 +247,5 @@ the register file is now set to 0 after reset (Spike's registers start at 0, and
 written); `DCacheModel` applied a kill before queueing the miss of that cycle's M (fixed). `tb_core` calls the model's
 `final()` (a build with counters prints them). Since `Plan/CORE.md` 5.9 (loads wait in the issue queue for the
 older stores): 1.72 to 1.97 million cycles, 10 % to 13 % behind the model; `-replays-max` fails a run with more
-replays (the CoreMark stage of `mutate_core.py`).
+replays (the CoreMark stage of `mutate_core.py`). Since 5.11 (D-17, TAGE read with the history lagging 2 blocks):
+1.71 to 1.96 million cycles, 9 % to 12 % behind the model.

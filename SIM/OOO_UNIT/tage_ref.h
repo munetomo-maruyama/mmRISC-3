@@ -27,15 +27,16 @@ struct Bits {               // a wide vector of bits, as Verilator's VlWide word
 };
 
 struct TageRef {
-    static const int NT = 4, NLOG = 10, HMAX = 70, MW = 270;
+    static const int NT = 4, NLOG = 10, HMAX = 70, HREG = 76, MW = 272;
     // the metadata fields (low bit, width), as OOO_TAGE's packed struct
-    static const int M_IDX = 0, M_TAG = 40, M_ROW = 76, M_BASE = 160, M_BIDX = 176, M_PAR = 185, M_SV = 194, M_PRED = 197, M_HIST = 200;
+    static const int M_IDX = 0, M_TAG = 40, M_ROW = 76, M_BASE = 160, M_BIDX = 176, M_PAR = 185, M_SV = 194, M_PRED = 197, M_HIST = 200, M_CPREV = 270;
     static int tw(int j) { return j < 2 ? 8 : 9; }
     static int hl(int j) { static const int L[4] = {5, 12, 30, 70}; return L[j]; }
 
     uint32_t tbl[NT][1 << NLOG];
     uint16_t base[512];
-    bool h[HMAX] = {false};         // h[0] newest
+    bool h[HREG] = {false};         // h[0] newest (76: 70 and what a shift of 6 takes, D-17)
+    int c1 = 0, c2 = 0;             // the bit counts of the last block pushed and the one before
     int use_alt = 8, tick = 0;
 
     TageRef() {
@@ -43,19 +44,21 @@ struct TageRef {
         for (auto& b : base) b = 0xaaaa;
     }
 
-    unsigned fold(int L, int c) const {
+    unsigned fold(int L, int c, int sh) const {    // the history past sh bits
         unsigned v = 0;
-        for (int k = 0; k < L; k++) v ^= (unsigned)h[k] << (k % c);
+        for (int k = 0; k < L; k++) v ^= (unsigned)h[k + sh] << (k % c);
         return v;
     }
 
     struct Rd { unsigned idx[NT], tag[NT], row[NT]; unsigned base, bidx; };
 
-    // F0: pc is the halfword address (pc >> 1 of the byte address)
-    Rd read(uint64_t pc) const {
+    // F0: pc is the halfword address (pc >> 1 of the byte address); live: the blocks read before
+    // this one not pushed yet (D-17: the history lacks the 2 blocks before, always)
+    Rd read(uint64_t pc, int live) const {
         Rd r;
+        int sh = live >= 2 ? 0 : live == 1 ? c1 : c1 + c2;
         for (int j = 0; j < NT; j++) {
-            unsigned fi = fold(hl(j), NLOG), f1 = fold(hl(j), tw(j)), f2 = fold(hl(j), tw(j) - 1);
+            unsigned fi = fold(hl(j), NLOG, sh), f1 = fold(hl(j), tw(j), sh), f2 = fold(hl(j), tw(j) - 1, sh);
             r.idx[j] = (unsigned)((pc ^ (pc >> (NLOG - j)) ^ fi) & ((1u << NLOG) - 1));
             r.tag[j] = (unsigned)((pc ^ f1 ^ ((uint64_t)f2 << 1)) & ((1u << tw(j)) - 1));
             r.row[j] = tbl[j][r.idx[j]];
@@ -106,17 +109,21 @@ struct TageRef {
         m.set(M_SV, 3, sv);
         m.set(M_PRED, 3, pred);
         for (int k = 0; k < HMAX; k++) m.set(M_HIST + k, 1, h[k]);
+        m.set(M_CPREV, 2, c1);
     }
 
     void push(int n, int bits) {          // bits: slot 0 in bit 0, pushed first
         for (int s = 0; s < n; s++) {
-            for (int k = HMAX - 1; k > 0; k--) h[k] = h[k - 1];
+            for (int k = HREG - 1; k > 0; k--) h[k] = h[k - 1];
             h[0] = (bits >> s) & 1;
         }
+        c2 = c1; c1 = n;
     }
     void restore(const Bits& m, int n, int bits) {
-        for (int k = 0; k < HMAX; k++) h[k] = m.get(M_HIST + k, 1);
+        for (int k = 0; k < HREG; k++) h[k] = k < HMAX ? m.get(M_HIST + k, 1) : false;
+        int cp = (int)m.get(M_CPREV, 2);
         push(n, bits);
+        c2 = cp;
     }
 
     static unsigned sat(unsigned c, bool t, unsigned mx) { return t ? (c < mx ? c + 1 : mx) : (c > 0 ? c - 1 : 0); }

@@ -209,7 +209,7 @@ static Result run(const std::string& elf, const Opts& o)
             bool ok = (uint64_t)rp->OOO_FRONT__DOT__ft_line == w.line && (int)rp->OOO_FRONT__DOT__ft_ras_ptr == w.ras_ptr &&
                       (uint64_t)rp->OOO_FRONT__DOT__ft_ras_val == w.ras_val &&
                       (int)rp->OOO_FRONT__DOT__ft_sv == (int)wbits(w.tmeta, 194, 3) && (int)rp->OOO_FRONT__DOT__ft_par == (int)wbits(w.tmeta, 185, 9);
-            for (int b2 = 0; b2 < 70 && ok; b2++) ok = wbits(rp->OOO_FRONT__DOT__ft_hist, b2, 1) == wbits(w.tmeta, 200 + b2, 1);
+            for (int b2 = 0; b2 < 72 && ok; b2++) ok = wbits(rp->OOO_FRONT__DOT__ft_hist, b2, 1) == wbits(w.tmeta, 200 + b2, 1);   // (with cprev, D-17)
             if (!ok) fail("the restore does not read back the block's push (line, history, slots, RAS)");
             res.restores++;
         }

@@ -7,7 +7,7 @@
 //
 //   F0-F2  OOO_FETCH (uBTB, predecode, TAGE-S, BTB, RAS) on the I$ port.
 //          Each block it gives goes into the FTQ (pc, next address, end,
-//          taken, 312 bits of predictor state: TAGE's 270 and the RAS
+//          taken, 314 bits of predictor state: TAGE's 272 and the RAS
 //          snapshot's 42) and into the fetch buffer with its FTQ index.
 //   D1a    OOO_FBUF gives up to 4 instructions, kept raw.
 //   D1b    OOO_DEC decodes them; the pc of each is its block's line (two
@@ -74,7 +74,7 @@ module OOO_FRONT
         parameter int VA   = 39,
         parameter int NFTQ = 16,
         parameter int FTQW = 4,
-        parameter int MW   = 270        // OOO_TAGE's metadata (the field positions below are its layout)
+        parameter int MW   = 272        // OOO_TAGE's metadata (the field positions below are its layout)
     )
     (
         input  logic                        clk,
@@ -175,7 +175,7 @@ module OOO_FRONT
     logic                be_redirect /*verilator public_flat_rd*/;
     logic                be_ras_push, be_ras_pop;
     logic [VA-1:1]       be_pc, be_ras_val, be_ras_addr;
-    logic [69:0]         be_hist;
+    logic [71:0]         be_hist;      // {cprev, history}
     logic [1:0]          be_hist_n;
     logic [2:0]          be_hist_bits;
     logic [3:0]          be_ras_ptr;
@@ -239,20 +239,20 @@ module OOO_FRONT
     // sv 3, par 3 x 3, ...) above the RAS snapshot (pointer 4, value VA - 1)
     logic [MW-1:0]       up_meta    /*verilator public_flat_rd*/;
     logic [VA-1:4]       ft_line    /*verilator public_flat_rd*/;
-    logic [69:0]         ft_hist    /*verilator public_flat_rd*/;
+    logic [71:0]         ft_hist    /*verilator public_flat_rd*/;
     logic [2:0]          ft_sv      /*verilator public_flat_rd*/;
     logic [2:0][2:0]     ft_par     /*verilator public_flat_rd*/;
     logic [3:0]          ft_ras_ptr /*verilator public_flat_rd*/;
     logic [VA-1:1]       ft_ras_val /*verilator public_flat_rd*/;
     assign up_meta    = hd_meta[FW-1:TM];
     assign ft_line    = ft_pc[VA-1:4];
-    assign ft_hist    = ft_meta[TM+269:TM+200];
+    assign ft_hist    = ft_meta[TM+271:TM+200];    // with cprev (D-17)
     assign ft_sv      = ft_meta[TM+196:TM+194];
     assign ft_par     = ft_meta[TM+193:TM+185];
     assign ft_ras_ptr = ft_meta[TM-1:TM-4];
     assign ft_ras_val = ft_meta[VA-2:0];
 
-    OOO_FERS #(.VA(VA), .FTQW(FTQW), .HL(70), .RW(4)) u_fers
+    OOO_FERS #(.VA(VA), .FTQW(FTQW), .HL(72), .RW(4)) u_fers
         (.clk(clk), .rst_n(rst_n),
          .fe_redirect(fe_redirect), .fe_flush(fe_flush), .fe_pc(fe_pc), .restore_ftq(restore_ftq),
          .restore_port(restore_port), .br_e(br_e), .br_taken(br_taken), .br_call(br_call), .br_ret(br_ret),

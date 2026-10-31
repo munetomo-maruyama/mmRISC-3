@@ -4088,3 +4088,46 @@ Recorded in Plan/CORE 5.9 (5.8's proposal marked done in 5.9), the READMEs and U
 ```text
 Branch mispredicts
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The core's poor branch prediction is the "TAGE history lag" found in Plan/CORE 5.3: every fetch stall changes the lag, and the same branch reads a different row. No other cause appears. The result is recorded in Plan/CORE 5.10 and pushed as a545127. The fix, D-17, is still open and not implemented.
+
+**What I measured**
+On a build with counters I counted, branch by branch, the mispredictions that commit (true path), next to the model running OOO_TAGE's own algorithm (g14 -O2).
+
+| Branch | RTL | Model (lag always 2) | Model (lag changing with fetch stalls) |
+|---|---|---|---|
+| 0x80000f18 `bnez` (core_bench_list's one-block loop) | **1,280** | almost 0 | 1,687 |
+| 0x80000f8c `bnez` (core_bench_list) | **796** | almost 0 | 718 |
+| 0x80000de8 `bge` (mergesort) | 564 | 327 | 544 |
+| 0x80000e2e `blez` (mergesort) | 977 | 952 | 1,037 |
+| 0x80001492 / 0x80001508 `beq` (matrix) | 364 / 361 | 361 / 361 | 401 / 388 |
+| Total | 7,706 | 5,279 | 9,643 |
+
+- **Branches that are hard by nature** (e2e, the matrix beqs) miss about as often in the RTL as in the model.
+- **The excess sits in particular branches**, those a changing lag breaks (f18, f8c, part of de8): the same symptom as B1 in 5.3.
+- **Why it is not another cause:**
+  - jalr mispredictions are down to 62.
+  - A misprediction costs about the same as in the model: 88,499 cycles with the front end empty for 8,439 restores is 10.5 cycles each; the model's is 10.2.
+
+**The fix would be D-17 (Open in UARCH's decision table)**
+- **What:** TAGE always reads with the history "lagging 2 blocks".
+- **Cost:** about 0.15k LUTs: a 7:1 shift of the history before the fold, and 2 more bits in each FTQ entry.
+- **Expected effect:**
+  - Mispredictions go from 7,706 to about 5,279, about 2.4k fewer.
+  - At 10.2 cycles each, about 25k cycles fewer: about +1.3 % CoreMark (g14 -O2).
+  - The difference left, 5,279 against 4,393, comes from OOO_TAGE keeping its rows per block (5.3, point 5).
+
+**Where it stands among the rest**
+Of the remaining 10–13 % to the model, branch prediction is about 1.3 %, the smaller part. The larger part is dispatch stopping for a full ROB: 166,098 of 1,913,926 cycles. Whether or not D-17 goes in, that is worth looking at next.
+
+This prompt (107) and the English of the previous answer are in PROMPT.md, included in this commit.
+<!-- /answer -->
+
+## 108. 2026-10-31 22:46:32 JST
+
+```text
+Yes, accept D-17
+```

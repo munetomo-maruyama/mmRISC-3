@@ -31,7 +31,7 @@
 //   - the uBTB's mirror trained a cycle after the override (OOO_FETCH
 //     registers the training), so every F0 address is checked with it
 //   - every block exactly as the front end must decide it: end, taken,
-//     next address, the TAGE metadata (all 270 bits) and the RAS snapshot,
+//     next address, the TAGE metadata (all 272 bits) and the RAS snapshot,
 //     from mirrors of TAGE (tage_ref.h, read at the cycle of the request),
 //     the BTB, the RAS and the carried half, and predecode (predec_ref.h)
 //   - the credit is never exceeded, the program keeps going
@@ -40,6 +40,7 @@
 #include "VOOO_FETCH.h"
 #include "tage_ref.h"
 #include "predec_ref.h"
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <deque>
@@ -224,7 +225,7 @@ int main(int argc, char** argv)
     BtbRow btb[256];
     uint64_t ras[16] = {0}; bool ras_known[16] = {false}; int ras_ptr = 0;
     bool m_carry_v = false; uint16_t m_carry = 0;
-    struct Fl { uint64_t pc; TageRef::Rd rd; bool bhit; int boff; uint64_t btgt; bool ubt; int uboff; bool bek; };
+    struct Fl { uint64_t pc; TageRef::Rd rd; bool bhit; int boff; uint64_t btgt; bool ubt; int uboff; bool bek; bool live = true; };
     // the uBTB (as tb_ubtb's reference) and the fetch address of F0
     struct UE { bool v = false; uint64_t tag = 0; int off = 0; uint64_t tgt = 0; int cnt = 0; bool cond = false, ret = false; };
     const int NUB = 8;                         // uBTB entries
@@ -266,7 +267,7 @@ int main(int argc, char** argv)
         }
         d.be_stop = stop;
         d.be_redirect = redirect; d.be_pc = rr.pc;
-        for (int k = 0; k < 3; k++) d.be_hist[k] = redirect ? (uint32_t)rr.hist.get(TageRef::M_HIST + 32 * k, k < 2 ? 32 : 6) : 0;
+        for (int k = 0; k < 3; k++) d.be_hist[k] = redirect ? (uint32_t)rr.hist.get(TageRef::M_HIST + 32 * k, k < 2 ? 32 : 8) : 0;   // {cprev, history}
         d.be_hist_n = rr.n; d.be_hist_bits = rr.bits;
         d.be_ras_ptr = rr.rptr; d.be_ras_val = rr.rval; d.be_ras_push = rr.push; d.be_ras_pop = rr.pop; d.be_ras_addr = rr.addr;
         int nftq = (int)(fbuf.size() + ftq.size());
@@ -305,7 +306,9 @@ int main(int argc, char** argv)
         // ---------- the request (mirror reads before this cycle's writes)
         bool acc = d.ic_req_valid && ic_ready;
         if (acc) {
-            Fl f{req_pc, R.read(req_pc), false, 0, 0, ub_t, ub_t ? ub_best : 7, redirect};
+            int live = 0;                       // read before, still wanted (OOO_FETCH's qlive): D-17
+            for (auto& x : fl) live += x.live;
+            Fl f{req_pc, R.read(req_pc, std::min(live, 2)), false, 0, 0, ub_t, ub_t ? ub_best : 7, redirect};
             BtbRow& b = btb[(req_pc >> 3) & 255];
             f.bhit = b.v && b.tag == (uint32_t)((req_pc >> 11) & 1023); f.boff = b.off; f.btgt = b.tgt;
             fl.push_back(f);
@@ -451,6 +454,7 @@ int main(int argc, char** argv)
         d.clk = 1; d.eval(); d.clk = 0; d.eval();
         // mirrors
         if (redirect || stop) { for (auto& x : fl) x.bek = true; }
+        if (redirect || ovr) { for (auto& x : fl) x.live = false; }
         if (redirect || ovr) m_pc = redirect ? rr.pc : ub_utgt;
         else if (acc) { if (ub_next_known) m_pc = ub_next; else m_pc_known = false; }
         if (ub_pend.v) {                            // the training of the cycle before (OOO_FETCH's register)

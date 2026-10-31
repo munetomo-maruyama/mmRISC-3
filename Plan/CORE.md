@@ -538,6 +538,35 @@ for a 4-byte branch taken back):
 - Of the 10 % to 13 % left to the model this is the smaller part; slot 0 waiting for a full ROB (166,098 cycles of
   1,913,926) is the larger one.
 
+### 5.11 D-17: TAGE read with the history lagging 2 blocks (2026-10-31)
+
+Accepted after 5.10. `OOO_TAGE` reads the tables at F0 with the history shifted past the bits of those of the 2
+blocks before the one read that are already in it: by the bit counts of the last 2 blocks pushed (`c1`, `c2`), none
+when both are still in flight, `c1` when one is, `c1 + c2` when neither. `OOO_FETCH` gives how many live requests are
+in flight (`f0_live`, from `qlive`: the ones an override or a redirect dropped do not count). The history register
+keeps 76 bits (70 and the 6 a shift can take); TAGE's metadata gets `cprev`, the bit count of the block pushed before
+(272 bits, the FTQ's entries 314), which a restore puts back as `c2` (the history field the restore reads is 72 bits
+with it; the 6 bits above 70 come back as 0).
+
+| | g14 -O2 | g14 sf + -flto | g13 -O2 Zb |
+|---|---|---|---|
+| B1, mispredicted (D2 at random / at full speed), before → now | 6,796 / 6,619 → **5,539 / 5,614** | 6,114 / 5,907 → **4,628 / 4,765** | |
+| restores in the core (the model's caches), before → now | 8,439 → **5,453** | 6,080 → **5,426** | 6,883 → **6,064** |
+| `OOO_CORE`, the model's caches: cycles (CoreMark/MHz) | 1,913,926 → **1,882,020 (5.313)** | 1,718,063 → **1,706,123 (5.861)** | 1,956,056 → **1,945,090 (5.141)** |
+| `OOO_CPU`, the real D$ | 1,933,121 → **1,907,780 (5.242)** | 1,764,874 → **1,755,555 (5.696)** | 1,967,483 → **1,958,830 (5.105)** |
+| the model, fusion off, stores with their data | 1,701,808 (5.876) | 1,562,105 (6.402) | 1,730,925 (5.777) |
+
+- B1 now mispredicts about what the model with OOO_TAGE's algorithm and a constant lag does (5,279 / 4,526). The core
+  gains 0.6 % to 1.7 %; **9 % to 12 % behind the model is left**, most of it the full ROB (5.10).
+- **Tests**: `tage_ref.h` (the mirror of `tb_tage`, `tb_fetch`) reads with the lag and keeps `c1`, `c2`, `cprev`;
+  `tb_tage` gives `f0_live` (the blocks read and not pushed), `tb_fetch` mirrors fetch's live requests (it compares
+  all of each block's metadata); `tb_front` compares the 72-bit history field of the restore. Unit mutations M362 to
+  M366 (no shift, the wrong count, the count not restored, the wrong count in the metadata, fetch giving 0 in flight)
+  and M105 / M112 / M297 following their lines: **330 of 330 detected**; `mutate_front.py` 44 of 44 (a new one: the
+  block-before count lost at a restore); `mutate_core.py` 86 of 86. `run_core.sh`, `run_coremark.sh`, B1, the 28
+  unit tests, the stand-in test: all pass. `OOC_FRONT` / `OOC_FE` follow the widths (no new lint warning).
+- Vivado: `OOC_FE` and `OOC_FRONT` (the shift is on the F0 path to the tables' addresses: `synth_ooo.bat OOC_FE`).
+
 ---
 
 ## 6. What G1 measures

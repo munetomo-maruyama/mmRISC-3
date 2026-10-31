@@ -10,7 +10,8 @@
 // up to the first taken slot, as fetch does (now and then fewer). The
 // blocks are updated later, in order, up to the first taken or
 // mispredicted slot; now and then the history is restored from the
-// metadata of a block. Every F2 compares
+// metadata of a block. F0 tells TAGE how many blocks read before are not
+// pushed yet (f0_live: the history lags 2 blocks, D-17). Every F2 compares
 // the predictions, the base bits and all of f2_meta (which carries the rows
 // as read, so a wrong table write shows up when the row is read again).
 //---------------------------------------------------------------------------
@@ -18,6 +19,7 @@
 #include "tage_ref.h"
 #include <cstdio>
 #include <cstdlib>
+#include <algorithm>
 #include <deque>
 #include <random>
 
@@ -59,6 +61,7 @@ int main(int argc, char** argv)
     for (cyc = 0; cyc < 600000; cyc++) {
         // ---------- inputs
         int f0 = cyc >= next_f0 && inflight.size() < 2 && rng() % 4 != 0;
+        int live = (int)std::min<size_t>(2, inflight.size());   // read before, not pushed yet (D-17)
         int fid = rng() % NB;
         uint64_t pc = blk[fid].pc;
         bool do_f2 = !inflight.empty() && inflight.front().f2 == cyc;
@@ -95,11 +98,11 @@ int main(int argc, char** argv)
             }
             b.cnt++;
         }
-        d.f0_valid = f0; d.f0_pc = pc;
+        d.f0_valid = f0; d.f0_pc = pc; d.f0_live = live;
         d.f2_sv = sv; d.f2_par = par[0] | (par[1] << 3) | (par[2] << 6);
         d.f2_push = push; d.f2_n = n;
         d.rs_valid = rs; d.rs_n = rsn; d.rs_bits = rsb;
-        for (int k = 0; k < 3; k++) d.rs_hist[k] = rs ? (uint32_t)rsm.get(TageRef::M_HIST + 32 * k, k < 2 ? 32 : 6) : 0;
+        for (int k = 0; k < 3; k++) d.rs_hist[k] = rs ? (uint32_t)rsm.get(TageRef::M_HIST + 32 * k, k < 2 ? 32 : 8) : 0;   // {cprev, history}
         d.up_valid = up; d.up_ex = ex; d.up_tk = tk;
         for (int k = 0; k < 9; k++) d.up_meta[k] = up ? ud.m.w[k] : 0;
         d.eval();
@@ -119,7 +122,7 @@ int main(int argc, char** argv)
         // F0: the rows before this cycle's update
         if (f0) {
             long f2 = cyc + 2 + (rng() % 4 == 0 ? rng() % 5 : 0);
-            inflight.push_back(Blk{R.read(pc), f2, fid});
+            inflight.push_back(Blk{R.read(pc, live), f2, fid});
             next_f0 = f2 - 1;                  // the next F0 not before the cycle before this F2
         }
         // ---------- the clock

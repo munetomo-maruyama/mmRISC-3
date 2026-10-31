@@ -420,10 +420,10 @@ module OOC_FRONT
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [684:0]  in,
-        output logic [559:0]  out
+        input  logic [688:0]  in,
+        output logic [561:0]  out
     );
-    logic [684:0] q;
+    logic [688:0] q;
     always_ff @(posedge clk) q <= in;
     logic ic_req_valid;
     logic [37:0] ic_req_pc;
@@ -433,17 +433,17 @@ module OOC_FRONT
     logic [2:0] out_end;
     logic out_taken;
     logic [37:0] out_next;
-    logic [269:0] out_tmeta;
+    logic [271:0] out_tmeta;
     logic [3:0] out_ras_ptr;
     logic [37:0] out_ras_val;
-    OOO_FETCH #(.VA(39), .MW(270)) u_fetch
+    OOO_FETCH #(.VA(39), .MW(272)) u_fetch
         (
-         .clk(clk), .rst_n(rst_n), .be_stop(q[684]), .be_redirect(q[0]), .be_pc(q[38:1]), .be_hist(q[108:39]),
-         .be_hist_n(q[110:109]), .be_hist_bits(q[113:111]), .be_ras_ptr(q[117:114]), .be_ras_val(q[155:118]),
-         .be_ras_push(q[156]), .be_ras_addr(q[194:157]), .be_ras_pop(q[195]), .credit(q[199:196]),
-         .ic_req_ready(q[200]), .ic_resp_valid(q[201]), .ic_resp_data(q[329:202]), .up_valid(q[330]),
-         .up_meta(q[600:331]), .up_ex(q[603:601]), .up_tk(q[606:604]), .bt_valid(q[607]), .bt_pc(q[645:608]),
-         .bt_tgt(q[683:646]), .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .out_valid(out_valid),
+         .clk(clk), .rst_n(rst_n), .be_stop(q[688]), .be_redirect(q[0]), .be_pc(q[38:1]), .be_hist(q[110:39]),
+         .be_hist_n(q[112:111]), .be_hist_bits(q[115:113]), .be_ras_ptr(q[119:116]), .be_ras_val(q[157:120]),
+         .be_ras_push(q[158]), .be_ras_addr(q[196:159]), .be_ras_pop(q[197]), .credit(q[201:198]),
+         .ic_req_ready(q[202]), .ic_resp_valid(q[203]), .ic_resp_data(q[331:204]), .up_valid(q[332]),
+         .up_meta(q[604:333]), .up_ex(q[607:605]), .up_tk(q[610:608]), .bt_valid(q[611]), .bt_pc(q[649:612]),
+         .bt_tgt(q[687:650]), .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .out_valid(out_valid),
          .out_pc(out_pc), .out_data(out_data), .out_end(out_end), .out_taken(out_taken), .out_next(out_next),
          .out_tmeta(out_tmeta), .out_ras_ptr(out_ras_ptr), .out_ras_val(out_ras_val));
     always_ff @(posedge clk)
@@ -775,7 +775,7 @@ endmodule : OOC_DSREG
 
 //---------------------------------------------------------------------------
 // OOC_FERS: the front end's restore (Plan/OOC.md 21) with the FTQ it reads
-// (8 entries of the front end's 312 bits: TAGE's 270, the RAS snapshot 42),
+// (8 entries of the front end's 312 bits then: TAGE's 270, the RAS snapshot 42; 314 / 272 since D-17),
 // inputs and outputs registered: the path is the restore point's register
 // -> the FTQ's read (LUTRAM) -> the history's slot bits and the RAS address
 // -> be_* (into OOO_FETCH's TAGE history and RAS in the core)
@@ -1190,7 +1190,7 @@ module OOC_FE
     logic [3:0] g_csr_wr;
     logic [3:0] g_csr_rd;
     logic [3:0] g_is_fp;
-    OOO_FRONT #(.VA(39), .NFTQ(16), .FTQW(4), .MW(270)) u_front
+    OOO_FRONT #(.VA(39), .NFTQ(16), .FTQW(4), .MW(272)) u_front
         (.fe_redirect(fe_redirect), .fe_flush(fe_flush), .fe_pc(fe_pc), .restore_ftq(restore_ftq), .restore_port(restore_port), .br_e(br_e), .br_taken(br_taken), .br_call(br_call), .br_ret(br_ret), .rcv_ftq(rcv_ftq), .rcv_end(rcv_end), .rs_valid(rs_valid), .rs_ftq(rs_ftq), .rs_e(rs_e), .rs_taken(rs_taken), .bt_valid(bt_valid), .bt_pc(bt_pc), .bt_tgt(bt_tgt), .ftq_pop(ftq_pop), .ta_idx(ta_idx), .pa_idx(pa_idx), .ic_req_ready(ic_req_ready), .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data), .ta_tgt(ta_tgt), .pa_line(pa_line), .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .g_valid(g_valid), .g_pc(g_pc), .g_rvc(g_rvc), .g_ftq(g_ftq), .g_end(g_end), .g_taken(g_taken), .g_seq(g_seq), .g_illegal(g_illegal), .g_cls(g_cls), .g_op(g_op), .g_rd(g_rd), .g_rs1(g_rs1), .g_rs2(g_rs2), .g_use_rs1(g_use_rs1), .g_use_rs2(g_use_rs2), .g_imm(g_imm), .g_port(g_port), .g_lat2(g_lat2), .g_ext_ans(g_ext_ans), .g_nonspec(g_nonspec), .g_alu_op(g_alu_op), .g_a_uw(g_a_uw), .g_a_shift(g_a_shift), .g_a_sel(g_a_sel), .g_b_sel(g_b_sel), .g_word_op(g_word_op), .g_is_branch(g_is_branch), .g_is_jal(g_is_jal), .g_is_jalr(g_is_jalr), .g_br_op(g_br_op), .g_mdu_op(g_mdu_op), .g_mem_cmd(g_mem_cmd), .g_mem_size(g_mem_size), .g_mem_signed(g_mem_signed), .g_sys(g_sys), .g_is_sfence(g_is_sfence), .g_is_csr(g_is_csr), .g_csr_addr(g_csr_addr), .g_csr_op(g_csr_op), .g_csr_imm_sel(g_csr_imm_sel), .g_csr_wr(g_csr_wr), .g_csr_rd(g_csr_rd), .g_is_fp(g_is_fp), .g_insn(), .g_take(g_take), .clk(clk), .rst_n(rst_n));
     always_ff @(posedge clk) out <= {ta_tgt, pa_line, ic_req_valid, ic_req_pc, g_valid, g_pc, g_rvc, g_ftq, g_end, g_taken, g_seq, g_illegal, g_cls, g_op, g_rd, g_rs1, g_rs2, g_use_rs1, g_use_rs2, g_imm, g_port, g_lat2, g_ext_ans, g_nonspec, g_alu_op, g_a_uw, g_a_shift, g_a_sel, g_b_sel, g_word_op, g_is_branch, g_is_jal, g_is_jalr, g_br_op, g_mdu_op, g_mem_cmd, g_mem_size, g_mem_signed, g_sys, g_is_sfence, g_is_csr, g_csr_addr, g_csr_op, g_csr_imm_sel, g_csr_wr, g_csr_rd, g_is_fp};
 endmodule : OOC_FE
