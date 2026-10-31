@@ -4045,3 +4045,46 @@ Recorded in Plan/CORE 5.8, MODEL, the READMEs and UARCH in both languages. This 
 ```text
 Yes, implement it
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The IQ no longer issues a load while an older store is still in the queue. Pushed to dev as 1ce7f1b. CoreMark is 16–18 % faster, and the gap to the model went from 26 % to 10–13 %. OOO_IQ has not been through Vivado yet.
+
+**Changes**
+- **OOO_IQ:** a `disp_st` port and a store bit per entry. A load is ready only when "no older valid store is in the queue". The condition depends on registered state only and sits beside the non-speculative condition, so it is not in the wakeup-select loop.
+- **Timing:** a store's address is known in E. A load issued after it reaches M a cycle later at the earliest, when the LSU already has the address.
+- **OOO_CORE:** only connects DS's "is it a store" to the IQ.
+
+**CoreMark (cycles; CoreMark/MHz in parentheses)**
+
+| | g14 -O2 | g14 sf+flto | g13 -O2 |
+|---|---|---|---|
+| Model (fusion off, stores issued with their data) | 1,701,808 (5.88) | 1,562,105 (6.40) | 1,730,925 (5.78) |
+| Before (OOO_CORE, ideal caches) | 2,284,618 (4.38) | 2,100,584 (4.76) | 2,290,569 (4.37) |
+| **Now (OOO_CORE, ideal caches)** | **1,913,926 (5.23)** | **1,718,063 (5.82)** | **1,956,056 (5.11)** |
+| Now (OOO_CPU, real D$) | 1,933,121 (5.17) | 1,764,874 (5.67) | 1,967,483 (5.08) |
+
+- Replays went from 20,618 to 96, and loads held by an unknown store address from 25,861 to 0.
+- Mispredicted jalr went from 218 to 62 (sf+flto: 1,593 to 76). The RAS disturbance I suspected last time was caused by the replays' flushes.
+
+**Candidates for the remaining 10–13 %**
+- Conditional branches mispredicted on the true path are still about 1.75 times the model's (g14 -O2: 7,706 against 4,393).
+- Dispatch stops for a full ROB in 166k cycles. The model has the same 24 entries but its ROB is hardly ever full.
+
+**Tests**
+- tb_iq now has stores and checks that "a load issues only when no older store is in the queue".
+- 3 unit mutations added (M359–M361), and M230, whose line changed, is fixed. The IQ mutations: 23 of 23 detected; 325 in all.
+- A mutation that cuts `disp_st` into the IQ leaves values correct and only adds cycles, so lock-step cannot see it. tb_core got a replay limit, `-replays-max`, used in the mutation campaign's CoreMark stage. The core's mutations: 86 of 86 detected.
+- run_core.sh (12 runs), run_coremark.sh (4 setups), the 28 unit tests and the stand-in test all pass, and the lint shows no new warning.
+
+OOO_IQ only gains a flip-flop and a 10-bit AND-OR per entry, but `synth_ooo.bat OOO_IQ` would measure its size and timing.
+
+Recorded in Plan/CORE 5.9 (5.8's proposal marked done in 5.9), the READMEs and UARCH in both languages. This prompt (106) and the English of the previous answer are in PROMPT.md, included in this commit.
+<!-- /answer -->
+
+## 107. 2026-10-31 22:35:51 JST
+
+```text
+Branch mispredicts
+```

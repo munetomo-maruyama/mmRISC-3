@@ -513,6 +513,31 @@ at the earliest, when `OOO_LSU` has the address.
   all pass; no new lint warning.
 - `OOO_IQ` changed (a flip-flop and an AND-OR of 10 bits per entry): `synth_ooo.bat OOO_IQ` would measure it.
 
+### 5.10 The conditional branches the core mispredicts more (2026-10-31)
+
+After 5.9 the core mispredicts 7,706 conditional branches that commit (g14 -O2, the model's caches) against the
+model's 4,393. By branch (a build with counters; the model's `tageref` gives the address of the last parcel, here +2
+for a 4-byte branch taken back):
+
+| branch | the core | OOO_TAGE's algorithm, lag 2 always, updated 6 blocks later | the same, lag 0 after 30 % of the blocks |
+|---|---|---|---|
+| 0x80000f18 `bnez` (`core_bench_list`, a loop of one block) | **1,280** | – (under 56) | 1,687 |
+| 0x80000f8c `bnez` (`core_bench_list`) | **796** | – | 718 |
+| 0x80000de8 `bge` (`core_list_mergesort`) | 564 | 327 | 544 |
+| 0x80000e2e `blez` (`core_list_mergesort`) | 977 | 952 | 1,037 |
+| 0x80001492 / 0x80001508 `beq` (`matrix_mul_*`) | 364 / 361 | 361 / 361 | 401 / 388 |
+| all | 7,706 | 5,279 | 9,643 |
+
+- **It is 5.3's history lag**: the branches that are hard by nature miss as often as in the model; the excess is in
+  the ones a lag changing with fetch's stalls breaks (0x80000f18, 0x80000f8c, part of 0x80000de8), as B1 showed. No
+  other cause appears: jalr are 62 (5.9), and a misprediction costs the core about what it costs the model (the front
+  end empty 88,499 cycles for 8,439 restores: 10.5 a restore, the model 10.2).
+- **D-17 (read with a constant lag of 2 blocks, `Doc/UARCH.md` 9, open)** would bring the core to about the model with
+  OOO_TAGE's algorithm, 5,279: about −2.4k mispredictions, at 10.2 cycles about −25k cycles, **+1.3 % CoreMark**
+  (g14 -O2). The rest (5,279 against 4,393) is OOO_TAGE's per-block rows (5.3, point 5).
+- Of the 10 % to 13 % left to the model this is the smaller part; slot 0 waiting for a full ROB (166,098 cycles of
+  1,913,926) is the larger one.
+
 ---
 
 ## 6. What G1 measures
