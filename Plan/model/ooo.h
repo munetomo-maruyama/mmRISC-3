@@ -29,6 +29,9 @@
 // Caches always hit (as calibrated in inorder.h); no wrong path is run.
 //---------------------------------------------------------------------------
 #pragma once
+#include <map>
+#include <cstdlib>
+#include <cstdio>
 #include <deque>
 #include <queue>
 #include <unordered_map>
@@ -57,7 +60,9 @@ struct OooCfg {
     bool ck1 = false;           // at most one checkpoint taken a cycle (Plan/OOC.md 10)
     bool ck_jal = true;         // a jal takes a checkpoint too (it cannot mispredict in the back end)
     bool mem_cons = true, fwd = true;
-    bool st_data_issue = false; // a store issues with its data too (one µop, as OOO_LSU): its address is known then
+    bool st_data_issue = false;
+    int lsu_cmt = 0;
+    int mul_wb = 0;             // a multiply on ALU0 takes a write slot a cycle after its issue: 1 ALU0's (OOO_IQ blk0), 2 ALU1's            // cycles more before a load's or a store's commit (OOO_LSU: its completion through a register) // a store issues with its data too (one µop, as OOO_LSU): its address is known then
     int keep_spec = 0;          // a µop issued on an open load keeps its issue-queue entry until the load
                                 // is decided, keep_spec cycles after its issue (OOO_IQ: 4, Plan/OOC.md 15)
     int alu_split = 0;          // the 2 ALU ports (with alu = 2, mul_shared; Doc/UARCH.md 6.11):
@@ -295,6 +300,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 else is++;
             }
             (which ? use_a1 : use_a0)[is]++;
+            if (c.mul_wb && pr.cls == C_MUL && !which) (c.mul_wb == 1 ? use_a0 : use_a1)[is + 1]++;   // its write slot
             use_all[is]++;
             if (mdu) for (int q = 0; q < (pr.cls == C_DIV ? c.lat_div : c.mdu_busy); q++) use_mdu[is + q] = 1;
             else if (pr.cls == C_DIV) for (int q = 1; q < c.lat_div; q++) use_a0[is + q] = 1;   // not pipelined
@@ -344,9 +350,21 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             done = std::max(done, rd + c.iss_to_ex - 1);
         }
         long cmt = done + 1;
+        if (c.lsu_cmt) for (size_t k = i; k <= last; k++) if (t[k].cls == C_LOAD || t[k].cls == C_STORE) { cmt = done + 1 + c.lsu_cmt; break; }
         if (u >= 1) cmt = std::max(cmt, cm[u - 1]);
         if (u >= (size_t)c.w) cmt = std::max(cmt, cm[u - c.w] + 1);
         cm.push_back(cmt);
+        if (getenv("OOO_BYPC")) {               // cycles between commits, by the pc of the µop that ends them
+            static std::map<uint64_t, long>* by = new std::map<uint64_t, long>;
+            static long lastc = -1;
+            if (lastc >= 0 && cmt > lastc) (*by)[t[i].pc] += cmt - lastc;
+            if (cmt > lastc) lastc = cmt;
+            if (i + 1 >= n || (pair && last + 1 >= n)) {
+                FILE* f = fopen(getenv("OOO_BYPC"), "w");
+                for (auto& x : *by) fprintf(f, "%llx %ld\n", (unsigned long long)x.first, x.second);
+                fclose(f);
+            }
+        }
         for (size_t k = i; k <= last; k++) {
             if (t[k].cls == C_LOAD) ld_cm.push_back(cmt);
             if (t[k].cls == C_STORE) {

@@ -504,7 +504,7 @@ at the earliest, when `OOO_LSU` has the address.
   0. Mispredicted jalr that commit: 218 → 62 (sf + -flto: 1,593 → 76): the replays' flushes were what cost the RAS.
 - **What is left: 10 % to 13 % behind the model.** Mispredicted conditional branches that commit are still about
   1.75 times the model's (g14 -O2: 7,706 against 4,393), and slot 0 waits for a full ROB 166,098 cycles (the model's
-  ROB of the same 24 entries is rarely full): the next things to look at.
+  ROB of the same 24 entries is rarely full): the next things to look at. (*The full ROB was a counter's mistake: 5.12.*)
 - **Tests**: `tb_iq` has stores (half the LSU µops answered from outside) and checks that a load issues only with no
   older store in the queue; M359 to M361 (a load past an older store, a load waiting for a younger store, a store
   waiting for an older store) and M230 following the line: 23 of 23 IQ mutations detected, 325 unit mutations now.
@@ -536,7 +536,7 @@ for a 4-byte branch taken back):
   OOO_TAGE's algorithm, 5,279: about −2.4k mispredictions, at 10.2 cycles about −25k cycles, **+1.3 % CoreMark**
   (g14 -O2). The rest (5,279 against 4,393) is OOO_TAGE's per-block rows (5.3, point 5).
 - Of the 10 % to 13 % left to the model this is the smaller part; slot 0 waiting for a full ROB (166,098 cycles of
-  1,913,926) is the larger one.
+  1,913,926) is the larger one. (*Wrong: 5.12.*)
 
 ### 5.11 D-17: TAGE read with the history lagging 2 blocks (2026-10-31)
 
@@ -557,7 +557,7 @@ with it; the 6 bits above 70 come back as 0).
 | the model, fusion off, stores with their data | 1,701,808 (5.876) | 1,562,105 (6.402) | 1,730,925 (5.777) |
 
 - B1 now mispredicts about what the model with OOO_TAGE's algorithm and a constant lag does (5,279 / 4,526). The core
-  gains 0.6 % to 1.7 %; **9 % to 12 % behind the model is left**, most of it the full ROB (5.10).
+  gains 0.6 % to 1.7 %; **9 % to 12 % behind the model is left** (not a full ROB: 5.12).
 - **Tests**: `tage_ref.h` (the mirror of `tb_tage`, `tb_fetch`) reads with the lag and keeps `c1`, `c2`, `cprev`;
   `tb_tage` gives `f0_live` (the blocks read and not pushed), `tb_fetch` mirrors fetch's live requests (it compares
   all of each block's metadata); `tb_front` compares the 72-bit history field of the restore. Unit mutations M362 to
@@ -566,6 +566,42 @@ with it; the 6 bits above 70 come back as 0).
   block-before count lost at a restore); `mutate_core.py` 86 of 86. `run_core.sh`, `run_coremark.sh`, B1, the 28
   unit tests, the stand-in test: all pass. `OOC_FRONT` / `OOC_FE` follow the widths (no new lint warning).
 - Vivado: `OOC_FE` and `OOC_FRONT` (the shift is on the F0 path to the tables' addresses: `synth_ooo.bat OOC_FE`).
+
+### 5.12 What the core loses against the model, by function (2026-11-01)
+
+**A correction first**: the "full ROB" of 5.9 to 5.11 (166,098 cycles) was a counter's mistake: `rob_avail`,
+`iq_ready`, `lq_avail` and `sq_avail` are free counts (0 to 2), and the counter read their bit 0. Counted right
+(g14 -O2, the model's caches): dispatch holds slot 0 169,252 cycles, almost all for the issue queue (no free entry
+24,201; one free for a pair that needs two 78,275) and the LQ (35,769; 24,553); the ROB has no free entry only 304
+cycles (it holds 13.6 µops on average, the issue queue 5.0). The model holds dispatch about as long (the IQ 93,332,
+the LQ / SQ 60,555 cycles).
+
+- **Dispatching slot 0 alone** when only one entry is free (the DS register moving slot 1 to slot 0) was tried in a
+  copy: no gain (g14 -O2 +0.1 %, g13 −0.1 %), the moved µop costing a cycle of D2. Not kept.
+- **By function** (`Plan/model`'s `OOO_BYPC`: the cycles between commits by the pc that ends them; the same counted in
+  the core): the core is 180k cycles behind, `matrix_mul_matrix_bitextract` +60k, `core_bench_list` +27k,
+  `core_state_transition` +25k, `core_bench_state` +17k, `core_list_mergesort` +14k, and 16k in start-up and
+  `ee_printf`, which the model's trace does not hold.
+- **`matrix_mul_matrix_bitextract`'s inner loop** (29,160 times, 13 instructions): 10 cycles an iteration in the core
+  against 7.6. Six of its µops can go to port 0 only (2 `mulw`, 2 `sh1add.uw`, 2 `sraiw`: L7), and each multiply
+  takes port 0's latency-1 slot of the cycle after its issue (its result has port 0's write port, `OOO_IQ` blk0): EX0
+  is idle 4 cycles in 10, the next iteration's address µops wait behind the older chain, and the issue queue fills.
+- **Two differences the model did not have** (options added; the model with fusion off and stores issued with data):
+
+| model option | g14 -O2 | sf + -flto | g13 |
+|---|---|---|---|
+| none | 1,701,808 | 1,562,105 | 1,730,925 |
+| `mul_wb=1` (the multiply's write slot on ALU0, as the core) | +1.7 % | +2.6 % | +2.2 % |
+| `mul_wb=2` (its write slot on ALU1 instead) | +0.7 % | +0.8 % | +1.4 % |
+| `lsu_cmt=1` (a load / store commits a cycle later: `OOO_LSU`'s completion through a register) | +1.4 % | +1.5 % | +1.4 % |
+| `mul_wb=1 lsu_cmt=1 dec_depth=3` (the core's three) | 1,758,304 (+3.3 %) | 1,629,184 (+4.3 %) | 1,796,933 (+3.8 %) |
+
+  With them the model is 6.5 % / 4.7 % / 8.2 % short of the core (1,882,020 / 1,706,123 / 1,945,090), and in the
+  bitextract loop the core still loses 0.8 cycle an iteration at the second multiply.
+- **Proposed next**: (A) the multiply writes through port 1's write port and the issue queue keeps port 1's
+  latency-1 slot free after a multiply instead of port 0's (ALU1 takes only simple µops, ALU0 everything): about
+  −1 % to −1.8 % of the cycles, a 2:1 select on port 1's write and the bypass; (B) a load's completion from M (not
+  from the register after it): about −1.4 %, on `OOO_LSU`'s M path (a timing question).
 
 ---
 

@@ -10,7 +10,7 @@
 //       issue_w, fetch_bytes, fb, fe_depth, dec_depth, iss_to_ex, redirect,
 //       override_at, rob, iq, lq, sq, ckpt, alu, lsu, mul, mul_shared,
 //       lat_load, lat_mul, mdu_busy, ubtb, pred (perfect / gshare / S / M / L),
-//       fusion (0-3), chain, fuse_1w, fuse_2src, ck1, ck_jal, mem_cons, fwd, st_data_issue, keep_spec, alu_split,
+//       fusion (0-3), chain, fuse_1w, fuse_2src, ck1, ck_jal, mem_cons, fwd, st_data_issue, lsu_cmt, mul_wb, keep_spec, alu_split,
 //       upd (TAGE update 0 at once, 1 at commit), upd_lag, stale, iters
 //   model tage <trace.bin>
 //       the conditional branches through TAGE-S / M / L (to hold against
@@ -97,6 +97,8 @@ int main(int argc, char** argv)
         c.mem_cons = o.get("mem_cons", c.mem_cons);
         c.fwd = o.get("fwd", c.fwd);
         c.st_data_issue = o.get("st_data_issue", c.st_data_issue);
+        c.lsu_cmt = (int)o.get("lsu_cmt", c.lsu_cmt);
+        c.mul_wb = (int)o.get("mul_wb", c.mul_wb);
         c.keep_spec = (int)o.get("keep_spec", c.keep_spec);
         c.alu_split = (int)o.get("alu_split", c.alu_split);
         c.upd = (int)o.get("upd", c.upd);
@@ -160,7 +162,7 @@ int main(int argc, char** argv)
         tb.other = [&](uint64_t start, const std::vector<TageBlk::Br>& br, size_t& stop) {
             int l = (stall && (int)(rng() % 100) < stall) ? 0 : lag;
             while ((int)hq.size() > l) { ref.push(hq.front().n, hq.front().bits); hq.pop_front(); }
-            TageRef::Rd r = ref.read(start >> 1);
+            TageRef::Rd r = ref.read(start >> 1, 2);     // (the lag is the queue above: no shift)
             int sv = 0, par[3] = {0, 0, 0};
             for (size_t s = 0; s < br.size() && s < 3; s++) { sv |= 1 << s; par[s] = (int)((br[s].pc_end >> 1) & 7); }
             int pred, bb; Bits m;

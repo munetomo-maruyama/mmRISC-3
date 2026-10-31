@@ -4131,3 +4131,52 @@ This prompt (107) and the English of the previous answer are in PROMPT.md, inclu
 ```text
 Yes, accept D-17
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+D-17 is in: TAGE always reads with a history "lagging 2 blocks", so the same branch reads the same row even when fetch stalls. Pushed to dev as 65cef7f. CoreMark is 0.6–1.7 % faster, and the gap to the model is 9–12 %. The new shift sits on the path from F0 to the tables' addresses, so its timing, not measured yet, can be checked with `synth_ooo.bat OOC_FE`.
+
+**Implementation**
+- **OOO_TAGE:**
+  - Keeps c1 / c2, the bit counts of the last 2 blocks pushed.
+  - When F0 reads, the history is shifted by the bits of those of the 2 blocks before that are already in it: 0 if both are still in flight, c1 if one is, c1+c2 if neither.
+  - The history register is 76 bits: 70 plus the 6 a shift uses.
+  - The metadata gets the "bit count of the block before" (cprev, 2 bits): the metadata is 272 bits, the FTQ's entries 314. A restore puts it back as c2.
+- **OOO_FETCH:** gives TAGE the number of live requests in flight (`f0_live`); requests dropped by an override or a redirect do not count.
+- **OOO_FRONT / FERS:** the history field a restore reads is 72 bits, with cprev.
+
+**Results**
+
+| | g14 -O2 | g14 sf+flto | g13 -O2 |
+|---|---|---|---|
+| B1 mispredictions (full speed) | 6,619 → **5,614** | 5,907 → **4,765** | |
+| The core's restores | 8,439 → **5,453** | 6,080 → **5,426** | 6,883 → **6,064** |
+| OOO_CORE (ideal caches) | 1,913,926 → **1,882,020 (5.31)** | 1,718,063 → **1,706,123 (5.86)** | 1,956,056 → **1,945,090 (5.14)** |
+| OOO_CPU (real D$) | 1,933,121 → **1,907,780 (5.24)** | 1,764,874 → **1,755,555 (5.70)** | 1,967,483 → **1,958,830 (5.11)** |
+| Model (fusion off) | 1,701,808 (5.88) | 1,562,105 (6.40) | 1,730,925 (5.78) |
+
+B1's mispredictions are now about the model's (OOO_TAGE's algorithm, constant lag): 5,279 / 4,526. The numbers in parentheses in the cycle rows are CoreMark/MHz.
+
+**Tests**
+- The unit tests' mirror (tage_ref.h) has the lag and c1 / c2 / cprev.
+  - tb_tage gives `f0_live`.
+  - tb_fetch mirrors FETCH's live requests and compares all of each block's metadata.
+  - tb_front compares the 72-bit history field.
+- **Mutations:**
+  - 5 for D-17 added on the unit side (M362–M366).
+  - M105 and M112 had lost their TAGE lines and are fixed. M297 had been lost since the FS check went into CSRU last time; found and fixed now.
+  - Unit 330 of 330, front 44 of 44 (one added: cprev lost at a restore), core 86 of 86 detected.
+- run_core.sh (12 runs), run_coremark.sh, B1, the 28 unit tests and the stand-in test all pass. The OOC wrappers (OOC_FRONT, OOC_FE) follow the new widths, and the lint shows no new warning.
+
+**The difference left**
+9–12 % to the model, most of it dispatch stopping for a full ROB (about 166k cycles in g14 -O2 with ideal caches).
+
+UARCH's D-17 is marked "decided 2026-10-31"; recorded in Plan/CORE 5.11 and the READMEs in both languages. This prompt (108) and the English of the previous answer are in PROMPT.md, included in this commit.
+<!-- /answer -->
+
+## 109. 2026-11-01 00:30:32 JST
+
+```text
+Yes, ROB-full stalls
+```
