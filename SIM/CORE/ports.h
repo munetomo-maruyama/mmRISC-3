@@ -90,7 +90,6 @@ public:
                bool st_valid, uint64_t st_addr, uint64_t st_data, uint8_t st_mask)
     {
         if (fill_valid() && fill_ready) { fq.pop_front(); fills++; }
-        for (size_t i = 0; i < fq.size();) if ((kill >> fq[i].tag) & 1) { fq.erase(fq.begin() + i); kills++; } else i++;
         if (m_v && !m_hit) {                       // the miss of this M: its fill later, in order of arrival
             Fill f{m_tag, m_addr, cyc + 2 + (long)(rng() % miss_lat)};
             size_t i = fq.size();
@@ -98,6 +97,8 @@ public:
             fq.insert(fq.begin() + i, f);
             misses++;
         }
+        // (after the miss of this M: its entry can be freed in the cycle it is in M)
+        for (size_t i = 0; i < fq.size();) if ((kill >> fq[i].tag) & 1) { fq.erase(fq.begin() + i); kills++; } else i++;
         if (st_valid && st_rdy) { m.write64(st_addr, st_data, st_mask); stores++; }
         m_v = req; m_addr = addr; m_tag = tag; m_hit = req && (int)(rng() % 100) < hit_pct;
         reqs += req;

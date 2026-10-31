@@ -18,6 +18,7 @@
 | `ftqdepth.sh` | 8ブロックと16ブロックのFTQでフロントエンドが出せる量を、コミットまでの遅れに対して → `results/ftqdepth.txt` |
 | `tb_core.cpp` | B2: ベンチの上のVerilatorの`OOO_CORE`、lock-step。分岐の解決をその命令と照合 |
 | `build_core.sh` / `run_core.sh` | それを作る(`obj/core`、`obj/cpu`)。B2、B3、B4のプログラムを走らせる → `results/core.txt`、`results/core_restores.txt` |
+| `run_coremark.sh` | CoreMark(Plan/traceの3つのビルド)を両方のトップでlock-stepで → `results/coremark.txt` |
 | `mutate_core.py` | コアのつなぎへのバグ注入 → `results/mutate_core.txt` |
 | `b2/` | B2とB3のプログラム: `gen_b2.py`(ランダムなALUプログラム。分岐、ループ、call、ジャンプ。ロードとストア)、`link.ld`、`build.sh` → `b2/work` |
 | `b3/` | CSRのない環境(`env/riscv_test.h`)の上のB3のriscv-tests、コンソールのテスト`htif.S`、`build.sh` → `b3/work` |
@@ -180,3 +181,7 @@ B2の変異35個と、ポート2とLSUのための20個(レコードのLQ / SQ�
 ## B4のバグ注入
 
 `mutate_core.py`は今は84の変異で、B2とB3のプログラム、続いてB4のプログラムで走らせる: B3の54(4つはB4のつなぎで名前の変わった行に合わせ、WBの1つはポートごとに2つに分けた)、x0へのロードのバイパス、B4のための28(デコードでの例外、その原因とtval。ユニットのµop: 種類、MRET、FENCE.I、非投機、MDUのwakeup、命令のビット、CSRの被演算子と結果、乗算をMDUにも、MDUの書き込みの枠、乗算器とMDUのタグ0の結果、SRET。完了とtval。OOO_CSRUの数え方、tval、FSの確認)。最初のキャンペーンでは6つが検出されなかった: FPの命令が不正にならない、スロット1の例外のtval、不正なRVC命令のtval(その場合を作るプログラムがなかった)、乗算をMDUにも、乗算の結果よりMDUの結果、x0への除算のバイパス(除算と乗算を混ぜるプログラムがなかった)。`b4/dir/illegal.S`(これがバグ5と6を見つけた)と、除算やmulhのあとに乗算する`ls`のプログラムで5つを捕えた。6つ目、RVC命令のtvalを16ビットに切ることは余分で(`OOO_FBUF`がRVC命令を上半分0で渡す)、その切り取りは取り除いた。**84のうち84を検出**(`results/mutate_core.txt`)。単体の変異M356〜M358(minstretへの書き込みが自分のコミットを数える、mcountinhibitをEXで書く、コミットのたびに書き直す): `tb_csru`で3のうち3を検出。322になった。
+
+## CoreMarkの最初の実行(2026-10-31)
+
+`./run_coremark.sh`(`results/coremark.txt`): `Plan/trace`の3つのビルドを、I$のミスなし・D$のロードはすべてヒットの`OOO_CORE`、本物のD$の`OOO_CPU`、ミスを乱数で入れた`OOO_CORE`(2シード)で: lock-stepで**すべて通る**。ビルドごとに約210万〜230万サイクルで、融合なしのモデルより26 %遅い(`Plan/CORE_J.md` 5.8)。途中で: ポート0のライトバックのレジスタが乗算器の結果にEXのµopのマスクを使っていた(`OOO_CORE`で直した)。レジスタファイルはリセットのあと0にする(Spikeのレジスタは0から始まり、CoreMarkはまだ書いていないレジスタを退避する)。`DCacheModel`はそのサイクルのMのミスを積む前にkillを当てていた(直した)。`tb_core`はモデルの`final()`を呼ぶ(カウンタを入れたビルドはそれを表示する)。

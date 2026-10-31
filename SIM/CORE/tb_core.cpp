@@ -23,6 +23,7 @@
 // program's restores; -restores-ref / -restores-max fail a run with more
 // than x times the restores of the reference file (+ 4): what only steers
 // the predictors costs mispredictions, not values (the bug injection).
+// The register file is set to 0 after reset, as Spike's registers start.
 //---------------------------------------------------------------------------
 #ifdef CPU_TOP                  // OOO_CPU: the core with OOO_DCAD and the D$ on the AXI models (build_core.sh cpu)
 #include "VOOO_CPU.h"
@@ -137,6 +138,14 @@ static bool run(const Opts& o, const std::string& elf)
 #endif
     d->ic_req_ready = 0; d->ic_resp_valid = 0;
     d->rst_n = 1; d->eval(); d->rst_n = 0; d->eval(); d->rst_n = 1; d->eval();
+    // the register file starts at 0, as Spike's: it has no reset (a boot ROM would clear it), and a program's
+    // start may save registers it has not written yet (CoreMark's does)
+    for (int i = 0; i < 64; i++) {
+        d->rootp->CORE(u_prf__DOT__g_bank__BRA__0__KET____DOT__mem)[i] = 0;
+        d->rootp->CORE(u_prf__DOT__g_bank__BRA__1__KET____DOT__mem)[i] = 0;
+        d->rootp->CORE(u_prf__DOT__g_bank__BRA__2__KET____DOT__mem)[i] = 0;
+        d->rootp->CORE(u_prf__DOT__lvt)[i] = 0;
+    }
     long restores = 0, replays = 0;
     bool res_bad = false;
     for (uint64_t cyc = 0; !b.done(); cyc++) {
@@ -238,6 +247,7 @@ static bool run(const Opts& o, const std::string& elf)
                     restores, replays, ic.misses, ic.reqs, dc.misses, dc.reqs, dc.stores);
 #endif
     if (rs_out_f) std::fprintf(rs_out_f, "%s %ld\n", name.c_str(), restores);
+    d->final();                                         // (final blocks: a build with counters prints them)
     bool ok = b.passed() && !res_bad;
     if (ok && o.rs_max > 0) {
         auto it = o.rs_ref.find(name);

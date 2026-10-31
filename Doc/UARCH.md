@@ -663,7 +663,7 @@ pair is complex when its ALU part is.
 | 2' | FPU breakdown (C1), in parallel | The author's Vivado |
 | 2'' | The model gets the operation class per instruction, for L7 (asymmetric ALUs) | Claude Code |
 | 3 | **G0b**: the budget table with measured blocks; the levers of section 6 applied in order | Claude Code proposes, the author decides. **Decided 2026-10-26 as recommended (6.3, D-11 to D-14)** |
-| 4 | Integration of the core (M-mode, bare metal), riscv-arch-test, CoreMark against the model. **The plan: `Plan/CORE.md` (2026-10-29)**; B0, the test bench: `SIM/CORE`; B1, the front end alone: `OOO_FRONT` (2026-10-29); B2, the core with ALU µops only: `OOO_CORE` (2026-10-30); B3, loads and stores: `OOO_CORE` with port 2, `OOO_CPU` with the D$ (2026-10-31); B4, riscv-arch-test (185 tests) and the CSRs, traps, the MDU in lock-step (2026-10-31) | Claude Code |
+| 4 | Integration of the core (M-mode, bare metal), riscv-arch-test, CoreMark against the model. **The plan: `Plan/CORE.md` (2026-10-29)**; B0, the test bench: `SIM/CORE`; B1, the front end alone: `OOO_FRONT` (2026-10-29); B2, the core with ALU µops only: `OOO_CORE` (2026-10-30); B3, loads and stores: `OOO_CORE` with port 2, `OOO_CPU` with the D$ (2026-10-31); B4, riscv-arch-test (185 tests) and the CSRs, traps, the MDU in lock-step (2026-10-31); CoreMark in lock-step, fusion off, 26 % behind the model (`Plan/CORE.md` 5.8) | Claude Code |
 | 5 | **G1**: CoreMark in simulation within ±5 % of the model; the core alone in Vivado for LUTs and 50 MHz | |
 
 ---

@@ -143,7 +143,7 @@ Working files: `Plan/model/ooo.h` (the model), `tage.h` (TAGE), `sweep.sh` (one 
 | Stages | F0 → decode 3, decode → dispatch 2, dispatch → issue 1, issue → end of EX 2, resolution → F0 1. **A misprediction costs 9 cycles from EX to EX** | `fe_depth`, `dec_depth`, `iss_to_ex`, `redirect` |
 | Window | ROB 64, issue queue 24 (unified, freed at issue), LQ 16 / SQ 16, unlimited checkpoints | `rob`, `iq`, `lq`, `sq`, `ckpt` |
 | Latencies | Issue to the issue of a dependent: ALU 1, load 2 (hit), MUL 2 | `lat_*` |
-| Memory | Conservative memory dependence, forwarding from the SQ, stores after commit | `mem_cons`, `fwd` |
+| Memory | Conservative memory dependence, forwarding from the SQ, stores after commit; a store issued with its data too (its address known then: `OOO_LSU`, Plan/CORE.md 5.8) | `mem_cons`, `fwd`, `st_data_issue` |
 | Fusion | None (1: address calculation + load, pairs, lui / auipc; 2: + ALU + branch; 3: + ALU + ALU chained in one cycle) | `fusion`, `chain` |
 
 ### 6.3 Results (excerpt; every row in `Plan/model/results/sweep.txt`)

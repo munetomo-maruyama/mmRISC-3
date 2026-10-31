@@ -605,6 +605,7 @@ module OOO_CORE
         byp_d[2] = lsu_wb_d;
     end
     logic [1:0]                ex_v;
+    logic                      pm_w, md_w;     // port 0's multiplier / MDU result written (below)
     ex_t  [1:0]                ex;
     logic [1:0][63:0]          ex_res;
     logic [1:0]                ex_tk;
@@ -712,10 +713,15 @@ module OOO_CORE
             cmp_rob[p]    = ex[p].rec.rob;
         end
         assign ex_bms[p] = ex_bm;
+        // WB's mask: EX's µop's, but not for the multiplier's or the MDU's result on port 0 (they checked it
+        // against kill with their own masks this cycle; a later kill can only be of a branch older than the
+        // result, whose takers are younger and killed too, and its tag is not given out again in a cycle)
+        logic [NCKPT-1:0] wb_in_bm;
+        assign wb_in_bm = (p == 0 && (pm_w || md_w)) ? '0 : ex_bm;
         // WB
         OOO_STAGE #(.W(WBW), .NCK(NCKPT)) u_wb
             (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
-             .in_valid(wbi_v[p]), .in_bm(ex_bm), .in_data({wbi_t[p], wbi_d[p]}),
+             .in_valid(wbi_v[p]), .in_bm(wb_in_bm), .in_data({wbi_t[p], wbi_d[p]}),
              .out_valid(wb_v[p]), .out_bm(wb_bm), .out_data(wb_d[p]));
     end
 
@@ -795,7 +801,6 @@ module OOO_CORE
     // the write-back registers: port 0 takes the multiplier's or the MDU's result, else its EX's (the issue
     // queue and OOO_MDUP keep them to one a cycle). A result for x0 (tag 0: the issue queue keeps no slot for
     // a multiply without a destination) is neither written nor forwarded
-    logic pm_w, md_w;
     assign pm_w = pm_v && pm_t != '0;
     assign md_w = md_v && md_t != '0;
     always @(*) begin

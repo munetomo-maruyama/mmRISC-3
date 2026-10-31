@@ -71,15 +71,16 @@
 70 DETECTED      the MDU's result over the multiply's
 71 DETECTED      port 0: a multiply to x0 takes the write slot
 72 DETECTED      port 0: a divide to x0 forwarded (tag 0)
-73 DETECTED      SRET: the CSRs not restored
-74 DETECTED      a system µop complete at EX
-75 DETECTED      CSR: an illegal access completes
-76 DETECTED      CSR: no replay after a write
-77 DETECTED      the multiply completes the MDU's entry
-78 DETECTED      tval: a misaligned address not given
-79 DETECTED      tval: an illegal CSR access's not given
-80 DETECTED      minstret: a write counts its own commit
-81 DETECTED      mcountinhibit: written at EX (its own commit under the new bit)
-82 DETECTED      CSR: an illegal access's tval 0
-83 DETECTED      CSR: fcsr with mstatus.FS off not illegal
-84 mutations, 84 detected
+73 DETECTED      port 0's WB: a multiply's result with the mask of the µop in EX
+74 DETECTED      SRET: the CSRs not restored
+75 DETECTED      a system µop complete at EX
+76 DETECTED      CSR: an illegal access completes
+77 DETECTED      CSR: no replay after a write
+78 DETECTED      the multiply completes the MDU's entry
+79 DETECTED      tval: a misaligned address not given
+80 DETECTED      tval: an illegal CSR access's not given
+81 DETECTED      minstret: a write counts its own commit
+82 DETECTED      mcountinhibit: written at EX (its own commit under the new bit)
+83 DETECTED      CSR: an illegal access's tval 0
+84 DETECTED      CSR: fcsr with mstatus.FS off not illegal
+85 mutations, 85 detected

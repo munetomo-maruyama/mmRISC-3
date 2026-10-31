@@ -15,7 +15,7 @@
 # a budget of restores (-restores-max: a fault in what only steers the
 # predictors costs mispredictions, not values); then on B4's (b4/work:
 # riscv-arch-test, 185; riscv-tests' -p- programs as run_core.sh runs
-# them). DETECTED when a run fails.
+# them), last on CoreMark (g14 sf + -flto). DETECTED when a run fails.
 # Every line of the result is to be read: grep NOT.
 #
 # Left out, as found by the first campaign:
@@ -55,6 +55,7 @@ HPROGS = [os.path.join(B3, t + '.elf') for t in ('rv64ui-ld_st', 'rv64ui-st_ld',
                                                  'rv64ui-sh', 'rv64ui-sd', 'rv64ui-jalr', 'rv64uc-rvc', 'htif')]
 RMAX = '1.30'      # restores at most 1.3 times the clean run's, program by program (results/core_restores.txt)
 APROGS = sorted(glob.glob(os.path.join(HERE, 'b4/work/*/*.elf')))
+CM = [os.path.join(HERE, '../../Plan/trace/work/g14-sflto-zbsc.elf')]     # CoreMark, the last stage
 RV = os.environ.get('RVTESTS', os.path.join(HERE, '../../../mmRISC-2/SIM/SIM_CORE/rvtests'))
 RPROGS = sorted(os.path.join(RV, t) for t in os.listdir(RV)
                 if __import__('re').fullmatch(r'rv64(ui|um|uc|uzba|uzbb|uzbc|uzbs|uzicond|mi|si)-p-[a-z0-9_]+', t) and
@@ -154,6 +155,8 @@ MUT = [
     (C, ".slot_busy(x_wv || pm_v)", ".slot_busy(x_wv)", 'the MDU\'s result over the multiply\'s'),
     (C, "assign pm_w = pm_v && pm_t != '0;", "assign pm_w = pm_v;", 'port 0: a multiply to x0 takes the write slot'),
     (C, "assign md_w = md_v && md_t != '0;", "assign md_w = md_v;", 'port 0: a divide to x0 forwarded (tag 0)'),
+    (C, "assign wb_in_bm = (p == 0 && (pm_w || md_w)) ? '0 : ex_bm;", "assign wb_in_bm = ex_bm;",
+     'port 0\'s WB: a multiply\'s result with the mask of the µop in EX'),
     (C, ".mret_en(csr_mret), .sret_en(csr_sret)", ".mret_en(csr_mret), .sret_en(1'b0)", 'SRET: the CSRs not restored'),
     # B4: completion and tval
     (C, "cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS;",
@@ -195,6 +198,9 @@ def run(i, m):
         if not det:
             det = subprocess.run([t, '+verilator+rand+reset+2', '-max', '3000000'] + APROGS + RPROGS,
                                  capture_output=True, timeout=1800).returncode != 0
+        if not det:
+            det = subprocess.run([t, '+verilator+rand+reset+2', '-max', '100000000', '-miss', '0', '-dhit', '100'] + CM,
+                                 capture_output=True, timeout=3600).returncode != 0
     except subprocess.TimeoutExpired:
         return i, 'NOT DETECTED', desc + ' (the run did not end)'
     shutil.rmtree(d, ignore_errors=True)

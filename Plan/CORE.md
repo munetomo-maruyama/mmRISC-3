@@ -443,6 +443,49 @@ Results (`SIM/CORE/results/core.txt`; `./run_core.sh`, 12 runs):
 - **Bug injection**: `mutate_core.py`, now 84 mutations, run on B2's and B3's programs and then on B4's: B3's 54 (4 follow lines the B4 glue renamed, the WB one split by port), the load to x0's bypass, and 28 for B4 (the exceptions at decode, their cause and tval; the units' µops: kind, MRET, FENCE.I, non-speculative, the MDU's wakeup, the instruction bits, the CSR operand and result, a multiply into the MDU as well, the MDU's write slot, the tag-0 results of the multiplier and the MDU, SRET; completion and tval; OOO_CSRU's counting, tval and the FS check). The first campaign left 6 undetected: an FP instruction not illegal, the tval of an exception in slot 1, an illegal RVC instruction's tval (no program made the case), a multiply into the MDU as well, the MDU's result over the multiply's, a divide to x0 forwarded (no program mixed divides and multiplies). `b4/dir/illegal.S` (which then found bugs 5 and 6) and `ls` programs that multiply after divides and mulh caught five; the sixth, the RVC instruction's tval masked to 16 bits, was redundant (`OOO_FBUF` already gives an RVC instruction with its upper half 0) and the mask is gone. **84 of 84 detected** (`results/mutate_core.txt`). Unit mutations M356 to M358 (a write to minstret counting its own commit, mcountinhibit written in EX, written again at every commit): 3 of 3 detected by `tb_csru`; 322 now.
 - **The rest**: all 28 unit tests (`tb_csru` now with the core's protocol for CSR µops: nothing commits in their cycle, one that writes commits alone next; and mcountinhibit); B1 (`run_front.sh`); LOCKSTEP's self-test; `verilator --lint-only -Wall` of both tops: no new warning.
 
+### 5.8 CoreMark, first run (fusion off, 2026-10-31)
+
+`SIM/CORE/run_coremark.sh` (`results/coremark.txt`) runs the three builds of `Plan/trace` in lock-step: on `OOO_CORE`
+with no I$ miss and every D$ load a hit (the model's caches), on `OOO_CPU` with the real D$, and on `OOO_CORE` with
+misses at random (2 seeds, the second with 30 % D$ hits). **All pass** after these fixes:
+
+1. **Port 0's write-back register took the mask of the µop in EX** for the multiplier's or the MDU's result: a kill
+   of a branch younger than the multiply but older than that µop dropped the multiply's bypass for a cycle (the
+   register file had it), and a dependent issued on the delayed wakeup read the old value. `g14-sflto` at its 56,598th
+   instruction; the runs with misses at random too. Fixed: that result enters WB with no mask (its unit checked the
+   kill this cycle; a later kill is of a branch older than it, whose takers die too). B2 to B4 never made the case;
+   `mutate_core.py` now ends with CoreMark and has its mutation: **85 of 85 detected**.
+2. **The bench**: the register file starts at 0 as Spike's (it has no reset; CoreMark's start saves registers it has
+   not written); `DCacheModel` kept the fill of a miss whose LQ entry was freed in the cycle it was in M (the kill was
+   applied before that miss was queued), and a new load of the entry took it.
+
+Cycles (whole runs, as the model's; CoreMark/MHz = 10 iterations / cycles):
+
+| | g14 -O2 | g14 sf + -flto | g13 -O2 Zb |
+|---|---|---|---|
+| the model, fusion off (D-16) | 1,689,007 (5.921) | 1,551,318 (6.446) | 1,718,813 (5.818) |
+| `OOO_CORE`, the model's caches | 2,284,618 (4.377) | 2,100,584 (4.761) | 2,290,569 (4.366) |
+| `OOO_CPU`, the real D$ | 2,307,398 (4.334) | 2,149,465 (4.652) | 2,304,948 (4.339) |
+
+The core is about 26 % behind the model. Counters of a build with counters (`OOO_CORE`, the model's caches, g14 -O2):
+
+| | the core | the model |
+|---|---|---|
+| loads that could not finish in M because an older store's address was unknown (completed marked, **replayed after commit**: a flush and a refetch each) | 25,861 (20,618 replays) | none: a load waits for the older stores' addresses (`mem_cons`) |
+| mispredicted branches / jalr that commit | 7,582 / 218 | 4,393 / 41 (sf + -flto: 1,593 jalr against 8) |
+| cycles with nothing to dispatch / slot 0 held by a full ROB | 275,078 / 192,069 | |
+
+- **The main loss: loads issued past a store whose address is unknown.** A store is one µop that issues with its data
+  (`OOO_LSU`), so its address is known late, and the loads after it, whose base is ready, go first and find it
+  unknown. The model assumed a store's address known at its issue on the base alone and loads waiting for it. The
+  model with stores issued with their data (`st_data_issue=1`, added) and loads waiting: 0.7 % slower without fusion,
+  1.9 % with fusion 2. **Proposed**: the issue queue keeps a load while an older store is still in it (registered
+  state, off the wakeup-select loop, as the non-speculative condition).
+- **Returns and indirect jumps** mispredict far more than in the model (sf + -flto: 1,593 against 8), and conditional
+  branches 1.7 times: to look at after the first fix (the RAS after a replay or a flush, the history after a replay).
+- The pipeline's depth is not it: the model with one or two more decode stages loses 0.3 % to 0.5 %.
+- **The rest still passes**: `run_core.sh` (12 runs), the stand-in test, the bug injection (85 of 85).
+
 ---
 
 ## 6. What G1 measures

@@ -22,6 +22,7 @@ riscv-arch-test and riscv-tests' -p- programs (CSRs, traps, the MDU) on both.
 | `ftqdepth.sh` | What the front end delivers with an FTQ of 8 and of 16 blocks, against the delay to commit → `results/ftqdepth.txt` |
 | `tb_core.cpp` | B2: `OOO_CORE` under Verilator on the bench, in lock-step; the branches' resolution checked against their instructions |
 | `build_core.sh` / `run_core.sh` | Build it (`obj/core`, `obj/cpu`); run B2's, B3's and B4's programs → `results/core.txt`, `results/core_restores.txt` |
+| `run_coremark.sh` | CoreMark (Plan/trace's three builds) on both tops in lock-step → `results/coremark.txt` |
 | `mutate_core.py` | Bug injection into the core's glue → `results/mutate_core.txt` |
 | `b2/` | B2's and B3's programs: `gen_b2.py` (random ALU programs; branches, loops, calls, jumps; loads and stores), `link.ld`, `build.sh` → `b2/work` |
 | `b3/` | B3's riscv-tests on an environment without CSRs (`env/riscv_test.h`), the console test `htif.S`, `build.sh` → `b3/work` |
@@ -235,3 +236,13 @@ mconfigptr missing, FP loads and stores not illegal, and the FP CSRs not illegal
 ## B4's bug injection
 
 `mutate_core.py`, now 84 mutations, run on B2's and B3's programs and then on B4's: B3's 54 (4 follow lines the B4 glue renamed, the WB one split by port), the load to x0's bypass, and 28 for B4 (the exceptions at decode, their cause and tval; the units' µops: kind, MRET, FENCE.I, non-speculative, the MDU's wakeup, the instruction bits, the CSR operand and result, a multiply into the MDU as well, the MDU's write slot, the tag-0 results of the multiplier and the MDU, SRET; completion and tval; OOO_CSRU's counting, tval and the FS check). The first campaign left 6 undetected: an FP instruction not illegal, the tval of an exception in slot 1, an illegal RVC instruction's tval (no program made the case), a multiply into the MDU as well, the MDU's result over the multiply's, a divide to x0 forwarded (no program mixed divides and multiplies). `b4/dir/illegal.S` (which then found bugs 5 and 6) and `ls` programs that multiply after divides and mulh caught five; the sixth, the RVC instruction's tval masked to 16 bits, was redundant (`OOO_FBUF` already gives an RVC instruction with its upper half 0) and the mask is gone. **84 of 84 detected** (`results/mutate_core.txt`). Unit mutations M356 to M358 (a write to minstret counting its own commit, mcountinhibit written in EX, written again at every commit): 3 of 3 detected by `tb_csru`; 322 now.
+
+## CoreMark, first run (2026-10-31)
+
+`./run_coremark.sh` (`results/coremark.txt`): the three builds of `Plan/trace` on `OOO_CORE` with no I$ miss and
+every D$ load a hit, on `OOO_CPU` with the real D$, and on `OOO_CORE` with misses at random (2 seeds): **all pass** in
+lock-step, about 2.1 to 2.3 million cycles a build, 26 % behind the model without fusion (`Plan/CORE.md` 5.8). On the
+way: port 0's write-back register took the mask of the µop in EX for the multiplier's result (fixed in `OOO_CORE`);
+the register file is now set to 0 after reset (Spike's registers start at 0, and CoreMark saves registers it has not
+written); `DCacheModel` applied a kill before queueing the miss of that cycle's M (fixed). `tb_core` calls the model's
+`final()` (a build with counters prints them).

@@ -109,7 +109,7 @@ mmRISC-2が10月にSIM_SYSで測ったCoreMark(10回、GCC 13.2、`-O2`)のう�
 | 段数 | F0 → デコード3、デコード → dispatch 2、dispatch → 発行1、発行 → EX終了2、解決 → F0 1。**予測ミスの損失はEXからEXまで9サイクル** | `fe_depth`、`dec_depth`、`iss_to_ex`、`redirect` |
 | 窓 | ROB 64、発行キュー24(統合、発行で空く)、LQ 16 / SQ 16、チェックポイント無制限 | `rob`、`iq`、`lq`、`sq`、`ckpt` |
 | レイテンシ | 発行から依存命令の発行まで: ALU 1、ロード2(ヒット)、MUL 2 | `lat_*` |
-| メモリ | 保守的なメモリ依存、SQからのフォワーディング、ストアはコミット後 | `mem_cons`、`fwd` |
+| メモリ | 保守的なメモリ依存、SQからのフォワーディング、ストアはコミット後。ストアをデータと一緒に発行する(そのときアドレスが分かる: `OOO_LSU`、Plan/CORE_J.md 5.8) | `mem_cons`、`fwd`、`st_data_issue` |
 | 融合 | なし(1: アドレス計算 + ロード、ペア、lui / auipc。2: + ALU + 分岐。3: + ALU + ALU、1サイクルで連結) | `fusion`、`chain` |
 
 ### 6.3 結果(抜粋。全行は`Plan/model/results/sweep.txt`)

@@ -57,6 +57,7 @@ struct OooCfg {
     bool ck1 = false;           // at most one checkpoint taken a cycle (Plan/OOC.md 10)
     bool ck_jal = true;         // a jal takes a checkpoint too (it cannot mispredict in the back end)
     bool mem_cons = true, fwd = true;
+    bool st_data_issue = false; // a store issues with its data too (one µop, as OOO_LSU): its address is known then
     int keep_spec = 0;          // a µop issued on an open load keeps its issue-queue entry until the load
                                 // is decided, keep_spec cycles after its issue (OOO_IQ: 4, Plan/OOC.md 15)
     int alu_split = 0;          // the 2 ALU ports (with alu = 2, mul_shared; Doc/UARCH.md 6.11):
@@ -263,7 +264,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             for (int s = 0; s < 3; s++) {
                 uint8_t r = t[k].src[s];
                 if (r == NOREG || (k == last && pair && r == t[i].dst)) continue;
-                if (t[k].cls == C_STORE && r != t[k].base) continue;   // the data joins later
+                if (t[k].cls == C_STORE && r != t[k].base && !c.st_data_issue) continue;   // the data joins later
                 auto it = ready.find(r);
                 if (it != ready.end() && it->second > is) is = it->second;
             }

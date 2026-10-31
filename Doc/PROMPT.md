@@ -3915,3 +3915,94 @@ Since OOO_LSU changed, its size and timing may have moved a little. A Vivado run
 ```text
 Go on with B4
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+B4 is done and pushed to dev as 8a57aef. On both tops (OOO_CORE and OOO_CPU), every test passes in lock-step, with each instruction checked against Spike. The changes to OOO_CORE, OOO_CSRU and CORE_CSR have not been through Vivado yet.
+
+**Results (all 12 runs of run_core.sh pass)**
+
+| Run | Result |
+|---|---|
+| riscv-arch-test, 185 tests (I, M, Zca, Zba, Zbb, Zbc, Zbs, Zicond, Zicsr, Zifencei, Zicntr, Sm, Exceptions) plus 1 directed test | all pass on both tops (OOO_CORE on 2 seeds) |
+| riscv-tests -p-, 127 programs | all pass on both tops |
+| B2 and B3 regression | all pass |
+
+Three of the 130 -p- programs are left out because Phase 1 cannot run them: breakpoint (the triggers' firing is not wired), csr (it uses an FP instruction) and si-dirty (it needs paging). ma_fetch failed before; it now passes thanks to the reference-side misa adjustment below.
+
+**Six bugs found and fixed**
+1. **A load to x0:** its result kept tag 0 and went onto the write-back bypass, so instructions reading x0 received the loaded value. This made 19 of the 51 arch-test I tests fail.
+2. **A multiply to x0:** OOO_PMUL's result took port 0's write slot, and the ALU result of the same cycle was lost. It was also forwarded with tag 0, and so was a divide's. It showed only in M-mul / M-mulw on OOO_CPU.
+3. **mcountinhibit:** it was written in EX, so the writing instruction itself was counted under the new IR setting. The write now waits for the commit, so the instruction counts under the old setting, as in Spike and Sail.
+4. **mconfigptr:** required by privileged spec 1.12, but missing from CORE_CSR (inherited from mmRISC-2). Added as read-only 0.
+5. **FP loads and stores** were not illegal (only FP arithmetic was).
+6. **fcsr and the other FP CSRs with FS off** were not illegal. mmRISC-2 checked this in CPU_CORE, so the check moved to OOO_CSRU.
+
+Bugs 5 and 6 were found by `b4/dir/illegal.S`, a directed test I wrote to reach mutations that had survived.
+
+**How arch-test runs here**
+- The recommended Sail, UDB and binutils 2.44 are not on this machine. Each test is built like the framework's signature ELF, and lock-step does the checking instead of expected values. The signature is stores, so the check is the same.
+- The DUT configuration (`b4/act`) is written by hand. The Sm and Exceptions tests are not in the checkout, so they are generated with the framework's testgen.
+- With binutils 2.43 the alignment padding at the tests' entry came out as zeros; `-mno-relax` avoids it.
+
+**Adjustments on the reference side (LOCKSTEP)**
+For some CSR WARL fields, CORE_CSR and Spike make different choices that are both legal. There, LOCKSTEP now puts Spike where CORE_CSR is:
+- misa is treated as read-only (Spike lets it be written);
+- mcountinhibit, which Spike lacks, is kept by LOCKSTEP, and while IR is set the minstret increment is cancelled;
+- medeleg's bit 18 is not kept;
+- a reserved mode written to mtvec / stvec becomes direct;
+- reads of the HPM events take the DUT's value.
+
+The stand-in test (Spike against Spike) turns these adjustments off.
+
+**Bug injection**
+- `mutate_core.py` detects 84 of 84. The first campaign left 6 undetected; the directed test and the gen_b2 extensions (multiplies after divides, loads and multiplies into x0) caught 5 of them.
+- The last one (cutting an illegal RVC instruction's tval to 16 bits) was equivalent, because FBUF already passes the upper half as 0. The redundant mask is gone from the RTL.
+- 3 unit mutations added (M356–M358), 322 in all.
+- The 28 unit tests, B1 and the LOCKSTEP self-test pass, and the `-Wall` lint shows no new warning.
+
+The author's Vivado results for OOC_LSU / OOC_LSUDC are also recorded in Plan/CORE 5.6 and included in the same commit. The store-drain fix costs 5 LUTs in the LSU, and OOC_LSU's WNS went from 6.875 to 6.548 ns.
+
+Everything is recorded in Plan/CORE 5.7, the READMEs, UARCH and PROMPT.md, in both languages.
+<!-- /answer -->
+
+## 104. 2026-10-31 20:18:30 JST
+
+```text
+Please suggest the next steps.
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+G1 measures four things: correctness, performance (CoreMark within ±5 % of the model), size, and 50 MHz. Judging the remaining B5–B7 against those, I propose this order.
+
+**1. Run CoreMark on the core as it is (part of B6 brought forward, fusion off) [recommended]**
+- **Why:** arch-test is a set of short tests. Running a real program of millions of instructions in lock-step catches bugs that only long runs show (the ROB wrapping, the FTQ or free list running dry, races with D$ evictions).
+- **What:** run the three builds of Plan/trace on OOO_CORE (D$ model) and OOO_CPU (real D$), take the cycles without fusion, and compare with the model run without fusion. Before fusion goes in, this shows where the front end, the IQ and the LSU differ from the model.
+- **Size:** small, since the bench is used as it is.
+
+**2. B5a: fusion, kind by kind**
+- **Why:** the model's targets (6.243 and so on) include fusion, so it is needed before B6's ±5 % judgement.
+- **What:** add one kind of fusion at a time, rerun the whole B4 set (arch-test, -p-) in lock-step each time, and add bug injection.
+- **Interrupts:** the timer interrupt planned for B5 is not needed by CoreMark, so I propose moving it later (B5b).
+
+**3. A real I$ for B6**
+OOO_CPU's I$ is still the bench's model. G1 is judged with the real caches, so mmRISC-2's I$ and FENCE.I's invalidate path need to be connected.
+
+**4. Vivado (on the author's machine, in parallel)**
+- **OOC_CSRU:** the block with the least slack (+0.569 ns); the FS check and the mcountinhibit delay were just added, so I'd measure it first.
+- **B7 brought forward (OOC_CORE, the whole core):** the size is already over budget (4.1k / 5.5k / 6.7k). The sooner the whole core's LUTs and timing are known, the more choices remain. I'll prepare the wrapper and the tcl.
+
+**A separate decision: the A extension (AMO / LR / SC)**
+misa has A set, but it was outside B4: arch-test's Zaamo and Zalrsc have not been run, and how far AMOs work in OOO_LSU has not been checked. Since the instruction set is kept, a step to verify it should go in somewhere before B5 or B6.
+
+This prompt (104) and the English of the previous answer are in PROMPT.md, not committed yet.
+<!-- /answer -->
+
+## 105. 2026-10-31 20:23:17 JST
+
+```text
+Start with CoreMark
+```
