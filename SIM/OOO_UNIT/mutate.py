@@ -334,6 +334,10 @@ M = [
     ('M301', 'CORE:CORE_CSR/CORE_CSR.sv', 'csru', "minstret <= minstret + 64'(instret_inc);", "minstret <= minstret + 64'd1;", 'minstret counts one a cycle'),
     ('M302', 'OOO_CSRU/OOO_CSRU.sv', 'csru', 'ex_rp    = wants_write && !ill;', 'ex_rp    = wants_write;', 'an illegal CSR write marked for replay'),
     ('M303', 'OOO_CSRU/OOO_CSRU.sv', 'csru', 'parameter int          HPM_COUNTERS = 2,', 'parameter int          HPM_COUNTERS = 4,', 'L1 not applied'),
+    # 2026-10-31: B4, the commit of a write to minstret / mcountinhibit (Plan/CORE.md 5.7)
+    ('M356', 'OOO_CSRU/OOO_CSRU.sv', 'csru', "else if (wr_en && ex_addr == 12'hB02)      ir_skip <= 1'b1;", '', 'a write to minstret counts its own commit'),
+    ('M357', 'OOO_CSRU/OOO_CSRU.sv', 'csru', "assign c_wr_en = (wr_en && ex_addr != 12'h320) || (ih_pend && instret_inc != 3'd0);", 'assign c_wr_en = wr_en;', 'mcountinhibit written at EX'),
+    ('M358', 'OOO_CSRU/OOO_CSRU.sv', 'csru', "else if (instret_inc != 3'd0)              ih_pend <= 1'b0;", '', 'mcountinhibit written again at every commit'),
     ('M305', 'OOO_TRAP/OOO_TRAP.sv', 'trap', 'rp_pc     = !x_pend ? rob_replay_pc : x_s ? sepc : mepc;', 'rp_pc     = !x_pend ? rob_replay_pc : mepc;', 'SRET goes to mepc'),
     ('M306', 'OOO_TRAP/OOO_TRAP.sv', 'trap', 'csr_sret  = rob_replay && x_pend && x_s;', "csr_sret  = 1'b0;", 'SRET does not tell the CSRs'),
     ('M307', 'OOO_SYS/OOO_SYS.sv', 'sys', 'OP_MRET:   ill = priv != PRIV_M;', "OP_MRET:   ill = 1'b0;", 'MRET below M'),

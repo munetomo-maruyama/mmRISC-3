@@ -5,8 +5,8 @@
 // adapter from the LSU's abstract port to mmRISC-2's D$) and DCACHE, with
 // the D$'s memory bus (AXI4) and its peripheral bus (AXI4-Lite: below
 // MEM_BASE, nothing cached) as ports. The I$ is still a port (a model in
-// the test bench, Plan/CORE.md 4.6); FENCE.I's FLUSH of the D$ (OOO_SYS)
-// comes with B4.
+// the test bench, Plan/CORE.md 4.6), with FENCE.I's invalidate; FENCE.I's
+// FLUSH of the D$ (OOO_SYS, B4) goes to OOO_DCAD.
 //
 // The LSU's dc_kill is not used: OOO_DCAD drops the older answers of an LQ
 // entry when the entry sends a new request (OOO_LSU's header).
@@ -29,13 +29,14 @@ module OOO_CPU
         input  logic                        rst_n,
         input  logic                        boot,
         input  logic [VA-1:1]               boot_pc,
-        input  logic [VA-1:1]               trap_vec,
         // I$
         output logic                        ic_req_valid,
         output logic [VA-1:1]               ic_req_pc,
         input  logic                        ic_req_ready,
         input  logic                        ic_resp_valid,
         input  logic [127:0]                ic_resp_data,
+        output logic                        ic_flush,   // FENCE.I: invalidate the I$ (until ic_done)
+        input  logic                        ic_done,
         // the D$'s memory bus
         output logic [3:0]                  m_axi4_awid,
         output logic [PAW-1:0]              m_axi4_awaddr,
@@ -95,6 +96,7 @@ module OOO_CPU
         output logic [1:0][4:0]             tr_rd,
         output logic [1:0][63:0]            tr_val,
         output logic                        tr_trap,
+        output logic                        tr_int,
         output logic [4:0]                  tr_cause,
         output logic [VA-1:1]               tr_trap_pc,
         output logic [1:0]                  tr_st,
@@ -113,18 +115,20 @@ module OOO_CPU
     logic [7:0]       dc_kill;
     /* verilator lint_on UNUSEDSIGNAL */
 
+    logic             fl_req, fl_take, fl_done;
     OOO_CORE #(.VA(VA), .PAW(PAW)) u_core
-        (.clk(clk), .rst_n(rst_n), .boot(boot), .boot_pc(boot_pc), .trap_vec(trap_vec),
+        (.clk(clk), .rst_n(rst_n), .boot(boot), .boot_pc(boot_pc),
          .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ready(ic_req_ready),
          .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data),
          .dc_req_valid(dc_req_valid), .dc_req_addr(dc_req_addr), .dc_req_tag(dc_req_tag), .dc_hit(dc_hit),
          .dc_rdata(dc_rdata), .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),
          .dc_fill_ready(dc_fill_ready), .dc_kill(dc_kill), .dc_st_valid(dc_st_valid), .dc_st_addr(dc_st_addr),
-         .dc_st_data(dc_st_data), .dc_st_mask(dc_st_mask), .dc_st_ready(dc_st_ready)
+         .dc_st_data(dc_st_data), .dc_st_mask(dc_st_mask), .dc_st_ready(dc_st_ready),
+         .fl_req(fl_req), .fl_take(fl_take), .fl_done(fl_done), .ic_flush(ic_flush), .ic_done(ic_done)
 `ifdef OOO_TRACE
          ,
          .tr_valid(tr_valid), .tr_pc(tr_pc), .tr_insn(tr_insn), .tr_wr(tr_wr), .tr_rd(tr_rd), .tr_val(tr_val),
-         .tr_trap(tr_trap), .tr_cause(tr_cause), .tr_trap_pc(tr_trap_pc), .tr_st(tr_st), .tr_st_addr(tr_st_addr),
+         .tr_trap(tr_trap), .tr_int(tr_int), .tr_cause(tr_cause), .tr_trap_pc(tr_trap_pc), .tr_st(tr_st), .tr_st_addr(tr_st_addr),
          .tr_st_data(tr_st_data), .tr_st_size(tr_st_size)
 `endif
         );
@@ -141,7 +145,7 @@ module OOO_CPU
          .dc_rdata(dc_rdata), .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),
          .dc_fill_ready(dc_fill_ready), .dc_st_valid(dc_st_valid), .dc_st_addr(dc_st_addr), .dc_st_data(dc_st_data),
          .dc_st_mask(dc_st_mask), .dc_st_ready(dc_st_ready),
-         .fl_req(1'b0), .fl_take(), .fl_done(),
+         .fl_req(fl_req), .fl_take(fl_take), .fl_done(fl_done),
          .d_req_valid(d_req_valid), .d_req_ready(d_req_ready), .d_req_addr(d_req_addr), .d_req_size(d_req_size),
          .d_req_cmd(d_req_cmd), .d_req_wdata(d_req_wdata), .d_req_paddr(d_req_paddr), .d_req_cancel(d_req_cancel),
          .d_resp_valid(d_resp_valid), .d_resp_data(d_resp_data), .d_hit_now(d_hit_now), .d_hit_now_data(d_hit_now_data));

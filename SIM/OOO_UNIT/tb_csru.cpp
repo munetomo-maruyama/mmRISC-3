@@ -6,16 +6,20 @@
 // immediate form, rs1 = x0 or not, on one of: mscratch, sscratch, mepc,
 // mtval, mtvec (legal values: direct or vectored), mhpmcounter3 / 4 (the
 // two counters of L1), mhpmcounter5 / 6 (not there with L1: they read 0
-// and ignore writes), minstret, mvendorid and cycle (read only), and a CSR
-// that does not exist. Every cycle instructions retire (instret_inc 0 to
-// 4), and now and then a trap enters (exception or interrupt, random
-// cause, epc, tval) or an MRET returns.
+// and ignore writes), minstret, mcountinhibit (CY, IR, HPM3 / 4), mvendorid
+// and cycle (read only), and a CSR that does not exist. As in the core, a
+// CSR µop is at the ROB head: nothing commits in its cycle, and one that
+// writes commits alone in the next (instret_inc 1). Otherwise every cycle
+// instructions retire (instret_inc 0 to 4), and now and then a trap enters
+// (exception or interrupt, random cause, epc, tval) or an MRET returns.
 //
 // Checked: the value read (the old one), the exception exactly for a CSR
 // that does not exist or a write to a read-only one (with the instruction
 // as tval), the replay mark exactly when it writes, what was written read
 // back (mepc without bit 0), minstret = what was written + every
-// instruction retired since, the trap's mepc / mcause / mtval read back,
+// instruction retired since but the writing one, none while mcountinhibit's
+// IR is set (a write to mcountinhibit counts under the old bit and takes
+// effect after its commit), the trap's mepc / mcause / mtval read back,
 // the vector (mtvec's base, + 4 x cause for an interrupt when vectored),
 // mepc for MRET.
 //---------------------------------------------------------------------------
@@ -41,18 +45,21 @@ int main(int argc, char** argv)
 
     // the reference: plain registers, then the special ones
     std::map<int, uint64_t> r = {{0x340, 0}, {0x140, 0}, {0x341, 0}, {0x343, 0}, {0xB03, 0}, {0xB04, 0}};
-    uint64_t mtvec = 0, minstret = 0, mcause = 0; bool mt_known = false, mi_known = false;
-    // what each CSR is: 0 plain, 1 mepc, 2 mtvec, 3 not there with L1, 4 minstret, 5 read only, 6 does not exist
-    const int A[] = {0x340, 0x140, 0x341, 0x343, 0x305, 0xB03, 0xB04, 0xB05, 0xB06, 0xB02, 0xF11, 0x5C0, 0xC00};
-    const int K[] = {0, 0, 1, 0, 2, 0, 0, 3, 3, 4, 5, 6, 5};          // (cycle: read only)
-    long nop = 0, nwr = 0, nill = 0, ntrap = 0, nmret = 0, ninst = 0;
-    bool in_trap = false;
+    uint64_t mtvec = 0, minstret = 0, mcause = 0, ih = 0, ih_new = 0; bool mt_known = false, mi_known = false;
+    // what each CSR is: 0 plain, 1 mepc, 2 mtvec, 3 not there with L1, 4 minstret, 5 read only, 6 does not exist,
+    // 7 mcountinhibit
+    const int A[] = {0x340, 0x140, 0x341, 0x343, 0x305, 0xB03, 0xB04, 0xB05, 0xB06, 0xB02, 0xF11, 0x5C0, 0xC00, 0x320};
+    const int K[] = {0, 0, 1, 0, 2, 0, 0, 3, 3, 4, 5, 6, 5, 7};          // (cycle: read only)
+    long nop = 0, nwr = 0, nill = 0, ntrap = 0, nmret = 0, ninst = 0, nih = 0;
+    bool in_trap = false, commit = false, skip = false;      // commit: this cycle, the CSR µop that wrote (skip: minstret)
     // initial values that are not known until written: mtvec, minstret
     for (cyc = 0; cyc < 300000; cyc++) {
         int inc = rng() % 5;
         // (an MRET only after a trap from M: it returns to MPP, which a trap from M sets to M and an MRET to U)
         bool op = rng() % 3 == 0, trap = !op && rng() % 40 == 0, mret = !op && !trap && in_trap && rng() % 20 == 0;
-        int ai = rng() % 13, a = A[ai], k = K[ai];
+        if (op) inc = 0;                                     // (at the head: nothing commits)
+        if (commit) { op = trap = mret = false; inc = 1; }   // the CSR µop that wrote commits, alone
+        int ai = rng() % 14, a = A[ai], k = K[ai];
         int f3 = (int)(rng() % 3) + 1 + ((rng() & 1) ? 4 : 0);
         int rs1 = rng() % 4 == 0 ? 0 : 1 + rng() % 31;
         uint64_t src = rng();
@@ -87,6 +94,7 @@ int main(int argc, char** argv)
             else if (k == 2) { old = mtvec; known = mt_known; }
             else if (k == 3) old = 0;
             else if (k == 4) { old = minstret; known = mi_known; }
+            else if (k == 7) old = ih;
             else known = false;
             if (!ill && known && (uint64_t)d.ex_res != old) FAIL("csr %03x: read %016llx, expected %016llx", a, (unsigned long long)d.ex_res, (unsigned long long)old);
             // what it writes (at the edge)
@@ -98,7 +106,8 @@ int main(int argc, char** argv)
                 if (k == 0) r[a] = nv;
                 else if (k == 1) r[a] = nv & ~1ull;
                 else if (k == 2) { mtvec = nv; mt_known = true; }
-                else if (k == 4) { minstret = nv; mi_known = true; inc = 0; }   // (the write wins over this cycle's count)
+                else if (k == 4) { minstret = nv; mi_known = true; skip = true; }  // (its commit is not counted)
+                else if (k == 7) { ih_new = nv & 0x1d; nih++; }
             }
         }
         if (trap) {
@@ -125,10 +134,12 @@ int main(int argc, char** argv)
             d.ex_valid = 0; d.eval();
         }
         if (trap) in_trap = true; else if (mret) in_trap = false;
-        if (mi_known) minstret += inc;
+        if (mi_known && !(commit && skip) && !(ih & 4)) minstret += inc;
         ninst += inc;
+        if (commit) { ih = ih_new; skip = false; }
+        commit = op && ((f3 & 3) == 1 || rs1 != 0) && !(k == 6 || k == 5);
     }
-    printf("tb_csru: %ld cycles, %ld CSR µops (%ld writes, %ld illegal), %ld traps, %ld MRETs, %ld instructions counted, %ld mismatches: %s\n",
-           cyc, nop, nwr, nill, ntrap, nmret, ninst, bad, bad ? "FAIL" : "PASS");
+    printf("tb_csru: %ld cycles, %ld CSR µops (%ld writes, %ld of mcountinhibit, %ld illegal), %ld traps, %ld MRETs, %ld instructions retired, %ld mismatches: %s\n",
+           cyc, nop, nwr, nih, nill, ntrap, nmret, ninst, bad, bad ? "FAIL" : "PASS");
     return bad ? 1 : 0;
 }

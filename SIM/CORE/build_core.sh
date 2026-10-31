@@ -31,7 +31,8 @@ verilator --cc --exe --build -O2 -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT --x-assign
     $C/CORE_DECOMP/CORE_DECOMP.sv $C/CORE_DEC/CORE_DEC.sv $R/OOO_RARE/OOO_RARE.sv $R/OOO_DEC/OOO_DEC.sv $R/OOO_FRONT/OOO_FRONT.sv \
     $R/OOO_FUSE/OOO_FUSE.sv $R/OOO_RENAME/OOO_RENAME.sv $R/OOO_CTRL/OOO_CTRL.sv $R/OOO_DSREG/OOO_DSREG.sv $R/OOO_ROB/OOO_ROB.sv \
     $R/OOO_IQ/OOO_IQ.sv $R/OOO_IQPL/OOO_IQPL.sv $R/OOO_STAGE/OOO_STAGE.sv $R/OOO_ALU/OOO_ALU.sv $R/OOO_ALU2/OOO_ALU2.sv \
-    $R/OOO_PRF/OOO_PRF.sv $R/OOO_LSU/OOO_LSU.sv $R/OOO_CORE/OOO_CORE.sv $XSRC \
+    $R/OOO_PRF/OOO_PRF.sv $R/OOO_LSU/OOO_LSU.sv $C/CORE_CSR/CORE_CSR.sv $R/OOO_CSRU/OOO_CSRU.sv $R/OOO_TRAP/OOO_TRAP.sv \
+    $R/OOO_SYS/OOO_SYS.sv $R/OOO_PMUL/OOO_PMUL.sv $C/CORE_MDU/CORE_MDU.sv $R/OOO_MDUP/OOO_MDUP.sv $R/OOO_CORE/OOO_CORE.sv $XSRC \
     $HERE/tb_core.cpp $HERE/bench.cc $HERE/../LOCKSTEP/lockstep.cc \
     -CFLAGS "-O2 -std=c++17 $CDEF -I$HERE -I$HERE/../LOCKSTEP -I$S/include -I$S/include/riscv -I$S/include/softfloat -I$S/include/fesvr -Wno-c++20-extensions" \
     -LDFLAGS "-L$S/lib -lriscv -lsoftfloat -ldisasm -lfesvr -Wl,-rpath,$S/lib -lpthread -ldl" > $O/build.log 2>&1 \

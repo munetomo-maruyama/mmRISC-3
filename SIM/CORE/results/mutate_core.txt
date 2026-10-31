@@ -17,39 +17,69 @@
 16 DETECTED      bypass: none for the first source
 17 DETECTED      bypass: none for the second source
 18 DETECTED      bypass: port 1's result not forwarded
-19 DETECTED      WB: a µop without a destination forwards
-20 DETECTED      pc: the line of the last half's block
-21 DETECTED      jalr: the next block's predicted target
-22 DETECTED      RR: the second source from the first read
-23 DETECTED      every µop of port 2 a load
-24 DETECTED      loads sign- and zero-extended the other way
-25 DETECTED      the record: µop 1 with µop 0's LQ entry
-26 DETECTED      the record: µop 1 with µop 0's SQ entry
-27 DETECTED      CTRL: loads not counted against the LQ
-28 DETECTED      ROB: loads not marked (the LQ never freed)
-29 DETECTED      LSU: stores not given SQ entries
-30 DETECTED      LSU: stores issued as loads
-31 DETECTED      LSU: a load's LQ entry from the SQ field
-32 DETECTED      LSU: the offset left out
-33 DETECTED      LSU: every access a double word
-34 DETECTED      LSU: lbu / lhu / lwu sign-extended
-35 DETECTED      port 2: no bypass for the base
-36 DETECTED      port 2: no bypass for a store's data
-37 DETECTED      bypass: the LSU's result not forwarded
-38 DETECTED      register file: loads not written
-39 DETECTED      ROB: no replay after a load that raised ld_cancel
-40 DETECTED      LSU: the SQ restored to the LQ's tail
-41 DETECTED      LSU: stores never committed
-42 DETECTED      a jalr never mispredicted
-43 DETECTED      a branch mispredicted when taken
-44 DETECTED      the next pc after an RVC instruction
-45 DETECTED      a jalr's offset left out
-46 DETECTED      a jalr predicted to the branch target
-47 DETECTED      jalrs not resolved
-48 DETECTED      FERS: a jalr not taken (the history)
-49 DETECTED      TAGE: every branch taken
-50 DETECTED      TAGE: no outcomes
-51 DETECTED      BTB: never written
-52 DETECTED      ROB: µops without a destination never complete
-53 DETECTED      ROB: port 1 completes port 0's entry
-54 mutations, 54 detected
+19 DETECTED      WB: a µop of port 1 without a destination forwards
+20 DETECTED      WB: a µop of port 0 without a destination forwards
+21 DETECTED      pc: the line of the last half's block
+22 DETECTED      jalr: the next block's predicted target
+23 DETECTED      RR: the second source from the first read
+24 DETECTED      every µop of port 2 a load
+25 DETECTED      loads sign- and zero-extended the other way
+26 DETECTED      the record: µop 1 with µop 0's LQ entry
+27 DETECTED      the record: µop 1 with µop 0's SQ entry
+28 DETECTED      CTRL: loads not counted against the LQ
+29 DETECTED      ROB: loads not marked (the LQ never freed)
+30 DETECTED      LSU: stores not given SQ entries
+31 DETECTED      LSU: stores issued as loads
+32 DETECTED      LSU: a load's LQ entry from the SQ field
+33 DETECTED      LSU: the offset left out
+34 DETECTED      LSU: every access a double word
+35 DETECTED      LSU: lbu / lhu / lwu sign-extended
+36 DETECTED      port 2: no bypass for the base
+37 DETECTED      port 2: no bypass for a store's data
+38 DETECTED      bypass: the LSU's result not forwarded
+39 DETECTED      bypass: a load to x0 forwarded (tag 0)
+40 DETECTED      register file: loads not written
+41 DETECTED      ROB: no replay after a load that raised ld_cancel
+42 DETECTED      LSU: the SQ restored to the LQ's tail
+43 DETECTED      LSU: stores never committed
+44 DETECTED      a jalr never mispredicted
+45 DETECTED      a branch mispredicted when taken
+46 DETECTED      the next pc after an RVC instruction
+47 DETECTED      a jalr's offset left out
+48 DETECTED      a jalr predicted to the branch target
+49 DETECTED      jalrs not resolved
+50 DETECTED      FERS: a jalr not taken (the history)
+51 DETECTED      TAGE: every branch taken
+52 DETECTED      TAGE: no outcomes
+53 DETECTED      BTB: never written
+54 DETECTED      ROB: µops without a destination never complete
+55 DETECTED      ROB: port 1 completes port 0's entry
+56 DETECTED      ECALL not an exception
+57 DETECTED      an FP instruction not illegal (no FPU)
+58 DETECTED      ECALL: the cause without the level
+59 DETECTED      EBREAK: cause 2
+60 DETECTED      tval at decode: µop 1 with µop 0's
+61 DETECTED      multiplies and divides on the ALU
+62 DETECTED      MRET an ALU µop
+63 DETECTED      FENCE.I run as FENCE
+64 DETECTED      CSR and system µops issued before the head
+65 DETECTED      the MDU's µops wake their dependents at issue
+66 DETECTED      the instruction bits of µop 1 at µop 0's entry
+67 DETECTED      CSR: rs1 from the second read
+68 DETECTED      CSR: the old value not written
+69 DETECTED      a multiply to the MDU as well
+70 DETECTED      the MDU's result over the multiply's
+71 DETECTED      port 0: a multiply to x0 takes the write slot
+72 DETECTED      port 0: a divide to x0 forwarded (tag 0)
+73 DETECTED      SRET: the CSRs not restored
+74 DETECTED      a system µop complete at EX
+75 DETECTED      CSR: an illegal access completes
+76 DETECTED      CSR: no replay after a write
+77 DETECTED      the multiply completes the MDU's entry
+78 DETECTED      tval: a misaligned address not given
+79 DETECTED      tval: an illegal CSR access's not given
+80 DETECTED      minstret: a write counts its own commit
+81 DETECTED      mcountinhibit: written at EX (its own commit under the new bit)
+82 DETECTED      CSR: an illegal access's tval 0
+83 DETECTED      CSR: fcsr with mstatus.FS off not illegal
+84 mutations, 84 detected

@@ -102,6 +102,14 @@ public:
 };
 
 // the counters whose reads differ between a real core and Spike by nature
+// the implementation's identity (mvendorid, marchid, mimpid): the DUT's, as the counters
+// and the HPM events (what each number counts is the implementation's)
+bool impl_csr(unsigned csr)
+{
+    return csr == CSR_MVENDORID || csr == CSR_MARCHID || csr == CSR_MIMPID ||
+           (csr >= CSR_MHPMEVENT3 && csr <= CSR_MHPMEVENT31);
+}
+
 bool counter_csr(unsigned csr)
 {
     return csr == CSR_CYCLE || csr == CSR_TIME || csr == CSR_MCYCLE ||
@@ -126,6 +134,7 @@ struct Lockstep::Impl {
     std::ostringstream sout;
     uint64_t tohost = 0, fromhost = 0, nsteps = 0;
     bool htif_load = false;     // the last step read tohost or fromhost
+    uint64_t ih = 0;            // mcountinhibit as the core has it (LockstepCfg)
     bool exited = false;
     int code = 0;
     std::string out;
@@ -190,6 +199,14 @@ struct Lockstep::Impl {
         Commit r;
         r.pc = s->pc;
         r.insn = fetch(r.pc);
+        // a CSR instruction: what it writes, from the state before the step
+        unsigned opc = r.insn & 0x7f, f3 = (r.insn >> 12) & 7, csr = r.insn >> 20, rs1 = (r.insn >> 15) & 31;
+        bool csr_op = opc == 0x73 && f3 != 0 && f3 != 4;
+        bool csr_wr = csr_op && ((f3 & 3) == 1 || rs1 != 0);
+        uint64_t src = (f3 & 4) ? rs1 : (uint64_t)s->XPR[rs1];
+        auto wval = [&](uint64_t old) { return (f3 & 3) == 1 ? src : (f3 & 3) == 2 ? old | src : old & ~src; };
+        uint64_t pre = (csr_wr && (csr == CSR_MISA || csr == CSR_MTVEC || csr == CSR_STVEC)) ? proc->get_csr(csr) : 0;
+        bool ir_off = (ih & 4) != 0;                       // mcountinhibit.IR
         reg_t inst0 = proc->get_csr(CSR_MINSTRET);
         proc->step(1);
         nsteps++;
@@ -212,6 +229,27 @@ struct Lockstep::Impl {
         for (auto& m : s->log_mem_write) {
             r.st = true;
             r.st_addr = std::get<0>(m); r.st_data = std::get<1>(m); r.st_size = std::get<2>(m);
+        }
+        // the core's legal choices (LockstepCfg)
+        auto give = [&](uint64_t v) { if (r.rd > 0) { s->XPR.write(r.rd, v); r.rd_val = v; } };
+        if (csr_op && csr == CSR_MISA && c.misa) {
+            give(c.misa);
+            if (csr_wr) proc->put_csr(CSR_MISA, pre);
+        }
+        if (csr_op && csr == CSR_MCOUNTINHIBIT && c.mcountinhibit) {
+            give(ih);
+            if (csr_wr) ih = wval(ih) & c.mcountinhibit;
+        }
+        if (csr_wr && csr == CSR_MEDELEG && c.medeleg_zero)
+            proc->put_csr(CSR_MEDELEG, proc->get_csr(CSR_MEDELEG) & ~c.medeleg_zero);
+        if (csr_wr && (csr == CSR_MTVEC || csr == CSR_STVEC) && c.tvec_mode0 && (wval(pre) & 3) >= 2)
+            proc->put_csr(csr, wval(pre) & ~3ull);
+        if (ir_off && !(csr_wr && csr == CSR_MINSTRET)) {
+            // (Spike's minstret write allows for the increment to come: what it holds is read back)
+            reg_t want = proc->get_csr(CSR_MINSTRET) - 1;
+            proc->put_csr(CSR_MINSTRET, want);
+            reg_t got = proc->get_csr(CSR_MINSTRET);
+            if (got != want) proc->put_csr(CSR_MINSTRET, want + (want - got));
         }
         htif();
         return r;
@@ -243,7 +281,7 @@ bool Lockstep::check(const Commit& d, std::string* why)
     }
     // a counter read, and a load of tohost or fromhost, take the DUT's value
     unsigned opc = r.insn & 0x7f, f3 = (r.insn >> 12) & 7;
-    if (((opc == 0x73 && f3 != 0 && f3 != 4 && counter_csr(r.insn >> 20)) || p->htif_load) && r.rd > 0 && !r.rd_fp) {
+    if (((opc == 0x73 && f3 != 0 && f3 != 4 && (counter_csr(r.insn >> 20) || impl_csr(r.insn >> 20))) || p->htif_load) && r.rd > 0 && !r.rd_fp) {
         p->proc->get_state()->XPR.write(r.rd, d.rd_val);
         r.rd_val = d.rd_val;
     }

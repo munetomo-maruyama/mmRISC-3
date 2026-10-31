@@ -148,8 +148,8 @@ port 1's write-back, the LSU's loads, the LSU's stores.
 | B1 | The front end alone: fetch through the I$ model, FBUF, decode, fusion off; the decoded stream | against Spike's pc sequence (a back end that takes every µop and follows the true path, as tb_fetch) | rv64ui programs fetch and decode in order |
 | B2 | The core with ALU µops only (port 0 / 1), no memory, fusion off | lock-step at every commit | straight-line ALU programs, then branches and jal / jalr (mispredictions, restores) |
 | B3 | Loads and stores: LSU with a D$ model, then OOO_DCAD and the real D$ | lock-step | rv64ui's loads and stores, the store-forwarding tests |
-| B4 | riscv-arch-test: I, M, C, Zba / Zbb / Zbc / Zbs, Zicond, Zicsr, privileged M (CSRs, traps, MRET, FENCE.I) | lock-step and the suite's signatures | all pass (the ones mmRISC-2 also fails excepted) |
-| B5 | Fusion on, kind by kind; the MDU and PMUL; interrupts (a timer model) | lock-step (`rd_skip` for first halves) | B4 again with fusion on |
+| B4 | riscv-arch-test: I, M, C, Zba / Zbb / Zbc / Zbs, Zicond, Zicsr, privileged M (CSRs, traps, MRET, FENCE.I); the MDU and PMUL (the M tests need them) | lock-step (it checks every store: the suite's signature is stores; 5.7) | all pass (the ones mmRISC-2 also fails excepted) |
+| B5 | Fusion on, kind by kind; interrupts (a timer model) | lock-step (`rd_skip` for first halves) | B4 again with fusion on |
 | B6 | CoreMark (the three builds of `Plan/trace`) with the real caches | its cycles against the model | within ±5 % of the model (G1) |
 | B7 | `OOO_CORE` out of context in Vivado | `synth_ooo.tcl` | the LUTs and 50 MHz (G1) |
 
@@ -389,6 +389,59 @@ Results (`SIM/CORE/results/core.txt`; `./run_core.sh`):
   cleared by that retry, and with no store after it nothing sets it again (the console hangs on `OOO_CPU` with it).
 - **The rest still passes**: all 28 unit tests; every LSU and D$-adapter mutation (47 of 47); B2 and B3 on both tops
   (`run_core.sh`, the 7 runs); the core's glue mutations (54 of 54).
+- **Vivado** (the author's run): `OOC_LSU` 1,942 → 1,947 LUTs (+5), WNS 6.875 → 6.548 ns; `OOC_LSUDC` 7,678 → 7,681
+  LUTs, WNS 0.820 → 1.964 ns (the LSU +5 LUTs; the rest is placement).
+
+### 5.7 B4: riscv-arch-test, the CSRs and traps (2026-10-31)
+
+`OOO_CORE` gets the rest of port 0 (3.5): `OOO_CSRU` (mmRISC-2's CORE_CSR), `OOO_SYS` (FENCE, FENCE.I with the D$
+flush and the I$ invalidate, SFENCE.VMA, MRET, SRET, WFI), `OOO_PMUL` and `OOO_MDUP` (planned for B5; the M tests
+need them), and `OOO_TRAP` (exceptions, interrupts, the vector, the replay pc). `tb_core` gets FENCE.I's I$ invalidate
+and D$ flush on both tops.
+
+Decisions made on the way:
+
+| # | Item | What | Why |
+|---|---|---|---|
+| B4-1 | The instruction bits for the CSR and system units | per ROB entry (`rob_insn`, written at dispatch, read by port 0's EX at the head), not in the record; the record gets the unit (`kind`, 2 bits) and its operation (`xop`, 4): 102 bits | only the head's µop reads them, and the CSR address and the immediate would take 17 bits of the record |
+| B4-2 | Exceptions found at decode | an illegal instruction (and every FP instruction, its loads and stores too: no FPU in Phase 1; decode's `is_fp`), ECALL (cause 8 + the level), EBREAK (cause 3, tval the pc): to the ROB at dispatch, never issued; their tval goes to `OOO_TRAP` through ports 0 / 1 | the ROB takes the exception in order; nothing has to run |
+| B4-3 | tval and completion | `OOO_TRAP` with 4 tval ports (dispatch × 2, port 2's misaligned address, the CSR or system unit: one at a time at the head); 6 completion ports (port 0, port 1, loads, stores, PMUL / MDU, the system unit) | one each |
+| B4-4 | minstret | an instruction that writes minstret does not count itself (`ir_skip`); **a write to mcountinhibit reaches CORE_CSR at the commit of its instruction**, which counts under the old IR bit (`Sm_mcsr_cntr`) | a CSR µop writes in EX and commits alone next; Spike and Sail count the writing instruction under the old setting |
+| B4-5 | mconfigptr | added to CORE_CSR (0xF15, read-only 0) | the privileged spec 1.12 requires it; mmRISC-2 did not have it (`Sm_mcsr_access`) |
+| B4-6 | riscv-arch-test without Sail | the ACT4 framework computes the expected values with Sail and compiles them into self-checking ELFs; Sail and the UDB tools are not here. `b4/build.sh` builds each test as the framework builds its signature ELF (`-DSIGNATURE`), and the lock-step with Spike at every instruction checks every register written, every store (the signature is stores) and every trap | the same check, at every instruction instead of at the end |
+| B4-7 | The reference set to the core's legal choices (`SIM/LOCKSTEP`) | misa read-only (Spike: writable); mcountinhibit kept by LOCKSTEP (Spike has none; its IR bit takes each instruction's count back from minstret); medeleg's bit 18 reads 0 (no Zicfilp / Zicfiss); a reserved mode of mtvec / stvec written as direct (Spike: bit 1 cleared); the HPM events read the DUT's value | WARL choices both legal, found by `Sm_misa`, `Sm_mcsr_cntr` / `walk-10`, `Sm_mcsr_access` / `walk-00`, `walk-01` / `Sm_scsr_from_m`, `walk-02` to `walk-09` |
+| B4-8 | The DUT configuration of the tests (`b4/act`) | `rvtest_config.h` by hand (RV64, M / S / U, C, the B parts, Zicond, Zicsr, Zifencei, Zicntr, Zihpm with 2 counters, 8 PMP entries, mtvec / stvec direct and vectored); `rvmodel_macros.h`: HTIF's halt, x1 to x31 cleared at boot (the PRF has no reset), no access-fault address (the I$ / D$ errors are not wired in Phase 1: those cases are not generated); `riscv_arch_test.h` with `act_sig_macros.h` for `sail_macros.h` (no Sail CLINT: the boot's parking store to mtimecmp goes to a word in the image); the Sm and Exceptions tests generated by the framework's testgen, those whose required extensions fit; the Interrupts tests not built (no interrupt source yet) | the framework wants UDB, Sail and binutils 2.44 |
+| B4-9 | binutils 2.43 | `-mno-relax`: 2.43 picks how to fill a code alignment by the relax option at the end of the file, and the tests' `.option pop` sets it back there: the entry's `.p2align` (made under `norelax`) came out as zeros | the tests turn relaxation off anyway |
+
+**Bugs found**:
+
+1. **A load to x0** (`ld zero, ...`): its result has tag 0, and the LSU's write-back register forwarded it to the
+   readers of x0 (the PRF reads register 0 as 0, the bypass did not). 19 of the 51 I tests (`add`, `bge`, `srl`, ...:
+   the tests load x0 as a source). Fixed: the LSU's bypass only for a tag other than 0. B2 / B3's random programs
+   never loaded into x0; `gen_b2.py`'s `ls` programs now do, with a reader of x0 at once.
+2. **A multiply to x0** (`mul zero, ...`): `OOO_PMUL`'s result took port 0's write slot, which the issue queue keeps
+   only after a multiply with a destination, and the ALU µop of that cycle lost its register write; it was also
+   forwarded with tag 0 (and so was a divide's to x0). `M-mul` / `M-mulw` on `OOO_CPU` only (the timing). Fixed: a
+   result of the multiplier or the MDU with tag 0 neither takes the slot nor is forwarded. `gen_b2.py`'s `ls`
+   programs now multiply, to x0 too, and read x0 after.
+3. **mcountinhibit** written in EX made its own instruction count under the new IR bit (B4-4).
+4. **mconfigptr** missing (B4-5).
+5. **FP loads and stores** were not illegal (only port 3's µops were): `flw` went to the LSU. Found by the directed
+   test `b4/dir/illegal.S` written for the bug injection (5.7's last list). Fixed: decode's `is_fp`.
+6. **fflags / frm / fcsr with mstatus.FS off** were not illegal: mmRISC-2's CPU_CORE checked it, not CORE_CSR. Fixed
+   in `OOO_CSRU`.
+
+Results (`SIM/CORE/results/core.txt`; `./run_core.sh`, 12 runs):
+
+| Run | Result |
+|---|---|
+| riscv-arch-test, 185 tests (I 51, M 13, Zca 32, Zba 8, Zbb 24, Zbc 3, Zbs 8, Zicond 2, Zicsr 6, Zifencei 1, Zicntr 2, Sm 28, Exceptions 7): OOO_CORE on 2 seeds (80 % / 30 % D$ hits), OOO_CPU | **all pass** |
+| riscv-tests' -p- programs of mmRISC-2 (rv64ui / um / uc / uzba / uzbb / uzbc / uzbs / uzicond / mi / si: 130): OOO_CORE, OOO_CPU | **127 pass**; the 3 that Phase 1 cannot run are left out: `rv64mi-p-breakpoint` (the triggers' firing is not wired), `rv64mi-p-csr` (an FP instruction), `rv64si-p-dirty` (paging) |
+| `b4/dir/illegal.S` (directed: FP instructions with FS off, illegal compressed encodings and their tval, 32-bit illegal ones, in either slot; on both tops, with the arch-tests) | passes |
+| B2 and B3 (5.4, 5.5) | all pass |
+
+- **Bug injection**: `mutate_core.py`, now 84 mutations, run on B2's and B3's programs and then on B4's: B3's 54 (4 follow lines the B4 glue renamed, the WB one split by port), the load to x0's bypass, and 28 for B4 (the exceptions at decode, their cause and tval; the units' µops: kind, MRET, FENCE.I, non-speculative, the MDU's wakeup, the instruction bits, the CSR operand and result, a multiply into the MDU as well, the MDU's write slot, the tag-0 results of the multiplier and the MDU, SRET; completion and tval; OOO_CSRU's counting, tval and the FS check). The first campaign left 6 undetected: an FP instruction not illegal, the tval of an exception in slot 1, an illegal RVC instruction's tval (no program made the case), a multiply into the MDU as well, the MDU's result over the multiply's, a divide to x0 forwarded (no program mixed divides and multiplies). `b4/dir/illegal.S` (which then found bugs 5 and 6) and `ls` programs that multiply after divides and mulh caught five; the sixth, the RVC instruction's tval masked to 16 bits, was redundant (`OOO_FBUF` already gives an RVC instruction with its upper half 0) and the mask is gone. **84 of 84 detected** (`results/mutate_core.txt`). Unit mutations M356 to M358 (a write to minstret counting its own commit, mcountinhibit written in EX, written again at every commit): 3 of 3 detected by `tb_csru`; 322 now.
+- **The rest**: all 28 unit tests (`tb_csru` now with the core's protocol for CSR µops: nothing commits in their cycle, one that writes commits alone next; and mcountinhibit); B1 (`run_front.sh`); LOCKSTEP's self-test; `verilator --lint-only -Wall` of both tops: no new warning.
 
 ---
 

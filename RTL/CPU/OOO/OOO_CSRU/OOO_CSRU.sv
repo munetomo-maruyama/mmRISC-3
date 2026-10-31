@@ -10,8 +10,9 @@
 //             so in EX nothing older is left and the µop commits (no
 //             interrupt while the head's non-speculative µop has issued).
 //             EX reads the CSR (the result, port 0's like an ALU µop's),
-//             checks it (not implemented, not allowed at this level, or a
-//             write to a read-only one: an illegal instruction, with the
+//             checks it (not implemented, not allowed at this level, a
+//             write to a read-only one, or an FP CSR with mstatus.FS off,
+//             as mmRISC-2's CPU_CORE did: an illegal instruction, with the
 //             instruction bits as tval) and writes it in the same cycle
 //             (mmRISC-2 wrote at commit; here EX at the head is as late as
 //             it gets). csrrs / csrrc with x0 (or a zero immediate) do not
@@ -23,7 +24,12 @@
 //             when vectored), mepc / sepc for the returns, and the
 //             interrupt to take (irq_req, its cause) and WFI's wakeup
 //   counters  minstret counts the instructions retired a cycle, 0 .. 4
-//             (instret_inc: the copy of CORE_CSR here has that one change)
+//             (instret_inc: the copy of CORE_CSR here has that one change).
+//             An instruction that writes minstret does not count itself (as
+//             Spike): written in EX, it commits next, alone (a CSR µop at the
+//             head, marked for replay), and that commit is not counted.
+//             A write to mcountinhibit reaches CORE_CSR at that commit, so
+//             the instruction counts under the old IR bit (as Spike, Sail)
 //
 // The rest of CORE_CSR's outputs (the level, satp, mstatus bits, PMP, the
 // FP state, debug and triggers) go out as they are, for the MMU, the FPU
@@ -134,7 +140,9 @@ module OOO_CSRU
     always @(*) begin
         src         = ex_op[2] ? {59'd0, ex_rs1} : ex_src;
         wants_write = ex_op[1:0] == 2'b01 || ex_rs1 != 5'd0;
-        ill         = !ex_exists || ex_denied || (wants_write && ex_readonly);
+        // (with mstatus.FS off fflags / frm / fcsr are not there: mmRISC-2's CPU_CORE checked it)
+        ill         = !ex_exists || ex_denied || (wants_write && ex_readonly) ||
+                      (fs == 2'b00 && (ex_addr == 12'h001 || ex_addr == 12'h002 || ex_addr == 12'h003));
         wr_en       = ex_valid && wants_write && !ill;
         case (ex_op[1:0])
             2'b10:   wdata = rmw_data | src;
@@ -152,6 +160,27 @@ module OOO_CSRU
         sepc     = sret64[VA-1:1];
     end
 
+    // the commit of an instruction that wrote minstret is not counted
+    logic       ir_skip;
+    logic [2:0] ir_inc;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)                                ir_skip <= 1'b0;
+        else if (wr_en && ex_addr == 12'hB02)      ir_skip <= 1'b1;
+        else if (instret_inc != 3'd0)              ir_skip <= 1'b0;
+    end
+    assign ir_inc = (ir_skip && instret_inc != 3'd0) ? instret_inc - 3'd1 : instret_inc;
+
+    // a write to mcountinhibit waits for its commit (nothing reads it before)
+    logic        ih_pend, c_wr_en;
+    logic [63:0] ih_data;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)                                ih_pend <= 1'b0;
+        else if (wr_en && ex_addr == 12'h320)      ih_pend <= 1'b1;
+        else if (instret_inc != 3'd0)              ih_pend <= 1'b0;
+    end
+    always_ff @(posedge clk) if (wr_en && ex_addr == 12'h320) ih_data <= wdata;
+    assign c_wr_en = (wr_en && ex_addr != 12'h320) || (ih_pend && instret_inc != 3'd0);
+
     // (rd_exists / rd_readonly are the debugger's, trap_to_s is in the vector already)
     /* verilator lint_off PINCONNECTEMPTY */
     CORE_CSR #(.HART_ID(HART_ID), .MISA(MISA), .PMP_ENTRIES(PMP_ENTRIES), .PMP_CSRS(PMP_CSRS),
@@ -160,7 +189,7 @@ module OOO_CSRU
          .rd_addr(dbg_access ? dbg_addr : ex_addr), .rd_data(rd_data), .rmw_data(rmw_data),
          .rd_exists(), .rd_readonly(),
          .ex_addr(ex_addr), .ex_exists(ex_exists), .ex_readonly(ex_readonly), .ex_denied(ex_denied),
-         .wr_en(wr_en), .wr_addr(ex_addr), .wr_data(wdata),
+         .wr_en(c_wr_en), .wr_addr(ih_pend ? 12'h320 : ex_addr), .wr_data(ih_pend ? ih_data : wdata),
          .trap_en(trap_en), .trap_int(trap_int), .trap_cause(trap_cause),
          .trap_epc({{(65 - VA){trap_epc[VA-1]}}, trap_epc[VA-2:1], 1'b0}), .trap_tval(trap_tval),
          .trap_vector(tvec64), .trap_to_s(),
@@ -172,7 +201,7 @@ module OOO_CSRU
          .mstatus_tw_out(mstatus_tw), .mstatus_tsr_out(mstatus_tsr),
          .menvcfg_cbze_out(menvcfg_cbze), .senvcfg_cbze_out(senvcfg_cbze),
          .pmpcfg_out(pmpcfg), .pmpaddr_out(pmpaddr), .pmpmask_out(pmpmask),
-         .instret_inc(instret_inc), .hpm_ev(hpm_ev),
+         .instret_inc(ir_inc), .hpm_ev(hpm_ev),
          .fflags_we(fflags_we), .fflags_set(fflags_set), .fs_dirty(fs_dirty), .frm_out(frm), .fs_out(fs),
          .dbg_access(dbg_access), .dbg_enter(dbg_enter), .dbg_cause(dbg_cause), .dbg_pc(dbg_pc),
          .dbg_resume(dbg_resume), .dcsr_step(dcsr_step), .dcsr_ebreakm(dcsr_ebreakm),

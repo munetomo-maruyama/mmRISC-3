@@ -15,8 +15,15 @@
 //     character is device 1, command 1 (Plan/icount/port/minilib.c). The
 //     DUT's test bench answers it when the store reaches its memory.
 //   - Reads of the counters that differ by nature (cycle, time, mcycle, the
-//     HPM counters) take the DUT's value: the reference's register is set to
-//     it after the step.
+//     HPM counters), of the HPM events (the implementation's) and of the
+//     implementation's identity (mvendorid, marchid, mimpid) take the DUT's
+//     value: the reference's register is set to it after the step.
+//   - Where the core's CSRs make other legal choices than Spike's
+//     (LockstepCfg: misa read-only, mcountinhibit, medeleg's bit 18, the
+//     reserved modes of mtvec / stvec), the reference is put where the core
+//     is after each CSR instruction; mcountinhibit is kept here (Spike has
+//     none), and while its IR bit is set each instruction's count is taken
+//     back from minstret (the writing instruction counts under the old bit).
 //   - So do loads of tohost and fromhost (SIM/CORE): in the core a store to
 //     tohost goes through the store queue and the D$ before the test bench
 //     sees it and puts tohost back to 0, so a loop polling tohost runs more
@@ -25,8 +32,8 @@
 //   - The first half of a fused pair whose result is not written (one write
 //     per pair, OOO_FUSE W1) sets rd_skip: only its pc and instruction are
 //     compared.
-// Phase 1 is M-mode, bare metal, without interrupts; interrupts and MMIO
-// with side effects come in Phase 2.
+// Interrupts are traps with bit 63 of the cause (the DUT's tr_int); the
+// bench has no interrupt source in Phase 1, and no MMIO with side effects.
 //---------------------------------------------------------------------------
 #pragma once
 #include <cstdint>
@@ -57,6 +64,14 @@ struct LockstepCfg {
     uint64_t    mem_base = 0x80000000ull;
     uint64_t    mem_size = 64ull << 20;
     unsigned    pmp_regions = 16;     // mmRISC-2: 8 entries, pmpaddr8 to 15 read 0
+    // the CSRs where the core (mmRISC-2's CORE_CSR) and Spike make different
+    // legal choices: the reference is put where the core is (0 / false: Spike's own)
+    uint64_t    misa = 0x800000000014112Full;  // read-only, this value (Spike: writable)
+    uint64_t    mcountinhibit = 0x1d;          // its bits (CY, IR, HPM3-4; Spike has none):
+                                               //  kept here, IR stops minstret
+    uint64_t    medeleg_zero = 1ull << 18;     // read 0 (software check: no Zicfilp / Zicfiss)
+    bool        tvec_mode0 = true;             // mtvec / stvec: a reserved mode is written as
+                                               //  direct (Spike: bit 1 cleared)
 };
 
 class Lockstep {

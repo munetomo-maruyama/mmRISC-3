@@ -1,9 +1,10 @@
 //---------------------------------------------------------------------------
 // CORE_CSR.sv
 //
-// (mmRISC-3: taken from mmRISC-2 Rev.02 with one change, RTL/CPU/CORE/README.md:
+// (mmRISC-3: taken from mmRISC-2 Rev.02 with two changes, RTL/CPU/CORE/README.md:
 // instret_inc counts the instructions retired in a cycle, 0 .. 4, two
-// µops of up to two instructions each; it was one bit)
+// µops of up to two instructions each; it was one bit. mconfigptr (0xF15,
+// read-only 0), which the privileged spec 1.12 requires, is there.)
 //
 // CSR file, privilege level and trap state (CPU_CORE_SPEC.md 7, 8, 14).
 //
@@ -229,6 +230,7 @@ module CORE_CSR
     localparam logic [11:0] CSR_MARCHID   = 12'hF12;
     localparam logic [11:0] CSR_MIMPID    = 12'hF13;
     localparam logic [11:0] CSR_MHARTID   = 12'hF14;
+    localparam logic [11:0] CSR_MCONFIGPTR = 12'hF15;
     // debug mode only
     localparam logic [11:0] CSR_TSELECT   = 12'h7A0;
     localparam logic [11:0] CSR_TDATA1    = 12'h7A1;
@@ -524,7 +526,7 @@ module CORE_CSR
             CSR_MSTATUS, CSR_MISA, CSR_MEDELEG, CSR_MIDELEG, CSR_MIE,
             CSR_MTVEC, CSR_MCOUNTEREN, CSR_MSCRATCH, CSR_MEPC, CSR_MCAUSE,
             CSR_MTVAL, CSR_MIP, CSR_MCYCLE, CSR_MINSTRET,
-            CSR_MVENDORID, CSR_MARCHID, CSR_MIMPID, CSR_MHARTID,
+            CSR_MVENDORID, CSR_MARCHID, CSR_MIMPID, CSR_MHARTID, CSR_MCONFIGPTR,
             CSR_TSELECT, CSR_TDATA1, CSR_TDATA2, CSR_TDATA3, CSR_TINFO,
             CSR_TCONTROL  : ;
             // below M only with STCE and with the time counter allowed
@@ -663,6 +665,7 @@ module CORE_CSR
             CSR_MARCHID   : rd_data = 64'd0;
             CSR_MIMPID    : rd_data = 64'd0;
             CSR_MHARTID   : rd_data = HART_ID;
+            CSR_MCONFIGPTR: rd_data = 64'd0;
             CSR_DCSR      : rd_data = {32'd0, 4'd4, 12'd0, dcsr_ebreakm_r, 1'b0,
                                        dcsr_ebreaks_r, dcsr_ebreaku_r, 3'b000, dcsr_cause,
                                        3'b000, dcsr_step_r, dcsr_prv};

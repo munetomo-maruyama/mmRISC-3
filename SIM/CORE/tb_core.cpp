@@ -130,7 +130,11 @@ static bool run(const Opts& o, const std::string& elf)
 #ifdef CPU_TOP
     d->sim_uc_line = b.symbol("tohost") >> 6;          // HTIF's line: not cached (Plan/CORE.md 5.1 rule 2)
 #endif
-    d->clk = 0; d->boot = 0; d->boot_pc = 0; d->trap_vec = 0;
+    d->clk = 0; d->boot = 0; d->boot_pc = 0;
+    bool icf_q = false;                                 // FENCE.I: the I$ model holds nothing, its invalidate is done a cycle later
+#ifndef CPU_TOP
+    bool flq_q = false;                                 // FENCE.I: the D$ model (Memory) has nothing to write back
+#endif
     d->ic_req_ready = 0; d->ic_resp_valid = 0;
     d->rst_n = 1; d->eval(); d->rst_n = 0; d->eval(); d->rst_n = 1; d->eval();
     long restores = 0, replays = 0;
@@ -141,6 +145,7 @@ static bool run(const Opts& o, const std::string& elf)
         d->ic_req_ready = ic.ready();
         d->ic_resp_valid = ic.resp_valid();
         { uint32_t w[4]; ic.resp_data(w); for (int k = 0; k < 4; k++) d->ic_resp_data[k] = w[k]; }
+        d->ic_done = icf_q;
 #ifdef CPU_TOP
         ax.drive();
         d->m_axi4_arready = ax.arready; d->m_axi4_awready = ax.awready; d->m_axi4_wready = ax.wready;
@@ -154,6 +159,7 @@ static bool run(const Opts& o, const std::string& elf)
         d->dc_hit = dc.hit(); d->dc_rdata = dc.rdata();
         d->dc_fill_valid = dc.fill_valid(); d->dc_fill_tag = dc.fill_tag(); d->dc_fill_data = dc.fill_data();
         d->dc_st_ready = dc.st_ready();
+        d->fl_take = 1; d->fl_done = flq_q;
 #endif
         d->eval();
         // the commit trace
@@ -162,7 +168,9 @@ static bool run(const Opts& o, const std::string& elf)
         if (d->tr_trap) {
             s[0] = TraceSlot{};
             s[0].pc = wbits(d->tr_trap_pc, 0, VA - 1) << 1;
-            s[0].trap = true; s[0].cause = d->tr_cause;
+            s[0].trap = true; s[0].cause = d->tr_cause | ((uint64_t)d->tr_int << 63);   // (mcause's interrupt bit)
+            s[0].insn[0] = (uint32_t)wbits(d->tr_insn, 0, 32);           // the head's instruction
+            if ((s[0].insn[0] & 3) != 3) s[0].insn[0] &= 0xffff;
             n = 1;
         } else {
             for (int k = 0; k < 2; k++) {
@@ -187,6 +195,10 @@ static bool run(const Opts& o, const std::string& elf)
             std::string why = check_resolution(d->rootp);
             if (!why.empty()) { std::printf("cycle %llu: %s\n", (unsigned long long)cyc, why.c_str()); res_bad = true; break; }
         }
+        bool icf = d->ic_flush;                         // (sampled before the clock edge)
+#ifndef CPU_TOP
+        bool flr = d->fl_req;                           // taken now (fl_take is 1): done in the next cycle
+#endif
         bool acc = d->ic_req_valid && ic.ready();
         uint64_t rpc = d->ic_req_pc;
 #ifdef CPU_TOP
@@ -203,6 +215,10 @@ static bool run(const Opts& o, const std::string& elf)
         if (!b.commit(s, n)) break;
         if (!b.tick()) break;
         d->clk = 1; d->eval(); d->clk = 0; d->eval();
+        icf_q = icf && !icf_q;
+#ifndef CPU_TOP
+        flq_q = flr;
+#endif
         ic.clock(acc, rpc);
 #ifdef CPU_TOP
         ax.clock(arv, ara, arl, rr, awv, awa, awl, wv, wd, ws, br);

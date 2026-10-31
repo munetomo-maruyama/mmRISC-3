@@ -24,7 +24,9 @@
 #            and written back): stores and loads of the same word soon after each
 #            other (forwarding), smaller stores under larger loads (a store
 #            that does not cover the load: it waits), values passed through
-#            memory to dependent loads, bursts of stores (the SQ fills)
+#            memory to dependent loads (or to x0, read at once: tag 0), bursts
+#            of stores (the SQ fills); multiplies after divides or mulh now and
+#            then (to x0 too, then x0 read)
 #---------------------------------------------------------------------------
 import random, sys
 
@@ -102,6 +104,15 @@ def main():
             body = []
             for _ in range(rnd.randint(1, 4)):
                 body.append('    ' + alu(rnd, regs, few))
+            if kind == 'ls' and rnd.random() < 0.15:       # a multiply (OOO_PMUL), to x0 now and then, x0 read soon
+                if rnd.random() < 0.5:                     # after an MDU µop (OOO_MDUP: its result and the multiply's meet)
+                    body.append('    %s %s, %s, %s' % (rnd.choice(['div', 'divu', 'rem', 'remu', 'divw', 'remuw', 'mulh', 'mulhu']),
+                                                      'x0' if rnd.random() < 0.3 else rnd.choice(few), rnd.choice(regs), rnd.choice(regs)))
+                body.append('    %s %s, %s, %s' % (rnd.choice(['mul', 'mulw']), 'x0' if rnd.random() < 0.4 else rnd.choice(few),
+                                                  rnd.choice(regs), rnd.choice(regs)))
+                for _ in range(rnd.randint(0, 2)):
+                    body.append('    ' + alu(rnd, regs, few))
+                body.append('    add %s, x0, %s' % (rnd.choice(regs), rnd.choice(regs)))
             if kind == 'ls' and rnd.random() < 0.5:        # memory
                 m = rnd.random()
                 base = rnd.choice(BASES)
@@ -121,6 +132,8 @@ def main():
                     r = rnd.choice(few)
                     o = mem_off(base, 8)
                     body.append('    sd %s, %d(%s)' % (r, o, base))
+                    if rnd.random() < 0.25:                # or to x0 (tag 0) and a reader of x0 at once
+                        r = 'x0'
                     body.append('    ld %s, %d(%s)' % (r, o, base))
                     body.append('    add %s, %s, %s' % (rnd.choice(regs), r, rnd.choice(regs)))
                 else:                                      # a burst of stores (the SQ fills), then loads

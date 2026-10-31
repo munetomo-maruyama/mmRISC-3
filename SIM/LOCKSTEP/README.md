@@ -41,11 +41,20 @@ instruction in program order:
   core: **loads of `tohost` and `fromhost` take the core's value** (the reference's register is overwritten, as for
   the counters), and the reference runs the same loop (added 2026-10-29).
 - **Counters**: reads of `cycle`, `time`, `mcycle` and the HPM counters take the core's value (the reference's register
-  is overwritten), since only those differ by nature. `instret` is compared (a fused pair counts 2).
+  is overwritten), since only those differ by nature. `instret` is compared (a fused pair counts 2). So do reads of
+  the HPM events (what each number counts is the implementation's) and of `mvendorid` / `marchid` / `mimpid`.
+- **The core's legal CSR choices** (`LockstepCfg`, 2026-10-31, B4 of `Plan/CORE.md` 5.7): where mmRISC-2's CORE_CSR
+  and Spike make different WARL choices, the reference is put where the core is after each CSR instruction: `misa`
+  read-only (reads give `misa`, a write is undone in Spike); `mcountinhibit` kept by LOCKSTEP (Spike has none), and
+  while its IR bit is set each instruction's count is taken back from Spike's `minstret` (the writing instruction
+  counts under the old bit); `medeleg`'s bit 18 cleared after a write; a reserved mode written to `mtvec` / `stvec`
+  made direct (Spike clears bit 1 only). riscv-arch-test's Sm tests found each. `SIM/CORE`'s stand-in test, where
+  the core is a second Spike, turns them off.
 - **Misaligned accesses trap** (as in mmRISC-2), and the reference is set the same way.
 - **The reference is mmRISC-2's machine**: its instruction set (`rv64imafdc_zicboz_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zihpm_zba_zbb_zbc_zbs_smcntrpmf_sscofpmf_sstc`, kept by mmRISC-3) and 16 PMP entries (8 implemented, 8 reading 0), M / S / U modes; one RAM region from 0x8000_0000 (64 MB), no devices.
-- Phase 1 is M-mode, bare metal and without interrupts. Interrupts (where the core takes one, the reference is made to
-  take it too) and MMIO with side effects come in Phase 2.
+- Interrupts: the core's trace reports one taken before the head (`tr_int`, the cause with bit 63); the bench has
+  no interrupt source in Phase 1 (where the core takes one, the reference is to be made to take it too). MMIO with
+  side effects comes in Phase 2.
 
 ## Self-test (2026-10-25)
 

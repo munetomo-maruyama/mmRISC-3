@@ -265,6 +265,8 @@ static Run run(const std::string& elf, const std::string& name, bool lockstep, i
     bc.elf = elf;
     bc.lockstep = lockstep;
     bc.max_cycles = max ? max : max_cycles;
+    // the stand-in is Spike, not the core: the reference keeps Spike's own CSR choices
+    bc.ref.misa = 0; bc.ref.mcountinhibit = 0; bc.ref.medeleg_zero = 0; bc.ref.tvec_mode0 = false;
     Bench b(bc);
     Standin core(b.mem(), bc.ref, b.entry(), b.symbol("tohost"),
                  b.symbol("fromhost") ? b.symbol("fromhost") : b.symbol("tohost") + 8, seed, delay);

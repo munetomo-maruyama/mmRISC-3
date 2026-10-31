@@ -3873,3 +3873,45 @@ Everything is recorded in Plan/CORE 5.5, the READMEs, UARCH and PROMPT.md, in bo
 ```text
 Fix the store drain in OOO_LSU as proposed in Plan/CORE 5.5 (drain when the load in E is to another word; after some cycles drain anyway and send the load to wait), with tests and the bug injection.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+OOO_LSU's store drain is fixed. Once loads in E have held a committed store off for 8 cycles, the store takes the D$ port. Pushed as dc18aab.
+
+**Why I built only the second half of the proposal**
+- The D$ takes one request per cycle. OOO_DCAD sends the load in E first and never takes a store while a load is in E or waiting.
+- Draining past a load to a different word would need two requests in the same cycle, which can't happen with the real D$. So I didn't add it.
+
+**What I changed (OOO_LSU, `DRAIN_WAIT` = 8)**
+- A counter tracks how many cycles a load in E has held the oldest committed store off.
+- When it reaches 8, the store gets the D$ port. The load in E sends no request and waits in the load queue, the same way a load waits when an older store has no address yet. It is retried after the store has left.
+- **First version, too costly:** it counted every cycle the store waited, including cycles where the D$ was simply busy. Each forced drain costs a replay of the load's dependents (`ld_cancel`), so the 20 load/store programs got 0.3–4 % slower. Counting only the cycles a load actually blocks the store removes that cost:
+
+| OOO_CPU cycles | Before | Wait 4 | **Wait 8** | Wait 16 |
+|---|---|---|---|---|
+| Console (25 characters) | 301,300 | 2,005 | **2,240** | 2,611 |
+| `ld_st` / `st_ld` | 4,594 / 1,788 | unchanged | **unchanged** | unchanged |
+| The 20 load/store programs | 159,485 | 159,986 | **159,366** | 159,490 |
+
+**Tests**
+- **tb_lsu and tb_dcad** now include bursts of loads, and tb_lsu also includes polling windows (only loads to the last store's word, with no store after it). tb_lsu checks:
+  - a load request and a store never go to the D$ in the same cycle;
+  - loads never hold a committed store off longer than 8 cycles;
+  - a load never gives up the port to a store that hasn't waited that long.
+  
+  Every load value is still checked. Each passes on 4 seeds.
+- **Bug injection:** I updated the old drain mutation (M46) and added M349–M355; all 8 are detected. Unit mutations now total 319.
+  - One of them only shows up in the polling windows. If a retried load gives up the port in the same cycle its store drains, and no store follows, nothing retries it again. With that mutation, the console test hangs on OOO_CPU.
+- **Everything else still passes:** 28 unit tests, all 47 LSU/D$-adapter mutations, B2/B3 on both tops (7 runs), and the core glue mutations (54/54).
+
+Recorded in Plan/CORE 5.6, the READMEs and PROMPT.md, in both languages.
+
+Since OOO_LSU changed, its size and timing may have moved a little. A Vivado run of `OOC_LSU` and `OOC_LSUDC` would measure that.
+<!-- /answer -->
+
+## 103. 2026-10-31 13:00:46 JST
+
+```text
+Go on with B4
+```

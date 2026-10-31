@@ -34,10 +34,11 @@ if (ref.exited()) finish(ref.exit_code());
 ## コアとテストベンチが守る規則
 
 - **HTIF**: 参照は`tohost`へのストアにすぐ応える(次の命令の前に`tohost`を0に戻す。終了: `tohost = code << 1 | 1`、文字: デバイス1、コマンド1)。コアのテストベンチ(`SIM/CORE`)は、ストアがストアキューとD$を通ってメモリに届いたときに応えるので、`tohost`をポーリングするループはコアのほうが多く回りうる。そこで**`tohost`と`fromhost`のロードはコアの値を使う**(カウンタと同じく参照のレジスタを上書きする)。参照も同じ回数ループを回る(2026-10-29に追加)。
-- **カウンタ**: `cycle`、`time`、`mcycle`、HPMカウンタの読み出しは、コアの値を使う(参照のレジスタを上書きする)。本来違って当然なのはこれらだけである。`instret`は比べる(融合した組は2と数える)。
+- **カウンタ**: `cycle`、`time`、`mcycle`、HPMカウンタの読み出しは、コアの値を使う(参照のレジスタを上書きする)。本来違って当然なのはこれらだけである。`instret`は比べる(融合した組は2と数える)。HPMのイベント(各番号が何を数えるかは実装のもの)と`mvendorid` / `marchid` / `mimpid`の読み出しも同じ。
+- **コアの合法なCSRの選択**(`LockstepCfg`、2026-10-31、`Plan/CORE_J.md` 5.7のB4): mmRISC-2のCORE_CSRとSpikeのWARLの選択が違うところは、CSRの命令ごとに参照をコアに合わせる: `misa`は読み出し専用(読むと`misa`、書き込みはSpikeで戻す)。`mcountinhibit`はLOCKSTEPが持ち(Spikeにはない)、IRのビットが立つあいだは命令ごとの数をSpikeの`minstret`から戻す(書く命令は古いビットで数える)。`medeleg`のビット18は書き込みのあとに消す。`mtvec` / `stvec`に書いた予約のモードはダイレクトにする(Spikeはビット1だけを消す)。どれもriscv-arch-testのSmのテストで見つかった。コアが2つ目のSpikeである`SIM/CORE`の代役のテストでは切る。
 - **ミスアラインのアクセスはトラップ**(mmRISC-2と同じ)。参照も同じ設定にする。
 - **参照はmmRISC-2のマシン**: その命令セット(`rv64imafdc_zicboz_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zihpm_zba_zbb_zbc_zbs_smcntrpmf_sscofpmf_sstc`。mmRISC-3も維持する)と、PMP 16エントリ(実装8、読むと0が8)、M / S / Uモード。0x8000_0000からのRAM 1領域(64 MB)、デバイスなし。
-- Phase 1はMモード、ベアメタル、割り込みなし。割り込み(コアが受けたところで参照にも受けさせる)と副作用のあるMMIOはPhase 2で加える。
+- 割り込み: コアのトレースは先頭の前で受けたものを知らせる(`tr_int`、原因はビット63つき)。Phase 1のベンチには割り込みの源がない(コアが受けたところで参照にも受けさせる予定)。副作用のあるMMIOはPhase 2で加える。
 
 ## 自己テスト(2026-10-25)
 

@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-`Plan/CORE_J.md`のステップB0(5.1節): `OOO_CORE`のテストベンチのC++の側。コアより先に作り、代役のコアでテストした。ステップB1(5.2節): その上でフロントエンドだけ(`OOO_FRONT`)をSpikeの経路と照合する。
+`Plan/CORE_J.md`のステップB0(5.1節): `OOO_CORE`のテストベンチのC++の側。コアより先に作り、代役のコアでテストした。ステップB1(5.2節): その上でフロントエンドだけ(`OOO_FRONT`)をSpikeの経路と照合する。ステップB2(5.4節): ALUのµopだけのコア(`OOO_CORE`)をSpikeとロックステップで。ステップB3(5.5節): ロードとストアを、D$のモデル(`OOO_CORE`)と、OOO_DCADと本物のD$(`OOO_CPU`)で。ステップB4(5.7節): riscv-arch-testとriscv-testsの-p-のプログラム(CSR、トラップ、MDU)を両方で。
 
 | ファイル | 内容 |
 |---|---|
@@ -17,10 +17,11 @@
 | `mutate_front.py` | フロントエンドのつなぎへのバグ注入 → `results/mutate_front.txt` |
 | `ftqdepth.sh` | 8ブロックと16ブロックのFTQでフロントエンドが出せる量を、コミットまでの遅れに対して → `results/ftqdepth.txt` |
 | `tb_core.cpp` | B2: ベンチの上のVerilatorの`OOO_CORE`、lock-step。分岐の解決をその命令と照合 |
-| `build_core.sh` / `run_core.sh` | それを作る(`obj/core`)。B2のプログラムを走らせる → `results/core.txt`、`results/core_restores.txt` |
+| `build_core.sh` / `run_core.sh` | それを作る(`obj/core`、`obj/cpu`)。B2、B3、B4のプログラムを走らせる → `results/core.txt`、`results/core_restores.txt` |
 | `mutate_core.py` | コアのつなぎへのバグ注入 → `results/mutate_core.txt` |
 | `b2/` | B2とB3のプログラム: `gen_b2.py`(ランダムなALUプログラム。分岐、ループ、call、ジャンプ。ロードとストア)、`link.ld`、`build.sh` → `b2/work` |
 | `b3/` | CSRのない環境(`env/riscv_test.h`)の上のB3のriscv-tests、コンソールのテスト`htif.S`、`build.sh` → `b3/work` |
+| `b4/` | B4のriscv-arch-test: `act/`(テストのためのコアの設定: `rvtest_config.h`、`rvmodel_macros.h`、`act_sig_macros.h`を読む`riscv_arch_test.h`、`link.ld`)。デコードで見つかる例外の直接テスト`dir/illegal.S`。`build.sh` → `b4/work/<グループ>` |
 
 ## ベンチが与えるもの
 
@@ -162,3 +163,20 @@ Verilatorの`OOO_CORE`(`RTL/CPU/OOO/OOO_CORE`: フロントエンド、融合な
 ## B3のバグ注入
 
 B2の変異35個と、ポート2とLSUのための20個(レコードのLQ / SQのエントリ。ディスパッチでのLSU、ROB、制御へのロードとストア。LSUの被演算子、オフセット、サイズと符号。ベース、ストアのデータ、LSUの結果のバイパス。ロードのレジスタファイルへの書き込み。やり直しの印。SQの復元とコミット)を、それぞれランダムなプログラム20本とriscv-tests 10本とコンソールで、D$のモデルを持つOOO_COREで走らせた: 55のうち54を検出。残った1つ、遅れたロードの外部wakeupは余分で、取り除いた(B3-3)。**54のうち54を検出**(`results/mutate_core.txt`)。
+
+## B4: riscv-arch-test、CSRとトラップ(2026-10-31)
+
+`b4/build.sh`は、riscv-arch-test(`~/RISCV/riscv-arch-test`、ACT4のフレームワーク)のI、M、Zca、Zba、Zbb、Zbc、Zbs、Zicond、Zicsr、Zifencei、Zicntrのテストと、SmとExceptionsのテスト(フレームワークのtestgenで`b4/work/gen`に作り、必要な拡張がコアに合うもの)、計185本を、フレームワークがシグネチャのELFを作るのと同じに(`-DSIGNATURE`、テスト自身の`-march`、binutils 2.43のための`-mno-relax`)`b4/act`の上で作る。フレームワークなら期待値をSailで計算するが、ここではSpikeとのロックステップが、書いたレジスタ、ストア(シグネチャはストア)、トラップをすべて照合する。`b4/act`:
+
+| ファイル | 内容 |
+|---|---|
+| `rvtest_config.h` | コアの設定を手で(フレームワークはUDBから作る): RV64、M / S / U、C、Bの各部、Zicond、Zicsr、Zifencei、Zicntr、Zihpm(カウンタ2つ)、PMP 8エントリ、mtvec / stvecはダイレクトとベクタ |
+| `rvmodel_macros.h` | HTIFでの停止。ブートでx1〜x31を0に(PRFにリセットはなく、トラップハンドラはテストがまだ書いていないレジスタも退避する)。アクセスフォールトのアドレスなし(Phase 1にはない)。割り込みのマクロは空 |
+| `riscv_arch_test.h`、`act_sig_macros.h` | `sail_macros.h`の代わりに`act_sig_macros.h`を読むフレームワークのトップのヘッダ: SailのCLINTなし(ブートがmtimecmpを止めておくストアはイメージの中の`act_mtimecmp`へ)、残りは`sail_macros.h`と同じ |
+| `link.ld` | フレームワークの例に、ベンチの64 MBのRAM |
+
+`./run_core.sh`(`results/core.txt`、12の実行)は、185本を`OOO_CORE`(2シード: D$のヒット80 %と30 %)と`OOO_CPU`で、mmRISC-2のriscv-testsの-p-のプログラム(`$RVTESTS`)からPhase 1で動かせない3本(`rv64mi-p-breakpoint`: トリガの発火をつないでいない、`rv64mi-p-csr`: FPの命令、`rv64si-p-dirty`: ページング)を除いた127本を両方で、`b4/dir/illegal.S`(mstatus.FSオフでのFPの命令、不正な圧縮の符号とそのtvalを、どちらのスロットにも)とともに走らせる: **すべて通る**。途中で、x0へのロードとx0への乗算がタグ0でバイパスされること(乗算はALUのµopからポート0の書き込みの枠も取った)、mcountinhibitが自分の命令に効くこと、mconfigptrがないこと、FPのロードとストアが不正にならないこと、FSオフでFPのCSRが不正にならないことが見つかった(`Plan/CORE_J.md` 5.7)。`gen_b2.py`の`ls`のプログラムは今はx0へロードし、乗算し、除算のあとに乗算する。
+
+## B4のバグ注入
+
+`mutate_core.py`は今は84の変異で、B2とB3のプログラム、続いてB4のプログラムで走らせる: B3の54(4つはB4のつなぎで名前の変わった行に合わせ、WBの1つはポートごとに2つに分けた)、x0へのロードのバイパス、B4のための28(デコードでの例外、その原因とtval。ユニットのµop: 種類、MRET、FENCE.I、非投機、MDUのwakeup、命令のビット、CSRの被演算子と結果、乗算をMDUにも、MDUの書き込みの枠、乗算器とMDUのタグ0の結果、SRET。完了とtval。OOO_CSRUの数え方、tval、FSの確認)。最初のキャンペーンでは6つが検出されなかった: FPの命令が不正にならない、スロット1の例外のtval、不正なRVC命令のtval(その場合を作るプログラムがなかった)、乗算をMDUにも、乗算の結果よりMDUの結果、x0への除算のバイパス(除算と乗算を混ぜるプログラムがなかった)。`b4/dir/illegal.S`(これがバグ5と6を見つけた)と、除算やmulhのあとに乗算する`ls`のプログラムで5つを捕えた。6つ目、RVC命令のtvalを16ビットに切ることは余分で(`OOO_FBUF`がRVC命令を上半分0で渡す)、その切り取りは取り除いた。**84のうち84を検出**(`results/mutate_core.txt`)。単体の変異M356〜M358(minstretへの書き込みが自分のコミットを数える、mcountinhibitをEXで書く、コミットのたびに書き直す): `tb_csru`で3のうち3を検出。322になった。
