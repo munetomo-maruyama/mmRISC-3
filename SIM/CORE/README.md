@@ -248,4 +248,5 @@ written); `DCacheModel` applied a kill before queueing the miss of that cycle's 
 `final()` (a build with counters prints them). Since `Plan/CORE.md` 5.9 (loads wait in the issue queue for the
 older stores): 1.72 to 1.97 million cycles, 10 % to 13 % behind the model; `-replays-max` fails a run with more
 replays (the CoreMark stage of `mutate_core.py`). Since 5.11 (D-17, TAGE read with the history lagging 2 blocks):
-1.71 to 1.96 million cycles, 9 % to 12 % behind the model.
+1.71 to 1.96 million cycles, 9 % to 12 % behind the model. Since 5.13 (the multiply writes through port 1): 1.70 to
+1.91 million cycles, 7.7 % to 9.4 % behind.

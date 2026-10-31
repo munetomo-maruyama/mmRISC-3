@@ -72,12 +72,15 @@
 // Port 0's MDU (mmRISC-2's CORE_MDU, OOO_MDUP: one operation at a time for
 // mulh*, clmul* and the divides; Plan/OOC.md 23, 24): such a µop (disp_md;
 // mul / mulw go to the pipelined OOO_PMUL and are not MDU µops here) goes
-// only with mdu_ok (the unit is free when it gets there). Port 0 has one
-// register-file write port: a µop that writes it in the latency-1 slot is
-// not given port 0 in the cycle after a multiply (latency 2: the same
-// slot) nor while a result of the MDU waits to be written (p0_hold). It can
-// still go to port 1. Both inputs are registers of OOO_MDUP, and the
-// multiply of the cycle before is this queue's own (the delayed wakeup).
+// only with mdu_ok (the unit is free when it gets there). Each ALU port has
+// one register-file write port. A multiply (latency 2) writes through port
+// 1's (Plan/CORE.md 5.13): a µop that writes in the latency-1 slot is not
+// given port 1 in the cycle after a multiply (it can still go to port 0;
+// ALU1 takes only simple µops, so keeping its slot free costs less than
+// keeping ALU0's). A result of the MDU is written through port 0's: no
+// latency-1 writer gets port 0 while one waits (p0_hold, a register of
+// OOO_MDUP). The multiply of the cycle before is this queue's own (the
+// delayed wakeup).
 //
 // The payload of a µop (operation, immediates, ROB index) is not here: it
 // sits in a LUTRAM indexed by the entry (OOO_IQPL): disp_entry says where
@@ -155,7 +158,7 @@ module OOO_IQ
     logic [N-1:0]                 ns;         // non-speculative
     logic [N-1:0]                 md;         // an MDU µop
     logic [N-1:0]                 st;         // a store
-    logic                         blk0;       // port 0's latency-1 write slot is taken
+    logic                         blk0, blk1; // port 0's / port 1's latency-1 write slot is taken
 
     // ---- select
     logic [N-1:0] ready_all, req0, req1, req2, g0, g1, g2;
@@ -168,7 +171,7 @@ module OOO_IQ
                            !(port[i] == 2'd2 && !st[i] && (older[i] & v & st) != '0);
             req0[i] = ready_all[i] && (port[i] == 2'd0 || port[i] == 2'd1) &&
                       !(blk0 && wr[i] && !lat2[i] && !md[i]) && !(md[i] && !mdu_ok);
-            req1[i] = ready_all[i] && (port[i] == 2'd0);
+            req1[i] = ready_all[i] && (port[i] == 2'd0) && !(blk1 && wr[i]);
             req2[i] = ready_all[i] && (port[i] == 2'd2);
         end
         for (int i = 0; i < N; i++) begin
@@ -267,9 +270,10 @@ module OOO_IQ
         d_t0 <= iss_dst[0];
         d_t2 <= iss_dst[2];
     end
-    // port 0's latency-1 write slot: the multiply of the cycle before has it,
-    // or a result of the MDU waits for it
-    assign blk0 = d_v0 || p0_hold;
+    // the latency-1 write slots: port 1's the multiply of the cycle before
+    // has, port 0's a result of the MDU waiting for it
+    assign blk0 = p0_hold;
+    assign blk1 = d_v0;
 
     // which entries are written and which issue this cycle
     logic [N-1:0] issued, disp0, disp1;

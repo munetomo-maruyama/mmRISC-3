@@ -68,20 +68,21 @@
 67 DETECTED      CSR: rs1 from the second read
 68 DETECTED      CSR: the old value not written
 69 DETECTED      a multiply to the MDU as well
-70 DETECTED      the MDU's result over the multiply's
-71 DETECTED      port 0: a multiply to x0 takes the write slot
-72 DETECTED      port 0: a divide to x0 forwarded (tag 0)
-73 DETECTED      IQ: loads not held for older stores (replays)
-74 DETECTED      port 0's WB: a multiply's result with the mask of the µop in EX
-75 DETECTED      SRET: the CSRs not restored
-76 DETECTED      a system µop complete at EX
-77 DETECTED      CSR: an illegal access completes
-78 DETECTED      CSR: no replay after a write
-79 DETECTED      the multiply completes the MDU's entry
-80 DETECTED      tval: a misaligned address not given
-81 DETECTED      tval: an illegal CSR access's not given
-82 DETECTED      minstret: a write counts its own commit
-83 DETECTED      mcountinhibit: written at EX (its own commit under the new bit)
-84 DETECTED      CSR: an illegal access's tval 0
-85 DETECTED      CSR: fcsr with mstatus.FS off not illegal
-86 mutations, 86 detected
+70 DETECTED      the MDU's result and the multiply's in one cycle (one completion port)
+71 DETECTED      the MDU's result over an ALU0 µop's
+72 DETECTED      port 1: the multiply's result not written
+73 DETECTED      port 1: a multiply to x0 takes the write slot
+74 DETECTED      port 0: a divide to x0 forwarded (tag 0)
+75 DETECTED      IQ: loads not held for older stores (replays)
+76 DETECTED      SRET: the CSRs not restored
+77 DETECTED      a system µop complete at EX
+78 DETECTED      CSR: an illegal access completes
+79 DETECTED      CSR: no replay after a write
+80 DETECTED      the multiply completes the MDU's entry
+81 DETECTED      tval: a misaligned address not given
+82 DETECTED      tval: an illegal CSR access's not given
+83 DETECTED      minstret: a write counts its own commit
+84 DETECTED      mcountinhibit: written at EX (its own commit under the new bit)
+85 DETECTED      CSR: an illegal access's tval 0
+86 DETECTED      CSR: fcsr with mstatus.FS off not illegal
+87 mutations, 87 detected

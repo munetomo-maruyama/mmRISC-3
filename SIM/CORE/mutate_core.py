@@ -42,7 +42,14 @@
 #     so nothing waits for a second wakeup (the connection is gone);
 #   - (B4) an illegal RVC instruction's tval masked to its 16 bits at
 #     dispatch: OOO_FBUF already gives an RVC instruction with its upper
-#     half 0 (b4/dir/illegal.S has the next parcel nonzero; the mask is gone).
+#     half 0 (b4/dir/illegal.S has the next parcel nonzero; the mask is gone);
+#   - (Plan/CORE.md 5.13) the multiply's result entering port 1's WB with the
+#     mask of port 1's EX µop: CoreMark caught it while the multiply wrote
+#     through port 0. Now port 1's EX holds then at most a µop that writes
+#     nothing, and the result is dropped only if a branch on port 0 is
+#     mispredicted in that very cycle, that µop is younger than it, and a
+#     consumer of the multiply older than the branch takes the bypass next:
+#     no program makes it. Not equivalent: the guard stays.
 #---------------------------------------------------------------------------
 import glob, os, shutil, subprocess, sys
 from concurrent.futures import ThreadPoolExecutor
@@ -90,7 +97,7 @@ MUT = [
     (C, "if (byp_v[q] && byp_t[q] == ex[p].t1) a = byp_d[q];", '', 'bypass: none for the first source'),
     (C, "if (byp_v[q] && byp_t[q] == ex[p].t2) b = byp_d[q];", '', 'bypass: none for the second source'),
     (C, "byp_v[q] = wb_v[q];", "byp_v[q] = (q == 0) && wb_v[q];", 'bypass: port 1\'s result not forwarded'),
-    (C, "wbi_v[1] = ex_v[1] && ex[1].wr;", "wbi_v[1] = ex_v[1];", 'WB: a µop of port 1 without a destination forwards'),
+    (C, "wbi_v[1] = pm_w || (ex_v[1] && ex[1].wr);", "wbi_v[1] = pm_w || ex_v[1];", 'WB: a µop of port 1 without a destination forwards'),
     (C, "assign x_wv  = ex_v[0] && ex[0].wr && ex[0].rec.kind != K_MDU;", "assign x_wv  = ex_v[0] && ex[0].rec.kind != K_MDU;",
      'WB: a µop of port 0 without a destination forwards'),
     (C, "assign pa_idx[p]     = rr_rec[p].ftq - FTQW'(rr_rec[p].xline);", "assign pa_idx[p]     = rr_rec[p].ftq;", 'pc: the line of the last half\'s block'),
@@ -154,12 +161,12 @@ MUT = [
     (C, "(ex[0].rec.kind == K_CSR ? csr_res : ex_res[0])", "ex_res[0]", 'CSR: the old value not written'),
     (C, "assign x_mdu = ex_v[0] && ex[0].rec.kind == K_MDU && ex[0].rec.xop != 4'd0;",
      "assign x_mdu = ex_v[0] && ex[0].rec.kind == K_MDU;", 'a multiply to the MDU as well'),
-    (C, ".slot_busy(x_wv || pm_v)", ".slot_busy(x_wv)", 'the MDU\'s result over the multiply\'s'),
-    (C, "assign pm_w = pm_v && pm_t != '0;", "assign pm_w = pm_v;", 'port 0: a multiply to x0 takes the write slot'),
+    (C, ".slot_busy(x_wv || pm_v)", ".slot_busy(x_wv)", 'the MDU\'s result and the multiply\'s in one cycle (one completion port)'),
+    (C, ".slot_busy(x_wv || pm_v)", ".slot_busy(pm_v)", 'the MDU\'s result over an ALU0 µop\'s'),
+    (C, "wbi_v[1] = pm_w || (ex_v[1] && ex[1].wr);", "wbi_v[1] = ex_v[1] && ex[1].wr;", 'port 1: the multiply\'s result not written'),
+    (C, "assign pm_w = pm_v && pm_t != '0;", "assign pm_w = pm_v;", 'port 1: a multiply to x0 takes the write slot'),
     (C, "assign md_w = md_v && md_t != '0;", "assign md_w = md_v;", 'port 0: a divide to x0 forwarded (tag 0)'),
     (C, ".disp_st({ds[1].st, ds[0].st}),\n         .ext_valid", ".disp_st(2'b00),\n         .ext_valid", 'IQ: loads not held for older stores (replays)'),
-    (C, "assign wb_in_bm = (p == 0 && (pm_w || md_w)) ? '0 : ex_bm;", "assign wb_in_bm = ex_bm;",
-     'port 0\'s WB: a multiply\'s result with the mask of the µop in EX'),
     (C, ".mret_en(csr_mret), .sret_en(csr_sret)", ".mret_en(csr_mret), .sret_en(1'b0)", 'SRET: the CSRs not restored'),
     # B4: completion and tval
     (C, "cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS;",

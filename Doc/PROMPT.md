@@ -4180,3 +4180,44 @@ UARCH's D-17 is marked "decided 2026-10-31"; recorded in Plan/CORE 5.11 and the 
 ```text
 Yes, ROB-full stalls
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+A correction first. The "ROB full, dispatch stopped for 166k cycles" I reported before was my counter's mistake. `rob_avail`, `iq_ready`, `lq_avail` and `sq_avail` are 2-bit free counts (0–2), and I read only their bit 0. Counted again correctly, the ROB has no free entry in only 304 cycles, and its average occupancy is 13.6 of 24. Correction notes are in Plan/CORE 5.9–5.11, and what I found is recorded as 5.12, pushed as 0f5ef0a. No RTL changed.
+
+**The correct breakdown (g14 -O2, ideal caches)**
+- Dispatch stops in 169k cycles, nearly all for the IQ (no free entry 24k; a pair needing 2 with 1 free 78k) and the LQ (36k / 25k).
+- The model stops about as much (IQ 93k, LQ/SQ 61k). So the back end is congested about as in the model.
+- Dispatching slot 0 alone when one entry is free was tried in a copy: no effect (±0.1 %), not kept.
+
+**Where the difference is (cycles between commits summed by pc, RTL against the model by function)**
+- 180k cycles in all. The largest is matrix_mul_matrix_bitextract +60k, then core_bench_list +27k, core_state_transition +25k, core_bench_state +17k, mergesort +14k.
+- 16k of it is start-up and printf, which the model's trace does not hold at all.
+- bitextract's inner loop takes 10 cycles an iteration in the RTL, 7.6 in the model.
+  - 6 of its 13 instructions (2 each of mulw, sh1add.uw, sraiw) can go to port 0 only.
+  - The multiply's result uses port 0's write port, so the IQ does not give port 0 a latency-1 µop in the cycle after a multiply.
+  - EX0 is therefore idle 4 cycles in 10, the next iteration's address computation waits, and the IQ fills.
+
+**RTL differences the model did not have (options added to the model)**
+
+| | g14 -O2 | sf+flto | g13 |
+|---|---|---|---|
+| The multiply's write slot on port 0 (the RTL now) | +1.7 % | +2.6 % | +2.2 % |
+| The same slot moved to port 1 | +0.7 % | +0.8 % | +1.4 % |
+| Loads / stores commit a cycle later (the RTL now) | +1.4 % | +1.5 % | +1.4 % |
+
+With these 3 (the decode depth included) the model is still 5–8 % faster than the RTL, and in bitextract 0.8 cycle an iteration is left at the second multiply.
+
+**Fixes**
+- **A:** the multiply's result is written through port 1's write port, and the slot blocked in the cycle after a multiply moves from port 0 to port 1. ALU1 does only simple operations and ALU0 everything, so blocking ALU1 costs less. About 1–1.8 %, adding about a 2:1 select on port 1's write and bypass.
+- **B:** a load's completion comes straight from M, not from the register after M. About 1.4 %, but LSU's M-stage timing may be an issue.
+
+Also, the model's tageref mode had stopped building with D-17's change to tage_ref.h; fixed. This prompt (109) and the English of the previous answer are in PROMPT.md, included in this commit.
+<!-- /answer -->
+
+## 110. 2026-11-01 00:57:01 JST
+
+```text
+Yes, do A
+```

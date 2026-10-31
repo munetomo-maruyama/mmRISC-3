@@ -536,7 +536,7 @@ L1 / L2キャッシュ(D$はアダプタつき)、MMU(TLB、PTW、PMP)、CSR、�
 | 2' | FPUの内訳(C1)、並行して | 作者のVivado |
 | 2'' | モデルに命令ごとの操作の種類を持たせる(L7の非対称ALUのため) | Claude Code |
 | 3 | **G0b**: 実測したブロックで予算の表を作り直し、6章の手段を順に使う | Claude Codeが提案し、作者が決める。**2026-10-26に推奨どおり決定(6.3、D-11〜D-14)** |
-| 4 | コアの組み上げ(Mモード、ベアメタル)、riscv-arch-test、CoreMarkをモデルと比べる。**計画: `Plan/CORE_J.md`(2026-10-29)**。B0のテストベンチ: `SIM/CORE`。B1のフロントエンドだけ: `OOO_FRONT`(2026-10-29)。B2のALUのµopだけのコア: `OOO_CORE`(2026-10-30)。B3のロードとストア: ポート2を持つ`OOO_CORE`、D$を持つ`OOO_CPU`(2026-10-31)。B4のriscv-arch-test(185本)とCSR、トラップ、MDUをlock-stepで(2026-10-31)。CoreMarkをlock-stepで、融合なしでモデルより26 %遅い(`Plan/CORE_J.md` 5.8)、ロードが古いストアを待って10〜13 %(5.9) | Claude Code |
+| 4 | コアの組み上げ(Mモード、ベアメタル)、riscv-arch-test、CoreMarkをモデルと比べる。**計画: `Plan/CORE_J.md`(2026-10-29)**。B0のテストベンチ: `SIM/CORE`。B1のフロントエンドだけ: `OOO_FRONT`(2026-10-29)。B2のALUのµopだけのコア: `OOO_CORE`(2026-10-30)。B3のロードとストア: ポート2を持つ`OOO_CORE`、D$を持つ`OOO_CPU`(2026-10-31)。B4のriscv-arch-test(185本)とCSR、トラップ、MDUをlock-stepで(2026-10-31)。CoreMarkをlock-stepで、融合なしでモデルより26 %遅い(`Plan/CORE_J.md` 5.8)、ロードが古いストアを待って10〜13 %(5.9)、D-17と乗算のポート1での書き込みのあと7.7〜9.4 %(5.11、5.13) | Claude Code |
 | 5 | **G1**: シミュレーションのCoreMarkがモデルの±5%以内、コア単体をVivadoで合成してLUTと50MHzを確かめる | |
 
 ---

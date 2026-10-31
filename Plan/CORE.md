@@ -598,10 +598,39 @@ the LQ / SQ 60,555 cycles).
 
   With them the model is 6.5 % / 4.7 % / 8.2 % short of the core (1,882,020 / 1,706,123 / 1,945,090), and in the
   bitextract loop the core still loses 0.8 cycle an iteration at the second multiply.
-- **Proposed next**: (A) the multiply writes through port 1's write port and the issue queue keeps port 1's
+- **Proposed next**: (A, **done in 5.13**) the multiply writes through port 1's write port and the issue queue keeps port 1's
   latency-1 slot free after a multiply instead of port 0's (ALU1 takes only simple µops, ALU0 everything): about
   −1 % to −1.8 % of the cycles, a 2:1 select on port 1's write and the bypass; (B) a load's completion from M (not
   from the register after it): about −1.4 %, on `OOO_LSU`'s M path (a timing question).
+
+### 5.13 The multiply writes through port 1 (2026-11-01)
+
+5.12's proposal A. `OOO_PMUL`'s result goes into port 1's write-back register (the register file's write port 1
+and port 1's bypass), and `OOO_IQ` keeps port 1's latency-1 slot free in the cycle after a multiply (`blk1`: no µop
+that writes a register gets port 1 then; it can still go to port 0) instead of port 0's. Port 0 keeps only the MDU's
+results (`p0_hold`). ALU1 takes only simple µops and ALU0 everything, so keeping ALU1's slot free costs less.
+
+- **Found on the way**: the MDU's result and the multiply's still share the ROB's completion port (4). With
+  `slot_busy` no longer counting the multiply, both completed in one cycle and the MDU's completion was lost: a
+  `mulhu` followed by a `mulw` hung `gen_b2.py`'s `ls` programs (10 of 20). The MDU waits for a cycle without the
+  multiply's result again (`slot_busy = x_wv || pm_v`); its write slot is port 0's.
+
+| CoreMark (cycles; CoreMark/MHz) | g14 -O2 | g14 sf + -flto | g13 -O2 Zb |
+|---|---|---|---|
+| `OOO_CORE`, the model's caches, 5.11 → **now** | 1,882,020 → **1,833,565 (5.454)** | 1,706,123 → **1,698,184 (5.889)** | 1,945,090 → **1,894,227 (5.279)** |
+| `OOO_CPU`, the real D$ | 1,907,780 → **1,859,255 (5.378)** | 1,755,555 → **1,746,040 (5.727)** | 1,958,830 → **1,907,485 (5.243)** |
+| the model, fusion off, stores with their data | 1,701,808 (5.876) | 1,562,105 (6.402) | 1,730,925 (5.777) |
+
+- −2.6 %, −0.5 %, −2.6 % (the model expected −1.0 %, −1.8 %, −0.8 %); **7.7 % / 8.7 % / 9.4 % behind the model** now.
+- **Tests**: `tb_iq` follows the rule and has any-ALU µops that write nothing (an eighth: a branch; no source is taken
+  from them), so that port 1 is checked to take those after a multiply; M314 follows its line, M367 to M369 (port 1's
+  slot taken twice, port 0's kept too, port 1 idle for a µop that writes nothing): 26 of 26 IQ mutations, 333 unit
+  mutations. `mutate_core.py`: the MDU's and the multiply's results in one cycle, the multiply's not written on port
+  1; the WB-mask mutation of 5.8 no longer reached (only in a cycle with a branch on port 0 mispredicted, a younger µop
+  that writes nothing on port 1 and the multiply's result; the guard stays, the reason in its header). `run_core.sh`,
+  `run_coremark.sh`, the 28 unit tests, the stand-in test: all pass; no new lint warning.
+- `OOO_IQ` and `OOO_CORE` changed (a 2:1 select on port 1's write, the slot rule moved): `synth_ooo.bat OOO_IQ` would
+  measure the queue.
 
 ---
 

@@ -14,7 +14,8 @@
 // ALU0 only) other than port 1's (G0b L7: port 1 first); nothing else. That checks the wakeup
 // (back to back for latency 1), the select (oldest first, no port idle
 // while a µop is ready for it) and that nothing issues early or twice.
-// Some µops' results come from outside (ext); now and then the queue is
+// Some µops' results come from outside (ext), an eighth of the any-ALU ones
+// write nothing (a branch); now and then the queue is
 // flushed. µops are told apart by their destination tag (unique while a µop
 // is in flight, also when it writes nothing). The µops keep the rules the
 // wakeup buses rely on (OOO_IQ.sv): an any-ALU µop has latency 1, an
@@ -47,10 +48,10 @@
 // MDU µops (a third of the ALU0-only ones that answer from outside: mulh*,
 // clmul*, divides; a mul is a latency-2 µop of the pipelined multiplier,
 // not one of them): port 0 gives one only with mdu_ok (random here, as
-// OOO_MDUP gives it). Port 0's latency-1 write slot: a µop that writes in it
-// is not given port 0 in the cycle after a multiply (a latency-2 µop)
-// issued on port 0, nor with p0_hold (random). iss_md is checked with every
-// issue.
+// OOO_MDUP gives it). The latency-1 write slots: a µop that writes in it is
+// not given port 1 in the cycle after a multiply (a latency-2 µop) issued on
+// port 0 (the multiply writes through port 1's, Plan/CORE.md 5.13), nor port
+// 0 with p0_hold (random). iss_md is checked with every issue.
 //
 // Non-speculative µops (an eighth of the ALU0-only and LSU ones): ready only
 // with ns_ok (random here, as the control gives it) and when no older
@@ -93,6 +94,7 @@ int main(int argc, char** argv)
     long avail[NT];                         // cycle from which the value is usable
     long tag_free_at[NT];                   // when a tag may be used again
     int refs[NT];                           // queued µops that read the tag: it cannot be given out again
+    static bool nowr[64] = {false};          // the tag's last µop writes nothing
     for (int t = 0; t < NT; t++) { avail[t] = 0; tag_free_at[t] = 0; refs[t] = 0; }
     std::map<int, Uop> q;                   // in the queue, by destination tag
     std::vector<std::pair<long, int>> ext_due;   // (cycle, tag) to announce on ext
@@ -149,7 +151,7 @@ int main(int argc, char** argv)
             x.ext = x.port == 2 && !x.lat2;            // a store, or a load that missed: answer from outside
             x.md = x.port == 1 && !x.lat2 && rng() % 3 == 0;   // an MDU µop: answered from outside
             if (x.md) x.ext = 1;
-            x.dst = t0; x.wr = !x.ext;
+            x.dst = t0; x.wr = !x.ext && !(x.port == 0 && rng() % 8 == 0);   // (an any-ALU µop that writes nothing: a branch)
             x.ns = (x.port == 1 || x.port == 2) && rng() % 8 == 0;
             x.st = x.port == 2 && x.ext && (rng() & 1);
             for (int s = 0; s < 2; s++) {
@@ -157,8 +159,10 @@ int main(int argc, char** argv)
                 if (!recent.empty() && rng() % 3) x.src[s] = recent[rng() % recent.size()];
                 else x.src[s] = 1 + (int)(rng() % (NT - 1));
                 if (x.src[s] == t0) x.use[s] = 0;
+                if (nowr[x.src[s]]) x.use[s] = 0;        // (a µop that writes nothing gives no value)
             }
             tag_free_at[t0] = 1L << 60;
+            nowr[t0] = !x.wr && !x.ext;
             avail[t0] = 1L << 60;
             if (nd == 0 && k == 1) {}                // keep the program order of the pair
             for (int o : open_ids) x.bm |= 1u << o;
@@ -187,7 +191,7 @@ int main(int argc, char** argv)
         d.ns_ok = ns_ok;
         int mdu_ok = rng() % 3 != 0, p0_hold = rng() % 6 == 0;
         d.mdu_ok = mdu_ok; d.p0_hold = p0_hold;
-        bool blk0 = pd0_v || p0_hold;
+        bool blk0 = p0_hold, blk1 = pd0_v;
         d.kill = kill_id >= 0 ? 1u << kill_id : 0;
         d.clr = clr_id >= 0 ? 1u << clr_id : 0;
         unsigned clrm = clr_id >= 0 ? 1u << clr_id : 0, killm = kill_id >= 0 ? 1u << kill_id : 0;
@@ -244,7 +248,7 @@ int main(int argc, char** argv)
             const Uop& x = kv.second;
             if (!ready(x)) continue;
             if (x.port == 2) { if (!e2 || x.id < e2->id) e2 = &x; }
-            else if (x.port == 0 && (!e1 || x.id < e1->id)) e1 = &x;
+            else if (x.port == 0 && !(blk1 && x.wr) && (!e1 || x.id < e1->id)) e1 = &x;   // (port 1's slot after a multiply)
         }
         for (auto& kv : q) {
             const Uop& x = kv.second;

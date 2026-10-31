@@ -334,6 +334,10 @@ M = [
     ('M301', 'CORE:CORE_CSR/CORE_CSR.sv', 'csru', "minstret <= minstret + 64'(instret_inc);", "minstret <= minstret + 64'd1;", 'minstret counts one a cycle'),
     ('M302', 'OOO_CSRU/OOO_CSRU.sv', 'csru', 'ex_rp    = wants_write && !ill;', 'ex_rp    = wants_write;', 'an illegal CSR write marked for replay'),
     ('M303', 'OOO_CSRU/OOO_CSRU.sv', 'csru', 'parameter int          HPM_COUNTERS = 2,', 'parameter int          HPM_COUNTERS = 4,', 'L1 not applied'),
+    # 2026-11-01: the multiply writes through port 1 (Plan/CORE.md 5.13)
+    ('M367', 'OOO_IQ/OOO_IQ.sv', 'iq', 'assign blk1 = d_v0;', "assign blk1 = 1'b0;", "port 1's write slot taken twice after a multiply"),
+    ('M368', 'OOO_IQ/OOO_IQ.sv', 'iq', 'assign blk0 = p0_hold;', 'assign blk0 = p0_hold || d_v0;', "port 0's slot kept after a multiply too"),
+    ('M369', 'OOO_IQ/OOO_IQ.sv', 'iq', "req1[i] = ready_all[i] && (port[i] == 2'd0) && !(blk1 && wr[i]);", "req1[i] = ready_all[i] && (port[i] == 2'd0) && !blk1;", 'port 1 idle after a multiply (also for a µop that writes nothing)'),
     # 2026-10-31: D-17, TAGE read with the history lagging 2 blocks (Plan/CORE.md 5.11)
     ('M362', 'OOO_TAGE/OOO_TAGE.sv', 'tage', "assign hs = (f0_live == 2'd2 || f0_live == 2'd3) ? 3'd0 : (f0_live == 2'd1) ? {1'b0, c1} : 3'(c1) + 3'(c2);", "assign hs = 3'd0;", 'the lag of what is in flight (before D-17)'),
     ('M363', 'OOO_TAGE/OOO_TAGE.sv', 'tage', "? {1'b0, c1} : 3'(c1) + 3'(c2);", "? {1'b0, c2} : 3'(c1) + 3'(c2);", 'one block in flight: the count of the block before'),
@@ -357,7 +361,7 @@ M = [
     ('M311', 'OOO_SYS/OOO_SYS.sv', 'sys', 'tv_valid  = sys_valid && st == S_IDLE && ill;', "tv_valid  = 1'b0;", 'an illegal system µop without its tval'),
     ('M312', 'OOO_IQ/OOO_IQ.sv', 'iq', '!(blk0 && wr[i] && !lat2[i] && !md[i]) && !(md[i] && !mdu_ok);', '!(md[i] && !mdu_ok);', "port 0's write slot taken twice"),
     ('M313', 'OOO_IQ/OOO_IQ.sv', 'iq', '!(blk0 && wr[i] && !lat2[i] && !md[i]) && !(md[i] && !mdu_ok);', '!(blk0 && wr[i] && !lat2[i] && !md[i]);', 'an MDU µop without mdu_ok'),
-    ('M314', 'OOO_IQ/OOO_IQ.sv', 'iq', 'assign blk0 = d_v0 || p0_hold;', 'assign blk0 = d_v0;', 'p0_hold ignored'),
+    ('M314', 'OOO_IQ/OOO_IQ.sv', 'iq', 'assign blk0 = p0_hold;', "assign blk0 = 1'b0;", 'p0_hold ignored'),
     ('M315', 'OOO_IQ/OOO_IQ.sv', 'iq', "assign iss_md      = (g0 & md) != '0;", "assign iss_md      = (g1 & md) != '0;", 'an MDU µop on port 0 not reported'),
     ('M316', 'OOO_MDUP/OOO_MDUP.sv', 'mdup', 'mdu_ok  <= !lb;', "mdu_ok  <= 1'b1;", 'two MDU µops at once'),
     ('M317', 'OOO_MDUP/OOO_MDUP.sv', 'mdup', 'ack       = h_v && done && !h_kill && !slot_busy;', 'ack       = h_v && done && !h_kill;', "a result written in a busy slot"),

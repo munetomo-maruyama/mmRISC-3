@@ -8,11 +8,11 @@
 //
 //   t      issued (OOO_IQ wakes its dependents with the delayed wakeup)
 //   t + 2  EX: the operands go into the DSP blocks (registered there)
-//   t + 3  the three products are summed: res_* goes into port 0's
+//   t + 3  the three products are summed: res_* goes into port 1's
 //          write-back register at the end of the cycle (the register
-//          file and the bypass in t + 4). That is the slot of a latency-1
-//          µop issued on port 0 in t + 1, which the issue queue does not
-//          give port 0 then; OOO_MDUP does not write in it either
+//          file and the bypass in t + 4; Plan/CORE.md 5.13: port 0's
+//          before). That is the slot of a latency-1 µop issued on port 1
+//          in t + 1, which the issue queue does not give port 1 then
 //
 // Only the low 64 bits of the product: a_lo x b_lo in full and the two
 // cross products to 32 bits (the high ones never reach the low half), so

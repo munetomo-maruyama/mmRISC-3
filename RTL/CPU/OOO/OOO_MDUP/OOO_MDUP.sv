@@ -11,7 +11,9 @@
 //                    writing nothing): started in EX, done when CORE_MDU
 //                    is, then written in a cycle when port 0's write-back
 //                    slot is free (slot_busy: a latency-1 writer in EX, or
-//                    OOO_PMUL's result), with their wakeup (ext_*); while
+//                    OOO_PMUL's result, which writes through port 1's since
+//                    Plan/CORE.md 5.13 but shares the ROB's completion port
+//                    with the MDU), with their wakeup (ext_*); while
 //                    one waits, p0_hold keeps the issue queue from giving
 //                    port 0 latency-1 writers, so the slot comes within two
 //                    cycles

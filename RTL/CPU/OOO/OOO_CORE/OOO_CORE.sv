@@ -714,11 +714,11 @@ module OOO_CORE
             cmp_rob[p]    = ex[p].rec.rob;
         end
         assign ex_bms[p] = ex_bm;
-        // WB's mask: EX's µop's, but not for the multiplier's or the MDU's result on port 0 (they checked it
+        // WB's mask: EX's µop's, but not for the MDU's result on port 0 or the multiplier's on port 1 (they checked it
         // against kill with their own masks this cycle; a later kill can only be of a branch older than the
         // result, whose takers are younger and killed too, and its tag is not given out again in a cycle)
         logic [NCKPT-1:0] wb_in_bm;
-        assign wb_in_bm = (p == 0 && (pm_w || md_w)) ? '0 : ex_bm;
+        assign wb_in_bm = ((p == 0 && md_w) || (p == 1 && pm_w)) ? '0 : ex_bm;
         // WB
         OOO_STAGE #(.W(WBW), .NCK(NCKPT)) u_wb
             (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
@@ -796,21 +796,22 @@ module OOO_CORE
         (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr),
          .iss_md(iss_md), .iss_bm(iss_bm[0]), .mdu_ok(mdu_ok), .p0_hold(p0_hold),
          .ex_valid(x_mdu), .ex_op(ex[0].rec.xop), .ex_word(ex[0].rec.word_op), .ex_a(ex_a[0]), .ex_b(ex_b[0]),
-         .ex_rob(ex[0].rec.rob), .ex_dst(ex[0].dst), .ex_bm(ex_bms[0]), .slot_busy(x_wv || pm_v),
+         .ex_rob(ex[0].rec.rob), .ex_dst(ex[0].dst), .ex_bm(ex_bms[0]), .slot_busy(x_wv || pm_v),   // (pm: the completion port they share)
          .res_valid(md_v), .res_tag(md_t), .res_data(md_d), .res_rob(md_rob), .ext_valid(md_ext_v), .ext_tag(md_ext_t));
 
-    // the write-back registers: port 0 takes the multiplier's or the MDU's result, else its EX's (the issue
-    // queue and OOO_MDUP keep them to one a cycle). A result for x0 (tag 0: the issue queue keeps no slot for
-    // a multiply without a destination) is neither written nor forwarded
+    // the write-back registers: port 0 takes the MDU's result, else its EX's; port 1 the multiplier's, else
+    // its EX's (Plan/CORE.md 5.13; the issue queue and OOO_MDUP keep them to one a cycle). A result for x0
+    // (tag 0: the issue queue keeps no slot for a multiply without a destination) is neither written nor
+    // forwarded
     assign pm_w = pm_v && pm_t != '0;
     assign md_w = md_v && md_t != '0;
     always @(*) begin
-        wbi_v[0] = pm_w || md_w || x_wv;
-        wbi_t[0] = pm_w ? pm_t : md_w ? md_t : ex[0].dst;
-        wbi_d[0] = pm_w ? pm_d : md_w ? md_d : (ex[0].rec.kind == K_CSR ? csr_res : ex_res[0]);
-        wbi_v[1] = ex_v[1] && ex[1].wr;
-        wbi_t[1] = ex[1].dst;
-        wbi_d[1] = ex_res[1];
+        wbi_v[0] = md_w || x_wv;
+        wbi_t[0] = md_w ? md_t : ex[0].dst;
+        wbi_d[0] = md_w ? md_d : (ex[0].rec.kind == K_CSR ? csr_res : ex_res[0]);
+        wbi_v[1] = pm_w || (ex_v[1] && ex[1].wr);
+        wbi_t[1] = pm_w ? pm_t : ex[1].dst;
+        wbi_d[1] = pm_w ? pm_d : ex_res[1];
     end
 
     // ---- port 2: RR, EX (the LSU's E), the LSU
