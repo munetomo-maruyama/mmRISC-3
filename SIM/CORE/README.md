@@ -245,4 +245,6 @@ lock-step, about 2.1 to 2.3 million cycles a build, 26 % behind the model withou
 way: port 0's write-back register took the mask of the µop in EX for the multiplier's result (fixed in `OOO_CORE`);
 the register file is now set to 0 after reset (Spike's registers start at 0, and CoreMark saves registers it has not
 written); `DCacheModel` applied a kill before queueing the miss of that cycle's M (fixed). `tb_core` calls the model's
-`final()` (a build with counters prints them).
+`final()` (a build with counters prints them). Since `Plan/CORE.md` 5.9 (loads wait in the issue queue for the
+older stores): 1.72 to 1.97 million cycles, 10 % to 13 % behind the model; `-replays-max` fails a run with more
+replays (the CoreMark stage of `mutate_core.py`).

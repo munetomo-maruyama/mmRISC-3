@@ -55,6 +55,10 @@
 // Non-speculative µops (an eighth of the ALU0-only and LSU ones): ready only
 // with ns_ok (random here, as the control gives it) and when no older
 // non-speculative µop is in the queue; iss_ns says that one issued.
+//
+// Stores (half of the LSU µops answered from outside, disp_st): a load (an
+// LSU µop that is not a store) is ready only when no older store is in the
+// queue (Plan/CORE.md 5.9).
 //---------------------------------------------------------------------------
 #include "VOOO_IQ.h"
 #include <cstdint>
@@ -73,6 +77,7 @@ struct Uop {
     unsigned bm = 0;    // its branch mask
     int ns = 0;         // non-speculative
     int md = 0;         // an MDU µop
+    int st = 0;         // a store
 };
 
 static std::mt19937 rng(5);
@@ -146,6 +151,7 @@ int main(int argc, char** argv)
             if (x.md) x.ext = 1;
             x.dst = t0; x.wr = !x.ext;
             x.ns = (x.port == 1 || x.port == 2) && rng() % 8 == 0;
+            x.st = x.port == 2 && x.ext && (rng() & 1);
             for (int s = 0; s < 2; s++) {
                 x.use[s] = rng() % 3 != 0;
                 if (!recent.empty() && rng() % 3) x.src[s] = recent[rng() % recent.size()];
@@ -186,7 +192,7 @@ int main(int argc, char** argv)
         d.clr = clr_id >= 0 ? 1u << clr_id : 0;
         unsigned clrm = clr_id >= 0 ? 1u << clr_id : 0, killm = kill_id >= 0 ? 1u << kill_id : 0;
         d.disp_valid = (nd >= 1 ? 1 : 0) | (nd >= 2 ? 2 : 0);
-        uint32_t port = 0, use = 0, rdy = 0, wr = 0, lat2 = 0, dst = 0, src = 0, bmw = 0, nsw = 0, mdw = 0;
+        uint32_t port = 0, use = 0, rdy = 0, wr = 0, lat2 = 0, dst = 0, src = 0, bmw = 0, nsw = 0, mdw = 0, stw = 0;
         for (int k = 0; k < nd; k++) {
             Uop& x = u[k];
             port |= x.port << (2 * k); lat2 |= x.lat2 << k;
@@ -199,9 +205,10 @@ int main(int argc, char** argv)
             bmw |= (uint32_t)x.bm << (6 * k);
             nsw |= (uint32_t)x.ns << k;
             mdw |= (uint32_t)x.md << k;
+            stw |= (uint32_t)x.st << k;
         }
         d.disp_port = port; d.disp_use = use; d.disp_src = src; d.disp_rdy = rdy;
-        d.disp_wr = wr; d.disp_dst = dst; d.disp_lat2 = lat2; d.disp_bm = bmw; d.disp_ns = nsw; d.disp_md = mdw;
+        d.disp_wr = wr; d.disp_dst = dst; d.disp_lat2 = lat2; d.disp_bm = bmw; d.disp_ns = nsw; d.disp_md = mdw; d.disp_st = stw;
         d.ext_valid = extv; d.ext_tag = extt;
         d.eval();
         // the entries given to the µops dispatched now: not one in use
@@ -227,6 +234,8 @@ int main(int argc, char** argv)
                 if (!ns_ok) return false;
                 for (auto& kv2 : q) if (kv2.second.ns && kv2.second.id < x.id) return false;
             }
+            if (x.port == 2 && !x.st)               // a load: no older store queued
+                for (auto& kv2 : q) if (kv2.second.st && kv2.second.id < x.id) return false;
             for (int s = 0; s < 2; s++) if (x.use[s] && avail[x.src[s]] > cyc) return false;
             return true;
         };

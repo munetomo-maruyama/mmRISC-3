@@ -15,7 +15,9 @@
 # a budget of restores (-restores-max: a fault in what only steers the
 # predictors costs mispredictions, not values); then on B4's (b4/work:
 # riscv-arch-test, 185; riscv-tests' -p- programs as run_core.sh runs
-# them), last on CoreMark (g14 sf + -flto). DETECTED when a run fails.
+# them), last on CoreMark (g14 sf + -flto; at most 2,000 replays: about
+# 250 now, 21,000 with loads issued past older stores). DETECTED when a run
+# fails.
 # Every line of the result is to be read: grep NOT.
 #
 # Left out, as found by the first campaign:
@@ -155,6 +157,7 @@ MUT = [
     (C, ".slot_busy(x_wv || pm_v)", ".slot_busy(x_wv)", 'the MDU\'s result over the multiply\'s'),
     (C, "assign pm_w = pm_v && pm_t != '0;", "assign pm_w = pm_v;", 'port 0: a multiply to x0 takes the write slot'),
     (C, "assign md_w = md_v && md_t != '0;", "assign md_w = md_v;", 'port 0: a divide to x0 forwarded (tag 0)'),
+    (C, ".disp_st({ds[1].st, ds[0].st}),\n         .ext_valid", ".disp_st(2'b00),\n         .ext_valid", 'IQ: loads not held for older stores (replays)'),
     (C, "assign wb_in_bm = (p == 0 && (pm_w || md_w)) ? '0 : ex_bm;", "assign wb_in_bm = ex_bm;",
      'port 0\'s WB: a multiply\'s result with the mask of the µop in EX'),
     (C, ".mret_en(csr_mret), .sret_en(csr_sret)", ".mret_en(csr_mret), .sret_en(1'b0)", 'SRET: the CSRs not restored'),
@@ -199,7 +202,8 @@ def run(i, m):
             det = subprocess.run([t, '+verilator+rand+reset+2', '-max', '3000000'] + APROGS + RPROGS,
                                  capture_output=True, timeout=1800).returncode != 0
         if not det:
-            det = subprocess.run([t, '+verilator+rand+reset+2', '-max', '100000000', '-miss', '0', '-dhit', '100'] + CM,
+            det = subprocess.run([t, '+verilator+rand+reset+2', '-max', '100000000', '-miss', '0', '-dhit', '100',
+                                  '-replays-max', '2000'] + CM,
                                  capture_output=True, timeout=3600).returncode != 0
     except subprocess.TimeoutExpired:
         return i, 'NOT DETECTED', desc + ' (the run did not end)'

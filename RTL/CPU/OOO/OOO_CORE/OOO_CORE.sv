@@ -546,6 +546,7 @@ module OOO_CORE
          .disp_wr({ds[1].wr && !ds[1].md, ds[0].wr && !ds[0].md}), .disp_dst({ds[1].dst, ds[0].dst}),
          .disp_lat2({ds[1].lat2, ds[0].lat2}), .disp_bm(d_bmask), .disp_ns({ds[1].ns, ds[0].ns}),
          .disp_md({ds[1].md && ds[1].rec.kind == K_MDU, ds[0].md && ds[0].rec.kind == K_MDU}),
+         .disp_st({ds[1].st, ds[0].st}),
          .ext_valid({1'b0, md_ext_v}), .ext_tag({TAGW'(0), md_ext_t}),
          .iss_valid(iss_valid), .iss_entry(iss_entry), .iss_src(iss_src), .iss_wr(iss_wr), .iss_dst(iss_dst),
          .iss_bm(iss_bm), .iss_ns(iss_ns), .iss_md(iss_md), .wk_valid(wk_valid), .wk_tag(wk_tag));

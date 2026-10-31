@@ -4,7 +4,7 @@
 // commit trace in lock-step with Spike at every instruction (bench.h).
 //
 //   tb_core [-seed <n>] [-miss <%>] [-dhit <%>] [-exit <symbol>] [-max <cycles>] [-v]
-//           [-restores-out <file>] [-restores-ref <file> -restores-max <x>] <elf> ...
+//           [-restores-out <file>] [-restores-ref <file> -restores-max <x>] [-replays-max <n>] <elf> ...
 //
 // The D$: DCacheModel (ports.h) on OOO_LSU's abstract port (-dhit: % of the
 // loads that hit, default 80). B3: loads and stores; the commit trace gives
@@ -22,7 +22,9 @@
 // mispredictions (restores) and the IPC. -restores-out writes each
 // program's restores; -restores-ref / -restores-max fail a run with more
 // than x times the restores of the reference file (+ 4): what only steers
-// the predictors costs mispredictions, not values (the bug injection).
+// the predictors costs mispredictions, not values (the bug injection);
+// -replays-max fails a run with more than n replays (loads issued past an
+// older store, Plan/CORE.md 5.9: what costs cycles, not values).
 // The register file is set to 0 after reset, as Spike's registers start.
 //---------------------------------------------------------------------------
 #ifdef CPU_TOP                  // OOO_CPU: the core with OOO_DCAD and the D$ on the AXI models (build_core.sh cpu)
@@ -65,6 +67,7 @@ static uint64_t wbits(uint64_t w, int lo, int n) { return (w >> lo) & (n >= 64 ?
 struct Opts {
     uint64_t seed = 1; int miss = 8, dhit = 80; std::string exit_sym; uint64_t max = 20000000; bool verbose = false;
     std::string rs_out; std::map<std::string, long> rs_ref; double rs_max = 0;
+    long rp_max = -1;                   // -replays-max: fail a run with more replays
 };
 static FILE* rs_out_f = nullptr;
 
@@ -249,6 +252,10 @@ static bool run(const Opts& o, const std::string& elf)
     if (rs_out_f) std::fprintf(rs_out_f, "%s %ld\n", name.c_str(), restores);
     d->final();                                         // (final blocks: a build with counters prints them)
     bool ok = b.passed() && !res_bad;
+    if (ok && o.rp_max >= 0 && replays > o.rp_max) {
+        std::printf("    %ld replays, more than %ld\n", replays, o.rp_max);
+        ok = false;
+    }
     if (ok && o.rs_max > 0) {
         auto it = o.rs_ref.find(name);
         if (it != o.rs_ref.end() && restores > (long)(o.rs_max * it->second) + 4) {
@@ -274,6 +281,7 @@ int main(int argc, char** argv)
         else if (a == "-v") o.verbose = true;
         else if (a == "-restores-out" && i + 1 < argc) o.rs_out = argv[++i];
         else if (a == "-restores-max" && i + 1 < argc) o.rs_max = atof(argv[++i]);
+        else if (a == "-replays-max" && i + 1 < argc) o.rp_max = atol(argv[++i]);
         else if (a == "-restores-ref" && i + 1 < argc) {
             std::ifstream in(argv[++i]); std::string nm; long v;
             while (in >> nm >> v) o.rs_ref[nm] = v;

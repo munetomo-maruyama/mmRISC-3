@@ -4006,3 +4006,42 @@ This prompt (104) and the English of the previous answer are in PROMPT.md, not c
 ```text
 Start with CoreMark
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The three CoreMark builds (g14 -O2, g14 sf + -flto, g13 -O2 Zb) now run to the end in lock-step on both tops, pushed to dev as fa2e3d6. They also pass with I$ / D$ misses at random on 2 seeds. Performance, though, is about 26 % behind the model without fusion; the main cause and the fix are in sight.
+
+**Found and fixed**
+- **An RTL bug:** port 0's WB register used, for a result of the multiplier or divider (MDU), the branch mask of "whatever other µop was in EX then". A kill of that µop alone dropped the multiply's bypass for a cycle, and a dependent instruction read the old value. Found at the 56,598th instruction of g14-sflto; B2–B4 never made the case. OOO_CORE is fixed, and the mutation campaign now ends with a CoreMark stage (85 of 85 detected).
+- **On the bench (2):**
+  - The PRF has no reset, so it is set to 0 after reset, as Spike's registers. CoreMark's start-up saves registers it has not written yet.
+  - The D$ model kept, instead of dropping, the fill of a miss killed in the very cycle it was in M. The order is fixed.
+
+**Performance (whole-run cycles, as the model counts them)**
+
+| | g14 -O2 | g14 sf+flto | g13 -O2 |
+|---|---|---|---|
+| Model (fusion off) | 1,689,007 (5.92) | 1,551,318 (6.45) | 1,718,813 (5.82) |
+| OOO_CORE (the model's ideal caches) | 2,284,618 (4.38) | 2,100,584 (4.76) | 2,290,569 (4.37) |
+| OOO_CPU (the real D$) | 2,307,398 (4.33) | 2,149,465 (4.65) | 2,304,948 (4.34) |
+
+The numbers in parentheses are CoreMark/MHz.
+
+**Where the difference goes (g14 -O2, on a build with counters)**
+- **The biggest cause is replayed loads:** 25,861 loads issued before an older store's address was known could not complete in M. That led to 20,618 replays after commit (a flush of the whole pipeline and a refetch).
+  - The RTL's store is one µop issued together with its data, so its address is known late and the loads behind it go first.
+  - The model assumes "a load waits until the older stores' addresses are known" and has no such cost.
+  - With a new `st_data_issue` option in the model ("a store issues with its data, loads wait for it"), the loss is only 0.7 % without fusion and 1.9 % with fusion.
+  - **Proposal:** add to the IQ the condition "no load issues while an older store is still in the IQ". It depends on registered state only, so like the non-speculative condition it can sit outside the wakeup-select loop.
+- **Branch prediction is also worse:** conditional branches mispredicted on the true path are 1.7 times the model's. jalr (returns and indirect jumps) is 1,593 in sflto against the model's 8, an order of magnitude off. I suspect the RAS after a replay or a flush, or the repair of the branch history after a replay.
+- **The pipeline depth is not the cause:** one or two more decode stages in the model cost only 0.3–0.5 %.
+
+Recorded in Plan/CORE 5.8, MODEL, the READMEs and UARCH in both languages. This prompt (105) and the English of the previous answer are in PROMPT.md, included in this commit.
+<!-- /answer -->
+
+## 106. 2026-10-31 21:42:24 JST
+
+```text
+Yes, implement it
+```

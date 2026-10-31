@@ -480,11 +480,38 @@ The core is about 26 % behind the model. Counters of a build with counters (`OOO
   unknown. The model assumed a store's address known at its issue on the base alone and loads waiting for it. The
   model with stores issued with their data (`st_data_issue=1`, added) and loads waiting: 0.7 % slower without fusion,
   1.9 % with fusion 2. **Proposed**: the issue queue keeps a load while an older store is still in it (registered
-  state, off the wakeup-select loop, as the non-speculative condition).
+  state, off the wakeup-select loop, as the non-speculative condition). **Done in 5.9.**
 - **Returns and indirect jumps** mispredict far more than in the model (sf + -flto: 1,593 against 8), and conditional
   branches 1.7 times: to look at after the first fix (the RAS after a replay or a flush, the history after a replay).
 - The pipeline's depth is not it: the model with one or two more decode stages loses 0.3 % to 0.5 %.
 - **The rest still passes**: `run_core.sh` (12 runs), the stand-in test, the bug injection (85 of 85).
+
+### 5.9 Loads wait for the older stores in the issue queue (2026-10-31)
+
+5.8's proposal: `OOO_IQ` keeps a load (a port-2 µop that is not a store, `disp_st`) while an older store is still in
+the queue (`!(port == 2 && !st && (older & v & st) != 0)` in the ready term, beside the non-speculative one: registered
+state only). A store issues with its data and knows its address in E; a load issued after it is in M a cycle later
+at the earliest, when `OOO_LSU` has the address.
+
+| CoreMark (cycles; CoreMark/MHz) | g14 -O2 | g14 sf + -flto | g13 -O2 Zb |
+|---|---|---|---|
+| the model, fusion off, stores issued with their data (`st_data_issue=1`) | 1,701,808 (5.876) | 1,562,105 (6.402) | 1,730,925 (5.777) |
+| `OOO_CORE`, the model's caches, 5.8 | 2,284,618 (4.377) | 2,100,584 (4.761) | 2,290,569 (4.366) |
+| `OOO_CORE`, the model's caches, **now** | **1,913,926 (5.225)** | **1,718,063 (5.820)** | **1,956,056 (5.112)** |
+| `OOO_CPU`, the real D$, now | 1,933,121 (5.173) | 1,764,874 (5.666) | 1,967,483 (5.083) |
+
+- 16 % to 18 % fewer cycles; replays 20,618 → 96 (g14 -O2), loads that found an older store's address unknown 25,861 →
+  0. Mispredicted jalr that commit: 218 → 62 (sf + -flto: 1,593 → 76): the replays' flushes were what cost the RAS.
+- **What is left: 10 % to 13 % behind the model.** Mispredicted conditional branches that commit are still about
+  1.75 times the model's (g14 -O2: 7,706 against 4,393), and slot 0 waits for a full ROB 166,098 cycles (the model's
+  ROB of the same 24 entries is rarely full): the next things to look at.
+- **Tests**: `tb_iq` has stores (half the LSU µops answered from outside) and checks that a load issues only with no
+  older store in the queue; M359 to M361 (a load past an older store, a load waiting for a younger store, a store
+  waiting for an older store) and M230 following the line: 23 of 23 IQ mutations detected, 325 unit mutations now.
+  `mutate_core.py`: the IQ's `disp_st` cut (only cycles: the CoreMark stage allows 2,000 replays, `tb_core
+  -replays-max`): 86 of 86 detected. `run_core.sh` (12 runs), `run_coremark.sh`, the 28 unit tests, the stand-in test:
+  all pass; no new lint warning.
+- `OOO_IQ` changed (a flip-flop and an AND-OR of 10 bits per entry): `synth_ooo.bat OOO_IQ` would measure it.
 
 ---
 

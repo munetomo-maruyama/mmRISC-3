@@ -61,6 +61,14 @@
 // older non-speculative entry is in the queue (the head's is the oldest);
 // iss_ns tells the control that one went.
 //
+// Loads wait for the older stores' addresses (Plan/CORE.md 5.9): a load
+// (port 2, not disp_st) may be selected only when no older store is in the
+// queue. A store issues with its data (one µop, OOO_LSU) and knows its
+// address in E; a load issued after it reaches M a cycle later at the
+// earliest, when OOO_LSU has the address. Without the wait a load issued
+// past a store whose address is unknown completes marked and is replayed
+// after commit. Registered state only, off the wakeup-select loop.
+//
 // Port 0's MDU (mmRISC-2's CORE_MDU, OOO_MDUP: one operation at a time for
 // mulh*, clmul* and the divides; Plan/OOC.md 23, 24): such a µop (disp_md;
 // mul / mulw go to the pipelined OOO_PMUL and are not MDU µops here) goes
@@ -109,6 +117,7 @@ module OOO_IQ
         input  logic [1:0][NCK-1:0]   disp_bm,    // branch masks (OOO_CTRL d_bmask)
         input  logic [1:0]            disp_ns,    // non-speculative: issued only at the ROB head
         input  logic [1:0]            disp_md,    // an MDU µop (port 0: mulh*, clmul*, divides)
+        input  logic [1:0]            disp_st,    // a store (port 2): younger loads wait for it to issue
 
         // external wakeups
         input  logic [NEXT-1:0]           ext_valid,
@@ -145,6 +154,7 @@ module OOO_IQ
     logic [NCK-1:0]               bm    [N];  // branch mask
     logic [N-1:0]                 ns;         // non-speculative
     logic [N-1:0]                 md;         // an MDU µop
+    logic [N-1:0]                 st;         // a store
     logic                         blk0;       // port 0's latency-1 write slot is taken
 
     // ---- select
@@ -154,7 +164,8 @@ module OOO_IQ
             // (the non-speculative condition is of registered state and ns_ok,
             // off the wakeup-select loop)
             ready_all[i] = v[i] && ((rdy[i] | ~use_s[i]) == 2'b11) &&
-                           (!ns[i] || (ns_ok && (older[i] & v & ns) == '0));
+                           (!ns[i] || (ns_ok && (older[i] & v & ns) == '0)) &&
+                           !(port[i] == 2'd2 && !st[i] && (older[i] & v & st) != '0);
             req0[i] = ready_all[i] && (port[i] == 2'd0 || port[i] == 2'd1) &&
                       !(blk0 && wr[i] && !lat2[i] && !md[i]) && !(md[i] && !mdu_ok);
             req1[i] = ready_all[i] && (port[i] == 2'd0);
@@ -278,7 +289,7 @@ module OOO_IQ
         logic [TAGW-1:0]      dq;
         logic [N-1:0]         oq;
         logic [NCK-1:0]       bq;
-        logic                 nq, mq;
+        logic                 nq, mq, tq;
         assign v[i]     = vq;
         assign lat2[i]  = lq;
         assign port[i]  = pq;
@@ -291,6 +302,7 @@ module OOO_IQ
         assign bm[i]    = bq;
         assign ns[i]    = nq;
         assign md[i]    = mq;
+        assign st[i]    = tq;
 
         always_ff @(posedge clk or negedge rst_n) begin
             if (!rst_n) begin
@@ -310,6 +322,7 @@ module OOO_IQ
                 bq <= disp_bm[d];
                 nq <= disp_ns[d];
                 mq <= disp_md[d];
+                tq <= disp_st[d];
                 // age: younger than every entry that stays, and the second of a
                 // pair younger than the first
                 for (int j = 0; j < N; j++) oq[j] <= v[j] && !issued[j];

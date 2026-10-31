@@ -259,7 +259,7 @@ M = [
     ('M228', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "ftq_tgt <= fe_flush ? ftq_hd + FTQW'(ftq_pop) : tgt;", 'ftq_tgt <= tgt;', 'blocks of a flushed FTQ still popped'),
     ('M330', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "ftq_pop = (ndone != '0) ? 2'd1 : 2'd0;", "ftq_pop = (ndone >= FTQW'(2)) ? 2'd2 : 2'(ndone);", 'two FTQ pops a cycle (TAGE takes one update)'),
     ('M229', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', 'free_valid[k] = cmt_valid[k] && cmt_wr[k];', 'free_valid[k] = cmt_valid[k];', 'a mapping freed for a µop that writes none'),
-    ('M230', 'OOO_IQ/OOO_IQ.sv', 'iq', "(!ns[i] || (ns_ok && (older[i] & v & ns) == '0));", '(!ns[i] || ns_ok);', 'a younger non-speculative µop issued first'),
+    ('M230', 'OOO_IQ/OOO_IQ.sv', 'iq', "(!ns[i] || (ns_ok && (older[i] & v & ns) == '0)) &&", '(!ns[i] || ns_ok) &&', 'a younger non-speculative µop issued first'),
     ('M231', 'OOO_IQ/OOO_IQ.sv', 'iq', "assign iss_ns      = ((g0 | g1 | g2) & ns) != '0;", "assign iss_ns      = ((g0 | g1) & ns) != '0;", 'a non-speculative LSU µop not reported'),
     ('M232', 'OOO_ROB/OOO_ROB.sv', 'rob', 'cmt_ftq[u]  = p[FTQW-1:0];', 'cmt_ftq[u]  = p[FTQW:1];', 'the fetch block read a bit off'),
     # 2026-10-28: the units dropping by mask, the DS register's payload, wakeups for the busy bits (Plan/OOC.md 20)
@@ -334,6 +334,10 @@ M = [
     ('M301', 'CORE:CORE_CSR/CORE_CSR.sv', 'csru', "minstret <= minstret + 64'(instret_inc);", "minstret <= minstret + 64'd1;", 'minstret counts one a cycle'),
     ('M302', 'OOO_CSRU/OOO_CSRU.sv', 'csru', 'ex_rp    = wants_write && !ill;', 'ex_rp    = wants_write;', 'an illegal CSR write marked for replay'),
     ('M303', 'OOO_CSRU/OOO_CSRU.sv', 'csru', 'parameter int          HPM_COUNTERS = 2,', 'parameter int          HPM_COUNTERS = 4,', 'L1 not applied'),
+    # 2026-10-31: loads wait for the older stores (Plan/CORE.md 5.9)
+    ('M359', 'OOO_IQ/OOO_IQ.sv', 'iq', "                           !(port[i] == 2'd2 && !st[i] && (older[i] & v & st) != '0);", "                           1'b1;", 'a load issues past an older store'),
+    ('M360', 'OOO_IQ/OOO_IQ.sv', 'iq', "!(port[i] == 2'd2 && !st[i] && (older[i] & v & st) != '0);", "!(port[i] == 2'd2 && !st[i] && (v & st) != '0);", 'a load waits for a younger store too'),
+    ('M361', 'OOO_IQ/OOO_IQ.sv', 'iq', "!(port[i] == 2'd2 && !st[i] && (older[i] & v & st) != '0);", "!(port[i] == 2'd2 && (older[i] & v & st) != '0);", 'a store waits for an older store'),
     # 2026-10-31: B4, the commit of a write to minstret / mcountinhibit (Plan/CORE.md 5.7)
     ('M356', 'OOO_CSRU/OOO_CSRU.sv', 'csru', "else if (wr_en && ex_addr == 12'hB02)      ir_skip <= 1'b1;", '', 'a write to minstret counts its own commit'),
     ('M357', 'OOO_CSRU/OOO_CSRU.sv', 'csru', "assign c_wr_en = (wr_en && ex_addr != 12'h320) || (ih_pend && instret_inc != 3'd0);", 'assign c_wr_en = wr_en;', 'mcountinhibit written at EX'),
