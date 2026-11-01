@@ -286,6 +286,8 @@ sums over whole units are what to compare.
 | **Over, 2026-10-31** | **4.1k** | **5.5k** | **6.7k** |
 | Needed, 2026-11-01 (`Plan/OOC.md` 26.18: the blocks changed for CoreMark: OOC_FE 6,622 with D-17, +368; issue queue 1,951, +57; the CSR unit 2,695, +158; LSU +2) | 22.6k | 23.2k | 23.7k |
 | **Over, 2026-11-01** | **4.7k** | **6.1k** | **7.3k** |
+| Needed, 2026-11-01 later (`Plan/OOC.md` 26.20: the CSR unit 2,496 without the mcountinhibit hold, −199; issue queue 1,997 with the load's wait a register, +46) | 22.4k | 23.0k | 23.5k |
+| **Over, 2026-11-01 later** | **4.5k** | **5.9k** | **7.1k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is

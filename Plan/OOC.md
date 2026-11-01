@@ -2598,3 +2598,22 @@ The author took D-18 (`Doc/PROMPT.md` entry 94).
 - **OOC_CSRU**: −308 LUTs and −64 FF in Yosys (the hold +182 / +65 by the same tool): Vivado's 2,695 should go back
   near 26.18's start (2,537) plus the FS check.
 - Vivado to rerun: `synth_ooo.bat OOO_IQ` and `synth_ooo.bat OOC_CSRU`.
+
+### 26.20 The rerun after 26.19 (2026-11-01)
+
+| Run | LUT | FF | Slack (all / register to register) |
+|---|---|---|---|
+| OOO_IQ | 1,951 → **1,997** | 474 → 484 | **+0.371** / +6.607 ns (+0.360 / +5.884) |
+| OOC_CSRU | 2,695 → **2,496** | 4,523 → 4,456 | **+3.509 ns** (+1.066) |
+
+- **OOC_CSRU**: −199 LUTs, below 26.18's start (2,537) although the FS check stays: the hold was all of the growth.
+  CORE_CSR 2,683 → 2,476. The slack went from +1.066 to +3.509 ns (26 levels, the counters' compare).
+- **OOO_IQ**: the load's wait is off the worst path, and register to register is back (+6.6 ns), but the worst path
+  is now the same shape one bit over: a non-speculative bit (`nq`) → `(older & v & ns) == '0` → ready → select →
+  `iss_src` (the payload's source tags out, 6 ns of output delay): 12 levels, 10.7 of 12.6 ns in the routes. The
+  non-speculative term has been there since 19.4; before 5.9 the same placement gave +1.165 ns. +46 LUTs, the wait's
+  next state (Yosys +1).
+- **What can be done**: the non-speculative term as the wait was made, a register per entry ("an older
+  non-speculative entry stays"), the select seeing only `ns_ok` and that bit; about 10 FFs. 50 MHz is met as it is;
+  the output delay of the out-of-context run is a guess for what feeds the PRF's read in the core (B7 measures it).
+- The budget (`Doc/UARCH.md` 4.4): −0.15k (the CSR unit −199, the issue queue +46).

@@ -4397,3 +4397,57 @@ Prompts 112–114's English is in PROMPT.md, in the same commit.
 ```text
 Yes, both
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Both are fixed and pushed as b86e1ae.
+
+**1) OOO_IQ: the load's wait is a register**
+- The wait is a 1-bit register per entry, `wtq`. The 10-bit AND-OR in front of the select is gone; the select sees only this bit.
+- Its next state is "does an older store stay in the queue next cycle", so the issue sequence is the same, cycle for cycle. tb_iq agrees on 7 seeds with its reference unchanged.
+- There is no term for a killed store: the loads younger than it carry the same mask bit and die with it, and nothing is dispatched in a kill cycle (OOO_CTRL's `d_ok`). The first mutation tried was not detected, which showed the term was equivalent.
+
+**2) OOO_CSRU: mcountinhibit written in EX**
+- The hold until commit (a 64-bit register and the write-data selector) is gone; it is written in EX like any other CSR.
+- As in Spike and Sail, the writing instruction counts under the old IR bit. If it cleared IR, its commit is not counted (`ir_skip`, as for a write to minstret). If it set IR, it is counted although inhibited, through a new CORE_CSR input `instret_force` (the third change from mmRISC-2).
+
+**Size (Yosys, before → after)**
+
+| Top | LUT | FF |
+|---|---|---|
+| OOO_IQ | 3,118 → 3,119 | 474 → 484 |
+| OOC_CSRU | 3,040 → **2,732** | 4,538 → 4,474 |
+
+**Tests**
+- The 28 unit tests, tb_csru on 4 seeds, run_core.sh's 12 runs, CoreMark and the stand-in test all pass.
+- Mutations: the 41 of the issue queue and the CSR unit and mutate_core.py's 87 all detected; 340 unit mutations in all.
+- CoreMark's cycles are unchanged. results/core.txt changed cycles in some runs, not from the RTL: every one of the 246 B2 and B4 programs run alone gives the same cycles as the RTL before.
+  - The cause is tb_core: it makes a new model for each program, and Verilator's random initial values continue through the run. With a different number of registers, the models from the second on start with other values in what has no reset (the predictors' tables). This is noted in SIM/CORE/README.
+
+Recorded in Plan/CORE 5.15, Plan/OOC 26.19 and the READMEs (English and Japanese).
+
+**Please rerun Vivado.**
+
+```bash
+synth_ooo.bat OOO_IQ
+```
+
+```bash
+synth_ooo.bat OOC_CSRU
+```
+
+Last time OOO_IQ was 1,951 LUTs with +0.360 ns, OOC_CSRU 2,695 LUTs. Expected: OOO_IQ's slack back near its value before 5.9 (+1.165 ns), OOC_CSRU around 2,537 LUTs plus the FS check. When done, ask me to check output/*/summary.txt.
+<!-- /answer -->
+
+## 116. 2026-11-01 12:27:22 JST
+
+```text
+I have finished the Vivado runs. Please check the results.
+```
+
+## 117. 2026-11-01 12:27:35 JST
+
+```text
+I have finished the Vivado runs. Please check the results.
+```

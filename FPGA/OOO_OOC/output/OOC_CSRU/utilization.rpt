@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Sun Nov  1 11:13:31 2026
+| Date         : Sun Nov  1 12:26:45 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOC_CSRU/utilization.rpt
 | Design       : OOC_CSRU
@@ -22,11 +22,10 @@ Table of Contents
 +--------------+----------+------------+------------+---------+------+------+--------+--------+------------+
 |   Instance   |  Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
 +--------------+----------+------------+------------+---------+------+------+--------+--------+------------+
-| OOC_CSRU     |    (top) |       2695 |       2695 |       0 |    0 | 4523 |      0 |      0 |          0 |
+| OOC_CSRU     |    (top) |       2496 |       2496 |       0 |    0 | 4456 |      0 |      0 |          0 |
 |   (OOC_CSRU) |    (top) |          0 |          0 |       0 |    0 | 1979 |      0 |      0 |          0 |
-|   u_csru     | OOO_CSRU |       2695 |       2695 |       0 |    0 | 2544 |      0 |      0 |          0 |
-|     (u_csru) | OOO_CSRU |         12 |         12 |       0 |    0 |   69 |      0 |      0 |          0 |
-|     u_csr    | CORE_CSR |       2683 |       2683 |       0 |    0 | 2475 |      0 |      0 |          0 |
+|   u_csru     | OOO_CSRU |       2496 |       2496 |       0 |    0 | 2477 |      0 |      0 |          0 |
+|     u_csr    | CORE_CSR |       2476 |       2476 |       0 |    0 | 2475 |      0 |      0 |          0 |
 +--------------+----------+------------+------------+---------+------+------+--------+--------+------------+
 * Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
 
