@@ -133,7 +133,7 @@ Verilatorの`OOO_FRONT`(フェッチ、FTQ、復元、フェッチバッファ�
 
 ## B2: ALUのµopだけのコア(`tb_core`、2026-10-30)
 
-Verilatorの`OOO_CORE`(`RTL/CPU/OOO/OOO_CORE`: フロントエンド、ALU + 分岐の組のD2(B5a。トレースは組の2つ目の命令を出し(`tr_pair` / `tr_insn2`)、組の分岐の解決はその分岐と照合する)、リネーム、制御、DSレジスタ、ROB、発行キュー、レジスタファイル、2つのALUポート、分岐の解決、コミット)が、`ICacheModel`(8 %のミス)を通してベンチの`Memory`からフェッチする。そのコミットトレース(`OOO_TRACE`: ROBのエントリごとに、ディスパッチで書く命令と完了で書く値)が`Bench`に行き、命令ごとにSpikeとlock-stepで照合する。
+Verilatorの`OOO_CORE`(`RTL/CPU/OOO/OOO_CORE`: フロントエンド、ALU + 分岐の組をオフにしたD2(B5a、5.21からオフ。トレースは組の2つ目の命令を出し(`tr_pair` / `tr_insn2`)、組の分岐の解決はその分岐と照合する)、リネーム、制御、DSレジスタ、ROB、発行キュー、レジスタファイル、2つのALUポート、分岐の解決、コミット)が、`ICacheModel`(8 %のミス)を通してベンチの`Memory`からフェッチする。そのコミットトレース(`OOO_TRACE`: ROBのエントリごとに、ディスパッチで書く命令と完了で書く値)が`Bench`に行き、命令ごとにSpikeとlock-stepで照合する。
 
 | 部分 | 何をするか |
 |---|---|

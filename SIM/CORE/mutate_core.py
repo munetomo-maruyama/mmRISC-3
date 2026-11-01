@@ -180,7 +180,18 @@ MUT = [
     (CS, "ir_skip  <= ex_addr == 12'hB02 || (rd_data[2] && !wdata[2]);", "ir_skip  <= rd_data[2] && !wdata[2];", 'minstret: a write counts its own commit'),
     (CS, "ir_force <= ex_addr == 12'h320 && !rd_data[2] && wdata[2];", "ir_force <= 1'b0;",
      'mcountinhibit: setting IR, its own commit not counted (under the new bit)'),
-    # B5a: ALU + branch pairs (Plan/CORE.md 5.19)
+    # the resolution through a register (Plan/CORE.md 5.20)
+    (C, "!(e_br_valid[p] && e_br_mispred[p]);", "1'b1;", 'a mispredicted branch complete in EX (younger µops commit before the restore)'),
+    (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && !flush_all;", 'a branch killed as it leaves EX resolves'),
+    (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && (ex_bms[p] & kill) == '0;", 'a branch flushed as it leaves EX resolves'),
+    (C, "{br_valid & br_mispred, sys_cv,", "{2'b00, sys_cv,", 'a mispredicted branch never completes'),
+    (CS, "tv_val   = {32'd0, ex_inst};", "tv_val   = 64'd0;", 'CSR: an illegal access\'s tval 0'),
+    (CS, "(fs == 2'b00 && (ex_addr == 12'h001", "(1'b0 && (ex_addr == 12'h001", 'CSR: fcsr with mstatus.FS off not illegal'),
+]
+
+# B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),
+# so no pair forms and these cannot be seen; with KINDS 8'h80 back, run them too (B5A=1)
+MUT_B5A = [
     (C, "OOO_FUSE #(.KINDS(8'h80)) u_fuse", "OOO_FUSE #(.KINDS(8'h90)) u_fuse", 'B5a: ALU + load paired too (not executed as a pair)'),
     (C, "r_ckpt[j]  = pr[j] || ", "r_ckpt[j]  = ", 'B5a: a pair without a checkpoint'),
     (C, "d2[j].rec.pred_taken = g_taken[b];", "d2[j].rec.pred_taken = g_taken[s];", 'B5a: a pair\'s prediction its ALU half\'s'),
@@ -193,14 +204,9 @@ MUT = [
     (C, "else if (!a_s2[j])                     b_os[j] = 2'd1;", "else if (1'b0)                     b_os[j] = 2'd1;", 'B5a: the branch\'s operand on s1 when s2 is free'),
     (C, ".br_fused(ex[p].rec.fused)", ".br_fused(1'b0)", 'B5a: a pair\'s branch compares s1 with s2'),
     (C, ".br_res1_a(ex[p].rec.b_res1a)", ".br_res1_a(1'b0)", 'B5a: the result always the second operand'),
-    # the resolution through a register (Plan/CORE.md 5.20)
-    (C, "!(e_br_valid[p] && e_br_mispred[p]);", "1'b1;", 'a mispredicted branch complete in EX (younger µops commit before the restore)'),
-    (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && !flush_all;", 'a branch killed as it leaves EX resolves'),
-    (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && (ex_bms[p] & kill) == '0;", 'a branch flushed as it leaves EX resolves'),
-    (C, "{br_valid & br_mispred, sys_cv,", "{2'b00, sys_cv,", 'a mispredicted branch never completes'),
-    (CS, "tv_val   = {32'd0, ex_inst};", "tv_val   = 64'd0;", 'CSR: an illegal access\'s tval 0'),
-    (CS, "(fs == 2'b00 && (ex_addr == 12'h001", "(1'b0 && (ex_addr == 12'h001", 'CSR: fcsr with mstatus.FS off not illegal'),
 ]
+if os.environ.get('B5A'):
+    MUT += MUT_B5A
 
 
 def run(i, m):

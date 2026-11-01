@@ -4771,3 +4771,58 @@ Prompts 124 and 125 are logged in PROMPT.md, in this commit.
 ```text
 The Vivado rerun has finished. Please check the results.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I checked the results. 5.20, the branch resolution through a register, worked, but the fused compare that came in with this run (B5a) does not fit in a cycle, and WNS got worse. Recorded in Plan/OOC 27.5 and UARCH's budget table, pushed as daa25c6.
+
+| | 1st run | **2nd run (with B5a and 5.20)** |
+|---|---|---|
+| OOO_CPU | 35,961 LUTs | **38,071 LUTs** |
+| OoO engine | 26,178 | **28,152** |
+| WNS | −5.716 ns | **−6.442 ns** |
+| Failing endpoints | 15,202 | **3,400** |
+| TNS | −22,896 ns | −6,735 ns |
+
+**5.20 worked**
+The class of paths through the restore into TRAP and the ROB is gone. The failing endpoints fell to a fifth and TNS to about 30 %.
+
+**WNS got worse because of B5a's fused compare**
+The new worst path (58 levels):
+
+| Along the path | Arrives |
+|---|---|
+| WB → bypass → ALU0's result | 14.5 ns |
+| fused compare (`take_branch`) | 18.3 ns |
+| misprediction | 21.4 ns |
+| the clr out of EX | 23.9 ns |
+| the masks of the issue queue and others | 27.4 ns |
+
+The ALU operation followed by the compare in one cycle alone exceeds the 20 ns period. An unfused branch finishes its compare at about 10.5 ns.
+
+**The paths behind it (newly visible in the per-block report)**
+
+| Class | Slack |
+|---|---|
+| D2: group → fusion → renaming → DS register | −4.05 ns |
+| the completion's exception into the ROB's entries (a load completing in M from the D$, the CSRs) | −3.05 ns |
+| a load's data into the register file (from the D$'s forwarding, 5.14) | −2.29 ns |
+| OOO_TRAP (from the privilege input) | −1.30 ns |
+| the fetch buffer's loop | −0.95 ns |
+
+**Size**
++2.1k on the first run. Yosys with and without fusion puts fusion at about 0.5k in Vivado; the rest is the ROB with eight completion ports (2,576 → 3,195) and D2's added logic. The overrun is now 10.3k / 11.1k / 11.8k.
+
+**Proposals**
+1. First turn ALU + branch fusion off (`KINDS` 0, the RTL kept). While D1b refills only when empty it is worth only −0.3 to 0.6 %, yet costs about 0.5k LUTs and its compare does not fit. Bring it back when the compare moves to the cycle after EX or D2's refill is fixed.
+2. Then the paths in the table above in order: D2's path, the completion's exception (through a register, as the misprediction), a load's data (with 5.14's completion in M, the data could be a cycle after the completion), TRAP's privilege input.
+
+Prompt 126 is logged in PROMPT.md, in this commit.
+<!-- /answer -->
+
+## 127. 2026-11-01 23:39:26 JST
+
+```text
+Yes, turn it off
+```

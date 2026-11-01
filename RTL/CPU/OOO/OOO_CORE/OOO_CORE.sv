@@ -8,9 +8,9 @@
 //   front end  OOO_FRONT (fetch, FTQ, restore, fetch buffer, D1a / D1b,
 //              the group register; the target array and the pc array)
 //   D2         the group rotated to its oldest valid slot (the group
-//              register keeps what D2 left in its place), OOO_FUSE (ALU +
-//              branch only, B5a), OOO_RENAME, OOO_CTRL's r_go; g_take back
-//              to the front end
+//              register keeps what D2 left in its place), OOO_FUSE (off:
+//              ALU + branch, B5a, is there but turned off, 5.21),
+//              OOO_RENAME, OOO_CTRL's r_go; g_take back to the front end
 //   DS         OOO_DSREG (tags, ready snoop, and the µop's payload: the
 //              record of OOO_IQPL, pc, destination, ...); OOO_CTRL's d_go
 //              writes OOO_ROB, OOO_IQ and OOO_IQPL
@@ -39,7 +39,9 @@
 // multiplier or the MDU is neither written nor forwarded (Plan/CORE.md
 // 5.7). Left out: interrupt sources, the fusion kinds but ALU + branch.
 //
-// B5a (Plan/CORE.md 5.19): an ALU operation and the conditional branch
+// B5a (Plan/CORE.md 5.19; turned off in 5.21, KINDS 0: the fused compare
+// after the ALU does not fit in a cycle, Plan/OOC.md 27.5, and D1b's refill
+// keeps its gain small): an ALU operation and the conditional branch
 // after it that reads its rd are one µop: the ALU's fields, rd and
 // sources, the branch's comparison in OOO_ALU2 (res1 against the other
 // operand: s1, s2 or zero; on s2 when the ALU operation does not read
@@ -322,7 +324,8 @@ module OOO_CORE
     logic [3:0]          u0_kind, u1_kind;
     logic [2:0]          consumed;
     logic                no_fuse;               // OOO_TRAP: a pair being fetched again after an exception
-    OOO_FUSE #(.KINDS(8'h80)) u_fuse                       // ALU + branch only (B5a)
+    // ALU + branch (B5a, KINDS 8'h80) is off (5.21): its compare does not fit in EX's cycle (Plan/OOC.md 27.5)
+    OOO_FUSE #(.KINDS(8'h00)) u_fuse
         (.no_fuse(no_fuse), .valid(r_v), .seq(f_seq), .cls(f_cls), .op(f_op), .rd(f_rd), .rs1(f_rs1), .rs2(f_rs2),
          .use_rs1(f_use1), .use_rs2(f_use2), .imm(f_imm), .msize(f_msize), .port(f_port),
          .u0_valid(u0_valid), .u0_slot(u0_slot), .u0_kind(u0_kind), .u0_port(u0_port),

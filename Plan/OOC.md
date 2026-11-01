@@ -2750,3 +2750,10 @@ write enable. To rerun: `synth_ooo.bat OOO_CPU`.
   compare in the cycle after EX or with D2's refill. (2) Then the classes above, in order: D2's path, the
   completion's exception into the ROB (register it, as the misprediction), the load's data into the register file
   (5.14's completion from M: the data could stay a cycle later than the completion), OOO_TRAP's privilege input.
+
+### 27.6 27.5's step 1: ALU + branch fusion off (Plan/CORE.md 5.21, 2026-11-01)
+
+OOO_FUSE's `KINDS` 0 in the core; CoreMark +0.22 % / +0.60 % / +0.52 % against 5.14. To rerun: `synth_ooo.bat
+OOO_CPU`; expected: the fused compare's class gone (an unfused branch's misprediction at about 13.4 ns, 27.3), about
+0.5k LUTs less, and the classes of 27.5 (D2, the completion's exception into the ROB, the load's data into the
+register file, OOO_TRAP, the fetch buffer) as the worst.

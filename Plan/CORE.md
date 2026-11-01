@@ -824,6 +824,24 @@ kill).
 - **Vivado**: `synth_ooo.bat OOO_CPU` again (with B5a and this); summary.txt now also gives the worst path into and
   out of each block.
 
+### 5.21 ALU + branch fusion turned off (2026-11-01)
+
+`Plan/OOC.md` 27.5: with B5a the fused compare follows ALU0's result in EX's cycle and ends past the period (the
+misprediction at 21.4 ns), and it gives −0.3 % to −0.6 % only while D1b refills its group register when it is
+empty (5.19), for about 0.5k LUTs. OOO_FUSE's `KINDS` is 0 in the core: no pair forms, and synthesis removes what
+the pairs used (their fields are constants). The RTL stays: it comes back with the fused compare in the cycle after
+EX (the resolution register of 5.20) or with D2's refill.
+
+| CoreMark (cycles) | g14 -O2 | g14 sf + -flto | g13 -O2 Zb |
+|---|---|---|---|
+| `OOO_CORE`, the model's caches, 5.20 → **now** | 1,813,605 → **1,817,188** | 1,675,783 → **1,688,978** | 1,873,955 → **1,881,282** |
+| against 5.14 (no fusion, the resolution in EX) | +0.22 % | +0.60 % | +0.52 % |
+| `OOO_CPU`, the real D$ | **1,846,314** | **1,731,810** | **1,893,730** |
+
+- **Tests**: `run_core.sh`, `run_coremark.sh`: pass. `mutate_core.py` 91 of 91: B5a's 12 mutations set aside in
+  `MUT_B5A` (no pair forms, so none can be seen; `B5A=1` with `KINDS` 8'h80 back runs them).
+- **Vivado**: `synth_ooo.bat OOO_CPU` again.
+
 ---
 
 ## 6. What G1 measures
