@@ -2623,3 +2623,15 @@ The author took D-18 (`Doc/PROMPT.md` entry 94).
 26.20's worst path: the non-speculative term becomes a register per entry (`wnq`), as the load's wait did. Yosys:
 OOO_IQ 3,119 → 3,221 LUTs, 484 → 494 FF. In front of the select there is no AND-OR over the other entries left:
 ready is the operands, `ns_ok` and the two wait bits. Vivado to rerun: `synth_ooo.bat OOO_IQ`.
+
+### 26.22 The rerun after 26.21 (2026-11-01)
+
+| Run | LUT | FF | Slack (all / register to register) |
+|---|---|---|---|
+| OOO_IQ | 1,997 → **1,999** | 484 → 494 | **+1.735** / +7.219 ns (+0.371 / +6.607) |
+
+- Both waits are off the worst paths. The worst is now the select itself: an entry's port (`pq`) → its request →
+  the oldest-first grant → `iss_src` out (10 levels, 9.4 of 11.3 ns in the routes, 6 ns of output delay); register
+  to register it is the wakeup-select loop (`rq` → ready → select → the issued tags → `rq`, 11 levels, +7.2 ns), the
+  loop the queue is built around. Better than before 5.9 (+1.165 / +6.605).
+- +2 LUTs for the two wait registers (Yosys +102): the budget stays as in 26.20.

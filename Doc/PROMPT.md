@@ -4484,3 +4484,42 @@ The English of answer 115 and prompts 116–117 is in PROMPT.md, in this commit.
 ```text
 Yes, do it
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The non-speculative wait is now a register per entry too, pushed as 4402888.
+
+**Change (Plan/CORE 5.16)**
+- The non-speculative term `(older & v & ns) == '0` is a 1-bit register per entry, `wnq` ("an older non-speculative entry stays"), made like the load's wait (5.15).
+  - At dispatch it is set when a non-speculative µop stays in the queue or the first of the pair is one.
+  - After that it stays set while an older non-speculative µop stays.
+  - No term for a killed one, for the same reason as the load's wait.
+- No AND-OR across the other entries is left in front of the select: ready takes only the operands, `ns_ok` and the two wait bits.
+- The issue sequence is the same, cycle for cycle.
+
+**Size (Yosys)**
+OOO_IQ 3,119 → 3,221 LUTs, 484 → 494 FF. Last time the load's wait was +1 LUT in Yosys and +46 in Vivado.
+
+**Tests**
+- tb_iq agrees on 7 seeds with its reference unchanged, with the same issue counts.
+- Mutations: M230 and M359 follow the new line, M377–M380 added. The 33 of the issue queue and mutate_core.py's 87 all detected; 344 unit mutations in all.
+- The 28 unit tests, run_core.sh's 12 runs, CoreMark and the stand-in test all pass. CoreMark's cycles are unchanged.
+- results/core.txt's cycles moved again only through tb_core's random initial values: the 246 B2 and B4 programs run alone all give the same cycles as with 5.15.
+
+Recorded in Plan/CORE 5.16, Plan/OOC 26.21 and RTL/CPU/OOO/README (English and Japanese). Answer 117's English and prompt 118 are in PROMPT.md.
+
+**Please rerun Vivado.**
+
+```bash
+synth_ooo.bat OOO_IQ
+```
+
+Last time 1,997 LUTs, slack +0.371 ns. I'll see whether the worst path has moved to the real wakeup-select loop (an operand's ready → select) or to one like before 5.9. When done, ask me to check output/OOO_IQ/summary.txt.
+<!-- /answer -->
+
+## 119. 2026-11-01 13:29:41 JST
+
+```text
+Vivado has finished. Please check the results.
+```
