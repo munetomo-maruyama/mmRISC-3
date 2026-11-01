@@ -746,6 +746,49 @@ The model with the core's configuration (5.9's: `st_data_issue=1`, fusion level 
   into the ALU port and the LSU); about a third of B5a's gain. The other kinds need their own execution (two
   accesses a µop for the load and store pairs) and give nothing on CoreMark.
 
+### 5.19 B5a: ALU + branch pairs (2026-11-01)
+
+5.18's first kind. OOO_FUSE takes a mask of the kinds (`KINDS`); the core turns on ALU + branch alone. The pair is
+one µop (`OOO_CORE`'s header): the ALU half's operation, rd and sources; the branch's comparison in OOO_ALU2 (res1
+against the other operand, `br_res1_a`, `br_o_sel`), its offset in `joff`, its prediction, last parcel, block and
+checkpoint; the ROB counts two instructions (`disp_fused`, the pair's length for the replay pc).
+
+- **Where the branch's other operand goes**: OOO_FUSE's SRC2 counts registers without x0, so the operand is one the
+  ALU half reads (s1 or s2), or zero, or it goes on the side the ALU half leaves free; an x0 the ALU half reads on a
+  side becomes the constant 0 there (`a_sel` zero, or an immediate 0), which frees it: `mv a0, a0; beq a7, a0` put a7
+  on s1 in place of the x0 (B2's br-10 found it). Not paired: an operation or a branch that reads one register twice
+  (`or s1, s1, s1`: the operand would need a third place; br-1) and either half with an exception at decode. A pair in
+  two blocks reads the pc array at the branch's block less one (`xline`): its ALU half is then in the block before (a
+  block is one line, `OOO_FETCH`, and an ALU half across two lines is in its second line's block with the branch right
+  after it, so a pair is never more than one block back; a filter for it, tried first, was a mutation nothing
+  detected).
+- **The trace**: `tr_pair` / `tr_insn2`; `tb_core` gives the bench the pair (`wr_first`: the write is the ALU
+  half's) and checks a pair's resolution against its branch, at the pc after the ALU half; every resolution's pc is
+  now checked against the pc the µop was dispatched with (`sh_pc`), not only its parcel.
+
+| CoreMark (cycles) | g14 -O2 | g14 sf + -flto | g13 -O2 Zb |
+|---|---|---|---|
+| `OOO_CORE`, the model's caches, 5.14 → **now** | 1,813,160 → **1,807,119 (−0.33 %)** | 1,678,934 → **1,668,660 (−0.61 %)** | 1,871,639 → **1,866,911 (−0.25 %)** |
+| `OOO_CPU`, the real D$ | 1,837,109 → **1,834,367** | 1,726,134 → **1,715,746** | 1,884,608 → **1,879,367** |
+| pairs (the model: ALU + branch) | 91,758 (123,571) | 91,753 (106,731) | 76,565 (121,906) |
+| the model, fusion off → ALU + branch | 1,701,808 → 1,662,007 (−2.34 %) | 1,562,105 → 1,527,199 (−2.23 %) | 1,730,925 → 1,689,160 (−2.41 %) |
+
+- **The gain is a seventh of the model's.** A build with counters (g14 -O2): with fusion the cycles in which the DS
+  register dispatches one µop alone grow from 115,938 to 180,453, and those with nothing from 67,995 to 74,831. D1b's
+  group register takes a new group only when D2 has emptied it (B1-1): from 4 instructions D2 takes a pair and one
+  more, and the last instruction goes alone the next cycle. The µops fusion saves are spent there. The model decodes
+  4 instructions a cycle into µops without that boundary.
+- **The pairs the core does not make**: 29 % / 35 % / 10 % of the model's are in two blocks; with pairs across
+  blocks (above) 74 % / 86 % / 63 % are made, the rest are split by D2's groups (a pair needs both in one group).
+- **To get the gain**: D2 has to take µops past the end of the group (the next group's first instruction with the
+  last of this one, or a refill of the register's empty slots), a change in D1b / D2's timing (`Plan/OOC.md` 26.8).
+- **Tests**: `run_core.sh` (12 runs), `run_coremark.sh`, the 28 unit tests, the stand-in test: all pass; no new lint
+  warning. `mutate_core.py` 99 of 99: 12 for B5a (ALU + load paired too; a pair without its checkpoint, with its ALU
+  half's prediction, last parcel, next pc or target pc; across blocks with its branch's line; an operation reading one
+  register twice paired; the x0 side kept; the branch's operand on s1 when s2 is free; no fused comparison; the result
+  always the second operand), 5 following lines that changed. OOO_FUSE's 8 unit mutations detected (`KINDS` keeps
+  every kind by default, so the core's mutation covers the mask).
+
 ---
 
 ## 6. What G1 measures

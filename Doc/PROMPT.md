@@ -4589,3 +4589,48 @@ Prompt 120 is logged in PROMPT.md but not committed yet; it goes in with the nex
 ```text
 Yes, B7 then B5
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+B7 is ready, and the model has decided how to go on with B5.
+
+**B7: the whole core out of context (48d30d2)**
+- The new top `OOO_CPU` is OOO_CORE with OOO_DCAD and the D$, the core as it will go into the chip. It is synthesized with its own ports (the I$ port, AXI4, AXI4-Lite) and the 30 % I/O delay, the same conditions as mmRISC-2's calibration (Plan/OOC 25, ratio 1.00). The simulation ports go away without defines such as `OOO_TRACE`.
+- summary.txt gives, besides the usual numbers, the 20 worst paths between flip-flops by endpoint (100 in timing_paths.rpt). The paths between the blocks are seen here for the first time without guessed I/O delays.
+- **Checked beforehand:**
+  - lint (`-Wall`): 27 warnings, all known. OOO_CORE's 3 UNOPTFLAT are Verilator grouping always blocks; bit by bit there is no loop.
+  - Yosys: 47,525 LUT cells + 2,848 LUT RAM, 18,003 FF. From the ratios on the blocks so far, about 33k to 36k in Vivado. The expectation summed from the blocks (33.5k to 34.6k) is in Plan/OOC 27.1.
+
+**Please run Vivado (it takes long).**
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+
+**B5: the fusion kinds CoreMark uses (1146615, Plan/CORE 5.18)**
+With the model in the core's configuration, each fusion kind on alone against fusion off (the model has a new `fuse_kinds` option):
+
+| Kind | g14 -O2 | g14 sf+lto | g13 |
+|---|---|---|---|
+| All of level 2 | −3.30 % | −2.50 % | −3.15 % |
+| ALU + branch | −2.34 % | −2.23 % | −2.41 % |
+| ALU + load | −0.96 % | −0.25 % | −0.55 % |
+| auipc + x | 33 pairs, 0 | 5 pairs, 0 | 33 pairs, 0 |
+| lui+addi, slli+srli, load pairs, store pairs | 0 | 0 | 0 |
+
+- **CoreMark has only two fusion kinds, ALU + branch and ALU + load: 99.98 % of the pairs.** Load and store pairs do not pass the SRC2 / W1 limits.
+- ALU + branch is worth the most, and almost everything for it is there: OOO_ALU2 has the fused compare, and the ROB and OOO_TRAP handle fused pairs. OOO_CORE only ties them to constants now.
+- ALU + load is worth about a third of that and needs an ALU operation in the LSU.
+- The model with fusion gives 6.076 / 6.566 / 5.965 CoreMark/MHz. Section 6's G1 targets (6.243 / 6.680 / 6.066) were made before stores issued with their data (5.8), so these are lower. Whether to bring the targets to these values needs deciding separately.
+
+My recommendation: **as B5a, turn on ALU + branch only, and leave the kinds CoreMark does not use off in OOO_FUSE.** ALU + load (B5b) to be decided after B5a's results.
+
+Prompt 121 is logged in PROMPT.md, in the B7 commit.
+<!-- /answer -->
+
+## 122. 2026-11-01 17:36:06 JST
+
+```text
+Yes, ALU + branch
+```

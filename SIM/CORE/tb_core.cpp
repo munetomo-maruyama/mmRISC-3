@@ -82,6 +82,15 @@ static std::string check_resolution(TopRoot* rp)
         int rob = (rp->CORE(br_rob) >> (5 * p)) & 31;
         uint32_t in = rp->CORE(sh_insn)[rob];
         uint64_t pc = wbits(rp->CORE(ex_pc), (VA - 1) * p, VA - 1);
+        if (pc != wbits(rp->CORE(sh_pc)[rob], 0, VA - 1)) {     // the pc array's line and the parcel against dispatch's pc
+            std::snprintf(m, sizeof m, "port %d resolves at pc %llx, dispatched at %llx", p, (unsigned long long)pc << 1,
+                          (unsigned long long)wbits(rp->CORE(sh_pc)[rob], 0, VA - 1) << 1);
+            return m;
+        }
+        if (rp->CORE(sh_pair)[rob]) {                   // a pair: its branch, after the ALU half
+            pc += (in & 3) == 3 ? 2 : 1;
+            in = rp->CORE(sh_insn2)[rob];
+        }
         bool c = (in & 3) != 3;
         int e = (int)((pc + (c ? 0 : 1)) & 7);
         bool jalr = false; int rd = 0, rs1 = 0;
@@ -192,6 +201,11 @@ static bool run(const Opts& o, const std::string& elf)
                 t.pc = wbits(d->tr_pc, (VA - 1) * k, VA - 1) << 1;
                 t.insn[0] = (uint32_t)wbits(d->tr_insn, 32 * k, 32);
                 if ((t.insn[0] & 3) != 3) t.insn[0] &= 0xffff;
+                if ((d->tr_pair >> k) & 1) {                    // ALU + branch (B5a): the write is the ALU's
+                    t.pair = true; t.wr_first = true;
+                    t.insn[1] = (uint32_t)wbits(d->tr_insn2, 32 * k, 32);
+                    if ((t.insn[1] & 3) != 3) t.insn[1] &= 0xffff;
+                }
                 if ((d->tr_wr >> k) & 1) { t.rd = (int)((d->tr_rd >> (5 * k)) & 31); t.rd_val = wbits(d->tr_val, 64 * k, 64); }
                 if ((d->tr_st >> k) & 1) {
                     t.st[0].v = true;

@@ -45,7 +45,9 @@
 // order without a predicted taken transfer between them (seq). A µop that
 // would pair with an instruction beyond slot 3 goes alone. no_fuse (debug
 // single step, triggers, a pair being replayed after an exception) turns
-// fusion off.
+// fusion off. KINDS keeps only some kinds: the core turns on ALU + branch
+// alone (Plan/CORE.md 5.18, 5.19: the only other kind CoreMark has is
+// ALU + load).
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -54,7 +56,8 @@ module OOO_FUSE
     #(
         parameter int LEVEL = 2,       // 1 or 2 (level 3 was given up, D-14)
         parameter bit SRC2  = 1'b1,
-        parameter bit W1    = 1'b1
+        parameter bit W1    = 1'b1,
+        parameter logic [7:0] KINDS = 8'hFE    // bit k: pair kind k allowed (K_* below)
     )
     (
         input  logic        no_fuse,
@@ -143,9 +146,12 @@ module OOO_FUSE
 
     logic [2:0][3:0] pk;      // pair kind of k + k+1, when both are there
     always @(*) begin
-        for (int k = 0; k < 3; k++)
+        for (int k = 0; k < 3; k++) begin
+            logic [3:0] kk;
+            kk    = pair_kind(k);
             pk[k] = (!no_fuse && valid[k] && valid[k+1] && seq[k+1] && !(SRC2 && over2(k)) &&
-                     !(W1 && rd[k] != 5'd0 && rd[k+1] != 5'd0 && rd[k] != rd[k+1])) ? pair_kind(k) : K_NONE;
+                     !(W1 && rd[k] != 5'd0 && rd[k+1] != 5'd0 && rd[k] != rd[k+1]) && KINDS[kk[2:0]]) ? kk : K_NONE;
+        end
     end
 
     // the port of a µop starting at slot k, alone or with slot k+1

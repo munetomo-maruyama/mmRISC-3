@@ -165,7 +165,7 @@ filled; the run with `-full -lag 40` fills it.
 
 ## B2: the core with ALU µops only (`tb_core`, 2026-10-30)
 
-`OOO_CORE` (`RTL/CPU/OOO/OOO_CORE`: the front end, D2 with fusion off, renaming, the control, the DS register, the
+`OOO_CORE` (`RTL/CPU/OOO/OOO_CORE`: the front end, D2 with ALU + branch pairs (B5a; the trace gives a pair's second instruction, `tr_pair` / `tr_insn2`, and the resolution of a pair is checked against its branch), renaming, the control, the DS register, the
 ROB, the issue queue, the register file, two ALU ports, branch resolution, commit) under Verilator, fetching through
 `ICacheModel` (8 % misses) from the bench's `Memory`. Its commit trace (`OOO_TRACE`: per ROB entry the instruction,
 written at dispatch, and the value, at completion) goes to `Bench` in lock-step with Spike at every instruction.

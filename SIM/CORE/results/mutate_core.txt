@@ -83,6 +83,18 @@
 82 DETECTED      tval: an illegal CSR access's not given
 83 DETECTED      minstret: a write counts its own commit
 84 DETECTED      mcountinhibit: setting IR, its own commit not counted (under the new bit)
-85 DETECTED      CSR: an illegal access's tval 0
-86 DETECTED      CSR: fcsr with mstatus.FS off not illegal
-87 mutations, 87 detected
+85 DETECTED      B5a: ALU + load paired too (not executed as a pair)
+86 DETECTED      B5a: a pair without a checkpoint
+87 DETECTED      B5a: a pair's prediction its ALU half's
+88 DETECTED      B5a: a pair's last parcel its ALU half's
+89 DETECTED      B5a: a pair's next pc after its ALU half
+90 DETECTED      B5a: a pair's target from its ALU half's pc
+91 DETECTED      B5a: a pair across blocks reads its branch's line
+92 DETECTED      B5a: an operation reading one register twice paired
+93 DETECTED      B5a: an x0 read on s1 kept (the branch's operand goes there)
+94 DETECTED      B5a: the branch's operand on s1 when s2 is free
+95 DETECTED      B5a: a pair's branch compares s1 with s2
+96 DETECTED      B5a: the result always the second operand
+97 DETECTED      CSR: an illegal access's tval 0
+98 DETECTED      CSR: fcsr with mstatus.FS off not illegal
+99 mutations, 99 detected

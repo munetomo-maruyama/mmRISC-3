@@ -8,9 +8,9 @@
 //   front end  OOO_FRONT (fetch, FTQ, restore, fetch buffer, D1a / D1b,
 //              the group register; the target array and the pc array)
 //   D2         the group rotated to its oldest valid slot (the group
-//              register keeps what D2 left in its place), OOO_FUSE (fusion
-//              off: no_fuse), OOO_RENAME, OOO_CTRL's r_go; g_take back to
-//              the front end
+//              register keeps what D2 left in its place), OOO_FUSE (ALU +
+//              branch only, B5a), OOO_RENAME, OOO_CTRL's r_go; g_take back
+//              to the front end
 //   DS         OOO_DSREG (tags, ready snoop, and the µop's payload: the
 //              record of OOO_IQPL, pc, destination, ...); OOO_CTRL's d_go
 //              writes OOO_ROB, OOO_IQ and OOO_IQPL
@@ -37,7 +37,21 @@
 // non-speculative and read their instruction bits from rob_insn (per ROB
 // entry, written at dispatch). A result for x0 (tag 0) of the LSU, the
 // multiplier or the MDU is neither written nor forwarded (Plan/CORE.md
-// 5.7). Left out: interrupt sources, fusion (B5).
+// 5.7). Left out: interrupt sources, the fusion kinds but ALU + branch.
+//
+// B5a (Plan/CORE.md 5.19): an ALU operation and the conditional branch
+// after it that reads its rd are one µop: the ALU's fields, rd and
+// sources, the branch's comparison in OOO_ALU2 (res1 against the other
+// operand: s1, s2 or zero; on s2 when the ALU operation does not read
+// rs2), the branch's offset in joff, prediction, last parcel, block and
+// checkpoint. A pair whose halves are in two blocks reads the pc array at
+// the branch's block less one (xline; an ALU half across two lines is in
+// its second line's block, as is the branch right after it). Not paired:
+// either half with an exception at decode, either reading one register
+// twice (beq rd, rd; or rd, rs, rs: the branch's other operand would need
+// a third place). The ROB counts the pair as two instructions; an
+// exception at a pair cannot happen (OOO_TRAP's refetch unfused stays for
+// the kinds to come).
 //
 // The µop's fields from decode (Plan/CORE.md 2.1):
 //   - jal / jalr: the link (pc + length) is computed by the ALU (pc +
@@ -104,6 +118,8 @@ module OOO_CORE
         output logic [1:0]                  tr_valid,
         output logic [1:0][VA-1:1]          tr_pc,
         output logic [1:0][31:0]            tr_insn,
+        output logic [1:0]                  tr_pair,    // a fused pair: its second instruction
+        output logic [1:0][31:0]            tr_insn2,
         output logic [1:0]                  tr_wr,
         output logic [1:0][4:0]             tr_rd,
         output logic [1:0][63:0]            tr_val,
@@ -144,6 +160,10 @@ module OOO_CORE
         logic            is_jal;
         logic [2:0]      br_op;
         logic            is_br;
+        logic            fused;                 // ALU + branch (B5a): the branch compares the ALU's result
+        logic            b_res1a;               // the result is the comparison's first operand
+        logic [1:0]      b_osel;                // the other operand: 0 s1, 1 s2, 2 zero
+        logic            len4b;                 // the branch half is 32-bit
         logic            word_op;
         logic            b_sel;                 // imm
         logic [1:0]      a_sel;                 // 0 rs1, 1 pc, 2 zero
@@ -151,7 +171,7 @@ module OOO_CORE
         logic            a_uw;
         logic [5:0]      alu_op;
         logic [31:0]     imm;                   // sign extended at its use
-        logic [11:0]     joff;                  // a jalr's offset
+        logic [11:0]     joff;                  // a jalr's offset; a fused branch's offset (halfwords)
         logic            len4;                  // 32-bit (else RVC)
         logic            xline;                 // its first half in the block before
         logic [2:0]      off;                   // the first half's parcel
@@ -178,6 +198,9 @@ module OOO_CORE
         logic [1:0]      port;
         logic            lat2;
         logic [31:0]     insn;
+`ifdef OOO_TRACE
+        logic [31:0]     insn2;                 // a pair's second instruction (the trace only)
+`endif
     } dsp_t;
 
     // ---- recovery and the front end
@@ -277,8 +300,11 @@ module OOO_CORE
     logic [3:0][1:0]     f_msize, f_port;
     always @(*) begin
         for (int k = 0; k < 4; k++) begin
+            // not paired (B5a): with an exception at decode, a branch or an operation reading one register twice
+            // (the branch's other operand has no place: s2 is the ALU operation's)
             f_seq[k]   = g_seq[rs[k]];
-            f_cls[k]   = g_cls[rs[k]];
+            f_cls[k]   = (g_illegal[rs[k]] || g_is_fp[rs[k]] || g_sys[rs[k]][4] || g_sys[rs[k]][3] ||
+                          (g_use_rs1[rs[k]] && g_use_rs2[rs[k]] && g_rs1[rs[k]] == g_rs2[rs[k]])) ? 3'd7 : g_cls[rs[k]];
             f_op[k]    = g_op[rs[k]];
             f_rd[k]    = g_rd[rs[k]];
             f_rs1[k]   = g_rs1[rs[k]];
@@ -293,18 +319,16 @@ module OOO_CORE
 
     logic                u0_valid, u1_valid;
     logic [1:0]          u0_slot, u1_slot, u0_port, u1_port;
-    logic [3:0]          u0_kind;
-    /* verilator lint_off UNUSEDSIGNAL */      // (fusion off in B2)
-    logic [3:0]          u1_kind;
-    /* verilator lint_on UNUSEDSIGNAL */
+    logic [3:0]          u0_kind, u1_kind;
     logic [2:0]          consumed;
-    OOO_FUSE u_fuse
-        (.no_fuse(1'b1), .valid(r_v), .seq(f_seq), .cls(f_cls), .op(f_op), .rd(f_rd), .rs1(f_rs1), .rs2(f_rs2),
+    logic                no_fuse;               // OOO_TRAP: a pair being fetched again after an exception
+    OOO_FUSE #(.KINDS(8'h80)) u_fuse                       // ALU + branch only (B5a)
+        (.no_fuse(no_fuse), .valid(r_v), .seq(f_seq), .cls(f_cls), .op(f_op), .rd(f_rd), .rs1(f_rs1), .rs2(f_rs2),
          .use_rs1(f_use1), .use_rs2(f_use2), .imm(f_imm), .msize(f_msize), .port(f_port),
          .u0_valid(u0_valid), .u0_slot(u0_slot), .u0_kind(u0_kind), .u0_port(u0_port),
          .u1_valid(u1_valid), .u1_slot(u1_slot), .u1_kind(u1_kind), .u1_port(u1_port), .consumed(consumed));
 
-    // the two µops (fusion off: one instruction each)
+    // the two µops: one instruction each, or an ALU + branch pair
     logic [1:0]          r_valid, r_ckpt, r_go, ren_wr;
     logic [1:0][1:0]     ren_use;
     logic [1:0][1:0][4:0] ren_src;
@@ -315,25 +339,50 @@ module OOO_CORE
     logic [1:0][TAGW-1:0] ren_odst, ren_oold;
     logic                ren_ready;
     dsp_t [1:0]          d2;
-    logic [1:0][1:0]     us;                    // the group slot of each µop
+    logic [1:0][1:0]     us, us2;               // the group slot of each µop (us2: a pair's branch)
+    logic [1:0]          pr;                    // the µop is an ALU + branch pair
+    logic [1:0]          b_r1a;                 // the branch reads rd on rs1
+    logic [1:0][1:0]     b_os;                  // the branch's other operand: 0 s1, 1 s2, 2 zero
+    logic [1:0]          a_s1, a_s2;            // the ALU half reads a register (not x0) on s1 / s2
     assign us[0]   = hd + u0_slot;
     assign us[1]   = hd + u1_slot;
+    assign us2[0]  = us[0] + 2'd1;
+    assign us2[1]  = us[1] + 2'd1;
+    assign pr      = {u1_kind != 4'd0, u0_kind != 4'd0};
     assign r_valid = {u1_valid, u0_valid};
     always @(*) begin
+        logic [4:0] o;
         for (int j = 0; j < 2; j++) begin
             ren_use[j] = {g_use_rs2[us[j]], g_use_rs1[us[j]]};
             ren_src[j] = {g_rs2[us[j]], g_rs1[us[j]]};
+            // a pair: the branch's other register is one the ALU operation reads (on s1 or s2), or zero, or it goes
+            // on the side the ALU operation leaves free (an x0 it reads becomes the constant 0, below): OOO_FUSE's
+            // SRC2 counts registers without x0, and an operation reading one register twice is not paired
+            a_s1[j]  = g_use_rs1[us[j]] && g_rs1[us[j]] != 5'd0 && g_a_sel[us[j]] == 2'd0;
+            a_s2[j]  = g_use_rs2[us[j]] && g_rs2[us[j]] != 5'd0 && !g_b_sel[us[j]];
+            b_r1a[j] = g_use_rs1[us2[j]] && g_rs1[us2[j]] == g_rd[us[j]];
+            o        = b_r1a[j] ? (g_use_rs2[us2[j]] ? g_rs2[us2[j]] : 5'd0) : g_rs1[us2[j]];
+            if (o == 5'd0)                         b_os[j] = 2'd2;
+            else if (a_s1[j] && g_rs1[us[j]] == o) b_os[j] = 2'd0;
+            else if (a_s2[j] && g_rs2[us[j]] == o) b_os[j] = 2'd1;
+            else if (!a_s2[j])                     b_os[j] = 2'd1;
+            else                                   b_os[j] = 2'd0;
+            if (pr[j] && o != 5'd0 && !(a_s1[j] && g_rs1[us[j]] == o) && !(a_s2[j] && g_rs2[us[j]] == o)) begin
+                ren_use[j][b_os[j][0]] = 1'b1;
+                ren_src[j][b_os[j][0]] = o;
+            end
             ren_wr[j]  = r_valid[j] && g_rd[us[j]] != 5'd0;   // (renaming's ready counts the destinations offered)
             ren_dst[j] = g_rd[us[j]];
-            r_ckpt[j]  = g_is_branch[us[j]] || g_is_jalr[us[j]];
+            r_ckpt[j]  = pr[j] || g_is_branch[us[j]] || g_is_jalr[us[j]];
         end
     end
     always @(*) begin
-        logic [1:0] s;
+        logic [1:0] s, b;
         logic       jmp, link_rd, link_rs1, sysop_v;
         logic [2:0] sysop;
         for (int j = 0; j < 2; j++) begin
             s        = us[j];
+            b        = pr[j] ? us2[j] : us[j];             // the slot of the branch half (its prediction, block, end)
             // OOO_SYS's operations: 0 FENCE, 1 FENCE.I, 2 SFENCE.VMA, 3 MRET, 4 WFI, 5 SRET (decode's sys:
             // wfi, sret, mret, ebreak, ecall, cbo, fence.i, fence)
             sysop_v  = g_sys[s][0] || g_sys[s][1] || g_is_sfence[s] || g_sys[s][5] || g_sys[s][7] || g_sys[s][6];
@@ -343,27 +392,32 @@ module OOO_CORE
             link_rd  = g_rd[s] == 5'd1 || g_rd[s] == 5'd5;
             link_rs1 = g_rs1[s] == 5'd1 || g_rs1[s] == 5'd5;
             d2[j]                = '0;
-            d2[j].rec.pred_taken = g_taken[s];
+            d2[j].rec.pred_taken = g_taken[b];
             d2[j].rec.call       = g_is_jalr[s] && link_rd;
             d2[j].rec.ret        = g_is_jalr[s] && link_rs1 && !link_rd;
             d2[j].rec.is_jalr    = g_is_jalr[s];
             d2[j].rec.is_jal     = g_is_jal[s];
-            d2[j].rec.br_op      = g_br_op[s];
-            d2[j].rec.is_br      = g_is_branch[s];
+            d2[j].rec.br_op      = g_br_op[b];
+            d2[j].rec.is_br      = g_is_branch[b];
+            d2[j].rec.fused      = pr[j];
+            d2[j].rec.b_res1a    = b_r1a[j];
+            d2[j].rec.b_osel     = b_os[j];
+            d2[j].rec.len4b      = !g_rvc[b];
             d2[j].rec.word_op    = jmp ? 1'b0 : g_word_op[s];
-            d2[j].rec.b_sel      = jmp ? 1'b1 : g_b_sel[s];
-            d2[j].rec.a_sel      = jmp ? 2'd1 : g_a_sel[s];             // the link: pc + length
+            // (a pair: an x0 the ALU half reads becomes the constant 0, which frees that side for the branch)
+            d2[j].rec.b_sel      = jmp ? 1'b1 : g_b_sel[s] || (pr[j] && !a_s2[j]);
+            d2[j].rec.a_sel      = jmp ? 2'd1 : (pr[j] && g_a_sel[s] == 2'd0 && !a_s1[j]) ? 2'd2 : g_a_sel[s];  // the link: pc + length
             d2[j].rec.a_shift    = jmp ? 2'd0 : g_a_shift[s];
             d2[j].rec.a_uw       = jmp ? 1'b0 : g_a_uw[s];
             d2[j].rec.alu_op     = jmp ? 6'd0 : g_alu_op[s];            // (ADD)
-            d2[j].rec.imm        = jmp ? (g_rvc[s] ? 32'd2 : 32'd4) : g_imm[s];
-            d2[j].rec.joff       = g_imm[s][11:0];
+            d2[j].rec.imm        = jmp ? (g_rvc[s] ? 32'd2 : 32'd4) : (pr[j] && !g_b_sel[s] && !a_s2[j]) ? 32'd0 : g_imm[s];
+            d2[j].rec.joff       = pr[j] ? g_imm[b][12:1] : g_imm[s][11:0];
             d2[j].rec.len4       = !g_rvc[s];
-            d2[j].rec.xline      = !g_rvc[s] && g_pc[s][3:1] == 3'd7;
+            d2[j].rec.xline      = (!g_rvc[s] && g_pc[s][3:1] == 3'd7) || g_ftq[s] != g_ftq[b];   // (a pair across blocks)
             d2[j].rec.off        = g_pc[s][3:1];
-            d2[j].rec.e          = g_end[s];
+            d2[j].rec.e          = g_end[b];
             d2[j].rec.ckpt       = ren_ckpt_id[j];
-            d2[j].rec.ftq        = g_ftq[s];
+            d2[j].rec.ftq        = g_ftq[b];
             d2[j].rec.msize      = g_mem_size[s];
             d2[j].rec.uns        = !g_mem_signed[s];
             d2[j].rec.is_ld      = g_cls[s] == 3'd4;
@@ -386,6 +440,9 @@ module OOO_CORE
             d2[j].port           = j == 0 ? u0_port : u1_port;
             d2[j].lat2           = g_lat2[s];
             d2[j].insn           = g_insn[s];
+`ifdef OOO_TRACE
+            d2[j].insn2          = g_insn[b];
+`endif
         end
     end
     // instructions taken: µop 1 only with µop 0
@@ -474,11 +531,15 @@ module OOO_CORE
     logic                      head_valid, head_fused;
     logic [ROBW-1:0]           rob_restore_rob;
     logic [2:0]                cmt_instret;
+    logic [1:0][2:0]           disp_len;                    // halfwords: a pair's both halves
+    always @(*)
+        for (int j = 0; j < 2; j++)
+            disp_len[j] = (ds[j].rec.len4 ? 3'd2 : 3'd1) + (ds[j].rec.fused ? (ds[j].rec.len4b ? 3'd2 : 3'd1) : 3'd0);
     OOO_ROB #(.NROB(NROB), .ROBW(ROBW), .VA(VA), .TAGW(TAGW), .CW(CW), .NCMP(NCMP), .FTQW(FTQW)) u_rob
         (.clk(clk), .rst_n(rst_n), .rob_avail(rob_avail), .disp_valid(disp_go),
          .disp_pc({ds[1].pc, ds[0].pc}), .disp_wr({ds[1].wr, ds[0].wr}), .disp_arch({ds[1].arch, ds[0].arch}),
          .disp_new({ds[1].dst, ds[0].dst}), .disp_old({ds[1].old, ds[0].old}), .disp_ld({ds[1].ld, ds[0].ld}), .disp_st({ds[1].st, ds[0].st}),
-         .disp_fused(2'b00), .disp_ns({ds[1].ns, ds[0].ns}), .disp_len({ds[1].rec.len4 ? 3'd2 : 3'd1, ds[0].rec.len4 ? 3'd2 : 3'd1}),
+         .disp_fused({ds[1].rec.fused, ds[0].rec.fused}), .disp_ns({ds[1].ns, ds[0].ns}), .disp_len(disp_len),
          .disp_ftq({ds[1].rec.ftq, ds[0].rec.ftq}), .disp_exc({ds[1].exc, ds[0].exc}), .disp_cause({ds[1].cause, ds[0].cause}),
          .disp_rob(disp_rob),
          .cmp_valid(cmp_valid), .cmp_rob(cmp_rob), .cmp_exc(cmp_exc), .cmp_cause(cmp_cause), .cmp_rp(cmp_rp),
@@ -505,7 +566,6 @@ module OOO_CORE
     logic [VA-1:1]             tvec, mepc, sepc, csr_epc;
     logic [63:0]               csr_tval;
     /* verilator lint_off UNUSEDSIGNAL */      // (fusion is off until B5)
-    logic                      no_fuse;
     /* verilator lint_on UNUSEDSIGNAL */
     OOO_TRAP #(.VA(VA), .NROB(NROB), .ROBW(ROBW), .NTV(NTV)) u_trap
         (.clk(clk), .rst_n(rst_n),
@@ -657,7 +717,7 @@ module OOO_CORE
              .in_valid(rr_v), .in_bm(rr_bm), .in_data(rx), .out_valid(ex_v[p]), .out_bm(ex_bm), .out_data(ex[p]));
 
         logic [63:0]     a, b, pc64, imm64;
-        logic [VA-1:1]   pc, pc_nx, b_tgt, j_tgt, nxt, pnx;
+        logic [VA-1:1]   pc, pc_b, pc_nx, b_tgt, j_tgt, nxt, pnx;
         logic            mis;
         always @(*) begin
             // the bypass: the write-back registers (the results of the cycle before), else the RR read
@@ -677,14 +737,18 @@ module OOO_CORE
         OOO_ALU2 #(.FULL(p == 0)) u_alu
             (.s1(a), .s2(b), .imm1(imm64), .pc(pc64), .op1(ex[p].rec.alu_op), .uw1(ex[p].rec.a_uw),
              .shift1(ex[p].rec.a_shift), .word1(ex[p].rec.word_op), .a1_sel(ex[p].rec.a_sel), .b1_imm(ex[p].rec.b_sel),
-             .is_br(ex[p].rec.is_br), .br_op(ex[p].rec.br_op), .br_fused(1'b0), .br_res1_a(1'b0), .br_o_sel(2'd0),
+             .is_br(ex[p].rec.is_br), .br_op(ex[p].rec.br_op), .br_fused(ex[p].rec.fused), .br_res1_a(ex[p].rec.b_res1a),
+             .br_o_sel(ex[p].rec.b_osel),
              .res1(ex_res[p]), .take_branch(ex_tk[p]));
         always @(*) begin
             /* verilator lint_off UNUSEDSIGNAL */
             logic [63:0] jt;
             /* verilator lint_on UNUSEDSIGNAL */
-            pc_nx = pc + (ex[p].rec.len4 ? (VA - 1)'(2) : (VA - 1)'(1));
-            b_tgt = pc + (VA - 1)'({{32{ex[p].rec.imm[31]}}, ex[p].rec.imm} >> 1);
+            // (a pair: the branch at pc + the ALU half's length, its offset in joff)
+            pc_b  = pc + (ex[p].rec.len4 ? (VA - 1)'(2) : (VA - 1)'(1));
+            pc_nx = ex[p].rec.fused ? pc_b + (ex[p].rec.len4b ? (VA - 1)'(2) : (VA - 1)'(1)) : pc_b;
+            b_tgt = ex[p].rec.fused ? pc_b + (VA - 1)'({{52{ex[p].rec.joff[11]}}, ex[p].rec.joff})
+                                    : pc + (VA - 1)'({{32{ex[p].rec.imm[31]}}, ex[p].rec.imm} >> 1);
             jt    = a + {{52{ex[p].rec.joff[11]}}, ex[p].rec.joff};
             j_tgt = jt[VA-1:1];
             nxt   = ex[p].rec.is_jalr ? j_tgt : ex_tk[p] ? b_tgt : pc_nx;
@@ -922,6 +986,9 @@ module OOO_CORE
 `ifdef OOO_TRACE
     // ---- the commit trace
     logic [31:0]     sh_insn [NROB] /*verilator public_flat_rd*/;
+    logic [31:0]     sh_insn2 [NROB] /*verilator public_flat_rd*/;  // a pair's branch (tb_core checks its resolution)
+    logic            sh_pair [NROB] /*verilator public_flat_rd*/;
+    logic [VA-1:1]   sh_pc [NROB] /*verilator public_flat_rd*/;     // (tb_core checks the pc a branch resolves at)
     logic [63:0]     sh_val  [NROB];
     logic            sh_st   [NROB];
     logic [63:0]     sh_sa   [NROB];
@@ -929,8 +996,11 @@ module OOO_CORE
     logic [1:0]      sh_ss   [NROB];
     always_ff @(posedge clk) begin
         for (int j = 0; j < 2; j++) if (disp_go[j]) begin
-            sh_insn[disp_rob[j]] <= ds[j].insn;
-            sh_st[disp_rob[j]]   <= 1'b0;
+            sh_insn[disp_rob[j]]  <= ds[j].insn;
+            sh_insn2[disp_rob[j]] <= ds[j].insn2;
+            sh_pair[disp_rob[j]]  <= ds[j].rec.fused;
+            sh_pc[disp_rob[j]]    <= ds[j].pc;
+            sh_st[disp_rob[j]]    <= 1'b0;
         end
         for (int p = 0; p < 2; p++) if (ex_v[p] && ex[p].wr) sh_val[ex[p].rec.rob] <= ex_res[p];
         if (cmp_ld_v && prf_we[2]) sh_val[cmp_ld_rob] <= prf_wd[2];               // a load's value with its completion (M)
@@ -953,6 +1023,10 @@ module OOO_CORE
         tr_rd      = cmt_arch;
         tr_insn[0] = sh_insn[head_rob];
         tr_insn[1] = sh_insn[i1];
+        tr_pair[0] = sh_pair[head_rob];
+        tr_pair[1] = sh_pair[i1];
+        tr_insn2[0] = sh_insn2[head_rob];
+        tr_insn2[1] = sh_insn2[i1];
         tr_val[0]  = sh_val[head_rob];
         tr_val[1]  = sh_val[i1];
         tr_trap    = rob_trap || irq;
