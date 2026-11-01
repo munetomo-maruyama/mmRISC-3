@@ -190,19 +190,19 @@ MUT = [
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),
-# so no pair forms and these cannot be seen; with KINDS 8'h80 back, run them too (B5A=1)
+# so no pair forms and these cannot be seen; with OOO_CORE's FUSE_KINDS 8'h80 back, run them too (B5A=1)
 MUT_B5A = [
-    (C, "OOO_FUSE #(.KINDS(8'h80)) u_fuse", "OOO_FUSE #(.KINDS(8'h90)) u_fuse", 'B5a: ALU + load paired too (not executed as a pair)'),
+    (C, "FUSE_KINDS = 8'h80;", "FUSE_KINDS = 8'h90;", 'B5a: ALU + load paired too (not executed as a pair)'),
     (C, "r_ckpt[j]  = pr[j] || ", "r_ckpt[j]  = ", 'B5a: a pair without a checkpoint'),
     (C, "d2[j].rec.pred_taken = g_taken[b];", "d2[j].rec.pred_taken = g_taken[s];", 'B5a: a pair\'s prediction its ALU half\'s'),
     (C, "d2[j].rec.e          = g_end[b];", "d2[j].rec.e          = g_end[s];", 'B5a: a pair\'s last parcel its ALU half\'s'),
-    (C, "pc_nx = ex[p].rec.fused ? pc_b + (ex[p].rec.len4b ? (VA - 1)'(2) : (VA - 1)'(1)) : pc_b;", "pc_nx = pc_b;", 'B5a: a pair\'s next pc after its ALU half'),
-    (C, "b_tgt = ex[p].rec.fused ? pc_b + ", "b_tgt = ex[p].rec.fused ? pc + ", 'B5a: a pair\'s target from its ALU half\'s pc'),
+    (C, "pc_nx = (FUSE_AB && ex[p].rec.fused) ? pc_b + (ex[p].rec.len4b ? (VA - 1)'(2) : (VA - 1)'(1)) : pc_b;", "pc_nx = pc_b;", 'B5a: a pair\'s next pc after its ALU half'),
+    (C, "b_tgt = (FUSE_AB && ex[p].rec.fused) ? pc_b + ", "b_tgt = (FUSE_AB && ex[p].rec.fused) ? pc + ", 'B5a: a pair\'s target from its ALU half\'s pc'),
     (C, "|| g_ftq[s] != g_ftq[b];", ";", 'B5a: a pair across blocks reads its branch\'s line'),
     (C, "(g_use_rs1[rs[k]] && g_use_rs2[rs[k]] && g_rs1[rs[k]] == g_rs2[rs[k]])) ? 3'd7", "1'b0) ? 3'd7", 'B5a: an operation reading one register twice paired'),
     (C, "(pr[j] && g_a_sel[s] == 2'd0 && !a_s1[j]) ? 2'd2 : g_a_sel[s];", "g_a_sel[s];", 'B5a: an x0 read on s1 kept (the branch\'s operand goes there)'),
     (C, "else if (!a_s2[j])                     b_os[j] = 2'd1;", "else if (1'b0)                     b_os[j] = 2'd1;", 'B5a: the branch\'s operand on s1 when s2 is free'),
-    (C, ".br_fused(ex[p].rec.fused)", ".br_fused(1'b0)", 'B5a: a pair\'s branch compares s1 with s2'),
+    (C, ".br_fused(FUSE_AB && ex[p].rec.fused)", ".br_fused(1'b0)", 'B5a: a pair\'s branch compares s1 with s2'),
     (C, ".br_res1_a(ex[p].rec.b_res1a)", ".br_res1_a(1'b0)", 'B5a: the result always the second operand'),
 ]
 if os.environ.get('B5A'):

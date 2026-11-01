@@ -2785,3 +2785,11 @@ register file, OOO_TRAP, the fetch buffer) as the worst.
 | a load's data into the register file | −2.40 ns (21 levels) | `u_dc` → `u_prf/lvt` (5.14's completion in M) |
 | the privilege level into OOO_TRAP, the D$, the LSU | −2.10 / −1.60 / −0.96 ns | CORE_CSR's `priv_r` → `u_trap`, `u_dc`, `u_lsu` |
 | the fetch buffer's loop | −0.141 ns (17 levels) | |
+
+### 27.8 27.7's two fixes (Plan/CORE.md 5.22, 2026-11-02)
+
+The fused path gated by the core's fusion parameter (`FUSE_AB`), and OOO_IQ's `iss_bm` without the cycle's clear.
+Yosys: OOO_CPU 49,106 → 46,768 LUT cells (the fused compare, its selects and the pair's adders were still in EX).
+To rerun: `synth_ooo.bat OOO_CPU`; expected: an unfused branch's misprediction at about 13.4 ns, the clear into the
+masks' flip-flops after it, and the classes of 27.7's table (the CSR result and a load's data into the register
+file, the privilege level, the fetch buffer) as the worst.

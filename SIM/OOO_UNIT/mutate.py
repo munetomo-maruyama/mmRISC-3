@@ -392,6 +392,9 @@ M = [
     ('M378', 'OOO_IQ/OOO_IQ.sv', 'iq', "ns_stay[i] = v[i] && ns[i] && !issued[i];", "ns_stay[i] = v[i] && ns[i];", 'a non-speculative µop waits a cycle more for an issued one'),
     ('M379', 'OOO_IQ/OOO_IQ.sv', 'iq', "(ns_stay != '0 || (disp1[i] && disp_valid[0] && fev[0] && disp_ns[0]));", "(ns_stay != '0);", 'the second of a pair passes the non-speculative first'),
     ('M380', 'OOO_IQ/OOO_IQ.sv', 'iq', "(!ns[i] || ns_ok) && !nw[i] && !sw[i];", "!nw[i] && !sw[i];", 'a non-speculative µop issued without ns_ok'),
+    # 2026-11-02: iss_bm without this cycle's clear (Plan/OOC.md 27.7)
+    ('M381', 'OOO_IQ/OOO_IQ.sv', 'iq', "iss_bm[p]  = iss_bm[p]  | ({NCK{g[p][i]}}  & bm[i]);", "iss_bm[p]  = iss_bm[p]  | ({NCK{g[p][i]}}  & bm[i] & ~clr);", 'the clear back on the select\'s mask'),
+    ('M381b', 'OOO_IQ/OOO_IQ.sv', 'iq', "iss_bm[p]  = iss_bm[p]  | ({NCK{g[p][i]}}  & bm[i]);", "iss_bm[p]  = iss_bm[p]  | ({NCK{g[p][i]}}  & bm[i] & ~kill);", 'the killed bit dropped from the mask'),
     ('M81', 'OOO_FTQ/OOO_FTQ.sv', 'ftq', "assign push_ready = used != (FTQW + 1)'(NFTQ);", "assign push_ready = 1'b1;", 'a full FTQ takes a block'),
     ('M82', 'OOO_FTQ/OOO_FTQ.sv', 'ftq', "{(restore_idx >= head[FTQW-1:0]) ? head[FTQW] : ~head[FTQW], restore_idx}", "{head[FTQW], restore_idx}", 'restored tail with the wrong lap'),
     ('M83', 'OOO_FTQ/OOO_FTQ.sv', 'ftq', 'if (flush_all)    tail <= h;', 'if (flush_all)    tail <= head;', 'flush_all without the pops of that cycle'),

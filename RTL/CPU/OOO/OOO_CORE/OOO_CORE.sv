@@ -141,6 +141,11 @@ module OOO_CORE
     localparam int TAGW  = 6;                   // 64 physical registers
     localparam int NROB  = 24, ROBW = 5;
     localparam int NIQ   = 10, IQW  = 4;
+    // the fusion kinds (OOO_FUSE's KINDS): ALU + branch (B5a, 8'h80) is off (5.21). FUSE_AB gates the pair's
+    // uses after D2 as well: the record goes through OOO_IQPL's LUT RAM, where synthesis cannot see `fused` as a
+    // constant, and the compare after the ALU would stay in EX (Plan/OOC.md 27.7)
+    localparam logic [7:0] FUSE_KINDS = 8'h00;
+    localparam bit         FUSE_AB    = FUSE_KINDS[7];
     localparam int NWK   = 6;                   // wakeup buses (OOO_IQ: 4 + NEXT)
 
     logic [1:0]          priv;                  // the privilege level (CORE_CSR): ECALL's cause at decode
@@ -324,8 +329,8 @@ module OOO_CORE
     logic [3:0]          u0_kind, u1_kind;
     logic [2:0]          consumed;
     logic                no_fuse;               // OOO_TRAP: a pair being fetched again after an exception
-    // ALU + branch (B5a, KINDS 8'h80) is off (5.21): its compare does not fit in EX's cycle (Plan/OOC.md 27.5)
-    OOO_FUSE #(.KINDS(8'h00)) u_fuse
+    // ALU + branch (B5a) is off (5.21): its compare does not fit in EX's cycle (Plan/OOC.md 27.5)
+    OOO_FUSE #(.KINDS(FUSE_KINDS)) u_fuse
         (.no_fuse(no_fuse), .valid(r_v), .seq(f_seq), .cls(f_cls), .op(f_op), .rd(f_rd), .rs1(f_rs1), .rs2(f_rs2),
          .use_rs1(f_use1), .use_rs2(f_use2), .imm(f_imm), .msize(f_msize), .port(f_port),
          .u0_valid(u0_valid), .u0_slot(u0_slot), .u0_kind(u0_kind), .u0_port(u0_port),
@@ -548,12 +553,12 @@ module OOO_CORE
     logic [1:0][2:0]           disp_len;                    // halfwords: a pair's both halves
     always @(*)
         for (int j = 0; j < 2; j++)
-            disp_len[j] = (ds[j].rec.len4 ? 3'd2 : 3'd1) + (ds[j].rec.fused ? (ds[j].rec.len4b ? 3'd2 : 3'd1) : 3'd0);
+            disp_len[j] = (ds[j].rec.len4 ? 3'd2 : 3'd1) + ((FUSE_AB && ds[j].rec.fused) ? (ds[j].rec.len4b ? 3'd2 : 3'd1) : 3'd0);
     OOO_ROB #(.NROB(NROB), .ROBW(ROBW), .VA(VA), .TAGW(TAGW), .CW(CW), .NCMP(NCMP), .FTQW(FTQW)) u_rob
         (.clk(clk), .rst_n(rst_n), .rob_avail(rob_avail), .disp_valid(disp_go),
          .disp_pc({ds[1].pc, ds[0].pc}), .disp_wr({ds[1].wr, ds[0].wr}), .disp_arch({ds[1].arch, ds[0].arch}),
          .disp_new({ds[1].dst, ds[0].dst}), .disp_old({ds[1].old, ds[0].old}), .disp_ld({ds[1].ld, ds[0].ld}), .disp_st({ds[1].st, ds[0].st}),
-         .disp_fused({ds[1].rec.fused, ds[0].rec.fused}), .disp_ns({ds[1].ns, ds[0].ns}), .disp_len(disp_len),
+         .disp_fused({FUSE_AB && ds[1].rec.fused, FUSE_AB && ds[0].rec.fused}), .disp_ns({ds[1].ns, ds[0].ns}), .disp_len(disp_len),
          .disp_ftq({ds[1].rec.ftq, ds[0].rec.ftq}), .disp_exc({ds[1].exc, ds[0].exc}), .disp_cause({ds[1].cause, ds[0].cause}),
          .disp_rob(disp_rob),
          .cmp_valid(cmp_valid), .cmp_rob(cmp_rob), .cmp_exc(cmp_exc), .cmp_cause(cmp_cause), .cmp_rp(cmp_rp),
@@ -751,7 +756,7 @@ module OOO_CORE
         OOO_ALU2 #(.FULL(p == 0)) u_alu
             (.s1(a), .s2(b), .imm1(imm64), .pc(pc64), .op1(ex[p].rec.alu_op), .uw1(ex[p].rec.a_uw),
              .shift1(ex[p].rec.a_shift), .word1(ex[p].rec.word_op), .a1_sel(ex[p].rec.a_sel), .b1_imm(ex[p].rec.b_sel),
-             .is_br(ex[p].rec.is_br), .br_op(ex[p].rec.br_op), .br_fused(ex[p].rec.fused), .br_res1_a(ex[p].rec.b_res1a),
+             .is_br(ex[p].rec.is_br), .br_op(ex[p].rec.br_op), .br_fused(FUSE_AB && ex[p].rec.fused), .br_res1_a(ex[p].rec.b_res1a),
              .br_o_sel(ex[p].rec.b_osel),
              .res1(ex_res[p]), .take_branch(ex_tk[p]));
         always @(*) begin
@@ -760,8 +765,8 @@ module OOO_CORE
             /* verilator lint_on UNUSEDSIGNAL */
             // (a pair: the branch at pc + the ALU half's length, its offset in joff)
             pc_b  = pc + (ex[p].rec.len4 ? (VA - 1)'(2) : (VA - 1)'(1));
-            pc_nx = ex[p].rec.fused ? pc_b + (ex[p].rec.len4b ? (VA - 1)'(2) : (VA - 1)'(1)) : pc_b;
-            b_tgt = ex[p].rec.fused ? pc_b + (VA - 1)'({{52{ex[p].rec.joff[11]}}, ex[p].rec.joff})
+            pc_nx = (FUSE_AB && ex[p].rec.fused) ? pc_b + (ex[p].rec.len4b ? (VA - 1)'(2) : (VA - 1)'(1)) : pc_b;
+            b_tgt = (FUSE_AB && ex[p].rec.fused) ? pc_b + (VA - 1)'({{52{ex[p].rec.joff[11]}}, ex[p].rec.joff})
                                     : pc + (VA - 1)'({{32{ex[p].rec.imm[31]}}, ex[p].rec.imm} >> 1);
             jt    = a + {{52{ex[p].rec.joff[11]}}, ex[p].rec.joff};
             j_tgt = jt[VA-1:1];
@@ -1052,7 +1057,7 @@ module OOO_CORE
         for (int j = 0; j < 2; j++) if (disp_go[j]) begin
             sh_insn[disp_rob[j]]  <= ds[j].insn;
             sh_insn2[disp_rob[j]] <= ds[j].insn2;
-            sh_pair[disp_rob[j]]  <= ds[j].rec.fused;
+            sh_pair[disp_rob[j]]  <= FUSE_AB && ds[j].rec.fused;
             sh_pc[disp_rob[j]]    <= ds[j].pc;
             sh_st[disp_rob[j]]    <= 1'b0;
         end

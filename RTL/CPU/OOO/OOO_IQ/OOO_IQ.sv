@@ -52,8 +52,12 @@
 // restored checkpoint, one-hot) frees the entries whose mask has that bit,
 // the µops younger than the branch, in the next state; clr (checkpoints
 // resolved as predicted) clears bits in every mask. The issued µop's mask
-// goes out (iss_bm) for the units, which drop what has a killed bit. flush
-// (flush_all) frees every entry.
+// goes out (iss_bm) for the units, which drop what has a killed bit. It is
+// the entry's, without this cycle's clr: every user takes it with & ~clr
+// into a register (OOO_STAGE, OOO_MDUP) or compares it with kill, which a
+// cleared bit never is (OOO_CTRL: clr & ~killset), so the clear, which
+// comes from EX's compare, stays off the select's outputs (Plan/OOC.md
+// 27.7). flush (flush_all) frees every entry.
 //
 // Non-speculative µops (Doc/UARCH.md 3.9: CSR, system, AMO / LR / SC,
 // cbo.zero; disp_ns) run only at the ROB head: such an entry may be
@@ -211,7 +215,7 @@ module OOO_IQ
             for (int i = 0; i < N; i++) begin
                 iss_src[p] = iss_src[p] | ({2*TAGW{g[p][i]}} & src[i]);
                 iss_dst[p] = iss_dst[p] | ({TAGW{g[p][i]}} & dst[i]);
-                iss_bm[p]  = iss_bm[p]  | ({NCK{g[p][i]}}  & bm[i] & ~clr);
+                iss_bm[p]  = iss_bm[p]  | ({NCK{g[p][i]}}  & bm[i]);
             end
         end
     end

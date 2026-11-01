@@ -552,6 +552,15 @@ Vivadoのあとの、`Plan/OOC_J.md` 26.18の2つの直し(OOO_IQ +0.360 ns、OO
 - **テスト**: `run_core.sh`、`run_coremark.sh`: 通る。`mutate_core.py` 91のうち91: B5aの変異12は`MUT_B5A`に分けた(組ができないので見えない。`KINDS`を8'h80に戻して`B5A=1`で走らせる)。
 - **Vivado**: もう一度`synth_ooo.bat OOO_CPU`。
 
+### 5.22 融合の経路をゲートし、発行キューのマスクからclrを除く(2026-11-02)
+
+`Plan/OOC_J.md` 27.7の2つの直し。
+
+- **`FUSE_KINDS` / `FUSE_AB`**(OOO_CORE): OOO_FUSEの`KINDS`をコアのlocalparamにし、そのALU + 分岐のビットで、D2より後の組の使い道(融合した比較の`br_fused`、ALU側のあとの次のpcとターゲット、ROBの`disp_fused`と長さ、トレースの組)をすべてゲートする。記録はOOO_IQPLのLUT RAMを通り、合成は`fused`を定数と見られない: ゲートがないと、ALUのあとの比較、そのオペランドの選択、2つ目の加算器がEXに残った。Yosys: OOO_CPU 49,106 → 46,768 LUTセル。
+- **`~clr`のない`iss_bm`**(OOO_IQ): 発行したµopのマスクはエントリのもので、そのサイクルのclrを含めない。使う側はどれも`& ~clr`をかけてレジスタに入れる(OOO_STAGE、OOO_MDUP)か、`kill`と比べ、clrされるビットがkillになることはない(`clr & ~killset`)ので、clr(EXの比較から、5.20)は選択の出力に入らない。`tb_iq`はそのサイクルのclrの前のマスクを期待する。M381(clrを戻す)とM381b(killされたビットを落とす)を足した。
+- **テスト**: CoreMarkのサイクルは変わらない(どちらもコアの動作を変えない)。`run_core.sh`、単体テスト28本(`tb_iq`は7シード): 通る。lintの新しい警告なし。`mutate_core.py` 91のうち91(分けたB5aのものはゲートした行に合わせた)、単体の変異346(M381、M381bを検出)。
+- **Vivado**: もう一度`synth_ooo.bat OOO_CPU`。
+
 ---
 
 ## 6. G1で測るもの

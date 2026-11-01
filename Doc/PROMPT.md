@@ -4864,3 +4864,50 @@ Prompt 127 is logged in PROMPT.md, in this commit.
 ```text
 Vivado has finished. Please check the results.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I checked the results. With fusion off, the fused compare's path was still in the circuit. WNS is −7.362 ns. Recorded in Plan/OOC 27.7 and UARCH's budget table, pushed as 7fb17c9.
+
+| | 2nd run | **3rd run (fusion off)** |
+|---|---|---|
+| OOO_CPU | 38,071 LUTs | **37,421 LUTs** (−650) |
+| OoO engine | 28,152 | **27,485** |
+| WNS | −6.442 ns | **−7.362 ns** |
+| Failing endpoints | 3,400 | 2,596 |
+| TNS | −6,735 ns | −3,707 ns |
+
+**Why the fused compare remains**
+- The worst path (63 levels):
+  - WB → ALU0's adder → the compare's carry chain (`take_branch` 19.4 ns) → misprediction (21.9 ns)
+  - → the clr out of EX (24.4 ns) → the issue queue's `iss_bm` → RR's valid, MDUP (28.3 ns)
+- With `KINDS` 0 the pairs' fields are constants at D2, but the µop record goes through OOO_IQPL's LUT RAM, so Vivado cannot tell that `fused` is always 0. The "compare with the ALU's result" path stays in EX.
+- D2's class of paths is gone (renaming −0.85 ns, DS register +1.01 ns): D2's delay was mostly fusion's fields.
+
+**The clr reaches the issue queue's select output**
+OOO_IQ gives `iss_bm` as `bm & ~clr`, but every receiver (the RR stages, MDUP) applies `& ~clr` again as it registers, and the kill compare does not need it (a checkpoint being cleared is never the one restored). That `~clr` pulls EX's clr into the select's output path.
+
+**Proposals (both small)**
+1. Gate EX's fused path with the fusion parameter: with `KINDS` 0, `fused` is a constant and the compare reads s1 / s2 alone (about 10.5 ns).
+2. Take `~clr` out of `iss_bm`.
+
+**What to fix after that**
+
+| Class | Slack |
+|---|---|
+| the CSR unit's result into the register file | −2.68 ns |
+| a load's data into the register file (5.14's completion in M) | −2.40 ns |
+| the privilege level into TRAP / D$ / LSU | −2.10 / −1.60 / −0.96 ns |
+| the fetch buffer's loop | −0.14 ns |
+
+Size went down by only 650 LUTs (part of fusion's logic remains). The overrun is 9.6k / 10.4k / 11.1k.
+
+Prompt 128 is logged in PROMPT.md, in this commit.
+<!-- /answer -->
+
+## 129. 2026-11-02 00:48:35 JST
+
+```text
+Yes, both
+```

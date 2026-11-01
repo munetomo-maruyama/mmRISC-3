@@ -153,7 +153,7 @@ br-11.elf                    PASS  exit 0  8328 insns  8328 uops  10340 cycles  
 br-12.elf                    PASS  exit 0  9275 insns  9275 uops  12092 cycles  IPC 0.767
 br-13.elf                    PASS  exit 0  8422 insns  8422 uops  11743 cycles  IPC 0.717
 br-14.elf                    PASS  exit 0  11617 insns  11617 uops  13195 cycles  IPC 0.880
-br-15.elf                    PASS  exit 0  11891 insns  11891 uops  13130 cycles  IPC 0.906
+br-15.elf                    PASS  exit 0  11891 insns  11891 uops  13270 cycles  IPC 0.896
 br-16.elf                    PASS  exit 0  5759 insns  5759 uops  7588 cycles  IPC 0.759
 br-17.elf                    PASS  exit 0  17479 insns  17479 uops  19803 cycles  IPC 0.883
 br-18.elf                    PASS  exit 0  6751 insns  6751 uops  10418 cycles  IPC 0.648
@@ -248,8 +248,8 @@ br-13.elf                    PASS  exit 0  8422 insns  8422 uops  8915 cycles  I
     243 restores (mispredicted branches and jalr), 0 replays, I$ 0 / 6844 missed, D$ 0 / 0 loads missed, 0 stores
 br-14.elf                    PASS  exit 0  11617 insns  11617 uops  11264 cycles  IPC 1.031
     316 restores (mispredicted branches and jalr), 0 replays, I$ 0 / 7462 missed, D$ 0 / 0 loads missed, 0 stores
-br-15.elf                    PASS  exit 0  11891 insns  11891 uops  11047 cycles  IPC 1.076
-    264 restores (mispredicted branches and jalr), 0 replays, I$ 0 / 7360 missed, D$ 0 / 0 loads missed, 0 stores
+br-15.elf                    PASS  exit 0  11891 insns  11891 uops  11046 cycles  IPC 1.076
+    265 restores (mispredicted branches and jalr), 0 replays, I$ 0 / 7361 missed, D$ 0 / 0 loads missed, 0 stores
 br-16.elf                    PASS  exit 0  5759 insns  5759 uops  6653 cycles  IPC 0.866
     229 restores (mispredicted branches and jalr), 0 replays, I$ 0 / 4656 missed, D$ 0 / 0 loads missed, 0 stores
 br-17.elf                    PASS  exit 0  17479 insns  17479 uops  16129 cycles  IPC 1.084
@@ -1097,7 +1097,7 @@ rv64mi-p-sbreak              PASS  exit 0  111 insns  114 uops  558 cycles  IPC 
 rv64mi-p-scall               PASS  exit 0  96 insns  98 uops  475 cycles  IPC 0.202
 rv64mi-p-zicntr              PASS  exit 0  121 insns  123 uops  558 cycles  IPC 0.217
 rv64si-p-csr                 PASS  exit 0  196 insns  199 uops  1102 cycles  IPC 0.178
-rv64si-p-ma_fetch            PASS  exit 0  127 insns  129 uops  586 cycles  IPC 0.217
+rv64si-p-ma_fetch            PASS  exit 0  127 insns  129 uops  587 cycles  IPC 0.216
 rv64si-p-sbreak              PASS  exit 0  105 insns  108 uops  535 cycles  IPC 0.196
 rv64si-p-scall               PASS  exit 0  112 insns  115 uops  603 cycles  IPC 0.186
 rv64si-p-wfi                 PASS  exit 0  92 insns  94 uops  495 cycles  IPC 0.186
@@ -1368,7 +1368,7 @@ Zca-c.and-00.elf             PASS  exit 0  3927 insns  3931 uops  9565 cycles  I
 Zca-c.beqz-00.elf            PASS  exit 0  1193 insns  1197 uops  4215 cycles  IPC 0.283
 Zca-c.bnez-00.elf            PASS  exit 0  1169 insns  1173 uops  3917 cycles  IPC 0.298
 Zca-c.jalr-00.elf            PASS  exit 0  1673 insns  1677 uops  4287 cycles  IPC 0.390
-Zca-c.jr-00.elf              PASS  exit 0  1581 insns  1585 uops  4188 cycles  IPC 0.378
+Zca-c.jr-00.elf              PASS  exit 0  1581 insns  1585 uops  4183 cycles  IPC 0.378
 Zca-c.j-00.elf               PASS  exit 0  4302 insns  4306 uops  5245 cycles  IPC 0.820
 Zca-c.ldsp-00.elf            PASS  exit 0  1563 insns  1567 uops  4429 cycles  IPC 0.353
 Zca-c.ld-00.elf              PASS  exit 0  1220 insns  1224 uops  3982 cycles  IPC 0.306
@@ -1402,7 +1402,7 @@ Zicsr-csrrw-00.elf           PASS  exit 0  2241 insns  2243 uops  9165 cycles  I
 Zifencei-fence.i-00.elf      PASS  exit 0  1062 insns  1066 uops  4982 cycles  IPC 0.213
 illegal.elf                  PASS  exit 0  958 insns  1018 uops  4454 cycles  IPC 0.215
 tb_core: 186 files, 0 failures: PASS
-rv64mi-p-illegal             PASS  exit 0  360 insns  369 uops  1806 cycles  IPC 0.199
+rv64mi-p-illegal             PASS  exit 0  360 insns  369 uops  1797 cycles  IPC 0.200
 rv64mi-p-instret_overflow    PASS  exit 0  100 insns  102 uops  512 cycles  IPC 0.195
 rv64mi-p-ma_addr             PASS  exit 0  720 insns  748 uops  2504 cycles  IPC 0.288
 rv64mi-p-ma_fetch            PASS  exit 0  129 insns  131 uops  581 cycles  IPC 0.222
@@ -1412,7 +1412,7 @@ rv64mi-p-sbreak              PASS  exit 0  111 insns  114 uops  558 cycles  IPC 
 rv64mi-p-scall               PASS  exit 0  96 insns  98 uops  475 cycles  IPC 0.202
 rv64mi-p-zicntr              PASS  exit 0  121 insns  123 uops  558 cycles  IPC 0.217
 rv64si-p-csr                 PASS  exit 0  196 insns  199 uops  1102 cycles  IPC 0.178
-rv64si-p-ma_fetch            PASS  exit 0  127 insns  129 uops  586 cycles  IPC 0.217
+rv64si-p-ma_fetch            PASS  exit 0  127 insns  129 uops  587 cycles  IPC 0.216
 rv64si-p-sbreak              PASS  exit 0  105 insns  108 uops  535 cycles  IPC 0.196
 rv64si-p-scall               PASS  exit 0  112 insns  115 uops  603 cycles  IPC 0.186
 rv64si-p-wfi                 PASS  exit 0  92 insns  94 uops  495 cycles  IPC 0.186

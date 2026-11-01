@@ -37,7 +37,8 @@
 // open a new one after it. Now and then a kill (in a cycle without
 // dispatch, as OOO_CTRL gives it) of an open id: the µops whose mask has it
 // leave, and the ids opened after it close; and a clear of an open id:
-// its bit goes from every mask. iss_bm is checked for every issue.
+// its bit goes from every mask. iss_bm is checked for every issue (the
+// entry's mask before that cycle's clear).
 //
 // The wakeup tags (wk_*, for renaming's busy bits and the DS register) are
 // checked bus by bus: the latency-1 µops issued now, the latency-2 ones
@@ -274,7 +275,7 @@ int main(int argc, char** argv)
                     printf("MISMATCH cycle %ld port %d: issued %d (p%d), expected %s (p%d)\n", cyc, p, v, t,
                            exp[p] ? "one" : "none", exp[p] ? exp[p]->dst : 0);
                 if (ok && v) {
-                    unsigned gb = (unsigned)((d.iss_bm >> (6 * p)) & 63), eb = exp[p]->bm & ~clrm;
+                    unsigned gb = (unsigned)((d.iss_bm >> (6 * p)) & 63), eb = exp[p]->bm;   // (the entry's, before this cycle's clear: the users clear it as they take it)
                     if (gb != eb && bad++ < 10) printf("MISMATCH cycle %ld port %d (p%d): iss_bm %02x, expected %02x\n", cyc, p, t, gb, eb);
                     int en = (int)((d.iss_entry >> (4 * p)) & 15);
                     if (en != exp[p]->entry && bad++ < 10)

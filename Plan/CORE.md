@@ -842,6 +842,24 @@ EX (the resolution register of 5.20) or with D2's refill.
   `MUT_B5A` (no pair forms, so none can be seen; `B5A=1` with `KINDS` 8'h80 back runs them).
 - **Vivado**: `synth_ooo.bat OOO_CPU` again.
 
+### 5.22 The fused path gated, the issue queue's mask without the clear (2026-11-02)
+
+`Plan/OOC.md` 27.7's two fixes.
+
+- **`FUSE_KINDS` / `FUSE_AB`** (OOO_CORE): OOO_FUSE's `KINDS` is a localparam of the core, and its ALU + branch bit
+  gates every use of a pair after D2 (the fused compare's `br_fused`, the next pc and target after the ALU half, the
+  ROB's `disp_fused` and length, the trace's pair). The record goes through OOO_IQPL's LUT RAM, where synthesis cannot
+  see `fused` as a constant: without the gate the compare after the ALU, its operand selects and the second adders
+  stayed in EX. Yosys: OOO_CPU 49,106 → 46,768 LUT cells.
+- **`iss_bm` without `~clr`** (OOO_IQ): the issued µop's mask is the entry's, without this cycle's clear. Every user
+  takes it with `& ~clr` into a register (OOO_STAGE, OOO_MDUP) or compares it with `kill`, which a cleared bit never
+  is (`clr & ~killset`), so the clear (from EX's compare, 5.20) stays off the select's outputs. `tb_iq` expects the
+  mask before the cycle's clear; M381 (the clear back) and M381b (a killed bit dropped) added.
+- **Tests**: CoreMark's cycles unchanged (neither changes what the core does); `run_core.sh`, the 28 unit tests
+  (`tb_iq` on 7 seeds): pass; no new lint warning. `mutate_core.py` 91 of 91 (B5a's set aside follow the gated lines),
+  346 unit mutations (M381, M381b detected).
+- **Vivado**: `synth_ooo.bat OOO_CPU` again.
+
 ---
 
 ## 6. What G1 measures
