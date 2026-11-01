@@ -2673,8 +2673,8 @@ ready is the operands, `ns_ok` and the two wait bits. Vivado to rerun: `synth_oo
   (the bypass muxes, the pc from the pc array, branch resolution with its adders and compares, port 0's result
   select and completion), the LSU's RR / EX. Vivado puts it into the child instances (port 0's EX stage holds 4,223
   LUTs, ALU0 included; the LSU 3,186 against 1,949 alone), so only the sums compare (25.3).
-- Against the room (`Doc/UARCH.md` 4.4): over by 8.3k / 9.1k / 9.8k, the whole chip about 64k LUTs in the middle,
-  more than the device (63,400). The timing must be closed first (below: a failing run may grow some logic); then the
+- Against the room (`Doc/UARCH.md` 4.4): over by 8.3k / 9.1k / 9.8k, the whole chip about 61k LUTs in the middle
+  (the 52k ceiling + 9.1k: 96 % of the device's 63,400, where 80 % is what routes; corrected 2026-11-02). The timing must be closed first (below: a failing run may grow some logic); then the
   reserve levers (L10, B4 / B5 of `Doc/UARCH.md` 6.3) and the core's own logic are what is left to cut.
 
 ### 27.3 The first run: timing
@@ -2811,5 +2811,5 @@ file, the privilege level, the fetch buffer) as the worst.
   issue queue +1.13 ns; the fetch buffer's loop +1.42 ns. Nothing else below +1.5 ns.
 - **Size**: −976 against the third run (the fused path gated, 5.22); the ROB 3,717 (eight completion ports, +619 on
   the first run; the mispredicted branches' two could share EX's ports, as their EX completion is held then).
-- Against the room: over by 9.1k / 9.9k / 10.6k (the whole chip about 63k in the middle, at the device's 63,400).
+- Against the room: over by 9.1k / 9.9k / 10.6k (the whole chip about 62k in the middle: the 52k ceiling + 9.9k, 98 % of the device's 63,400).
   With the timing closed, size is what stands between the core and G1.
