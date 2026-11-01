@@ -2617,3 +2617,9 @@ The author took D-18 (`Doc/PROMPT.md` entry 94).
   non-speculative entry stays"), the select seeing only `ns_ok` and that bit; about 10 FFs. 50 MHz is met as it is;
   the output delay of the out-of-context run is a guess for what feeds the PRF's read in the core (B7 measures it).
 - The budget (`Doc/UARCH.md` 4.4): −0.15k (the CSR unit −199, the issue queue +46).
+
+### 26.21 The non-speculative term a register (Plan/CORE.md 5.16, 2026-11-01)
+
+26.20's worst path: the non-speculative term becomes a register per entry (`wnq`), as the load's wait did. Yosys:
+OOO_IQ 3,119 → 3,221 LUTs, 484 → 494 FF. In front of the select there is no AND-OR over the other entries left:
+ready is the operands, `ns_ok` and the two wait bits. Vivado to rerun: `synth_ooo.bat OOO_IQ`.

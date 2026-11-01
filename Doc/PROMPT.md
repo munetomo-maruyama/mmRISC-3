@@ -4451,3 +4451,36 @@ I have finished the Vivado runs. Please check the results.
 ```text
 I have finished the Vivado runs. Please check the results.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I checked the results. Both meet 50 MHz. The CSR unit came out better than expected. In the IQ the load's wait is off the worst path, but another path of the same shape is now the worst, and the slack barely moved. Recorded in Plan/OOC 26.20 and UARCH's budget table, pushed as 0c0d9d3.
+
+| Top | LUT | Slack (all / reg to reg) |
+|---|---|---|
+| OOC_CSRU | 2,695 → **2,496** (−199) | +1.066 → **+3.509 ns** |
+| OOO_IQ | 1,951 → 1,997 (+46) | +0.360 → **+0.371 ns** / +5.884 → +6.607 ns |
+
+**OOC_CSRU**
+- With the FS check kept, it is smaller than before 5.7 (2,537): what had grown was only the write hold.
+- The slack widened to +3.5 ns.
+
+**OOO_IQ**
+- The load's wait is off the worst path and register to register is back (+6.6 ns).
+- The worst path is now "non-speculative bit (`nq`) → `older & v & ns` → ready → select → `iss_src` out": exactly the shape of the load's wait, one term over. The term has been there since 19.4; before 5.9 the same structure gave +1.165 ns, so the difference is placement. Of the 12.6 ns, 10.7 ns are routes.
+- +46 LUTs are the wait's next-state logic (Yosys said +1).
+- **What can be done:** make the non-speculative term a register per entry too ("an older non-speculative entry stays"), so the select sees only `ns_ok` and that bit. About 10 FFs.
+- 50 MHz is met as it is, though. The out-of-context output delay of 6 ns is a guess for the path into the PRF's read in the core; the real margin shows in the whole-core run (B7).
+
+**Budget**
+−0.15k (CSR unit −199, issue queue +46); the overrun is now 4.5k / 5.9k / 7.1k.
+
+The English of answer 115 and prompts 116–117 is in PROMPT.md, in this commit.
+<!-- /answer -->
+
+## 118. 2026-11-01 12:41:54 JST
+
+```text
+Yes, do it
+```

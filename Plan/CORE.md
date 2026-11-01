@@ -686,6 +686,23 @@ The two fixes of `Plan/OOC.md` 26.18, after Vivado (OOO_IQ +0.360 ns, OOC_CSRU +
   run: with other registers (the wait bits added, the held write gone) the models after the first start with other
   values in what has no reset (the predictors' tables).
 
+### 5.16 The non-speculative wait a register (2026-11-01)
+
+`Plan/OOC.md` 26.20: after 5.15 the issue queue's worst path was the non-speculative term, the same shape one bit
+over (`nq` → `(older & v & ns) == '0` → ready → select → `iss_src`, +0.371 ns). That term becomes a register per entry
+too (`wnq`, "an older non-speculative entry stays"), made as the load's wait: set at dispatch for a non-speculative
+µop when one stays in the queue or is the first of the pair, kept while an older one stays (no term for a killed
+one, for the same reasons). The select sees `(!ns || ns_ok) && !nw && !sw`.
+
+- **Yosys**: OOO_IQ 3,119 → 3,221 LUTs, 484 → 494 FF (Vivado measured +46 for 5.15's wait against Yosys's +1).
+  Vivado to rerun: `synth_ooo.bat OOO_IQ`.
+- **Tests**: `tb_iq` unchanged on 7 seeds (the same issues, the same counts). M230 and M359 follow the new line;
+  M377 to M380 added (waiting for a younger non-speculative µop too, a cycle more for an issued one, the second of a
+  pair passing the first, no `ns_ok`): the 33 IQ mutations detected, 344 unit mutations. `mutate_core.py` 87 of 87;
+  `run_core.sh`, `run_coremark.sh` (cycles unchanged), the 28 unit tests, the stand-in test: all pass; no new lint
+  warning. `results/core.txt`'s cycles moved again through `tb_core`'s random initial values only: every program of
+  B2 and B4 run alone gives the same cycles as with 5.15.
+
 ---
 
 ## 6. What G1 measures

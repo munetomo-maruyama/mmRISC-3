@@ -259,7 +259,7 @@ M = [
     ('M228', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "ftq_tgt <= fe_flush ? ftq_hd + FTQW'(ftq_pop) : tgt;", 'ftq_tgt <= tgt;', 'blocks of a flushed FTQ still popped'),
     ('M330', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "ftq_pop = (ndone != '0) ? 2'd1 : 2'd0;", "ftq_pop = (ndone >= FTQW'(2)) ? 2'd2 : 2'(ndone);", 'two FTQ pops a cycle (TAGE takes one update)'),
     ('M229', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', 'free_valid[k] = cmt_valid[k] && cmt_wr[k];', 'free_valid[k] = cmt_valid[k];', 'a mapping freed for a µop that writes none'),
-    ('M230', 'OOO_IQ/OOO_IQ.sv', 'iq', "(!ns[i] || (ns_ok && (older[i] & v & ns) == '0)) &&", '(!ns[i] || ns_ok) &&', 'a younger non-speculative µop issued first'),
+    ('M230', 'OOO_IQ/OOO_IQ.sv', 'iq', "(!ns[i] || ns_ok) && !nw[i] && !sw[i];", "(!ns[i] || ns_ok) && !sw[i];", 'a younger non-speculative µop issued first'),
     ('M231', 'OOO_IQ/OOO_IQ.sv', 'iq', "assign iss_ns      = ((g0 | g1 | g2) & ns) != '0;", "assign iss_ns      = ((g0 | g1) & ns) != '0;", 'a non-speculative LSU µop not reported'),
     ('M232', 'OOO_ROB/OOO_ROB.sv', 'rob', 'cmt_ftq[u]  = p[FTQW-1:0];', 'cmt_ftq[u]  = p[FTQW:1];', 'the fetch block read a bit off'),
     # 2026-10-28: the units dropping by mask, the DS register's payload, wakeups for the busy bits (Plan/OOC.md 20)
@@ -350,7 +350,7 @@ M = [
     ('M365', 'OOO_TAGE/OOO_TAGE.sv', 'tage', 'm2.cprev = c1;', 'm2.cprev = c2;', 'the metadata with the count of two blocks before'),
     ('M366', 'OOO_FETCH/OOO_FETCH.sv', 'fetch', ".f0_live((nlive >= 3'd2) ? 2'd2 : nlive[1:0]),", ".f0_live(2'd0),", 'fetch says nothing is in flight'),
     # 2026-10-31: loads wait for the older stores (Plan/CORE.md 5.9)
-    ('M359', 'OOO_IQ/OOO_IQ.sv', 'iq', "(!ns[i] || (ns_ok && (older[i] & v & ns) == '0)) && !sw[i];", "(!ns[i] || (ns_ok && (older[i] & v & ns) == '0));", 'a load issues past an older store'),
+    ('M359', 'OOO_IQ/OOO_IQ.sv', 'iq', "(!ns[i] || ns_ok) && !nw[i] && !sw[i];", "(!ns[i] || ns_ok) && !nw[i];", 'a load issues past an older store'),
     ('M360', 'OOO_IQ/OOO_IQ.sv', 'iq', "wtq <= wtq && (oq & st_stay) != '0;", "wtq <= wtq && st_stay != '0;", 'a load waits for a younger store too'),
     ('M361', 'OOO_IQ/OOO_IQ.sv', 'iq', "wtq <= disp_port[d] == 2'd2 && !disp_st[d] &&", "wtq <= disp_port[d] == 2'd2 &&", 'a store waits for an older store'),
     # 2026-10-31: B4, the commit of a write to minstret / mcountinhibit (Plan/CORE.md 5.7)
@@ -387,6 +387,11 @@ M = [
     ('M374', 'OOO_IQ/OOO_IQ.sv', 'iq', "st_stay[i] = v[i] && st[i] && !issued[i];", "st_stay[i] = v[i] && st[i];", 'a load waits a cycle more for an issued store'),
     ('M375', 'OOO_IQ/OOO_IQ.sv', 'iq', "st_stay[i] = v[i] && st[i] && !issued[i];", "st_stay[i] = st[i] && !issued[i];", 'a load waits for a store that left'),
     ('M376', 'OOO_IQ/OOO_IQ.sv', 'iq', "(st_stay != '0 || (disp1[i] && disp_valid[0] && fev[0] && disp_st[0]));", "(st_stay != '0);", 'the second of a pair passes the store first in it'),
+    # 2026-11-01: the non-speculative wait a register per entry (Plan/CORE.md 5.16)
+    ('M377', 'OOO_IQ/OOO_IQ.sv', 'iq', "wnq <= wnq && (oq & ns_stay) != '0;", "wnq <= wnq && ns_stay != '0;", 'a non-speculative µop waits for a younger one too'),
+    ('M378', 'OOO_IQ/OOO_IQ.sv', 'iq', "ns_stay[i] = v[i] && ns[i] && !issued[i];", "ns_stay[i] = v[i] && ns[i];", 'a non-speculative µop waits a cycle more for an issued one'),
+    ('M379', 'OOO_IQ/OOO_IQ.sv', 'iq', "(ns_stay != '0 || (disp1[i] && disp_valid[0] && fev[0] && disp_ns[0]));", "(ns_stay != '0);", 'the second of a pair passes the non-speculative first'),
+    ('M380', 'OOO_IQ/OOO_IQ.sv', 'iq', "(!ns[i] || ns_ok) && !nw[i] && !sw[i];", "!nw[i] && !sw[i];", 'a non-speculative µop issued without ns_ok'),
     ('M81', 'OOO_FTQ/OOO_FTQ.sv', 'ftq', "assign push_ready = used != (FTQW + 1)'(NFTQ);", "assign push_ready = 1'b1;", 'a full FTQ takes a block'),
     ('M82', 'OOO_FTQ/OOO_FTQ.sv', 'ftq', "{(restore_idx >= head[FTQW-1:0]) ? head[FTQW] : ~head[FTQW], restore_idx}", "{head[FTQW], restore_idx}", 'restored tail with the wrong lap'),
     ('M83', 'OOO_FTQ/OOO_FTQ.sv', 'ftq', 'if (flush_all)    tail <= h;', 'if (flush_all)    tail <= head;', 'flush_all without the pops of that cycle'),
