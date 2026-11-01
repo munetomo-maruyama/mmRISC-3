@@ -10,7 +10,7 @@
 //       issue_w, fetch_bytes, fb, fe_depth, dec_depth, iss_to_ex, redirect,
 //       override_at, rob, iq, lq, sq, ckpt, alu, lsu, mul, mul_shared,
 //       lat_load, lat_mul, mdu_busy, ubtb, pred (perfect / gshare / S / M / L),
-//       fusion (0-3), chain, fuse_1w, fuse_2src, ck1, ck_jal, mem_cons, fwd, st_data_issue, lsu_cmt, mul_wb, keep_spec, alu_split,
+//       fusion (0-3), chain, fuse_1w, fuse_2src, fuse_kinds, ck1, ck_jal, mem_cons, fwd, st_data_issue, lsu_cmt, mul_wb, keep_spec, alu_split,
 //       upd (TAGE update 0 at once, 1 at commit), upd_lag, stale, iters
 //   model tage <trace.bin>
 //       the conditional branches through TAGE-S / M / L (to hold against
@@ -92,6 +92,7 @@ int main(int argc, char** argv)
         c.chain = (int)o.get("chain", c.chain);
         c.fuse_1w = o.get("fuse_1w", c.fuse_1w);
         c.fuse_2src = o.get("fuse_2src", c.fuse_2src);
+        c.fuse_kinds = (int)o.get("fuse_kinds", c.fuse_kinds);
         c.ck1 = o.get("ck1", c.ck1);
         c.ck_jal = o.get("ck_jal", c.ck_jal);
         c.mem_cons = o.get("mem_cons", c.mem_cons);

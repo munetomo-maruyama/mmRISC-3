@@ -722,6 +722,30 @@ be in the chip, synthesized and placed alone with its own ports (the I$ port, th
   FF, 26 DSP, 11.5 block-RAM tiles; Yosys counts LUT cells (1.3 to 1.6 × Vivado's physical LUTs on these blocks), so
   about 33k to 36k in Vivado.
 
+### 5.18 B5's plan: the fusion kinds CoreMark uses (2026-11-01)
+
+The model with the core's configuration (5.9's: `st_data_issue=1`, fusion level 2 with SRC2 and W1) and a new option,
+`fuse_kinds` (a mask of `fusion_level`'s kinds, `Plan/model/ooo.h`), one kind at a time against fusion off:
+
+| kind | g14 -O2 | g14 sf + -flto | g13 -O2 Zb |
+|---|---|---|---|
+| all of level 2 | 156,004 pairs, **−3.30 %** | 114,296, **−2.50 %** | 141,379, **−3.15 %** |
+| ALU + branch | 123,571, −2.34 % | 106,731, −2.23 % | 121,906, −2.41 % |
+| ALU + load (the load's base is the ALU's result) | 32,400, −0.96 % | 7,560, −0.25 % | 19,440, −0.55 % |
+| auipc + x | 33, 0 | 5, 0 | 33, 0 |
+| lui + addi, slli + srli, load + load, store + store | 0 | 0 | 0 |
+
+- **Only two kinds occur in CoreMark**: ALU + branch and ALU + load (99.98 % of the pairs). The load and store pairs
+  never pass SRC2 / W1 with these offsets, and the compilers do not emit lui + addi or slli + srli next to each other
+  here.
+- The model with fusion: 1,645,696 / 1,523,061 / 1,676,362 cycles (6.076 / 6.566 / 5.965 CoreMark/MHz), below the
+  G1 targets of section 6 (6.243 / 6.680 / 6.066), which were made before stores issued with their data (5.8).
+- **Order**: (B5a) ALU + branch: OOO_ALU2 has the fused comparison already (`br_fused`, `br_res1_a`, `br_o_sel`), the
+  ROB and OOO_TRAP have `disp_fused` / `head_fused` / the refetch of a pair; OOO_CORE ties them off. (B5b) ALU + load:
+  the load's address is the ALU's result plus the offset, so the LSU needs the ALU operation (or the pair splits
+  into the ALU port and the LSU); about a third of B5a's gain. The other kinds need their own execution (two
+  accesses a µop for the load and store pairs) and give nothing on CoreMark.
+
 ---
 
 ## 6. What G1 measures

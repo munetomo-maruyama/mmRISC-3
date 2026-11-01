@@ -57,6 +57,7 @@ struct OooCfg {
     int chain = 1;
     bool fuse_1w = false;       // fuse only pairs that write at most one register
     bool fuse_2src = false;     // fuse only pairs that read at most two registers
+    int fuse_kinds = 0x7f;      // the kinds allowed (fusion_level's kind bits; B5 brings them up one by one)
     bool ck1 = false;           // at most one checkpoint taken a cycle (Plan/OOC.md 10)
     bool ck_jal = true;         // a jal takes a checkpoint too (it cannot mispredict in the back end)
     bool mem_cons = true, fwd = true;
@@ -81,23 +82,27 @@ struct OooResult {
 };
 
 // fusion of two adjacent instructions (the rules of fusion_kind in analyze.py);
-// returns 0 or the level that allows the pair
-inline int fusion_level(const Rec& a, const Rec& b)
+// returns 0 or the level that allows the pair; kind (if given) one bit:
+// 1 lui + addi, 2 auipc + x, 4 slli + srli, 8 ALU + load, 16 load + load,
+// 32 store + store, 64 ALU + branch, 128 ALU + ALU
+inline int fusion_level(const Rec& a, const Rec& b, int* kind = nullptr)
 {
-    if (b.pc != a.pc + a.size) return 0;
+    int k = 0, lv = 0;
     uint8_t d = a.dst;
     bool a_alu = a.cls == C_ALU, b_alu = b.cls == C_ALU;
-    if (a.op == OP_LUI && b.op == OP_ADDI && reads(b, d)) return 1;
-    if (a.op == OP_AUIPC && d != NOREG && reads(b, d)) return 1;
-    if (a.op == OP_SLLI && b.op == OP_SRLI && d != NOREG && reads(b, d)) return 1;
-    if (b.cls == C_LOAD && d != NOREG && b.base == d && a_alu) return 1;
-    if (a.cls == C_LOAD && b.cls == C_LOAD && a.base != NOREG && a.base == b.base && a.dst != a.base &&
-        a.mem && b.mem && (a.mem > b.mem ? a.mem - b.mem : b.mem - a.mem) <= 8) return 1;
-    if (a.cls == C_STORE && b.cls == C_STORE && a.base != NOREG && a.base == b.base &&
-        a.mem && b.mem && (a.mem > b.mem ? a.mem - b.mem : b.mem - a.mem) <= 8) return 1;
-    if (a_alu && b.cls == C_BR && d != NOREG && reads(b, d)) return 2;
-    if (a_alu && b_alu && d != NOREG && reads(b, d)) return 3;
-    return 0;
+    if (b.pc != a.pc + a.size) ;
+    else if (a.op == OP_LUI && b.op == OP_ADDI && reads(b, d)) { k = 1; lv = 1; }
+    else if (a.op == OP_AUIPC && d != NOREG && reads(b, d)) { k = 2; lv = 1; }
+    else if (a.op == OP_SLLI && b.op == OP_SRLI && d != NOREG && reads(b, d)) { k = 4; lv = 1; }
+    else if (b.cls == C_LOAD && d != NOREG && b.base == d && a_alu) { k = 8; lv = 1; }
+    else if (a.cls == C_LOAD && b.cls == C_LOAD && a.base != NOREG && a.base == b.base && a.dst != a.base &&
+             a.mem && b.mem && (a.mem > b.mem ? a.mem - b.mem : b.mem - a.mem) <= 8) { k = 16; lv = 1; }
+    else if (a.cls == C_STORE && b.cls == C_STORE && a.base != NOREG && a.base == b.base &&
+             a.mem && b.mem && (a.mem > b.mem ? a.mem - b.mem : b.mem - a.mem) <= 8) { k = 32; lv = 1; }
+    else if (a_alu && b.cls == C_BR && d != NOREG && reads(b, d)) { k = 64; lv = 2; }
+    else if (a_alu && b_alu && d != NOREG && reads(b, d)) { k = 128; lv = 3; }
+    if (kind) *kind = k;
+    return lv;
 }
 
 // next-line predictor: fully associative, LRU, per control transfer
@@ -144,7 +149,9 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     std::vector<char> second(n, 0);
     if (c.fusion) {
         for (size_t i = 0; i + 1 < n;) {
-            int lv = fusion_level(t[i], t[i + 1]);
+            int kd = 0;
+            int lv = fusion_level(t[i], t[i + 1], &kd);
+            if (!(kd & c.fuse_kinds) && kd != 128) lv = 0;
             if (lv && c.fuse_1w && t[i].dst != NOREG && t[i + 1].dst != NOREG && t[i].dst != t[i + 1].dst) lv = 0;
             if (lv && c.fuse_2src) {     // the registers the pair reads from outside
                 uint8_t seen[6]; int ns = 0;
