@@ -4826,3 +4826,41 @@ Prompt 126 is logged in PROMPT.md, in this commit.
 ```text
 Yes, turn it off
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+ALU + branch fusion is off, pushed as 7d4a8fa.
+
+**Change (Plan/CORE 5.21)**
+- The core's OOO_FUSE has `KINDS` 0. No pair forms, and the pairs' logic (its fields become constants) is removed by synthesis.
+- The RTL stays. It comes back when the fused compare moves to the cycle after EX (the resolution register of 5.20) or D2's refill is fixed.
+- B5a's 12 core mutations cannot be detected while no pair forms, so they are in `MUT_B5A`; with `KINDS` back at 8'h80 they run with `B5A=1`.
+
+**CoreMark (cycles)**
+
+| | g14 -O2 | g14 sf+lto | g13 |
+|---|---|---|---|
+| OOO_CORE (5.20 → now) | 1,813,605 → 1,817,188 | 1,675,783 → 1,688,978 | 1,873,955 → 1,881,282 |
+| Against 5.14 (no fusion, resolved in EX) | +0.22 % | +0.60 % | +0.52 % |
+| OOO_CPU (the real D$) | 1,846,314 | 1,731,810 | 1,893,730 |
+
+**Tests**
+run_core.sh's 12 runs and CoreMark pass; all 91 core mutations detected.
+
+**Please rerun Vivado.**
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+
+Expected: the fused compare's path gone (an unfused branch's misprediction at about 13.4 ns), about 0.5k fewer LUTs, and the worst paths moving to the classes seen behind it last time (D2 −4.05 ns, the completion's exception into the ROB −3.05 ns, a load's data into the register file −2.29 ns, TRAP −1.30 ns, the fetch buffer −0.95 ns). When done, ask me to check the results.
+
+Prompt 127 is logged in PROMPT.md, in this commit.
+<!-- /answer -->
+
+## 128. 2026-11-02 00:44:23 JST
+
+```text
+Vivado has finished. Please check the results.
+```

@@ -2757,3 +2757,31 @@ OOO_FUSE's `KINDS` 0 in the core; CoreMark +0.22 % / +0.60 % / +0.52 % against 5
 OOO_CPU`; expected: the fused compare's class gone (an unfused branch's misprediction at about 13.4 ns, 27.3), about
 0.5k LUTs less, and the classes of 27.5 (D2, the completion's exception into the ROB, the load's data into the
 register file, OOO_TRAP, the fetch buffer) as the worst.
+
+### 27.7 The third run: fusion off (2026-11-02, the RTL of 7d4a8fa)
+
+| | second run (27.5) | **third run** |
+|---|---|---|
+| OOO_CPU | 38,071 LUTs | **37,421 LUTs** (−650) |
+| the engine | 28,152 | **27,485** |
+| WNS / failing endpoints / TNS | −6.442 ns / 3,400 / −6,735 ns | **−7.362 ns** / 2,596 / −3,707 ns |
+
+- **The fused compare is still there.** The worst path (63 levels) is port 1's WB → the bypass → ALU0's adder
+  (9.5 ns) → its result → the compare's carry chain (`take_branch` 19.4 ns) → the misprediction (21.9 ns) → the
+  done bit's gate and `cl_*` → OOO_CTRL's `clr` (24.4 ns) → the issue queue's `iss_bm` → the RR stages' valid, MDUP
+  (28.3 ns). `KINDS` 0 makes the pairs' fields constants at D2, but the record goes through OOO_IQPL's LUT RAM, which
+  Vivado cannot see as constant: `rec.fused` stays a variable in EX, and with it the compare after the ALU.
+- **D2's class is gone** (renaming −0.85 ns, the DS register +1.01 ns: fusion's fields were most of it).
+- **The clear runs into the select's output**: OOO_IQ gives `iss_bm` as the entry's mask and `~clr` (line 214), but
+  every user registers it with `& ~clr` again (OOO_STAGE, MDUP), and the kill compare does not need it (a checkpoint
+  cleared is never the one restored, OOO_CTRL's `clr & ~killset`).
+- **Proposed**: (1) gate the fused path in EX with the fusion parameter (a constant `rec.fused` when `KINDS` is 0:
+  the compare reads s1 / s2 alone, about 10.5 ns, 27.3); (2) `iss_bm` without `~clr`. Then the next classes, from the
+  per-block report:
+
+| class | slack | from → to |
+|---|---|---|
+| the CSR unit's result into the register file | −2.68 ns (24 levels) | `u_csr` → `u_prf/lvt` (port 0's write) |
+| a load's data into the register file | −2.40 ns (21 levels) | `u_dc` → `u_prf/lvt` (5.14's completion in M) |
+| the privilege level into OOO_TRAP, the D$, the LSU | −2.10 / −1.60 / −0.96 ns | CORE_CSR's `priv_r` → `u_trap`, `u_dc`, `u_lsu` |
+| the fetch buffer's loop | −0.141 ns (17 levels) | |
