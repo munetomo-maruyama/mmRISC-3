@@ -703,6 +703,25 @@ one, for the same reasons). The select sees `(!ns || ns_ok) && !nw && !sw`.
   warning. `results/core.txt`'s cycles moved again through `tb_core`'s random initial values only: every program of
   B2 and B4 run alone gives the same cycles as with 5.15.
 
+### 5.17 B7 prepared: the whole core out of context (2026-11-01)
+
+`synth_ooo.bat OOO_CPU` (`FPGA/OOO_OOC/synth_ooo.tcl`): OOO_CORE with OOO_DCAD and the D$, mmRISC-3's core as it will
+be in the chip, synthesized and placed alone with its own ports (the I$ port, the D$'s AXI4 and AXI4-Lite) and the
+30 % I/O delay, as mmRISC-2's calibration (`Plan/OOC.md` 25: a whole core out of context is the chip's size, ratio
+1.00). Without `OOO_TRACE` and `DCACHE_SIM_UC` the simulation ports are gone.
+
+- **What it decides** (`Plan/OOC.md` 27): the LUTs against the budget's estimate from the blocks (the out-of-order
+  engine is the total less the D$, CORE_CSR and CORE_MDU, which `Doc/UARCH.md` 4.2 counts apart), and the paths
+  between the blocks, which the block runs saw only through guessed I/O delays (`iss_src` → the register file's
+  read, the LSU's completion → the ROB, the wakeup tags → renaming). summary.txt lists the 20 worst paths between
+  flip-flops by endpoint.
+- **Before Vivado**: `verilator --lint-only -Wall` on the whole of OOO_CPU: 27 warnings, all known (unused bits and
+  parameters of the blocks taken from mmRISC-2, OOO_FRONT's empty pins); three UNOPTFLAT in OOO_CORE are Verilator
+  grouping OOO_TRAP's and OOO_ROB's always blocks (bit by bit `irq` depends only on `irq_pend`, `head_valid` and
+  `ns_busy`, not on `rob_trap`): no loop. Yosys (`yosys_size.sh OOO_CPU`): 47,525 LUT cells + 2,848 LUT RAM, 18,003
+  FF, 26 DSP, 11.5 block-RAM tiles; Yosys counts LUT cells (1.3 to 1.6 × Vivado's physical LUTs on these blocks), so
+  about 33k to 36k in Vivado.
+
 ---
 
 ## 6. What G1 measures

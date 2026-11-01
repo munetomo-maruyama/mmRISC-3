@@ -9,6 +9,7 @@
 #     top       OOC_ALU2 / OOC_FUSE / OOC_PRF / OOC_RENAME / OOO_IQ / OOO_UBTB / OOC_LSU / OOC_ROB
 #               / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC / OOC_IQPL / OOC_LSUDC / OOC_CTRL / OOC_DSREG / OOC_FERS / OOC_TRAP / OOC_SYS / OOC_CSRU / OOC_MDUP / OOC_PMUL
 #               / OOC_FE (the whole front end, OOO_FRONT; not in synth_ooo.bat's loop)
+#               / OOO_CPU (B7: the whole core with its D$, below; not in the loop)
 #               / MM2_CPU_CORE (the calibration: mmRISC-2's whole CPU_CORE, below)
 #                                                          OOC_ALU2
 #     period    clock period in ns                         20.0 (50 MHz)
@@ -17,7 +18,7 @@
 #
 # Outputs in ./output/<top>[_<generics>]/ : utilization_synth.rpt /
 # utilization.rpt, timing_summary.rpt, timing_reg2reg.rpt, summary.txt
-# (OOC_FE also timing_d1.rpt)
+# (OOC_FE also timing_d1.rpt; OOO_CPU timing_paths.rpt)
 # (the numbers in one place; for a harness of several blocks, the rows of
 # their instances too). Plan/OOC.md says what each run is for.
 #
@@ -29,6 +30,16 @@
 # context against 32,929 in mmRISC-2's chip (Plan/ISSUES.md 2) give the
 # ratio of chip to out of context for a whole core. The ports are the
 # core's own, with the 30 % I/O delay: only the LUT count is the point.
+#
+# OOO_CPU (B7, Plan/CORE.md 5.17): mmRISC-3's core as it will be in the
+# chip, OOO_CORE with OOO_DCAD and the D$ (DCACHE), its own ports (the I$
+# port, the D$'s AXI4 and AXI4-Lite) with the 30 % I/O delay, as
+# MM2_CPU_CORE: a whole core out of context counts as in the chip (Plan/
+# OOC.md 25.3), and its LUTs are what the budget's estimate from the
+# blocks is checked against. The port paths are the I$ model's and the
+# buses' (the chip registers them); the paths between the blocks are
+# register to register: summary.txt lists the 20 worst of them by
+# endpoint, timing_paths.rpt the 100 worst in full.
 #
 # The OOC_* tops are register-to-register harnesses (rtl/OOC_WRAP.sv): the
 # path that counts is between flip-flops, as in the core. OOO_IQ and
@@ -85,6 +96,7 @@ read_verilog -sv [list \
     $rtl/OOO_FETCH/OOO_FETCH.sv $rtl/OOO_FRONT/OOO_FRONT.sv $core/CORE_DECOMP/CORE_DECOMP.sv $core/CORE_DEC/CORE_DEC.sv \
     $rtl/OOO_RARE/OOO_RARE.sv $rtl/OOO_DEC/OOO_DEC.sv $rtl/OOO_IQPL/OOO_IQPL.sv $rtl/OOO_DCAD/OOO_DCAD.sv $rtl/OOO_CTRL/OOO_CTRL.sv \
     $rtl/OOO_DSREG/OOO_DSREG.sv $rtl/OOO_FERS/OOO_FERS.sv $rtl/OOO_TRAP/OOO_TRAP.sv $rtl/OOO_SYS/OOO_SYS.sv \
+    $rtl/OOO_STAGE/OOO_STAGE.sv $rtl/OOO_CORE/OOO_CORE.sv $rtl/OOO_CPU/OOO_CPU.sv \
     $core/CORE_CSR/CORE_CSR.sv $rtl/OOO_CSRU/OOO_CSRU.sv $core/CORE_MDU/CORE_MDU.sv $rtl/OOO_MDUP/OOO_MDUP.sv $rtl/OOO_PMUL/OOO_PMUL.sv \
     $cache/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv $cache/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv \
     $cache/DCACHE/DCACHE.sv ./rtl/OOC_WRAP.sv]
@@ -200,6 +212,17 @@ if {$impl} {
                           [get_property STARTPOINT_PIN $p] [get_property ENDPOINT_PIN $p]]
             report_timing -max_paths 3 -nworst 1 -path_type full -from [all_registers] -to $cells \
                 -name $name -append -file $outdir/timing_d1.rpt
+        }
+    }
+    # OOO_CPU: the worst paths between flip-flops, one per endpoint (B7:
+    # which blocks they join)
+    if {$top eq "OOO_CPU"} {
+        report_timing -max_paths 100 -nworst 1 -unique_pins -path_type full -from [all_registers] -to [all_registers] \
+            -file $outdir/timing_paths.rpt
+        puts $fh "the worst paths between flip-flops (one per endpoint):"
+        foreach p [get_timing_paths -max_paths 20 -nworst 1 -unique_pins -setup -from [all_registers] -to [all_registers]] {
+            puts $fh [format "  %7.3f ns %2d levels  %s -> %s" [get_property SLACK $p] [get_property LOGIC_LEVELS $p] \
+                          [get_property STARTPOINT_PIN $p] [get_property ENDPOINT_PIN $p]]
         }
     }
 }

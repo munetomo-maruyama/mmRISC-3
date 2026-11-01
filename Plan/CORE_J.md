@@ -480,6 +480,13 @@ Vivadoのあとの、`Plan/OOC_J.md` 26.18の2つの直し(OOO_IQ +0.360 ns、OO
 - **Yosys**: OOO_IQ 3,119 → 3,221 LUT、484 → 494 FF(5.15の待ちはYosysで+1、Vivadoで+46だった)。Vivadoの再実行: `synth_ooo.bat OOO_IQ`。
 - **テスト**: `tb_iq`は変えずに7シード(同じ発行、同じ数)。M230とM359を新しい行に合わせ、M377〜M380を足した(若い非投機のµopも待つ、発行されたものを1サイクル長く待つ、組の2つ目が1つ目を追い越す、`ns_ok`なし): 発行キューの変異33をすべて検出、単体の変異は344。`mutate_core.py` 87のうち87。`run_core.sh`、`run_coremark.sh`(サイクルは変わらない)、単体テスト28本、代役のテスト: すべて通る。lintの新しい警告なし。`results/core.txt`のサイクルはまた`tb_core`の乱数の初期値でだけ動いた: B2とB4のプログラムを1本ずつ走らせると、5.15とすべて同じサイクルになる。
 
+### 5.17 B7の準備: コア全体の単体合成(2026-11-01)
+
+`synth_ooo.bat OOO_CPU`(`FPGA/OOO_OOC/synth_ooo.tcl`): OOO_COREにOOO_DCADとD$をつけた、チップに入るときのmmRISC-3のコアを、自分のポート(I$のポート、D$のAXI4とAXI4-Lite)と30 %のI/O遅延のまま単体で合成・配置する。mmRISC-2の較正(`Plan/OOC_J.md` 25: コア全体の単体合成はチップでの大きさ、比は1.00)と同じ。`OOO_TRACE`と`DCACHE_SIM_UC`なしなので、シミュレーションのポートはない。
+
+- **決めること**(`Plan/OOC_J.md` 27): ブロックから見積もった予算とLUTを比べる(アウトオブオーダーの部分は、合計からD$、CORE_CSR、CORE_MDUを引いたもの。これらは`Doc/UARCH_J.md` 4.2で別に数えている)。もう1つはブロックの間の経路で、ブロックごとの合成では仮のI/O遅延でしか見ていなかった(`iss_src` → レジスタファイルの読み出し、LSUの完了 → ROB、wakeupのタグ → リネーム)。summary.txtに、フリップフロップ間の悪い経路20本を終点ごとに並べる。
+- **Vivadoの前に**: OOO_CPU全体で`verilator --lint-only -Wall`: 警告27、すべて既知(mmRISC-2から持ってきたブロックの使わないビットとパラメータ、OOO_FRONTの空のピン)。OOO_COREのUNOPTFLAT 3つは、VerilatorがOOO_TRAPとOOO_ROBのalwaysブロックをまとめて見ているもの(ビット単位では`irq`は`irq_pend`、`head_valid`、`ns_busy`だけで決まり、`rob_trap`によらない): ループではない。Yosys(`yosys_size.sh OOO_CPU`): LUTセル47,525 + LUT RAM 2,848、FF 18,003、DSP 26、ブロックRAM 11.5タイル。YosysはLUTセルを数える(これらのブロックではVivadoの物理LUTの1.3〜1.6倍)ので、Vivadoでは33k〜36kほど。
+
 ---
 
 ## 6. G1で測るもの

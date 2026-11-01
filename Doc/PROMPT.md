@@ -4523,3 +4523,69 @@ Last time 1,997 LUTs, slack +0.371 ns. I'll see whether the worst path has moved
 ```text
 Vivado has finished. Please check the results.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The IQ's slack is back. Recorded in Plan/OOC 26.22, pushed as 0237a98.
+
+| | LUT | FF | Slack (all / reg to reg) |
+|---|---|---|---|
+| Before 5.9 | 1,894 | 464 | +1.165 / +6.605 ns |
+| After 5.15 | 1,997 | 484 | +0.371 / +6.607 ns |
+| **After 5.16 (now)** | **1,999** | 494 | **+1.735 / +7.219 ns** |
+
+- **Both waits are off the worst paths.** Only +2 LUTs (Yosys estimated +102).
+- The worst path is now the select itself: "an entry's port (`pq`) → request → oldest-first grant → `iss_src` out", 10 levels, 9.4 of 11.3 ns in the routes.
+- Register to register, the worst is the wakeup-select loop (`rq` → ready → select → issued tags → `rq`, 11 levels). The issue queue is built around that loop, so the path that should remain is the one that remains.
+- The margin is larger than before the store wait (before 5.9).
+- The budget stays as in 26.20; the overrun is 4.5k / 5.9k / 7.1k.
+
+So the worst slack left among the per-block runs is OOC_FE's fetch-buffer loop (+0.863 ns), then the LSU with the D$ (+1.340 ns), then the issue queue (+1.735 ns). Plan/CORE section 6's timing entry is updated to these values.
+
+Answer 118's English and prompt 119 are in PROMPT.md, in this commit.
+<!-- /answer -->
+
+## 120. 2026-11-01 17:10:58 JST
+
+```text
+Please propose the next steps to go on with.
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+From where things stand, I propose this order toward G1.
+
+**Where things stand**
+- B0 to B4 are done. B6 is partly there: CoreMark passes in lock-step with Spike.
+- **Performance:** 6.5 % / 7.5 % / 8.1 % behind the model (fusion off). G1's targets 6.243 / 6.680 / 6.066 are the model with fusion, so they cannot be reached without fusion.
+- **Size:** from the sum of the blocks, 4.5k / 5.9k / 7.1k LUTs over budget, about 96 % of the device: the biggest risk.
+- **Not done yet:** B5 (fusion on, interrupts), B7 (the whole core in Vivado), the real I$ (CoreMark runs with an ideal I$ now).
+
+**Proposal 1: B7, the whole core out of context (first, in parallel)**
+- An OOC_WRAP for OOO_CORE (or OOO_CPU with the D$) and a synth_ooo.bat top. Little work on my side; Vivado runs on your Windows machine while I go on with proposal 2.
+- What it shows: whether the overrun is as estimated (a whole core out of context counts as on the chip), and the real paths between blocks, e.g. `iss_src` → the PRF's read, or the LSU's completion → the ROB, which per-block runs measure only with guessed I/O delays.
+- If the overrun is real, the reserve levers (L10, B4 / B5 reductions) need deciding early, and further performance changes can be chosen with size in view.
+
+**Proposal 2: B5, fusion on (kind by kind)**
+- OOO_FUSE is already wired with fusion off. Turn it on kind by kind, each time passing the B4 suite and CoreMark in lock-step (first halves checked with `rd_skip`).
+- In the model fusion is worth about 6 % (5.876 → 6.243). This is needed to compare with G1's targets.
+- Interrupts (a timer model) come in B5's second half: not for CoreMark, but needed for Phase 1's correctness.
+
+**Proposal 3: the real I$ (finishing B6)**
+Widen mmRISC-2's ICACHE to 16 bytes and connect it to OOO_CPU. CoreMark should have few I$ misses, but "within ±5 % with the real caches" is G1's criterion.
+
+**Proposal 4: the remaining performance gap**
+If the gap is still above 5 % after fusion, look function by function as in 5.12: candidates are bitextract's second multiply, `core_bench_list`, `core_state_transition`.
+
+My recommendation: **write B7's wrapper first and have you run Vivado, and meanwhile go on with B5's fusion.**
+
+Prompt 120 is logged in PROMPT.md but not committed yet; it goes in with the next work.
+<!-- /answer -->
+
+## 121. 2026-11-01 17:16:35 JST
+
+```text
+Yes, B7 then B5
+```

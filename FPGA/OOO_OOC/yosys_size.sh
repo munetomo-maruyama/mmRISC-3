@@ -5,6 +5,7 @@
 #
 #   ./yosys_size.sh            -> output/yosys_size.txt
 #   ./yosys_size.sh <top> [NAME=value ...]   one run, printed only
+#   ./yosys_size.sh OOO_CPU    the whole core (B7; about 5 minutes, no longest path)
 #
 # For every top: LUTs, LUT RAM, flip-flops, CARRY4 and the longest path in
 # cells between flip-flops (ltp -noff: LUTs, multiplexers and carry chains in
@@ -23,7 +24,8 @@ SRCS="$R/OOO_ALU/OOO_ALU.sv $R/OOO_ALU2/OOO_ALU2.sv $R/OOO_FUSE/OOO_FUSE.sv $R/O
       $R/OOO_BTB/OOO_BTB.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FETCH/OOO_FETCH.sv $R/OOO_FRONT/OOO_FRONT.sv
       ../../RTL/CPU/CORE/CORE_DECOMP/CORE_DECOMP.sv ../../RTL/CPU/CORE/CORE_DEC/CORE_DEC.sv $R/OOO_RARE/OOO_RARE.sv $R/OOO_DEC/OOO_DEC.sv
       $R/OOO_IQPL/OOO_IQPL.sv $R/OOO_DCAD/OOO_DCAD.sv $R/OOO_CTRL/OOO_CTRL.sv $R/OOO_DSREG/OOO_DSREG.sv $R/OOO_FERS/OOO_FERS.sv $R/OOO_TRAP/OOO_TRAP.sv $R/OOO_SYS/OOO_SYS.sv ../../RTL/CPU/CORE/CORE_CSR/CORE_CSR.sv $R/OOO_CSRU/OOO_CSRU.sv ../../RTL/CPU/CORE/CORE_MDU/CORE_MDU.sv $R/OOO_MDUP/OOO_MDUP.sv $R/OOO_PMUL/OOO_PMUL.sv ../../RTL/CPU/CACHE/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv
-      ../../RTL/CPU/CACHE/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv ../../RTL/CPU/CACHE/DCACHE/DCACHE.sv rtl/OOC_WRAP.sv"
+      ../../RTL/CPU/CACHE/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv ../../RTL/CPU/CACHE/DCACHE/DCACHE.sv rtl/OOC_WRAP.sv
+      $R/OOO_STAGE/OOO_STAGE.sv $R/OOO_CORE/OOO_CORE.sv $R/OOO_CPU/OOO_CPU.sv"
 
 one() {   # one <top> [NAME=value ...]
     local top=$1; shift
@@ -36,8 +38,10 @@ one() {   # one <top> [NAME=value ...]
         sed -i -E "s/(parameter int ${g%%=*} *= *)[0-9]+/\1${g#*=}/" $d/OOC_WRAP.sv $d/OOO_PRF.sv
     done
     $SV2V $srcs > $d/all.v 2> $d/sv2v.log || { echo "$tag: sv2v failed"; return; }
+    # (no ltp for the whole core: it ran for more than ten minutes into a 346 MB report)
+    local ltp="tee -q -o $d/ltp.txt ltp -noff"; [ $top = OOO_CPU ] && { ltp=""; echo > $d/ltp.txt; }
     $YOSYS -q -l $d/yosys.log -p "read_verilog $d/all.v; synth_xilinx -family xc7 -top $top -flatten;
-        tee -q -o $d/stat.json stat -json; tee -q -o $d/ltp.txt ltp -noff" > /dev/null 2>&1 \
+        tee -q -o $d/stat.json stat -json; $ltp" > /dev/null 2>&1 \
         || { echo "$tag: yosys failed (see $d/yosys.log)"; return; }
     python3 - $d/stat.json $d/ltp.txt "$tag" <<'EOF'
 import json, re, sys

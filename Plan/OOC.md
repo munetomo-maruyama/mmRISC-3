@@ -2635,3 +2635,23 @@ ready is the operands, `ns_ok` and the two wait bits. Vivado to rerun: `synth_oo
   to register it is the wakeup-select loop (`rq` → ready → select → the issued tags → `rq`, 11 levels, +7.2 ns), the
   loop the queue is built around. Better than before 5.9 (+1.165 / +6.605).
 - +2 LUTs for the two wait registers (Yosys +102): the budget stays as in 26.20.
+
+## 27. The whole core out of context (B7, 2026-11-01)
+
+`synth_ooo.bat OOO_CPU`: mmRISC-3's core with its D$ (OOO_CORE, OOO_DCAD, DCACHE) as the top, its own ports with the
+30 % I/O delay, as MM2_CPU_CORE (25). Plan/CORE.md 5.17.
+
+### 27.1 What the run is compared with
+
+| Part | From the blocks (Vivado, out of context) | |
+|---|---|---|
+| The out-of-order engine | 22.4k / 23.0k / 23.5k | `Doc/UARCH.md` 4.4, 2026-11-01 later (with the D$ adapter; including the I$'s widening, 0.05k to 0.2k, which OOO_CPU does not have) |
+| CORE_CSR (OOC_CSRU) | 2,496 | 26.20 |
+| CORE_MDU | about 3.4k | mmRISC-2's chip (3,423) |
+| The D$ | about 5.2k | OOC_LSUDC 7,573 less the LSU (2,153) and the adapter (about 0.2k) |
+| **OOO_CPU** | **about 33.5k to 34.6k** | Yosys 47,525 LUT cells + 2,848 LUT RAM (about 33k to 36k) |
+
+- The engine's own number is the total less the D$ (`u_dc`), CORE_CSR (`u_core/u_csr/u_csr`) and CORE_MDU
+  (`u_core/u_mdup/...`): the instance rows of summary.txt.
+- The paths between the blocks: the 20 worst between flip-flops by endpoint in summary.txt (timing_paths.rpt in
+  full), against the blocks' own slack (worst +0.863 ns, OOC_FE's fetch-buffer loop).
