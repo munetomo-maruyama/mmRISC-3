@@ -4265,3 +4265,44 @@ Recorded in Plan/CORE 5.13, the READMEs and UARCH in both languages. This prompt
 ```text
 Yes, do B
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Fix B is in: a load's completion goes to the ROB in the same cycle as its register-file write (in M or with a fill), not from the register after M. Loads now commit a cycle earlier (stores already completed from E), and CoreMark is 1.1–1.2 % faster. Pushed to dev as 6b8d6d8. The path now running from M's search to the ROB's done bits has not been measured in Vivado yet.
+
+**Changes**
+- **OOO_LSU:** the 4 completion signals (valid, ROB index, exception, replay mark) are combinational. Their content is what the register used to take, a cycle sooner.
+- **OOO_CORE:** the commit trace takes a load's value from the register-file write.
+
+**CoreMark (cycles; CoreMark/MHz in parentheses)**
+
+| | g14 -O2 | g14 sf+flto | g13 -O2 |
+|---|---|---|---|
+| OOO_CORE (ideal caches) | 1,833,565 → **1,813,160 (5.52)** | 1,698,184 → **1,678,934 (5.96)** | 1,894,227 → **1,871,639 (5.34)** |
+| OOO_CPU (real D$) | 1,859,255 → **1,837,109 (5.44)** | 1,746,040 → **1,726,134 (5.79)** | 1,907,485 → **1,884,608 (5.31)** |
+| Model (fusion off) | 1,701,808 (5.88) | 1,562,105 (6.40) | 1,730,925 (5.78) |
+
+The gain is a little smaller than the model's expectation (about 1.4 %). The gap to the model is 6.5 / 7.5 / 8.1 %. Since CoreMark started (26 %) the gains add up from 5.9 (loads wait for older stores), 5.11 (D-17), 5.13 (the multiply on port 1) and now 5.14.
+
+**Tests**
+- **tb_lsu / tb_dcad:** the new completion signals delayed a cycle equal the old register outputs, so the usual "check against the result register" is used as it was. tb_lsu also checks that a completion comes in the same cycle as the register-file write (none for an exception). Both pass on 4 seeds.
+- **Mutations:** 4 added on the unit side (M370–M373). LSU and D$-adapter mutations 50 of 50, core mutations 87 of 87 detected.
+- run_core.sh (12 runs), run_coremark.sh, the 28 unit tests and the stand-in test all pass, and the lint shows no new warning.
+- **A slip on the way:** while a regression was running I briefly reverted the working tree with `git stash` to compare lint warnings. It might have built with the old RTL, so I stopped that regression and ran it again from the start; the results above are from the rerun.
+
+**What I'd like measured in Vivado**
+The blocks changed so far that may matter for timing:
+- `synth_ooo.bat OOC_LSU`, `synth_ooo.bat OOC_LSUDC`: a load's completion is now combinational. The path into the ROB can only be measured with the whole core (B7).
+- `synth_ooo.bat OOO_IQ`: the wait for stores (5.9) and the moved write slot of the multiply (5.13).
+- `synth_ooo.bat OOC_FE`: D-17's history shift sits on the path from F0 to the tables' addresses (5.11).
+- `synth_ooo.bat OOC_CSRU`: the FS check and the mcountinhibit delay were added (5.7).
+
+Recorded in Plan/CORE 5.14, the READMEs and UARCH in both languages. This prompt (111) and the English of the previous answer are in PROMPT.md, included in this commit.
+<!-- /answer -->
+
+## 112. 2026-11-01 10:40:30 JST
+
+```text
+I'll run Vivado
+```

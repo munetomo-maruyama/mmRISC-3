@@ -567,10 +567,10 @@ module OOC_LSUDC
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [273:0]  in,
+        input  logic [272:0]  in,       // (274 bits before 2026-11-01: the top one was not used)
         output logic [328:0]  out
     );
-    logic [273:0] q;
+    logic [272:0] q;
     always_ff @(posedge clk) q <= in;
 
     // LSU core side, in
