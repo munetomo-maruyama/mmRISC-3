@@ -290,6 +290,8 @@ sums over whole units are what to compare.
 | **Over, 2026-11-01 later** | **4.5k** | **5.9k** | **7.1k** |
 | Measured, 2026-11-01 night (`Plan/OOC.md` 27.2: the whole core out of context, B7, timing not yet met: the engine 26,178 in OOO_CPU, the sum of its blocks about 21.5k; the core's own logic, D2, the DS payload, the ports' RR / EX and branch resolution, was in no block run) | 26.2k | 26.2k | 26.2k |
 | **Over, 2026-11-01 night** | **8.3k** | **9.1k** | **9.8k** |
+| Measured, 2026-11-01 late night (`Plan/OOC.md` 27.5: B7's second run with B5a and the registered resolution, timing not met: the engine 28,152, of which ALU + branch fusion about 0.5k) | 28.2k | 28.2k | 28.2k |
+| **Over, 2026-11-01 late night** | **10.3k** | **11.1k** | **11.8k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is

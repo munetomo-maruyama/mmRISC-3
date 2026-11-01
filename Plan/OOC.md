@@ -2717,3 +2717,36 @@ checkpoint stays in EX (a cycle later cost 2 % in checkpoints held), a mispredic
 restore. CoreMark +0.36 % / +0.43 % / +0.38 %. What is left on the path of 27.3 in the cycle of EX: the bypass, the
 compare, the misprediction (13.4 ns) into the register, the clear (into the masks' flip-flops) and the done bit's
 write enable. To rerun: `synth_ooo.bat OOO_CPU`.
+
+### 27.5 The second run: with B5a and 5.20 (2026-11-01, the RTL of 089d31f)
+
+| | first run (27.2, 27.3) | **second run** |
+|---|---|---|
+| OOO_CPU | 35,961 LUTs, 17,830 FF | **38,071 LUTs**, 18,044 FF |
+| the engine (less CORE_CSR, CORE_MDU; with the adapter) | 26,178 | **28,152** |
+| WNS / failing endpoints / TNS | −5.716 ns / 15,202 / −22,896 ns | **−6.442 ns** / **3,400** / −6,735 ns |
+
+- **5.20 worked**: the restore's class is gone (no worst path ends in OOO_TRAP's tval or the ROB through the restore),
+  and the failing endpoints fell to a fifth.
+- **B5a does not fit in a cycle**: the new worst path (58 levels) is port 0's WB → the bypass → ALU0 (its result
+  at 14.5 ns) → the fused compare (a carry chain, `take_branch` at 18.3 ns) → the misprediction (21.4 ns) → the
+  clear from EX (`cl_*` → OOO_CTRL's `clr`, 23.9 ns) → the masks into the issue queue, MDUP and the RR stages (27.4
+  ns). The fused compare alone ends past the period; an unfused branch compares at about 10.5 ns (27.3).
+- **The classes behind it** (the new per-block report; the worst path into or out of each block):
+
+| class | slack | from → to |
+|---|---|---|
+| D2: the group → fusion → renaming → the DS register | −4.05 ns (28 levels) | `u_front/g_v` → `u_dsreg` / `u_rename` (−3.94) / back to the front end's take (−3.73) |
+| the completion's exception into the ROB's entries | −3.05 ns (25 levels) | the D$ (load completion from M, 5.14) / OOO_CSRU (−2.58) / the adapter (−2.07) → `u_rob/g_ent[*].exc` |
+| a load's data into the register file | −2.29 ns (24 levels) | the D$'s forwarding way → `u_prf` (5.14) |
+| OOO_TRAP | −1.30 ns (24 levels) | CORE_CSR's privilege → `u_trap` |
+| the fetch buffer's loop | −0.946 ns (17 levels) | (+0.863 alone: placement in the larger design) |
+
+- **Size**: +2.1k against the first run. Yosys with and without ALU + branch fusion: 49,932 / 49,106 LUT cells, so
+  fusion is about 0.5k in Vivado; the rest is 5.20's (the ROB's eight completion ports: the ROB 2,576 → 3,195) and
+  D2 (the front end's instance 7,345 → 8,662, which takes D2's rotation and fusion's fields).
+- **Proposed next**: (1) turn ALU + branch fusion off (`KINDS` 0, the RTL kept): it gives −0.3 % to −0.6 % only
+  while D1b refills when empty (5.19), costs 0.5k LUTs, and its compare does not fit; it comes back with the fused
+  compare in the cycle after EX or with D2's refill. (2) Then the classes above, in order: D2's path, the
+  completion's exception into the ROB (register it, as the misprediction), the load's data into the register file
+  (5.14's completion from M: the data could stay a cycle later than the completion), OOO_TRAP's privilege input.

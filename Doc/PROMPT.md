@@ -4729,3 +4729,45 @@ Yes, do A
 ```text
 Please try again.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Proposal A (the branch resolution through a register) is in, pushed as 089d31f. The CoreMark cost stays at about +0.4 %.
+
+**Change (Plan/CORE 5.20)**
+- Everything EX decides about a branch goes into a register at the end of EX and acts a cycle later: `br_*` (misprediction, checkpoint, next pc, ...), `rs_*` (the predictors' training), `bt_*` (the BTB's write). The restore, kill and redirect are a cycle later too. A branch killed or flushed as it leaves EX is dropped.
+- **Commit:** a mispredicted branch completes in the cycle of its restore (the ROB's completion ports 6 / 7 added). In the cycle between, neither it nor any younger µop commits. A branch resolved as predicted completes in EX as before.
+- **The checkpoint clear (`clr`) stays in EX** (OOO_CTRL has new inputs `cl_valid` / `cl_ckpt`).
+  - First the clear was a cycle later too, which made CoreMark 1.8 to 2.2 % slower.
+  - A trial build with 8 checkpoints took the loss away, showing the cause: every branch held its checkpoint a cycle longer.
+  - Clearing early is safe: even if the checkpoint of a branch killed the next cycle is freed first, renaming is stopped in that cycle, and the younger µops carry the restoring branch's bit as well.
+
+**CoreMark (cycles)**
+
+| | g14 -O2 | g14 sf+lto | g13 |
+|---|---|---|---|
+| OOO_CORE | 1,807,119 → 1,813,605 (+0.36 %) | 1,668,660 → 1,675,783 (+0.43 %) | 1,866,911 → 1,873,955 (+0.38 %) |
+| Model (a cycle more per misprediction) | +0.26 % | +0.21 % | +0.25 % |
+
+**Tests**
+- run_core.sh's 12 runs, CoreMark and the 28 unit tests all pass, with no new lint warning.
+- Core mutations: all 103 detected (4 new). OOO_CTRL's 18 unit mutations all detected.
+- OOO_CTRL's per-block harness (OOC_CTRL) has its input bus widened to 249 bits.
+
+**Please rerun Vivado.**
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+
+This run includes B5a's fusion too. What remains in EX's cycle is "bypass → compare → misprediction (13.4 ns last time) → register", the `clr` (into the masks' flip-flops) and the done bit's write enable, so last time's −5.7 ns path should be gone. summary.txt now also gives the worst path into and out of each block, so what is behind will show. When it finishes, ask me to check the results.
+
+Prompts 124 and 125 are logged in PROMPT.md, in this commit.
+<!-- /answer -->
+
+## 126. 2026-11-01 23:28:50 JST
+
+```text
+The Vivado rerun has finished. Please check the results.
+```
