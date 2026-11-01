@@ -2584,3 +2584,17 @@ The author took D-18 (`Doc/PROMPT.md` entry 94).
 - **OOC_LSU / OOC_LSUDC**: a load's completion from M is not on the worst paths (OOC_LSUDC's is the D$'s address
   → the SQ's valid bits, as before; −0.6 ns of placement).
 - The budget (`Doc/UARCH.md` 4.4): +0.6k (OOC_FE +368, the issue queue +57, the CSR unit +158, the LSU +2).
+
+### 26.19 26.18's two fixes (Plan/CORE.md 5.15, 2026-11-01)
+
+| Top | Yosys before → after (LUT / FF) | What changed |
+|---|---|---|
+| OOO_IQ | 3,118 / 474 → 3,119 / 484 | the load's wait a register per entry (`wtq`), set at dispatch, cleared when the last older store leaves |
+| OOC_CSRU | 3,040 / 4,538 → 2,732 / 4,474 | mcountinhibit written in EX again; the writer's commit one less (IR cleared) or one more (IR set, `instret_force`) |
+
+- **OOO_IQ**: the same LUTs, 10 more flip-flops; what the select sees of the wait is one register bit, so the logic in
+  front of the select is back to what it was before 5.9 (the next state takes the grants, as the age matrix does, after the
+  select). The issue sequence is the same, cycle for cycle (`tb_iq` unchanged).
+- **OOC_CSRU**: −308 LUTs and −64 FF in Yosys (the hold +182 / +65 by the same tool): Vivado's 2,695 should go back
+  near 26.18's start (2,537) plus the FS check.
+- Vivado to rerun: `synth_ooo.bat OOO_IQ` and `synth_ooo.bat OOC_CSRU`.

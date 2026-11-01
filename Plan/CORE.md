@@ -654,6 +654,38 @@ before, a cycle sooner; the commit trace takes the load's value from the registe
 - The completion now comes from M's search and the D$ hit (`m_ok`) to the ROB's done bits: `synth_ooo.bat OOC_LSU`
   and `OOC_LSUDC` measure the LSU's side; the path into the ROB is one of the whole core's (B7).
 
+### 5.15 The load's wait a register, mcountinhibit written in EX (2026-11-01)
+
+The two fixes of `Plan/OOC.md` 26.18, after Vivado (OOO_IQ +0.360 ns, OOC_CSRU +158 LUTs).
+
+- **OOO_IQ**: a load's wait for the older stores (5.9) is a register per entry (`wtq`), no longer `older & v & st`
+  in front of the select. At dispatch it is set for a load when a store stays in the queue (one not issued now; every
+  entry that stays is older) or is the first of the pair; afterwards it stays set while an older store stays. The
+  stores leaving are the ones issued now; a killed store needs no term, since the loads younger than it die with it
+  (they carry its mask bit) and nothing is dispatched in a kill cycle (`OOO_CTRL`'s `d_ok`). The next state is the
+  combinational term of the next cycle, so the issue sequence is the same, cycle for cycle.
+- **OOO_CSRU**: a write to mcountinhibit is no longer held until its commit (the 64-bit register and the select on
+  CORE_CSR's write); CORE_CSR writes it in EX, as any CSR. The writing instruction still counts under the old IR bit
+  (Spike, Sail): it commits alone a cycle or more later (instret_inc 1), and that commit is not counted when it
+  cleared IR (`ir_skip`, as for a write to minstret) and counted although inhibited when it set IR (`ir_force` →
+  CORE_CSR's new input `instret_force`, its third change: `RTL/CPU/CORE/README.md`). The old bit is the value read
+  (`rd_data[2]`).
+- **Yosys** (`Plan/OOC.md` 26.19): OOO_IQ 3,118 → 3,119 LUTs, 474 → 484 FF; OOC_CSRU 3,040 → 2,732 LUTs, 4,538 →
+  4,474 FF. Vivado to rerun: `synth_ooo.bat OOO_IQ`, `synth_ooo.bat OOC_CSRU`.
+- **Tests**: `tb_iq` unchanged on 7 seeds (it already held the wait against an account of the queue), `tb_csru`
+  unchanged on 4 seeds (its reference counts the writer under the old bit). Mutations: M359 to M361 follow the new
+  lines, M374 to M376 added (a load waiting a cycle more for an issued store, waiting for a store that left, the
+  second of a pair passing the store first in it); a load waiting for a killed store, tried first, was not detected:
+  it is the equivalent term left out above. M356 to M358 follow the CSR unit's new lines (a write to minstret counting
+  itself, clearing IR counting the commit, setting IR not counting it). The 41 IQ and CSR-unit mutations detected, 340
+  unit mutations. `mutate_core.py`'s two CSR-unit mutations follow the new lines: 87 of 87. `run_core.sh`,
+  `run_coremark.sh`, the 28 unit tests, the stand-in test: all pass; no new lint warning.
+- **Results**: CoreMark's cycles unchanged (`results/coremark.txt`); `run_core.sh` passes with other cycle counts in
+  some runs. Not from the RTL: every program of B2 and B4 run alone gives the same cycles on the RTL before and after.
+  `tb_core` makes a new model for each program of a run, and Verilator's random initial values continue through the
+  run: with other registers (the wait bits added, the held write gone) the models after the first start with other
+  values in what has no reset (the predictors' tables).
+
 ---
 
 ## 6. What G1 measures
@@ -664,6 +696,6 @@ before, a cycle sooner; the commit trace takes the load's value from the registe
 | Performance | CoreMark/MHz in RTL simulation within ±5 % of the model for each build: 6.243 (g14 -O2), 6.680 (g14 sf + -flto), 6.066 (g13 -O2) | `Plan/model/results/g0b.txt` (L7, D-15, D-16 variant A) |
 | Where the cycles go | the model's counters for the same runs (dispatch held by the front end, the IQ, LQ / SQ; mispredictions; overrides) from the RTL's | to explain a difference above 2 % |
 | Size | `OOO_CORE` out of context in Vivado (physical LUTs): the out-of-order engine within its budget row (`Doc/UARCH.md` 4.4), and the core's total against the gap (3.5k / 4.9k / 6.2k now) | out of context is fair for a whole core (`Plan/OOC.md` 25.3) |
-| Timing | 50 MHz (20 ns) after place and route out of context | the blocks' slack so far: worst +0.569 ns (the CSR unit), +0.820 ns (the LSU with the D$) |
+| Timing | 50 MHz (20 ns) after place and route out of context | the blocks' slack so far (`Plan/OOC.md` 26.18): worst +0.360 ns (the issue queue, before 5.15), +0.863 ns (the front end) |
 
 At G1 the reserve levers (L10, B4 / B5 of `Doc/UARCH.md` 6.3) are decided against the measured core.

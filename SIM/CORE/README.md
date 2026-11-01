@@ -233,6 +233,11 @@ their tval, in either slot): **all pass**. On the way they found a load to x0 an
 mconfigptr missing, FP loads and stores not illegal, and the FP CSRs not illegal with FS off (`Plan/CORE.md` 5.7);
 `gen_b2.py`'s `ls` programs now load and multiply into x0, and multiply after divides.
 
+`tb_core` makes a new model for each program of a run, and Verilator's random initial values (`--x-initial unique`)
+continue through the run: a change that adds or removes registers changes the initial values of what has no reset
+(the predictors' tables) in the models after the first, and so some cycle counts in `results/core.txt`. To compare
+two RTL versions cycle for cycle, run each program alone (`Plan/CORE.md` 5.15).
+
 ## B4's bug injection
 
 `mutate_core.py`, now 84 mutations, run on B2's and B3's programs and then on B4's: B3's 54 (4 follow lines the B4 glue renamed, the WB one split by port), the load to x0's bypass, and 28 for B4 (the exceptions at decode, their cause and tval; the units' µops: kind, MRET, FENCE.I, non-speculative, the MDU's wakeup, the instruction bits, the CSR operand and result, a multiply into the MDU as well, the MDU's write slot, the tag-0 results of the multiplier and the MDU, SRET; completion and tval; OOO_CSRU's counting, tval and the FS check). The first campaign left 6 undetected: an FP instruction not illegal, the tval of an exception in slot 1, an illegal RVC instruction's tval (no program made the case), a multiply into the MDU as well, the MDU's result over the multiply's, a divide to x0 forwarded (no program mixed divides and multiplies). `b4/dir/illegal.S` (which then found bugs 5 and 6) and `ls` programs that multiply after divides and mulh caught five; the sixth, the RVC instruction's tval masked to 16 bits, was redundant (`OOO_FBUF` already gives an RVC instruction with its upper half 0) and the mask is gone. **84 of 84 detected** (`results/mutate_core.txt`). Unit mutations M356 to M358 (a write to minstret counting its own commit, mcountinhibit written in EX, written again at every commit): 3 of 3 detected by `tb_csru`; 322 now.

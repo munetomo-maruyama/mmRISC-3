@@ -82,7 +82,7 @@
 81 DETECTED      tval: a misaligned address not given
 82 DETECTED      tval: an illegal CSR access's not given
 83 DETECTED      minstret: a write counts its own commit
-84 DETECTED      mcountinhibit: written at EX (its own commit under the new bit)
+84 DETECTED      mcountinhibit: setting IR, its own commit not counted (under the new bit)
 85 DETECTED      CSR: an illegal access's tval 0
 86 DETECTED      CSR: fcsr with mstatus.FS off not illegal
 87 mutations, 87 detected

@@ -1,10 +1,12 @@
 //---------------------------------------------------------------------------
 // CORE_CSR.sv
 //
-// (mmRISC-3: taken from mmRISC-2 Rev.02 with two changes, RTL/CPU/CORE/README.md:
+// (mmRISC-3: taken from mmRISC-2 Rev.02 with three changes, RTL/CPU/CORE/README.md:
 // instret_inc counts the instructions retired in a cycle, 0 .. 4, two
 // µops of up to two instructions each; it was one bit. mconfigptr (0xF15,
-// read-only 0), which the privileged spec 1.12 requires, is there.)
+// read-only 0), which the privileged spec 1.12 requires, is there.
+// instret_force counts instret_inc although mcountinhibit.IR is set: the
+// commit of the instruction that set it, written a cycle or more before.)
 //
 // CSR file, privilege level and trap state (CPU_CORE_SPEC.md 7, 8, 14).
 //
@@ -143,6 +145,7 @@ module CORE_CSR
 
         // counters
         input  logic [2:0]  instret_inc,   // (mmRISC-3: 0 .. 4 a cycle)
+        input  logic        instret_force, // (mmRISC-3: count although IR is inhibited)
         input  logic [HPM_EVENTS-1:0] hpm_ev,   // the events of this cycle
 
         // floating point state
@@ -841,7 +844,7 @@ module CORE_CSR
             end
         end else begin
             if (!inhibit_cy && !cy_filt)                mcycle   <= mcycle + 64'd1;
-            if (instret_inc != 3'd0 && !inhibit_ir && !ir_filt) minstret <= minstret + 64'(instret_inc);
+            if (instret_inc != 3'd0 && (!inhibit_ir || instret_force) && !ir_filt) minstret <= minstret + 64'(instret_inc);
             // the counters of events: what happened last cycle, at the
             // level it happened at, unless the counter is inhibited or its
             // mhpmevent leaves that level out. Wrapping sets OF; OF going

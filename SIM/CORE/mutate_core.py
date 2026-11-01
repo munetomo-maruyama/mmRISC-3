@@ -177,9 +177,9 @@ MUT = [
     (C, "tv_valid[2] = p2_ex_v && mis;", "tv_valid[2] = 1'b0;", 'tval: a misaligned address not given'),
     (C, "tv_valid[3] = csr_tv_v || sys_tv_v;", "tv_valid[3] = sys_tv_v;", 'tval: an illegal CSR access\'s not given'),
     # B4: OOO_CSRU
-    (CS, "else if (wr_en && ex_addr == 12'hB02)      ir_skip <= 1'b1;", "", 'minstret: a write counts its own commit'),
-    (CS, "assign c_wr_en = (wr_en && ex_addr != 12'h320) || (ih_pend && instret_inc != 3'd0);", "assign c_wr_en = wr_en;",
-     'mcountinhibit: written at EX (its own commit under the new bit)'),
+    (CS, "ir_skip  <= ex_addr == 12'hB02 || (rd_data[2] && !wdata[2]);", "ir_skip  <= rd_data[2] && !wdata[2];", 'minstret: a write counts its own commit'),
+    (CS, "ir_force <= ex_addr == 12'h320 && !rd_data[2] && wdata[2];", "ir_force <= 1'b0;",
+     'mcountinhibit: setting IR, its own commit not counted (under the new bit)'),
     (CS, "tv_val   = {32'd0, ex_inst};", "tv_val   = 64'd0;", 'CSR: an illegal access\'s tval 0'),
     (CS, "(fs == 2'b00 && (ex_addr == 12'h001", "(1'b0 && (ex_addr == 12'h001", 'CSR: fcsr with mstatus.FS off not illegal'),
 ]

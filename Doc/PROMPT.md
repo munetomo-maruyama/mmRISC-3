@@ -4359,3 +4359,41 @@ I have finished the Vivado runs. Please check output/*/summary.txt.
 ```text
 I have finished the Vivado runs. Please check output/*/summary.txt.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+All five runs meet 50 MHz (a 20 ns period). But two of the changes made for CoreMark cost more than expected: the IQ's timing got tight, and the CSR unit's LUTs grew. The analysis is in Plan/OOC 26.18 and UARCH's budget table, pushed as bfca0db.
+
+| Top | LUTs | Slack (all / reg to reg) | Main change |
+|---|---|---|---|
+| OOC_LSU | 1,947 → 1,949 | +7.031 ns (last +6.548) | A load completes in M (5.14) |
+| OOC_LSUDC | 7,681 → 7,573 | +1.340 ns (last +1.964) | Same (D$ placement −115) |
+| OOO_IQ | 1,894 → 1,951 | **+0.360** / +5.884 ns (last +1.165 / +6.605) | Store wait (5.9), the multiply's slot on port 1 (5.13) |
+| OOC_FE | 6,254 → 6,622 | **+0.863 ns** (last +1.703) | D-17 (5.11) |
+| OOC_CSRU | 2,537 → 2,695 | +1.066 ns (last +0.569) | FS check, mconfigptr, mcountinhibit's delay (5.7) |
+
+**Problem 1: OOO_IQ's slack fell to +0.36 ns**
+- The worst path is "store bit → the load's wait (`older & v & st`, a 10-bit AND-OR) → ready → select → `iss_entry` (the payload's read address)".
+- I had said it could stay out of the wakeup-select loop, but once it is in the ready term, the logic before the select is deeper.
+- **Fix:** keep the wait as a 1-bit register per entry, its next state computed from the cycle's issue and kill. The logic before the select is back to what it was.
+
+**Problem 2: OOC_CSRU +158 LUTs**
+- Nearly all of it is holding a write to mcountinhibit until its commit (a 64-bit hold register and a 64-bit selector on CORE_CSR's write data). Compared with Yosys, that part alone is about +180 LUTs / +65 FFs. The FS check is required by the spec and stays.
+- **Fix:** write in EX as before. OOO_CSRU keeps the old and new IR bits instead, and a small input to CORE_CSR's minstret add counts the writer's own commit one more (or one less). The counting stays as Spike's and Sail's, with only a few FFs and LUTs.
+
+**The other three**
+- **OOC_FE:** of +368 LUTs, TAGE is +229, more than the estimate (about 150). TAGE's paths are not in the top 10; their slack is 1.35 ns or more. The worst path, FBUF's loop (+0.863 ns), did not change; it is placement in a bigger design.
+- **OOC_LSU / OOC_LSUDC:** the path of a load completing in M is not the worst one.
+
+**Budget**
+These five blocks add +0.6k LUTs; the overrun grows to 4.7k / 6.1k / 7.3k.
+
+Prompts 112–114's English is in PROMPT.md, in the same commit.
+<!-- /answer -->
+
+## 115. 2026-11-01 11:22:38 JST
+
+```text
+Yes, both
+```

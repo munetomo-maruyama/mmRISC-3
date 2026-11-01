@@ -24,12 +24,14 @@
 //             when vectored), mepc / sepc for the returns, and the
 //             interrupt to take (irq_req, its cause) and WFI's wakeup
 //   counters  minstret counts the instructions retired a cycle, 0 .. 4
-//             (instret_inc: the copy of CORE_CSR here has that one change).
+//             (instret_inc: the copy of CORE_CSR here has that change).
 //             An instruction that writes minstret does not count itself (as
 //             Spike): written in EX, it commits next, alone (a CSR µop at the
 //             head, marked for replay), and that commit is not counted.
-//             A write to mcountinhibit reaches CORE_CSR at that commit, so
-//             the instruction counts under the old IR bit (as Spike, Sail)
+//             One that writes mcountinhibit counts under the old IR bit (as
+//             Spike, Sail): written in EX too, its commit is not counted when
+//             it cleared IR, and counted although inhibited when it set IR
+//             (instret_force, CORE_CSR's third change)
 //
 // The rest of CORE_CSR's outputs (the level, satp, mstatus bits, PMP, the
 // FP state, debug and triggers) go out as they are, for the MMU, the FPU
@@ -160,26 +162,24 @@ module OOO_CSRU
         sepc     = sret64[VA-1:1];
     end
 
-    // the commit of an instruction that wrote minstret is not counted
-    logic       ir_skip;
+    // the commit of an instruction that wrote minstret is not counted; one
+    // that wrote mcountinhibit counts under the old IR bit (rd_data[2]): not
+    // counted when it cleared IR, counted although inhibited when it set it
+    logic       ir_skip, ir_force;
     logic [2:0] ir_inc;
     always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n)                                ir_skip <= 1'b0;
-        else if (wr_en && ex_addr == 12'hB02)      ir_skip <= 1'b1;
-        else if (instret_inc != 3'd0)              ir_skip <= 1'b0;
+        if (!rst_n) begin
+            ir_skip  <= 1'b0;
+            ir_force <= 1'b0;
+        end else if (wr_en && (ex_addr == 12'hB02 || ex_addr == 12'h320)) begin
+            ir_skip  <= ex_addr == 12'hB02 || (rd_data[2] && !wdata[2]);
+            ir_force <= ex_addr == 12'h320 && !rd_data[2] && wdata[2];
+        end else if (instret_inc != 3'd0) begin
+            ir_skip  <= 1'b0;
+            ir_force <= 1'b0;
+        end
     end
     assign ir_inc = (ir_skip && instret_inc != 3'd0) ? instret_inc - 3'd1 : instret_inc;
-
-    // a write to mcountinhibit waits for its commit (nothing reads it before)
-    logic        ih_pend, c_wr_en;
-    logic [63:0] ih_data;
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n)                                ih_pend <= 1'b0;
-        else if (wr_en && ex_addr == 12'h320)      ih_pend <= 1'b1;
-        else if (instret_inc != 3'd0)              ih_pend <= 1'b0;
-    end
-    always_ff @(posedge clk) if (wr_en && ex_addr == 12'h320) ih_data <= wdata;
-    assign c_wr_en = (wr_en && ex_addr != 12'h320) || (ih_pend && instret_inc != 3'd0);
 
     // (rd_exists / rd_readonly are the debugger's, trap_to_s is in the vector already)
     /* verilator lint_off PINCONNECTEMPTY */
@@ -189,7 +189,7 @@ module OOO_CSRU
          .rd_addr(dbg_access ? dbg_addr : ex_addr), .rd_data(rd_data), .rmw_data(rmw_data),
          .rd_exists(), .rd_readonly(),
          .ex_addr(ex_addr), .ex_exists(ex_exists), .ex_readonly(ex_readonly), .ex_denied(ex_denied),
-         .wr_en(c_wr_en), .wr_addr(ih_pend ? 12'h320 : ex_addr), .wr_data(ih_pend ? ih_data : wdata),
+         .wr_en(wr_en), .wr_addr(ex_addr), .wr_data(wdata),
          .trap_en(trap_en), .trap_int(trap_int), .trap_cause(trap_cause),
          .trap_epc({{(65 - VA){trap_epc[VA-1]}}, trap_epc[VA-2:1], 1'b0}), .trap_tval(trap_tval),
          .trap_vector(tvec64), .trap_to_s(),
@@ -201,7 +201,7 @@ module OOO_CSRU
          .mstatus_tw_out(mstatus_tw), .mstatus_tsr_out(mstatus_tsr),
          .menvcfg_cbze_out(menvcfg_cbze), .senvcfg_cbze_out(senvcfg_cbze),
          .pmpcfg_out(pmpcfg), .pmpaddr_out(pmpaddr), .pmpmask_out(pmpmask),
-         .instret_inc(ir_inc), .hpm_ev(hpm_ev),
+         .instret_inc(ir_inc), .instret_force(ir_force), .hpm_ev(hpm_ev),
          .fflags_we(fflags_we), .fflags_set(fflags_set), .fs_dirty(fs_dirty), .frm_out(frm), .fs_out(fs),
          .dbg_access(dbg_access), .dbg_enter(dbg_enter), .dbg_cause(dbg_cause), .dbg_pc(dbg_pc),
          .dbg_resume(dbg_resume), .dcsr_step(dcsr_step), .dcsr_ebreakm(dcsr_ebreakm),

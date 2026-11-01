@@ -67,7 +67,9 @@
 // address in E; a load issued after it reaches M a cycle later at the
 // earliest, when OOO_LSU has the address. Without the wait a load issued
 // past a store whose address is unknown completes marked and is replayed
-// after commit. Registered state only, off the wakeup-select loop.
+// after commit. The wait is a register per entry, set when the load is
+// written and cleared when the last older store leaves (issued, killed),
+// off the wakeup-select loop.
 //
 // Port 0's MDU (mmRISC-2's CORE_MDU, OOO_MDUP: one operation at a time for
 // mulh*, clmul* and the divides; Plan/OOC.md 23, 24): such a µop (disp_md;
@@ -158,6 +160,7 @@ module OOO_IQ
     logic [N-1:0]                 ns;         // non-speculative
     logic [N-1:0]                 md;         // an MDU µop
     logic [N-1:0]                 st;         // a store
+    logic [N-1:0]                 sw;         // a load an older store holds back
     logic                         blk0, blk1; // port 0's / port 1's latency-1 write slot is taken
 
     // ---- select
@@ -165,10 +168,9 @@ module OOO_IQ
     always @(*) begin
         for (int i = 0; i < N; i++) begin
             // (the non-speculative condition is of registered state and ns_ok,
-            // off the wakeup-select loop)
+            // off the wakeup-select loop; a load's wait is a register)
             ready_all[i] = v[i] && ((rdy[i] | ~use_s[i]) == 2'b11) &&
-                           (!ns[i] || (ns_ok && (older[i] & v & ns) == '0)) &&
-                           !(port[i] == 2'd2 && !st[i] && (older[i] & v & st) != '0);
+                           (!ns[i] || (ns_ok && (older[i] & v & ns) == '0)) && !sw[i];
             req0[i] = ready_all[i] && (port[i] == 2'd0 || port[i] == 2'd1) &&
                       !(blk0 && wr[i] && !lat2[i] && !md[i]) && !(md[i] && !mdu_ok);
             req1[i] = ready_all[i] && (port[i] == 2'd0) && !(blk1 && wr[i]);
@@ -277,11 +279,17 @@ module OOO_IQ
 
     // which entries are written and which issue this cycle
     logic [N-1:0] issued, disp0, disp1;
+    // the stores still in the queue next cycle for the loads that wait: a
+    // killed store needs no term, since the loads younger than it die with it
+    // (they carry its mask bit) and nothing is dispatched in a kill cycle
+    // (OOO_CTRL's d_ok)
+    logic [N-1:0] st_stay;
     always @(*) begin
         for (int i = 0; i < N; i++) begin
-            issued[i] = g0[i] || g1[i] || g2[i];
-            disp0[i]  = !flush && disp_valid[0] && fev[0] && fe[0] == EW'(i);
-            disp1[i]  = !flush && disp_valid[1] && fev[1] && fe[1] == EW'(i);
+            issued[i]  = g0[i] || g1[i] || g2[i];
+            disp0[i]   = !flush && disp_valid[0] && fev[0] && fe[0] == EW'(i);
+            disp1[i]   = !flush && disp_valid[1] && fev[1] && fe[1] == EW'(i);
+            st_stay[i] = v[i] && st[i] && !issued[i];
         end
     end
 
@@ -293,7 +301,7 @@ module OOO_IQ
         logic [TAGW-1:0]      dq;
         logic [N-1:0]         oq;
         logic [NCK-1:0]       bq;
-        logic                 nq, mq, tq;
+        logic                 nq, mq, tq, wtq;
         assign v[i]     = vq;
         assign lat2[i]  = lq;
         assign port[i]  = pq;
@@ -307,6 +315,7 @@ module OOO_IQ
         assign ns[i]    = nq;
         assign md[i]    = mq;
         assign st[i]    = tq;
+        assign sw[i]    = wtq;
 
         always_ff @(posedge clk or negedge rst_n) begin
             if (!rst_n) begin
@@ -331,10 +340,15 @@ module OOO_IQ
                 // pair younger than the first
                 for (int j = 0; j < N; j++) oq[j] <= v[j] && !issued[j];
                 if (disp1[i] && disp_valid[0] && fev[0]) oq[fe[0]] <= 1'b1;
+                // a load waits while an older store is in the queue: every
+                // store that stays, and the first of the pair
+                wtq <= disp_port[d] == 2'd2 && !disp_st[d] &&
+                       (st_stay != '0 || (disp1[i] && disp_valid[0] && fev[0] && disp_st[0]));
             end else begin
                 if (issued[i] || (bq & kill) != '0) vq <= 1'b0;
                 bq <= bq & ~clr;
                 for (int s = 0; s < 2; s++) if (woken(sq[s])) rq[s] <= 1'b1;
+                wtq <= wtq && (oq & st_stay) != '0;
                 // an entry written now is younger than this one
                 for (int j = 0; j < N; j++) if (disp0[j] || disp1[j]) oq[j] <= 1'b0;
             end
