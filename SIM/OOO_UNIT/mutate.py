@@ -334,6 +334,11 @@ M = [
     ('M301', 'CORE:CORE_CSR/CORE_CSR.sv', 'csru', "minstret <= minstret + 64'(instret_inc);", "minstret <= minstret + 64'd1;", 'minstret counts one a cycle'),
     ('M302', 'OOO_CSRU/OOO_CSRU.sv', 'csru', 'ex_rp    = wants_write && !ill;', 'ex_rp    = wants_write;', 'an illegal CSR write marked for replay'),
     ('M303', 'OOO_CSRU/OOO_CSRU.sv', 'csru', 'parameter int          HPM_COUNTERS = 2,', 'parameter int          HPM_COUNTERS = 4,', 'L1 not applied'),
+    # 2026-11-01: a load completes in M (Plan/CORE.md 5.14)
+    ('M370', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'assign cmp_ld_rob   = m_v ? lrob[m_lq] : lrob[f_e];', 'assign cmp_ld_rob   = lrob[m_lq];', "a fill completes the M entry's ROB index"),
+    ('M371', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'assign cmp_ld_rp    = m_v ? lcan[m_lq] : lcan[f_e];', "assign cmp_ld_rp    = m_v ? lcan[m_lq] : 1'b0;", 'a fill completes without its replay mark'),
+    ('M372', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'assign cmp_ld_valid = m_ok || m_exc || f_v;', 'assign cmp_ld_valid = m_ok || m_exc;', 'a fill completes nothing'),
+    ('M373', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'assign cmp_ld_exc   = m_v && m_exc;', 'assign cmp_ld_exc   = m_mis;', 'a misaligned load killed in M completes with an exception'),
     # 2026-11-01: the multiply writes through port 1 (Plan/CORE.md 5.13)
     ('M367', 'OOO_IQ/OOO_IQ.sv', 'iq', 'assign blk1 = d_v0;', "assign blk1 = 1'b0;", "port 1's write slot taken twice after a multiply"),
     ('M368', 'OOO_IQ/OOO_IQ.sv', 'iq', 'assign blk0 = p0_hold;', 'assign blk0 = p0_hold || d_v0;', "port 0's slot kept after a multiply too"),

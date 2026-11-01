@@ -27,7 +27,9 @@
 // a wrong value. It gives its result later through the same write port,
 // marked late, and its completion is marked for replay after commit
 // (cmp_ld_rp, Doc/UARCH.md 6.3 D-12): the ROB commits it and fetches what
-// follows it again.
+// follows it again. A load completes with its register-file write, in M or
+// with its fill (cmp_ld_*, not from the WB register: a cycle earlier to
+// commit, Plan/CORE.md 5.14), or in M with an exception.
 //
 // Ordering: conservative. A load only takes data from the D$ when every
 // older store has its address; the issue queue is expected to hold loads
@@ -152,7 +154,7 @@ module OOO_LSU
         output logic [63:0]                 wb_data,
         output logic                        ld_cancel,    // in M: the load issued 2 cycles before gives no result in WB
         output logic [TAGW-1:0]             ld_cancel_tag,
-        output logic                        cmp_ld_valid, // ROB completion of a load (with the write, or an exception)
+        output logic                        cmp_ld_valid, // ROB completion of a load (with the write, or an exception; in M)
         output logic [ROBW-1:0]             cmp_ld_rob,
         output logic                        cmp_ld_exc,
         output logic                        cmp_ld_rp,    // it raised ld_cancel: replay after commit
@@ -445,19 +447,21 @@ module OOO_LSU
         dc_fill_ready = !fb_v;
     end
 
-    // ---- WB: one write a cycle, M first, then a fill
+    // ---- WB: one write a cycle, M first, then a fill; the completion with it
     assign rf_valid = m_ok || f_v;
+    assign cmp_ld_valid = m_ok || m_exc || f_v;
+    assign cmp_ld_rob   = m_v ? lrob[m_lq] : lrob[f_e];
+    assign cmp_ld_exc   = m_v && m_exc;
+    assign cmp_ld_rp    = m_v ? lcan[m_lq] : lcan[f_e];
     assign rf_tag   = m_v ? m_dst : ldst[f_e];
     assign rf_data  = m_v ? align(m_word, m_addr[2:0], m_size, m_uns) : align(f_word, laddr[f_e][2:0], lsize[f_e], luns[f_e]);
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             wb_valid     <= 1'b0;
-            cmp_ld_valid <= 1'b0;
             fb_v         <= 1'b0;
         end else begin
             // (none of them in a flush: m_rec and f_v)
             wb_valid     <= m_ok || f_v;
-            cmp_ld_valid <= m_ok || m_exc || f_v;
             // the buffer holds a fill until it is written back, or until its
             // entry is gone (flushed); an incoming fill (accepted only while
             // the buffer is empty) goes there when it cannot be written now
@@ -470,16 +474,10 @@ module OOO_LSU
             wb_late    <= m_retry;
             wb_tag     <= rf_tag;
             wb_data    <= rf_data;
-            cmp_ld_rob <= lrob[m_lq];
-            cmp_ld_exc <= m_exc;
-            cmp_ld_rp  <= lcan[m_lq];
         end else begin
             wb_late    <= 1'b1;
             wb_tag     <= rf_tag;
             wb_data    <= rf_data;
-            cmp_ld_rob <= lrob[f_e];
-            cmp_ld_exc <= 1'b0;
-            cmp_ld_rp  <= lcan[f_e];
         end
         if (!fb_v && dc_fill_valid) begin
             fb_tag  <= dc_fill_tag;

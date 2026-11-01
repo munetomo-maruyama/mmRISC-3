@@ -119,6 +119,7 @@ int main(int argc, char** argv)
         return v;
     };
 
+    struct Cmp { bool v = false; int rob = 0; bool exc = false, rp = false; } cmp_q;   // last cycle's load completion
     for (cyc = 0; cyc < 300000; cyc++) {
         bool burst = (cyc / 1000) % 4 == 3;     // a burst of loads, issued every cycle (the store drain forced)
         // ================= inputs of this cycle =================
@@ -279,12 +280,16 @@ int main(int argc, char** argv)
         } else if (canc) FAIL("ld_cancel without a load from port 2 in M");
         if (canc) ncancel++;
         // WB: the result register (from last cycle's M or a fill)
-        if (d.cmp_ld_valid) {
-            int rob = d.cmp_ld_rob;
+        // the completion comes in M with the register-file write (Plan/CORE.md 5.14); the checks below
+        // take last cycle's, which goes with the result register now
+        // (tb_lsu checks that it comes with the register-file write: LSU_DC does not show rf_*)
+        Cmp cq = cmp_q; cmp_q = Cmp{(bool)d.cmp_ld_valid, (int)d.cmp_ld_rob, (bool)d.cmp_ld_exc, (bool)d.cmp_ld_rp};
+        if (cq.v) {
+            int rob = cq.rob;
             Uop* L = nullptr; for (auto& u : win) if (u.k == LD && u.rob == rob && !u.done) { L = &u; break; }
             if (!L) FAIL("load completion for rob %d with no such load waiting", rob);
             else {
-                if (d.cmp_ld_exc) {
+                if (cq.exc) {
                     if (!L->mis) FAIL("load %ld: exception, but it is aligned", L->seq);
                     if (d.wb_valid) FAIL("load %ld: exception with a register write", L->seq);
                     L->done = true; L->exc = true;
@@ -299,14 +304,14 @@ int main(int argc, char** argv)
                     if (!d.wb_late && !ontime) FAIL("load %ld: written as on time, but it was not issued for this cycle", L->seq);
                     if (d.wb_late && ontime) FAIL("load %ld: written as late in its expected cycle", L->seq);
                     if (d.wb_late) nlate++;
-                    if ((bool)d.cmp_ld_rp != L->canc) FAIL("load %ld: replay mark %d, expected %d", L->seq, (int)d.cmp_ld_rp, L->canc);
+                    if (cq.rp != L->canc) FAIL("load %ld: replay mark %d, expected %d", L->seq, (int)cq.rp, L->canc);
                     L->done = true; nld++;
                 }
             }
         } else if (d.wb_valid) FAIL("register write without a completion");
         if (wb_iss.v) {      // the load expected in WB this cycle (not cancelled): it must be written
             Uop* L = find(wb_iss.seq);
-            bool wrote = d.cmp_ld_valid && L && L->rob == (int)d.cmp_ld_rob && d.wb_valid && !d.wb_late;
+            bool wrote = cq.v && L && L->rob == cq.rob && d.wb_valid && !d.wb_late;
             if (!wrote) FAIL("load %ld: not cancelled, but no result in its expected cycle", wb_iss.seq);
         }
         // the store port into the adapter

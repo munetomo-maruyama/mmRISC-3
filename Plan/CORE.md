@@ -600,7 +600,7 @@ the LQ / SQ 60,555 cycles).
   bitextract loop the core still loses 0.8 cycle an iteration at the second multiply.
 - **Proposed next**: (A, **done in 5.13**) the multiply writes through port 1's write port and the issue queue keeps port 1's
   latency-1 slot free after a multiply instead of port 0's (ALU1 takes only simple µops, ALU0 everything): about
-  −1 % to −1.8 % of the cycles, a 2:1 select on port 1's write and the bypass; (B) a load's completion from M (not
+  −1 % to −1.8 % of the cycles, a 2:1 select on port 1's write and the bypass; (B, **done in 5.14**) a load's completion from M (not
   from the register after it): about −1.4 %, on `OOO_LSU`'s M path (a timing question).
 
 ### 5.13 The multiply writes through port 1 (2026-11-01)
@@ -631,6 +631,28 @@ results (`p0_hold`). ALU1 takes only simple µops and ALU0 everything, so keepin
   `run_coremark.sh`, the 28 unit tests, the stand-in test: all pass; no new lint warning.
 - `OOO_IQ` and `OOO_CORE` changed (a 2:1 select on port 1's write, the slot rule moved): `synth_ooo.bat OOO_IQ` would
   measure the queue.
+
+### 5.14 A load completes in M (2026-11-01)
+
+5.12's proposal B. `OOO_LSU` gives a load's completion (`cmp_ld_valid`, `cmp_ld_rob`, `cmp_ld_exc`, `cmp_ld_rp`) with
+its register-file write, in M or with its fill, instead of from the register after it: the ROB marks it done a cycle
+earlier and it commits a cycle earlier (as stores already did, from E). The signals are what the register took
+before, a cycle sooner; the commit trace takes the load's value from the register-file write.
+
+| CoreMark (cycles; CoreMark/MHz) | g14 -O2 | g14 sf + -flto | g13 -O2 Zb |
+|---|---|---|---|
+| `OOO_CORE`, the model's caches, 5.13 → **now** | 1,833,565 → **1,813,160 (5.515)** | 1,698,184 → **1,678,934 (5.956)** | 1,894,227 → **1,871,639 (5.343)** |
+| `OOO_CPU`, the real D$ | 1,859,255 → **1,837,109 (5.443)** | 1,746,040 → **1,726,134 (5.793)** | 1,907,485 → **1,884,608 (5.306)** |
+| the model, fusion off, stores with their data | 1,701,808 (5.876) | 1,562,105 (6.402) | 1,730,925 (5.777) |
+
+- −1.1 %, −1.1 %, −1.2 % (the model expected −1.4 %); **6.5 % / 7.5 % / 8.1 % behind the model** now.
+- **Tests**: `tb_lsu` and `tb_dcad` check each completion against the result register a cycle later, as before, and
+  `tb_lsu` that it comes with the register-file write (an exception without one); M370 to M373 (a fill with the M
+  entry's ROB index, without its replay mark, completing nothing; a misaligned load killed in M completing): the 50
+  LSU and D$-adapter mutations detected, 337 unit mutations. `mutate_core.py` 87 of 87; `run_core.sh`,
+  `run_coremark.sh`, the 28 unit tests, the stand-in test: all pass; no new lint warning.
+- The completion now comes from M's search and the D$ hit (`m_ok`) to the ROB's done bits: `synth_ooo.bat OOC_LSU`
+  and `OOC_LSUDC` measure the LSU's side; the path into the ROB is one of the whole core's (B7).
 
 ---
 

@@ -933,7 +933,7 @@ module OOO_CORE
             sh_st[disp_rob[j]]   <= 1'b0;
         end
         for (int p = 0; p < 2; p++) if (ex_v[p] && ex[p].wr) sh_val[ex[p].rec.rob] <= ex_res[p];
-        if (cmp_ld_v && lsu_wb_v) sh_val[cmp_ld_rob] <= lsu_wb_d;                 // a load's value with its completion
+        if (cmp_ld_v && prf_we[2]) sh_val[cmp_ld_rob] <= prf_wd[2];               // a load's value with its completion (M)
         if (pm_v) sh_val[pm_rob] <= pm_d;                                         // the multiplier's and the MDU's
         if (md_v) sh_val[md_rob] <= md_d;
         if (x_csr) sh_val[ex[0].rec.rob] <= csr_res;                              // a CSR µop's old value

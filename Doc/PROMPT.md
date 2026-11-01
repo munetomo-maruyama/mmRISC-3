@@ -4221,3 +4221,47 @@ Also, the model's tageref mode had stopped building with D-17's change to tage_r
 ```text
 Yes, do A
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Fix A is in: the multiply's result is written through port 1's write port, and the slot kept free in the cycle after a multiply moved to port 1 as well. Pushed to dev as 084525b. CoreMark is 0.5–2.6 % faster, 7.7–9.4 % behind the model. OOO_IQ has not been through Vivado yet.
+
+**Changes**
+- **OOO_CORE:** the multiply's result goes into port 1's WB register (the PRF's write port 1 and port 1's bypass). Port 0 keeps only the divider's (MDU) results.
+- **OOO_IQ:** in the cycle after a multiply, no µop that writes a register gets port 1; it can still go to port 0.
+
+**A bug found on the way**
+- **Symptom:** the MDU and the multiplier still share the ROB's completion port. With the MDU no longer waiting for the multiply's result, both completed in the same cycle and the MDU's completion was lost.
+- **Found by:** 10 of the 20 gen_b2 ls programs hung where a `mulw` follows a `mulhu`. arch-test and CoreMark did not show it.
+- **Fix:** the MDU again waits for a cycle without the multiply's result. The write ports stay separate.
+
+**CoreMark (cycles; CoreMark/MHz in parentheses)**
+
+| | g14 -O2 | g14 sf+flto | g13 -O2 |
+|---|---|---|---|
+| OOO_CORE (ideal caches) | 1,882,020 → **1,833,565 (5.45)** | 1,706,123 → **1,698,184 (5.89)** | 1,945,090 → **1,894,227 (5.28)** |
+| OOO_CPU (real D$) | 1,907,780 → **1,859,255 (5.38)** | 1,755,555 → **1,746,040 (5.73)** | 1,958,830 → **1,907,485 (5.24)** |
+| Model (fusion off) | 1,701,808 (5.88) | 1,562,105 (6.40) | 1,730,925 (5.78) |
+
+Against the model's expectation (−1.0 / −1.8 / −0.8 %), the gain came out larger for g14 -O2 and g13 and smaller for sf+flto.
+
+**Tests**
+- **tb_iq:** checks the new rule, and mixes in "ALU µops that write nothing (branches)" to confirm those still go to port 1 in the cycle after a multiply.
+- **IQ mutations:** M314, which had lost its line, is fixed and M367–M369 added: 26 of 26 detected. 333 unit mutations in all.
+- **Core mutations:** 87 of 87 detected.
+  - The "WB mask" mutation added in 5.8 is no longer detected by any test. With the multiply's write on port 1, showing it needs a branch mispredicted on port 0 and the rest all in the same cycle.
+  - It is not equivalent, so the RTL guard stays; the mutation is taken out of the campaign with the reason written down.
+- run_core.sh (12 runs), run_coremark.sh, the 28 unit tests and the stand-in test all pass, and the lint shows no new warning.
+
+**Next candidate**
+Fix B (a load's completion from M) is worth about 1.4 % in the model. It lengthens LSU's M-stage path, so the timing needs checking.
+
+Recorded in Plan/CORE 5.13, the READMEs and UARCH in both languages. This prompt (110) and the English of the previous answer are in PROMPT.md, included in this commit.
+<!-- /answer -->
+
+## 111. 2026-11-01 09:49:54 JST
+
+```text
+Yes, do B
+```
