@@ -2793,3 +2793,23 @@ Yosys: OOO_CPU 49,106 → 46,768 LUT cells (the fused compare, its selects and t
 To rerun: `synth_ooo.bat OOO_CPU`; expected: an unfused branch's misprediction at about 13.4 ns, the clear into the
 masks' flip-flops after it, and the classes of 27.7's table (the CSR result and a load's data into the register
 file, the privilege level, the fetch buffer) as the worst.
+
+### 27.9 The fourth run: 50 MHz met (2026-11-02, the RTL of 289cc2a)
+
+| | third run (27.7) | **fourth run** |
+|---|---|---|
+| OOO_CPU | 37,421 LUTs | **36,445 LUTs** (33,629 logic + 2,816 LUT RAM), 18,013 FF |
+| the engine (less CORE_CSR 667, CORE_MDU 2,692; with the adapter 194) | 27,485 | **27,042** |
+| WNS / failing endpoints | −7.362 ns / 2,596 | **+0.159 ns / 0** (25 levels) |
+
+- **The whole core closes at 50 MHz out of context**, the first time (G1's timing criterion; mmRISC-2's core closed
+  with +0.002 ns in the same conditions, 25.3). The 20 worst all end in the ROB's exception and cause bits (their
+  write enables) and begin at CORE_CSR's privilege level (`priv_r`): the privilege into the checks of a completing
+  µop (the CSR unit's legality, ECALL's cause), the completion's exception into an entry.
+- **What is close** (the per-block report): the ROB's exception from the privilege +0.159 ns; port 0's EX into the
+  masks through the clear (OOO_CTRL's `ck_bm` +0.79 to +0.98 ns, 34 levels: EX's compare → `cl_*` → `clr`); the
+  issue queue +1.13 ns; the fetch buffer's loop +1.42 ns. Nothing else below +1.5 ns.
+- **Size**: −976 against the third run (the fused path gated, 5.22); the ROB 3,717 (eight completion ports, +619 on
+  the first run; the mispredicted branches' two could share EX's ports, as their EX completion is held then).
+- Against the room: over by 9.1k / 9.9k / 10.6k (the whole chip about 63k in the middle, at the device's 63,400).
+  With the timing closed, size is what stands between the core and G1.

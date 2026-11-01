@@ -4911,3 +4911,40 @@ Prompt 128 is logged in PROMPT.md, in this commit.
 ```text
 Yes, both
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Both are fixed, pushed as 289cc2a.
+
+**1) The fused path gated by the core's parameter**
+- OOO_CORE has `FUSE_KINDS` (OOO_FUSE's `KINDS`) and `FUSE_AB` (its ALU + branch bit). Every use of a pair after D2 is gated by `FUSE_AB`: the fused compare's `br_fused`, the next pc and target after the ALU half, the ROB's `disp_fused` and length, the trace's pair.
+- With fusion off, `fused` is a constant and EX's compare reads s1 / s2 alone.
+- Yosys: OOO_CPU 49,106 → 46,768 LUT cells (−2,338). The fused compare, its selects and the pair's adders were larger than expected.
+
+**2) `~clr` out of the issue queue's `iss_bm`**
+- The issued µop's mask is the entry's as it is. Every receiver applies `& ~clr` as it registers it or only compares it with kill, so behavior is unchanged.
+- The clr from EX no longer enters the select's output path.
+- tb_iq now expects "the mask before that cycle's clr". Two unit mutations added (M381, M381b).
+
+**Tests**
+- CoreMark's cycles are exactly unchanged, as expected for two changes that do not alter what the core does.
+- run_core.sh and the 28 unit tests (tb_iq on 7 seeds) pass, with no new lint warning.
+- Core mutations: all 91 detected; unit mutations: 346 detected. The B5a mutations set aside follow the gated lines.
+
+**Please rerun Vivado.**
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+
+Expected: an unfused branch's misprediction at about 13.4 ns, with the clr after it only going into the masks' flip-flops; about 1.5k fewer LUTs; the worst paths moving to the classes seen behind last time (the CSR result and a load's data into the register file, the privilege level, the fetch buffer). When done, ask me to check the results.
+
+Prompt 129 is logged in PROMPT.md, in this commit.
+<!-- /answer -->
+
+## 130. 2026-11-02 01:51:38 JST
+
+```text
+The Vivado rerun has finished.
+```

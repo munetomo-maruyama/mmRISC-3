@@ -294,6 +294,8 @@ sums over whole units are what to compare.
 | **Over, 2026-11-01 late night** | **10.3k** | **11.1k** | **11.8k** |
 | Measured, 2026-11-02 (`Plan/OOC.md` 27.7: B7's third run, fusion off; the fused compare still in EX through the payload's LUT RAM; timing not met: the engine 27,485) | 27.5k | 27.5k | 27.5k |
 | **Over, 2026-11-02** | **9.6k** | **10.4k** | **11.1k** |
+| Measured, 2026-11-02 later (`Plan/OOC.md` 27.9: B7's fourth run, **50 MHz met**, WNS +0.159 ns: the engine 27,042) | 27.0k | 27.0k | 27.0k |
+| **Over, 2026-11-02 later** | **9.1k** | **9.9k** | **10.6k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is

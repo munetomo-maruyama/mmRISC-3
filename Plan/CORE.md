@@ -870,6 +870,6 @@ EX (the resolution register of 5.20) or with D2's refill.
 | Performance | CoreMark/MHz in RTL simulation within ±5 % of the model for each build: 6.243 (g14 -O2), 6.680 (g14 sf + -flto), 6.066 (g13 -O2) | `Plan/model/results/g0b.txt` (L7, D-15, D-16 variant A) |
 | Where the cycles go | the model's counters for the same runs (dispatch held by the front end, the IQ, LQ / SQ; mispredictions; overrides) from the RTL's | to explain a difference above 2 % |
 | Size | `OOO_CORE` out of context in Vivado (physical LUTs): the out-of-order engine within its budget row (`Doc/UARCH.md` 4.4), and the core's total against the gap (3.5k / 4.9k / 6.2k now) | out of context is fair for a whole core (`Plan/OOC.md` 25.3) |
-| Timing | 50 MHz (20 ns) after place and route out of context | the blocks' slack so far (`Plan/OOC.md` 26.18): worst +0.863 ns (the front end), +1.340 ns (the LSU with the D$), +1.735 ns (the issue queue, 5.16) |
+| Timing | 50 MHz (20 ns) after place and route out of context | the whole core out of context (`Plan/OOC.md` 27.9, B7): +0.159 ns, 2026-11-02 |
 
 At G1 the reserve levers (L10, B4 / B5 of `Doc/UARCH.md` 6.3) are decided against the measured core.
