@@ -696,13 +696,13 @@ module OOC_CTRL
     (
         input  logic          clk,
         input  logic          rst_n,
-        input  logic [240:0]  in,
+        input  logic [248:0]  in,
         output logic [115:0]  out
     );
-    logic [240:0] q;
+    logic [248:0] q;
     always_ff @(posedge clk) q <= in;
-    logic [1:0]       r_valid, r_ckpt, ds_ld, ds_st, rob_avail, iq_avail, lq_avail, sq_avail, br_valid, br_mispred;
-    logic [1:0][2:0]  r_ckpt_id, ds_ftq, br_ckpt;
+    logic [1:0]       r_valid, r_ckpt, ds_ld, ds_st, rob_avail, iq_avail, lq_avail, sq_avail, br_valid, br_mispred, cl_valid;
+    logic [1:0][2:0]  r_ckpt_id, ds_ftq, br_ckpt, cl_ckpt;
     logic             r_ren_ready, rob_restore, trap, replay, head_ns, iss_ns;
     logic [1:0]       cmt_valid, cmt_wr, cmt_ld_n, cmt_st_n;
     logic [1:0][5:0]  cmt_old;
@@ -713,7 +713,8 @@ module OOC_CTRL
     logic [37:0]      replay_pc, trap_vec;
     assign {r_valid, r_ckpt, r_ckpt_id, r_ren_ready, ds_ld, ds_st, ds_ftq, rob_avail, iq_avail, lq_avail, sq_avail,
             ck_lq_tail, ck_sq_tail, br_valid, br_mispred, br_ckpt, br_next, rob_restore, rob_restore_ckpt, trap,
-            replay, replay_pc, trap_vec, head_ns, cmt_valid, cmt_wr, cmt_old, cmt_ld_n, cmt_st_n, cmt_ftq, iss_ns} = q;
+            replay, replay_pc, trap_vec, head_ns, cmt_valid, cmt_wr, cmt_old, cmt_ld_n, cmt_st_n, cmt_ftq, iss_ns,
+            cl_valid, cl_ckpt} = q;
     logic [1:0]       r_go, ds_valid, d_go;
     logic [1:0][5:0]  d_bmask;
     logic             flush_all, restore, restore_port, ns_busy, fe_redirect, fe_flush, ns_ok, ds_load;
@@ -730,6 +731,7 @@ module OOC_CTRL
          .rob_avail(rob_avail), .iq_avail(iq_avail), .lq_avail(lq_avail), .sq_avail(sq_avail),
          .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail), .d_go(d_go), .d_bmask(d_bmask),
          .br_valid(br_valid), .br_mispred(br_mispred), .br_ckpt(br_ckpt), .br_next(br_next),
+         .cl_valid(cl_valid), .cl_ckpt(cl_ckpt),
          .rob_restore(rob_restore), .rob_restore_ckpt(rob_restore_ckpt), .trap(trap), .replay(replay),
          .replay_pc(replay_pc), .trap_vec(trap_vec), .head_ns(head_ns), .cmt_valid(cmt_valid), .cmt_wr(cmt_wr),
          .cmt_old(cmt_old), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_ftq(cmt_ftq), .iss_ns(iss_ns), .ns_ok(ns_ok), .ns_busy(ns_busy),

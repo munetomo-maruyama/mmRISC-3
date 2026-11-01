@@ -95,6 +95,10 @@
 94 DETECTED      B5a: the branch's operand on s1 when s2 is free
 95 DETECTED      B5a: a pair's branch compares s1 with s2
 96 DETECTED      B5a: the result always the second operand
-97 DETECTED      CSR: an illegal access's tval 0
-98 DETECTED      CSR: fcsr with mstatus.FS off not illegal
-99 mutations, 99 detected
+97 DETECTED      a mispredicted branch complete in EX (younger µops commit before the restore)
+98 DETECTED      a branch killed as it leaves EX resolves
+99 DETECTED      a branch flushed as it leaves EX resolves
+100 DETECTED      a mispredicted branch never completes
+101 DETECTED      CSR: an illegal access's tval 0
+102 DETECTED      CSR: fcsr with mstatus.FS off not illegal
+103 mutations, 103 detected

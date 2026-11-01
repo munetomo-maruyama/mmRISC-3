@@ -169,11 +169,11 @@ MUT = [
     (C, ".disp_st({ds[1].st, ds[0].st}),\n         .ext_valid", ".disp_st(2'b00),\n         .ext_valid", 'IQ: loads not held for older stores (replays)'),
     (C, ".mret_en(csr_mret), .sret_en(csr_sret)", ".mret_en(csr_mret), .sret_en(1'b0)", 'SRET: the CSRs not restored'),
     # B4: completion and tval
-    (C, "cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS;",
-     "cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU;", 'a system µop complete at EX'),
+    (C, "cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS &&",
+     "cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU &&", 'a system µop complete at EX'),
     (C, "x_csr && csr_exc}", "1'b0}", 'CSR: an illegal access completes'),
     (C, "x_csr && csr_rp}", "1'b0}", 'CSR: no replay after a write'),
-    (C, "{sys_rob, pm_v ? pm_rob : md_rob,", "{sys_rob, md_rob,", 'the multiply completes the MDU\'s entry'),
+    (C, "sys_rob, pm_v ? pm_rob : md_rob,", "sys_rob, md_rob,", 'the multiply completes the MDU\'s entry'),
     (C, "tv_valid[2] = p2_ex_v && mis;", "tv_valid[2] = 1'b0;", 'tval: a misaligned address not given'),
     (C, "tv_valid[3] = csr_tv_v || sys_tv_v;", "tv_valid[3] = sys_tv_v;", 'tval: an illegal CSR access\'s not given'),
     # B4: OOO_CSRU
@@ -193,6 +193,11 @@ MUT = [
     (C, "else if (!a_s2[j])                     b_os[j] = 2'd1;", "else if (1'b0)                     b_os[j] = 2'd1;", 'B5a: the branch\'s operand on s1 when s2 is free'),
     (C, ".br_fused(ex[p].rec.fused)", ".br_fused(1'b0)", 'B5a: a pair\'s branch compares s1 with s2'),
     (C, ".br_res1_a(ex[p].rec.b_res1a)", ".br_res1_a(1'b0)", 'B5a: the result always the second operand'),
+    # the resolution through a register (Plan/CORE.md 5.20)
+    (C, "!(e_br_valid[p] && e_br_mispred[p]);", "1'b1;", 'a mispredicted branch complete in EX (younger µops commit before the restore)'),
+    (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && !flush_all;", 'a branch killed as it leaves EX resolves'),
+    (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && (ex_bms[p] & kill) == '0;", 'a branch flushed as it leaves EX resolves'),
+    (C, "{br_valid & br_mispred, sys_cv,", "{2'b00, sys_cv,", 'a mispredicted branch never completes'),
     (CS, "tv_val   = {32'd0, ex_inst};", "tv_val   = 64'd0;", 'CSR: an illegal access\'s tval 0'),
     (CS, "(fs == 2'b00 && (ex_addr == 12'h001", "(1'b0 && (ex_addr == 12'h001", 'CSR: fcsr with mstatus.FS off not illegal'),
 ]

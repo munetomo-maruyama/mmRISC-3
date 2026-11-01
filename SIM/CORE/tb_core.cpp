@@ -81,7 +81,7 @@ static std::string check_resolution(TopRoot* rp)
         if (!((rp->CORE(br_valid) >> p) & 1)) continue;
         int rob = (rp->CORE(br_rob) >> (5 * p)) & 31;
         uint32_t in = rp->CORE(sh_insn)[rob];
-        uint64_t pc = wbits(rp->CORE(ex_pc), (VA - 1) * p, VA - 1);
+        uint64_t pc = wbits(rp->CORE(br_pc), (VA - 1) * p, VA - 1);
         if (pc != wbits(rp->CORE(sh_pc)[rob], 0, VA - 1)) {     // the pc array's line and the parcel against dispatch's pc
             std::snprintf(m, sizeof m, "port %d resolves at pc %llx, dispatched at %llx", p, (unsigned long long)pc << 1,
                           (unsigned long long)wbits(rp->CORE(sh_pc)[rob], 0, VA - 1) << 1);
@@ -116,7 +116,7 @@ static std::string check_resolution(TopRoot* rp)
         for (int p = 0; p < 2 && !any; p++) {
             if (!((rp->CORE(br_valid) >> p) & 1)) continue;
             uint32_t in = rp->CORE(sh_insn)[(rp->CORE(br_rob) >> (5 * p)) & 31];
-            uint64_t pc = wbits(rp->CORE(ex_pc), (VA - 1) * p, VA - 1);
+            uint64_t pc = wbits(rp->CORE(br_pc), (VA - 1) * p, VA - 1);
             any = (uint64_t)rp->CORE(bt_pc) == pc + ((in & 3) == 3 ? 1 : 0) && !((rp->CORE(br_ret) >> p) & 1);
         }
         if (!any) return "the BTB written for no indirect jump at its last parcel";

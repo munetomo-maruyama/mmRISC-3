@@ -4676,3 +4676,56 @@ Prompt 122 is logged in PROMPT.md, in this commit.
 ```text
 Yes, analyze B7
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I analyzed B7's first run. Both size and timing are tighter than estimated from the per-block runs. Recorded in Plan/OOC 27.2–27.3 and UARCH's budget table, pushed as cc5f9c1 (the run is of the RTL before B5a).
+
+**Size: the OoO engine is 3.2k larger**
+
+| | LUT |
+|---|---|
+| OOO_CPU in all | 35,961 (FF 17,830) |
+| D$ | 6,282 (estimate about 5.2k) |
+| CORE_CSR | 556 (alone 2,496) |
+| CORE_MDU | 2,945 |
+| **OoO engine** (u_core − CSR − MDU + adapter) | **26,178** (budget middle 23.0k, sum of the blocks about 21.5k) |
+
+- **CORE_CSR is small because Phase 1 leaves its PMP, translation and debug outputs open.** Vivado removes what only feeds them. The chip budget keeps mmRISC-2's 4,750.
+- **The 4.7k over the blocks' sum is OOO_CORE's own logic:** D2, the DS payload, each port's RR / EX (bypass, pc, branch resolution, port 0's result select), which no per-block run contained. Vivado spreads it into the child instances (port 0's EX stage has 4,223 LUTs, for one), so only sums compare.
+- Over budget by **8.3k / 9.1k / 9.8k**: the whole chip about 64k LUTs, more than the device (63,400). After timing is closed, the reserve levers (L10, B4 / B5) and the core's own logic are what to cut.
+
+**Timing: WNS −5.716 ns, 15,202 failing endpoints**
+The 100 worst all start at port 1's WB register.
+
+| Along the worst path | Arrives |
+|---|---|
+| WB → bypass → ALU1's operand | 6.1 ns |
+| branch compare → `take_branch` | 10.5 ns |
+| misprediction | 13.4 ns |
+| the ROB's oldest misprediction (`restore_rob`) | 15.8 ns |
+| OOO_TRAP's tval keep or drop | 26.2 ns |
+
+- **The cause: a misprediction found in EX is used as the restore by every block in the same cycle** (OOO_CTRL's kill, renaming, LSU, FTQ, ROB, TRAP). The per-block runs saw it as an input with 30 % of the period; really it arrives at 15.8 ns, and the TRAP tval, the ROB's exception bits and the LSU's kill into the D$ and the PRF do not fit in the 4 ns left.
+- **Proposal A (recommended):** put the branch resolution through a register, and restore / kill / redirect a cycle later.
+  - It costs a cycle per misprediction: +0.21 to 0.26 % in the model.
+  - Two things are needed: in the cycle between, the mispredicted branch and the µops younger than it must not commit; the younger µops of that cycle move one stage on and are killed there by their masks, as now.
+  - The fused compare makes the path longer still, so it is needed for B5a as well.
+- **Proposal B:** register each slow consumer (TRAP, ROB, LSU). Smaller steps, but every consumer must tolerate a late kill, and the same signal into another block would just become the next worst path.
+- All 100 share one start, so what is behind them is not seen yet. For the next run, synth_ooo.tcl now reports the worst path into and out of each OOO_CPU block.
+
+Prompt 123 is logged in PROMPT.md, in this commit.
+<!-- /answer -->
+
+## 124. 2026-11-01 19:41:20 JST
+
+```text
+Yes, do A
+```
+
+## 125. 2026-11-01 22:09:12 JST
+
+```text
+Please try again.
+```

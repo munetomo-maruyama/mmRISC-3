@@ -2709,3 +2709,11 @@ register file's write (10, through the LSU) and the D$ (2, `rob_done`):
   the worst path into and out of each block's flip-flops.
 - This run is before B5a (the fused compare adds the ALU's result in front of the comparison: it lengthens this
   path, so (A) is needed for fusion as well).
+
+### 27.4 27.3's proposal A applied (Plan/CORE.md 5.20, 2026-11-01)
+
+The resolution goes through a register: the restore, the kill and the redirect a cycle after EX; the clear of a
+checkpoint stays in EX (a cycle later cost 2 % in checkpoints held), a mispredicted branch completes with its
+restore. CoreMark +0.36 % / +0.43 % / +0.38 %. What is left on the path of 27.3 in the cycle of EX: the bypass, the
+compare, the misprediction (13.4 ns) into the register, the clear (into the masks' flip-flops) and the done bit's
+write enable. To rerun: `synth_ooo.bat OOO_CPU`.

@@ -129,6 +129,7 @@ int main(int argc, char** argv)
         d.rob_avail = ra; d.iq_avail = ia; d.lq_avail = la; d.sq_avail = sa;
         d.ck_lq_tail = lqt[0] | (lqt[1] << 4); d.ck_sq_tail = sqt[0] | (sqt[1] << 4);
         d.br_valid = bv; d.br_mispred = bm; d.br_ckpt = bck;
+        d.cl_valid = bv & ~bm; d.cl_ckpt = bck;          // (the core gives the clear a cycle before br_*: the same here)
         d.br_next[0] = (uint32_t)nxt[0]; d.br_next[1] = (uint32_t)(nxt[0] >> 32) | (uint32_t)(nxt[1] << 6); d.br_next[2] = (uint32_t)(nxt[1] >> 26);
         d.rob_restore = rs != nullptr; d.rob_restore_ckpt = rs ? rs->id : rng() % NCK;
         d.trap = trap; d.replay = replay; d.replay_pc = rpc; d.trap_vec = tvec;

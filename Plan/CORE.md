@@ -789,6 +789,41 @@ checkpoint; the ROB counts two instructions (`disp_fused`, the pair's length for
   always the second operand), 5 following lines that changed. OOO_FUSE's 8 unit mutations detected (`KINDS` keeps
   every kind by default, so the core's mutation covers the mask).
 
+### 5.20 The resolution through a register (2026-11-01)
+
+`Plan/OOC.md` 27.3's proposal A, against B7's −5.716 ns. What EX resolves (`br_*`: valid, misprediction,
+checkpoint, next pc, ROB index, last parcel, taken / call / return; `rs_*`, the slot outcomes; `bt_*`, the BTB's
+write) goes into a register at the end of EX and acts a cycle later: the restore, the kill, the redirect, the
+predictors' training. Dropped when the branch is killed or flushed as it leaves EX (its mask against that cycle's
+kill).
+
+- **Commit**: a mispredicted branch completes with its restore (the ROB's completion ports 6 / 7), so neither it nor
+  anything younger commits in the cycle between; the misprediction only gates EX's completion write. A branch resolved
+  as predicted completes in EX as before.
+- **The clear stays in EX** (OOO_CTRL's new `cl_valid` / `cl_ckpt`): with the clear a cycle later too the cycles grew
+  by 2.2 % / 1.8 % / 2.1 %: every branch held its checkpoint a cycle longer and renaming waited for one (with 8
+  checkpoints the loss went away). A checkpoint cleared early for a branch that the next cycle's restore kills is
+  harmless: renaming waits in that cycle (`rcv`), and the µops younger than it carry the restoring branch's bit as
+  well. The clear's path from EX's comparison ends in mask flip-flops.
+- The younger µops of the cycle between move a stage on and are killed there by their masks (every stage, the
+  issue queue, the LSU already take `kill` at any time); what they write (a register of a tag being freed, a done bit
+  of an entry past the new tail) is as for the other port's µops before.
+
+| CoreMark (cycles) | g14 -O2 | g14 sf + -flto | g13 -O2 Zb |
+|---|---|---|---|
+| `OOO_CORE`, the model's caches, 5.19 → **now** | 1,807,119 → **1,813,605 (+0.36 %)** | 1,668,660 → **1,675,783 (+0.43 %)** | 1,866,911 → **1,873,955 (+0.38 %)** |
+| `OOO_CPU`, the real D$ | 1,834,367 → **1,842,832** | 1,715,746 → **1,722,896** | 1,879,367 → **1,885,299** |
+| the model, a cycle more per misprediction (`redirect=3`) | +0.26 % | +0.21 % | +0.25 % |
+
+- **Tests**: `run_core.sh` (12 runs), `run_coremark.sh`, the 28 unit tests (`tb_ctrl` gives `cl_*` with `br_*`, as
+  before): all pass; no new lint warning (OOO_CTRL's port-1 resolution bits are now used only by the clear's
+  replacement: marked). `mutate_core.py` 103 of 103, four new (a mispredicted branch complete in EX, a branch killed
+  or flushed as it leaves EX resolving, a mispredicted branch never completing) and two following lines that changed;
+  the clear taken a cycle later is a performance change only (2 %), not a mutation. OOO_CTRL's 18 unit mutations
+  detected.
+- **Vivado**: `synth_ooo.bat OOO_CPU` again (with B5a and this); summary.txt now also gives the worst path into and
+  out of each block.
+
 ---
 
 ## 6. What G1 measures

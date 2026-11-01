@@ -483,11 +483,21 @@ module OOO_CORE
          .in_data(d2), .wk_valid(wk_valid), .wk_tag(wk_tag),
          .ds_src(ds_src), .ds_use(ds_use), .ds_rdy(ds_rdy), .ds_data(ds));
 
+    // the resolution (registered: e_* as EX makes it, Plan/CORE.md 5.20)
     logic [1:0]                br_valid /*verilator public_flat_rd*/;
     logic [1:0]                br_mispred;
     logic [1:0][CW-1:0]        br_ckpt;
     logic [1:0][VA-1:1]        br_next;
     logic [1:0][ROBW-1:0]      br_rob   /*verilator public_flat_rd*/;
+    logic [1:0][VA-1:1]        br_pc    /*verilator public_flat_rd*/;     // (tb_core: the pc it resolved at)
+    logic [1:0]                e_br_valid, e_br_mispred, e_br_taken, e_br_call, e_br_ret, e_rs_valid, e_rs_taken;
+    logic [1:0][CW-1:0]        e_br_ckpt;
+    logic [1:0][VA-1:1]        e_br_next;
+    logic [1:0][ROBW-1:0]      e_br_rob;
+    logic [1:0][2:0]           e_br_e, e_rs_e;
+    logic [1:0][FTQW-1:0]      e_rs_ftq;
+    logic                      e_bt_valid;
+    logic [VA-1:1]             e_bt_pc, e_bt_tgt;
     logic                      rob_restore, rob_trap, trap, head_ns, iss_ns, ns_ok, ns_busy, irq;
     logic                      replay /*verilator public_flat_rd*/;      // (counted by SIM/CORE/tb_core)
     logic [CW-1:0]             rob_restore_ckpt;
@@ -510,6 +520,7 @@ module OOO_CORE
          .ds_ftq({ds[1].rec.ftq, ds[0].rec.ftq}), .rob_avail(rob_avail), .iq_avail(iq_ready),
          .lq_avail(lq_avail), .sq_avail(sq_avail), .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail), .d_go(d_go), .d_bmask(d_bmask),
          .br_valid(br_valid), .br_mispred(br_mispred), .br_ckpt(br_ckpt), .br_next(br_next),
+         .cl_valid(e_br_valid & ~e_br_mispred), .cl_ckpt(e_br_ckpt),
          .rob_restore(rob_restore), .rob_restore_ckpt(rob_restore_ckpt), .trap(trap), .replay(replay),
          .replay_pc(replay_pc), .trap_vec(trap_vec), .head_ns(head_ns),     // (trap, trap_vec, replay_pc: OOO_TRAP)
          .cmt_valid(cmt_valid), .cmt_wr(cmt_wr), .cmt_old(cmt_old), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n),
@@ -521,8 +532,8 @@ module OOO_CORE
 
     // the ROB
     // completion: 0 port 0's EX, 1 port 1's EX, 2 the LSU's loads, 3 its stores, 4 port 0's multiplier and
-    // MDU (their results), 5 the system unit
-    localparam int NCMP = 6;
+    // MDU (their results), 5 the system unit, 6 / 7 the mispredicted branches of ports 0 / 1 with their restore
+    localparam int NCMP = 8;
     logic [NCMP-1:0]           cmp_valid, cmp_exc, cmp_rp;
     logic [NCMP-1:0][ROBW-1:0] cmp_rob;
     logic [NCMP-1:0][4:0]      cmp_cause;
@@ -754,27 +765,29 @@ module OOO_CORE
             nxt   = ex[p].rec.is_jalr ? j_tgt : ex_tk[p] ? b_tgt : pc_nx;
             pnx   = ex[p].rec.pred_taken ? (ex[p].rec.is_jalr ? ex[p].ta : b_tgt) : pc_nx;
             mis   = ex[p].rec.is_jalr ? nxt != pnx : ex_tk[p] != ex[p].rec.pred_taken;
-            // resolution: OOO_CTRL, OOO_ROB, OOO_FRONT (FERS, TAGE)
-            br_valid[p]   = ex_v[p] && (ex[p].rec.is_br || ex[p].rec.is_jalr);
-            br_mispred[p] = mis;
-            br_ckpt[p]    = ex[p].rec.ckpt;
-            br_next[p]    = nxt;
-            br_rob[p]     = ex[p].rec.rob;
-            br_e[p]       = ex[p].rec.e;
-            br_taken[p]   = ex[p].rec.is_jalr || ex_tk[p];
-            br_call[p]    = ex[p].rec.call;
-            br_ret[p]     = ex[p].rec.ret;
-            rs_valid[p]   = ex_v[p] && ex[p].rec.is_br;
-            rs_ftq[p]     = ex[p].rec.ftq;
-            rs_e[p]       = ex[p].rec.e;
-            rs_taken[p]   = ex_tk[p];
+            // resolution: OOO_CTRL, OOO_ROB, OOO_FRONT (FERS, TAGE), through the register below
+            e_br_valid[p]   = ex_v[p] && (ex[p].rec.is_br || ex[p].rec.is_jalr);
+            e_br_mispred[p] = mis;
+            e_br_ckpt[p]    = ex[p].rec.ckpt;
+            e_br_next[p]    = nxt;
+            e_br_rob[p]     = ex[p].rec.rob;
+            e_br_e[p]       = ex[p].rec.e;
+            e_br_taken[p]   = ex[p].rec.is_jalr || ex_tk[p];
+            e_br_call[p]    = ex[p].rec.call;
+            e_br_ret[p]     = ex[p].rec.ret;
+            e_rs_valid[p]   = ex_v[p] && ex[p].rec.is_br;
+            e_rs_ftq[p]     = ex[p].rec.ftq;
+            e_rs_e[p]       = ex[p].rec.e;
+            e_rs_taken[p]   = ex_tk[p];
             // the register file at the edge the result enters the write-back register (port 0: also the
             // multiplier's and the MDU's results, below); completion in EX, but of what an MDU or the system
-            // unit completes later
+            // unit completes later, and of a mispredicted branch or jalr: with its restore, a cycle later (below;
+            // the misprediction only gates the done bit's write)
             prf_we[p]     = wbi_v[p];
             prf_wa[p]     = wbi_t[p];
             prf_wd[p]     = wbi_d[p];
-            cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS;
+            cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS &&
+                            !(e_br_valid[p] && e_br_mispred[p]);
             cmp_rob[p]    = ex[p].rec.rob;
         end
         assign ex_bms[p] = ex_bm;
@@ -948,12 +961,12 @@ module OOO_CORE
     // completion: port 0 (a CSR µop: illegal, replay after a write), port 1, the LSU's loads and stores
     // (misaligned), port 0's multiplier and MDU, the system unit (illegal, replay)
     always @(*) begin
-        cmp_exc   = {sys_exc, 1'b0, cmp_st_e, cmp_ld_e, 1'b0, x_csr && csr_exc};
-        cmp_rp    = {sys_rp, 1'b0, 1'b0, cmp_ld_rp, 1'b0, x_csr && csr_rp};
-        cmp_cause = {5'd2, 5'd0, 5'd6, 5'd4, 5'd0, 5'd2};
+        cmp_exc   = {2'b00, sys_exc, 1'b0, cmp_st_e, cmp_ld_e, 1'b0, x_csr && csr_exc};
+        cmp_rp    = {2'b00, sys_rp, 1'b0, 1'b0, cmp_ld_rp, 1'b0, x_csr && csr_rp};
+        cmp_cause = {5'd0, 5'd0, 5'd2, 5'd0, 5'd6, 5'd4, 5'd0, 5'd2};
     end
-    assign cmp_valid[5:2] = {sys_cv, pm_v || md_v, cmp_st_v, cmp_ld_v};
-    assign cmp_rob[5:2]   = {sys_rob, pm_v ? pm_rob : md_rob, cmp_st_rob, cmp_ld_rob};
+    assign cmp_valid[7:2] = {br_valid & br_mispred, sys_cv, pm_v || md_v, cmp_st_v, cmp_ld_v};
+    assign cmp_rob[7:2]   = {br_rob, sys_rob, pm_v ? pm_rob : md_rob, cmp_st_rob, cmp_ld_rob};
 
     // tval: a misaligned access of port 2 (its address), the CSR unit or the system unit (one at a time at the head)
     always @(*) begin
@@ -973,9 +986,47 @@ module OOO_CORE
     always @(*) begin
         logic [1:0] ij;
         for (int p = 0; p < 2; p++) ij[p] = ex_v[p] && ex[p].rec.is_jalr && !ex[p].rec.ret;
-        bt_valid = ij != 2'b00;
-        bt_pc    = ij[0] ? ex_pc[0] + (VA - 1)'(ex[0].rec.len4) : ex_pc[1] + (VA - 1)'(ex[1].rec.len4);   // its last parcel
-        bt_tgt   = ij[0] ? br_next[0] : br_next[1];
+        e_bt_valid = ij != 2'b00;
+        e_bt_pc    = ij[0] ? ex_pc[0] + (VA - 1)'(ex[0].rec.len4) : ex_pc[1] + (VA - 1)'(ex[1].rec.len4);   // its last parcel
+        e_bt_tgt   = ij[0] ? e_br_next[0] : e_br_next[1];
+    end
+
+    // ---- the resolution through a register (Plan/CORE.md 5.20, Plan/OOC.md 27.3): what EX resolves acts a
+    // cycle later (the restore, the kill, the redirect, the predictors' training, the BTB, a mispredicted
+    // branch's completion), so that no block uses EX's comparison in the cycle it is made. Dropped when the
+    // branch is killed or flushed as it leaves EX. In the cycle between, a mispredicted branch is not complete
+    // (it cannot commit, nor anything younger), and the younger µops move a stage on, killed there by their
+    // masks. A branch resolved as predicted completes in EX as before, and its checkpoint is cleared from EX
+    // (OOO_CTRL's cl_*: a checkpoint held a cycle longer cost 2 % with 6 of them), not by its commit.
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            br_valid <= '0;
+            rs_valid <= '0;
+            bt_valid <= 1'b0;
+        end else begin
+            for (int p = 0; p < 2; p++) begin
+                br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;
+                rs_valid[p] <= e_rs_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;
+            end
+            bt_valid <= e_bt_valid && !flush_all &&
+                        ((ex_v[0] && ex[0].rec.is_jalr && !ex[0].rec.ret) ? (ex_bms[0] & kill) == '0 : (ex_bms[1] & kill) == '0);
+        end
+    end
+    always_ff @(posedge clk) begin
+        br_mispred <= e_br_mispred;
+        br_ckpt    <= e_br_ckpt;
+        br_next    <= e_br_next;
+        br_rob     <= e_br_rob;
+        br_pc      <= ex_pc;
+        br_e       <= e_br_e;
+        br_taken   <= e_br_taken;
+        br_call    <= e_br_call;
+        br_ret     <= e_br_ret;
+        rs_ftq     <= e_rs_ftq;
+        rs_e       <= e_rs_e;
+        rs_taken   <= e_rs_taken;
+        bt_pc      <= e_bt_pc;
+        bt_tgt     <= e_bt_tgt;
     end
 
     /* verilator lint_off PINCONNECTEMPTY */

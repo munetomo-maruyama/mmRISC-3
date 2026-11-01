@@ -12,7 +12,13 @@
 // restores checkpoint c kills every µop whose mask has bit c (in the DS
 // register here, in the issue queue, in the units' pipelines): exactly the
 // µops younger than that branch. A branch resolved as predicted clears its
-// bit in every mask (clr), so the checkpoint can be given out again.
+// bit in every mask (clr), so the checkpoint can be given out again. The
+// clear comes from EX as the branch resolves (cl_*), the restore a cycle
+// later from the registered resolution (br_*, Plan/CORE.md 5.20): a
+// checkpoint lives no longer than before (with 6 a cycle more cost 2 %).
+// A checkpoint cleared early for a branch that the restore of the next
+// cycle kills is harmless: renaming waits in that cycle (rcv), and the
+// µops younger than the branch still carry the restoring branch's bit.
 //
 //   D2  renaming (OOO_RENAME): r_go gives the µops that rename now. A µop
 //       that takes a checkpoint goes only if the checkpoint id renaming
@@ -116,11 +122,15 @@ module OOO_CTRL
         output logic [1:0]                  d_go,       // dispatched now
         output logic [1:0][NCKPT-1:0]       d_bmask,    // their branch masks
 
-        // resolution (the two ALU ports, in EX)
+        // resolution (the two ALU ports, registered after EX: Plan/CORE.md 5.20)
+        /* verilator lint_off UNUSEDSIGNAL */          // (port 1's: restore_port asks port 0 alone)
         input  logic [1:0]                  br_valid,
         input  logic [1:0]                  br_mispred,
         input  logic [1:0][CW-1:0]          br_ckpt,    // the branch's own checkpoint
+        /* verilator lint_on UNUSEDSIGNAL */
         input  logic [1:0][VA-1:1]          br_next,    // its correct next pc
+        input  logic [1:0]                  cl_valid,   // EX: a branch resolved as predicted (a cycle before br_*)
+        input  logic [1:0][CW-1:0]          cl_ckpt,
 
         // OOO_ROB
         input  logic                        rob_restore,
@@ -197,7 +207,7 @@ module OOO_CTRL
             if (restore && live[j] && (ck_bm[j] & kill) != '0) killset[j] = 1'b1;
         clr = '0;
         for (int p = 0; p < 2; p++)
-            if (br_valid[p] && !br_mispred[p] && live[br_ckpt[p]]) clr[br_ckpt[p]] = 1'b1;
+            if (cl_valid[p] && live[cl_ckpt[p]]) clr[cl_ckpt[p]] = 1'b1;
         clr = clr & ~killset;
         if (fe_flush || flush_q) clr = '0;
         restore_lq_tail = ck_lq[rob_restore_ckpt];
