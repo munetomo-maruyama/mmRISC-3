@@ -4299,3 +4299,56 @@ Yes, do B
 ```text
 I'll run Vivado
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+5 つのトップは、そのまま Vivado で回せる状態です。synth_ooo.tcl と同じファイル一覧で lint をかけて確認し、ついでに直したラッパの 1 件を 79b1ddc でプッシュしました。
+
+**直したもの**
+- OOC_LSUDC のラッパの入力バスが 274 ビットあり、最上位の 1 ビットが使われていませんでした（2026-10-28 からある WIDTHTRUNC 警告）。各フィールドは下から詰めて割り当てられているので害はありませんが、273 ビットに合わせて警告を消しました。
+- 今回変えたブロックが原因の幅やピンの警告はありません。残っている PINMISSING（LSU の `rf_*` が出力につながっていない、など）は以前からのものです。
+
+**実行するコマンド（FPGA/OOO_OOC）**
+
+```bash
+synth_ooo.bat OOC_LSU
+```
+```bash
+synth_ooo.bat OOC_LSUDC
+```
+```bash
+synth_ooo.bat OOO_IQ
+```
+```bash
+synth_ooo.bat OOC_FE
+```
+```bash
+synth_ooo.bat OOC_CSRU
+```
+
+それぞれで見たい変更は次のとおりです。
+
+| トップ | 見たい変更 | 前回の値 |
+|---|---|---|
+| OOC_LSU / OOC_LSUDC | ロードの完了を M 段の組み合わせ回路で出す（5.14） | LSU 1,947 LUT・WNS 6.548 ns / LSUDC 7,681 LUT・WNS 1.964 ns |
+| OOO_IQ | ストア待ちのビット（5.9）、乗算の書き込み枠をポート 1 へ（5.13） | – |
+| OOC_FE | D-17 の履歴のずらし（F0 から表のアドレスへの経路、5.11） | – |
+| OOC_CSRU | FS の判定、mcountinhibit の遅延（5.7） | スラック +0.569 ns（最小） |
+
+OOC_LSU のラッパは `cmp_ld_*` を出力レジスタで受けているので、新しい完了の経路（M 段の検索と D$ ヒット → 出力）も測られます。ROB までの経路はコア全体（B7）でしか見えません。
+
+回し終わったら `output/*/summary.txt` を確認するよう言ってください。前回の値と比べて分析します。
+<!-- /answer -->
+
+## 113. 2026-11-01 11:14:17 JST
+
+```text
+Vidado実行終了したい。output/*/summary.txt を確認してほしい。
+```
+
+## 114. 2026-11-01 11:14:42 JST
+
+```text
+Vidado実行終了した。output/*/summary.txt を確認してほしい。
+```

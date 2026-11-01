@@ -4306,3 +4306,56 @@ Recorded in Plan/CORE 5.14, the READMEs and UARCH in both languages. This prompt
 ```text
 I'll run Vivado
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The 5 tops are ready to run in Vivado as they are. I linted them with the same file list as synth_ooo.tcl and pushed, as 79b1ddc, the one wrapper fix found on the way.
+
+**What I fixed**
+- OOC_LSUDC's wrapper had a 274-bit input bus whose top bit was not used (a WIDTHTRUNC warning since 2026-10-28). The fields are assigned from the bottom, so it did no harm, but the bus is now 273 bits and the warning is gone.
+- No width or pin warning comes from the blocks changed this time. The PINMISSING warnings left (LSU's `rf_*` not connected to outputs, and the like) were there before.
+
+**Commands to run (FPGA/OOO_OOC)**
+
+```bash
+synth_ooo.bat OOC_LSU
+```
+```bash
+synth_ooo.bat OOC_LSUDC
+```
+```bash
+synth_ooo.bat OOO_IQ
+```
+```bash
+synth_ooo.bat OOC_FE
+```
+```bash
+synth_ooo.bat OOC_CSRU
+```
+
+What each should show:
+
+| Top | Change to look at | Last values |
+|---|---|---|
+| OOC_LSU / OOC_LSUDC | A load's completion is combinational in M (5.14) | LSU 1,947 LUTs, WNS 6.548 ns / LSUDC 7,681 LUTs, WNS 1.964 ns |
+| OOO_IQ | The store-wait bit (5.9), the multiply's write slot moved to port 1 (5.13) | – |
+| OOC_FE | D-17's history shift (the path from F0 to the tables' addresses, 5.11) | – |
+| OOC_CSRU | The FS check, the mcountinhibit delay (5.7) | slack +0.569 ns (the smallest) |
+
+OOC_LSU's wrapper takes `cmp_ld_*` into output registers, so the new completion path (M's search and the D$ hit → output) is measured as well. The path into the ROB shows only with the whole core (B7).
+
+When the runs are done, ask me to check `output/*/summary.txt`, and I'll compare them with the last values.
+<!-- /answer -->
+
+## 113. 2026-11-01 11:14:17 JST
+
+```text
+I have finished the Vivado runs. Please check output/*/summary.txt.
+```
+
+## 114. 2026-11-01 11:14:42 JST
+
+```text
+I have finished the Vivado runs. Please check output/*/summary.txt.
+```

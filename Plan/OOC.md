@@ -2557,3 +2557,30 @@ The author took D-18 (`Doc/PROMPT.md` entry 94).
 - **The worst path is fetch's head pc → the RAS's LUTRAM write enable** (+1.703 ns, 15 levels); the fetch buffer's
   loop is +2.019 ns this time (+1.095 before: placement), D1a / D1b +5.4 / +5.3 ns. No path is under +1.7 ns.
 - The budget (`Doc/UARCH.md` 4.4): OOC_FE 6,254 in place of 6,184.
+
+### 26.18 The blocks changed for CoreMark (Plan/CORE.md 5.7 to 5.14, 2026-11-01)
+
+| Run | LUT | FF | Slack (all / register to register) | What changed |
+|---|---|---|---|---|
+| OOC_LSU | 1,947 → **1,949** | 2,317 → 2,309 | +7.031 ns (+6.548) | a load completes in M (5.14) |
+| OOC_LSUDC | 7,681 → **7,573** | 7,527 → 7,372 | +1.340 ns (+1.964) | the same; the D$ placed differently (−115), the LSU 2,153 |
+| OOO_IQ | 1,894 → **1,951** | 464 → 474 | **+0.360** / +5.884 ns (+1.165 / +6.605) | loads wait for the older stores (5.9), port 1's slot after a multiply (5.13) |
+| OOC_FE | 6,254 → **6,622** | 3,408 → 3,418 | **+0.863 ns** (+1.703) | D-17 (5.11): TAGE 785 → 1,014 |
+| OOC_CSRU | 2,537 → **2,695** | 4,454 → 4,523 | +1.066 ns (+0.569) | mconfigptr, the FP CSRs with FS off, mcountinhibit at commit (5.7) |
+
+- **OOO_IQ**: the worst path is now a store bit (`tq`) → the load's wait term → ready → select → `iss_entry` (the
+  payload's read address): the 10-bit AND-OR of `older & v & st` sits in front of the select. The register-to-register
+  paths are fine (+5.9 ns). **To do**: keep the wait as a register per entry, its next state computed from the issue
+  and the kills of the cycle (off the select).
+- **OOC_FE**: +368 LUTs, TAGE +229 of it (D-17's 7:1 shift of the history in front of the four folds, against the
+  0.15k expected), the uBTB +78 and the RAS +43 (placement). The worst path is the fetch buffer's loop (+0.863 ns, 17
+  levels; +2.019 last time: the fetch buffer did not change, the larger design placed it differently); no TAGE path is
+  among the ten worst (all above +1.35 ns).
+- **OOC_CSRU**: +158 LUTs, +69 FF, nearly all for holding a write to mcountinhibit until its commit (64 bits held and
+  a 64-bit select on CORE_CSR's write; Yosys: +182 LUTs, +65 FF; the FS check about +90). **To do**: count the writing
+  instruction under the old bit without holding the write (CORE_CSR writes it in EX as before; OOO_CSRU keeps the old
+  and new IR bits, and the commit counts one more, or one less, through a small input of CORE_CSR's minstret
+  increment): a few flip-flops and LUTs.
+- **OOC_LSU / OOC_LSUDC**: a load's completion from M is not on the worst paths (OOC_LSUDC's is the D$'s address
+  → the SQ's valid bits, as before; −0.6 ns of placement).
+- The budget (`Doc/UARCH.md` 4.4): +0.6k (OOC_FE +368, the issue queue +57, the CSR unit +158, the LSU +2).
