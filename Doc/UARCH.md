@@ -288,6 +288,8 @@ sums over whole units are what to compare.
 | **Over, 2026-11-01** | **4.7k** | **6.1k** | **7.3k** |
 | Needed, 2026-11-01 later (`Plan/OOC.md` 26.20: the CSR unit 2,496 without the mcountinhibit hold, −199; issue queue 1,997 with the load's wait a register, +46) | 22.4k | 23.0k | 23.5k |
 | **Over, 2026-11-01 later** | **4.5k** | **5.9k** | **7.1k** |
+| Measured, 2026-11-01 night (`Plan/OOC.md` 27.2: the whole core out of context, B7, timing not yet met: the engine 26,178 in OOO_CPU, the sum of its blocks about 21.5k; the core's own logic, D2, the DS payload, the ports' RR / EX and branch resolution, was in no block run) | 26.2k | 26.2k | 26.2k |
+| **Over, 2026-11-01 night** | **8.3k** | **9.1k** | **9.8k** |
 
 The whole design would be about 61k LUTs in the middle (96 % of the device). The uncertainty of the blocks not yet
 written (±2.6k) is as large as most levers, so it is measured first (section 8). With the front end measured, what is

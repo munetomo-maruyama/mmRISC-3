@@ -1,0 +1,56 @@
+OOO_CPU   (period 20.0 ns, I/O delay 6.0 ns each side on the ports)
+after synthesis: 35802 LUTs (33000 logic + 2802 LUT RAM; 37339 LUT cells), 17822 FF, 26 DSP, 717 LUT RAM cells, 11.5 BRAM tiles
+after place and route: 35961 LUTs (33169 logic + 2792 LUT RAM; 37272 LUT cells), WNS -5.716 ns, register to register -5.716 ns (46 logic levels)
+the worst paths between flip-flops (one per endpoint):
+   -5.716 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[33]/R
+   -5.716 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[42]/R
+   -5.716 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[46]/R
+   -5.716 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[47]/R
+   -5.716 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[52]/R
+   -5.716 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[55]/R
+   -5.716 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[58]/R
+   -5.680 ns 47 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_rob/g_ent[9].exc_reg[9]/D
+   -5.660 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[39]/R
+   -5.660 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[44]/R
+   -5.660 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[45]/R
+   -5.660 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[49]/R
+   -5.651 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[48]/R
+   -5.651 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[61]/R
+   -5.644 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[32]/R
+   -5.644 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[34]/R
+   -5.644 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[36]/R
+   -5.644 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_trap/tv_d_reg[41]/R
+   -5.598 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_rob/g_ent[6].cause_reg[6][0]/CE
+   -5.598 ns 46 levels  u_core/g_alu[1].u_wb/out_data_reg[67]/C -> u_core/u_rob/g_ent[6].cause_reg[6][1]/CE
+instances (after place and route):
+    u_core                 OOO_CORE              29480 LUTs (26758 logic + 2722 LUT RAM), 12415 FF
+        u_alu1             OOO_ALU__parameterized0     64 LUTs (64 logic + 0 LUT RAM), 0 FF
+      u_csr                OOO_CSRU                849 LUTs (849 logic + 0 LUT RAM), 1823 FF
+        u_csr              CORE_CSR                556 LUTs (556 logic + 0 LUT RAM), 1821 FF
+      u_ctrl               OOO_CTRL                165 LUTs (165 logic + 0 LUT RAM), 139 FF
+      u_dsreg              OOO_DSREG               645 LUTs (645 logic + 0 LUT RAM), 516 FF
+      u_ex2                OOO_STAGE__parameterized0_3     68 LUTs (68 logic + 0 LUT RAM), 174 FF
+      u_front              OOO_FRONT              7345 LUTs (6659 logic + 686 LUT RAM), 2481 FF
+        u_fbuf             OOO_FBUF               1073 LUTs (881 logic + 192 LUT RAM), 14 FF
+        u_fers             OOO_FERS                 15 LUTs (15 logic + 0 LUT RAM), 50 FF
+        u_fetch            OOO_FETCH              2889 LUTs (2807 logic + 82 LUT RAM), 1040 FF
+          u_btb            OOO_BTB                  72 LUTs (72 logic + 0 LUT RAM), 51 FF
+          u_ras            OOO_RAS                 373 LUTs (321 logic + 52 LUT RAM), 4 FF
+          u_tage           OOO_TAGE               1052 LUTs (1052 logic + 0 LUT RAM), 343 FF
+          u_ubtb           OOO_UBTB               1354 LUTs (1354 logic + 0 LUT RAM), 505 FF
+        u_ftq              OOO_FTQ                 559 LUTs (247 logic + 312 LUT RAM), 10 FF
+      u_iq                 OOO_IQ                 1572 LUTs (1572 logic + 0 LUT RAM), 488 FF
+      u_iqpl               OOO_IQPL                430 LUTs (126 logic + 304 LUT RAM), 22 FF
+      u_lsu                OOO_LSU                3186 LUTs (3186 logic + 0 LUT RAM), 1756 FF
+      u_mdup               OOO_MDUP               3033 LUTs (3033 logic + 0 LUT RAM), 947 FF
+        u_mdu              CORE_MDU               2945 LUTs (2945 logic + 0 LUT RAM), 920 FF
+      u_pmul               OOO_PMUL                332 LUTs (332 logic + 0 LUT RAM), 87 FF
+      u_prf                OOO_PRF                2242 LUTs (694 logic + 1548 LUT RAM), 126 FF
+      u_rename             OOO_RENAME             1586 LUTs (1586 logic + 0 LUT RAM), 1929 FF
+      u_rob                OOO_ROB                2576 LUTs (2392 logic + 184 LUT RAM), 194 FF
+      u_sys                OOO_SYS                  95 LUTs (95 logic + 0 LUT RAM), 18 FF
+      u_trap               OOO_TRAP                  4 LUTs (4 logic + 0 LUT RAM), 72 FF
+    u_dc                   DCACHE                 6282 LUTs (6282 logic + 0 LUT RAM), 5309 FF
+      u_dat                CACHE_DATA_ARRAY        687 LUTs (687 logic + 0 LUT RAM), 0 FF
+      u_tag                CACHE_TAG_ARRAY        2816 LUTs (2816 logic + 0 LUT RAM), 520 FF
+    u_dcad                 OOO_DCAD                199 LUTs (129 logic + 70 LUT RAM), 102 FF

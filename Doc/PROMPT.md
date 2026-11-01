@@ -4634,3 +4634,45 @@ Prompt 121 is logged in PROMPT.md, in the B7 commit.
 ```text
 Yes, ALU + branch
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+ALU + branch fusion (B5a) is in, pushed as 434d327. It works correctly, but CoreMark is hardly faster.
+
+**Implementation (Plan/CORE 5.19)**
+- OOO_FUSE has a kind mask `KINDS`; the core turns on ALU + branch only.
+- A pair is one µop: the ALU half's operation, rd and sources, with the fused compare in OOO_ALU2 and the branch's offset, prediction and checkpoint. The ROB counts it as two instructions.
+- Found by the tests and fixed:
+  - `or s1, s1, s1` + a branch (br-1): the branch's other operand has no place. An operation reading one register twice is not paired.
+  - `mv a0, a0` + `beq a7, a0` (br-10): an x0 the ALU half reads becomes the constant 0, which frees that side, and a7 goes there.
+- A pair across two FTQ blocks works by reading the pc array one block back. The filter added first ("not paired when the ALU half crosses a line") was for a case that cannot happen. A mutation that no test detected showed it, and the filter is gone.
+- tb_core checks a pair's resolution against its branch, and every resolution's pc against the pc at dispatch.
+
+**Tests**
+run_core.sh's 12 runs, CoreMark, the 28 unit tests and the stand-in test all pass, with no new lint warning. Core mutations: all 99 detected, 12 of them for B5a. OOO_FUSE's 8 unit mutations detected too.
+
+**Result: about a seventh of the model's gain**
+
+| Cycles | g14 -O2 | g14 sf+lto | g13 |
+|---|---|---|---|
+| OOO_CORE (the model's caches) | 1,813,160 → 1,807,119 (−0.33 %) | 1,678,934 → 1,668,660 (−0.61 %) | 1,871,639 → 1,866,911 (−0.25 %) |
+| Model (ALU + branch) | −2.34 % | −2.23 % | −2.41 % |
+
+- The core makes 74 % / 86 % / 63 % of the model's pairs; the rest are split at D2's group boundary.
+- The cause of the small gain is D1b: its group register takes the next group only when D2 has emptied it. Taking "a pair + one instruction" out of 4, the last instruction goes alone the next cycle. Counted, the cycles dispatching one µop only grow from 115,938 to 180,453, nearly cancelling what fusion saves.
+- To get the gain, D2 must take µops across the group boundary: a change touching D1b / D2's timing (Plan/OOC 26.8).
+
+**B7's result is in too**
+The Vivado run is of the RTL of 48d30d2, before B5a. Not recorded or analyzed in detail yet.
+- **Size:** OOO_CPU is 35,961 LUTs, a little above the estimate from the blocks (33.5k to 34.6k): the estimate roughly holds.
+- **Timing:** WNS **−5.716 ns** (46 levels), not meeting 50 MHz. The path is "port 1's WB (bypass) → ALU1's branch compare → misprediction → the ROB's restore choice (oldest misprediction) → OOO_TRAP's tval keep-or-drop (`tv_d`), and the ROB's exception bits": a path across blocks that the per-block runs could not see. Applying the restore to TRAP and the ROB a cycle later is a candidate fix.
+
+Prompt 122 is logged in PROMPT.md, in this commit.
+<!-- /answer -->
+
+## 123. 2026-11-01 19:33:02 JST
+
+```text
+Yes, analyze B7
+```

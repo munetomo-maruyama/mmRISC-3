@@ -224,6 +224,21 @@ if {$impl} {
             puts $fh [format "  %7.3f ns %2d levels  %s -> %s" [get_property SLACK $p] [get_property LOGIC_LEVELS $p] \
                           [get_property STARTPOINT_PIN $p] [get_property ENDPOINT_PIN $p]]
         }
+        # by block (Plan/OOC.md 27.3: the 100 worst all began at one register): the worst path into and out of
+        # the flip-flops of each instance, so that the classes behind the worst one show
+        puts $fh "the worst path into / out of each block's flip-flops:"
+        set insts [concat [get_cells -quiet u_core/u_*] [get_cells -quiet u_core/g_alu*] [get_cells -quiet u_core/u_front/u_*] \
+                          [get_cells -quiet u_dc] [get_cells -quiet u_dcad]]
+        foreach inst $insts {
+            set ff [get_cells -quiet -hierarchical -filter "IS_SEQUENTIAL && NAME =~ $inst/*"]
+            if {[llength $ff] == 0} continue
+            set pi [get_timing_paths -quiet -max_paths 1 -nworst 1 -setup -from [all_registers] -to $ff]
+            set po [get_timing_paths -quiet -max_paths 1 -nworst 1 -setup -from $ff -to [all_registers]]
+            if {[llength $pi] == 0 || [llength $po] == 0} continue
+            puts $fh [format "  %-24s in %7.3f ns (%2d levels, from %s)  out %7.3f ns (%2d levels, to %s)" $inst \
+                          [get_property SLACK $pi] [get_property LOGIC_LEVELS $pi] [get_property STARTPOINT_PIN $pi] \
+                          [get_property SLACK $po] [get_property LOGIC_LEVELS $po] [get_property ENDPOINT_PIN $po]]
+        }
     }
 }
 set rows [inst_rows]

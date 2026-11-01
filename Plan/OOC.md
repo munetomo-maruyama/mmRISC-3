@@ -2655,3 +2655,57 @@ ready is the operands, `ns_ok` and the two wait bits. Vivado to rerun: `synth_oo
   (`u_core/u_mdup/...`): the instance rows of summary.txt.
 - The paths between the blocks: the 20 worst between flip-flops by endpoint in summary.txt (timing_paths.rpt in
   full), against the blocks' own slack (worst +0.863 ns, OOC_FE's fetch-buffer loop).
+
+### 27.2 The first run: size (2026-11-01, the RTL of 48d30d2, before B5a)
+
+| | LUT | FF | |
+|---|---|---|---|
+| **OOO_CPU** | **35,961** (33,169 logic + 2,792 LUT RAM) | 17,830 | 26 DSP, 11.5 block-RAM tiles; Yosys 47,525 LUT cells + 2,848 LUT RAM |
+| the D$ (`u_dc`) | 6,282 | 5,309 | 27.1's estimate about 5.2k |
+| CORE_CSR (`u_core/u_csr/u_csr`) | 556 | 1,821 | alone 2,496: Phase 1 leaves its PMP, translation, debug and trigger outputs open, so Vivado removes what feeds only them (the chip budget keeps mmRISC-2's 4,750, `Doc/UARCH.md` 4.2) |
+| CORE_MDU (`u_core/u_mdup/u_mdu`) | 2,945 | 920 | mmRISC-2's chip 3,423 |
+| **the out-of-order engine** (`u_core` less CORE_CSR and CORE_MDU, with the adapter) | **26,178** | | the budget's 23.0k (middle) from the blocks; their own runs add up to about 21.5k |
+
+- **The engine is 3.2k above the budget's middle, 4.7k above the sum of its blocks' own runs** (OOC_FE 6,622, issue
+  queue 1,999, payload 585, renaming 2,702, ROB 1,235, control 351, DS register 69, register file 2,546, ALU0 1,928,
+  ALU1 684, LSU 1,949, adapter 199, OOO_TRAP 217, OOO_SYS 23, OOO_PMUL 164, fusion 215). The difference is OOO_CORE's
+  own logic, which no block run had: D2 (rotation, fusion's fields, the record), the DS payload, each port's RR / EX
+  (the bypass muxes, the pc from the pc array, branch resolution with its adders and compares, port 0's result
+  select and completion), the LSU's RR / EX. Vivado puts it into the child instances (port 0's EX stage holds 4,223
+  LUTs, ALU0 included; the LSU 3,186 against 1,949 alone), so only the sums compare (25.3).
+- Against the room (`Doc/UARCH.md` 4.4): over by 8.3k / 9.1k / 9.8k, the whole chip about 64k LUTs in the middle,
+  more than the device (63,400). The timing must be closed first (below: a failing run may grow some logic); then the
+  reserve levers (L10, B4 / B5 of `Doc/UARCH.md` 6.3) and the core's own logic are what is left to cut.
+
+### 27.3 The first run: timing
+
+WNS **−5.716 ns** (46 levels), 15,202 failing endpoints (TNS −22,896 ns). The 100 worst (one per endpoint) all
+begin at port 1's write-back register (the bypass) and end in OOO_TRAP's tval (49), the ROB's exception bits (39), the
+register file's write (10, through the LSU) and the D$ (2, `rob_done`):
+
+| along the worst path | arrives |
+|---|---|
+| port 1's WB register → the bypass → ALU1's operand | 6.1 ns |
+| the branch's compare (a carry chain) → `take_branch` | 10.5 ns |
+| the next pc and the misprediction (`br_mispred`) | 13.4 ns |
+| the ROB's oldest misprediction of the cycle (`restore_rob`) | 15.8 ns |
+| OOO_TRAP's tval kept or dropped (`restore && rdist(r) > rdist(restore_rob)`, four reports in a row) | 26.2 ns |
+
+- **The resolution acts in the cycle it is made**: EX's misprediction picks the restore in the ROB, and the restore
+  (OOO_CTRL's `kill`, renaming's restore, the LSU's tails, the FTQ, the ROB's tail, OOO_TRAP's tval) is used by every
+  block in that same cycle. The block runs had it as an input with 30 % of the period; here it comes at 15.8 ns, and
+  what each block does with it (a priority over the tval reports, the LSU's kill of M into the D$'s request and the
+  completion and register-file write) does not fit in the 4 ns left.
+- **Proposed (A): the resolution through a register.** EX's `br_*` (valid, misprediction, checkpoint, next pc,
+  ROB index, last parcel) into a register at the end of EX; the restore, the kill and the redirect a cycle later.
+  It costs a cycle per misprediction: the model with the fetch restarting one cycle later still (`redirect=3`)
+  +0.26 % / +0.21 % / +0.25 %. What it needs: the mispredicted branch must not commit, and nothing younger with it, in
+  the cycle between (the ROB holds its completion back, or commit stops at a µop marked), and the younger µops of that
+  cycle go on one more stage (they are killed there with their masks, as now: a stage's valid and its kill).
+- (B) instead: register each slow consumer (OOO_TRAP's tval, the ROB's exception bits, the LSU's kill of M) and keep
+  the restore. Smaller steps, but every consumer must then tolerate a late kill, and the next class behind would be
+  the same signal into another block.
+- The 100 worst all share one start, so what comes behind them is not seen: synth_ooo.tcl now reports, for OOO_CPU,
+  the worst path into and out of each block's flip-flops.
+- This run is before B5a (the fused compare adds the ALU's result in front of the comparison: it lengthens this
+  path, so (A) is needed for fusion as well).
