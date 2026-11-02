@@ -9,7 +9,7 @@
 # RTL/CPU/OOO (or of $OOO_RTL; RTL/CPU/CORE for 'CORE:' files, RTL/CPU/CACHE
 # for 'CACHE:') under obj_dir/mutate/<M>; the test of that block is run on the
 # copy and must FAIL. Each line of the report is DETECTED, NOT DETECTED, or
-# NOT APPLIED (the text to change was not found exactly once: a rename moved
+# NOT APPLIED (it does not build, or the text to change was not found exactly once: a rename moved
 # it), and every line has to be read: the count alone can hide one.
 #---------------------------------------------------------------------------
 import concurrent.futures
@@ -445,7 +445,7 @@ M = [
     ('M425', 'OOO_SCHED/OOO_SCHED.sv', 'sched', 'automatic logic room = used0[q] ? (!used1[q] && fr1[q]) : fr0[q];', 'automatic logic room = used0[q] ? (!used1[q] && fr0[q]) : fr0[q];', 'the last free entry given twice'),
     ('M426', 'OOO_SCHED/OOO_SCHED.sv', 'sched', "if (disp_kind[k] == 2'd0) nalu = nalu + 2'd1;", '', 'all any-ALU µops of a group to one queue'),
     ('M427', 'OOO_SCHED/OOO_SCHED.sv', 'sched', "if (cn[int'(o[b])] < cn[int'(o[b-1])]) begin", "if (cn[int'(o[b])] > cn[int'(o[b-1])]) begin", 'the fullest queue first'),
-    ('M428', 'OOO_SCHED/OOO_SCHED.sv', 'sched', "if (!disp_go[k]) stop = 1'b1;", '', 'a younger slot passes one that waits'),
+    ('M428', 'OOO_SCHED/OOO_SCHED.sv', 'sched', "if (!disp_go[k]) stop = 1'b1;", "if (!disp_go[k]) stop = stop;", 'a younger slot passes one that waits'),
     ('M429', 'OOO_SCHED/OOO_SCHED.sv', 'sched', 'rr_bm[q]    = rr_bm[q] | bq[B+i];', '', 'no mask on the issue'),
     ('M431', 'OOO_SCHED/OOO_SCHED.sv', 'sched', "assign rr_ns = (gq & nsq) != '0;", "assign rr_ns = 1'b0;", 'rr_ns lost'),
     ('M432', 'OOO_SCHED/OOO_SCHED.sv', 'sched', "assign rr_md = (gq & mdq) != '0;", "assign rr_md = 1'b0;", 'rr_md lost'),
@@ -480,6 +480,8 @@ def run(m):
     env = dict(os.environ, OOO_RTL=os.path.join(work, 'rtl'), CORE_RTL=os.path.join(work, 'core'), CACHE_RTL=os.path.join(work, 'cache'), OOO_OBJ=os.path.join(work, 'obj'))
     r = subprocess.run([os.path.join(HERE, 'run.sh'), test], env=env, capture_output=True, text=True)
     last = (r.stdout.strip().splitlines() or [''])[-1]
+    if 'build failed' in last:      # the change does not compile: it tested nothing
+        return mid, 'NOT APPLIED', what, last
     return mid, ('DETECTED' if r.returncode != 0 else 'NOT DETECTED'), what, last
 
 
