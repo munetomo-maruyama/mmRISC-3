@@ -22,6 +22,9 @@
 | decode 6, select to EX 4, redirect 8 (longer)                |  6.789 |  7.297 |  6.574 |
 | queues of 6                                                  |  6.870 |  7.400 |  6.642 |
 | queues of 12                                                 |  6.912 |  7.433 |  6.689 |
+| OOO_SCHED: hold, 2 writes a queue, steering                  |  6.870 |  7.378 |  6.644 |
+|   1 write a queue, 2 into memory                             |  6.842 |  7.309 |  6.617 |
+|   + queues of 10                                             |  6.892 |  7.386 |  6.656 |
 | ROB 32, LQ / SQ 12, 8 checkpoints                            |  6.388 |  6.977 |  6.191 |
 | ROB 64, LQ / SQ 24, 16 checkpoints                           |  7.066 |  7.545 |  6.847 |
 | uBTB 8                                                       |  6.660 |  7.232 |  6.479 |

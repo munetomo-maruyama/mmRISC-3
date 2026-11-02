@@ -49,6 +49,9 @@ row "fetch 4, decode 4, redirect 5 (shorter)"       $J fe_depth=4 dec_depth=4 re
 row "decode 6, select to EX 4, redirect 8 (longer)" $J dec_depth=6 iss_to_ex=4 redirect=8
 row "queues of 6"                                   $J iq=6
 row "queues of 12"                                  $J iq=12
+row "OOO_SCHED: hold, 2 writes a queue, steering"    $J hold=1 qw=2 qwl=2 steer=2
+row "  1 write a queue, 2 into memory"               $J hold=1 qw=1 qwl=2 steer=2
+row "  + queues of 10"                               $J hold=1 qw=2 qwl=2 steer=2 iq=10
 row "ROB 32, LQ / SQ 12, 8 checkpoints"             $P w=4 rob=32 lq=12 sq=12 ckpt=8 iqd=3 iq=8 iql=12 alu=3 lsu=1 issue_w=4 st_data_issue=0 dec_w=6 fetch_bytes=32
 row "ROB 64, LQ / SQ 24, 16 checkpoints"            $P w=4 rob=64 lq=24 sq=24 ckpt=16 iqd=3 iq=8 iql=12 alu=3 lsu=1 issue_w=4 st_data_issue=0 dec_w=6 fetch_bytes=32
 row "uBTB 8"                                        $J ubtb=8

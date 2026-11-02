@@ -29,6 +29,7 @@
 // Caches always hit (as calibrated in inorder.h); no wrong path is run.
 //---------------------------------------------------------------------------
 #pragma once
+#include <algorithm>
 #include <map>
 #include <cstdlib>
 #include <cstdio>
@@ -71,6 +72,9 @@ struct OooCfg {
                                 // dispatch to the emptiest one and issued only on its port; loads and stores in
                                 // their own queue of iql entries (queue 0 alone takes MUL / DIV and system µops)
     int iql = 12;
+    int qw = 0, qwl = 0;        // iqd: µops written a cycle into an ALU queue, into the memory queue (0: no limit)
+    bool hold = false;          // iqd: a µop of latency > 1 keeps its entry until its dependents wake (dependency matrix)
+    int steer = 0;              // iqd: 0 the emptiest ALU queue, 1 round robin (the next with room), 2 as OOO_SCHED
     int cplx2 = 0;              // ALU µops of these classes take 2 cycles (mask of 1 << sub: 2 shift, 4 Zba, 8 Zbb,
                                 // 16 Zbs, 32 Zicond; mktrace.py)
     int alu_split = 0;          // the 2 ALU ports (with alu = 2, mul_shared; Doc/UARCH.md 6.11):
@@ -197,6 +201,9 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     std::unordered_map<int, long> spec;         // register -> cycle its open loads are decided (keep_spec)
     std::unordered_map<long, int> use_alu, use_lsu, use_mul, use_all, use_a0, use_a1, use_mdu;
     std::priority_queue<long, std::vector<long>, std::greater<long>> qh[9];   // iqd: the queues
+    long q_wr_c[9] = {-1,-1,-1,-1,-1,-1,-1,-1,-1}; int q_wr_n[9] = {}; int rr_q = 0;
+    long rk_c = -1; int rk[9] = {}, rk_n = 0;
+    std::vector<std::pair<long, long>> q_life[9];   // steer=2: (dispatch, free) of the recent µops of a queue
     std::unordered_map<long, int> useq[8];
     struct StInfo { long data_ready, commit; };
     std::unordered_map<uint64_t, StInfo> st_word;   // latest store per 8-byte word
@@ -262,14 +269,50 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             for (;;) {
                 int lo = memu ? c.iqd : 0, hi = memu ? c.iqd : q0 ? 0 : c.iqd - 1;
                 int b = -1, bn = 1 << 30;
-                for (int q = lo; q <= hi; q++) {
+                int nq = hi - lo + 1;
+                if (c.steer == 2 && !memu && !q0) {
+                    // OOO_SCHED: the queues as full as they were in the last cycle, emptiest
+                    // first; the group's µops in turn; a µop that finds no room waits
+                    if (rk_c != d) {
+                        int cn[9];
+                        for (int q = 0; q < c.iqd; q++) {
+                            cn[q] = 0;
+                            for (auto& e : q_life[q]) if (e.first <= d - 2 && e.second >= d - 1) cn[q]++;
+                            rk[q] = q;
+                        }
+                        std::stable_sort(rk, rk + c.iqd, [&](int x, int y) { return cn[x] < cn[y]; });
+                        rk_c = d; rk_n = 0;
+                    }
+                    int q = rk[rk_n % c.iqd];
+                    expire(q);
+                    if ((int)qh[q].size() < cap(q) && !(c.qw && q_wr_c[q] == d && q_wr_n[q] >= c.qw)) {
+                        bq = q; rk_n++;
+                        if (q_wr_c[q] != d) { q_wr_c[q] = d; q_wr_n[q] = 0; }
+                        q_wr_n[q]++;
+                        break;
+                    }
+                    res.st_iq++; d++;
+                    continue;
+                }
+                for (int k = 0; k < nq; k++) {
+                    int q = lo + (c.steer == 1 ? (rr_q + k) % nq : k);
                     expire(q);
                     int nn = (int)qh[q].size();
-                    if (nn < cap(q) && nn < bn) { b = q; bn = nn; }
+                    int wlim = q == c.iqd ? c.qwl : c.qw;
+                    if (wlim && q_wr_c[q] == d && q_wr_n[q] >= wlim) continue;
+                    if (nn < cap(q) && nn < bn) { b = q; bn = nn; if (c.steer == 1) break; }
                 }
-                if (b >= 0) { bq = b; break; }
-                long need = 1L << 60;
-                for (int q = lo; q <= hi; q++) need = std::min(need, qh[q].top() + 1);
+                if (b >= 0) {
+                    bq = b;
+                    if (q_wr_c[b] != d) { q_wr_c[b] = d; q_wr_n[b] = 0; }
+                    q_wr_n[b]++;
+                    if (c.steer == 1 && !memu && !q0) rr_q = (b - lo + 1) % nq;
+                    break;
+                }
+                long need = d + 1;
+                bool full = true;
+                for (int q = lo; q <= hi; q++) if ((int)qh[q].size() < cap(q)) full = false;
+                if (full) { need = 1L << 60; for (int q = lo; q <= hi; q++) need = std::min(need, qh[q].top() + 1); }
                 res.st_iq += need - d; d = need;
             }
         }
@@ -372,7 +415,16 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 }
             if (any_load) sp = std::max(sp, is + c.keep_spec);
         }
-        if (c.iqd) qh[bq].push(std::max(is, sp)); else iqh.push(std::max(is, sp));
+        if (c.iqd) {
+            long fr = std::max(is, sp);
+            if (c.hold) fr += pr.cls == C_LOAD ? c.lat_load - 1 : pr.cls == C_MUL ? c.lat_mul - 1 : 0;
+            qh[bq].push(fr);
+            if (c.steer == 2 && bq < c.iqd) {
+                auto& l = q_life[bq];
+                while (l.size() > 32) l.erase(l.begin());
+                l.push_back({d, fr});
+            }
+        } else iqh.push(std::max(is, sp));
 
         // ---- results
         long done = is;

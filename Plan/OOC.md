@@ -2861,3 +2861,52 @@ working once a path meets its target. `FUSED=0`: the fused compare out, as in th
   that pass stay within 2 %. The engine's estimate of 59k (52k to 66k) has to absorb that, on a 75 % ceiling.
 
 The next step is 1.1 (`Doc/STRATEGY.md` section 5), the queue of 8 first. The gate S1-A stays open.
+
+### 28.2 The queue of 8: `OOO_SCHED`, `OOC_SCHED` (2026-11-02)
+
+The first harness of step 1.1, for loop 1, and the first RTL of the new core: `RTL/CPU/OOO/OOO_SCHED`, 3 ALU queues of 8 and a
+memory queue of 12, measured together, since a wakeup crosses queues. Run with `synth_ooo.bat sched` (`output/OOC_SCHED_T10_MATRIX1`,
+`_MATRIX0`). Not measured yet: everything about its timing and size below is an expectation.
+
+**Today's path (28.1) is 11 levels**: port 1's select, port 0's select chained after it, the AND-OR of the destination tags (fan-out
+41 on a tag bit), the compare against every source, the ready bit. What changes:
+
+| | `OOO_IQ` | `OOO_SCHED`, `MATRIX=1` |
+|---|---|---|
+| Selects in the loop | 2, chained | 1 |
+| A wakeup | an encoded tag, compared against every source | one column of wait bits, cleared |
+| Tags in the loop | yes | **none**: compared once, at dispatch, against what is pending |
+| Fields read at the grant | sources, destination, mask | none: `rr_*` a cycle later, from the grants in a register |
+| The age matrix on a write | reads `v` and the grants | none: a new entry is younger than all |
+| Waits of loads and non-speculative µops | registers of their own | the same wait cells |
+| Expected levels | 11 | 6 to 8: select 2 or 3, clear 1, cell 1, the row's AND 2 |
+
+`MATRIX=0` keeps the same queues and the same cycles with tag compares (one bus per queue + 2 external, a table of busy bits), to
+measure what the matrix buys rather than assume it. Its LUTs are not a fair comparison: it keeps wait cells for the order waits, 400
+of them, where the registers of `OOO_IQ` would do.
+
+What the matrix costs, a column per entry in every row: 1,296 flip-flops and LUT6s (a cell has its own clear and write-enable pair, too many
+control sets to use the flip-flops' CE and R), and the tags compared at dispatch: 8 sources × 36 entries. In exchange
+renaming needs no busy bits and the DS register no snoop. My estimate is 3.5k to 4.5k LUTs without the payload, against a budget of 6.5k with it
+(`Doc/UARCH.md` 4.5).
+
+**CoreMark/MHz** (model, `Plan/model/results/g100.txt`, `-O2` / most optimization / g13); three things had to be built that the
+proposal's 6.901 did not include:
+
+| Option | Why it is needed | `-O2` |
+|---|---|---|
+| `hold=1` | A latency L µop keeps its entry until its column clears: a column has one meaning at a time | 6.908: nothing |
+| `qw=2 qwl=2` | 2 writes a queue; the LUT6 of a cell has room for exactly that | 6.895; with 1 write 6.816 |
+| `steer=1` (round robin, rejected) | Without counts | 6.851 |
+| `steer=2` | The queues as full as they were in the last cycle, emptiest first; the group's µops in turn | |
+| **All, as built** | | **6.870 / 7.378 / 6.644, −0.4 %** |
+
+So it keeps the performance. Queues of 10 would give only +0.3 % (6.892): 8 stays.
+
+**Verification**: `SIM/OOO_UNIT/tb_sched.cpp` holds both modes (tests `sched`, `schedt`) against an account of when each value is usable,
+400,000 cycles: which µop each queue issues, where each slot goes, masks, kills, flushes, write slots. About 300,000 back-to-back issues, 3/4 across queues. Both
+modes give identical cycles. Bug injection M382 to M443: 60, all detected, after two rounds: the first found a branch of the age matrix that cannot happen (port 0 always has the lower entry; removed) and fields the bench never varied (a non-writer's destination, an external µop's latency). Not connected to the core: the core is still `OOO_IQ`.
+
+Things to look at in the results: `summary.txt` has the worst path per class (`loop`, `wake`, `disp`, `free`, `issue`), full paths in
+`timing_loop.rpt`. `disp` may be the worst: steering, first free entry, a same-group producer and the write all fall in one stage.
+If so it is not the loop that fails, and it can take a stage: one more before the queues gives 6.842, −0.4 % (`dec_depth=6 redirect=7`).

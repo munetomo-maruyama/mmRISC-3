@@ -5225,3 +5225,62 @@ Recorded in `Doc/STRATEGY.md` (rewritten), `Doc/UARCH.md` sections 0 and 4.5, `P
 synth_ooo.bat t100 has finished.
 Yes, "4-issue" is 4 renamed and 4 issued.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I checked the results of `synth_ooo.bat t100`. **Nothing measured refutes 100 MHz, but nothing proves it either**: what was measured is today's 2-wide blocks, not the new design. "4-issue = 4 renamed + 4 issued" is now recorded as confirmed in the documents.
+
+#### Results (XC7A200T, 10 ns target)
+
+| Block | Loop | Register-to-register slack | Path (at the 20 ns target) | In the new design |
+|---|---|---|---|---|
+| Full ALU | 2 | **−0.66 ns** | 10.6 ns (18.5) | Rare operations in 2 cycles |
+| ALU1's functions only | 2 | +2.34 ns | 7.7 ns | A guide to the room for the above |
+| Issue queue (10 entries, 3 ports) | 1 | **−1.95 ns** | 11.8 ns (12.8) | Queues of 8 with one select |
+| LSU + D$ | 3 | **−2.66 ns** | 12.6 ns (18.7) | Split into M1 / M2 |
+| Rename (2 µops) | 4 | +1.04 ns | 8.6 ns (11.7) | 4 µops in 2 stages (not measured) |
+| Fetch buffer | 5 | **−3.31 ns** | 13.3 ns (16.9) | Split the stage |
+| uBTB (8 entries) | **6 (new)** | **−2.04 ns** | 11.9 ns (12.9) | 16 entries wanted |
+| Whole front end | | **−4.79 ns** | 14.3 ns (19.1) | More stages |
+| Decode | | +0.36 ns | 9.0 ns (12.1) | Grows to 6 instructions |
+| ROB (2 wide) | | +1.03 ns | 9.0 ns | Grows to 4 wide |
+
+#### What it says
+- **The good news:** the 20 ns results were far from the limit. The full ALU above all went from 18.5 ns to 10.6 ns, 0.66 ns short.
+- **The biggest worry is the issue queue.** It only went from 12.8 ns to 11.8 ns, with 83 % of the path in routes. If this loop does not fit it costs −20 %, so it is measured first.
+- **The uBTB is a new worry.** It is 2 ns short even at 8 entries, half of the proposal's. I added an option to the model that puts a 1-cycle bubble on each taken branch.
+
+| uBTB | Model CoreMark/MHz | Against the proposal (6.901) |
+|---|---|---|
+| 16 entries, bubble | 6.435 | **−6.8 %** |
+| 8 entries, no bubble | 6.660 | −3.5 % |
+| 4 entries, no bubble | 6.400 | −7.3 % |
+
+  The bubble's loss is close to that of a load-use of 4 (−7.9 %), so the deciding loops went from five to six.
+
+#### Cautions
+- **Alone is not the whole chip.** At 20 ns too, the whole core was about 1 ns slower than its worst block.
+- **A tighter target costs area.** The blocks that miss grew 5 to 15 % (uBTB +15 %, fetch buffer +11 %, front end +10 %). The engine's estimate of about 59k (52k to 66k) must absorb that inside the 75 % ceiling.
+
+#### Next
+Gate S1-A cannot be judged yet. Next is step 1.1, harnesses of the new loops alone, in this order:
+
+1. The queue of 8 with its wakeups
+2. The ALU with the new bypass sources
+3. A uBTB of 16
+4. M1 / M2 with block RAM
+5. Rename of 4 µops
+6. The split fetch buffer
+
+When the first harness is ready I will ask you for a Vivado run again.
+
+Recorded in `Plan/OOC.md` 28.1 and `Doc/STRATEGY.md` 4.3, 4.5, 5, 7 (both with Japanese versions). The model's results are in `Plan/model/results/g100.txt`. Pushed as bcb313d; I confirmed Ref is not on the remote.
+<!-- /answer -->
+
+## 136. 2026-11-02 22:53:27 JST
+
+```text
+I want to keep the 100 MHz target and CoreMark/MHz as far as possible.
+Please build the queue-of-8 harness.
+```

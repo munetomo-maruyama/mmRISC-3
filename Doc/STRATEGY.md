@@ -101,7 +101,7 @@ nothing asked for less: **they were all measured at a 20 ns target**, so they ar
 | Decode | 4 | **6, 2 stages** | With a fetch buffer in its own stage |
 | Between decode and rename | group register | **decoded-instruction queue** | Takes 6, gives 4, so no group boundary (`Plan/CORE.md` 5.19) |
 | **Rename, dispatch, commit** | 2 | **4**, rename in 2 stages | +6.7 % over 3 at the same clock |
-| **Schedulers** | unified 10, 3 issues | **3 ALU queues of 8, a memory queue of 12**, one select each: **4 issues** | A unified 24 is 1.7 % better but its loop cannot be expected to make 10 ns |
+| **Schedulers** | unified 10, 3 issues | **3 ALU queues of 8, a memory queue of 12**, one select each: **4 issues** | A unified 24 is 1.7 % better but its loop cannot be expected to make 10 ns. Built with a **dependency matrix** (`OOO_SCHED`, `Plan/OOC.md` 28.2): 6.870 as built |
 | ALUs | 1 full, 1 limited | **3 full**, common operations in 1 cycle | |
 | Rare operations | in ALU0 | `clz`, `ctz`, `cpop`, `rev8`, rotates: **2 cycles** | The whole of Zbb at 2 costs −3.5 %; only the rare ones do |
 | Branch | compare and act in EX + 1 | compare in EX, **misprediction in EX + 1, restore in EX + 2** | Redirect 6 |
@@ -127,7 +127,7 @@ nothing asked for less: **they were all measured at a 20 ns target**, so they ar
 | D3 | Decoded queue | new |
 | R1 | RAT read, dependences inside the 4 | 8.6 ns (11.7), 2 µops |
 | R2 | Free list, checkpoint, ROB entry | |
-| DS | Into a queue, the emptiest | |
+| DS | Into a queue, the emptiest; sources compared with what is pending | |
 | IS | **Wakeup and select, in 1 cycle** | 11.8 ns (12.8), 10 entries, 3 ports |
 | RR1 | Payload, LVT | |
 | RR2 | Register file data, bypass decided | Not measured at 10 ns (17 to 18): registers split it |
@@ -159,7 +159,7 @@ LiteX stays at its default 100 MHz, the **same clock as the CPU**, so there is n
 
 | # | Loop | Target | If it fails | Model | Today at 10 ns (register to register) |
 |---|---|---|---|---|---|
-| 1 | **Wakeup + select** (IS) | 1 cycle, queue of 8 | ALU 2 cycles | **−20 %**: 5.51, a redesign | −1.95 ns, 10 entries, 3 ports |
+| 1 | **Wakeup + select** (IS) | 1 cycle, queue of 8 | ALU 2 cycles | **−20 %**: 5.51, a redesign | −1.95 ns, 10 entries, 3 ports; the harness of the new design awaits its run |
 | 2 | **Bypass + ALU** (EX) | 1 cycle | ALU 2 cycles | **−20 %** | −0.66 ns full; +2.34 ns ALU1's functions |
 | 3 | **M1 + M2** (load) | Load-use 3 | Load-use 4, 5 | −7.9 %, −15 % | −2.66 ns in one stage, to become two |
 | 4 | **Rename of 4** (R1, R2) | 2 stages | 3 stages | about −1 % | +1.04 ns at 2 µops, in one stage |
@@ -195,7 +195,7 @@ and far less work, so the go / no-go is at gate S1-A.
 | # | Work | Done when |
 |---|---|---|
 | 1.0 | **Done 2026-11-02**: `synth_ooo.bat t100`: today's blocks at a 10 ns target, on the XC7A200T (`Plan/OOC.md` 28.1) | The real distance from 10 ns |
-| 1.1 | Harnesses of the new loops alone, in this order: a queue of 8 with its wakeups, bypass + ALU with the new sources, a uBTB of 16, M1 / M2 with block RAM, rename of 4, the fetch buffer split | **Gate S1-A**: all six within reach at 10 ns; the configuration frozen; **go, or fall back to 75 MHz, or to 50 MHz and 3-wide** |
+| 1.1 | Harnesses of the new loops alone, in this order: a queue of 8 with its wakeups (`OOC_SCHED`, `synth_ooo.bat sched`, built 2026-11-02), bypass + ALU with the new sources, a uBTB of 16, M1 / M2 with block RAM, rename of 4, the fetch buffer split | **Gate S1-A**: all six within reach at 10 ns; the configuration frozen; **go, or fall back to 75 MHz, or to 50 MHz and 3-wide** |
 | 1.2 | The model with the queue, the D1 boundary, the split store as they will be built | Model ≥ 6.8 |
 | 1.3 | The new pipeline at W = 2 first: stages added, no new function, the tests' references updated | Lock-step; cycles against the model |
 | 1.4 | Distributed schedulers; the decoded queue; 32-byte fetch, 6 decoded | Tests; cycles against the model |

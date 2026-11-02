@@ -1197,3 +1197,63 @@ module OOC_FE
         (.fe_redirect(fe_redirect), .fe_flush(fe_flush), .fe_pc(fe_pc), .restore_ftq(restore_ftq), .restore_port(restore_port), .br_e(br_e), .br_taken(br_taken), .br_call(br_call), .br_ret(br_ret), .rcv_ftq(rcv_ftq), .rcv_end(rcv_end), .rs_valid(rs_valid), .rs_ftq(rs_ftq), .rs_e(rs_e), .rs_taken(rs_taken), .bt_valid(bt_valid), .bt_pc(bt_pc), .bt_tgt(bt_tgt), .ftq_pop(ftq_pop), .ta_idx(ta_idx), .pa_idx(pa_idx), .ic_req_ready(ic_req_ready), .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data), .ta_tgt(ta_tgt), .pa_line(pa_line), .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .g_valid(g_valid), .g_pc(g_pc), .g_rvc(g_rvc), .g_ftq(g_ftq), .g_end(g_end), .g_taken(g_taken), .g_seq(g_seq), .g_illegal(g_illegal), .g_cls(g_cls), .g_op(g_op), .g_rd(g_rd), .g_rs1(g_rs1), .g_rs2(g_rs2), .g_use_rs1(g_use_rs1), .g_use_rs2(g_use_rs2), .g_imm(g_imm), .g_port(g_port), .g_lat2(g_lat2), .g_ext_ans(g_ext_ans), .g_nonspec(g_nonspec), .g_alu_op(g_alu_op), .g_a_uw(g_a_uw), .g_a_shift(g_a_shift), .g_a_sel(g_a_sel), .g_b_sel(g_b_sel), .g_word_op(g_word_op), .g_is_branch(g_is_branch), .g_is_jal(g_is_jal), .g_is_jalr(g_is_jalr), .g_br_op(g_br_op), .g_mdu_op(g_mdu_op), .g_mem_cmd(g_mem_cmd), .g_mem_size(g_mem_size), .g_mem_signed(g_mem_signed), .g_sys(g_sys), .g_is_sfence(g_is_sfence), .g_is_csr(g_is_csr), .g_csr_addr(g_csr_addr), .g_csr_op(g_csr_op), .g_csr_imm_sel(g_csr_imm_sel), .g_csr_wr(g_csr_wr), .g_csr_rd(g_csr_rd), .g_is_fp(g_is_fp), .g_insn(), .g_take(g_take), .clk(clk), .rst_n(rst_n));
     always_ff @(posedge clk) out <= {ta_tgt, pa_line, ic_req_valid, ic_req_pc, g_valid, g_pc, g_rvc, g_ftq, g_end, g_taken, g_seq, g_illegal, g_cls, g_op, g_rd, g_rs1, g_rs2, g_use_rs1, g_use_rs2, g_imm, g_port, g_lat2, g_ext_ans, g_nonspec, g_alu_op, g_a_uw, g_a_shift, g_a_sel, g_b_sel, g_word_op, g_is_branch, g_is_jal, g_is_jalr, g_br_op, g_mdu_op, g_mem_cmd, g_mem_size, g_mem_signed, g_sys, g_is_sfence, g_is_csr, g_csr_addr, g_csr_op, g_csr_imm_sel, g_csr_wr, g_csr_rd, g_is_fp};
 endmodule : OOC_FE
+
+//---------------------------------------------------------------------------
+// OOC_SCHED: the distributed schedulers (OOO_SCHED, 3 ALU queues of 8, a memory
+// queue of 12, Doc/STRATEGY.md 4.5 loop 1), with the matrix or with tags; the
+// loop is inside, every port registered as the core will have it.
+//---------------------------------------------------------------------------
+module OOC_SCHED
+    #(parameter bit MATRIX = 1'b1)
+    (
+        input  logic              clk,
+        input  logic              rst_n,
+        input  logic              flush,
+        input  logic [11:0]       kill,
+        input  logic [11:0]       clr,
+        input  logic              ns_ok,
+        input  logic              mdu_ok,
+        input  logic              q0_hold,
+        input  logic [3:0]        disp_valid,
+        input  logic [3:0][1:0]   disp_kind,
+        input  logic [3:0][1:0]   disp_use,
+        input  logic [3:0][1:0][6:0] disp_src,
+        input  logic [3:0]        disp_wr,
+        input  logic [3:0][6:0]   disp_dst,
+        input  logic [3:0][1:0]   disp_lat,
+        input  logic [3:0]        disp_ext,
+        input  logic [3:0][11:0]  disp_bm,
+        input  logic [3:0]        disp_ns,
+        input  logic [3:0]        disp_md,
+        input  logic [3:0]        disp_st,
+        input  logic [1:0]        ext_valid,
+        input  logic [1:0][5:0]   ext_entry,
+        output logic [97:0]       out
+    );
+    logic              fl, nk, mk, qh;
+    logic [11:0]       ki, cl;
+    logic [3:0]        dv, dw, dx, dn, dm, dt, go;
+    logic [3:0][1:0]   dk, du, dl, dq;
+    logic [3:0][1:0][6:0] ds;
+    logic [3:0][6:0]   dd;
+    logic [3:0][11:0]  db;
+    logic [1:0]        xv;
+    logic [1:0][5:0]   xe;
+    logic [3:0][3:0]   de, re;
+    logic [3:0]        rv;
+    logic [3:0][11:0]  rb;
+    logic              rn, rm;
+    always_ff @(posedge clk) begin
+        fl <= flush; ki <= kill; cl <= clr; nk <= ns_ok; mk <= mdu_ok; qh <= q0_hold;
+        dv <= disp_valid; dk <= disp_kind; du <= disp_use; ds <= disp_src; dw <= disp_wr; dd <= disp_dst;
+        dl <= disp_lat; dx <= disp_ext; db <= disp_bm; dn <= disp_ns; dm <= disp_md; dt <= disp_st;
+        xv <= ext_valid; xe <= ext_entry;
+        out <= {go, dq, de, rv, re, rb, rn, rm};
+    end
+    OOO_SCHED #(.MATRIX(MATRIX)) u_sched
+        (.clk(clk), .rst_n(rst_n), .flush(fl), .kill(ki), .clr(cl), .ns_ok(nk), .mdu_ok(mk), .q0_hold(qh),
+         .disp_valid(dv), .disp_kind(dk), .disp_use(du), .disp_src(ds), .disp_wr(dw), .disp_dst(dd),
+         .disp_lat(dl), .disp_ext(dx), .disp_bm(db), .disp_ns(dn), .disp_md(dm), .disp_st(dt),
+         .disp_go(go), .disp_q(dq), .disp_e(de), .ext_valid(xv), .ext_entry(xe),
+         .rr_valid(rv), .rr_entry(re), .rr_bm(rb), .rr_ns(rn), .rr_md(rm));
+endmodule : OOC_SCHED

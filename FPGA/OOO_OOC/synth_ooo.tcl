@@ -7,7 +7,7 @@
 #   cd FPGA/OOO_OOC
 #   vivado -mode batch -source synth_ooo.tcl -tclargs [top [period [impl [generics]]]]
 #
-#     top       OOC_ALU2 / OOC_FUSE / OOC_PRF / OOC_RENAME / OOO_IQ / OOO_UBTB / OOC_LSU / OOC_ROB
+#     top       OOC_ALU2 / OOC_FUSE / OOC_PRF / OOC_RENAME / OOO_IQ / OOC_SCHED / OOO_UBTB / OOC_LSU / OOC_ROB
 #               / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC / OOC_IQPL / OOC_LSUDC / OOC_CTRL / OOC_DSREG / OOC_FERS / OOC_TRAP / OOC_SYS / OOC_CSRU / OOC_MDUP / OOC_PMUL
 #               / OOC_FE (the whole front end, OOO_FRONT; not in synth_ooo.bat's loop)
 #               / OOO_CPU (B7: the whole core with its D$, below; not in the loop)
@@ -91,7 +91,7 @@ if {$top eq "MM2_CPU_CORE"} {
 } else {
 read_verilog -sv [list \
     $rtl/OOO_ALU/OOO_ALU.sv $rtl/OOO_ALU2/OOO_ALU2.sv $rtl/OOO_FUSE/OOO_FUSE.sv \
-    $rtl/OOO_PRF/OOO_PRF.sv $rtl/OOO_RENAME/OOO_RENAME.sv $rtl/OOO_IQ/OOO_IQ.sv \
+    $rtl/OOO_PRF/OOO_PRF.sv $rtl/OOO_RENAME/OOO_RENAME.sv $rtl/OOO_IQ/OOO_IQ.sv $rtl/OOO_SCHED/OOO_SCHED.sv \
     $rtl/OOO_UBTB/OOO_UBTB.sv $rtl/OOO_LSU/OOO_LSU.sv $rtl/OOO_ROB/OOO_ROB.sv \
     $rtl/OOO_FBUF/OOO_FBUF.sv $rtl/OOO_FTQ/OOO_FTQ.sv \
     $rtl/OOO_PREDEC/OOO_PREDEC.sv $rtl/OOO_TAGE/OOO_TAGE.sv $rtl/OOO_BTB/OOO_BTB.sv $rtl/OOO_RAS/OOO_RAS.sv \
@@ -214,6 +214,32 @@ if {$impl} {
                           [get_property STARTPOINT_PIN $p] [get_property ENDPOINT_PIN $p]]
             report_timing -max_paths 3 -nworst 1 -path_type full -from [all_registers] -to $cells \
                 -name $name -append -file $outdir/timing_d1.rpt
+        }
+    }
+    # OOC_SCHED: the worst path of each class (Doc/STRATEGY.md 4.5 loop 1), also
+    # those that are not among the ten worst: the wakeup-select loop, from a
+    # request through its grant to a request; the grant into the wait cells;
+    # dispatch, from the slots and from the free entries; full paths in timing_loop.rpt
+    if {$top eq "OOC_SCHED"} {
+        set inr {*dv_reg* *dk_reg* *du_reg* *ds_reg* *dw_reg* *dd_reg* *dl_reg* *dx_reg* *db_reg* *dn_reg* *dm_reg* *dt_reg*}
+        set cls [list loop {*u_sched/rv_reg*} {*u_sched/rv_reg*} \
+                      wake {*u_sched/rv_reg*} {*wq_reg* *rq_reg*} \
+                      disp $inr {*u_sched/*} \
+                      free {*u_sched/oc_reg*} {*u_sched/*} \
+                      issue {*u_sched/gq_reg* *u_sched/*bq_reg*} {*out_reg*}]
+        file delete -force $outdir/timing_loop.rpt
+        foreach {name from to} $cls {
+            set cf {}; set ct {}
+            foreach pt $from { lappend cf {*}[get_cells -quiet -hierarchical -filter "IS_SEQUENTIAL && NAME =~ $pt"] }
+            foreach pt $to   { lappend ct {*}[get_cells -quiet -hierarchical -filter "IS_SEQUENTIAL && NAME =~ $pt"] }
+            if {[llength $cf] == 0 || [llength $ct] == 0} { puts $fh "  $name: no cells"; continue }
+            set p [get_timing_paths -quiet -max_paths 1 -nworst 1 -setup -from $cf -to $ct]
+            if {[llength $p] == 0} { puts $fh "  $name: no path"; continue }
+            puts $fh [format "  %-5s worst %7.3f ns (%2d logic levels), from %s to %s" $name \
+                          [get_property SLACK $p] [get_property LOGIC_LEVELS $p] \
+                          [get_property STARTPOINT_PIN $p] [get_property ENDPOINT_PIN $p]]
+            report_timing -max_paths 3 -nworst 1 -path_type full -from $cf -to $ct \
+                -name $name -append -file $outdir/timing_loop.rpt
         }
     }
     # OOO_CPU: the worst paths between flip-flops, one per endpoint (B7:
