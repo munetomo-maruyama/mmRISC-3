@@ -1,5 +1,7 @@
 # Options to reduce the logic
 
+> **History (2026-11-02).** On the XC7A200T these reductions are not needed (`Doc/STRATEGY.md` 3). The savings stay as measurements; mmRISC-2's blocks stay at full size.
+
 - Date: 2026-10-24
 - Status: following the author's decisions (2026-10-24, `Doc/PROMPT.md` entry 11), Ethernet stays and the FPU starts
   pipelined, and these are the options that free LUTs. Every option concerns a block reused from mmRISC-2 or one built

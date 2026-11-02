@@ -4948,3 +4948,59 @@ Prompt 129 is logged in PROMPT.md, in this commit.
 ```text
 The Vivado rerun has finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**The whole core meets 50 MHz.** WNS is +0.159 ns with no failing endpoint. This is the first time a whole-core out-of-context run has closed timing (mmRISC-2's core had +0.002 ns under the same conditions). Recorded in Plan/OOC 27.9 and UARCH's budget table, pushed as cfac2ee.
+
+| | 1st run | 3rd run | **4th run** |
+|---|---|---|---|
+| OOO_CPU | 35,961 LUTs | 37,421 LUTs | **36,445 LUTs** |
+| OoO engine | 26,178 | 27,485 | **27,042** |
+| WNS | −5.716 ns | −7.362 ns | **+0.159 ns** |
+| Failing endpoints | 15,202 | 2,596 | **0** |
+
+**Paths with little margin**
+- **+0.159 ns:** CORE_CSR's privilege level (`priv_r`) → the checks of a completing µop (CSR legality, ECALL's cause) → the write enables of the ROB's exception and cause bits (25 levels). All of the 20 worst are of this kind.
+- **+0.79 to 0.98 ns:** EX's compare → the clr from EX → OOO_CTRL's checkpoint masks (34 levels).
+- **+1.13 ns:** the issue queue.
+- **+1.42 ns:** the fetch buffer's loop.
+- Nothing else is below +1.5 ns.
+
+**Size is what is left for G1**
+- Over budget by 9.1k / 9.9k / 10.6k. The whole chip is about 62k LUTs in the middle estimate (the 52k ceiling + 9.9k), 98 % of the device. About 80 % is what routes, so it does not fit as it is.
+- The "about 64k" of the earlier analysis (27.2) was miscalculated; with the same "ceiling + overrun" it is about 61k, corrected too (f770b71).
+- Candidates to cut:
+  - **Reserve levers:** L10, B4 / B5.
+  - **The core's own logic:** about 4.7k that was in no per-block run, as the first analysis showed.
+  - **ROB:** 3,717 LUTs with eight completion ports; the mispredicted branches' two could share EX's.
+  - **D$:** 6,046 LUTs.
+  - **Front end:** 7,831 LUTs.
+
+Prompt 130 is logged in PROMPT.md, in this commit.
+<!-- /answer -->
+
+## 131. 2026-11-02 20:41:54 JST
+
+```text
+Thank you for all this study. Here I want to make an important change of plan.
+
+(1) The FPGA's logic capacity is short now, and reducing logic for it keeps us from the performance we want. If this goes on, working hard on a superscalar out-of-order design loses its meaning, I think. So I want to use a larger FPGA.
+
+(2) The FPGA chip to use now is the Xilinx XC7A200T-1SBG484C, twice the size of the XC7A100T designed for so far. The FPGA board changes to the Digilent Nexys Video. The technical information on that FPGA and board is in Ref in the local repository.
+Do not push this Ref to the remote repository.
+
+(3) For logic at the size of the XC7A200T, review the micro-architecture anew so that, as a CPU core, it comfortably exceeds 6.0 CoreMark/MHz with -O2.
+
+(4) The FPGA board changes, but in the end I want BusyBox and Debian 13 to boot from a micro SD card, and Ethernet to connect. The micro SD card should work plugged directly into socket J3 on the board, without a PMOD. Ethernet's PHY chip changes to the RTL8211E. The JTAG/cJTAG debug interface should be brought out on the board's PMOD connector JA as before. Consider the switches and LEDs following the previous use. Let us consider 50 MHz as before for the operating frequency.
+
+(5) First, sort out what has to be done for this change of plan, and put the order of work together. I think it divides broadly into these 3 steps:
+- Review the architecture and RTL of the CPU core and related functions, and reach the performance.
+- Review the peripheral logic and fit it to the new FPGA board.
+- Prepare Linux (BusyBox and Debian) and boot it.
+
+(6) With this change of plan, also make a large review of the documents as a whole.
+
+(7) Point out any problems or concerns. In particular, I want to know any concerns about the new FPGA board early, to go ahead with the purchase.
+```

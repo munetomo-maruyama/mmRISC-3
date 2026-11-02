@@ -1,7 +1,7 @@
 //---------------------------------------------------------------------------
 // OOO_FUSE.sv
 //
-// Instruction fusion of mmRISC-3 (STRATEGY.md 4, Plan/MODEL.md 6): out of a
+// Instruction fusion of mmRISC-3 (Plan/STRATEGY_A100T.md 4, Plan/MODEL.md 6): out of a
 // group of 4 decoded instructions, form the next 2 µops; a µop is one
 // instruction or a fused pair of two adjacent ones. Combinational, between
 // decode and rename.

@@ -1,12 +1,35 @@
 # mmRISC-3 micro-architecture specification (G0)
 
+- **Revised 2026-11-02: read section 0 first.** The target is now the XC7A200T
 - Date: 2026-10-24
-- Status: the G0 specification of `STRATEGY.md` section 7 (step 5 of `Plan/ISSUES.md` section 5): the
+- Status: the G0 specification of `Plan/STRATEGY_A100T.md` section 7 (step 5 of `Plan/ISSUES.md` section 5): the
   micro-architecture of Phase 1 frozen, the predicted CoreMark/MHz and the LUT budget in numbers. **Passed with a
   condition on 2026-10-24** (the author's decisions in section 9; the budget is decided at G0b).
 - Basis: the cycle model (`Plan/MODEL.md`, `Plan/model/g0.sh` → `Plan/model/results/g0.txt`), the RTL blocks and
   their Vivado runs (`Plan/OOC.md`), mmRISC-2 Rev.02 measured by hierarchy (`Plan/ISSUES.md` section 2), the reduction
   options (`Plan/REDUCE.md`).
+
+---
+
+## 0. The XC7A200T revision (2026-11-02)
+
+**The target device changed** (`Doc/STRATEGY.md`, `Doc/BOARD.md`). Sections 1 to 9 below describe the 2-wide core the
+RTL is today, and how the Arty's budget shaped it: the levers of section 6 and the gap of section 4.4 are history. The
+**proposal** that replaces the configuration, to be frozen at gate S1-A:
+
+| Item | Today | Proposal |
+|---|---|---|
+| Rename, dispatch, commit | 2 | **3** |
+| Between decode and rename | group register, refilled when empty | **a decoded-instruction queue** |
+| ALUs | ALU0 full, ALU1 limited | **3 full ALUs** |
+| Issue queue | 10, 3 issues | **16, 4 issues** |
+| ROB / LQ, SQ / checkpoints | 24 / 8 / 6 | **32 / 12 / 8** |
+| Predictor | TAGE S, uBTB 8 | **TAGE M, uBTB 16** |
+| Register file | 64, 3 writes, 6 reads | 64, **4 writes, 8 reads** |
+| Fusion | off | off (decided after the width) |
+| Model, `-O2` / most optimization / g13 | 5.805 / 6.322 / 5.668 | **7.170 / 7.743 / 6.970** (`Plan/model/results/g200t.txt`) |
+
+Sections 3.x and the block READMEs are updated as each change lands. The budget of the proposal is in section 4.5.
 
 ---
 
@@ -45,7 +68,7 @@
 
 ## 2. Goals and predicted performance
 
-The goals (`STRATEGY.md` D1): 5.0 CoreMark/MHz with `-O2` (Zba / Zbb / Zbs / Zicond, GCC 14.2), above 6.0 with the
+The goals (`Plan/STRATEGY_A100T.md` D1): 5.0 CoreMark/MHz with `-O2` (Zba / Zbb / Zbs / Zicond, GCC 14.2), above 6.0 with the
 most optimization (sf + `-flto`). From `Plan/model/results/g0.txt`:
 
 | Configuration | `-O2` | Most optimization | mmRISC-2's condition (g13 -O2 zb) |
@@ -304,6 +327,28 @@ control is left (1.5k to 2.5k, ±0.5k).
 
 Block RAM and DSP are not the limit: 26.5 tiles are free, TAGE-S and the BTB need about 4 to 6, so the L2 stays at
 256 KB (D-2); 32 of 240 DSPs are used.
+
+---
+
+### 4.5 The budget on the XC7A200T (2026-11-02)
+
+The ceiling is 80 % of 134,600 LUTs, **107.7k**. With everything else at mmRISC-2's full size (39.6k, `Doc/STRATEGY.md`
+3), **the engine has 68k**. The engine as measured, and an estimate of the proposal block by block:
+
+| Part | Today, in `OOO_CPU` (`Plan/OOC.md` 27.9) | Proposal, estimated | Basis |
+|---|---|---|---|
+| Front end with decode | 7.8k | 10.5k | TAGE M, uBTB 16, the decoded queue |
+| Renaming, control, DS register | 2.4k | 4.5k | 3 µops, 8 checkpoints; renaming alone measured 2.7k at 2 µops |
+| Issue queue and payload | 2.0k | 5.3k | 16 entries measured 3.1k to 5.0k in earlier forms (`Plan/OOC.md`) |
+| ROB | 3.7k | 6.0k | 32 entries, 3 a cycle |
+| Register file | 2.2k | 3.7k | Measured alone: 3 / 8 3,223, 5 / 8 4,268 |
+| ALU ports with RR, EX, bypass, resolution | 4.8k | 9.0k | 3 full ports; one full ALU measured 1.9k |
+| LSU with its stages | 3.4k | 4.2k | 12 / 12; measured alone 2.9k at that size |
+| Multiplier, MDU wrapper, system unit, adapter | 0.7k | 0.8k | |
+| **Total** | **27.0k** (measured) | **about 44k** (40k to 48k) | |
+
+These are estimates until `OOO_CPU` measures them at each step of `Doc/STRATEGY.md` 5. Block RAM: mmRISC-2 used 108.5 of
+135 tiles on the Arty; 365 are here. DSP: 26 of 740 so far.
 
 ---
 

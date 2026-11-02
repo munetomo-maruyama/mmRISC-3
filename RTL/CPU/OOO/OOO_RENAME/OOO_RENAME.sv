@@ -1,7 +1,7 @@
 //---------------------------------------------------------------------------
 // OOO_RENAME.sv
 //
-// Register renaming of mmRISC-3 in the fusion configuration (STRATEGY.md
+// Register renaming of mmRISC-3 in the fusion configuration (Plan/STRATEGY_A100T.md
 // 4): 2 µops a cycle, each with up to 2 sources and 1 destination (a fused
 // pair reads at most 2 registers and writes at most 1, OOO_FUSE SRC2 / W1,
 // Plan/OOC.md 7.4).

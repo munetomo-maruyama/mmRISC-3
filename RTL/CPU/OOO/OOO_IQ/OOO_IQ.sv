@@ -1,7 +1,7 @@
 //---------------------------------------------------------------------------
 // OOO_IQ.sv
 //
-// The issue queue of mmRISC-3 in the fusion configuration (STRATEGY.md 4):
+// The issue queue of mmRISC-3 in the fusion configuration (Plan/STRATEGY_A100T.md 4):
 // unified, N entries, up to 2 sources and 1 destination per µop (a fused
 // pair too: OOO_FUSE SRC2 / W1, Plan/OOC.md 7.4), 2 µops written a cycle,
 // 3 issued a cycle:

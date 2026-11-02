@@ -7,9 +7,10 @@
 > [Claude Code](https://claude.com/claude-code), Anthropic's AI coding agent. The author sets the goals, chooses
 > among the options it proposes, and runs Vivado and the board.
 
-The successor of mmRISC-2: a home-made **2-wide out-of-order 64-bit RISC-V CPU (RV64GC)** in SystemVerilog that is
-to run Linux (BusyBox, Debian 13) on a Digilent Arty A7-100T at 50 MHz. The peripherals come from LiteX, and the
-assets of mmRISC-2 (caches, MMU, CSR, debug, FPU, verification environment) are reused.
+The successor of mmRISC-2: a home-made **out-of-order 64-bit RISC-V CPU (RV64GC)** in SystemVerilog that is to run
+Linux (BusyBox, Debian 13) on a **Digilent Nexys Video (XC7A200T-1SBG484C) at 50 MHz**, from the microSD slot J3, with
+Ethernet (RTL8211E) and a JTAG / cJTAG port on Pmod JA. The peripherals come from LiteX, and the assets of mmRISC-2
+(caches, MMU, CSR, debug, FPU, verification environment) are reused.
 
 ## Goal
 
@@ -17,25 +18,29 @@ The top priority is **CoreMark performance**:
 
 | Build | Goal | mmRISC-2 Rev.02 (board) |
 |---|---|---|
-| `-O2` | **5.0 CoreMark/MHz** or more | 2.794 |
-| Most optimization | **6.0 CoreMark/MHz** or more | 3.034 |
+| `-O2` | **comfortably above 6.0 CoreMark/MHz** (working target 6.5 in RTL, 6.2 on the board) | 2.794 |
 
 Measured on the board under Linux at 50 MHz, with the same bitstream that runs Linux.
 
-## Status (2026-10-23)
+## Status (2026-11-02)
 
-**Phase 0: strategy and the first RTL blocks.** The blocks of the fusion configuration are in `RTL/CPU/OOO` (tested in `SIM/OOO_UNIT`, out-of-context synthesis in `FPGA/OOO_OOC`; `Plan/OOC.md`). The strategy is in [`Doc/STRATEGY.md`](Doc/STRATEGY.md): the goal split into
-instruction count × IPC, the CPI budget, the LUT budget of the Arty, a trace-driven performance model before any RTL,
-and the phases with their gates.
+**The target changed from the Arty A7-100T to the Nexys Video** (the author's decision, 2026-11-02): the reductions
+needed to fit the smaller device were costing the performance. The 2-wide core is in `RTL/CPU/OOO`: in lock-step with
+Spike on riscv-arch-test and CoreMark (5.50 CoreMark/MHz with `-O2`), 50 MHz met out of context on the XC7A100T. The
+next step is **3-wide**: 7.17 in the model, about 44k LUTs for the engine, about 62 % of the new device. The work order
+is in [`Doc/STRATEGY.md`](Doc/STRATEGY.md) section 5: the core, the board (brought up with mmRISC-2 first), Linux.
 
 ## Documents
 
 | File | Content |
 |---|---|
-| [`Doc/STRATEGY.md`](Doc/STRATEGY.md) / [`_J`](Doc/STRATEGY_J.md) | Development strategy (CoreMark first) |
-| [`Doc/UARCH.md`](Doc/UARCH.md) / [`_J`](Doc/UARCH_J.md) | Micro-architecture specification (G0): the frozen configuration, predicted CoreMark/MHz, the LUT budget |
+| [`Doc/STRATEGY.md`](Doc/STRATEGY.md) / [`_J`](Doc/STRATEGY_J.md) | **Start here**: the goal, the resources, the proposed micro-architecture, the work order, the risks |
+| [`Doc/BOARD.md`](Doc/BOARD.md) / [`_J`](Doc/BOARD_J.md) | The Nexys Video: DDR3, microSD, Ethernet, JTAG, switches and LEDs, the concerns before ordering |
+| [`Doc/UARCH.md`](Doc/UARCH.md) / [`_J`](Doc/UARCH_J.md) | Micro-architecture specification: section 0 is the revision; the rest is the 2-wide core the RTL is today |
 | [`Doc/PROMPT.md`](Doc/PROMPT.md) / [`_J`](Doc/PROMPT_J.md) | Every prompt the author gave Claude Code and Claude Code's answer to it, with date and time (the Japanese original, and its translation) |
-| [`Plan/`](Plan/README.md) | Preliminary studies: the [study made during mmRISC-2](Plan/PRESTUDY_MMRISC2.md), and the performance studies of Phase 0 with their working files ([CoreMark instruction counts](Plan/ICOUNT.md), [trace analysis](Plan/TRACE.md)) |
+| [`Plan/`](Plan/README.md) | The studies and their working files: the performance model, the bring-up of the core ([`Plan/CORE.md`](Plan/CORE.md)), the Vivado runs ([`Plan/OOC.md`](Plan/OOC.md)), and the strategy for the Arty as history ([`Plan/STRATEGY_A100T.md`](Plan/STRATEGY_A100T.md)) |
+
+`Ref/` (board and device documents of others) is kept locally and is not in the repository.
 
 ## Branches
 

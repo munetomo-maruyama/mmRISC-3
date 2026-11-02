@@ -3,7 +3,7 @@
 [English](CORE.md)
 
 - 日付: 2026-10-29
-- 目的: `Doc/UARCH_J.md` 8章のステップ4。`RTL/CPU/OOO`と`RTL/CPU/CORE`のブロックは書け、単体でテストされ、Vivadoで測られている(`Plan/OOC_J.md` 1〜25)。この計画はそれらを整数のアウトオブオーダーコア(Mモード、ベアメタル、`Doc/STRATEGY_J.md`のPhase 1)に組み立て、**G1**まで立ち上げる。`Plan/OOC_J.md`と`Doc/UARCH_J.md`に残した「組み立てへの約束」を1か所に集め、まだ書くものと、その順を言う。
+- 目的: `Doc/UARCH_J.md` 8章のステップ4。`RTL/CPU/OOO`と`RTL/CPU/CORE`のブロックは書け、単体でテストされ、Vivadoで測られている(`Plan/OOC_J.md` 1〜25)。この計画はそれらを整数のアウトオブオーダーコア(Mモード、ベアメタル、`Plan/STRATEGY_A100T_J.md`のPhase 1)に組み立て、**G1**まで立ち上げる。`Plan/OOC_J.md`と`Doc/UARCH_J.md`に残した「組み立てへの約束」を1か所に集め、まだ書くものと、その順を言う。
 - Phase 1に入らないもの: FPU、MMU / TLBとS / Uモードの使用(CORE_CSRは持っているが、何もそこへ移らない)、PMP、デバッグ、デバイスからの割り込み、LiteX。Phase 2で入る。
 
 ---
@@ -561,9 +561,15 @@ Vivadoのあとの、`Plan/OOC_J.md` 26.18の2つの直し(OOO_IQ +0.360 ns、OO
 - **テスト**: CoreMarkのサイクルは変わらない(どちらもコアの動作を変えない)。`run_core.sh`、単体テスト28本(`tb_iq`は7シード): 通る。lintの新しい警告なし。`mutate_core.py` 91のうち91(分けたB5aのものはゲートした行に合わせた)、単体の変異346(M381、M381bを検出)。
 - **Vivado**: もう一度`synth_ooo.bat OOO_CPU`。
 
+### 5.23 方針の変更(2026-11-02)
+
+対象はNexys VideoのXC7A200T、3命令幅になった(`Doc/STRATEGY_J.md`)。この文書で生きているもの: 立ち上げの方法、テスト、5.1〜5.22のすべての知見。変わるもの: B5の融合はオフのままで、この先の手順は`Doc/STRATEGY_J.md` 5(1.1〜1.8)になる。5.22の2命令幅のコア(5.50 / 5.92 / 5.32 CoreMark/MHz、XC7A100Tの数字で50 MHz)が出発点。
+
 ---
 
 ## 6. G1で測るもの
+
+> **2026-11-02に置き換え**: `Doc/STRATEGY_J.md` 5の関門S1-A〜S1-C(RTLで`-O2` ≥ 6.5、XC7A200Tで50 MHz)。下の表はArty向けのG1。
 
 | 項目 | 基準 | 参照 |
 |---|---|---|

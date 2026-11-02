@@ -5,7 +5,7 @@
 - Date: 2026-10-29
 - Purpose: step 4 of `Doc/UARCH.md` section 8. The blocks of `RTL/CPU/OOO` and `RTL/CPU/CORE` are written, tested
   alone and measured in Vivado (`Plan/OOC.md` 1 to 25); this plan puts them together into the integer out-of-order
-  core (M-mode, bare metal, `Doc/STRATEGY.md` Phase 1) and brings it up to **G1**. It gathers in one place the
+  core (M-mode, bare metal, `Plan/STRATEGY_A100T.md` Phase 1) and brings it up to **G1**. It gathers in one place the
   "contracts for the assembly" left in `Plan/OOC.md` and `Doc/UARCH.md`, says what is still to be written, and in which
   order.
 - Not in Phase 1: the FPU, the MMU / TLBs and S / U modes in use (CORE_CSR has them; nothing switches to them), PMP,
@@ -860,9 +860,18 @@ EX (the resolution register of 5.20) or with D2's refill.
   346 unit mutations (M381, M381b detected).
 - **Vivado**: `synth_ooo.bat OOO_CPU` again.
 
+### 5.23 The change of plan (2026-11-02)
+
+The target is now the XC7A200T on a Nexys Video, 3-wide (`Doc/STRATEGY.md`). What stands of this document: the
+bring-up method, the tests and every finding of 5.1 to 5.22. What changes: B5's fusion stays off, and the steps ahead
+are those of `Doc/STRATEGY.md` 5 (1.1 to 1.8). The 2-wide core of 5.22, at 5.50 / 5.92 / 5.32 CoreMark/MHz, 50 MHz on the
+XC7A100T's numbers, is the starting point.
+
 ---
 
 ## 6. What G1 measures
+
+> **Replaced 2026-11-02** by the gates S1-A to S1-C of `Doc/STRATEGY.md` 5: `-O2` ≥ 6.5 in RTL, 50 MHz on the XC7A200T. The table is what G1 was for the Arty.
 
 | Item | Criterion | Reference |
 |---|---|---|

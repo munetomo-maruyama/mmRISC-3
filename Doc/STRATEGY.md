@@ -1,262 +1,202 @@
-# mmRISC-3 Development Strategy (CoreMark first)
+# mmRISC-3 Development Strategy (Nexys Video, XC7A200T)
 
-- Date: 2026-10-23
-- Inputs: `Plan/PRESTUDY_MMRISC2.md` (the study memo of 2026-10-13), the mmRISC-2 white paper, `LitexSystem/docs/BENCH.md` and `TIMING.md`
-- Status: the strategy that sets the direction. Numbers marked "measured" are mmRISC-2 records; the rest are estimates to be checked in Phase 0
+[日本語](STRATEGY_J.md)
+
+- Date: 2026-11-02 (the author's change of plan, `Doc/PROMPT.md` entry 131)
+- Replaces: [`Plan/STRATEGY_A100T.md`](../Plan/STRATEGY_A100T.md), the strategy for the Arty A7-100T, kept as history
+- Board details: [`Doc/BOARD.md`](BOARD.md). Micro-architecture: [`Doc/UARCH.md`](UARCH.md)
 
 ---
 
 ## 0. Summary
 
-1. **Splitting the goal into "instruction count × IPC" shows how hard it is.** mmRISC-2's `-O2` (Zba / Zbb) runs
-   **318.6k instructions** per CoreMark iteration (measured). At that count, 5.0 /MHz needs **IPC 1.59** and 6.0 /MHz
-   needs **IPC 1.91**. The limit of a 2-wide machine is 2.0, so 6.0 is 96 % of the theoretical limit and not realistic.
-2. The earlier study memo saw a ceiling of about 1.6 times (about 4.9 /MHz). The new goal is above that, so **the
-   memo's modest out-of-order baseline will not reach it**. The design centre moves to "remove the items of CoreMark's
-   CPI stack".
-3. The main enemy is **branch misprediction**. mmRISC-2 mispredicts 13 times per 1000 instructions on CoreMark
-   (measured). At about 10 cycles each in an out-of-order core, that alone costs 130 cycles per 1000 instructions,
-   the whole budget for 5.0 /MHz (128 cycles, below). **The predictor (TAGE-like, in block RAM) and a shallow pipeline
-   come first.**
-4. Three ways past the IPC-2 wall: (a) **macro-op fusion** (up to 4 instructions in 2 decode slots), (b)
-   **short-forward-branch predication (SFB)**, which removes mispredictions, (c) **fewer instructions** through the
-   compiler and ISA extensions. A 3-wide decoder hardly fits the LUT budget of the Arty A7-100T (below).
-5. The rule is the one mmRISC-2 settled on: **measure before building**. Before any RTL, a **trace-driven performance
-   model** is built, calibrated against mmRISC-2's measured CPI, and used to choose the configuration (Phase 0,
-   gate G0).
-6. Order of work: **CoreMark first**. The integer out-of-order core reaches the CoreMark goal in simulation first
-   (M-mode, bare metal); the MMU, FPU, debug and Linux come after. The hooks Linux needs (non-speculative execution,
-   precise exceptions) are in the design from the start.
-7. Realistic expectation (to be checked): **4.5 to 5.0 /MHz** with `-O2`, **5.0 to 5.5 /MHz** with the most
-   optimization. **6.0 or more with the most optimization is the upside** if fusion, SFB and the instruction-count
-   reduction all work. The Phase 0 model turns this into numbers.
-8. **Revised 2026-10-24 (results of the cycle model, `Plan/MODEL.md` section 6)**: 2-wide out-of-order gives 6.07 with
-   `-O2` and 6.57 with the most optimization even without fusion, and 5.61 / 6.05 in a pessimistic configuration.
-   **By the author's instruction the "fusion configuration" (4-wide decode, fusion up to chained ALU + ALU) is the
-   baseline** (7.06 / 7.59). Limiting a fused pair to one register write drops it to 6.75 / 6.90, so two writes per
-   pair are assumed and their cost is checked by OOC synthesis. The configuration is the right column of the table in
-   section 4.
+1. **The FPGA grows.** The Arty A7-100T's XC7A100T is replaced by the **XC7A200T-1SBG484C on a Digilent Nexys Video**.
+   The reductions made to fit the old device were costing the performance that out-of-order execution is there for.
+2. **The goal**: `-O2` **comfortably above 6.0 CoreMark/MHz**, at 50 MHz, then BusyBox and Debian 13 from the microSD
+   slot J3, with Ethernet (RTL8211E) and the JTAG / cJTAG port on Pmod JA.
+3. **A 2-wide core cannot reach it with a margin**: with every lever pulled the model gives 6.07 (6.37 with fusion),
+   and the RTL runs about 6 % below the model. **The proposal is a 3-wide core** (3 full ALUs + LSU, 4 issues, IQ 16,
+   ROB 32, LQ / SQ 12, 8 checkpoints, TAGE M): **7.17 in the model, about 6.7 in RTL**.
+4. **Logic is no longer the limit; 50 MHz is.** The chip is estimated at about 84k of 134,600 LUTs (62 %). The
+   XC7A200T has the same speed grade as before, and the 2-wide core closes with only +0.159 ns.
+5. **Three steps** (section 5): the core, the board, Linux. **The board's bring-up starts with mmRISC-2**, whose CPU
+   is known to work, as soon as the board arrives, in parallel with the core.
 
 ---
 
-## 1. Splitting the goal
+## 1. Why the plan changed
 
-### 1.1 CoreMark/MHz, instruction count and IPC
+CoreMark/MHz of the model from the core as it is (`Plan/model/g200t.sh`, `results/g200t.txt`; `g14 -O2`, the build
+the goal is measured on):
 
-CoreMark/MHz = 10^6 / (cycles per iteration) = 10^6 × IPC / (instructions per iteration)
-
-| Build | Instructions / iteration | mmRISC-2 (measured) | IPC for 5.0 /MHz | IPC for 6.0 /MHz |
-|---|---|---|---|---|
-| `-O2`, Zba / Zbb | 318.6k (measured, SIM_SYS) | 2.794 /MHz, CPI 1.123 | **1.59** | **1.91** |
-| Most optimization (sf), Zba / Zbb | 294.5k (measured, Spike) | 3.034 /MHz | 1.47 | **1.77** |
-| `-O2`, GCC 14.2, Zba / Zbb / Zbs / Zicond | 311.9k (measured, Spike) | — | **1.56** | 1.87 |
-| Most optimization (sf + `-flto`), GCC 14.2, same | 281.0k (measured, Spike) | — | 1.40 | **1.69** |
-
-The measurement of the instruction counts is in `Plan/ICOUNT.md` (2026-10-24). With GCC 14.2 + Zicond the IPC needed
-goes down to 1.56 for 5.0 with `-O2` and 1.69 for 6.0 with the most optimization.
-
-- A well-made 2-wide core sustains an IPC of about 1.3 to 1.6 (NaxRiscv RV32 with 2 decoders, 5.02 /MHz, is thought
-  to be in this range).
-- **6.0 with `-O2` is not a target for a 2-wide core.** The targets are 5.0 with `-O2` and 6.0 with the most
-  optimization.
-
-### 1.2 IPC budget (CPI stack), example: 5.0 /MHz with `-O2`
-
-In cycles per 1000 instructions the budget is 628. The ideal 2 per cycle is 500, so **only 128 cycles are left for
-all losses**.
-
-| Item | Budget (per 1000 instructions) | mmRISC-2 (measured) |
+| Configuration | Model, `-O2` | Expected RTL (× 0.94) |
 |---|---|---|
-| Ideal (2 per cycle) | 500 | — |
-| Branch mispredictions | 40 (4 × 10 cycles) | 13 mispredictions, about 5 cycles each (8-stage in-order) |
-| Front-end bubbles (taken branches, I$ misses) | 30 | 0.49 I$ misses |
-| Data dependences (load-use, multiply, serial chains) | 45 | load-use 2.0 %, multiply wait 2.6 % |
-| Structural (port conflicts, full ROB / IQ) | 13 | — |
-| **Total** | **628 → IPC 1.59** | CPI 1.123 |
+| The core of 2026-11-02 (2-wide, ROB 24, IQ 10, LQ / SQ 8, limited ALU1) | 5.805 | 5.50 (measured) |
+| 2-wide, ROB 48 / IQ 16 / LQ, SQ 12 / 8 checkpoints, one at a time | 5.81 to 5.85 | — |
+| 2-wide, everything but fusion | 6.072 | 5.7 |
+| 2-wide, everything + fusion 2 | 6.368 | 6.0 |
+| **3-wide, otherwise the same sizes as today** | **6.693** | 6.3 |
+| **3-wide, the proposal (section 4)** | **7.170** | **6.7** |
+| The proposal + stores split into address and data | 7.324 | 6.9 |
+| The proposal + 2 LSU ports | 7.504 | 7.1 |
+| 4-wide, for scale | 8.413 | 7.9 |
 
-What the table decides:
-- **At most 4 mispredictions per 1000 instructions** (a third of today). CoreMark processes the same input in every
-  iteration, so a predictor with long histories learns it well. A large TAGE-like predictor in block RAM pays off.
-- **A misprediction costs 10 cycles or less.** The 20 ns of the fixed 50 MHz go into fewer stages (= a smaller
-  penalty).
-- **No bubble on a taken branch** (a zero-bubble next-line predictor).
+- Sizes hardly matter at 2-wide: the width itself is what limits it. That is the finding the old budget hid.
+- × 0.94 is what the RTL gives against the model today (5.50 / 5.805, 5.92 / 6.322, 5.32 / 5.668).
+- What the G0b reductions were (L1 to L7 of `Doc/UARCH.md` 6.3) can now be taken back where they pay.
 
-### 1.3 Fix the measurement first
+---
 
-Before arguing about performance, the conditions are fixed, taken over from mmRISC-2.
+## 2. The goal and how it is measured
 
 | Item | Rule |
 |---|---|
-| Where | On the board, under Linux, 50 MHz (`bench.sh` as in mmRISC-2's BENCH) |
-| `-O2` | `-O2` only; `-march=rv64imafdc_zicsr_zifencei_zba_zbb_zbs_zicond` (**Zicond included, and implemented in the hardware**; decided 2026-10-24) |
-| Most optimization | Any options within CoreMark's run rules (source unchanged); every option recorded |
-| Compiler | **Fixed at GCC 14.2 (Debian 13, the same as the gcc on the board)** (decided 2026-10-24, reasons in `Plan/ICOUNT.md`) |
-| Bitstream | **The same bitstream that runs Linux** (no CoreMark-only configuration) |
+| Goal | `-O2`: **above 6.0 CoreMark/MHz with a margin**. Working target: **6.5 in RTL**, **6.2 on the board** |
+| Where it counts | On the board, under Linux, 50 MHz, with the bitstream that runs Linux (as `Plan/STRATEGY_A100T.md` 1.3) |
+| Compiler | GCC 14.2 (Debian 13); `-O2 -march=rv64imafdc_zicsr_zifencei_zba_zbb_zbs_zicond` |
+| In simulation | `OOO_CPU` with the real caches and a latency model of the DDR3, in lock-step with Spike |
+
+mmRISC-2 lost about 2 % from simulation to the board (CPI 1.103 to 1.123). Hence 6.5 in RTL for 6.2 on the board.
 
 ---
 
-## 2. The levers (in order of effect on CoreMark)
+## 3. Resources on the XC7A200T
 
-| Rank | Lever | What | Cost on the FPGA |
+| | XC7A100T (Arty A7-100T) | **XC7A200T (Nexys Video)** | Ratio |
 |---|---|---|---|
-| 1 | Prediction accuracy | TAGE (4 to 6 tables, long histories) + loop predictor; BTB and PHT in block RAM | Mostly block RAM, few LUTs |
-| 2 | Misprediction penalty | Merge stages using the slack of 50 MHz. Goal: 10 cycles or less from the branch's execution to the execution of the correct path | Fewer stages, fewer FFs |
-| 3 | SFB (short-forward-branch predication) | Turn "a branch over 1 or 2 instructions" into conditional execution; the misprediction disappears | Small (decode and ALU) |
-| 4 | Front-end bandwidth | 16 B fetch per cycle, decoupled by an FTQ, zero-bubble next-line prediction, RVC aligner | Medium |
-| 5 | Macro-op fusion | `lui+addi`, `auipc+jalr`, `slli+srli`, `add+load` and so on; chosen after measuring the fusion rate in traces | Small to medium (decoder) |
-| 6 | Shorter load-use | D$ hit in 2 cycles + speculative wakeup by hit prediction, store-to-load forwarding | Medium |
-| 7 | Short dependences | 1-cycle ALU wakeup-select, multiply in 1 to 2 cycles (DSP48) | Medium |
-| 8 | Fewer instructions | Zicond / Zbs, compiler and options (a `-mtune` that emits fusible sequences) | Hardware exists |
-| 9 | Memory-dependence speculation | Issue loads before older store addresses are known (a simple store-set) | Medium to large; only after the model shows the gain |
+| LUTs | 63,400 | **134,600** (33,650 slices) | 2.12 |
+| Block RAM | 135 tiles (4,860 Kb) | **365 tiles** (13,140 Kb) | 2.70 |
+| DSP | 240 | **740** | 3.08 |
+| CMTs | 6 | 10 | |
+| Speed grade | -1 | **-1 (the same)** | |
+| DDR3 | 256 MiB, 16 bits | **512 MiB**, 16 bits, 800 MT/s on the board | |
 
-**Added 2026-10-24**: after the trace analysis (`Plan/TRACE.md` section 4) and the cycle model (`Plan/MODEL.md` 6.4) the
-order becomes: 1 predictor (TAGE-S), 2 fusion and 4-wide decode, 3 2-cycle load-use, 4 store-to-load forwarding,
-5 16-byte fetch decoupled from dispatch. SFB dropped. The misprediction penalty (depth) and the uBTB hardly matter in
-out-of-order.
+The whole chip (Physical LUTs; the practical ceiling stays at 80 %, **107.7k**):
 
-More execution units quickly give diminishing returns (NaxRiscv's notes). **For CoreMark, prediction and short
-latencies matter more than the number of units.**
-
----
-
-## 3. Resource budget (Arty A7-100T)
-
-| Item | Value |
-|---|---|
-| Device | XC7A100T-1: LUT 63,400, FF 126,800, BRAM 135, DSP 240 |
-| mmRISC-2 Rev.02 | LUT 79 %, slices 93 % (measured); the slice pressure was the main cause of routing delay |
-| Practical limit | LUT 80 to 82 % (about 51k) |
-| LiteX SoC (LiteDRAM / LiteEth / SD / UART) | about 11k to 13k LUTs (estimate, measured in Phase 0) |
-| L1 / L2 / MMIO | about 9k LUTs (estimate from mmRISC-2) |
-| **Left for the core** | **about 30k LUTs** (FPU, MMU, CSR and debug included) |
-
-The parts of mmRISC-2 needed regardless of out-of-order execution (CSR about 3.3k, MMU about 5k, FPU + FRF about 6k,
-MDU about 1.1k, debug) take about 15k LUTs. **About 15k to 16k LUTs remain for the out-of-order engine, the front end
-and the LSU.** NaxRiscv RV64 (integer only) is about 18k LUTs for the whole core, so this is **tight**.
-
-**Added 2026-10-24**: the measurement of mmRISC-2 Rev.02 by hierarchy shows LiteX at 4.8k LUTs and the FPU at 8.8k LUTs.
-The estimate above is corrected in `Plan/ISSUES.md` section 2 (about 34.6k left for the core, about 12.9k for the
-out-of-order parts).
-
-What follows:
-- **Design on the assumption that 3-wide decode does not fit** (IPC comes from 2-wide + fusion + SFB).
-- **The FPU does nothing for CoreMark, so its LUTs go to the integer side.** First candidates: option 3 of the memo
-  (multi-cycle FPU) or option 4 (in-order side pipe). F / D stay for Debian (lp64d).
-- Large tables go to block RAM / LUTRAM (predictors, ROB payload, PRF, RAT), never to flip-flops (mmRISC-2 moved its
-  BTB from FFs to LUTRAM and saved 3,060 LUTs / 7,936 FFs).
-- Candidates to cut what Linux does not need: PMP 16 → 8 entries, triggers 4 → 2.
-
----
-
-## 4. Initial configuration (hypothesis, fixed in Phase 0)
-
-| Item | Hypothesis (first) | **Fusion configuration (revised 2026-10-24, `Plan/MODEL.md` section 6)** |
+| Part | LUT | Basis |
 |---|---|---|
-| Fetch | 16 B per cycle, decoupled by an FTQ, zero-bubble next-line predictor (LUTRAM) + BTB (BRAM) + TAGE (BRAM) + RAS | 16 B per cycle, decoupled by a 16-instruction fetch buffer; uBTB 16 (partial tags, next PC in F0; `Plan/OOC.md` 7.6), TAGE-S (62 kbit) + BTB + 16-entry RAS override in F2 |
-| Decode / rename / commit | 2 µops per cycle (up to 4 instructions with fusion) | **4-wide decode + fusion** (address calculation + load, load / store pairs, lui / auipc, ALU + branch, ALU + ALU); rename, dispatch and commit 2 µops per cycle; a fused pair reads at most 2 registers and writes at most 1 (`Plan/OOC.md` 7.4) |
-| ROB | 48 to 64 entries (payload in LUTRAM / BRAM) | 32 entries; **24 at G0** (`Doc/UARCH.md`) |
-| PRF | about 96 integer registers (LUTRAM, banked by write port + LVT) | 64 integer registers (32 + ROB 32 × 1), LUTRAM, 3 writes / 6 reads, banked by write port + LVT (`Plan/OOC.md` 7.4) |
-| Issue queue | unified 16 to 24, or distributed; 1-cycle wakeup-select | unified 16 entries (**12 at G0**), 2 sources (fused pairs also at most 2, `Plan/OOC.md` 7.4), 1-cycle wakeup-select, oldest first (age matrix), 3 issues per cycle |
-| Execution units | ALU0 (full + branch), ALU1 (simple + branch), MUL/DIV, LSU (1 load + 1 store), FPU (reduced) | 2 ALU ports, each two stages chained (full → narrowed, `Plan/OOC.md` 8: a fused ALU + ALU / ALU + branch in one cycle), MUL / DIV sharing ALU0's port, 1 LSU, FPU (pipelined, decision D3) |
-| Load-use | 2 cycles (speculative wakeup by hit prediction) | 2 cycles (required; 3 costs −6 %) |
-| Memory | — | conservative memory dependence, LQ / SQ 16 (**12 at G0**), forwarding from the SQ (required), 8 checkpoints (**6 at G0**) |
-| Misprediction penalty | 10 cycles or less | 9 cycles from EX to EX (depth hardly matters) |
-| Reused | L1 / L2, MMU, CSR, debug, FPU, LiteX integration, SIM_BIOS, bug injection | same |
-| Frequency | 50 MHz | 50 MHz |
+| LiteX SoC with Ethernet | 5.3k | mmRISC-2 4,826 (MII); RGMII and the DRAM clock crossing estimated |
+| Outside the core: L1 caches, L2, debug, MMIO, DMA, arbiter | 12.6k | mmRISC-2 measured |
+| Core blocks kept: CSR, MMU, MDU, FPU, FP registers | 21.7k | mmRISC-2 measured |
+| **The out-of-order engine, proposal** | **about 44k** (40k to 48k) | `Doc/UARCH.md` 4.5; today's 2-wide engine measured 27.0k |
+| **Total** | **about 84k, 62 %** | leaves about 24k for what the model ranks next |
+
+Consequences:
+
+- `Plan/REDUCE.md`'s group A (triggers, PMP, D$ buffers, TLBs) is **no longer needed**: mmRISC-2's blocks stay at full
+  size, and 4 HPM counters come back.
+- Block RAM allows a larger TAGE and an L2 of 512 KB if measured to help Linux.
+- **Timing is now the limit.** The XC7A200T is no faster, and 3-wide adds a fourth bypass source, a wider select and
+  more register-file ports to a core with +0.159 ns. Area may be spent on timing (duplicated tags, registered
+  decisions) as it could not before.
 
 ---
 
-## 5. Measure before building: the Phase 0 performance model
+## 4. The proposed micro-architecture
 
-### 5.1 Why the model first
-- How far 2-wide gets, and how much fusion and SFB give, **can be measured on CoreMark's instruction stream in a few
-  days**. In RTL each choice takes one or two weeks.
-- In mmRISC-2 a wrong simulation assumption (memory that answers at once) made the I$ prefetch look "faster".
-  **The model is calibrated against mmRISC-2's measurements before it is used.**
+To be frozen at gate S1-A (section 5), against a model that includes D1's group boundary.
 
-### 5.2 Content
-1. **Instruction traces**: commit traces of CoreMark from Spike (introduced here, since lock-step verification needs
-   it too). First a table of **instruction counts** for `-O2` / most optimization × GCC 13 / 14 / 15 × `-march` (this
-   alone fixes the IPC needed).
-2. **Trace-driven cycle model** (C++): width, ROB / IQ / PRF sizes, predictor (gshare / TAGE, sizes), penalty,
-   load-use, fusion pairs, SFB and memory-dependence handling as parameters.
-3. **Calibration**: with an 8-stage in-order setting, reproduce mmRISC-2's CoreMark CPI 1.103 (SIM_SYS) and its
-   misprediction rate of 5.4 % within ±3 %.
-4. **Design-space exploration**: sweep the parameters and tabulate each one's contribution to CoreMark/MHz.
-5. **Against resources**: build NaxRiscv RV64 with LiteX on the Arty and measure it (LUTs, performance under Linux);
-   take mmRISC-2's utilization by hierarchy again on Rev.02.
+| Item | Today (2026-11-02) | **Proposal** | Why |
+|---|---|---|---|
+| Fetch, decode | 16 B, 4 decoded a cycle | the same | 6 decoded and 32 B add only 3.7 % |
+| **Between decode and rename** | a group register refilled only when empty | **a decoded-instruction queue** | With 3-wide the old rule would give 3 + 1 µops per 2 cycles (`Plan/CORE.md` 5.19) |
+| **Rename, dispatch, commit** | 2 | **3** | The largest single gain (+15 %) |
+| **ALUs** | ALU0 full, ALU1 limited | **3 full ALUs**, branches on each | L7 gave back 1.6 % for LUTs that are now there |
+| LSU | 1 port, 1 load or store | the same; 2 ports ranked next (+2.5 %) | |
+| Issue | unified 10, 3 a cycle | **unified 16, 4 a cycle** | |
+| ROB, registers | 24, 64 registers | **32**, 64 registers | 32 + 32 is enough |
+| LQ / SQ, checkpoints | 8 / 8, 6 | **12 / 12, 8** | |
+| Predictor | TAGE S, uBTB 8 | **TAGE M, uBTB 16** | Block RAM is there |
+| Multiply | pipelined + CORE_MDU, write slot shared | the same, its own write slot | |
+| Load-use | 2 cycles | **2 cycles (required)** | 3 costs 10 % (6.42) |
+| Fusion | off (`FUSE_KINDS` 0) | **stays off**; to be removed or brought back after the width | With 3-wide its gain is small and its compare does not fit (`Plan/OOC.md` 27.5) |
+| FPU, MMU, debug | not yet in the core | mmRISC-2's, at full size | Step 1 |
+| Frequency | 50 MHz | 50 MHz | The author's decision |
 
-### 5.3 Later use
-- The model becomes the **performance reference** of the RTL: when the RTL's CoreMark cycles leave the model's, it is
-  investigated as a performance bug (a way to find losses like the 0.8 % of mmRISC-2's decision 82).
+---
+
+## 5. Work order
+
+### Step 1: the core and what belongs to it
+
+| # | Work | Done when |
+|---|---|---|
+| 1.1 | The model with D1's boundary and the queue; the RTL's other differences from the model (`Plan/CORE.md` 5.12) | **Gate S1-A**: the configuration frozen, model ≥ 7.0 with `-O2` |
+| 1.2 | `synth_ooo.tcl` on the new part (done); `OOO_CPU` as it is on the XC7A200T, to see the build time and the timing on the larger device | A baseline to compare with |
+| 1.3 | The decoded queue in place of D1b's refill rule; fusion's RTL decided | Unit tests; CoreMark at 2-wide not worse |
+| 1.4 | The width as a parameter: rename, DS, ROB, IQ and payload, register file, control, commit, trace, lock-step, each block's test. First at W = 2 with no cycle changed, then W = 3 | All tests at both widths |
+| 1.5 | 3 full ALUs, the bypass, the write ports; IQ 16, ROB 32, LQ / SQ 12, 8 checkpoints, TAGE M, uBTB 16, one at a time against the model | Each step's cycles against the model's |
+| 1.6 | Timing at every step: `OOO_CPU` out of context | 50 MHz kept throughout |
+| 1.7 | The real I$ (mmRISC-2's, 16 bytes wide) and L2; CoreMark on `OOO_CPU` | **Gate S1-B**: RTL `-O2` ≥ 6.5 with real caches, 50 MHz, tests and bug injection clean |
+| 1.8 | Interrupts, MMU (Sv39), FPU, debug, PMU; arch tests for F / D / S; Linux on the simulator | **Gate S1-C**: Linux prompt in simulation |
+
+### Step 2: the peripherals and the board
+
+Starts when the board arrives, **in parallel with step 1**; 2.1 to 2.4 use mmRISC-2's CPU, so that a problem is the
+board's or the peripherals', not the new core's.
+
+| # | Work | Done when |
+|---|---|---|
+| 2.1 | `LitexSystem/` in this repository from mmRISC-2's; the LiteX target for the Nexys Video with mmRISC-2 as the CPU; clocks, reset, UART, constraints | LiteX BIOS prompt on the board |
+| 2.2 | DDR3 within JEDEC (`Doc/BOARD.md` 4): LiteDRAM's clock domain apart from the CPU's | Memory test of 512 MiB, all DDR3 parts possible |
+| 2.3 | microSD on J3 (`SD_RESET`, timing constraints); RGMII with the RTL8211E | BIOS boots from the SD card; TFTP and DHCP at 1 Gb/s |
+| 2.4 | JTAG / cJTAG on JA, switches and LEDs (`Doc/BOARD.md` 7, 8) | `jtag_check.tcl` PASS in the 4 combinations |
+| 2.5 | Board bring-up record; DRAM latency measured, fed back to the simulation's memory model | |
+| 2.6 | mmRISC-3 in place of mmRISC-2 (after S1-C); whole-chip timing at 50 MHz | **Gate S2**: BIOS on the board with mmRISC-3 |
+
+### Step 3: Linux
+
+| # | Work | Done when |
+|---|---|---|
+| 3.1 | OpenSBI, device tree (512 MiB, the new CSR map), kernel configuration with the LiteEth / LiteSDCard drivers | Boot to BusyBox from J3 |
+| 3.2 | Ethernet under Linux (DHCP, ping, TFTP, NFS or ssh), MAC address (fixed, or from the EEPROM) | Traffic on the RTL8211E |
+| 3.3 | Debian 13 on the second partition; gcc on the board | CoreMark built on the board |
+| 3.4 | CoreMark under Linux; 120-minute stress test (memory, Ethernet, SD at once) | **Gate S3**: `-O2` above 6.0 with a margin, stress test PASS |
+
+### Dependencies
+
+- The board's order comes first (`Doc/BOARD.md` 10): nothing in step 1 needs it, but steps 2 and 3 do, and the lead
+  time may be long.
+- 2.5's DRAM latency reaches 1.7. 2.6 needs S1-C. 3.1 can start on mmRISC-2 after 2.4, so the kernel, the device tree
+  and the SD card image are proved before the new core comes.
 
 ---
 
 ## 6. Verification
 
-mmRISC-2's assets (SIM_CORE / SIM_SYS / SIM_BIOS, riscv-tests, bug injection), plus what out-of-order execution needs,
-**from the start**.
-
-| Means | Purpose |
-|---|---|
-| **Lock-step comparison with Spike at commit** | Correctness per instruction (a commit-trace interface like RVFI designed first) |
-| Random instruction streams (riscv-dv or home-made) | Dense dependences to find holes in renaming and recovery |
-| Exception and interrupt injection | Interrupts during a misprediction, page faults on the speculative path |
-| Konata pipeline view | Debugging efficiency |
-| Cycle comparison with the performance model | Finding performance bugs |
-| Bug injection | Into renaming, the free list, checkpoints and the LSQ, to check the tests catch them |
-| Commit-trace ring buffer (BRAM) | Debugging on the board (no room for an ILA) |
+Unchanged in kind: lock-step with Spike at every instruction, riscv-arch-test, bug injection into every block and the
+glue (`SIM/OOO_UNIT`, `SIM/CORE`), cycle comparison with the model. New: each test at both widths while the width is
+a parameter; the board's own checks in step 2 run on mmRISC-2 first.
 
 ---
 
-## 7. Phases and gates
+## 7. Decisions for the author
 
-| Phase | Content | Gate |
+| # | Item | Recommendation |
 |---|---|---|
-| **0** | Repository, measurement rules, instruction-count table, performance model and calibration, design-space exploration, NaxRiscv measured, resource budget | **G0**: micro-architecture spec frozen, with the predicted CoreMark/MHz and the LUT budget in numbers. If the goal is out of reach, the goal or the configuration is revised here |
-| 1 | Integer out-of-order core (2-wide, M-mode only, bare metal), Spike lock-step, riscv-arch-test (from 2026-10-25; riscv-tests before) | **G1**: CoreMark in simulation within ±5 % of the model; the core alone (OOC) in Vivado for LUTs and 50 MHz |
-| 2 | Privilege / CSR / MMU / exceptions / debug / FPU (reduced), all non-speculative handling | **G2**: Linux prompt in SIM_BIOS, all tests PASS, all bug injections detected |
-| 3 | LiteX integration, timing, Linux on the board (BusyBox, Debian 13) | **G3**: 120-minute stress test PASS, CoreMark measured on the board |
-| 4 | Performance work (larger predictor, more fusion, memory-dependence speculation and so on, in the order the model ranks them) | **G4**: goal reached, or the stopping point decided (as in mmRISC-2, themes estimated under a few % are dropped) |
-
-**Why Phase 1 is CoreMark first**: it is the top metric, and simulation gives the fastest iterations. The risk is
-that adding Linux support later breaks things, so serialization at the ROB head, precise exceptions and
-non-speculative MMIO loads are already in the Phase 1 spec.
+| R1 | Width | **3-wide** (section 4); frozen at S1-A |
+| R2 | Where 6.0 is measured | On the board under Linux, as before; the working targets of section 2 |
+| R3 | Bring-up order | **The board first with mmRISC-2** (step 2 in parallel), not after the core |
+| R4 | DRAM clock | **LiteDRAM at 100 MHz (DDR3-800)**, the CPU at 50 MHz (`Doc/BOARD.md` 4); MIG only as a fallback |
+| R5 | Ethernet speed | **1 Gb/s only** with LiteEth's RGMII (`Doc/BOARD.md` 6); a gigabit switch port is needed |
+| R6 | Fusion | Off; removed from the RTL if the width makes it pointless |
 
 ---
 
-## 8. Decisions for the author
-
-Decided by the author on 2026-10-24 (`Doc/PROMPT.md` entry 11).
-
-| # | Item | Recommendation | **Decision (2026-10-24)** |
-|---|---|---|---|
-| D1 | The goal | 5.0 with `-O2`, 6.0 with the most optimization; confirmed by the model at G0 (6.0 with `-O2` is not a 2-wide target) | As recommended; **the goal is to exceed 6.0 with the most optimization** |
-| D2 | Width | Fixed at 2 µops + fusion + SFB; 3-wide reconsidered only if G0 shows plenty of resources | As recommended (SFB was dropped by the trace analysis, `Plan/TRACE.md`) |
-| D3 | FPU | Reduced multi-cycle FPU or in-order side pipe (LUTs to the integer side) | **Start with the pipelined FPU (mmRISC-2's FPU_PIPE)**; reconsidered depending on the logic size. **G0 (2026-10-24, `Doc/UARCH.md` section 5): the multi-cycle FPU of mmRISC-2 was larger than the pipelined one (9,757 against 9,060 LUTs), so FPU_PIPE stays; the levers are the breakdown (C1), then C2 / C3** |
-| D4 | Frequency | Fixed at 50 MHz; CoreMark/MHz is the metric, so the slack goes into fewer stages | Fixed at 50 MHz |
-| D5 | Ethernet | Kept in the Linux configuration; the first candidate to cut if LUTs run out | **Kept**; logic is reduced by other means (`Plan/REDUCE.md`) |
-| D6 | Repository | Same shape as mmRISC-2 (Apache-2.0, main / dev, documents in English and Japanese) | As recommended |
-
-**G0 (2026-10-24)**: passed with a condition; the decisions are in `Doc/UARCH.md` section 9. As a principle the
-instruction set of mmRISC-2 Rev.02 is kept: no reduction removes instructions (Zbc stays).
-
----
-
-## 9. Risks
+## 8. Risks
 
 | Risk | Effect | Counter |
 |---|---|---|
-| LUTs do not fit | Smaller configuration | Budget in Phase 0, core synthesized alone at G1, FPU reduced, PMP and others cut |
-| 2-wide does not reach IPC 1.6 | Goal missed | Known early at G0; fusion and SFB measured in the model first |
-| 50 MHz does not close on the -1 grade | More stages, larger penalty | Early OOC synthesis of wakeup-select; a 2-cycle ALU (about −15 %) only as the last resort |
-| Out-of-order bugs specific to Linux (MMIO, A/D updates) | Unexplained stops on the board | Non-speculative list in the spec, SIM_BIOS, exception injection |
-| Wrong assumptions in the model | Wrong choices | Calibrated against mmRISC-2, cycle comparison with the RTL throughout |
+| 3-wide does not close at 50 MHz | Less width or a longer pipeline | Measured at each step of 1.5; area can buy timing now; the 2-wide core stays buildable (the width is a parameter) |
+| The RTL falls further behind the model at 3-wide | Margin lost (6.5 needs × 0.91 of 7.17) | Cycle comparison by function, as `Plan/CORE.md` 5.12; stores split and 2 LSU ports in reserve (+2 % to +5 %) |
+| The model's group of 4 hides another front-end limit | The estimate too high | 1.1 models it before the RTL |
+| The rework of the width is large | Time; every block and test changes | First at W = 2 with no cycle changed, then W = 3 |
+| A longer build | Slower iteration | Baseline in 1.2; out-of-context runs of the core; Vivado runs under x86 emulation on Windows here |
+| Board concerns | `Doc/BOARD.md` 10 | |
 
 ---
 
 ## References
 
-- mmRISC-2: https://github.com/munetomo-maruyama/mmRISC-2 (BENCH.md sections 13 / 17 / 28, TIMING.md)
-- NaxRiscv Performance and Area: https://spinalhdl.github.io/NaxRiscv-Rtd/main/NaxRiscv/performance/index.html
-- `Plan/PRESTUDY_MMRISC2.md` (the study made during mmRISC-2)
+- `Doc/BOARD.md`, `Doc/UARCH.md`; `Plan/model/results/g200t.txt`; `Plan/CORE.md` 5.19 to 5.22; `Plan/OOC.md` 27
+- `Ref/` (not in the repository): the Nexys Video reference manual, schematic and constraints; DS180; UG586

@@ -160,5 +160,5 @@ CoreMark/MHz。`-O2`はg14 / o2 / zbsc、最大最適化はg14 / sflto / zbsc。
 ### 6.6 次の作業
 
 1. 主要ループのOOC合成(2段ALU、wakeup-select、uBTBの次PC、リネーム、PRF)。RTLはClaude Code、Vivadoは作者。
-2. 6.4節の見直しを`STRATEGY_J.md`と`ISSUES_J.md`に反映し、G0の判断(D-4の融合の範囲、構造の大きさ)の材料をまとめる。
+2. 6.4節の見直しを`Plan/STRATEGY_A100T_J.md`と`ISSUES_J.md`に反映し、G0の判断(D-4の融合の範囲、構造の大きさ)の材料をまとめる。
 3. 必要なら、モデルにI$ / D$とボードのメモリのレイテンシを入れ、Linuxの負荷(mmRISC-2のworkload)のトレースでも確認する。

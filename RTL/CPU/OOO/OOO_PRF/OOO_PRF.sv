@@ -2,7 +2,7 @@
 // OOO_PRF.sv
 //
 // The integer physical register file of mmRISC-3: NREG x 64 bits, NW write
-// ports, NR read ports (STRATEGY.md 4: 96 registers; Plan/OOC.md measures
+// ports, NR read ports (Plan/STRATEGY_A100T.md 4: 96 registers; Plan/OOC.md measures
 // what the ports cost).
 //
 //   - One bank of distributed RAM per write port, each read by every read

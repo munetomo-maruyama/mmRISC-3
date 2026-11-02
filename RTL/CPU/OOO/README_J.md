@@ -2,7 +2,9 @@
 
 [English](README.md)
 
-mmRISC-3のOoOコアを**融合構成**(`Doc/STRATEGY_J.md` 4章)で作るための最初のブロック群。50MHzで1サイクルに閉じる必要があるループと、構成を決めるコストを持つ部分。Phase 1でそのまま使える形で書き、まず単体で測る(Phase 0、`Plan/ISSUES_J.md` 5章の手順3。結果は`Plan/OOC_J.md`)。
+> **2026-11-02**: ここのコアは`Plan/CORE_J.md` 5.22の2命令幅のもの。XC7A200Tで3命令幅にする(`Doc/STRATEGY_J.md` 4、5)。
+
+mmRISC-3のOoOコアを**融合構成**(`Plan/STRATEGY_A100T_J.md` 4章)で作るための最初のブロック群。50MHzで1サイクルに閉じる必要があるループと、構成を決めるコストを持つ部分。Phase 1でそのまま使える形で書き、まず単体で測る(Phase 0、`Plan/ISSUES_J.md` 5章の手順3。結果は`Plan/OOC_J.md`)。
 
 | ブロック | 内容 | テスト(`SIM/OOO_UNIT`) |
 |---|---|---|

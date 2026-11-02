@@ -1,7 +1,9 @@
 # Remaining study items of Phase 0 (problems and countermeasures)
 
+> **History (2026-11-02).** The study for the Arty A7-100T. Its measured resources of mmRISC-2 (section 2) are still the basis of the budget; the plan is now `Doc/STRATEGY.md`.
+
 - Date: 2026-10-24
-- Status: the items to study before G0 (micro-architecture frozen, `Doc/STRATEGY.md` section 7), as problems and
+- Status: the items to study before G0 (micro-architecture frozen, `Plan/STRATEGY_A100T.md` section 7), as problems and
   countermeasures. Based on `ICOUNT.md`, `TRACE.md` and the measured resources of mmRISC-2 Rev.02 (section 2 here).
 - Updated as the work goes on (like `ROADMAP.md` of mmRISC-2).
 
@@ -29,7 +31,7 @@
 
 | Item | Result | Document |
 |---|---|---|
-| Strategy | CoreMark first, measure before building, phases and gates | `Doc/STRATEGY.md` |
+| Strategy | CoreMark first, measure before building, phases and gates | `Plan/STRATEGY_A100T.md` |
 | Measurement rules | Fixed at GCC 14.2 (Debian 13); `-O2` with Zba / Zbb / Zbs / Zicond; Zicond in the hardware (decided 2026-10-24) | `ICOUNT.md` section 4 |
 | Instruction counts | 311,890 with `-O2`, 280,958 with the most optimization (sf + `-flto`) per iteration | `ICOUNT.md` |
 | Trace analysis | TAGE takes MPKI from 9.4 to 0.9 - 1.4; the 2-wide limit is the width; fusion +15 %, a bubble per taken transfer −19 %; SFB does not help; a conservative LSQ loses nothing | `TRACE.md` |
@@ -61,7 +63,7 @@ placement). This answers the open item "utilization by hierarchy" of Phase 0.
 | └ CPU_L2 | 1,256 | 933 | **68** / 0 | 0 |
 | └ CPU_DBG / CPU_MMIO / DMA / BUS_ARB | 1,234 / 1,096 / 620 / 144 | | | |
 
-### The budget revised (correcting the estimate of `STRATEGY.md` section 3)
+### The budget revised (correcting the estimate of `Plan/STRATEGY_A100T.md` section 3)
 
 | Item | Estimate (STRATEGY) | From the measurement |
 |---|---|---|
@@ -168,7 +170,7 @@ by a buffer absorbs almost all bubbles at taken transfers (−0.9 % even without
 
 | | Content |
 |---|---|
-| Problem | It was planned as the way to know the upper bound of an out-of-order core on the Arty (`STRATEGY.md` 5.2, step 5). With mmRISC-2's measurement most of the budget is known, so its value drops to "a reference for the LUTs of an out-of-order engine" |
+| Problem | It was planned as the way to know the upper bound of an out-of-order core on the Arty (`Plan/STRATEGY_A100T.md` 5.2, step 5). With mmRISC-2's measurement most of the budget is known, so its value drops to "a reference for the LUTs of an out-of-order engine" |
 | Countermeasure | Do it when the budget turns out to be tight: build with LiteX `--cpu-type naxriscv --xlen 64`, synthesized by the author in Vivado |
 
 ---

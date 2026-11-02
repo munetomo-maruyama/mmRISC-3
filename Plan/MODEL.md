@@ -200,7 +200,7 @@ CoreMark/MHz; `-O2` is g14 / o2 / zbsc, the most optimization g14 / sflto / zbsc
 
 1. OOC synthesis of the main loops (two ALU stages, wakeup-select, uBTB next PC, renaming, PRF); RTL by Claude Code,
    Vivado by the author.
-2. Carry the revisions of 6.4 into `STRATEGY.md` and `ISSUES.md`, and gather the material for the G0 decisions
+2. Carry the revisions of 6.4 into `Plan/STRATEGY_A100T.md` and `ISSUES.md`, and gather the material for the G0 decisions
    (D-4 fusion scope, structure sizes).
 3. If needed, add I$ / D$ and the board's memory latency to the model, and check with traces of Linux loads
    (mmRISC-2's workload) too.

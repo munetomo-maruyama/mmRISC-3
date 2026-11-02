@@ -1,7 +1,7 @@
 # Phase 0-1: CoreMarkの命令数(コンパイラ・オプション・拡張命令別)
 
 - 実施日: 2026-10-24
-- 目的: 目標(`-O2`で5.0、最大最適化で6.0 CoreMark/MHz)に必要なIPCを、実測した命令数から決める(`Doc/STRATEGY_J.md` 1.1節と5.2節の手順1)
+- 目的: 目標(`-O2`で5.0、最大最適化で6.0 CoreMark/MHz)に必要なIPCを、実測した命令数から決める(`Plan/STRATEGY_A100T_J.md` 1.1節と5.2節の手順1)
 - 作業ファイル: `Plan/icount/`(`icount.sh`、`port/`、`results/icount.csv`)
 
 ---
@@ -111,7 +111,7 @@
 | 項目 | 提案 | 理由 |
 |---|---|---|
 | 測定用コンパイラ | **GCC 14.2(Debian 13)に固定**(決定) | 命令数が最少。ボード上のgccと同じで、ボード上でもホスト(qemu-user)でも同じバイナリを作れる |
-| `-O2`の定義 | `-O2 -march=rv64imafdc_zicsr_zifencei_zba_zbb_zbs_zicond`(決定) | ハードが持つ拡張をすべて使う(`STRATEGY_J.md` 1.3節) |
+| `-O2`の定義 | `-O2 -march=rv64imafdc_zicsr_zifencei_zba_zbb_zbs_zicond`(決定) | ハードが持つ拡張をすべて使う(`Plan/STRATEGY_A100T_J.md` 1.3節) |
 | 最大最適化の候補 | sf + `-flto`(命令数最少)と sf(コードが小さい) | 最終的にはサイクル数で決める |
 | Zicond | **ハードに入れる**(決定。mmRISC-2も実装済み) | GCC 14で−1.5% |
 | 性能モデルの入力 | g14 / o2 / zbsc と g14 / sflto / zbsc、比較用に g13 / o2 / zb(mmRISC-2での校正用) | |

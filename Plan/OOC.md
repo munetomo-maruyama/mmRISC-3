@@ -1,7 +1,7 @@
 # Phase 0-4: RTL blocks of the fusion configuration, and getting ready for out-of-context synthesis
 
 - Date: 2026-10-24
-- Purpose: step 3 of `ISSUES.md` section 5. Write in RTL the blocks of the fusion configuration (`Doc/STRATEGY.md`
+- Purpose: step 3 of `ISSUES.md` section 5. Write in RTL the blocks of the fusion configuration (`Plan/STRATEGY_A100T.md`
   section 4) that are loops which must close in one cycle, or whose cost decides the configuration; verify them alone
   and measure size and timing. The author's Vivado decides the timing
 - Working files: `RTL/CPU/OOO/` (RTL), `SIM/OOO_UNIT/` (unit tests and bug injection), `FPGA/OOO_OOC/` (Vivado OOC
@@ -2813,3 +2813,10 @@ file, the privilege level, the fetch buffer) as the worst.
   the first run; the mispredicted branches' two could share EX's ports, as their EX completion is held then).
 - Against the room: over by 9.1k / 9.9k / 10.6k (the whole chip about 62k in the middle: the 52k ceiling + 9.9k, 98 % of the device's 63,400).
   With the timing closed, size is what stands between the core and G1.
+
+## 28. The move to the XC7A200T (2026-11-02)
+
+`synth_ooo.tcl` now targets **xc7a200tsbg484-1** (`Doc/STRATEGY.md`). Every result above and in `output/` from before
+this date is on xc7a100tcsg324-1: same speed grade, smaller device. The first task on the new part is `synth_ooo.bat
+OOO_CPU` on the RTL of 289cc2a's successors, as a baseline (step 1.2). The budget is now `Doc/UARCH.md` 4.5; `Doc/UARCH.md`
+4.4's overrun is history.

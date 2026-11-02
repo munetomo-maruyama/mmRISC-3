@@ -2,10 +2,11 @@
 
 [English](README.md)
 
-mmRISC-3の事前検討(`Doc/STRATEGY_J.md`のPhase 0)。RTLより先に行う性能評価の作業ファイルと文書を置く。
+mmRISC-3の検討と作業ファイル。**多くはArty A7-100T向け**(履歴の[`STRATEGY_A100T_J.md`](STRATEGY_A100T_J.md)のPhase 0)で、計画は今はXC7A200T向けの[`Doc/STRATEGY_J.md`](../Doc/STRATEGY_J.md)。知見と測定は生きており、予算と削減は履歴。新しいもの: `model/g200t.sh`。
 
 | 文書 | 内容 |
 |---|---|
+| [`STRATEGY_A100T_J.md`](STRATEGY_A100T_J.md) / [英語版](STRATEGY_A100T.md) | Arty A7-100T向けの戦略(履歴): 2命令幅、融合、ほかの文書が指すフェーズと関門G0〜G4 |
 | [`MODEL_J.md`](MODEL_J.md) / [英語版](MODEL.md) | Phase 0-3: トレース駆動のC++サイクルモデル。(1) 枠組みとmmRISC-2による校正(5点で±0.3%以内)、(2) OoO 2幅: 融合なしで6.07 / 6.57、融合込みで7.06 / 7.59 CoreMark/MHz |
 | [`OOC_J.md`](OOC_J.md) / [英語版](OOC.md) | Phase 0-4: 融合構成のRTLブロック(RTL/CPU/OOO)、単体テストとバグ注入、Yosysの見積り、レジスタファイルのポートと性能、VivadoのOOC合成 |
 | [`PRESTUDY_MMRISC2_J.md`](PRESTUDY_MMRISC2_J.md) / [英語版](PRESTUDY_MMRISC2.md) | mmRISC-2開発時の事前検討メモ(2026-10-13): Arty A7-100TでのOoO RV64GC。資源、NaxRiscv、Linuxと非投機化、妥協案 |

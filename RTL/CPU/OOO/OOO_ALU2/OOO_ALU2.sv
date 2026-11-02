@@ -1,7 +1,7 @@
 //---------------------------------------------------------------------------
 // OOO_ALU2.sv
 //
-// The ALU of one issue port of mmRISC-3 (STRATEGY.md 4): one full ALU and
+// The ALU of one issue port of mmRISC-3 (Plan/STRATEGY_A100T.md 4): one full ALU and
 // the comparison of a branch, so that a fused ALU + branch finishes in one
 // cycle (Plan/MODEL.md 6). Combinational; the operands come from the
 // register file or the bypass, chosen in front of it.

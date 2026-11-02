@@ -1,7 +1,7 @@
 //---------------------------------------------------------------------------
 // OOO_UBTB.sv
 //
-// The next-line predictor of mmRISC-3 (F0, STRATEGY.md 4): it gives the
+// The next-line predictor of mmRISC-3 (F0, Plan/STRATEGY_A100T.md 4): it gives the
 // fetch address of the next cycle from the one of this cycle, a 1-cycle
 // loop. NE entries, fully associative, one control transfer each:
 //   tag     a partial tag of the 16-byte block of the transfer: the block

@@ -1,7 +1,9 @@
 # Phase 0の残りの検討項目(課題と対策)
 
+> **履歴(2026-11-02)。** Arty A7-100T向けの検討。mmRISC-2の実測資源(2章)は今も予算の根拠。計画は`Doc/STRATEGY_J.md`になった。
+
 - 作成日: 2026-10-24
-- 位置づけ: G0(マイクロアーキテクチャの凍結、`Doc/STRATEGY_J.md` 7章)までに検討すべき項目を、課題と対策の形で整理する。`ICOUNT_J.md`と`TRACE_J.md`の結果、およびmmRISC-2 Rev.02の資源の実測(本書2章)を受けたもの。
+- 位置づけ: G0(マイクロアーキテクチャの凍結、`Plan/STRATEGY_A100T_J.md` 7章)までに検討すべき項目を、課題と対策の形で整理する。`ICOUNT_J.md`と`TRACE_J.md`の結果、およびmmRISC-2 Rev.02の資源の実測(本書2章)を受けたもの。
 - 進捗に合わせて更新する(mmRISC-2の`ROADMAP.md`に相当)。
 
 ---
@@ -22,7 +24,7 @@
 
 | 項目 | 結果 | 文書 |
 |---|---|---|
-| 戦略 | CoreMark先行、測ってから作る、フェーズとゲート | `Doc/STRATEGY_J.md` |
+| 戦略 | CoreMark先行、測ってから作る、フェーズとゲート | `Plan/STRATEGY_A100T_J.md` |
 | 測定条件 | GCC 14.2(Debian 13)に固定、`-O2`はZba/Zbb/Zbs/Zicond込み、ハードにZicond(2026-10-24決定) | `ICOUNT_J.md` 4章 |
 | 命令数 | `-O2` 311,890、最大最適化(sf + `-flto`)280,958命令/回 | `ICOUNT_J.md` |
 | トレース解析 | TAGEでMPKI 9.4 → 0.9〜1.4。2幅の限界は幅そのもの。融合で+15%、takenごとの泡で−19%。SFBは効かない。保守的なLSQで損失なし | `TRACE_J.md` |
@@ -53,7 +55,7 @@ mmRISC-2の`LitexSystem/build/gateware/digilent_arty_utilization_hierarchical_pl
 | └ CPU_L2 | 1,256 | 933 | **68** / 0 | 0 |
 | └ CPU_DBG / CPU_MMIO / DMA / BUS_ARB | 1,234 / 1,096 / 620 / 144 | | | |
 
-### 予算の見直し(`STRATEGY_J.md` 3章の見積りを訂正)
+### 予算の見直し(`Plan/STRATEGY_A100T_J.md` 3章の見積りを訂正)
 
 | 項目 | 見積り(STRATEGY) | 実測にもとづく値 |
 |---|---|---|
@@ -153,7 +155,7 @@ mmRISC-2の`LitexSystem/build/gateware/digilent_arty_utilization_hierarchical_pl
 
 | | 内容 |
 |---|---|
-| 課題 | 当初は、OoOがArtyに入るかの上限値を知る手段として計画した(`STRATEGY_J.md` 5.2節の5)。mmRISC-2の実測で予算の多くが分かったので、価値は「OoOエンジンのLUTの参考値」に下がった |
+| 課題 | 当初は、OoOがArtyに入るかの上限値を知る手段として計画した(`Plan/STRATEGY_A100T_J.md` 5.2節の5)。mmRISC-2の実測で予算の多くが分かったので、価値は「OoOエンジンのLUTの参考値」に下がった |
 | 対策 | 予算が際どいと分かった時点で行う。LiteXの`--cpu-type naxriscv --xlen 64`で作り、作者がVivadoで合成する |
 
 ---

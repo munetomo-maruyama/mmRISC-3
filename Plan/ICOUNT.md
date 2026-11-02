@@ -2,7 +2,7 @@
 
 - Date: 2026-10-24
 - Purpose: fix the IPC needed for the goals (5.0 CoreMark/MHz with `-O2`, 6.0 with the most optimization) from
-  measured instruction counts (`Doc/STRATEGY.md` sections 1.1 and 5.2, step 1)
+  measured instruction counts (`Plan/STRATEGY_A100T.md` sections 1.1 and 5.2, step 1)
 - Working files: `Plan/icount/` (`icount.sh`, `port/`, `results/icount.csv`)
 
 ---
@@ -121,7 +121,7 @@ Bold: mmRISC-2's condition (g13 / o2 / zb), and the fewest with `-O2` and with t
 | Item | Proposal | Reason |
 |---|---|---|
 | Compiler for measurements | **Fixed at GCC 14.2 (Debian 13)** (decided) | Fewest instructions; the same as the gcc on the board, so the same binary can be built on the board or on the host (qemu-user) |
-| Definition of `-O2` | `-O2 -march=rv64imafdc_zicsr_zifencei_zba_zbb_zbs_zicond` (decided) | Every extension the hardware has (`STRATEGY.md` section 1.3) |
+| Definition of `-O2` | `-O2 -march=rv64imafdc_zicsr_zifencei_zba_zbb_zbs_zicond` (decided) | Every extension the hardware has (`Plan/STRATEGY_A100T.md` section 1.3) |
 | Candidates for the most optimization | sf + `-flto` (fewest instructions) and sf (smaller code) | Chosen in the end by cycles |
 | Zicond | **In the hardware** (decided; mmRISC-2 has it too) | −1.5 % with GCC 14 |
 | Input of the performance model | g14 / o2 / zbsc and g14 / sflto / zbsc, plus g13 / o2 / zb for the calibration against mmRISC-2 | |

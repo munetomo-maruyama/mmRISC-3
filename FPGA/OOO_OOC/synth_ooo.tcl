@@ -1,7 +1,8 @@
 #---------------------------------------------------------------------------
 # synth_ooo.tcl : one block of mmRISC-3's out-of-order core alone in Vivado,
-#                 out of context (Artix-7 xc7a100tcsg324-1, the part of the
-#                 Arty A7-100T)
+#                 out of context (Artix-7 xc7a200tsbg484-1, the part of the
+#                 Nexys Video; until 2026-11-02 xc7a100tcsg324-1, the Arty A7-100T,
+#                 which the results in output/ before that date are on)
 #
 #   cd FPGA/OOO_OOC
 #   vivado -mode batch -source synth_ooo.tcl -tclargs [top [period [impl [generics]]]]
@@ -47,7 +48,7 @@
 # input and output delay, as mmRISC-2's FPU_OOC did.
 #---------------------------------------------------------------------------
 
-set part   xc7a100tcsg324-1
+set part   xc7a200tsbg484-1
 set rtl    ../../RTL/CPU/OOO
 set core   ../../RTL/CPU/CORE
 set cache  ../../RTL/CPU/CACHE

@@ -6,7 +6,7 @@
 - Status: the problems listed with counters and compromises (most numbers are rough estimates, to be confirmed by
   measurement)
 - History: a preliminary study made during the development of mmRISC-2 (at Rev.01). Moved on 2026-10-24 from
-  `Doc/mmRISC-OoO_検討メモ.md` to this file (content as it was). For mmRISC-3, `Doc/STRATEGY.md` takes precedence.
+  `Doc/mmRISC-OoO_検討メモ.md` to this file (content as it was). For mmRISC-3, `Plan/STRATEGY_A100T.md` takes precedence.
   This is the English translation of `PRESTUDY_MMRISC2_J.md`
 
 ---

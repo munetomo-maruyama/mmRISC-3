@@ -2,7 +2,7 @@
 
 - Date: 2026-10-24
 - Purpose: before any RTL, find out from instruction traces whether a 2-wide out-of-order core can reach the goals
-  (5.0 CoreMark/MHz with `-O2`, 6.0 with the most optimization) and what matters for it (`Doc/STRATEGY.md`
+  (5.0 CoreMark/MHz with `-O2`, 6.0 with the most optimization) and what matters for it (`Plan/STRATEGY_A100T.md`
   section 5.2, steps 1 and the first half of 2)
 - Working files: `Plan/trace/` (`trace.sh`, `capture.py`, `analyze.py`, `results/`)
 - Premise: the compiler for measurements is GCC 14.2 (Debian 13), and `-O2` includes Zba / Zbb / Zbs / Zicond
@@ -27,7 +27,7 @@
    every 8 instructions on average). **A zero-bubble next-line predictor is a must.**
 5. **SFB (short-forward-branch predication) does almost nothing for CoreMark.** Its candidates are 2 % of the
    conditional branches and at most 2 % of TAGE's mispredictions; GCC 14 has already removed short branches with
-   Zicond. It leaves rank 3 of `STRATEGY.md` section 2.
+   Zicond. It leaves rank 3 of `Plan/STRATEGY_A100T.md` section 2.
 6. **Conservative memory dependence (loads wait until older store addresses are known) costs 0 %.** CoreMark's store
    addresses are known early, so the first LSQ can be conservative. But 11 % of the loads read data stored within the
    previous 64 instructions, so **store-to-load forwarding is needed**.
@@ -96,7 +96,7 @@ ratio to a real core is set by the next step (the calibrated cycle model).
 - 34 % of the instructions are in runs of 8 or fewer before a taken transfer. The front end has to deliver 2
   instructions per cycle without bubbles through a flow that jumps every 8 instructions.
 - An instruction is about 3.1 B on average (46 % RVC). 2 per cycle needs 6.2 B per cycle on average, but with
-  alignment and runs across taken transfers in mind the fetch stays at 16 B per cycle (as in `STRATEGY.md` section 4).
+  alignment and runs across taken transfers in mind the fetch stays at 16 B per cycle (as in `Plan/STRATEGY_A100T.md` section 4).
 
 ### 3.2 Dependences
 | | g14 / o2 / zbsc |
@@ -175,7 +175,7 @@ ratio to a real core is set by the next step (the calibrated cycle model).
 
 ---
 
-## 4. Changes to `STRATEGY.md` (proposal)
+## 4. Changes to `Plan/STRATEGY_A100T.md` (proposal)
 
 | Item | Before | After (proposal) |
 |---|---|---|
@@ -210,4 +210,4 @@ ratio to a real core is set by the next step (the calibrated cycle model).
    compare out-of-order configurations (front-end depth and alignment, TAGE read latency, issue queues, fusion pairs).
 2. Early timing: OOC synthesis of two ALU stages in a cycle (for fusion) and of wakeup-select (Vivado, run by the
    author).
-3. Measure the resources of NaxRiscv and mmRISC-2 (`STRATEGY.md` section 5.2, step 5).
+3. Measure the resources of NaxRiscv and mmRISC-2 (`Plan/STRATEGY_A100T.md` section 5.2, step 5).
