@@ -1,13 +1,13 @@
 //---------------------------------------------------------------------------
-// tb_sched.cpp : OOO_SCHED (3 ALU queues of 8, a memory queue of 12, 4 µops
+// tb_sched.cpp : OOO_SCHED with OOO_SDISP (3 ALU queues of 8, a memory queue of 12, 4 µops
 // dispatched a cycle, 7-bit tags) against an account of when every value can
 // be used, kept independently of the block's own bits
 //
 //   a µop issued in cycle c with latency L makes its result usable by µops
 //   issued from c + L; a result announced on ext_* in cycle c from c + 1.
 //
-// Every cycle, for each queue, the oldest µop dispatched in an earlier cycle,
-// not issued, with all its sources usable and none of the rules below against
+// Every cycle, for each queue, the oldest µop whose S2 (the cycle after disp_go)
+// has passed, not issued, with all its sources usable and none of the rules below against
 // it must be the one issued, and the only one: rr_* shows it the next cycle.
 //   - a load waits for every older store to have issued, a non-speculative
 //     µop for every older one to have left its entry, in any queue
@@ -19,10 +19,12 @@
 //
 // Dispatch: disp_go is checked in full: the queue each slot should go to (any
 // ALU: the queues as full as they were in the last cycle, emptiest first, then
-// in turn), a prefix, as long as the queue has an entry and one of 2 write
-// ports. An entry keeps its µop until its dependents have been told (c + L - 1,
-// or the cycle of ext_*): disp_e must be free, and is where the issue is
-// looked for after (rr_entry).
+// in turn), a prefix, as long as its queue has a bank for it: a queue's even
+// entries are bank A, its odd ones B, one µop a cycle each; the first µop takes
+// A if it has a free entry, else B, a second B after A. A bank's free entry is
+// its lowest as the last cycle left it: free then, or whose µop told its
+// dependents then (c + L - 1, or the cycle of ext_*), and not taken then. disp_e
+// must be it, and is where the issue is looked for after (rr_entry).
 //
 // Branch masks (OOO_CTRL): the bench keeps the checkpoint ids open in program
 // order; a µop takes them as its mask. A kill of an open id, in a cycle without
@@ -70,6 +72,7 @@ int main(int argc, char** argv)
     for (int t = 0; t < NT; t++) { avail[t] = 0; refs[t] = 0; inflight[t] = false; tag_free_at[t] = 0; }
     std::vector<int> open_ids;
     int rk[NQ] = {0, 1, 2};
+    int bfree[4][2] = {{-1, -1}, {-1, -1}, {-1, -1}, {-1, -1}};   // a bank's free entry, as chosen last cycle
     std::vector<long> wslot[NQ];            // the write slots taken, by queue
     int exp_v[4] = {0, 0, 0, 0}, exp_e[4] = {0, 0, 0, 0}; unsigned exp_bm[4] = {0, 0, 0, 0};
     int exp_ns = 0, exp_md = 0;
@@ -99,7 +102,7 @@ int main(int argc, char** argv)
                 it = uops.erase(it);
             } else ++it;
         }
-        int cnt[4] = {0, 0, 0, 0}; bool used[4][12] = {};
+        int cnt[4] = {0, 0, 0, 0}; bool used[4][12] = {}, taken_now[4][12] = {};
         for (auto& u : uops) { cnt[u.q]++; used[u.q][u.e] = true; }
 
         // ---- inputs of this cycle
@@ -136,7 +139,7 @@ int main(int argc, char** argv)
         // the group: regenerated every cycle, what does not go is forgotten
         std::vector<Uop> g;
         std::vector<int> taken, rd;             // the group's destinations, its sources
-        int nd = (kill_id >= 0 || flush) ? 0 : rng() % (rate + 1);
+        int nd = kill_id >= 0 ? 0 : rng() % (rate + 1);   // (in a flush cycle none must go)
         unsigned mask = 0;
         for (int id : open_ids) mask |= 1u << id;
         for (int k = 0; k < nd; k++) {
@@ -226,7 +229,7 @@ int main(int argc, char** argv)
         for (int q = 0; q <= NQ; q++) {
             Uop* best = nullptr;
             for (auto& u : uops) {
-                if (u.q != q || u.issued >= 0) continue;
+                if (u.q != q || u.issued >= 0 || u.disp + 2 > cyc) continue;
                 bool ok = true;
                 for (int s = 0; s < 2; s++) if (u.use[s] && avail[u.src[s]] > cyc) ok = false;
                 if (u.ns && (!d.ns_ok || ns_last)) ok = false;
@@ -246,8 +249,9 @@ int main(int argc, char** argv)
             if (best) grant.push_back(best);
         }
         // ---- dispatch
-        bool stop = flush != 0;
-        int nalu = 0, wrq[4] = {0, 0, 0, 0}, ngo = 0;
+        bool ok = flush == 0;
+        int nalu = 0, ngo = 0;
+        bool ua[4] = {}, ub[4] = {};
         std::vector<Uop> gone;
         for (size_t k = 0; k < (size_t)W; k++) {
             int go = (d.disp_go >> k) & 1;
@@ -257,20 +261,23 @@ int main(int argc, char** argv)
             }
             Uop x = g[k];
             int q = x.kind == 2 ? NQ : x.kind == 1 ? 0 : rk[nalu % NQ];
-            bool room = wrq[q] < 2 && cnt[q] + wrq[q] < QN[q];
-            bool exp_go = !stop && room;
-            if (go != (int)exp_go && bad++ < 12)
-                printf("MISMATCH cycle %ld: slot %zu go %d, expected %d (queue %d, %d in it)\n", cyc, k, go, exp_go, q, cnt[q]);
-            if (!go) { stop = true; if (!room) nstall++; continue; }
+            int h = -1;                          // A 0, B 1
+            if (!ua[q] && !ub[q]) h = bfree[q][0] >= 0 ? 0 : bfree[q][1] >= 0 ? 1 : -1;
+            else if (ua[q] && !ub[q] && bfree[q][1] >= 0) h = 1;
+            if (x.kind == 0) nalu++;
+            if (h < 0 && ok) nstall++;
+            ok = ok && h >= 0;
+            if (go != (int)ok && bad++ < 12)
+                printf("MISMATCH cycle %ld: slot %zu go %d, expected %d (queue %d, %d in it)\n", cyc, k, go, ok, q, cnt[q]);
+            if (!go || !ok) { ok = false; continue; }
+            (h ? ub : ua)[q] = true;
             int dq = bits(d.disp_q, 2 * k, 2), de = bits(d.disp_e, 4 * k, 4);
             if (dq != q && bad++ < 12) printf("MISMATCH cycle %ld: slot %zu to queue %d, expected %d\n", cyc, k, dq, q);
-            if ((de >= QN[q] || used[q][de]) && bad++ < 12) printf("MISMATCH cycle %ld: slot %zu to entry %d of queue %d, in use\n", cyc, k, de, q);
-            if (de < 12) used[q][de] = true;
+            if (de != bfree[q][h] && bad++ < 12) printf("MISMATCH cycle %ld: slot %zu to entry %d of queue %d, expected %d\n", cyc, k, de, q, bfree[q][h]);
+            taken_now[q][de] = true;
             x.q = q; x.e = de; x.id = next_id++; x.disp = cyc;
             if (x.ext_at >= 0) open_ids.push_back((int)x.ext_at);
             x.ext_at = NEVER;
-            wrq[q]++;
-            if (x.kind == 0) nalu++;
             gone.push_back(x);
             ngo++;
         }
@@ -301,6 +308,16 @@ int main(int argc, char** argv)
                 if (prod_q[u->src[s]] != u->q) ncross++;
             }
         }
+        // the free entries of the next cycle, before this cycle's kill and flush
+        {
+            bool fr[4][12] = {};
+            for (int q = 0; q <= NQ; q++) for (int e = 0; e < QN[q]; e++) fr[q][e] = !used[q][e];
+            for (auto& u : uops) if (u.clr_at == cyc) fr[u.q][u.e] = true;
+            for (int q = 0; q <= NQ; q++) {
+                bfree[q][0] = bfree[q][1] = -1;
+                for (int e = QN[q] - 1; e >= 0; e--) if (fr[q][e] && !taken_now[q][e]) bfree[q][e & 1] = e;
+            }
+        }
         for (int q = 0; q < NQ; q++)
             wslot[q].erase(std::remove_if(wslot[q].begin(), wslot[q].end(), [&](long w) { return w <= cyc; }), wslot[q].end());
         for (Uop& x : gone) {
@@ -322,7 +339,6 @@ int main(int argc, char** argv)
             for (auto& u : uops) drop(u);
             uops.clear();
             open_ids.clear();
-            for (int q = 0; q < NQ; q++) wslot[q].clear();
             for (int q = 0; q <= NQ; q++) exp_v[q] = 0;
             exp_ns = 0; exp_md = 0;
         } else if (kill_id >= 0) {

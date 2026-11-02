@@ -5386,3 +5386,41 @@ Recorded in `Plan/OOC.md` 28.3 (with a Japanese version), pushed as 7b71d06. Ref
 ```text
 Schedrpt finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I checked the results per class. **The dependency matrix's loop came down to 7 levels, so the matrix stays.** Whether it fits in 10 ns is not proven yet, however: with dispatch as the worst path the loop cannot be measured properly.
+
+#### Results per class (slack in ns, levels)
+
+| Class | Dependency matrix | Tag compare |
+|---|---|---|
+| **`loop`**: request → grant → request | **−2.43, 7 levels** | **−4.90, 18 levels** |
+| `wake`: request → wait cell / ready bit | −0.93, 4 levels | −4.28, 15 levels |
+| `free`: occupied bits → the block | −10.34, 24 levels | −8.06, 18 levels |
+| `steer`: the queue order → the block | −8.75, 22 levels | −7.27, 17 levels |
+| `disp`: the slots' registers → the block | −8.61, 22 levels | −7.25, 17 levels |
+| `kill`: kill and clr → the block | −1.13, 6 levels | −1.18, 8 levels |
+| `issue`: the grants' registers → out | +2.32, 4 levels | +3.31, 4 levels |
+
+#### What it says
+- **The levels are as expected.** Today's `OOO_IQ` has 11, tag compare at this size 18, the matrix 7. The tag version's 18 include the dispatch snoop, but in logic delay alone the matrix has 1.39 ns against 2.69 ns.
+- **I take −2.43 ns not to be the loop's limit.** Of the 12.37 ns path, 10.99 ns is route, 5.25 ns of it one net, a column's clear (fan-out 38). With dispatch 8 ns worse, Vivado does not get round to improving the loop, I think. That is a guess, to be confirmed by measuring after dispatch is fixed.
+- **Dispatch misses by more than 8 ns from all three of its starting points.** Steering and the write do not fit in one stage, and I take this to be the main cause of the size too (7,969 LUTs), though with one module the breakdown is not available yet.
+
+#### Next (redesigning dispatch)
+1. **Split it.** Steering and the choice of entries in a stage of their own, deciding from registered free information without a sequential decision per slot. The model's loss is −0.4 % for one more stage (6.842).
+2. **Fewer tag compares.** Replace the compare against 36 entries (8 sources' worth) with a table by tag or the like, deciding by comparing areas.
+3. **Dispatch as a module of its own**, so that the report per block shows what dispatch and the matrix each cost.
+
+Then a further `synth_ooo.bat sched` will show whether the loop fits in 10 ns and the size in the budget of 6.5k.
+
+Recorded in `Plan/OOC.md` 28.3 (with a Japanese version), pushed as 2c6bc0e.
+<!-- /answer -->
+
+## 139. 2026-11-03 01:15:31 JST
+
+```text
+Yes, redesign dispatch
+```

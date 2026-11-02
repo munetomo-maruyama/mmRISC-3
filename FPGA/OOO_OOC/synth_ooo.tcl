@@ -91,7 +91,7 @@ if {$top eq "MM2_CPU_CORE"} {
 } else {
 read_verilog -sv [list \
     $rtl/OOO_ALU/OOO_ALU.sv $rtl/OOO_ALU2/OOO_ALU2.sv $rtl/OOO_FUSE/OOO_FUSE.sv \
-    $rtl/OOO_PRF/OOO_PRF.sv $rtl/OOO_RENAME/OOO_RENAME.sv $rtl/OOO_IQ/OOO_IQ.sv $rtl/OOO_SCHED/OOO_SCHED.sv \
+    $rtl/OOO_PRF/OOO_PRF.sv $rtl/OOO_RENAME/OOO_RENAME.sv $rtl/OOO_IQ/OOO_IQ.sv $rtl/OOO_SDISP/OOO_SDISP.sv $rtl/OOO_SCHED/OOO_SCHED.sv \
     $rtl/OOO_UBTB/OOO_UBTB.sv $rtl/OOO_LSU/OOO_LSU.sv $rtl/OOO_ROB/OOO_ROB.sv \
     $rtl/OOO_FBUF/OOO_FBUF.sv $rtl/OOO_FTQ/OOO_FTQ.sv \
     $rtl/OOO_PREDEC/OOO_PREDEC.sv $rtl/OOO_TAGE/OOO_TAGE.sv $rtl/OOO_BTB/OOO_BTB.sv $rtl/OOO_RAS/OOO_RAS.sv \

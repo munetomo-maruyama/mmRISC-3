@@ -8,7 +8,7 @@
 //   model ooo <trace.bin> [key=value ...]
 //       the 2-wide out-of-order core of mmRISC-3 (ooo.h); keys: w, dec_w,
 //       issue_w, fetch_bytes, fb, fe_depth, dec_depth, iss_to_ex, redirect,
-//       override_at, taken_gap, qw, qwl, hold, steer, rob, iq, lq, sq, ckpt, alu, lsu, mul, mul_shared,
+//       override_at, taken_gap, qw, qwl, hold, steer, free_lag, rk_lag, rob, iq, lq, sq, ckpt, alu, lsu, mul, mul_shared,
 //       lat_alu, lat_load, lat_mul, mdu_busy, ubtb, pred (perfect / gshare / S / M / L),
 //       fusion (0-3), chain, fuse_1w, fuse_2src, fuse_kinds, ck1, ck_jal, mem_cons, fwd, st_data_issue, lsu_cmt, mul_wb, keep_spec, alu_split, iqd, iql, cplx2,
 //       upd (TAGE update 0 at once, 1 at commit), upd_lag, stale, iters
@@ -78,6 +78,8 @@ int main(int argc, char** argv)
         c.qwl = (int)o.get("qwl", c.qwl);
         c.hold = o.get("hold", c.hold) != 0;
         c.steer = (int)o.get("steer", c.steer);
+        c.free_lag = (int)o.get("free_lag", c.free_lag);
+        c.rk_lag = (int)o.get("rk_lag", c.rk_lag);
         c.rob = (int)o.get("rob", c.rob);
         c.iq = (int)o.get("iq", c.iq);
         c.lq = (int)o.get("lq", c.lq);

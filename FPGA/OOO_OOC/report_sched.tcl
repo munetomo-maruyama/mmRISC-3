@@ -3,13 +3,14 @@
 # 4.5 loop 1), also those that are not among the ten worst. synth_ooo.tcl calls
 # it; on its own it reads a finished run, without running it again:
 #
-#   vivado -mode batch -source report_sched.tcl -tclargs output/OOC_SCHED_T10_MATRIX1
+#   vivado -mode batch -source report_sched.tcl -tclargs output/OOC_SCHED_T10
 #
 #   loop   a request through its grant, to a request: the wakeup-select loop
-#   wake   a request into the wait cells (matrix) or the ready bits (tags)
-#   disp   the dispatched slots' registers into the block
-#   free   the occupied bits, through steering, into the block
-#   steer  the queue order (rk) into the block
+#   wake   a request into the wait cells
+#   free   a request into the next free entry
+#   s1     the slots' registers into S1's registers, and the entries' fields
+#   ff     the first free entries and the queue order into the same
+#   s2     S2's registers into the rows and the requests
 #   kill   kill, clr into the block
 #   issue  the grants in a register, out of the block
 # Full paths in timing_loop.rpt. (No list of the cells: a list of more than 500
@@ -23,10 +24,11 @@ proc sched_cells {pats} {
 proc sched_classes {fh outdir} {
     set inr {dv_reg* dk_reg* du_reg* ds_reg* dw_reg* dd_reg* dl_reg* dx_reg* db_reg* dn_reg* dm_reg* dt_reg*}
     set cls [list loop  {*u_sched/*rv_reg*}             {*u_sched/*rv_reg*} \
-                  wake  {*u_sched/*rv_reg*}             {*u_sched/*wq_reg* *u_sched/*rq_reg*} \
-                  disp  $inr                            {u_sched/*} \
-                  free  {*u_sched/*oc_reg*}             {u_sched/*} \
-                  steer {*u_sched/*rk_reg*}             {u_sched/*} \
+                  wake  {*u_sched/*rv_reg*}             {*u_sched/*wq_reg*} \
+                  free  {*u_sched/*rv_reg*}             {*u_disp/ff_reg* *u_disp/bf_reg*} \
+                  s1    $inr                            {u_sched/*} \
+                  ff    {*u_disp/ff_reg* *u_disp/bf_reg* *u_disp/rk_reg*} {u_sched/*} \
+                  s2    {*u_disp/d2_reg* *u_disp/s2_reg* *u_disp/w2_reg* *u_disp/col_q_reg*} {u_sched/*} \
                   kill  {ki_reg* cl_reg*}               {u_sched/*} \
                   issue {*u_sched/*gq_reg*}             {out_reg*}]
     file delete -force $outdir/timing_loop.rpt

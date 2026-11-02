@@ -33,8 +33,7 @@ TOP[fuse]=OOO_FUSE;     SRC[fuse]="$R/OOO_FUSE/OOO_FUSE.sv"
 TOP[prf]=OOO_PRF;       SRC[prf]="$R/OOO_PRF/OOO_PRF.sv"
 TOP[rename]=OOO_RENAME; SRC[rename]="$R/OOO_RENAME/OOO_RENAME.sv"
 TOP[iq]=OOO_IQ;         SRC[iq]="$R/OOO_IQ/OOO_IQ.sv"
-TOP[sched]=OOO_SCHED;   SRC[sched]="$R/OOO_SCHED/OOO_SCHED.sv"
-TOP[schedt]=OOO_SCHED;  SRC[schedt]="${SRC[sched]}"; GV[schedt]="-GMATRIX=0"   # tag compare, to be measured against the matrix
+TOP[sched]=OOO_SCHED;   SRC[sched]="$R/OOO_SDISP/OOO_SDISP.sv $R/OOO_SCHED/OOO_SCHED.sv"
 TOP[ctrl]=OOO_CTRL;     SRC[ctrl]="$R/OOO_CTRL/OOO_CTRL.sv"
 TOP[dsreg]=OOO_DSREG;   SRC[dsreg]="$R/OOO_DSREG/OOO_DSREG.sv"; GV[dsreg]="-GW=16"
 TOP[trap]=OOO_TRAP;     SRC[trap]="$R/OOO_TRAP/OOO_TRAP.sv"
@@ -59,7 +58,7 @@ TOP[dec]=OOO_DEC;       SRC[dec]="$C/CORE_DECOMP/CORE_DECOMP.sv $C/CORE_DEC/CORE
 XC[dec]="-I$SP/include -I$SP/include/riscv -I$SP/include/softfloat -I$SP/include/fesvr -Wno-c++20-extensions"
 XL[dec]="-L$SP/lib -lriscv -ldisasm -lsoftfloat -lfesvr -Wl,-rpath,$SP/lib -lpthread -ldl"
 TOP[fetch]=OOO_FETCH;   SRC[fetch]="$R/OOO_UBTB/OOO_UBTB.sv $R/OOO_PREDEC/OOO_PREDEC.sv $R/OOO_TAGE/OOO_TAGE.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FETCH/OOO_FETCH.sv"
-TESTS=${*:-alu2 alu1 fuse prf rename ctrl dsreg stage fers trap sys csru mdup pmul iq sched schedt iqpl ubtb lsu dcad rob fbuf ftq predec ras btb tage fetch dec}
+TESTS=${*:-alu2 alu1 fuse prf rename ctrl dsreg stage fers trap sys csru mdup pmul iq sched iqpl ubtb lsu dcad rob fbuf ftq predec ras btb tage fetch dec}
 
 fail=0
 for t in $TESTS; do

@@ -74,7 +74,8 @@ struct OooCfg {
     int iql = 12;
     int qw = 0, qwl = 0;        // iqd: µops written a cycle into an ALU queue, into the memory queue (0: no limit)
     bool hold = false;          // iqd: a µop of latency > 1 keeps its entry until its dependents wake (dependency matrix)
-    int steer = 0;              // iqd: 0 the emptiest ALU queue, 1 round robin (the next with room), 2 as OOO_SCHED
+    int steer = 0;              // iqd: 0 the emptiest ALU queue, 1 round robin (the next with room), 2 by last cycle's order, 3 OOO_SDISP
+    int free_lag = 0, rk_lag = 1;   // iqd, steer 3: cycles until a freed entry can be chosen; age of the queues' order
     int cplx2 = 0;              // ALU µops of these classes take 2 cycles (mask of 1 << sub: 2 shift, 4 Zba, 8 Zbb,
                                 // 16 Zbs, 32 Zicond; mktrace.py)
     int alu_split = 0;          // the 2 ALU ports (with alu = 2, mul_shared; Doc/UARCH.md 6.11):
@@ -203,6 +204,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     std::priority_queue<long, std::vector<long>, std::greater<long>> qh[9];   // iqd: the queues
     long q_wr_c[9] = {-1,-1,-1,-1,-1,-1,-1,-1,-1}; int q_wr_n[9] = {}; int rr_q = 0;
     long rk_c = -1; int rk[9] = {}, rk_n = 0;
+    bool bank_c[9] = {};
     std::vector<std::pair<long, long>> q_life[9];   // steer=2: (dispatch, free) of the recent µops of a queue
     std::unordered_map<long, int> useq[8];
     struct StInfo { long data_ready, commit; };
@@ -270,6 +272,38 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 int lo = memu ? c.iqd : 0, hi = memu ? c.iqd : q0 ? 0 : c.iqd - 1;
                 int b = -1, bn = 1 << 30;
                 int nq = hi - lo + 1;
+                if (c.steer == 3) {
+                    // OOO_SDISP: a queue is 2 banks of half its entries, one write a bank a cycle;
+                    // the first µop into a queue takes bank A if it has room, else B; a second
+                    // takes B after A. The queues' order is rk_lag cycles old, the group's
+                    // any-ALU µops in turn. A µop that finds no room waits, and its younger ones.
+                    if (rk_c != d) {
+                        int cn[9];
+                        for (int q = 0; q < c.iqd; q++) {
+                            cn[q] = 0;
+                            for (int h = 0; h < 2; h++)
+                                for (auto& e : q_life[2 * q + h]) if (e.first <= d - c.rk_lag - 1 && e.second >= d - c.rk_lag) cn[q]++;
+                            rk[q] = q;
+                        }
+                        std::stable_sort(rk, rk + c.iqd, [&](int x, int y) { return cn[x] < cn[y]; });
+                        rk_c = d; rk_n = 0;
+                        for (int h = 0; h < 2 * (c.iqd + 1); h++) bank_c[h] = false;
+                    }
+                    int q = memu ? c.iqd : q0 ? 0 : rk[rk_n % c.iqd];
+                    int ha = 2 * q, hb = 2 * q + 1;
+                    int bcap = (q == c.iqd ? c.iql : c.iq) / 2;
+                    expire(ha); expire(hb);
+                    int h = -1;
+                    if (!bank_c[ha] && !bank_c[hb]) h = (int)qh[ha].size() < bcap ? ha : (int)qh[hb].size() < bcap ? hb : -1;
+                    else if (bank_c[ha] && !bank_c[hb]) h = (int)qh[hb].size() < bcap ? hb : -1;
+                    if (h >= 0) {
+                        bq = h; bank_c[h] = true;
+                        if (!memu && !q0) rk_n++;
+                        break;
+                    }
+                    res.st_iq++; d++;
+                    continue;
+                }
                 if (c.steer == 2 && !memu && !q0) {
                     // OOO_SCHED: the queues as full as they were in the last cycle, emptiest
                     // first; the group's µops in turn; a µop that finds no room waits
@@ -365,7 +399,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         const Rec& pr = t[pair && t[last].cls != C_ALU ? last : i];
         int port = (pr.cls == C_LOAD || pr.cls == C_STORE) ? 1 : (pr.cls == C_MUL || pr.cls == C_DIV) ? (c.mul_shared ? 0 : 2) : 0;
         if (c.iqd && port != 1) {
-            auto& uq = useq[bq];
+            auto& uq = useq[c.steer == 3 ? bq / 2 : bq];   // one select a queue, banks or not
             while (uq[is] >= 1 || (c.issue_w && use_all[is] >= c.issue_w) ||
                    ((pr.cls == C_MUL || pr.cls == C_DIV) && c.mdu_busy && use_mdu[is])) is++;
             uq[is]++;
@@ -418,8 +452,9 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         if (c.iqd) {
             long fr = std::max(is, sp);
             if (c.hold) fr += pr.cls == C_LOAD ? c.lat_load - 1 : pr.cls == C_MUL ? c.lat_mul - 1 : 0;
+            fr += c.free_lag;
             qh[bq].push(fr);
-            if (c.steer == 2 && bq < c.iqd) {
+            if (c.steer == 3 || (c.steer == 2 && bq < c.iqd)) {
                 auto& l = q_life[bq];
                 while (l.size() > 32) l.erase(l.begin());
                 l.push_back({d, fr});

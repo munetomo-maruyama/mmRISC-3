@@ -2950,3 +2950,36 @@ worst one cannot be met, and here that one is 8 ns worse, so **−2.43 is not th
 no longer dominates. The tag version's loop runs through its dispatch snoop (`dr`) as well; its 18 levels are not all the loop's own, but its logic alone is 2.69 ns.
 
 Decision: **keep the matrix**, and redesign dispatch, as `OOO_SCHED`'s next step, in its own module, so that the report per block shows what it costs.
+
+### 28.4 Dispatch redesigned: `OOO_SDISP` (2026-11-03)
+
+`OOO_SCHED` with dispatch in a module of its own, `OOO_SDISP`, so that the report per block separates them. The tag version is gone from the RTL (its
+results stay in `output/OOC_SCHED_T10_MATRIX0`). Run: `synth_ooo.bat sched`, in `output/OOC_SCHED_T10`. Not measured yet.
+
+| What was in one stage | Now |
+|---|---|
+| Occupied bits → free entries → go | `ff`, `bf`: the first free entry of each bank, **in registers**, chosen the cycle before |
+| Slots' decisions in sequence, through go | The slot's bank does not depend on whether older slots go (they all do if it does) |
+| Entry's fields, 4 slots onto each | **A queue is 2 banks** (even and odd entries), one write each: one source per field, no mux at the entry |
+| Tag compare, group dependence, port mux, wait cell, row, `rv` | **S1**: compare, into a register per slot. **S2**: port mux, wait cell, row, `rv` |
+
+S1 runs alongside renaming's R2 and S2 is the existing stage DS, so **no stage is added** if rename of 4 can share its go with it: to be checked with loop 4's harness. If not, a stage more gives 6.801.
+
+**CoreMark/MHz** (`Plan/model/g100.sh`, `-O2` / most optimization / g13):
+
+| Step | Result |
+|---|---|
+| The last version (28.2) | 6.870 / 7.378 / 6.644 |
+| Banks in place of 2 writes a queue | 6.866 / 7.386 / 6.645: nothing |
+| **As built**: a freed entry a cycle later, the queues' order 2 cycles old | **6.829 / 7.320 / 6.604, −1.0 % against the proposal's 6.901** |
+| A freed entry 2 cycles later (no grant into `ff`) | 6.789: why the grant stays in that path |
+| Queues of 10, as built | 6.862: +0.5 %, for 1.36 times the wait cells: no |
+
+At the usual 0.94 of the model the RTL would give about 6.42, above gate S1-B's 6.3.
+
+**What I proposed and did not do: the producer's entry from a table by tag.** Worked out, it does not pay: a table of 80 × 6 bits with 4 writes and 8 reads, plus a way to tell a live entry from
+a stale one (busy bits, with tags on a bus again), comes to about what the compare costs (288 compares), and it would bind the free list to banks. So the compare stays.
+
+**Size**: my estimate is about 5k LUTs, against 7,969. The last estimate was off by 2, so this one is to be read as a direction only; `utilization.rpt` now gives `u_disp` apart.
+
+**Verification**: `tb_sched` has steering, banks and free entries in full, against the account. 3 seeds, no mismatch. Bug injection M382 to M477 replaces the last list: 93, all detected, after a first round that found 3 redundant conditions in the bank choice and the flush of the write slots (removed; a slot kept free for nothing after a flush costs a cycle at most) and a flush the bench never drove with slots valid (added).

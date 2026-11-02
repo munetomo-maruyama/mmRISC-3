@@ -1200,11 +1200,10 @@ endmodule : OOC_FE
 
 //---------------------------------------------------------------------------
 // OOC_SCHED: the distributed schedulers (OOO_SCHED, 3 ALU queues of 8, a memory
-// queue of 12, Doc/STRATEGY.md 4.5 loop 1), with the matrix or with tags; the
-// loop is inside, every port registered as the core will have it.
+// queue of 12, Doc/STRATEGY.md 4.5 loop 1); the loop is inside, every port
+// registered as the core will have it.
 //---------------------------------------------------------------------------
 module OOC_SCHED
-    #(parameter bit MATRIX = 1'b1)
     (
         input  logic              clk,
         input  logic              rst_n,
@@ -1250,7 +1249,7 @@ module OOC_SCHED
         xv <= ext_valid; xe <= ext_entry;
         out <= {go, dq, de, rv, re, rb, rn, rm};
     end
-    OOO_SCHED #(.MATRIX(MATRIX)) u_sched
+    OOO_SCHED u_sched
         (.clk(clk), .rst_n(rst_n), .flush(fl), .kill(ki), .clr(cl), .ns_ok(nk), .mdu_ok(mk), .q0_hold(qh),
          .disp_valid(dv), .disp_kind(dk), .disp_use(du), .disp_src(ds), .disp_wr(dw), .disp_dst(dd),
          .disp_lat(dl), .disp_ext(dx), .disp_bm(db), .disp_ns(dn), .disp_md(dm), .disp_st(dt),
