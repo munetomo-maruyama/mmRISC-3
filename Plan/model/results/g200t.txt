@@ -25,9 +25,18 @@
 | IQ 16, ROB 32, LQ / SQ 12                                  |  6.929 |  7.547 |  6.756 |
 | **the proposal**: + 8 checkpoints, free write slot, TAGE M, uBTB 16 |  7.170 |  7.743 |  6.970 |
 | the proposal + stores split                                |  7.324 |  7.889 |  7.132 |
-| the proposal + 2 LSU ports                                 |  7.504 |  8.097 |  7.311 |
-| the proposal + 6 decoded a cycle, 32-byte fetch            |  7.599 |  8.178 |  7.291 |
+| the proposal + stores split + 2 LSU ports                                 |  7.504 |  8.097 |  7.311 |
+| the proposal + stores split + 6 decoded, 32-byte fetch            |  7.599 |  8.178 |  7.291 |
 | the proposal, a shorter pipeline (dec 2, redirect 2)       |  7.201 |  7.778 |  6.999 |
 | the proposal, load-use 3                                   |  6.421 |  6.954 |  6.230 |
-| **4-wide, for scale** | | | |
-| 4 ALUs + LSU, IQ 24, ROB 48, LQ / SQ 16, 12 checkpoints, 6 decoded |  8.413 |  9.145 |  8.083 |
+| the proposal, 2 LSU ports (3 ALUs, 5 issues)               |  7.459 |  8.023 |  7.257 |
+| **4-wide** (IQ 24, ROB 48, LQ / SQ 16, 12 checkpoints; Doc/STRATEGY.md 4.1) | | | |
+| 4 wide alone: 3 ALUs + LSU, 4 issues, the proposal's sizes |  7.224 |  7.892 |  7.038 |
+| 3 ALUs + LSU, 4 issues                                     |  7.390 |  7.987 |  7.233 |
+| 4 ALUs + LSU, 5 issues                                     |  7.445 |  7.998 |  7.275 |
+| 3 ALUs + 2 LSU, 5 issues                                   |  7.747 |  8.369 |  7.569 |
+| 4 ALUs + 2 LSU, 6 issues                                   |  7.832 |  8.382 |  7.597 |
+| 4 ALUs + LSU, 5 issues, 6 decoded, 32-byte fetch           |  7.972 |  8.697 |  7.670 |
+| 4 ALUs + 2 LSU, 6 issues, 6 decoded, 32-byte fetch         |  8.603 |  9.406 |  8.253 |
+| **4 issues on a 2-wide core** | | | |
+| 3 ALUs + LSU, 4 issues, 2 dispatched a cycle               |  6.038 |  6.482 |  5.889 |

@@ -24,16 +24,43 @@
 
 ---
 
-## 2. What LiteX already has
+## 2. What LiteX already has, and how it is used
 
-`litex-boards` has a target for this board (`digilent_nexys_video`), and it is in the checkout mmRISC-2 uses:
-pins, `A7DDRPHY` + `MT41K256M16`, `LiteEthPHYRGMII`, `--with-sdcard` (LiteSDCard). Its default system clock is 100 MHz.
-**Written by hand here**: the CPU's wrapper (`cpu/mmrisc/core.py`, already generic about the platform's `pmoda` and
-`user_sw`), the clock domains (section 4), the status LEDs, the device tree, the timing constraints.
+**LiteX supports this board** (`litex_boards/targets/digilent_nexys_video.py`, in the checkout mmRISC-2 uses), so the
+board's bring-up builds on it rather than on hand-written pins and clocks.
 
-**Two things not to take from LiteX's platform file as they are**: it gives the switches and buttons `LVCMOS25`,
-while the board's VADJ is 1.2 V unless the design changes it (section 8); and its `vadj` assignment in the target is
-never connected.
+**Tried on 2026-11-02 (generation only, no Vivado, no board)**: the stock target with Rocket, 100 MHz, SD card and
+Ethernet generates its Verilog, constraints and Vivado script. Its map is mmRISC-2's: ROM 0x1000_0000, SRAM
+0x1100_0000, CSRs 0x1200_0000, Ethernet buffers 0x3000_0000, **main RAM 0x8000_0000, 512 MiB**.
+
+| What LiteX gives | Use here |
+|---|---|
+| Target and platform: all pins, `S7MMCM` CRG, `IDELAYCTRL` | **The base of `LitexSystem/`**, with the changes below |
+| `A7DDRPHY` + `MT41K256M16` at 100 MHz, 1:4 | **As it is: DDR3-800** (section 4) |
+| `LiteEthPHYRGMII` + MAC | As it is (section 6) |
+| LiteSDCard, `SD_RESET` included | As it is (section 5) |
+| `get_port(clock_domain=...)`, `AXIClockDomainCrossing`, `AXILiteClockDomainCrossing` | **The CPU's clock crossing** (section 4) |
+| Rocket, VexRiscv, NaxRiscv and others in the same workspace | **The first check of the board** (step 2.0), a reference for Linux |
+| `spiflash4x` + LiteSPI | Booting from the flash, if wanted (step 3) |
+| `i2c` | The MAC address from the EEPROM, if wanted |
+| `xadc.py` | **The FPGA's temperature and voltages under Linux or the BIOS** (section 10, cooling) |
+| `icap.py` | Reloading the FPGA from software, if wanted |
+| `fan` + `pwm.py` | A fan, if one is fitted |
+| `video.py` (HDMI terminal), `usb_ohci.py`, `dna.py`, `oled` pins | Not needed; available |
+
+**Written by hand here**: the CPU's wrapper (`cpu/mmrisc/core.py`, already generic about `pmoda` and `user_sw`), the
+crossings, the status LEDs, the device tree, the timing constraints.
+
+**What not to take from LiteX as it is** (found by reading and by the trial):
+
+| Point | Fix |
+|---|---|
+| Switches and buttons are `LVCMOS25` in the platform, while VADJ is 1.2 V unless the design changes it | `LVCMOS12`, as Digilent's XDC (section 8) |
+| The target's `vadj` assignment is never connected | Leave `SET_VADJ` alone |
+| `user_btn` 5 is the same pin as `cpu_reset_n` (G4) | Do not request both |
+| `--eth-dynamic-ip` fails with the target's default `eth_ip` ("local_ip cannot be used with dynamic_ip"), and the target has no `--eth-dhcp` | In our target, as on the Arty's `--eth-dhcp` |
+| `LedChaser` takes all 8 LEDs | LD4 to LD7 only (section 8) |
+| The SD pins have no timing constraint | mmRISC-2's constraints (section 5) |
 
 ---
 
@@ -42,9 +69,9 @@ never connected.
 | Clock | Frequency | Use |
 |---|---|---|
 | Board's oscillator, pin R4 (MRCC, bank 34) | 100 MHz | MMCM input |
-| CPU, caches | **50 MHz** | The author's decision |
-| LiteDRAM | **100 MHz** (with 400 MHz and 400 MHz at 90° for the PHY) | Section 4 |
-| Peripherals (CSR, UART, SD, LiteEth's bus side) | 50 or 100 MHz | Decided in 2.2 |
+| **CPU, caches** | **50 MHz**, a new output of the MMCM | The author's decision |
+| **LiteX `sys`**: LiteDRAM, CSR, UART, SD, LiteEth's bus side | **100 MHz, its default on this board** | Section 4 |
+| `sys4x`, `sys4x_dqs` | 400 MHz, 400 MHz at 90° | DDR3-800 |
 | IDELAYCTRL | 200 MHz | DDR3 and RGMII's receive delay |
 | RGMII transmit | 125 MHz with a 2 ns phase | A PLL fed by the PHY's receive clock (section 6) |
 
@@ -60,14 +87,14 @@ bought.
 
 | Option | What | For | Against |
 |---|---|---|---|
-| **A (recommended)** | LiteDRAM at 100 MHz, DDR3-800 as the manual's table; the CPU's memory port crosses to 50 MHz | Within JEDEC on all parts; twice the bandwidth; the DRAM's latency in CPU cycles falls | A clock crossing on the memory port; LiteDRAM's domain has to be split from LiteX's `sys` |
-| B | All of LiteX at 100 MHz (its default on this board), the CPU alone at 50 MHz | The least change to LiteX's structure | Every peripheral at 100 MHz, every CSR access through a crossing |
+| **A (recommended; revised 2026-11-02)** | **All of LiteX at 100 MHz, its default here; the CPU alone at 50 MHz.** Crossings in the CPU's wrapper: the memory bus through `AXIClockDomainCrossing` (or `get_port(clock_domain=...)`), the peripheral and DMA buses through `AXILiteClockDomainCrossing` | LiteX's target as it is, which is what is used and tested on this board; within JEDEC on all parts; twice the bandwidth; SD can go faster; all new logic in one file | Peripherals at 100 MHz; CSR accesses take the crossing (rarely matters); the DRAM's latency has crossing cycles to be measured |
+| B | LiteDRAM alone at 100 MHz, its domain split from `sys`; the peripherals at 50 MHz with the CPU | Peripherals' timing as on the Arty | Renames domains inside LiteX's SoC, against its grain |
 | C | MIG (UG586) in place of LiteDRAM, its AXI at 100 MHz | Xilinx's supported flow | More logic, an IP flow, a new BIOS init; no gain over A. **Fallback only** |
 | D | DDR3-400 as on the Arty | No work | Outside the JEDEC range; a trial at most |
 
 Other points: 512 MiB at 0x8000_0000 to 0x9FFF_FFFF is free in mmRISC-2's map (`MEMMAP.md` section 3); bank 35 at
-1.5 V; the board's clock pin sits in the neighbouring bank 34, as LiteX's target expects; the CPU_L2 and the device
-tree need the new size.
+1.5 V; the CPU_L2 and the device tree need the new size. mmRISC-2's `mtime` counts on the CPU's clock inside the CPU, so
+`timebase-frequency` does not change. The BIOS's and drivers' clock constants become those of `sys`, 100 MHz.
 
 ---
 
@@ -78,7 +105,7 @@ tree need the new size.
 | Sharing | The on-board PIC24 reads the card until the FPGA is configured, then **powers the slot off** and leaves the bus | The design must power it |
 | `SD_RESET` (V20) | **Must be driven low by the FPGA** to power the slot | LiteSDCard does: the PHY drives `pads.rst` (`card_reset`), and its init handles it |
 | Bus | Native 4-bit, CMD, CCLK, CD (T18), bank 14, 3.3 V | `--with-sdcard` pins exist. 3.3 V only: no UHS |
-| Clock | Up to 25 MHz at 50 MHz system clock; more only with 100 MHz peripherals | As on the Arty at first |
+| Clock | With `sys` at 100 MHz, up to 50 MHz by LiteSDCard's divider (3.3 V high speed) | Start at 25 MHz as on the Arty, then measure |
 | Timing | mmRISC-2 found the SD pins had no timing constraint and moved from build to build (`scripts/build_soc.sh`) | Carry the constraints over, on the new pins |
 | Position | **On the underside of the board** | Section 10 |
 | Bitstream from the card | JP4 = USB/SD, JP3 = SD: the PIC24 loads the one `.bit` in the root of a **FAT32** card | Optional. mmRISC-2's boot partition is FAT16 (`LITEXBOOT`); boot from QSPI or JTAG first, decide later |
@@ -95,7 +122,7 @@ tree need the new size.
 | MAC address | A 24AA025E48 on I2C (W5, V5) holds a unique one | Fixed address first, as mmRISC-2; the EEPROM later if wanted |
 | Xilinx's TEMAC | Needs a licence | Not used |
 | Linux | The same `liteeth` driver as on the Arty; the PHY is not managed by it, the link comes up on its own | Check in 3.2 |
-| Bandwidth | The bus side at 50 MHz, 32 bits: 200 MB/s against 125 MB/s of the wire | Enough; what Linux reaches is the CPU's copy, measured in 3.2 |
+| Bandwidth | The bus side at 100 MHz, 32 bits: 400 MB/s against 125 MB/s of the wire | Enough; what Linux reaches is the CPU's copy, measured in 3.2 |
 
 ---
 

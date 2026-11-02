@@ -51,10 +51,20 @@ row "IQ 16, ROB 48"                        $W3 iq=16 rob=48
 row "IQ 16, ROB 32, LQ / SQ 12"            $W3 iq=16 rob=32 lq=12 sq=12
 row "**the proposal**: + 8 checkpoints, free write slot, TAGE M, uBTB 16"  $C3
 row "the proposal + stores split"          $C3 st_data_issue=0
-row "the proposal + 2 LSU ports"           $C3 st_data_issue=0 lsu=2 issue_w=5
-row "the proposal + 6 decoded a cycle, 32-byte fetch"  $C3 st_data_issue=0 dec_w=6 fetch_bytes=32
+row "the proposal + stores split + 2 LSU ports"           $C3 st_data_issue=0 lsu=2 issue_w=5
+row "the proposal + stores split + 6 decoded, 32-byte fetch"  $C3 st_data_issue=0 dec_w=6 fetch_bytes=32
 row "the proposal, a shorter pipeline (dec 2, redirect 2)"  $C3 dec_depth=2 redirect=2
 row "the proposal, load-use 3"             $C3 lat_load=3
-echo "| **4-wide, for scale** | | | |"
-row "4 ALUs + LSU, IQ 24, ROB 48, LQ / SQ 16, 12 checkpoints, 6 decoded" w=4 alu=4 issue_w=5 alu_split=0 iq=24 rob=48 lq=16 sq=16 ckpt=12 mul_wb=0 pred=M ubtb=16 st_data_issue=0 dec_w=6 fetch_bytes=32
+row "the proposal, 2 LSU ports (3 ALUs, 5 issues)"  $C3 lsu=2 issue_w=5
+echo "| **4-wide** (IQ 24, ROB 48, LQ / SQ 16, 12 checkpoints; Doc/STRATEGY.md 4.1) | | | |"
+C4="iq=24 rob=48 lq=16 sq=16 ckpt=12 mul_wb=0 pred=M ubtb=16 alu_split=0 w=4"
+row "4 wide alone: 3 ALUs + LSU, 4 issues, the proposal's sizes"  w=4 alu=3 issue_w=4 alu_split=0 iq=16 rob=32 lq=12 sq=12 ckpt=8 mul_wb=0 pred=M ubtb=16
+row "3 ALUs + LSU, 4 issues"                $C4 alu=3 issue_w=4
+row "4 ALUs + LSU, 5 issues"                $C4 alu=4 issue_w=5
+row "3 ALUs + 2 LSU, 5 issues"              $C4 alu=3 lsu=2 issue_w=5
+row "4 ALUs + 2 LSU, 6 issues"              $C4 alu=4 lsu=2 issue_w=6
+row "4 ALUs + LSU, 5 issues, 6 decoded, 32-byte fetch"    $C4 alu=4 issue_w=5 dec_w=6 fetch_bytes=32
+row "4 ALUs + 2 LSU, 6 issues, 6 decoded, 32-byte fetch"  $C4 alu=4 lsu=2 issue_w=6 dec_w=6 fetch_bytes=32
+echo "| **4 issues on a 2-wide core** | | | |"
+row "3 ALUs + LSU, 4 issues, 2 dispatched a cycle"  w=2 alu=3 issue_w=4 alu_split=0 iq=16 rob=32 lq=12 sq=12 ckpt=8 mul_wb=0 pred=M ubtb=16
 } | tee results/g200t.txt

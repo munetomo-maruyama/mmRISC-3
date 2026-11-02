@@ -5004,3 +5004,72 @@ Do not push this Ref to the remote repository.
 
 (7) Point out any problems or concerns. In particular, I want to know any concerns about the new FPGA board early, to go ahead with the purchase.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I sorted out the order of work and the concerns for the change of plan, and rewrote the documents (pushed as d90ef38). `Ref/` is in `.gitignore`, and I confirmed it is not on the remote. All the numbers are from the model or estimates; the RTL's function has not changed, and nothing has been tried on the board.
+
+**Conclusion: I propose 3-wide.** Comparing configurations in the model set to today's core (g14 `-O2`; the RTL value is from today's RTL being about 0.94 of the model):
+
+| Configuration | Model | RTL expected |
+|---|---|---|
+| Today's core (2-wide) | 5.805 | 5.50 (measured) |
+| 2-wide, everything but fusion | 6.07 | 5.7 |
+| 2-wide, everything with fusion | 6.37 | 6.0 |
+| **3-wide proposal** | **7.17** | **about 6.7** |
+
+- **The limit of 2-wide:** larger ROB and IQ hardly help; it cannot reach "comfortably above 6.0".
+- **The proposal:** 3 full ALUs + LSU, 4 issues, IQ 16, ROB 32, LQ / SQ 12, 8 checkpoints, TAGE M.
+- **Size:** about 84k LUTs for the whole chip, 62 % of 134,600 (the ceiling is 80 %). The blocks from mmRISC-2 can stay at full size.
+- **The limit is now timing:** the same -1 speed grade; about twice the logic but not faster, and today's 2-wide core has only +0.159 ns.
+
+**Order of work (`Doc/STRATEGY.md` section 5)**
+1. **The core:** freeze the configuration with the decode group's boundary in the model; a queue between decode and rename; the width as a parameter (first 2-wide with no cycle changed, then 3-wide); the real I$ / L2; MMU, FPU, interrupts, debug. Gates: RTL `-O2` ≥ 6.5 with real caches, Linux booting in simulation.
+2. **The board (in parallel when it arrives):** first mmRISC-2, known to work, for DDR3, SD on J3, Ethernet, JTAG on JA, then mmRISC-3. This differs from your order (board after core), and I recommend it because it separates the board's problems from the new core's.
+3. **Linux:** OpenSBI, device tree, BusyBox, Debian 13, Ethernet. Gates: the 120-minute stress test, `-O2` above 6.0 on the board under Linux (working target 6.2).
+
+The switches, LEDs and JA assignments are in `Doc/BOARD.md` sections 7 and 8. SW2, SW3 and JA's positions stay; with no RGB LEDs, the status moves to LD0 to LD3.
+
+**To check before ordering**
+
+| # | Concern | What to do |
+|---|---|---|
+| 1 | **Lead time:** 11 weeks, or a 70-week factory lead time, are listed | Check stock with Japanese distributors |
+| 2 | **Power:** 12 V, at least 3 A, not USB; distributors list a supply with US / EU plugs | Check it is in the box and rated for 100 V |
+| 3 | **The other end of Ethernet:** LiteEth's RGMII is 1 Gb/s only | A 1000BASE-T port is needed (check your setup; a small gigabit switch solves it) |
+| 4 | **Cooling:** I could not confirm a heat sink from the documents | Ask the seller (there are solder points for a fan) |
+| 5 | **microSD position:** J3 is on the underside | The board is lifted to change cards; stand-offs help |
+
+The free Vivado ML Standard covers the XC7A200T; no licence to buy.
+
+**Design concerns**
+- **DDR3 (the most important):** mmRISC-2 ran DDR3-400, below JEDEC's minimum. The Nexys Video has 4 possible DDR3 parts, and the same is not guaranteed on all. I recommend LiteDRAM at 100 MHz (DDR3-800) with the CPU staying at 50 MHz.
+- **Switch and button voltage:** VADJ defaults to 1.2 V, but LiteX's platform says `LVCMOS25`, which would read a high as low. `LVCMOS12` it is.
+- **SD:** `SD_RESET` must be low to power the slot. LiteSDCard handles it.
+- **JTAG:** JA3 (AB20) is a configuration dual-purpose pin, but an output, which suits TDO. The 200 Ω series resistor (for below 10 MHz) is within TCK's 10 MHz too.
+- **Risks of 3-wide:** whether it closes at 50 MHz, and whether the RTL falls further behind the model. Fusion stays off for now. Measured at each step, with the stores' split and 2 LSU ports in reserve.
+
+**Documents**
+- New: `Doc/BOARD`, `Plan/model/g200t.sh`
+- Rewritten: `Doc/STRATEGY`, `README`
+- Revised: `Doc/UARCH` (section 0 and 4.5), `Plan/CORE`, `Plan/OOC`
+- Kept as history: the old strategy moved to `Plan/STRATEGY_A100T`; `Plan/REDUCE` and `Plan/ISSUES` of the Arty era say so at the top.
+
+`synth_ooo.tcl` now targets the XC7A200T. **Even before the board arrives**, this shows the build time and memory on the larger device:
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+
+**To decide (`Doc/STRATEGY.md` section 7)**, my recommendations: 3-wide; 6.0 measured on the board under Linux as before; the board brought up first with mmRISC-2; LiteDRAM at 100 MHz; Ethernet 1 Gb/s only; fusion stays off.
+
+Prompt 131 is logged in PROMPT.md, in this commit.
+<!-- /answer -->
+
+## 132. 2026-11-02 21:02:12 JST
+
+```text
+With this FPGA's size, can it be extended from 2 issues to 4 issues?
+Also, LiteX seems to support the Nexys Video board, so please consider making use of those resources too.
+```

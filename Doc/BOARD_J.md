@@ -23,11 +23,39 @@
 
 ---
 
-## 2. LiteXにすでにあるもの
+## 2. LiteXにすでにあるものと、その使い方
 
-`litex-boards`にこのボードのターゲット(`digilent_nexys_video`)があり、mmRISC-2が使うチェックアウトにも入っている: ピン、`A7DDRPHY` + `MT41K256M16`、`LiteEthPHYRGMII`、`--with-sdcard`(LiteSDCard)。既定のシステムクロックは100 MHz。**ここで書くもの**: CPUのラッパー(`cpu/mmrisc/core.py`、プラットフォームの`pmoda`と`user_sw`についてはもともと汎用)、クロックドメイン(4章)、状態のLED、デバイスツリー、タイミング制約。
+**LiteXはこのボードに対応している**(`litex_boards/targets/digilent_nexys_video.py`、mmRISC-2が使うチェックアウトにある)ので、ボードの立ち上げは、手書きのピンとクロックではなくこれを土台にする。
 
-**LiteXのプラットフォームファイルをそのまま使わないもの2つ**: スイッチとボタンを`LVCMOS25`にしているが、ボードのVADJは設計が変えない限り1.2 V(8章)。ターゲットの`vadj`の代入は実際にはつながっていない。
+**2026-11-02に試した(生成のみ、Vivadoなし、ボードなし)**: 標準ターゲットをRocket、100 MHz、SDカード、Ethernetで指定すると、Verilog、制約、Vivadoのスクリプトが生成された。メモリマップはmmRISC-2と同じ: ROM 0x1000_0000、SRAM 0x1100_0000、CSR 0x1200_0000、Ethernetバッファ 0x3000_0000、**メインRAM 0x8000_0000、512 MiB**。
+
+| LiteXにあるもの | ここでの使い方 |
+|---|---|
+| ターゲットとプラットフォーム: 全ピン、`S7MMCM`のCRG、`IDELAYCTRL` | **`LitexSystem/`の土台**、下の変更を加えて |
+| `A7DDRPHY` + `MT41K256M16`、100 MHz、1:4 | **そのまま: DDR3-800**(4章) |
+| `LiteEthPHYRGMII` + MAC | そのまま(6章) |
+| LiteSDCard、`SD_RESET`込み | そのまま(5章) |
+| `get_port(clock_domain=...)`、`AXIClockDomainCrossing`、`AXILiteClockDomainCrossing` | **CPUのクロックの乗り換え**(4章) |
+| 同じワークスペースのRocket、VexRiscv、NaxRiscvなど | **ボードの最初の確認**(手順2.0)、Linuxの参照 |
+| `spiflash4x` + LiteSPI | 必要ならフラッシュからの起動(ステップ3) |
+| `i2c` | 必要ならEEPROMからのMACアドレス |
+| `xadc.py` | **LinuxやBIOSからFPGAの温度と電圧を読む**(10章、冷却) |
+| `icap.py` | 必要ならソフトからFPGAを再コンフィグ |
+| `fan` + `pwm.py` | ファンをつけるなら |
+| `video.py`(HDMI端末)、`usb_ohci.py`、`dna.py`、`oled`のピン | 必要ないが、使える |
+
+**ここで手で書くもの**: CPUのラッパー(`cpu/mmrisc/core.py`、`pmoda`と`user_sw`についてはもともと汎用)、乗り換え、状態のLED、デバイスツリー、タイミング制約。
+
+**LiteXのまま使わないもの**(読んで、また試して分かったこと):
+
+| 点 | 直し方 |
+|---|---|
+| プラットフォームはスイッチとボタンを`LVCMOS25`にしているが、VADJは設計が変えない限り1.2 V | DigilentのXDCどおり`LVCMOS12`(8章) |
+| ターゲットの`vadj`の代入は実際にはつながっていない | `SET_VADJ`は触らない |
+| `user_btn`の5は`cpu_reset_n`と同じピン(G4) | 両方を要求しない |
+| `--eth-dynamic-ip`はターゲットの既定の`eth_ip`とぶつかって失敗する("local_ip cannot be used with dynamic_ip")。ターゲットに`--eth-dhcp`もない | Artyの`--eth-dhcp`と同じものを自分のターゲットに |
+| `LedChaser`がLED 8個すべてを取る | LD4〜LD7だけに(8章) |
+| SDのピンにタイミング制約がない | mmRISC-2の制約(5章) |
 
 ---
 
@@ -36,9 +64,9 @@
 | クロック | 周波数 | 用途 |
 |---|---|---|
 | ボードの発振器、ピンR4(MRCC、バンク34) | 100 MHz | MMCMの入力 |
-| CPU、キャッシュ | **50 MHz** | 作者の決定 |
-| LiteDRAM | **100 MHz**(PHY用に400 MHzと90°の400 MHz) | 4章 |
-| 周辺(CSR、UART、SD、LiteEthのバス側) | 50か100 MHz | 2.2で決める |
+| **CPU、キャッシュ** | **50 MHz**、MMCMの新しい出力 | 作者の決定 |
+| **LiteXの`sys`**: LiteDRAM、CSR、UART、SD、LiteEthのバス側 | **100 MHz、このボードの既定** | 4章 |
+| `sys4x`、`sys4x_dqs` | 400 MHz、90°の400 MHz | DDR3-800 |
 | IDELAYCTRL | 200 MHz | DDR3とRGMIIの受信の遅延 |
 | RGMIIの送信 | 125 MHz、位相2 ns | PHYの受信クロックを入力とするPLL(6章) |
 
@@ -50,12 +78,12 @@
 
 | 案 | 内容 | 利点 | 欠点 |
 |---|---|---|---|
-| **A(おすすめ)** | LiteDRAMを100 MHz、マニュアルの表どおりDDR3-800。CPUのメモリポートで50 MHzへ乗り換える | 全部品でJEDECの範囲内。帯域2倍。CPUサイクルで見たDRAMの遅延が減る | メモリポートのクロック乗り換え。LiteDRAMのドメインをLiteXの`sys`から分ける必要 |
-| B | LiteX全体を100 MHz(このボードの既定)、CPUだけ50 MHz | LiteXの構造の変更が一番少ない | すべての周辺が100 MHz、すべてのCSRアクセスが乗り換えを通る |
+| **A(おすすめ、2026-11-02に改訂)** | **LiteX全体をこのボードの既定の100 MHzに、CPUだけ50 MHz。** 乗り換えはCPUのラッパーの中: メモリバスは`AXIClockDomainCrossing`(か`get_port(clock_domain=...)`)、周辺とDMAのバスは`AXILiteClockDomainCrossing` | このボードで使われ試されているLiteXのターゲットのまま。全部品でJEDECの範囲内。帯域2倍。SDを速くできる。新しい論理が1ファイルにまとまる | 周辺が100 MHz。CSRアクセスが乗り換えを通る(ほとんど問題にならない)。DRAMの遅延に乗り換えのサイクルが乗るので測る |
+| B | LiteDRAMだけ100 MHz、ドメインを`sys`から分ける。周辺はCPUと50 MHz | 周辺のタイミングがArtyと同じ | LiteXのSoCの中でドメインの名前を変える、流儀に逆らう作り |
 | C | LiteDRAMの代わりにMIG(UG586)、AXIは100 MHz | Xilinxがサポートする流れ | 論理が増え、IPの流れ、BIOSの初期化が新しくなる。Aより得がない。**代替案としてだけ** |
 | D | ArtyのようにDDR3-400 | 作業なし | JEDECの範囲外。試すだけなら |
 
-ほかの点: 0x8000_0000〜0x9FFF_FFFFの512 MiBはmmRISC-2のメモリマップで空いている(`MEMMAP_J.md` 3章)。バンク35は1.5 V。ボードのクロックピンは隣のバンク34で、LiteXのターゲットもそれを前提にしている。CPU_L2とデバイスツリーは新しい大きさにする。
+ほかの点: 0x8000_0000〜0x9FFF_FFFFの512 MiBはmmRISC-2のメモリマップで空いている(`MEMMAP_J.md` 3章)。バンク35は1.5 V。CPU_L2とデバイスツリーは新しい大きさにする。mmRISC-2の`mtime`はCPUの中でCPUのクロックで数えるので、`timebase-frequency`は変わらない。BIOSとドライバのクロックの定数は`sys`の100 MHzになる。
 
 ---
 
@@ -66,7 +94,7 @@
 | 共有 | ボードのPIC24がFPGAのコンフィグまでカードを読み、そのあと**スロットの電源を切って**バスを離す | 設計が電源を入れる |
 | `SD_RESET`(V20) | スロットの電源を入れるには**FPGAがLowに駆動する必要がある** | LiteSDCardがする: PHYが`pads.rst`(`card_reset`)を駆動し、初期化で扱う |
 | バス | ネイティブ4ビット、CMD、CCLK、CD(T18)、バンク14、3.3 V | `--with-sdcard`のピンがある。3.3 Vのみ: UHSなし |
-| クロック | システムクロック50 MHzで25 MHzまで。周辺を100 MHzにすればもっと | はじめはArtyと同じ |
+| クロック | `sys`が100 MHzなら、LiteSDCardの分周で50 MHzまで(3.3 Vのハイスピード) | はじめはArtyと同じ25 MHz、そのあと測る |
 | タイミング | mmRISC-2で、SDのピンにタイミング制約がなくビルドごとに動くことが分かった(`scripts/build_soc.sh`) | 新しいピンで制約を引き継ぐ |
 | 位置 | **ボードの裏面** | 10章 |
 | カードからのビットストリーム | JP4 = USB/SD、JP3 = SD: PIC24が**FAT32**のカードのルートの`.bit` 1つを読み込む | 任意。mmRISC-2の起動パーティションはFAT16(`LITEXBOOT`)。まずQSPIかJTAGで起動し、あとで決める |
@@ -83,7 +111,7 @@
 | MACアドレス | I2C(W5、V5)の24AA025E48に固有の値がある | まず固定のアドレス(mmRISC-2と同じ)。必要ならあとでEEPROM |
 | XilinxのTEMAC | ライセンスが必要 | 使わない |
 | Linux | Artyと同じ`liteeth`ドライバ。PHYは管理せず、リンクは自動で上がる | 3.2で確かめる |
-| 帯域 | バス側は50 MHz、32ビットで200 MB/s、線は125 MB/s | 足りる。Linuxで出るのはCPUのコピーの速さで、3.2で測る |
+| 帯域 | バス側は100 MHz、32ビットで400 MB/s、線は125 MB/s | 足りる。Linuxで出るのはCPUのコピーの速さで、3.2で測る |
 
 ---
 

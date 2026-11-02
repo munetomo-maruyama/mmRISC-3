@@ -38,7 +38,7 @@ the goal is measured on):
 | **3-wide, otherwise the same sizes as today** | **6.693** | 6.3 |
 | **3-wide, the proposal (section 4)** | **7.170** | **6.7** |
 | The proposal + stores split into address and data | 7.324 | 6.9 |
-| The proposal + 2 LSU ports | 7.504 | 7.1 |
+| The proposal + stores split + 2 LSU ports | 7.504 | 7.1 |
 | 4-wide, for scale | 8.413 | 7.9 |
 
 - Sizes hardly matter at 2-wide: the width itself is what limits it. That is the finding the old budget hid.
@@ -98,11 +98,11 @@ To be frozen at gate S1-A (section 5), against a model that includes D1's group 
 
 | Item | Today (2026-11-02) | **Proposal** | Why |
 |---|---|---|---|
-| Fetch, decode | 16 B, 4 decoded a cycle | the same | 6 decoded and 32 B add only 3.7 % |
+| Fetch, decode | 16 B, 4 decoded a cycle | the same | 6 decoded and 32 B add little at 3-wide (3.7 %) |
 | **Between decode and rename** | a group register refilled only when empty | **a decoded-instruction queue** | With 3-wide the old rule would give 3 + 1 µops per 2 cycles (`Plan/CORE.md` 5.19) |
 | **Rename, dispatch, commit** | 2 | **3** | The largest single gain (+15 %) |
 | **ALUs** | ALU0 full, ALU1 limited | **3 full ALUs**, branches on each | L7 gave back 1.6 % for LUTs that are now there |
-| LSU | 1 port, 1 load or store | the same; 2 ports ranked next (+2.5 %) | |
+| LSU | 1 port, 1 load or store | the same; 2 ports ranked next (+4 %) | |
 | Issue | unified 10, 3 a cycle | **unified 16, 4 a cycle** | |
 | ROB, registers | 24, 64 registers | **32**, 64 registers | 32 + 32 is enough |
 | LQ / SQ, checkpoints | 8 / 8, 6 | **12 / 12, 8** | |
@@ -112,6 +112,37 @@ To be frozen at gate S1-A (section 5), against a model that includes D1's group 
 | Fusion | off (`FUSE_KINDS` 0) | **stays off**; to be removed or brought back after the width | With 3-wide its gain is small and its compare does not fit (`Plan/OOC.md` 27.5) |
 | FPU, MMU, debug | not yet in the core | mmRISC-2's, at full size | Step 1 |
 | Frequency | 50 MHz | 50 MHz | The author's decision |
+
+### 4.1 Going to 4-wide?
+
+(Asked by the author, 2026-11-02.) **Note the terms**: today's core renames 2 and issues 3 a cycle (2 ALUs + LSU). The
+proposal **already issues 4** (3 ALUs + LSU) and renames 3. A core that issues 4 but dispatches 2 gives only 6.04: the
+width of rename and dispatch is what matters. "4-wide" below means 4 renamed, dispatched and committed.
+
+| Configuration | Model `-O2` | RTL (× 0.94) | Engine, estimated | Chip | Needs besides the width |
+|---|---|---|---|---|---|
+| **3-wide, the proposal** | **7.17** | **6.7** | 44k | 84k, 62 % | |
+| 3-wide, 2 LSU ports | 7.46 | 7.0 | 50k | 92k, 68 % | D$ with 2 ports |
+| 4-wide, 3 ALUs + LSU, the proposal's sizes | 7.22 | 6.8 | 48k | 88k, 65 % | Almost no gain |
+| 4-wide, 4 ALUs + LSU, IQ 24, ROB 48 | 7.45 | 7.0 | 56k | 96k, 71 % | Fetch limits it |
+| 4-wide, 3 ALUs + 2 LSU | 7.75 | 7.3 | 60k | 102k, 76 % | D$ with 2 ports |
+| 4-wide, 4 ALUs + 2 LSU | 7.83 | 7.4 | 64k | 106k, 79 % | D$ with 2 ports |
+| 4-wide, 4 ALUs + LSU, 6 decoded, 32-byte fetch | 7.97 | 7.5 | 65k | 105k, 78 % | I$ 32 bytes wide |
+| **4-wide, 4 ALUs + 2 LSU, 6 decoded, 32-byte fetch** | **8.60** | **8.1** | **73k** | **115k, 85 %** | Both; **over the 80 %** |
+
+(The 4-wide estimates are rougher than 3-wide's, from the same block by block scaling; the register file with 6
+writes and 9 reads is measured, 5,299 LUTs, +1.769 ns.)
+
+- **By area, yes**: 4-wide fits on the XC7A200T up to about 106k, the ceiling; the full version does not.
+- **4-wide alone is worth little** (+0.7 % to +3.8 %): 16 bytes and 4 decoded a cycle, and one LSU port, become the limit.
+  What makes it pay is the wider fetch and the second LSU port, each a project of its own (the I$, predecode, the fetch
+  buffer; a D$ with two ports).
+- **The real question is 50 MHz**, not area: rename's dependence check grows from 1 comparison to 6 in a cycle, the
+  bypass from 3 sources to 6, select from 3 ports to 5 or 6. The 2-wide core has +0.159 ns. It has to be measured.
+- **Recommendation**: 3-wide first, as it reaches the goal with a margin, but **the width is a parameter** (step 1.4), and
+  the sizes too. After S1-B the order is by measured return: **2 LSU ports (+4 %) first, then W = 4**, and the 32-byte
+  fetch, as long as 50 MHz holds. So choosing 3 now does not close 4.
+- **A cheap measurement now**: `synth_ooo.bat OOO_IQ 20.0 1 N=24` shows the queue at 24 entries (with today's 3 ports).
 
 ---
 
@@ -132,13 +163,14 @@ To be frozen at gate S1-A (section 5), against a model that includes D1's group 
 
 ### Step 2: the peripherals and the board
 
-Starts when the board arrives, **in parallel with step 1**; 2.1 to 2.4 use mmRISC-2's CPU, so that a problem is the
-board's or the peripherals', not the new core's.
+Starts when the board arrives, **in parallel with step 1**. It goes from the most proven CPU to the newest: LiteX's
+stock SoC, then mmRISC-2, then mmRISC-3, so that a problem is the board's or the peripherals', not the new core's.
 
 | # | Work | Done when |
 |---|---|---|
-| 2.1 | `LitexSystem/` in this repository from mmRISC-2's; the LiteX target for the Nexys Video with mmRISC-2 as the CPU; clocks, reset, UART, constraints | LiteX BIOS prompt on the board |
-| 2.2 | DDR3 within JEDEC (`Doc/BOARD.md` 4): LiteDRAM's clock domain apart from the CPU's | Memory test of 512 MiB, all DDR3 parts possible |
+| 2.0 | **LiteX's own target as it is** (`Doc/BOARD.md` 2): Rocket at 100 MHz, SD and Ethernet. The Vivado run needs no board: **it can be done before the board arrives** | On the board: BIOS, memory test at DDR3-800, SD, TFTP; Linux on Rocket as a reference, as `LitexRocket` on the Arty |
+| 2.1 | `LitexSystem/` in this repository from mmRISC-2's, with the CPU wrapper on LiteX's target; mmRISC-2 as the CPU; constraints | LiteX BIOS prompt on the board |
+| 2.2 | DDR3 within JEDEC (`Doc/BOARD.md` 4): LiteX at 100 MHz as it is, the CPU at 50 MHz through clock crossings | Memory test of 512 MiB |
 | 2.3 | microSD on J3 (`SD_RESET`, timing constraints); RGMII with the RTL8211E | BIOS boots from the SD card; TFTP and DHCP at 1 Gb/s |
 | 2.4 | JTAG / cJTAG on JA, switches and LEDs (`Doc/BOARD.md` 7, 8) | `jtag_check.tcl` PASS in the 4 combinations |
 | 2.5 | Board bring-up record; DRAM latency measured, fed back to the simulation's memory model | |
@@ -177,9 +209,11 @@ a parameter; the board's own checks in step 2 run on mmRISC-2 first.
 | R1 | Width | **3-wide** (section 4); frozen at S1-A |
 | R2 | Where 6.0 is measured | On the board under Linux, as before; the working targets of section 2 |
 | R3 | Bring-up order | **The board first with mmRISC-2** (step 2 in parallel), not after the core |
-| R4 | DRAM clock | **LiteDRAM at 100 MHz (DDR3-800)**, the CPU at 50 MHz (`Doc/BOARD.md` 4); MIG only as a fallback |
+| R4 | DRAM clock | **LiteX at its default 100 MHz (DDR3-800)**, the CPU alone at 50 MHz through LiteX's crossings (`Doc/BOARD.md` 4); MIG only as a fallback |
 | R5 | Ethernet speed | **1 Gb/s only** with LiteEth's RGMII (`Doc/BOARD.md` 6); a gigabit switch port is needed |
 | R6 | Fusion | Off; removed from the RTL if the width makes it pointless |
+| R7 | 3 or 4 wide | **3 first, with the width as a parameter**; 2 LSU ports, then 4-wide, after S1-B by measurement (4.1) |
+| R8 | LiteX | **Use its Nexys Video target as the base**, with the stock SoC as the first check (`Doc/BOARD.md` 2) |
 
 ---
 
