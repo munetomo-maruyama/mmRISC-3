@@ -2907,6 +2907,8 @@ So it keeps the performance. Queues of 10 would give only +0.3 % (6.892): 8 stay
 400,000 cycles: which µop each queue issues, where each slot goes, masks, kills, flushes, write slots. About 300,000 back-to-back issues, 3/4 across queues. Both
 modes give identical cycles. Bug injection M382 to M443: 60, all detected, after two rounds: the first found a branch of the age matrix that cannot happen (port 0 always has the lower entry; removed) and fields the bench never varied (a non-writer's destination, an external µop's latency). Not connected to the core: the core is still `OOO_IQ`.
 
+A mutation that did not compile used to count as detected in `mutate.py` (M428 here). So the whole list was run again with that closed, on 2026-11-03: **406 mutations, 406 detected, no failed build, none not applied**; the older 346 were all real. `SIM/CORE/mutate_core.py` already has `BUILD FAILED` as a result of its own, and needed no rerun.
+
 Things to look at in the results: `summary.txt` has the worst path per class (`loop`, `wake`, `disp`, `free`, `issue`), full paths in
 `timing_loop.rpt`. `disp` may be the worst: steering, first free entry, a same-group producer and the write all fall in one stage.
 If so it is not the loop that fails, and it can take a stage: one more before the queues gives 6.842, −0.4 % (`dec_depth=6 redirect=7`).

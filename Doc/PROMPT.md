@@ -5284,3 +5284,62 @@ Recorded in `Plan/OOC.md` 28.1 and `Doc/STRATEGY.md` 4.3, 4.5, 5, 7 (both with J
 I want to keep the 100 MHz target and CoreMark/MHz as far as possible.
 Please build the queue-of-8 harness.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I built the queue-of-8 harness `OOC_SCHED` and pushed it (b711731, a383236). **The model gives 6.870 CoreMark/MHz, within −0.4 % of the proposal's 6.901.** Timing and size are still expectations until the Vivado run.
+
+#### The method
+Rather than shrink today's issue queue's worst path (11 levels) to 8 entries, I took the tags out of the loop with a **dependency matrix**. I wrote `OOO_SCHED`, the first step of the RTL for the new core (ALU queues 8 entries × 3, memory queue 12). A wakeup crosses queues, so the 4 are measured together.
+
+| | Today's `OOO_IQ` | `OOO_SCHED` |
+|---|---|---|
+| Selects in the loop | 2, chained | 1 |
+| Wakeup | Tag compared with every source | One column of wait bits cleared |
+| Tag compare | Every cycle, in the loop | Once, at dispatch |
+| Read at the grant | Sources, destination, mask | Nothing (a cycle later, from a register) |
+| Levels | 11 | **6 to 8 (expected)** |
+
+So as not to assume what the matrix buys, a tag-compare version with the same cycles (`MATRIX=0`) is measured with it.
+
+#### The effect on CoreMark/MHz
+What building it requires went into the model (`-O2`).
+
+| Condition | Result |
+|---|---|
+| A µop of latency 2 or more keeps its entry until its column clears | 6.908 (no loss) |
+| 2 writes a queue | 6.895 (6.816 with 1, so 2 is taken) |
+| **All, with the real steering (by how full the queues were in the last cycle)** | **6.870 / 7.378 / 6.644 (`-O2` / most optimization / g13)** |
+
+With RTL at about 0.94 of the model as usual, that is about 6.46, above the gate's 6.3. Queues of 10 give only +0.3 %, so 8 stays.
+
+#### Verification
+- **Tests:** both versions against an independent reference for 400,000 cycles, no mismatch. About 330,000 back-to-back issues, 77 % across queues. The cycles of the two versions are identical.
+- **Bug injection:** all 60 detected (M382 to M443). Three things were found and fixed on the way:
+  - A branch of the age matrix that cannot happen (removed)
+  - Fields the test bench never varied (stimulus added)
+  - `mutate.py` counting a mutation that does not compile as "detected" (now shown as NOT APPLIED)
+
+#### Request
+Please run this on the Windows side:
+
+```bash
+synth_ooo.bat sched
+```
+
+Results go to `output/OOC_SCHED_T10_MATRIX1` and `_MATRIX0`. It is a new harness, not yet through Vivado once, so tell me if an error appears.
+
+The worst path may be dispatch (`disp`) rather than the loop itself: steering, the choice of a free entry, dependences in a group and the write all fall in one stage. Then dispatch can take a stage (6.842 in the model, −0.4 %).
+
+#### A point to confirm
+The existing 346 + 91 mutations may also include some where a build failure was counted as detected. If needed I rerun them all to check.
+
+Recorded in `Plan/OOC.md` 28.2 and `Doc/STRATEGY.md` (both with Japanese versions), the RTL in `OOO_SCHED.sv`. The core is still `OOO_IQ`; the existing core's behaviour is unchanged.
+<!-- /answer -->
+
+## 137. 2026-11-03 00:12:05 JST
+
+```text
+Yes, recheck
+```
