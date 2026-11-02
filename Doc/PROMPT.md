@@ -5343,3 +5343,46 @@ Recorded in `Plan/OOC.md` 28.2 and `Doc/STRATEGY.md` (both with Japanese version
 ```text
 Yes, recheck
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The result of the recheck: **no mutation that failed to build had been counted as detected.** The `synth_ooo.bat sched` results that had arrived, however, are hard: the worst path is dispatch, and the size is about twice my estimate.
+
+#### The recheck of the bug injections
+- **Unit (`mutate.py`):** with failed builds excluded, the whole list was run again: all 406 detected, no failed build, none not applied. The older 346 were all real detections.
+- **Core (`mutate_core.py`):** it already counts a failed build apart as `BUILD FAILED`, so it has no such problem and was not rerun. Its existing result is 91 of 91 detected.
+
+#### The first results of `OOC_SCHED` (target 10 ns)
+
+| Version | LUTs | Register-to-register slack | Levels | Worst path |
+|---|---|---|---|---|
+| Dependency matrix | **7,969** | **−10.34 ns** | 24 | 20.3 ns (route 83 %), `oc` → `rv` |
+| Tag compare | 9,186 | −8.06 ns | 18 | 18.0 ns (route 85 %), `oc` → `rv` |
+
+- **The worst path is dispatch.** All ten worst paths of the matrix begin at `oc` (an entry's occupied bit). The free-count test, the sequential decision over 4 slots, the choice of entry, dependences within a group and the write all fall in one stage, and that does not fit.
+- **The wakeup-select loop's own slack is still unknown.** The class report after place and route stopped on an error in my Tcl (a list of more than 500 cells, and cell names that did not match).
+- **The size estimate was wrong too.** I estimated 3.5k to 4.5k without the payload; the measurement is 7,969 LUTs, above the budget of 6.5k with the payload. I most underrated the tag compare at dispatch and the muxes from slots to ports.
+
+#### Next
+Whatever the loop gives, dispatch is to be redesigned:
+
+1. Steering and the choice of entries in a stage of their own, without the sequential decision per slot (one more stage costs −0.4 % in the model).
+2. The producer's entry from a table by tag rather than a compare against 36 entries.
+
+Which of matrix and tags to keep I would rather decide with the loop's slack in view. The corrected Tcl only reads the finished runs' checkpoints, with no new place and route.
+
+```bash
+synth_ooo.bat schedrpt
+```
+
+Results go to `summary_loop.txt` in `output/OOC_SCHED_T10_MATRIX1` and `_MATRIX0`. This branch of the bat has not been run yet either, so tell me if an error appears.
+
+Recorded in `Plan/OOC.md` 28.3 (with a Japanese version), pushed as 7b71d06. Ref is not on the remote.
+<!-- /answer -->
+
+## 138. 2026-11-03 01:02:25 JST
+
+```text
+Schedrpt finished
+```

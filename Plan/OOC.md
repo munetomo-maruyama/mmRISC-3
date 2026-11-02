@@ -2931,3 +2931,22 @@ If so it is not the loop that fails, and it can take a stage: one more before th
   and the muxes of slots onto ports, per column, are what I most underrated; the report per block will not separate them, since it is one module.
 - Both point at the same place, so dispatch has to be redesigned whatever the loop gives: steering and the entries in a stage of their own, without
   the sequential decision per slot; the producer's entry from a table by tag rather than a compare against 36 entries. One more stage costs −0.4 % in the model.
+
+**The classes** (`synth_ooo.bat schedrpt`, `summary_loop.txt`, full paths in `timing_loop.rpt`; slack in ns, levels):
+
+| Class | `MATRIX=1` | `MATRIX=0` |
+|---|---|---|
+| `loop`: request, grant, request | **−2.429, 7** | **−4.900, 18** |
+| `wake`: request into the wait cell / ready bit | −0.927, 4 | −4.280, 15 |
+| `free`: occupied bits into the block | −10.336, 24 | −8.057, 18 |
+| `steer`: the queue order into the block | −8.752, 22 | −7.270, 17 |
+| `disp`: the slots' registers into the block | −8.612, 22 | −7.250, 17 |
+| `kill`: `kill`, `clr` into the block | −1.126, 6 | −1.176, 8 |
+| `issue`: the grants in a register, out | +2.321, 4 | +3.308, 4 |
+
+**The matrix did what it was built for, in levels: 7, against 11 in `OOO_IQ` and 18 for tags at this size.** The logic of its loop is 1.39 ns of the
+12.37 ns path; the route is 10.99, and one net is 5.25 ns of that: a column's clear, fan-out 38, from slice X36 to X18. Vivado stops improving other paths when the
+worst one cannot be met, and here that one is 8 ns worse, so **−2.43 is not the loop's limit, only what it was left with**. A loop with 7 levels should fit in 10 ns; that is not measured until dispatch
+no longer dominates. The tag version's loop runs through its dispatch snoop (`dr`) as well; its 18 levels are not all the loop's own, but its logic alone is 2.69 ns.
+
+Decision: **keep the matrix**, and redesign dispatch, as `OOO_SCHED`'s next step, in its own module, so that the report per block shows what it costs.
