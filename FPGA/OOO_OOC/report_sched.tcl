@@ -1,0 +1,52 @@
+#---------------------------------------------------------------------------
+# report_sched.tcl : the worst path of each class of OOC_SCHED (Doc/STRATEGY.md
+# 4.5 loop 1), also those that are not among the ten worst. synth_ooo.tcl calls
+# it; on its own it reads a finished run, without running it again:
+#
+#   vivado -mode batch -source report_sched.tcl -tclargs output/OOC_SCHED_T10_MATRIX1
+#
+#   loop   a request through its grant, to a request: the wakeup-select loop
+#   wake   a request into the wait cells (matrix) or the ready bits (tags)
+#   disp   the dispatched slots' registers into the block
+#   free   the occupied bits, through steering, into the block
+#   steer  the queue order (rk) into the block
+#   kill   kill, clr into the block
+#   issue  the grants in a register, out of the block
+# Full paths in timing_loop.rpt. (No list of the cells: a list of more than 500
+# is an error in Vivado, so a class is one filter.)
+#---------------------------------------------------------------------------
+proc sched_cells {pats} {
+    set f {}
+    foreach pt $pats { lappend f "NAME =~ $pt" }
+    return [get_cells -quiet -hierarchical -filter "IS_SEQUENTIAL && ([join $f { || }])"]
+}
+proc sched_classes {fh outdir} {
+    set inr {dv_reg* dk_reg* du_reg* ds_reg* dw_reg* dd_reg* dl_reg* dx_reg* db_reg* dn_reg* dm_reg* dt_reg*}
+    set cls [list loop  {*u_sched/*rv_reg*}             {*u_sched/*rv_reg*} \
+                  wake  {*u_sched/*rv_reg*}             {*u_sched/*wq_reg* *u_sched/*rq_reg*} \
+                  disp  $inr                            {u_sched/*} \
+                  free  {*u_sched/*oc_reg*}             {u_sched/*} \
+                  steer {*u_sched/*rk_reg*}             {u_sched/*} \
+                  kill  {ki_reg* cl_reg*}               {u_sched/*} \
+                  issue {*u_sched/*gq_reg*}             {out_reg*}]
+    file delete -force $outdir/timing_loop.rpt
+    foreach {name from to} $cls {
+        set cf [sched_cells $from]
+        set ct [sched_cells $to]
+        if {[llength $cf] == 0 || [llength $ct] == 0} { puts $fh "  $name: no cells"; continue }
+        set p [get_timing_paths -quiet -max_paths 1 -nworst 1 -setup -from $cf -to $ct]
+        if {[llength $p] == 0} { puts $fh "  $name: no path"; continue }
+        puts $fh [format "  %-5s worst %7.3f ns (%2d logic levels), from %s to %s" $name \
+                      [get_property SLACK $p] [get_property LOGIC_LEVELS $p] \
+                      [get_property STARTPOINT_PIN $p] [get_property ENDPOINT_PIN $p]]
+        report_timing -max_paths 3 -nworst 1 -path_type full -from $cf -to $ct \
+            -name $name -append -file $outdir/timing_loop.rpt
+    }
+}
+if {![info exists top]} {
+    set dir [lindex $argv 0]
+    open_checkpoint $dir/post_route.dcp
+    set fh [open $dir/summary_loop.txt w]
+    sched_classes $fh $dir
+    close $fh
+}

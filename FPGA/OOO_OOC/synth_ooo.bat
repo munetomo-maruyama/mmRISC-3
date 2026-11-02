@@ -9,6 +9,7 @@ REM   synth_ooo.bat MM2_CPU_CORE   the calibration: mmRISC-2's CPU_CORE (not in 
 REM   synth_ooo.bat OOO_CPU    B7: mmRISC-3's whole core with its D$ (not in the loop either)
 REM   synth_ooo.bat t100       the loops that decide 100 MHz, at a 10 ns target, in output\<top>_T10 (Doc/STRATEGY.md 4.5)
 REM   synth_ooo.bat sched      the distributed schedulers at a 10 ns target, dependency matrix and tag compare, in output\OOC_SCHED_T10_*
+REM   synth_ooo.bat schedrpt   the classes of those two finished runs, without running them again: output\OOC_SCHED_T10_*\summary_loop.txt
 REM
 REM vivado is itself a batch file: without "call" this one would end after
 REM the first run outside a loop (the register files did not run, 2026-10-24)
@@ -16,6 +17,7 @@ if not exist output mkdir output
 if /i "%~1"=="prf" goto :prf
 if /i "%~1"=="t100" goto :t100
 if /i "%~1"=="sched" goto :sched
+if /i "%~1"=="schedrpt" goto :schedrpt
 if not "%~1"=="" (
     call vivado -mode batch -source synth_ooo.tcl -log output\vivado_%~1.log -journal output\vivado_%~1.jou -tclargs %*
     goto :done
@@ -44,5 +46,9 @@ goto :done
 :sched
 call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T10_SCHED1.log -journal output\vivado_T10_SCHED1.jou -tclargs OOC_SCHED 10.0 1 "MATRIX=1"
 call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T10_SCHED0.log -journal output\vivado_T10_SCHED0.jou -tclargs OOC_SCHED 10.0 1 "MATRIX=0"
+goto :done
+:schedrpt
+call vivado -mode batch -source report_sched.tcl -log output\vivado_rpt_SCHED1.log -journal output\vivado_rpt_SCHED1.jou -tclargs output/OOC_SCHED_T10_MATRIX1
+call vivado -mode batch -source report_sched.tcl -log output\vivado_rpt_SCHED0.log -journal output\vivado_rpt_SCHED0.jou -tclargs output/OOC_SCHED_T10_MATRIX0
 :done
 echo Done. The numbers are in output\*\summary.txt

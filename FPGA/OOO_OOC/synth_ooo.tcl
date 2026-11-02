@@ -216,31 +216,10 @@ if {$impl} {
                 -name $name -append -file $outdir/timing_d1.rpt
         }
     }
-    # OOC_SCHED: the worst path of each class (Doc/STRATEGY.md 4.5 loop 1), also
-    # those that are not among the ten worst: the wakeup-select loop, from a
-    # request through its grant to a request; the grant into the wait cells;
-    # dispatch, from the slots and from the free entries; full paths in timing_loop.rpt
+    # OOC_SCHED: the worst path of each class (report_sched.tcl)
     if {$top eq "OOC_SCHED"} {
-        set inr {*dv_reg* *dk_reg* *du_reg* *ds_reg* *dw_reg* *dd_reg* *dl_reg* *dx_reg* *db_reg* *dn_reg* *dm_reg* *dt_reg*}
-        set cls [list loop {*u_sched/rv_reg*} {*u_sched/rv_reg*} \
-                      wake {*u_sched/rv_reg*} {*wq_reg* *rq_reg*} \
-                      disp $inr {*u_sched/*} \
-                      free {*u_sched/oc_reg*} {*u_sched/*} \
-                      issue {*u_sched/gq_reg* *u_sched/*bq_reg*} {*out_reg*}]
-        file delete -force $outdir/timing_loop.rpt
-        foreach {name from to} $cls {
-            set cf {}; set ct {}
-            foreach pt $from { lappend cf {*}[get_cells -quiet -hierarchical -filter "IS_SEQUENTIAL && NAME =~ $pt"] }
-            foreach pt $to   { lappend ct {*}[get_cells -quiet -hierarchical -filter "IS_SEQUENTIAL && NAME =~ $pt"] }
-            if {[llength $cf] == 0 || [llength $ct] == 0} { puts $fh "  $name: no cells"; continue }
-            set p [get_timing_paths -quiet -max_paths 1 -nworst 1 -setup -from $cf -to $ct]
-            if {[llength $p] == 0} { puts $fh "  $name: no path"; continue }
-            puts $fh [format "  %-5s worst %7.3f ns (%2d logic levels), from %s to %s" $name \
-                          [get_property SLACK $p] [get_property LOGIC_LEVELS $p] \
-                          [get_property STARTPOINT_PIN $p] [get_property ENDPOINT_PIN $p]]
-            report_timing -max_paths 3 -nworst 1 -path_type full -from $cf -to $ct \
-                -name $name -append -file $outdir/timing_loop.rpt
-        }
+        source report_sched.tcl
+        sched_classes $fh $outdir
     }
     # OOO_CPU: the worst paths between flip-flops, one per endpoint (B7:
     # which blocks they join)

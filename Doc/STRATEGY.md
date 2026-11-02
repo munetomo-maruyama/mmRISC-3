@@ -159,7 +159,7 @@ LiteX stays at its default 100 MHz, the **same clock as the CPU**, so there is n
 
 | # | Loop | Target | If it fails | Model | Today at 10 ns (register to register) |
 |---|---|---|---|---|---|
-| 1 | **Wakeup + select** (IS) | 1 cycle, queue of 8 | ALU 2 cycles | **−20 %**: 5.51, a redesign | −1.95 ns, 10 entries, 3 ports; the harness of the new design awaits its run |
+| 1 | **Wakeup + select** (IS) | 1 cycle, queue of 8 | ALU 2 cycles | **−20 %**: 5.51, a redesign | −1.95 ns, 10 entries, 3 ports; the new design's first run: dispatch −10.3 ns, the loop not known yet (`Plan/OOC.md` 28.3) |
 | 2 | **Bypass + ALU** (EX) | 1 cycle | ALU 2 cycles | **−20 %** | −0.66 ns full; +2.34 ns ALU1's functions |
 | 3 | **M1 + M2** (load) | Load-use 3 | Load-use 4, 5 | −7.9 %, −15 % | −2.66 ns in one stage, to become two |
 | 4 | **Rename of 4** (R1, R2) | 2 stages | 3 stages | about −1 % | +1.04 ns at 2 µops, in one stage |

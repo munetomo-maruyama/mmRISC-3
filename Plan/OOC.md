@@ -2866,7 +2866,7 @@ The next step is 1.1 (`Doc/STRATEGY.md` section 5), the queue of 8 first. The ga
 
 The first harness of step 1.1, for loop 1, and the first RTL of the new core: `RTL/CPU/OOO/OOO_SCHED`, 3 ALU queues of 8 and a
 memory queue of 12, measured together, since a wakeup crosses queues. Run with `synth_ooo.bat sched` (`output/OOC_SCHED_T10_MATRIX1`,
-`_MATRIX0`). Not measured yet: everything about its timing and size below is an expectation.
+`_MATRIX0`). Not measured when written: everything about its timing and size below is an expectation; the first run is in 28.3.
 
 **Today's path (28.1) is 11 levels**: port 1's select, port 0's select chained after it, the AND-OR of the destination tags (fan-out
 41 on a tag bit), the compare against every source, the ready bit. What changes:
@@ -2912,3 +2912,22 @@ A mutation that did not compile used to count as detected in `mutate.py` (M428 h
 Things to look at in the results: `summary.txt` has the worst path per class (`loop`, `wake`, `disp`, `free`, `issue`), full paths in
 `timing_loop.rpt`. `disp` may be the worst: steering, first free entry, a same-group producer and the write all fall in one stage.
 If so it is not the loop that fails, and it can take a stage: one more before the queues gives 6.842, −0.4 % (`dec_depth=6 redirect=7`).
+
+### 28.3 `OOC_SCHED`, the first run (2026-11-03)
+
+`synth_ooo.bat sched`. Place and route finished for both; the class report then stopped on an error in my script (a list of more than
+500 cells, and names that did not match), so **the loop's own slack is not known yet**. `report_sched.tcl` is corrected and reads a finished run:
+`synth_ooo.bat schedrpt`.
+
+| Run | LUTs | FFs | Register to register | Levels | Worst path |
+|---|---|---|---|---|---|
+| `MATRIX=1` | **7,969** | 2,596 | **−10.336** | 24 | 20.3 ns, route 83 %: `oc` → `rv` |
+| `MATRIX=0` | 9,186 | | −8.057 | 18 | 18.0 ns, route 85 %: `oc` → `rv` |
+
+- **All ten worst paths of the matrix begin at `oc`: dispatch, as feared in 28.2, not the wakeup-select loop.** The path: the occupied
+  bits, a queue's free count, a slot's go, the next slot's room and so on through the 4 slots (`stop`, `used`), the slot's entry, a younger
+  slot's same-group dependence, the port's mux, the wait cell, the row's AND, `rv`. One stage cannot hold that.
+- **My estimate of 3.5k to 4.5k was wrong by a factor of 2**, and the budget of 6.5k with the payload is exceeded. The tags compared at dispatch
+  and the muxes of slots onto ports, per column, are what I most underrated; the report per block will not separate them, since it is one module.
+- Both point at the same place, so dispatch has to be redesigned whatever the loop gives: steering and the entries in a stage of their own, without
+  the sequential decision per slot; the producer's entry from a table by tag rather than a compare against 36 entries. One more stage costs −0.4 % in the model.
