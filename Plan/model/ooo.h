@@ -42,6 +42,7 @@
 struct OooCfg {
     int w = 2, dec_w = 4, fetch_bytes = 16, fb = 16;
     int fe_depth = 3, dec_depth = 2, iss_to_ex = 2, redirect = 1, override_at = 2;
+    int taken_gap = 1;     // F0 to the next F0 on a taken branch the uBTB gets right (1: no bubble)
     int rob = 64, iq = 24, lq = 16, sq = 16, ckpt = 0;
     int alu = 2, lsu = 1, mul = 1;
     int issue_w = 3;            // µops issued a cycle over all ports (0: no limit)
@@ -479,7 +480,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                     res.overrides++;
                     next_f0 = blk_f0 + c.override_at; new_blk = true; next_cause = 2;
                 } else if (tk) {
-                    next_f0 = blk_f0 + 1; new_blk = true; next_cause = 0;
+                    next_f0 = blk_f0 + c.taken_gap; new_blk = true; next_cause = 0;
                 }
             }
         }

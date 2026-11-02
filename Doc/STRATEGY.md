@@ -17,8 +17,8 @@
 3. **The proposal**: 4 renamed, dispatched and committed a cycle, **4 issues (3 ALUs + LSU) from distributed schedulers**,
    6 decoded from a 32-byte fetch, stores split, ROB 48, LQ / SQ 16, 12 checkpoints, TAGE M, in a pipeline about 4 stages
    longer: **6.90 in the model, about 6.5 in RTL, 650 CoreMark/s**, about 98k LUTs (73 %).
-4. **Five loops decide it** (section 4.5), and **they are measured first**, on today's RTL at a 10 ns target, before the
-   rework. If they fail, the CPU's clock comes down without changing the design: the fallback is 75 to 90 MHz, still
+4. **Six loops decide it** (section 4.5), and **they are measured first**. Today's blocks at a 10 ns target are done (step
+   1.0: nothing refutes 100 MHz, nothing proves it); the new loops alone are next. If they fail, the CPU's clock comes down without changing the design: the fallback is 75 to 90 MHz, still
    ahead of 50 MHz.
 5. **Reuse is kept by half-rate islands** (section 4.4): the FPU, the multi-cycle MDU, CSRs, the page-table walker, L2 and
    debug stay mmRISC-2's, at 50 MHz, beside a 100 MHz integer core.
@@ -115,26 +115,26 @@ nothing asked for less: **they were all measured at a 20 ns target**, so they ar
 
 ### 4.3 The pipeline
 
-| Stage | Work | Today, alone (at 20 ns) |
+| Stage | Work | Today, alone, at a 10 ns target (at 20 ns) |
 |---|---|---|
-| F0 | Next pc: uBTB | 12.9 ns |
+| F0 | Next pc: uBTB | 11.9 ns (12.9), 8 entries |
 | F1 | I$, TAGE, BTB: block RAM address | |
 | F2 | Block RAM data; I$ tags | |
 | F3 | Predecode, TAGE decision, **override** | |
-| F4 | Into the fetch buffer and FTQ | 19.1 ns (all of the front end) |
-| D1 | Fetch buffer: instruction boundaries | 16.9 ns: split so the head pointer's loop is short |
-| D2 | Decode | 12.1 ns |
+| F4 | Into the fetch buffer and FTQ | 14.3 ns (19.1), all of the front end |
+| D1 | Fetch buffer: instruction boundaries | 13.3 ns (16.9): split so the head pointer's loop is short |
+| D2 | Decode | 9.0 ns (12.1) |
 | D3 | Decoded queue | new |
-| R1 | RAT read, dependences inside the 4 | 11.7 ns (2 µops) |
+| R1 | RAT read, dependences inside the 4 | 8.6 ns (11.7), 2 µops |
 | R2 | Free list, checkpoint, ROB entry | |
 | DS | Into a queue, the emptiest | |
-| IS | **Wakeup and select, in 1 cycle** | 12.8 ns (10 entries, 3 ports) |
+| IS | **Wakeup and select, in 1 cycle** | 11.8 ns (12.8), 10 entries, 3 ports |
 | RR1 | Payload, LVT | |
-| RR2 | Register file data, bypass decided | 17 to 18 ns: registers split it |
-| EX | **Bypass, ALU, compare** | 14.3 to 18.5 ns (with the fused compare) |
+| RR2 | Register file data, bypass decided | Not measured at 10 ns (17 to 18): registers split it |
+| EX | **Bypass, ALU, compare** | 10.6 ns without the fused compare (14.3 to 18.5 with it); 7.7 with ALU1's functions |
 | E | Load or store: address | |
 | M1 | D$ data, DTLB, SQ search | |
-| M2 | **Tags, way, forward, align; result** | 18.7 ns (LSU with D$) |
+| M2 | **Tags, way, forward, align; result** | 12.6 ns (18.7), LSU with D$, as one stage |
 | WB | Register file write | |
 
 Bypass: operands kept in RR2's registers snoop the results, so EX's input mux has few sources (own, 3 ALUs, load).
@@ -155,18 +155,25 @@ MMCM**, with registers at the boundary:
 
 LiteX stays at its default 100 MHz, the **same clock as the CPU**, so there is no asynchronous crossing on the memory bus.
 
-### 4.5 The five loops that decide it
+### 4.5 The six loops that decide it
 
-| # | Loop | Target | If it fails | Model |
-|---|---|---|---|---|
-| 1 | **Wakeup + select** (IS) | 1 cycle, queue of 8 | ALU 2 cycles | **−20 %**: 5.51, a redesign |
-| 2 | **Bypass + ALU** (EX) | 1 cycle | ALU 2 cycles | **−20 %** |
-| 3 | **M1 + M2** (load) | Load-use 3 | Load-use 4, 5 | −7.9 %, −15 % |
-| 4 | **Rename of 4** (R1, R2) | 2 stages | 3 stages | about −1 % |
-| 5 | **Fetch buffer's boundaries** (D1) | 1 stage | 2 stages | about −1 % |
+| # | Loop | Target | If it fails | Model | Today at 10 ns (register to register) |
+|---|---|---|---|---|---|
+| 1 | **Wakeup + select** (IS) | 1 cycle, queue of 8 | ALU 2 cycles | **−20 %**: 5.51, a redesign | −1.95 ns, 10 entries, 3 ports |
+| 2 | **Bypass + ALU** (EX) | 1 cycle | ALU 2 cycles | **−20 %** | −0.66 ns full; +2.34 ns ALU1's functions |
+| 3 | **M1 + M2** (load) | Load-use 3 | Load-use 4, 5 | −7.9 %, −15 % | −2.66 ns in one stage, to become two |
+| 4 | **Rename of 4** (R1, R2) | 2 stages | 3 stages | about −1 % | +1.04 ns at 2 µops, in one stage |
+| 5 | **Fetch buffer's boundaries** (D1) | 1 stage | 2 stages | about −1 % | −3.31 ns |
+| 6 | **uBTB** (F0), added by the measurement | 16 entries, no bubble | A bubble on each taken branch; or fewer entries | **−6.8 %**; 8 entries −3.5 %, 4 entries −7.3 % | −2.04 ns at 8 entries |
 
 1 and 2 are life or death. They are measured first, and each has a design answer before giving up the cycle: dependency
 matrices in place of tag compares in the queues, duplicated tags and registers for fan-out, shifts apart from the adder.
+
+**Step 1.0's reading** (`Plan/OOC.md` 28.1): every block is much nearer 10 ns than its 20 ns result suggested, the full ALU
+most of all (18.5 to 10.6 ns), but **none of this is the new design**: the slacks above are for today's blocks, routes are
+62 to 83 % of the paths, and alone is not in the chip. The issue queue moved least (12.8 to 11.8 ns) and is worth most, so it
+is measured first. Loop 6 is new: the uBTB misses by 2 ns at half the entries the proposal wants, and a bubble costs nearly
+as much as a load-use of 4.
 
 **The ladder if 100 MHz does not close**, none of it changes the pipeline:
 
@@ -187,8 +194,8 @@ and far less work, so the go / no-go is at gate S1-A.
 
 | # | Work | Done when |
 |---|---|---|
-| 1.0 | **`synth_ooo.bat t100`**: today's blocks at a 10 ns target, on the XC7A200T (needs no RTL change) | The real distance from 10 ns |
-| 1.1 | Harnesses of the new loops alone: a queue of 8 with its wakeups, bypass + ALU with the new sources, M1 / M2 with block RAM, rename of 4 | **Gate S1-A**: all five within reach at 10 ns; the configuration frozen; **go, or fall back to 75 MHz, or to 50 MHz and 3-wide** |
+| 1.0 | **Done 2026-11-02**: `synth_ooo.bat t100`: today's blocks at a 10 ns target, on the XC7A200T (`Plan/OOC.md` 28.1) | The real distance from 10 ns |
+| 1.1 | Harnesses of the new loops alone, in this order: a queue of 8 with its wakeups, bypass + ALU with the new sources, a uBTB of 16, M1 / M2 with block RAM, rename of 4, the fetch buffer split | **Gate S1-A**: all six within reach at 10 ns; the configuration frozen; **go, or fall back to 75 MHz, or to 50 MHz and 3-wide** |
 | 1.2 | The model with the queue, the D1 boundary, the split store as they will be built | Model ≥ 6.8 |
 | 1.3 | The new pipeline at W = 2 first: stages added, no new function, the tests' references updated | Lock-step; cycles against the model |
 | 1.4 | Distributed schedulers; the decoded queue; 32-byte fetch, 6 decoded | Tests; cycles against the model |
@@ -241,7 +248,7 @@ boundaries get their own directed tests; the board's checks in step 2 run on mmR
 
 | # | Item | State |
 |---|---|---|
-| R1 | Width and clock | **Decided by the author: 4-issue, 100 MHz**, 2026-11-02. Read here as 4 renamed + 4 issued: to be confirmed |
+| R1 | Width and clock | **Decided by the author: 4-issue, 100 MHz**, 2026-11-02. Confirmed by the author the same day: **4 renamed and 4 issued** |
 | R2 | Where 6.0 is measured | Recommended: on the board under Linux, at the clock reached |
 | R3 | Bring-up order | Recommended: stock LiteX, then mmRISC-2, then mmRISC-3 |
 | R4 | DRAM clock | Recommended: LiteX at 100 MHz (DDR3-800), the same clock as the CPU (`Doc/BOARD.md` 4). MIG only as a fallback |

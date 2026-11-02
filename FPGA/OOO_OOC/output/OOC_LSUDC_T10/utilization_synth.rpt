@@ -1,0 +1,35 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Mon Nov  2 22:13:26 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_LSUDC_T10/utilization_synth.rpt
+| Design       : OOC_LSUDC
+| Device       : xc7a200tsbg484-1
+| Speed File   : -1
+| Design State : Synthesized
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++---------------+------------------+------------+------------+---------+------+------+--------+--------+------------+
+|    Instance   |      Module      | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++---------------+------------------+------------+------------+---------+------+------+--------+--------+------------+
+| OOC_LSUDC     |            (top) |       7690 |       7620 |      70 |    0 | 7372 |      4 |      4 |          0 |
+|   (OOC_LSUDC) |            (top) |          0 |          0 |       0 |    0 |  515 |      0 |      0 |          0 |
+|   u_dc        |           DCACHE |       5302 |       5302 |       0 |    0 | 5012 |      4 |      4 |          0 |
+|     (u_dc)    |           DCACHE |       2124 |       2124 |       0 |    0 | 4492 |      0 |      0 |          0 |
+|     u_dat     | CACHE_DATA_ARRAY |       1211 |       1211 |       0 |    0 |    0 |      4 |      0 |          0 |
+|     u_tag     |  CACHE_TAG_ARRAY |       1967 |       1967 |       0 |    0 |  520 |      0 |      4 |          0 |
+|   u_dcad      |         OOO_DCAD |        224 |        154 |      70 |    0 |   94 |      0 |      0 |          0 |
+|   u_lsu       |          OOO_LSU |       2164 |       2164 |       0 |    0 | 1751 |      0 |      0 |          0 |
++---------------+------------------+------------+------------+---------+------+------+--------+--------+------------+
+
+

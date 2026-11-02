@@ -5160,3 +5160,68 @@ Recorded in `Doc/STRATEGY.md` 4.2, the model's results in `Plan/model/results/g2
 ```text
 It is challenging, but I want to design aiming for 4-issues at 100 MHz. Please review the micro-architecture.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I redesigned the micro-architecture for 4-issue at 100 MHz (pushed as c16b57c). **In the model `-O2` gives 6.90 CoreMark/MHz, in RTL about 6.5 is expected, so about 650 CoreMark/s**, which reaches the goal of 6.0. These numbers are a model and estimates; 10 ns is yet to be measured. The core's RTL function has not changed (only a `FUSED` parameter in the OOC wrapper).
+
+#### The proposed configuration
+I read "4-issue" as **4 renamed and 4 issued a cycle**. With rename left at 3, the 100 MHz pipeline stays at 5.85, below the goal.
+
+| Item | Today | Proposal |
+|---|---|---|
+| Clock | 50 MHz | **100 MHz** |
+| Fetch, decode | 16 B, 4 instructions | **32 B, 6 instructions**, with a decoded-instruction queue |
+| Rename, dispatch, commit | 2 | **4** |
+| Scheduler | Unified 10, 3 issues | **ALU queues 8 × 3, memory queue 12: 4 issues** |
+| ALU | 1 full + 1 limited | **3 full** |
+| ROB / LQ, SQ / checkpoints | 24 / 8 / 6 | **48 / 16 / 12** |
+| Load-use / multiply | 2 / 2 cycles | **3 / 4 cycles** |
+| Store | Issued with its data | **Split into address and data** |
+| Predictor | TAGE S, uBTB 8 | **TAGE M, uBTB 16** |
+
+The pipeline is about 4 stages longer (stage by stage in `Doc/STRATEGY.md` 4.3). Fusion stays off.
+
+#### The design's thinking
+- **Distributed schedulers.** A unified queue of 24 is 1.7 % better, but its wakeup-select loop cannot be expected to fit in 10 ns.
+- **mmRISC-2's assets are kept in half-rate islands.** The FPU, division and `mulh`, CSRs, the page-table walker, L2 and debug run at 50 MHz from the same MMCM. Only the L1 hit paths are redone.
+- **At the same 100 MHz as LiteX.** The memory bus needs no clock crossing.
+
+#### Size
+About 98k LUTs for the chip (73 %). **At 100 MHz the ceiling is taken as 75 %**, so the margin is small; a second LSU port or a fourth ALU only if timing and the ceiling allow. The engine's 59k or so is a rough value with nothing measured yet, more than twice today's 27.0k.
+
+#### The five loops that decide it
+| Loop | If it fails |
+|---|---|
+| Wakeup + select (1 cycle) | **−20 %** (ALU 2 cycles, a redesign) |
+| Bypass + ALU (1 cycle) | **−20 %** |
+| Load (load-use 3) | −7.9 % at 4, −15 % at 5 |
+| Rename of 4 (2 stages) | about −1 % |
+| Fetch buffer's boundaries (1 stage) | about −1 % |
+
+The first two are life or death. All measurements so far have a 20 ns target, so the real limit at 10 ns is not known yet.
+
+#### An honest view of the risk
+- **The work is close to a new core.** Every stage, block and test changes, and part of the RTL so far remains. Knowledge and the verification environment carry over.
+- **If 100 MHz does not close, the clock comes down.** Without changing the pipeline, 90 MHz gives 585 and 75 MHz 488 CoreMark/s (337 for 3-wide at 50 MHz).
+- **Measurement decides whether to go on (gate S1-A).** The lower the clock, the less this deep pipeline pays, so going back to 75 MHz, or 50 MHz and 3-wide, is decided there.
+
+#### What I would like next
+Before the rework, measure today's blocks on the XC7A200T at a 10 ns target (step 1.0). It needs no RTL change and no board.
+
+```bash
+synth_ooo.bat t100
+```
+
+Results go to `output/<top>_T10` (20 ns results are not overwritten). The ALU is measured without the fused compare (`FUSED=0`). The bat's new branch has not been run yet, so tell me if an error appears, and ask me to check when it ends. With that result I go on to harnesses of the new loops alone (step 1.1).
+
+Recorded in `Doc/STRATEGY.md` (rewritten), `Doc/UARCH.md` sections 0 and 4.5, `Plan/model/g100.sh`. `Doc/BOARD.md` and the README follow. The model has options for distributed schedulers and 2-cycle ALU operations. Prompt 134 is logged in PROMPT.md.
+<!-- /answer -->
+
+## 135. 2026-11-02 22:40:54 JST
+
+```text
+synth_ooo.bat t100 has finished.
+Yes, "4-issue" is 4 renamed and 4 issued.
+```

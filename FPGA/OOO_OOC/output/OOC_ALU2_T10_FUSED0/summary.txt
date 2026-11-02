@@ -1,0 +1,6 @@
+OOC_ALU2 FUSED=0  (period 10.0 ns, I/O delay 3.0 ns each side on the ports)
+after synthesis: 1621 LUTs (1621 logic + 0 LUT RAM; 1854 LUT cells), 471 FF, 0 DSP, 0 LUT RAM cells, 0.0 BRAM tiles
+after place and route: 1791 LUTs (1791 logic + 0 LUT RAM; 1855 LUT cells), WNS -0.660 ns, register to register -0.660 ns (23 logic levels)
+instances (after place and route):
+    u_alu2                 OOO_ALU2               1791 LUTs (1791 logic + 0 LUT RAM), 0 FF
+      u_alu1               OOO_ALU                1703 LUTs (1703 logic + 0 LUT RAM), 0 FF

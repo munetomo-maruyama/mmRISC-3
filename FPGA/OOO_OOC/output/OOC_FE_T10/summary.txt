@@ -1,0 +1,16 @@
+OOC_FE   (period 10.0 ns, I/O delay 3.0 ns each side on the ports)
+after synthesis: 6711 LUTs (6015 logic + 696 LUT RAM; 7065 LUT cells), 3418 FF, 0 DSP, 179 LUT RAM cells, 5.5 BRAM tiles
+after place and route: 7290 LUTs (6604 logic + 686 LUT RAM; 7025 LUT cells), WNS -4.789 ns, register to register -4.789 ns (21 logic levels)
+  loop worst -4.616 ns (16 logic levels), from u_front/u_fbuf/hb_reg[0]/C to u_front/u_fbuf/hb_reg[0]/D
+  D1a  worst -2.251 ns (10 logic levels), from u_front/u_fbuf/hb_reg[1]/C to u_front/r_inst_reg[3][7]/D
+  D1b  worst -3.490 ns (15 logic levels), from u_front/r_inst_reg[2][10]/C to u_front/g_d_reg[2][port][0]/D
+instances (after place and route):
+    u_front                OOO_FRONT              7290 LUTs (6604 logic + 686 LUT RAM), 2400 FF
+      u_fbuf               OOO_FBUF               1188 LUTs (996 logic + 192 LUT RAM), 16 FF
+      u_fers               OOO_FERS                 23 LUTs (23 logic + 0 LUT RAM), 50 FF
+      u_fetch              OOO_FETCH              3060 LUTs (2978 logic + 82 LUT RAM), 1046 FF
+        u_btb              OOO_BTB                  74 LUTs (74 logic + 0 LUT RAM), 52 FF
+        u_ras              OOO_RAS                 372 LUTs (320 logic + 52 LUT RAM), 4 FF
+        u_tage             OOO_TAGE               1122 LUTs (1122 logic + 0 LUT RAM), 342 FF
+        u_ubtb             OOO_UBTB               1452 LUTs (1452 logic + 0 LUT RAM), 511 FF
+      u_ftq                OOO_FTQ                 683 LUTs (371 logic + 312 LUT RAM), 10 FF

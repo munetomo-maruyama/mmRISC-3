@@ -26,6 +26,8 @@
 | ROB 64, LQ / SQ 24, 16 checkpoints                           |  7.066 |  7.545 |  6.847 |
 | uBTB 8                                                       |  6.660 |  7.232 |  6.479 |
 | uBTB 32                                                      |  6.971 |  7.530 |  6.733 |
+| uBTB answers a cycle late: a bubble on every taken branch    |  6.435 |  7.155 |  6.261 |
+| uBTB 4, no bubble                                            |  6.400 |  7.101 |  6.240 |
 | TAGE L                                                       |  6.884 |  7.432 |  6.678 |
 | TAGE S                                                       |  6.764 |  7.387 |  6.560 |
 | the multiply through CORE_MDU, one in 4 cycles               |  6.546 |  6.787 |  6.338 |

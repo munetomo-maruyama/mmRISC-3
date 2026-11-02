@@ -1,0 +1,688 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Mon Nov  2 22:29:42 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_timing -max_paths 3 -nworst 1 -path_type full -from [all_registers] -to {u_front/u_fbuf/hb_reg[0] u_front/u_fbuf/hb_reg[0]_replica u_front/u_fbuf/hb_reg[0]_replica_1 u_front/u_fbuf/hb_reg[1] u_front/u_fbuf/hoff_reg[0] u_front/u_fbuf/hoff_reg[1] u_front/u_fbuf/hoff_reg[2]} -name loop -append -file ./output/OOC_FE_T10/timing_d1.rpt
+| Design       : OOC_FE
+| Device       : 7a200t-sbg484
+| Speed File   : -1  PRODUCTION 1.23 2018-06-13
+| Design State : Routed
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (VIOLATED) :        -4.616ns  (required time - arrival time)
+  Source:                 u_front/u_fbuf/hb_reg[0]/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_front/u_fbuf/hb_reg[0]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk rise@10.000ns - clk rise@0.000ns)
+  Data Path Delay:        14.465ns  (logic 2.670ns (18.458%)  route 11.795ns (81.542%))
+  Logic Levels:           16  (LUT1=1 LUT2=2 LUT3=1 LUT4=1 LUT5=2 LUT6=8 RAMD32=1)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 10.924 - 10.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X69Y187        FDCE                         0.000     0.973 r  u_front/u_fbuf/hb_reg[0]/C
+    SLICE_X69Y187        FDCE (Prop_fdce_C_Q)         0.456     1.429 f  u_front/u_fbuf/hb_reg[0]/Q
+                         net (fo=90, routed)          0.507     1.936    u_front/u_fbuf/hb_reg[0]
+    SLICE_X69Y187        LUT1 (Prop_lut1_I0_O)        0.124     2.060 r  u_front/u_fbuf/bdata_reg_r1_0_3_0_5_i_3/O
+                         net (fo=144, routed)         0.946     3.007    u_front/u_fbuf/bs_reg_r1_0_3_0_2/ADDRA0
+    SLICE_X66Y186        RAMD32 (Prop_ramd32_RADR0_O)
+                                                      0.150     3.157 r  u_front/u_fbuf/bs_reg_r1_0_3_0_2/RAMA/O
+                         net (fo=23, routed)          0.722     3.879    u_front/u_fbuf/w3[0]
+    SLICE_X65Y186        LUT6 (Prop_lut6_I3_O)        0.328     4.207 r  u_front/u_fbuf/s_off[2][1]_i_3/O
+                         net (fo=72, routed)          1.328     5.534    u_front/u_fbuf/s_off[2][1]_i_3_n_0
+    SLICE_X59Y188        LUT6 (Prop_lut6_I2_O)        0.124     5.658 r  u_front/u_fbuf/s_inst[2][6]_i_5/O
+                         net (fo=2, routed)           0.948     6.606    u_front/u_fbuf/s_inst[2][6]_i_5_n_0
+    SLICE_X60Y193        LUT5 (Prop_lut5_I2_O)        0.124     6.730 r  u_front/u_fbuf/s_inst[2][6]_i_2/O
+                         net (fo=7, routed)           1.075     7.805    u_front/u_fbuf/s_inst[2][6]_i_2_n_0
+    SLICE_X67Y182        LUT2 (Prop_lut2_I0_O)        0.124     7.929 f  u_front/u_fbuf/s_m[3]_i_62/O
+                         net (fo=1, routed)           0.414     8.343    u_front/u_fbuf/s_m[3]_i_62_n_0
+    SLICE_X68Y182        LUT6 (Prop_lut6_I1_O)        0.124     8.467 f  u_front/u_fbuf/s_m[3]_i_45/O
+                         net (fo=1, routed)           0.292     8.759    u_front/u_fbuf/s_m[3]_i_45_n_0
+    SLICE_X69Y183        LUT5 (Prop_lut5_I4_O)        0.124     8.883 r  u_front/u_fbuf/s_m[3]_i_25/O
+                         net (fo=2, routed)           0.751     9.634    u_front/u_fbuf/s_m[3]_i_25_n_0
+    SLICE_X69Y192        LUT4 (Prop_lut4_I0_O)        0.124     9.758 f  u_front/u_fbuf/s_m[3]_i_15/O
+                         net (fo=1, routed)           0.832    10.590    u_front/u_fbuf/s_m[3]_i_15_n_0
+    SLICE_X71Y191        LUT6 (Prop_lut6_I4_O)        0.124    10.714 r  u_front/u_fbuf/s_m[3]_i_6/O
+                         net (fo=7, routed)           0.703    11.417    u_front/u_fbuf/s_m[3]_i_6_n_0
+    SLICE_X71Y191        LUT6 (Prop_lut6_I3_O)        0.124    11.541 r  u_front/u_fbuf/hoff[1]_i_10/O
+                         net (fo=2, routed)           0.797    12.338    u_front/u_fbuf/hoff[1]_i_10_n_0
+    SLICE_X71Y192        LUT6 (Prop_lut6_I4_O)        0.124    12.462 r  u_front/u_fbuf/nblk[2]_i_17/O
+                         net (fo=1, routed)           0.427    12.889    u_front/u_fbuf/nblk[2]_i_17_n_0
+    SLICE_X73Y191        LUT6 (Prop_lut6_I1_O)        0.124    13.013 r  u_front/u_fbuf/nblk[2]_i_9/O
+                         net (fo=1, routed)           0.590    13.603    u_front/u_fbuf/nblk[2]_i_9_n_0
+    SLICE_X72Y190        LUT6 (Prop_lut6_I4_O)        0.124    13.727 f  u_front/u_fbuf/nblk[2]_i_3/O
+                         net (fo=6, routed)           0.359    14.086    u_front/u_fbuf/nblk[2]_i_3_n_0
+    SLICE_X72Y189        LUT2 (Prop_lut2_I1_O)        0.124    14.210 r  u_front/u_fbuf/nblk[1]_i_3/O
+                         net (fo=4, routed)           0.453    14.663    u_front/u_fbuf/npop[0]
+    SLICE_X70Y189        LUT3 (Prop_lut3_I1_O)        0.124    14.787 r  u_front/u_fbuf/hb[0]_i_1/O
+                         net (fo=3, routed)           0.651    15.438    u_front/u_fbuf/hb[0]_i_1_n_0
+    SLICE_X69Y187        FDCE                                         r  u_front/u_fbuf/hb_reg[0]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       10.000    10.000 r  
+                         propagated clock network latency
+                                                      0.924    10.924    
+                         clock pessimism              0.000    10.924    
+                         clock uncertainty           -0.035    10.889    
+    SLICE_X69Y187        FDCE (Setup_fdce_C_D)       -0.067    10.822    u_front/u_fbuf/hb_reg[0]
+  -------------------------------------------------------------------
+                         required time                         10.822    
+                         arrival time                         -15.438    
+  -------------------------------------------------------------------
+                         slack                                 -4.616    
+
+Slack (VIOLATED) :        -4.561ns  (required time - arrival time)
+  Source:                 u_front/u_fbuf/hb_reg[0]/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_front/u_fbuf/hb_reg[1]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk rise@10.000ns - clk rise@0.000ns)
+  Data Path Delay:        14.416ns  (logic 2.670ns (18.521%)  route 11.746ns (81.479%))
+  Logic Levels:           16  (LUT1=1 LUT2=2 LUT4=1 LUT5=3 LUT6=8 RAMD32=1)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 10.924 - 10.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X69Y187        FDCE                         0.000     0.973 r  u_front/u_fbuf/hb_reg[0]/C
+    SLICE_X69Y187        FDCE (Prop_fdce_C_Q)         0.456     1.429 f  u_front/u_fbuf/hb_reg[0]/Q
+                         net (fo=90, routed)          0.507     1.936    u_front/u_fbuf/hb_reg[0]
+    SLICE_X69Y187        LUT1 (Prop_lut1_I0_O)        0.124     2.060 r  u_front/u_fbuf/bdata_reg_r1_0_3_0_5_i_3/O
+                         net (fo=144, routed)         0.946     3.007    u_front/u_fbuf/bs_reg_r1_0_3_0_2/ADDRA0
+    SLICE_X66Y186        RAMD32 (Prop_ramd32_RADR0_O)
+                                                      0.150     3.157 r  u_front/u_fbuf/bs_reg_r1_0_3_0_2/RAMA/O
+                         net (fo=23, routed)          0.722     3.879    u_front/u_fbuf/w3[0]
+    SLICE_X65Y186        LUT6 (Prop_lut6_I3_O)        0.328     4.207 r  u_front/u_fbuf/s_off[2][1]_i_3/O
+                         net (fo=72, routed)          1.328     5.534    u_front/u_fbuf/s_off[2][1]_i_3_n_0
+    SLICE_X59Y188        LUT6 (Prop_lut6_I2_O)        0.124     5.658 r  u_front/u_fbuf/s_inst[2][6]_i_5/O
+                         net (fo=2, routed)           0.948     6.606    u_front/u_fbuf/s_inst[2][6]_i_5_n_0
+    SLICE_X60Y193        LUT5 (Prop_lut5_I2_O)        0.124     6.730 r  u_front/u_fbuf/s_inst[2][6]_i_2/O
+                         net (fo=7, routed)           1.075     7.805    u_front/u_fbuf/s_inst[2][6]_i_2_n_0
+    SLICE_X67Y182        LUT2 (Prop_lut2_I0_O)        0.124     7.929 f  u_front/u_fbuf/s_m[3]_i_62/O
+                         net (fo=1, routed)           0.414     8.343    u_front/u_fbuf/s_m[3]_i_62_n_0
+    SLICE_X68Y182        LUT6 (Prop_lut6_I1_O)        0.124     8.467 f  u_front/u_fbuf/s_m[3]_i_45/O
+                         net (fo=1, routed)           0.292     8.759    u_front/u_fbuf/s_m[3]_i_45_n_0
+    SLICE_X69Y183        LUT5 (Prop_lut5_I4_O)        0.124     8.883 r  u_front/u_fbuf/s_m[3]_i_25/O
+                         net (fo=2, routed)           0.751     9.634    u_front/u_fbuf/s_m[3]_i_25_n_0
+    SLICE_X69Y192        LUT4 (Prop_lut4_I0_O)        0.124     9.758 f  u_front/u_fbuf/s_m[3]_i_15/O
+                         net (fo=1, routed)           0.832    10.590    u_front/u_fbuf/s_m[3]_i_15_n_0
+    SLICE_X71Y191        LUT6 (Prop_lut6_I4_O)        0.124    10.714 r  u_front/u_fbuf/s_m[3]_i_6/O
+                         net (fo=7, routed)           0.703    11.417    u_front/u_fbuf/s_m[3]_i_6_n_0
+    SLICE_X71Y191        LUT6 (Prop_lut6_I3_O)        0.124    11.541 r  u_front/u_fbuf/hoff[1]_i_10/O
+                         net (fo=2, routed)           0.797    12.338    u_front/u_fbuf/hoff[1]_i_10_n_0
+    SLICE_X71Y192        LUT6 (Prop_lut6_I4_O)        0.124    12.462 r  u_front/u_fbuf/nblk[2]_i_17/O
+                         net (fo=1, routed)           0.427    12.889    u_front/u_fbuf/nblk[2]_i_17_n_0
+    SLICE_X73Y191        LUT6 (Prop_lut6_I1_O)        0.124    13.013 r  u_front/u_fbuf/nblk[2]_i_9/O
+                         net (fo=1, routed)           0.590    13.603    u_front/u_fbuf/nblk[2]_i_9_n_0
+    SLICE_X72Y190        LUT6 (Prop_lut6_I4_O)        0.124    13.727 f  u_front/u_fbuf/nblk[2]_i_3/O
+                         net (fo=6, routed)           0.473    14.200    u_front/u_fbuf/nblk[2]_i_3_n_0
+    SLICE_X72Y191        LUT2 (Prop_lut2_I1_O)        0.124    14.324 r  u_front/u_fbuf/nblk[1]_i_2/O
+                         net (fo=2, routed)           0.455    14.779    u_front/u_fbuf/nblk[1]_i_2_n_0
+    SLICE_X72Y188        LUT5 (Prop_lut5_I4_O)        0.124    14.903 r  u_front/u_fbuf/hb[1]_i_1/O
+                         net (fo=1, routed)           0.486    15.389    u_front/u_fbuf/hb[1]_i_1_n_0
+    SLICE_X69Y187        FDCE                                         r  u_front/u_fbuf/hb_reg[1]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       10.000    10.000 r  
+                         propagated clock network latency
+                                                      0.924    10.924    
+                         clock pessimism              0.000    10.924    
+                         clock uncertainty           -0.035    10.889    
+    SLICE_X69Y187        FDCE (Setup_fdce_C_D)       -0.061    10.828    u_front/u_fbuf/hb_reg[1]
+  -------------------------------------------------------------------
+                         required time                         10.828    
+                         arrival time                         -15.389    
+  -------------------------------------------------------------------
+                         slack                                 -4.561    
+
+Slack (VIOLATED) :        -4.525ns  (required time - arrival time)
+  Source:                 u_front/u_fbuf/hb_reg[0]/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_front/u_fbuf/hoff_reg[2]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk rise@10.000ns - clk rise@0.000ns)
+  Data Path Delay:        14.222ns  (logic 2.666ns (18.746%)  route 11.556ns (81.254%))
+  Logic Levels:           16  (LUT1=1 LUT2=1 LUT3=1 LUT4=2 LUT5=3 LUT6=7 RAMD32=1)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 10.924 - 10.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X69Y187        FDCE                         0.000     0.973 r  u_front/u_fbuf/hb_reg[0]/C
+    SLICE_X69Y187        FDCE (Prop_fdce_C_Q)         0.456     1.429 f  u_front/u_fbuf/hb_reg[0]/Q
+                         net (fo=90, routed)          0.507     1.936    u_front/u_fbuf/hb_reg[0]
+    SLICE_X69Y187        LUT1 (Prop_lut1_I0_O)        0.124     2.060 r  u_front/u_fbuf/bdata_reg_r1_0_3_0_5_i_3/O
+                         net (fo=144, routed)         0.946     3.007    u_front/u_fbuf/bs_reg_r1_0_3_0_2/ADDRA0
+    SLICE_X66Y186        RAMD32 (Prop_ramd32_RADR0_O)
+                                                      0.150     3.157 r  u_front/u_fbuf/bs_reg_r1_0_3_0_2/RAMA/O
+                         net (fo=23, routed)          0.722     3.879    u_front/u_fbuf/w3[0]
+    SLICE_X65Y186        LUT6 (Prop_lut6_I3_O)        0.328     4.207 r  u_front/u_fbuf/s_off[2][1]_i_3/O
+                         net (fo=72, routed)          1.328     5.534    u_front/u_fbuf/s_off[2][1]_i_3_n_0
+    SLICE_X59Y188        LUT6 (Prop_lut6_I2_O)        0.124     5.658 f  u_front/u_fbuf/s_inst[2][6]_i_5/O
+                         net (fo=2, routed)           0.948     6.606    u_front/u_fbuf/s_inst[2][6]_i_5_n_0
+    SLICE_X60Y193        LUT5 (Prop_lut5_I2_O)        0.124     6.730 f  u_front/u_fbuf/s_inst[2][6]_i_2/O
+                         net (fo=7, routed)           1.075     7.805    u_front/u_fbuf/s_inst[2][6]_i_2_n_0
+    SLICE_X67Y182        LUT2 (Prop_lut2_I0_O)        0.124     7.929 r  u_front/u_fbuf/s_m[3]_i_62/O
+                         net (fo=1, routed)           0.414     8.343    u_front/u_fbuf/s_m[3]_i_62_n_0
+    SLICE_X68Y182        LUT6 (Prop_lut6_I1_O)        0.124     8.467 r  u_front/u_fbuf/s_m[3]_i_45/O
+                         net (fo=1, routed)           0.292     8.759    u_front/u_fbuf/s_m[3]_i_45_n_0
+    SLICE_X69Y183        LUT5 (Prop_lut5_I4_O)        0.124     8.883 f  u_front/u_fbuf/s_m[3]_i_25/O
+                         net (fo=2, routed)           0.751     9.634    u_front/u_fbuf/s_m[3]_i_25_n_0
+    SLICE_X69Y192        LUT4 (Prop_lut4_I0_O)        0.124     9.758 r  u_front/u_fbuf/s_m[3]_i_15/O
+                         net (fo=1, routed)           0.832    10.590    u_front/u_fbuf/s_m[3]_i_15_n_0
+    SLICE_X71Y191        LUT6 (Prop_lut6_I4_O)        0.124    10.714 f  u_front/u_fbuf/s_m[3]_i_6/O
+                         net (fo=7, routed)           0.438    11.152    u_front/u_fbuf/s_m[3]_i_6_n_0
+    SLICE_X71Y191        LUT4 (Prop_lut4_I1_O)        0.124    11.276 r  u_front/u_fbuf/hoff[1]_i_11/O
+                         net (fo=4, routed)           0.831    12.107    u_front/u_fbuf/consume[1]
+    SLICE_X72Y191        LUT6 (Prop_lut6_I3_O)        0.124    12.231 r  u_front/u_fbuf/hoff[1]_i_6/O
+                         net (fo=10, routed)          0.611    12.842    u_front/u_fbuf/hoff[1]_i_6_n_0
+    SLICE_X71Y191        LUT6 (Prop_lut6_I5_O)        0.124    12.966 r  u_front/u_fbuf/nblk[2]_i_11/O
+                         net (fo=1, routed)           0.303    13.269    u_front/u_fbuf/nblk[2]_i_11_n_0
+    SLICE_X73Y190        LUT6 (Prop_lut6_I0_O)        0.124    13.393 r  u_front/u_fbuf/nblk[2]_i_4/O
+                         net (fo=6, routed)           0.961    14.354    u_front/u_fbuf/nblk[2]_i_4_n_0
+    SLICE_X73Y192        LUT5 (Prop_lut5_I2_O)        0.124    14.478 r  u_front/u_fbuf/hoff[2]_i_2/O
+                         net (fo=1, routed)           0.404    14.882    u_front/u_fbuf/p_4_out[2]
+    SLICE_X73Y191        LUT3 (Prop_lut3_I0_O)        0.120    15.002 r  u_front/u_fbuf/hoff[2]_i_1/O
+                         net (fo=1, routed)           0.193    15.195    u_front/u_fbuf/hoff[2]_i_1_n_0
+    SLICE_X72Y191        FDCE                                         r  u_front/u_fbuf/hoff_reg[2]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       10.000    10.000 r  
+                         propagated clock network latency
+                                                      0.924    10.924    
+                         clock pessimism              0.000    10.924    
+                         clock uncertainty           -0.035    10.889    
+    SLICE_X72Y191        FDCE (Setup_fdce_C_D)       -0.219    10.670    u_front/u_fbuf/hoff_reg[2]
+  -------------------------------------------------------------------
+                         required time                         10.670    
+                         arrival time                         -15.195    
+  -------------------------------------------------------------------
+                         slack                                 -4.525    
+
+
+
+
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Mon Nov  2 22:29:43 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_timing -max_paths 3 -nworst 1 -path_type full -from [all_registers] -to {u_front/r_ftq_reg[0][0] u_front/r_ftq_reg[0][1] u_front/r_ftq_reg[0][2] u_front/r_ftq_reg[0][3] u_front/r_ftq_reg[1][0] u_front/r_ftq_reg[1][1] u_front/r_ftq_reg[1][2] u_front/r_ftq_reg[1][3] u_front/r_ftq_reg[2][0] u_front/r_ftq_reg[2][1] u_front/r_ftq_reg[2][2] u_front/r_ftq_reg[2][3] u_front/r_ftq_reg[3][0] u_front/r_ftq_reg[3][1] u_front/r_ftq_reg[3][2] u_front/r_ftq_reg[3][3] u_front/r_inst_reg[0][0] u_front/r_inst_reg[0][10] u_front/r_inst_reg[0][11] u_front/r_inst_reg[0][12] u_front/r_inst_reg[0][13] u_front/r_inst_reg[0][14] u_front/r_inst_reg[0][15] u_front/r_inst_reg[0][16] u_front/r_inst_reg[0][17] u_front/r_inst_reg[0][18] u_front/r_inst_reg[0][19] u_front/r_inst_reg[0][1] u_front/r_inst_reg[0][20] u_front/r_inst_reg[0][21] u_front/r_inst_reg[0][22] u_front/r_inst_reg[0][23] u_front/r_inst_reg[0][24] u_front/r_inst_reg[0][25] u_front/r_inst_reg[0][26] u_front/r_inst_reg[0][27] u_front/r_inst_reg[0][28] u_front/r_inst_reg[0][29] u_front/r_inst_reg[0][2] u_front/r_inst_reg[0][30] u_front/r_inst_reg[0][31] u_front/r_inst_reg[0][3] u_front/r_inst_reg[0][4] u_front/r_inst_reg[0][5] u_front/r_inst_reg[0][6] u_front/r_inst_reg[0][7] u_front/r_inst_reg[0][8] u_front/r_inst_reg[0][9] u_front/r_inst_reg[1][0] u_front/r_inst_reg[1][10] u_front/r_inst_reg[1][11] u_front/r_inst_reg[1][12] u_front/r_inst_reg[1][13] u_front/r_inst_reg[1][14] u_front/r_inst_reg[1][15] u_front/r_inst_reg[1][16] u_front/r_inst_reg[1][17] u_front/r_inst_reg[1][18] u_front/r_inst_reg[1][19] u_front/r_inst_reg[1][1] u_front/r_inst_reg[1][20] u_front/r_inst_reg[1][21] u_front/r_inst_reg[1][22] u_front/r_inst_reg[1][23] u_front/r_inst_reg[1][24] u_front/r_inst_reg[1][25] u_front/r_inst_reg[1][26] u_front/r_inst_reg[1][27] u_front/r_inst_reg[1][28] u_front/r_inst_reg[1][29] u_front/r_inst_reg[1][2] u_front/r_inst_reg[1][30] u_front/r_inst_reg[1][31] u_front/r_inst_reg[1][3] u_front/r_inst_reg[1][4] u_front/r_inst_reg[1][5] u_front/r_inst_reg[1][6] u_front/r_inst_reg[1][7] u_front/r_inst_reg[1][8] u_front/r_inst_reg[1][9] u_front/r_inst_reg[2][0] u_front/r_inst_reg[2][10] u_front/r_inst_reg[2][11] u_front/r_inst_reg[2][12] u_front/r_inst_reg[2][13] u_front/r_inst_reg[2][14] u_front/r_inst_reg[2][15] u_front/r_inst_reg[2][16] u_front/r_inst_reg[2][17] u_front/r_inst_reg[2][18] u_front/r_inst_reg[2][19] u_front/r_inst_reg[2][1] u_front/r_inst_reg[2][20] u_front/r_inst_reg[2][21] u_front/r_inst_reg[2][22] u_front/r_inst_reg[2][23] u_front/r_inst_reg[2][24] u_front/r_inst_reg[2][25] u_front/r_inst_reg[2][26] u_front/r_inst_reg[2][27] u_front/r_inst_reg[2][28] u_front/r_inst_reg[2][29] u_front/r_inst_reg[2][2] u_front/r_inst_reg[2][30] u_front/r_inst_reg[2][31] u_front/r_inst_reg[2][3] u_front/r_inst_reg[2][4] u_front/r_inst_reg[2][5] u_front/r_inst_reg[2][6] u_front/r_inst_reg[2][7] u_front/r_inst_reg[2][8] u_front/r_inst_reg[2][9] u_front/r_inst_reg[3][0] u_front/r_inst_reg[3][10] u_front/r_inst_reg[3][11] u_front/r_inst_reg[3][11]_replica u_front/r_inst_reg[3][11]_replica_1 u_front/r_inst_reg[3][12] u_front/r_inst_reg[3][13] u_front/r_inst_reg[3][14] u_front/r_inst_reg[3][15] u_front/r_inst_reg[3][16] u_front/r_inst_reg[3][17] u_front/r_inst_reg[3][18] u_front/r_inst_reg[3][19] u_front/r_inst_reg[3][1] u_front/r_inst_reg[3][20] u_front/r_inst_reg[3][21] u_front/r_inst_reg[3][22] u_front/r_inst_reg[3][23] u_front/r_inst_reg[3][24] u_front/r_inst_reg[3][25] u_front/r_inst_reg[3][26] u_front/r_inst_reg[3][27] u_front/r_inst_reg[3][28] u_front/r_inst_reg[3][29] u_front/r_inst_reg[3][2] u_front/r_inst_reg[3][30] u_front/r_inst_reg[3][31] u_front/r_inst_reg[3][3] u_front/r_inst_reg[3][4] u_front/r_inst_reg[3][5] u_front/r_inst_reg[3][6] u_front/r_inst_reg[3][7] u_front/r_inst_reg[3][8] u_front/r_inst_reg[3][9] u_front/r_m_reg[0] u_front/r_m_reg[1] u_front/r_m_reg[2] u_front/r_m_reg[3] u_front/r_off_reg[0][0] u_front/r_off_reg[0][1] u_front/r_off_reg[0][2] u_front/r_off_reg[1][0] u_front/r_off_reg[1][1] u_front/r_off_reg[1][2] u_front/r_off_reg[2][0] u_front/r_off_reg[2][1] u_front/r_off_reg[2][2] u_front/r_off_reg[3][0] u_front/r_off_reg[3][1] u_front/r_off_reg[3][2] u_front/r_rvc_reg[0] u_front/r_rvc_reg[1] u_front/r_rvc_reg[2] u_front/r_rvc_reg[3] u_front/r_seq_reg[1] u_front/r_seq_reg[2] u_front/r_seq_reg[3] u_front/r_tk_reg[0] u_front/r_tk_reg[1] u_front/r_tk_reg[2] u_front/r_tk_reg[3] u_front/s_ftq_reg[0][0] u_front/s_ftq_reg[0][1] u_front/s_ftq_reg[0][2] u_front/s_ftq_reg[0][3] u_front/s_ftq_reg[1][0] u_front/s_ftq_reg[1][1] u_front/s_ftq_reg[1][2] u_front/s_ftq_reg[1][3] u_front/s_ftq_reg[2][0] u_front/s_ftq_reg[2][1] u_front/s_ftq_reg[2][2] u_front/s_ftq_reg[2][3] u_front/s_ftq_reg[3][0] u_front/s_ftq_reg[3][1] u_front/s_ftq_reg[3][2] u_front/s_ftq_reg[3][3] u_front/s_inst_reg[0][0] u_front/s_inst_reg[0][10] u_front/s_inst_reg[0][11] u_front/s_inst_reg[0][12] u_front/s_inst_reg[0][13] u_front/s_inst_reg[0][14] u_front/s_inst_reg[0][15] u_front/s_inst_reg[0][16] u_front/s_inst_reg[0][17] u_front/s_inst_reg[0][18] u_front/s_inst_reg[0][19] u_front/s_inst_reg[0][1] u_front/s_inst_reg[0][20] u_front/s_inst_reg[0][21] u_front/s_inst_reg[0][22] u_front/s_inst_reg[0][23] u_front/s_inst_reg[0][24] u_front/s_inst_reg[0][25] u_front/s_inst_reg[0][26] u_front/s_inst_reg[0][27] u_front/s_inst_reg[0][28] u_front/s_inst_reg[0][29] u_front/s_inst_reg[0][2] u_front/s_inst_reg[0][30] u_front/s_inst_reg[0][31] u_front/s_inst_reg[0][3] u_front/s_inst_reg[0][4] u_front/s_inst_reg[0][5] u_front/s_inst_reg[0][6] u_front/s_inst_reg[0][7] u_front/s_inst_reg[0][8] u_front/s_inst_reg[0][9] u_front/s_inst_reg[1][0] u_front/s_inst_reg[1][10] u_front/s_inst_reg[1][11] u_front/s_inst_reg[1][12] u_front/s_inst_reg[1][13] u_front/s_inst_reg[1][14] u_front/s_inst_reg[1][15] u_front/s_inst_reg[1][16] u_front/s_inst_reg[1][17] u_front/s_inst_reg[1][18] u_front/s_inst_reg[1][19] u_front/s_inst_reg[1][1] u_front/s_inst_reg[1][20] u_front/s_inst_reg[1][21] u_front/s_inst_reg[1][22] u_front/s_inst_reg[1][23] u_front/s_inst_reg[1][24] u_front/s_inst_reg[1][25] u_front/s_inst_reg[1][26] u_front/s_inst_reg[1][27] u_front/s_inst_reg[1][28] u_front/s_inst_reg[1][29] u_front/s_inst_reg[1][2] u_front/s_inst_reg[1][30] u_front/s_inst_reg[1][31] u_front/s_inst_reg[1][3] u_front/s_inst_reg[1][4] u_front/s_inst_reg[1][5] u_front/s_inst_reg[1][6] u_front/s_inst_reg[1][7] u_front/s_inst_reg[1][8] u_front/s_inst_reg[1][9] u_front/s_inst_reg[2][0] u_front/s_inst_reg[2][10] u_front/s_inst_reg[2][11] u_front/s_inst_reg[2][12] u_front/s_inst_reg[2][13] u_front/s_inst_reg[2][14] u_front/s_inst_reg[2][15] u_front/s_inst_reg[2][16] u_front/s_inst_reg[2][17] u_front/s_inst_reg[2][18] u_front/s_inst_reg[2][19] u_front/s_inst_reg[2][1] u_front/s_inst_reg[2][20] u_front/s_inst_reg[2][21] u_front/s_inst_reg[2][22] u_front/s_inst_reg[2][23] u_front/s_inst_reg[2][24] u_front/s_inst_reg[2][25] u_front/s_inst_reg[2][26] u_front/s_inst_reg[2][27] u_front/s_inst_reg[2][28] u_front/s_inst_reg[2][29] u_front/s_inst_reg[2][2] u_front/s_inst_reg[2][30] u_front/s_inst_reg[2][31] u_front/s_inst_reg[2][3] u_front/s_inst_reg[2][4] u_front/s_inst_reg[2][5] u_front/s_inst_reg[2][6] u_front/s_inst_reg[2][7] u_front/s_inst_reg[2][8] u_front/s_inst_reg[2][9] u_front/s_inst_reg[3][0] u_front/s_inst_reg[3][10] u_front/s_inst_reg[3][11] u_front/s_inst_reg[3][12] u_front/s_inst_reg[3][13] u_front/s_inst_reg[3][14] u_front/s_inst_reg[3][15] u_front/s_inst_reg[3][16] u_front/s_inst_reg[3][17] u_front/s_inst_reg[3][18] u_front/s_inst_reg[3][19] u_front/s_inst_reg[3][1] u_front/s_inst_reg[3][20] u_front/s_inst_reg[3][21] u_front/s_inst_reg[3][22] u_front/s_inst_reg[3][23] u_front/s_inst_reg[3][24] u_front/s_inst_reg[3][25] u_front/s_inst_reg[3][26] u_front/s_inst_reg[3][27] u_front/s_inst_reg[3][28] u_front/s_inst_reg[3][29] u_front/s_inst_reg[3][2] u_front/s_inst_reg[3][30] u_front/s_inst_reg[3][31] u_front/s_inst_reg[3][3] u_front/s_inst_reg[3][4] u_front/s_inst_reg[3][5] u_front/s_inst_reg[3][6] u_front/s_inst_reg[3][7] u_front/s_inst_reg[3][8] u_front/s_inst_reg[3][9] u_front/s_m_reg[0] u_front/s_m_reg[1] u_front/s_m_reg[2] u_front/s_m_reg[3] u_front/s_off_reg[0][0] u_front/s_off_reg[0][1] u_front/s_off_reg[0][2] u_front/s_off_reg[1][0] u_front/s_off_reg[1][1] u_front/s_off_reg[1][2] u_front/s_off_reg[2][0] u_front/s_off_reg[2][1] u_front/s_off_reg[2][2] u_front/s_off_reg[3][0] u_front/s_off_reg[3][1] u_front/s_off_reg[3][2] u_front/s_rvc_reg[0] u_front/s_rvc_reg[1] u_front/s_rvc_reg[2] u_front/s_rvc_reg[3] u_front/s_seq_reg[1] u_front/s_seq_reg[2] u_front/s_seq_reg[3] u_front/s_tk_reg[0] u_front/s_tk_reg[1] u_front/s_tk_reg[2] u_front/s_tk_reg[3]} -name D1a -append -file ./output/OOC_FE_T10/timing_d1.rpt
+| Design       : OOC_FE
+| Device       : 7a200t-sbg484
+| Speed File   : -1  PRODUCTION 1.23 2018-06-13
+| Design State : Routed
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (VIOLATED) :        -2.251ns  (required time - arrival time)
+  Source:                 u_front/u_fbuf/hb_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_front/r_inst_reg[3][7]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk rise@10.000ns - clk rise@0.000ns)
+  Data Path Delay:        11.937ns  (logic 1.974ns (16.536%)  route 9.963ns (83.464%))
+  Logic Levels:           10  (LUT2=2 LUT3=1 LUT4=2 LUT5=1 LUT6=3 RAMD32=1)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 10.924 - 10.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X69Y187        FDCE                         0.000     0.973 r  u_front/u_fbuf/hb_reg[1]/C
+    SLICE_X69Y187        FDCE (Prop_fdce_C_Q)         0.456     1.429 r  u_front/u_fbuf/hb_reg[1]/Q
+                         net (fo=143, routed)         1.257     2.686    u_front/u_fbuf/bdata_reg_r2_0_3_126_127/ADDRB1
+    SLICE_X64Y188        RAMD32 (Prop_ramd32_RADR1_O)
+                                                      0.152     2.838 r  u_front/u_fbuf/bdata_reg_r2_0_3_126_127/RAMB/O
+                         net (fo=32, routed)          1.043     3.881    u_front/u_fbuf/w5[0]
+    SLICE_X63Y186        LUT6 (Prop_lut6_I4_O)        0.348     4.229 r  u_front/u_fbuf/s_off[3][1]_i_7/O
+                         net (fo=35, routed)          1.132     5.360    u_front/u_fbuf/s_off[3][1]_i_7_n_0
+    SLICE_X67Y190        LUT6 (Prop_lut6_I2_O)        0.124     5.484 f  u_front/u_fbuf/s_inst[0][1]_i_3/O
+                         net (fo=2, routed)           0.816     6.300    u_front/u_fbuf/s_inst[0][1]_i_3_n_0
+    SLICE_X67Y189        LUT5 (Prop_lut5_I2_O)        0.124     6.424 f  u_front/u_fbuf/s_inst[0][1]_i_1/O
+                         net (fo=3, routed)           0.408     6.832    u_front/u_fbuf/hoff_reg[2]_19[1]
+    SLICE_X69Y188        LUT2 (Prop_lut2_I0_O)        0.124     6.956 r  u_front/u_fbuf/s_ftq[1][3]_i_3/O
+                         net (fo=104, routed)         0.686     7.642    u_front/u_fbuf/fb_rvc[0]
+    SLICE_X70Y192        LUT2 (Prop_lut2_I1_O)        0.124     7.766 r  u_front/u_fbuf/s_off[2][2]_i_4/O
+                         net (fo=52, routed)          1.237     9.003    u_front/u_fbuf/s_off[2][2]_i_4_n_0
+    SLICE_X72Y187        LUT4 (Prop_lut4_I1_O)        0.124     9.127 f  u_front/u_fbuf/s_off[3][0]_i_4/O
+                         net (fo=36, routed)          1.171    10.298    u_front/u_fbuf/s_off[3][0]_i_4_n_0
+    SLICE_X57Y182        LUT4 (Prop_lut4_I2_O)        0.124    10.422 r  u_front/u_fbuf/s_inst[3][7]_i_4/O
+                         net (fo=1, routed)           0.151    10.574    u_front/u_fbuf/s_inst[3][7]_i_4_n_0
+    SLICE_X57Y182        LUT6 (Prop_lut6_I5_O)        0.124    10.698 r  u_front/u_fbuf/s_inst[3][7]_i_1/O
+                         net (fo=2, routed)           1.260    11.958    u_front/u_fbuf/s_inst[3][15]_i_5_0[7]
+    SLICE_X53Y172        LUT3 (Prop_lut3_I0_O)        0.150    12.108 r  u_front/u_fbuf/r_inst[3][7]_i_1/O
+                         net (fo=1, routed)           0.803    12.910    u_front/u_fbuf_n_173
+    SLICE_X66Y171        FDRE                                         r  u_front/r_inst_reg[3][7]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       10.000    10.000 r  
+                         propagated clock network latency
+                                                      0.924    10.924    
+                         clock pessimism              0.000    10.924    
+                         clock uncertainty           -0.035    10.889    
+    SLICE_X66Y171        FDRE (Setup_fdre_C_D)       -0.230    10.659    u_front/r_inst_reg[3][7]
+  -------------------------------------------------------------------
+                         required time                         10.659    
+                         arrival time                         -12.910    
+  -------------------------------------------------------------------
+                         slack                                 -2.251    
+
+Slack (VIOLATED) :        -1.842ns  (required time - arrival time)
+  Source:                 u_front/u_fbuf/hb_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_front/r_inst_reg[3][31]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk rise@10.000ns - clk rise@0.000ns)
+  Data Path Delay:        11.691ns  (logic 1.948ns (16.663%)  route 9.743ns (83.337%))
+  Logic Levels:           10  (LUT2=2 LUT4=4 LUT5=1 LUT6=2 RAMD32=1)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 10.924 - 10.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X69Y187        FDCE                         0.000     0.973 r  u_front/u_fbuf/hb_reg[1]/C
+    SLICE_X69Y187        FDCE (Prop_fdce_C_Q)         0.456     1.429 r  u_front/u_fbuf/hb_reg[1]/Q
+                         net (fo=143, routed)         1.257     2.686    u_front/u_fbuf/bdata_reg_r2_0_3_126_127/ADDRB1
+    SLICE_X64Y188        RAMD32 (Prop_ramd32_RADR1_O)
+                                                      0.152     2.838 r  u_front/u_fbuf/bdata_reg_r2_0_3_126_127/RAMB/O
+                         net (fo=32, routed)          1.043     3.881    u_front/u_fbuf/w5[0]
+    SLICE_X63Y186        LUT6 (Prop_lut6_I4_O)        0.348     4.229 r  u_front/u_fbuf/s_off[3][1]_i_7/O
+                         net (fo=35, routed)          1.132     5.360    u_front/u_fbuf/s_off[3][1]_i_7_n_0
+    SLICE_X67Y190        LUT6 (Prop_lut6_I2_O)        0.124     5.484 f  u_front/u_fbuf/s_inst[0][1]_i_3/O
+                         net (fo=2, routed)           0.816     6.300    u_front/u_fbuf/s_inst[0][1]_i_3_n_0
+    SLICE_X67Y189        LUT5 (Prop_lut5_I2_O)        0.124     6.424 f  u_front/u_fbuf/s_inst[0][1]_i_1/O
+                         net (fo=3, routed)           0.408     6.832    u_front/u_fbuf/hoff_reg[2]_19[1]
+    SLICE_X69Y188        LUT2 (Prop_lut2_I0_O)        0.124     6.956 r  u_front/u_fbuf/s_ftq[1][3]_i_3/O
+                         net (fo=104, routed)         0.686     7.642    u_front/u_fbuf/fb_rvc[0]
+    SLICE_X70Y192        LUT2 (Prop_lut2_I1_O)        0.124     7.766 r  u_front/u_fbuf/s_off[2][2]_i_4/O
+                         net (fo=52, routed)          0.984     8.750    u_front/u_fbuf/s_off[2][2]_i_4_n_0
+    SLICE_X71Y192        LUT4 (Prop_lut4_I1_O)        0.124     8.874 f  u_front/u_fbuf/s_off[3][2]_i_3/O
+                         net (fo=39, routed)          1.272    10.146    u_front/u_fbuf/s_off[3][2]_i_3_n_0
+    SLICE_X57Y183        LUT4 (Prop_lut4_I1_O)        0.124    10.270 f  u_front/u_fbuf/s_inst[3][31]_i_4/O
+                         net (fo=1, routed)           0.151    10.421    u_front/u_fbuf/s_inst[3][31]_i_4_n_0
+    SLICE_X57Y183        LUT4 (Prop_lut4_I0_O)        0.124    10.545 r  u_front/u_fbuf/s_inst[3][31]_i_3/O
+                         net (fo=2, routed)           1.661    12.206    u_front/u_fbuf/s_inst[3][31]_i_3_0
+    SLICE_X75Y192        LUT4 (Prop_lut4_I1_O)        0.124    12.330 r  u_front/u_fbuf/r_inst[3][31]_i_1/O
+                         net (fo=1, routed)           0.333    12.664    u_front/u_fbuf_n_149
+    SLICE_X75Y190        FDRE                                         r  u_front/r_inst_reg[3][31]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       10.000    10.000 r  
+                         propagated clock network latency
+                                                      0.924    10.924    
+                         clock pessimism              0.000    10.924    
+                         clock uncertainty           -0.035    10.889    
+    SLICE_X75Y190        FDRE (Setup_fdre_C_D)       -0.067    10.822    u_front/r_inst_reg[3][31]
+  -------------------------------------------------------------------
+                         required time                         10.822    
+                         arrival time                         -12.664    
+  -------------------------------------------------------------------
+                         slack                                 -1.842    
+
+Slack (VIOLATED) :        -1.664ns  (required time - arrival time)
+  Source:                 u_front/u_fbuf/hb_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_front/r_inst_reg[3][11]_replica/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk rise@10.000ns - clk rise@0.000ns)
+  Data Path Delay:        11.522ns  (logic 1.948ns (16.906%)  route 9.574ns (83.094%))
+  Logic Levels:           10  (LUT2=2 LUT3=1 LUT4=2 LUT5=1 LUT6=3 RAMD32=1)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 10.924 - 10.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X69Y187        FDCE                         0.000     0.973 r  u_front/u_fbuf/hb_reg[1]/C
+    SLICE_X69Y187        FDCE (Prop_fdce_C_Q)         0.456     1.429 r  u_front/u_fbuf/hb_reg[1]/Q
+                         net (fo=143, routed)         1.257     2.686    u_front/u_fbuf/bdata_reg_r2_0_3_126_127/ADDRB1
+    SLICE_X64Y188        RAMD32 (Prop_ramd32_RADR1_O)
+                                                      0.152     2.838 r  u_front/u_fbuf/bdata_reg_r2_0_3_126_127/RAMB/O
+                         net (fo=32, routed)          1.043     3.881    u_front/u_fbuf/w5[0]
+    SLICE_X63Y186        LUT6 (Prop_lut6_I4_O)        0.348     4.229 r  u_front/u_fbuf/s_off[3][1]_i_7/O
+                         net (fo=35, routed)          1.132     5.360    u_front/u_fbuf/s_off[3][1]_i_7_n_0
+    SLICE_X67Y190        LUT6 (Prop_lut6_I2_O)        0.124     5.484 f  u_front/u_fbuf/s_inst[0][1]_i_3/O
+                         net (fo=2, routed)           0.816     6.300    u_front/u_fbuf/s_inst[0][1]_i_3_n_0
+    SLICE_X67Y189        LUT5 (Prop_lut5_I2_O)        0.124     6.424 f  u_front/u_fbuf/s_inst[0][1]_i_1/O
+                         net (fo=3, routed)           0.408     6.832    u_front/u_fbuf/hoff_reg[2]_19[1]
+    SLICE_X69Y188        LUT2 (Prop_lut2_I0_O)        0.124     6.956 r  u_front/u_fbuf/s_ftq[1][3]_i_3/O
+                         net (fo=104, routed)         0.686     7.642    u_front/u_fbuf/fb_rvc[0]
+    SLICE_X70Y192        LUT2 (Prop_lut2_I1_O)        0.124     7.766 r  u_front/u_fbuf/s_off[2][2]_i_4/O
+                         net (fo=52, routed)          0.984     8.750    u_front/u_fbuf/s_off[2][2]_i_4_n_0
+    SLICE_X71Y192        LUT4 (Prop_lut4_I1_O)        0.124     8.874 f  u_front/u_fbuf/s_off[3][2]_i_3/O
+                         net (fo=39, routed)          1.550    10.424    u_front/u_fbuf/s_off[3][2]_i_3_n_0
+    SLICE_X60Y178        LUT4 (Prop_lut4_I0_O)        0.124    10.548 r  u_front/u_fbuf/s_inst[3][11]_i_4/O
+                         net (fo=1, routed)           0.165    10.713    u_front/u_fbuf/s_inst[3][11]_i_4_n_0
+    SLICE_X60Y178        LUT6 (Prop_lut6_I5_O)        0.124    10.837 r  u_front/u_fbuf/s_inst[3][11]_i_1/O
+                         net (fo=2, routed)           0.506    11.343    u_front/u_fbuf/s_inst[3][15]_i_5_0[11]
+    SLICE_X61Y178        LUT3 (Prop_lut3_I0_O)        0.124    11.467 r  u_front/u_fbuf/r_inst[3][11]_i_1/O
+                         net (fo=3, routed)           1.029    12.495    u_front/u_fbuf_n_169
+    SLICE_X69Y171        FDRE                                         r  u_front/r_inst_reg[3][11]_replica/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       10.000    10.000 r  
+                         propagated clock network latency
+                                                      0.924    10.924    
+                         clock pessimism              0.000    10.924    
+                         clock uncertainty           -0.035    10.889    
+    SLICE_X69Y171        FDRE (Setup_fdre_C_D)       -0.058    10.831    u_front/r_inst_reg[3][11]_replica
+  -------------------------------------------------------------------
+                         required time                         10.831    
+                         arrival time                         -12.495    
+  -------------------------------------------------------------------
+                         slack                                 -1.664    
+
+
+
+
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Mon Nov  2 22:29:43 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_timing -max_paths 3 -nworst 1 -path_type full -from [all_registers] -to {u_front/g_d_reg[0][a_sel][0] u_front/g_d_reg[0][a_sel][1] u_front/g_d_reg[0][a_shift][0] u_front/g_d_reg[0][a_shift][1] u_front/g_d_reg[0][a_uw] u_front/g_d_reg[0][alu_op][0] u_front/g_d_reg[0][alu_op][1] u_front/g_d_reg[0][alu_op][2] u_front/g_d_reg[0][alu_op][3] u_front/g_d_reg[0][alu_op][4] u_front/g_d_reg[0][alu_op][5] u_front/g_d_reg[0][b_sel] u_front/g_d_reg[0][br_op][0] u_front/g_d_reg[0][br_op][1] u_front/g_d_reg[0][br_op][2] u_front/g_d_reg[0][cls][0] u_front/g_d_reg[0][cls][1] u_front/g_d_reg[0][cls][2] u_front/g_d_reg[0][csr_addr][10] u_front/g_d_reg[0][csr_addr][11] u_front/g_d_reg[0][csr_addr][5] u_front/g_d_reg[0][csr_addr][6] u_front/g_d_reg[0][csr_addr][7] u_front/g_d_reg[0][csr_addr][8] u_front/g_d_reg[0][csr_addr][9] u_front/g_d_reg[0][csr_op][0] u_front/g_d_reg[0][csr_op][1] u_front/g_d_reg[0][csr_rd] u_front/g_d_reg[0][csr_wr] u_front/g_d_reg[0][ext_ans] u_front/g_d_reg[0][illegal] u_front/g_d_reg[0][imm][0] u_front/g_d_reg[0][imm][10] u_front/g_d_reg[0][imm][11] u_front/g_d_reg[0][imm][12] u_front/g_d_reg[0][imm][13] u_front/g_d_reg[0][imm][14] u_front/g_d_reg[0][imm][15] u_front/g_d_reg[0][imm][16] u_front/g_d_reg[0][imm][17] u_front/g_d_reg[0][imm][18] u_front/g_d_reg[0][imm][19] u_front/g_d_reg[0][imm][1] u_front/g_d_reg[0][imm][20] u_front/g_d_reg[0][imm][21] u_front/g_d_reg[0][imm][22] u_front/g_d_reg[0][imm][23] u_front/g_d_reg[0][imm][24] u_front/g_d_reg[0][imm][25] u_front/g_d_reg[0][imm][26] u_front/g_d_reg[0][imm][27] u_front/g_d_reg[0][imm][28] u_front/g_d_reg[0][imm][29] u_front/g_d_reg[0][imm][2] u_front/g_d_reg[0][imm][30] u_front/g_d_reg[0][imm][31] u_front/g_d_reg[0][imm][3] u_front/g_d_reg[0][imm][4] u_front/g_d_reg[0][imm][5] u_front/g_d_reg[0][imm][6] u_front/g_d_reg[0][imm][7] u_front/g_d_reg[0][imm][8] u_front/g_d_reg[0][imm][9] u_front/g_d_reg[0][is_branch] u_front/g_d_reg[0][is_csr] u_front/g_d_reg[0][is_fp] u_front/g_d_reg[0][is_jal] u_front/g_d_reg[0][is_jalr] u_front/g_d_reg[0][is_sfence] u_front/g_d_reg[0][lat2] u_front/g_d_reg[0][mdu_op][3] u_front/g_d_reg[0][mem_cmd][0] u_front/g_d_reg[0][mem_cmd][1] u_front/g_d_reg[0][mem_cmd][2] u_front/g_d_reg[0][mem_cmd][3] u_front/g_d_reg[0][mem_cmd][4] u_front/g_d_reg[0][mem_signed] u_front/g_d_reg[0][mem_size][1] u_front/g_d_reg[0][nonspec] u_front/g_d_reg[0][op][0] u_front/g_d_reg[0][op][1] u_front/g_d_reg[0][op][2] u_front/g_d_reg[0][port][0] u_front/g_d_reg[0][port][1] u_front/g_d_reg[0][rd][0] u_front/g_d_reg[0][rd][1] u_front/g_d_reg[0][rd][2] u_front/g_d_reg[0][rd][3] u_front/g_d_reg[0][rd][4] u_front/g_d_reg[0][rs1][0] u_front/g_d_reg[0][rs1][1] u_front/g_d_reg[0][rs1][2] u_front/g_d_reg[0][rs1][3] u_front/g_d_reg[0][rs1][4] u_front/g_d_reg[0][rs2][0] u_front/g_d_reg[0][rs2][1] u_front/g_d_reg[0][rs2][2] u_front/g_d_reg[0][rs2][3] u_front/g_d_reg[0][rs2][4] u_front/g_d_reg[0][sys][0] u_front/g_d_reg[0][sys][1] u_front/g_d_reg[0][sys][3] u_front/g_d_reg[0][sys][4] u_front/g_d_reg[0][sys][5] u_front/g_d_reg[0][sys][6] u_front/g_d_reg[0][sys][7] u_front/g_d_reg[0][use_rs1] u_front/g_d_reg[0][use_rs2] u_front/g_d_reg[0][word_op] u_front/g_d_reg[1][a_sel][0] u_front/g_d_reg[1][a_sel][1] u_front/g_d_reg[1][a_shift][0] u_front/g_d_reg[1][a_shift][1] u_front/g_d_reg[1][a_uw] u_front/g_d_reg[1][alu_op][0] u_front/g_d_reg[1][alu_op][1] u_front/g_d_reg[1][alu_op][2] u_front/g_d_reg[1][alu_op][3] u_front/g_d_reg[1][alu_op][4] u_front/g_d_reg[1][alu_op][5] u_front/g_d_reg[1][b_sel] u_front/g_d_reg[1][br_op][0] u_front/g_d_reg[1][br_op][1] u_front/g_d_reg[1][br_op][2] u_front/g_d_reg[1][cls][0] u_front/g_d_reg[1][cls][1] u_front/g_d_reg[1][cls][2] u_front/g_d_reg[1][ext_ans] u_front/g_d_reg[1][illegal] u_front/g_d_reg[1][imm][0] u_front/g_d_reg[1][imm][10] u_front/g_d_reg[1][imm][11] u_front/g_d_reg[1][imm][12] u_front/g_d_reg[1][imm][13] u_front/g_d_reg[1][imm][14] u_front/g_d_reg[1][imm][15] u_front/g_d_reg[1][imm][16] u_front/g_d_reg[1][imm][17] u_front/g_d_reg[1][imm][18] u_front/g_d_reg[1][imm][19] u_front/g_d_reg[1][imm][1] u_front/g_d_reg[1][imm][20] u_front/g_d_reg[1][imm][21] u_front/g_d_reg[1][imm][22] u_front/g_d_reg[1][imm][23] u_front/g_d_reg[1][imm][24] u_front/g_d_reg[1][imm][25] u_front/g_d_reg[1][imm][26] u_front/g_d_reg[1][imm][27] u_front/g_d_reg[1][imm][28] u_front/g_d_reg[1][imm][29] u_front/g_d_reg[1][imm][2] u_front/g_d_reg[1][imm][30] u_front/g_d_reg[1][imm][31] u_front/g_d_reg[1][imm][3] u_front/g_d_reg[1][imm][4] u_front/g_d_reg[1][imm][5] u_front/g_d_reg[1][imm][6] u_front/g_d_reg[1][imm][7] u_front/g_d_reg[1][imm][8] u_front/g_d_reg[1][imm][9] u_front/g_d_reg[1][is_branch] u_front/g_d_reg[1][is_jal] u_front/g_d_reg[1][is_jalr] u_front/g_d_reg[1][lat2] u_front/g_d_reg[1][mdu_op][3] u_front/g_d_reg[1][mem_cmd][0] u_front/g_d_reg[1][mem_signed] u_front/g_d_reg[1][mem_size][1] u_front/g_d_reg[1][op][0] u_front/g_d_reg[1][op][1] u_front/g_d_reg[1][op][2] u_front/g_d_reg[1][port][0] u_front/g_d_reg[1][port][1] u_front/g_d_reg[1][rd][0] u_front/g_d_reg[1][rd][1] u_front/g_d_reg[1][rd][2] u_front/g_d_reg[1][rd][3] u_front/g_d_reg[1][rd][4] u_front/g_d_reg[1][rs1][0] u_front/g_d_reg[1][rs1][1] u_front/g_d_reg[1][rs1][2] u_front/g_d_reg[1][rs1][3] u_front/g_d_reg[1][rs1][4] u_front/g_d_reg[1][rs2][0] u_front/g_d_reg[1][rs2][1] u_front/g_d_reg[1][rs2][2] u_front/g_d_reg[1][rs2][3] u_front/g_d_reg[1][rs2][4] u_front/g_d_reg[1][use_rs1] u_front/g_d_reg[1][use_rs2] u_front/g_d_reg[1][word_op] u_front/g_d_reg[2][a_sel][0] u_front/g_d_reg[2][a_sel][1] u_front/g_d_reg[2][a_shift][0] u_front/g_d_reg[2][a_shift][1] u_front/g_d_reg[2][a_uw] u_front/g_d_reg[2][alu_op][0] u_front/g_d_reg[2][alu_op][1] u_front/g_d_reg[2][alu_op][2] u_front/g_d_reg[2][alu_op][3] u_front/g_d_reg[2][alu_op][4] u_front/g_d_reg[2][alu_op][5] u_front/g_d_reg[2][b_sel] u_front/g_d_reg[2][br_op][0] u_front/g_d_reg[2][br_op][1] u_front/g_d_reg[2][br_op][2] u_front/g_d_reg[2][cls][0] u_front/g_d_reg[2][cls][1] u_front/g_d_reg[2][cls][2] u_front/g_d_reg[2][ext_ans] u_front/g_d_reg[2][illegal] u_front/g_d_reg[2][imm][0] u_front/g_d_reg[2][imm][10] u_front/g_d_reg[2][imm][11] u_front/g_d_reg[2][imm][12] u_front/g_d_reg[2][imm][13] u_front/g_d_reg[2][imm][14] u_front/g_d_reg[2][imm][15] u_front/g_d_reg[2][imm][16] u_front/g_d_reg[2][imm][17] u_front/g_d_reg[2][imm][18] u_front/g_d_reg[2][imm][19] u_front/g_d_reg[2][imm][1] u_front/g_d_reg[2][imm][20] u_front/g_d_reg[2][imm][21] u_front/g_d_reg[2][imm][22] u_front/g_d_reg[2][imm][23] u_front/g_d_reg[2][imm][24] u_front/g_d_reg[2][imm][25] u_front/g_d_reg[2][imm][26] u_front/g_d_reg[2][imm][27] u_front/g_d_reg[2][imm][28] u_front/g_d_reg[2][imm][29] u_front/g_d_reg[2][imm][2] u_front/g_d_reg[2][imm][30] u_front/g_d_reg[2][imm][31] u_front/g_d_reg[2][imm][3] u_front/g_d_reg[2][imm][4] u_front/g_d_reg[2][imm][5] u_front/g_d_reg[2][imm][6] u_front/g_d_reg[2][imm][7] u_front/g_d_reg[2][imm][8] u_front/g_d_reg[2][imm][9] u_front/g_d_reg[2][is_branch] u_front/g_d_reg[2][is_jal] u_front/g_d_reg[2][is_jalr] u_front/g_d_reg[2][lat2] u_front/g_d_reg[2][mdu_op][3] u_front/g_d_reg[2][mem_cmd][0] u_front/g_d_reg[2][mem_signed] u_front/g_d_reg[2][mem_size][1] u_front/g_d_reg[2][op][0] u_front/g_d_reg[2][op][1] u_front/g_d_reg[2][op][2] u_front/g_d_reg[2][port][0] u_front/g_d_reg[2][port][1] u_front/g_d_reg[2][rd][0] u_front/g_d_reg[2][rd][1] u_front/g_d_reg[2][rd][2] u_front/g_d_reg[2][rd][3] u_front/g_d_reg[2][rd][4] u_front/g_d_reg[2][rs1][0] u_front/g_d_reg[2][rs1][1] u_front/g_d_reg[2][rs1][2] u_front/g_d_reg[2][rs1][3] u_front/g_d_reg[2][rs1][4] u_front/g_d_reg[2][rs2][0] u_front/g_d_reg[2][rs2][1] u_front/g_d_reg[2][rs2][2] u_front/g_d_reg[2][rs2][3] u_front/g_d_reg[2][rs2][4] u_front/g_d_reg[2][use_rs1] u_front/g_d_reg[2][use_rs2] u_front/g_d_reg[2][word_op] u_front/g_d_reg[3][a_sel][0] u_front/g_d_reg[3][a_sel][1] u_front/g_d_reg[3][a_shift][0] u_front/g_d_reg[3][a_shift][1] u_front/g_d_reg[3][a_uw] u_front/g_d_reg[3][alu_op][0] u_front/g_d_reg[3][alu_op][1] u_front/g_d_reg[3][alu_op][2] u_front/g_d_reg[3][alu_op][3] u_front/g_d_reg[3][alu_op][4] u_front/g_d_reg[3][alu_op][5] u_front/g_d_reg[3][b_sel] u_front/g_d_reg[3][br_op][0] u_front/g_d_reg[3][br_op][1] u_front/g_d_reg[3][br_op][2] u_front/g_d_reg[3][cls][0] u_front/g_d_reg[3][cls][1] u_front/g_d_reg[3][cls][2] u_front/g_d_reg[3][ext_ans] u_front/g_d_reg[3][illegal] u_front/g_d_reg[3][imm][0] u_front/g_d_reg[3][imm][10] u_front/g_d_reg[3][imm][11] u_front/g_d_reg[3][imm][12] u_front/g_d_reg[3][imm][13] u_front/g_d_reg[3][imm][14] u_front/g_d_reg[3][imm][15] u_front/g_d_reg[3][imm][16] u_front/g_d_reg[3][imm][17] u_front/g_d_reg[3][imm][18] u_front/g_d_reg[3][imm][19] u_front/g_d_reg[3][imm][1] u_front/g_d_reg[3][imm][20] u_front/g_d_reg[3][imm][21] u_front/g_d_reg[3][imm][22] u_front/g_d_reg[3][imm][23] u_front/g_d_reg[3][imm][24] u_front/g_d_reg[3][imm][25] u_front/g_d_reg[3][imm][26] u_front/g_d_reg[3][imm][27] u_front/g_d_reg[3][imm][28] u_front/g_d_reg[3][imm][29] u_front/g_d_reg[3][imm][2] u_front/g_d_reg[3][imm][30] u_front/g_d_reg[3][imm][31] u_front/g_d_reg[3][imm][3] u_front/g_d_reg[3][imm][4] u_front/g_d_reg[3][imm][5] u_front/g_d_reg[3][imm][6] u_front/g_d_reg[3][imm][7] u_front/g_d_reg[3][imm][8] u_front/g_d_reg[3][imm][9] u_front/g_d_reg[3][is_branch] u_front/g_d_reg[3][is_jal] u_front/g_d_reg[3][is_jalr] u_front/g_d_reg[3][lat2] u_front/g_d_reg[3][mdu_op][3] u_front/g_d_reg[3][mem_cmd][0] u_front/g_d_reg[3][mem_signed] u_front/g_d_reg[3][mem_size][1] u_front/g_d_reg[3][op][0] u_front/g_d_reg[3][op][1] u_front/g_d_reg[3][op][2] u_front/g_d_reg[3][port][0] u_front/g_d_reg[3][port][1] u_front/g_d_reg[3][rd][0] u_front/g_d_reg[3][rd][1] u_front/g_d_reg[3][rd][2] u_front/g_d_reg[3][rd][3] u_front/g_d_reg[3][rd][4] u_front/g_d_reg[3][rs1][0] u_front/g_d_reg[3][rs1][1] u_front/g_d_reg[3][rs1][2] u_front/g_d_reg[3][rs1][3] u_front/g_d_reg[3][rs1][4] u_front/g_d_reg[3][rs2][0] u_front/g_d_reg[3][rs2][1] u_front/g_d_reg[3][rs2][2] u_front/g_d_reg[3][rs2][3] u_front/g_d_reg[3][rs2][4] u_front/g_d_reg[3][use_rs1] u_front/g_d_reg[3][use_rs2] u_front/g_d_reg[3][word_op]} -name D1b -append -file ./output/OOC_FE_T10/timing_d1.rpt
+| Design       : OOC_FE
+| Device       : 7a200t-sbg484
+| Speed File   : -1  PRODUCTION 1.23 2018-06-13
+| Design State : Routed
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (VIOLATED) :        -3.490ns  (required time - arrival time)
+  Source:                 u_front/r_inst_reg[2][10]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_front/g_d_reg[2][port][0]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk rise@10.000ns - clk rise@0.000ns)
+  Data Path Delay:        13.483ns  (logic 2.802ns (20.781%)  route 10.681ns (79.219%))
+  Logic Levels:           15  (LUT2=6 LUT3=1 LUT4=2 LUT6=6)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 10.924 - 10.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X59Y172        FDRE                         0.000     0.973 r  u_front/r_inst_reg[2][10]/C
+    SLICE_X59Y172        FDRE (Prop_fdre_C_Q)         0.456     1.429 f  u_front/r_inst_reg[2][10]/Q
+                         net (fo=26, routed)          1.916     3.345    u_front/r_inst_reg_n_0_[2][10]
+    SLICE_X20Y166        LUT4 (Prop_lut4_I2_O)        0.124     3.469 f  u_front/g_d[2][rs2][2]_i_4/O
+                         net (fo=2, routed)           0.617     4.086    u_front/g_d[2][rs2][2]_i_4_n_0
+    SLICE_X18Y164        LUT6 (Prop_lut6_I0_O)        0.124     4.210 f  u_front/g_d[2][a_sel][0]_i_4/O
+                         net (fo=2, routed)           0.602     4.812    u_front/g_d[2][a_sel][0]_i_4_n_0
+    SLICE_X18Y160        LUT4 (Prop_lut4_I3_O)        0.124     4.936 f  u_front/g_d[2][a_sel][0]_i_2/O
+                         net (fo=12, routed)          0.983     5.919    u_front/g_d[2][a_sel][0]_i_2_n_0
+    SLICE_X18Y153        LUT2 (Prop_lut2_I0_O)        0.124     6.043 f  u_front/g_d[2][imm][13]_i_5/O
+                         net (fo=7, routed)           0.607     6.650    u_front/g_d[2][imm][13]_i_5_n_0
+    SLICE_X16Y153        LUT2 (Prop_lut2_I0_O)        0.150     6.800 f  u_front/g_d[2][use_rs1]_i_13/O
+                         net (fo=4, routed)           0.317     7.117    u_front/g_d[2][use_rs1]_i_13_n_0
+    SLICE_X15Y153        LUT2 (Prop_lut2_I0_O)        0.328     7.445 f  u_front/g_d[2][use_rs1]_i_4/O
+                         net (fo=17, routed)          0.876     8.321    u_front/g_d[2][use_rs1]_i_4_n_0
+    SLICE_X10Y153        LUT2 (Prop_lut2_I1_O)        0.149     8.470 r  u_front/g_d[2][alu_op][5]_i_7/O
+                         net (fo=9, routed)           0.926     9.396    u_front/g_d[2][alu_op][5]_i_7_n_0
+    SLICE_X10Y153        LUT2 (Prop_lut2_I0_O)        0.355     9.751 r  u_front/g_d[2][alu_op][5]_i_5/O
+                         net (fo=10, routed)          0.867    10.618    u_front/g_d[2][alu_op][5]_i_5_n_0
+    SLICE_X10Y152        LUT3 (Prop_lut3_I0_O)        0.124    10.742 r  u_front/g_d[2][alu_op][1]_i_4/O
+                         net (fo=3, routed)           0.324    11.066    u_front/g_d[2][alu_op][1]_i_4_n_0
+    SLICE_X9Y152         LUT6 (Prop_lut6_I1_O)        0.124    11.190 r  u_front/g_d[2][alu_op][3]_i_3/O
+                         net (fo=2, routed)           0.434    11.624    u_front/g_d[2][alu_op][3]_i_3_n_0
+    SLICE_X8Y152         LUT6 (Prop_lut6_I0_O)        0.124    11.748 r  u_front/g_d[2][alu_op][4]_i_2/O
+                         net (fo=1, routed)           0.162    11.910    u_front/g_d[2][alu_op][4]_i_2_n_0
+    SLICE_X8Y152         LUT6 (Prop_lut6_I0_O)        0.124    12.034 r  u_front/g_d[2][alu_op][4]_i_1/O
+                         net (fo=2, routed)           0.615    12.649    u_front/d_alu_op[2]_82[4]
+    SLICE_X8Y149         LUT2 (Prop_lut2_I0_O)        0.124    12.773 r  u_front/g_d[2][op][2]_i_6/O
+                         net (fo=5, routed)           0.466    13.239    u_front/g_d[2][op][2]_i_6_n_0
+    SLICE_X11Y149        LUT6 (Prop_lut6_I1_O)        0.124    13.363 r  u_front/g_d[2][port][0]_i_2/O
+                         net (fo=1, routed)           0.969    14.332    u_front/g_d[2][port][0]_i_2_n_0
+    SLICE_X12Y151        LUT6 (Prop_lut6_I1_O)        0.124    14.456 r  u_front/g_d[2][port][0]_i_1/O
+                         net (fo=1, routed)           0.000    14.456    u_front/d_port[2]_105[0]
+    SLICE_X12Y151        FDRE                                         r  u_front/g_d_reg[2][port][0]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       10.000    10.000 r  
+                         propagated clock network latency
+                                                      0.924    10.924    
+                         clock pessimism              0.000    10.924    
+                         clock uncertainty           -0.035    10.889    
+    SLICE_X12Y151        FDRE (Setup_fdre_C_D)        0.077    10.966    u_front/g_d_reg[2][port][0]
+  -------------------------------------------------------------------
+                         required time                         10.966    
+                         arrival time                         -14.456    
+  -------------------------------------------------------------------
+                         slack                                 -3.490    
+
+Slack (VIOLATED) :        -3.352ns  (required time - arrival time)
+  Source:                 u_front/r_inst_reg[3][9]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_front/g_d_reg[3][op][1]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk rise@10.000ns - clk rise@0.000ns)
+  Data Path Delay:        13.299ns  (logic 2.762ns (20.768%)  route 10.537ns (79.232%))
+  Logic Levels:           14  (LUT2=3 LUT3=1 LUT4=3 LUT5=1 LUT6=6)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 10.924 - 10.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X58Y171        FDRE                         0.000     0.973 r  u_front/r_inst_reg[3][9]/C
+    SLICE_X58Y171        FDRE (Prop_fdre_C_Q)         0.419     1.392 r  u_front/r_inst_reg[3][9]/Q
+                         net (fo=11, routed)          1.041     2.433    u_front/r_inst_reg_n_0_[3][9]
+    SLICE_X67Y171        LUT4 (Prop_lut4_I2_O)        0.299     2.732 r  u_front/g_d[3][rs1][3]_i_8/O
+                         net (fo=3, routed)           0.827     3.559    u_front/g_d[3][rs1][3]_i_8_n_0
+    SLICE_X65Y173        LUT4 (Prop_lut4_I0_O)        0.124     3.683 f  u_front/g_d[3][rs1][3]_i_7/O
+                         net (fo=8, routed)           0.678     4.361    u_front/g_d[3][rs1][3]_i_7_n_0
+    SLICE_X70Y172        LUT3 (Prop_lut3_I2_O)        0.124     4.485 f  u_front/g_d[3][rs1][4]_i_4/O
+                         net (fo=4, routed)           0.329     4.814    u_front/g_d[3][rs1][4]_i_4_n_0
+    SLICE_X69Y171        LUT6 (Prop_lut6_I5_O)        0.124     4.938 r  u_front/g_d[3][rs1][4]_i_2/O
+                         net (fo=3, routed)           0.607     5.545    u_front/g_d[3][rs1][4]_i_2_n_0
+    SLICE_X66Y170        LUT6 (Prop_lut6_I3_O)        0.124     5.669 r  u_front/g_d[3][rs2][0]_i_1/O
+                         net (fo=19, routed)          1.259     6.928    u_front/d_rs2[3]_116[0]
+    SLICE_X53Y168        LUT2 (Prop_lut2_I0_O)        0.120     7.048 r  u_front/g_d[3][rd][4]_i_39/O
+                         net (fo=5, routed)           0.995     8.043    u_front/g_d[3][rd][4]_i_39_n_0
+    SLICE_X51Y167        LUT4 (Prop_lut4_I1_O)        0.327     8.370 r  u_front/g_d[3][mem_size][1]_i_4/O
+                         net (fo=3, routed)           0.801     9.171    u_front/g_d[3][mem_size][1]_i_4_n_0
+    SLICE_X50Y163        LUT2 (Prop_lut2_I0_O)        0.149     9.320 r  u_front/g_d[3][mem_size][1]_i_3/O
+                         net (fo=4, routed)           0.601     9.922    u_front/g_d[3][mem_size][1]_i_3_n_0
+    SLICE_X49Y162        LUT6 (Prop_lut6_I5_O)        0.332    10.254 f  u_front/g_d[3][mem_cmd][0]_i_2/O
+                         net (fo=1, routed)           0.432    10.686    u_front/g_d[3][mem_cmd][0]_i_2_n_0
+    SLICE_X49Y163        LUT6 (Prop_lut6_I3_O)        0.124    10.810 f  u_front/g_d[3][mem_cmd][0]_i_1/O
+                         net (fo=5, routed)           0.675    11.484    u_front/d_mem_cmd[3]_87[0]
+    SLICE_X49Y163        LUT2 (Prop_lut2_I0_O)        0.124    11.608 r  u_front/g_d[3][cls][2]_i_5/O
+                         net (fo=4, routed)           0.697    12.305    u_front/g_d[3][cls][2]_i_5_n_0
+    SLICE_X51Y162        LUT5 (Prop_lut5_I4_O)        0.124    12.429 f  u_front/g_d[3][cls][1]_i_2/O
+                         net (fo=2, routed)           0.644    13.074    u_front/g_d[3][cls][1]_i_2_n_0
+    SLICE_X48Y164        LUT6 (Prop_lut6_I0_O)        0.124    13.198 f  u_front/g_d[3][cls][0]_i_6/O
+                         net (fo=5, routed)           0.950    14.148    u_front/g_d[3][cls][0]_i_6_n_0
+    SLICE_X58Y162        LUT6 (Prop_lut6_I0_O)        0.124    14.272 r  u_front/g_d[3][op][1]_i_1/O
+                         net (fo=1, routed)           0.000    14.272    u_front/d_op[3]_113[1]
+    SLICE_X58Y162        FDRE                                         r  u_front/g_d_reg[3][op][1]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       10.000    10.000 r  
+                         propagated clock network latency
+                                                      0.924    10.924    
+                         clock pessimism              0.000    10.924    
+                         clock uncertainty           -0.035    10.889    
+    SLICE_X58Y162        FDRE (Setup_fdre_C_D)        0.031    10.920    u_front/g_d_reg[3][op][1]
+  -------------------------------------------------------------------
+                         required time                         10.920    
+                         arrival time                         -14.272    
+  -------------------------------------------------------------------
+                         slack                                 -3.352    
+
+Slack (VIOLATED) :        -3.291ns  (required time - arrival time)
+  Source:                 u_front/r_inst_reg[2][10]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_front/g_d_reg[2][op][2]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk rise@10.000ns - clk rise@0.000ns)
+  Data Path Delay:        13.236ns  (logic 2.802ns (21.170%)  route 10.434ns (78.830%))
+  Logic Levels:           15  (LUT2=6 LUT3=1 LUT4=2 LUT6=6)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 10.924 - 10.000 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+                         propagated clock network latency
+                                                      0.973     0.973    
+    SLICE_X59Y172        FDRE                         0.000     0.973 r  u_front/r_inst_reg[2][10]/C
+    SLICE_X59Y172        FDRE (Prop_fdre_C_Q)         0.456     1.429 f  u_front/r_inst_reg[2][10]/Q
+                         net (fo=26, routed)          1.916     3.345    u_front/r_inst_reg_n_0_[2][10]
+    SLICE_X20Y166        LUT4 (Prop_lut4_I2_O)        0.124     3.469 f  u_front/g_d[2][rs2][2]_i_4/O
+                         net (fo=2, routed)           0.617     4.086    u_front/g_d[2][rs2][2]_i_4_n_0
+    SLICE_X18Y164        LUT6 (Prop_lut6_I0_O)        0.124     4.210 f  u_front/g_d[2][a_sel][0]_i_4/O
+                         net (fo=2, routed)           0.602     4.812    u_front/g_d[2][a_sel][0]_i_4_n_0
+    SLICE_X18Y160        LUT4 (Prop_lut4_I3_O)        0.124     4.936 f  u_front/g_d[2][a_sel][0]_i_2/O
+                         net (fo=12, routed)          0.983     5.919    u_front/g_d[2][a_sel][0]_i_2_n_0
+    SLICE_X18Y153        LUT2 (Prop_lut2_I0_O)        0.124     6.043 f  u_front/g_d[2][imm][13]_i_5/O
+                         net (fo=7, routed)           0.607     6.650    u_front/g_d[2][imm][13]_i_5_n_0
+    SLICE_X16Y153        LUT2 (Prop_lut2_I0_O)        0.150     6.800 f  u_front/g_d[2][use_rs1]_i_13/O
+                         net (fo=4, routed)           0.317     7.117    u_front/g_d[2][use_rs1]_i_13_n_0
+    SLICE_X15Y153        LUT2 (Prop_lut2_I0_O)        0.328     7.445 f  u_front/g_d[2][use_rs1]_i_4/O
+                         net (fo=17, routed)          0.876     8.321    u_front/g_d[2][use_rs1]_i_4_n_0
+    SLICE_X10Y153        LUT2 (Prop_lut2_I1_O)        0.149     8.470 r  u_front/g_d[2][alu_op][5]_i_7/O
+                         net (fo=9, routed)           0.926     9.396    u_front/g_d[2][alu_op][5]_i_7_n_0
+    SLICE_X10Y153        LUT2 (Prop_lut2_I0_O)        0.355     9.751 r  u_front/g_d[2][alu_op][5]_i_5/O
+                         net (fo=10, routed)          0.867    10.618    u_front/g_d[2][alu_op][5]_i_5_n_0
+    SLICE_X10Y152        LUT3 (Prop_lut3_I0_O)        0.124    10.742 r  u_front/g_d[2][alu_op][1]_i_4/O
+                         net (fo=3, routed)           0.324    11.066    u_front/g_d[2][alu_op][1]_i_4_n_0
+    SLICE_X9Y152         LUT6 (Prop_lut6_I1_O)        0.124    11.190 r  u_front/g_d[2][alu_op][3]_i_3/O
+                         net (fo=2, routed)           0.434    11.624    u_front/g_d[2][alu_op][3]_i_3_n_0
+    SLICE_X8Y152         LUT6 (Prop_lut6_I0_O)        0.124    11.748 r  u_front/g_d[2][alu_op][4]_i_2/O
+                         net (fo=1, routed)           0.162    11.910    u_front/g_d[2][alu_op][4]_i_2_n_0
+    SLICE_X8Y152         LUT6 (Prop_lut6_I0_O)        0.124    12.034 r  u_front/g_d[2][alu_op][4]_i_1/O
+                         net (fo=2, routed)           0.615    12.649    u_front/d_alu_op[2]_82[4]
+    SLICE_X8Y149         LUT2 (Prop_lut2_I0_O)        0.124    12.773 r  u_front/g_d[2][op][2]_i_6/O
+                         net (fo=5, routed)           0.445    13.218    u_front/g_d[2][op][2]_i_6_n_0
+    SLICE_X10Y149        LUT6 (Prop_lut6_I2_O)        0.124    13.342 f  u_front/g_d[2][op][2]_i_2/O
+                         net (fo=3, routed)           0.743    14.085    u_front/g_d[2][op][2]_i_2_n_0
+    SLICE_X11Y150        LUT6 (Prop_lut6_I0_O)        0.124    14.209 r  u_front/g_d[2][op][2]_i_1/O
+                         net (fo=1, routed)           0.000    14.209    u_front/d_op[2]_107[2]
+    SLICE_X11Y150        FDRE                                         r  u_front/g_d_reg[2][op][2]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk rise edge)       10.000    10.000 r  
+                         propagated clock network latency
+                                                      0.924    10.924    
+                         clock pessimism              0.000    10.924    
+                         clock uncertainty           -0.035    10.889    
+    SLICE_X11Y150        FDRE (Setup_fdre_C_D)        0.029    10.918    u_front/g_d_reg[2][op][2]
+  -------------------------------------------------------------------
+                         required time                         10.918    
+                         arrival time                         -14.209    
+  -------------------------------------------------------------------
+                         slack                                 -3.291    
+
+
+
+

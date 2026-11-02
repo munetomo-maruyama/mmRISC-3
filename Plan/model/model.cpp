@@ -8,7 +8,7 @@
 //   model ooo <trace.bin> [key=value ...]
 //       the 2-wide out-of-order core of mmRISC-3 (ooo.h); keys: w, dec_w,
 //       issue_w, fetch_bytes, fb, fe_depth, dec_depth, iss_to_ex, redirect,
-//       override_at, rob, iq, lq, sq, ckpt, alu, lsu, mul, mul_shared,
+//       override_at, taken_gap, rob, iq, lq, sq, ckpt, alu, lsu, mul, mul_shared,
 //       lat_alu, lat_load, lat_mul, mdu_busy, ubtb, pred (perfect / gshare / S / M / L),
 //       fusion (0-3), chain, fuse_1w, fuse_2src, fuse_kinds, ck1, ck_jal, mem_cons, fwd, st_data_issue, lsu_cmt, mul_wb, keep_spec, alu_split, iqd, iql, cplx2,
 //       upd (TAGE update 0 at once, 1 at commit), upd_lag, stale, iters
@@ -73,6 +73,7 @@ int main(int argc, char** argv)
         c.iss_to_ex = (int)o.get("iss_to_ex", c.iss_to_ex);
         c.redirect = (int)o.get("redirect", c.redirect);
         c.override_at = (int)o.get("override_at", c.override_at);
+        c.taken_gap = (int)o.get("taken_gap", c.taken_gap);
         c.rob = (int)o.get("rob", c.rob);
         c.iq = (int)o.get("iq", c.iq);
         c.lq = (int)o.get("lq", c.lq);

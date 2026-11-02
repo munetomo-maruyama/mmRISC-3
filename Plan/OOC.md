@@ -2821,3 +2821,43 @@ this date is on xc7a100tcsg324-1: same speed grade, smaller device. The first ta
 t100` (results in `output/<top>_T10`), step 1.0: today's blocks at 10 ns. `OOC_ALU2` has a `FUSED` parameter for it, and the input
 delays fixed in ns (the wakeup tags, `g_take`) now scale with the period. The budget is now `Doc/UARCH.md` 4.5; `Doc/UARCH.md`
 4.4's overrun is history.
+
+### 28.1 Step 1.0: today's blocks at a 10 ns target (2026-11-02)
+
+`synth_ooo.bat t100`, on xc7a200tsbg484-1. "At 20 ns" is the earlier result on the XC7A100T: an upper bound, since Vivado stops
+working once a path meets its target. `FUSED=0`: the fused compare out, as in the proposal.
+
+| Block | LUTs at 10 ns (at 20 ns) | Register to register | Levels | Path (at 20 ns), route | Worst path |
+|---|---|---|---|---|---|
+| `OOC_ALU2`, `FUSED=0` (full ALU) | 1,791 (1,928 with fused) | **−0.660** | 23 (14 CARRY4) | 10.6 ns (18.5), 6.6 | `as1` → `r1[37]` |
+| `OOC_ALU2`, `FULL=0 FUSED=0` (ALU1) | 495 (684 with fused) | +2.335 | 20 | 7.7 ns | |
+| `OOC_DEC` | 1,841 (1,807) | +0.361 | 8 | 9.0 ns (12.1) | |
+| `OOC_RENAME` (2 µops) | 2,657 (2,702) | +1.044 | 7 | 8.6 ns (11.7) | |
+| `OOC_ROB` (2 wide) | 1,236 (1,235) | +1.026 | 17 | 9.0 ns | |
+| `OOC_LSU` | 1,983 (1,949) | −1.014 | 14 | 11.0 ns | |
+| `OOO_IQ` (10 entries, 3 ports) | 2,115 (1,999) | **−1.946** | 11 | 11.8 ns (12.8), 9.8 | `uq` → `rq` |
+| `OOO_UBTB` (8 entries) | 567 (492) | **−2.037** | 12 | 11.9 ns (12.9), 9.5 | `pc_q` → `pc_q` |
+| `OOC_LSUDC` | 7,989 (7,573) | **−2.657** | 17 | 12.6 ns (18.7) | `u_dc/s1_addr` → `u_lsu/wb_data` |
+| `OOC_FBUF` | 1,115 (1,001) | **−3.306** | 15 | 13.3 ns (16.9), 10.7 | `hb` → `hoff` |
+| `OOC_FE` | 7,290 (6,622) | **−4.789** | 21 | 14.3 ns (19.1) | `hpc` → RAS memory |
+
+**What it says**
+
+- **The 20 ns results were far from the limit**: the full ALU moved most, 18.5 to 10.6 ns. Nothing here refutes 100 MHz.
+- **Nothing here proves it either.** These are today's blocks, 2-wide, in the stages of a 50 MHz design. A block that misses
+  and is to be cut in two (`OOC_LSUDC`, `OOC_FBUF`, `OOC_FE`) says little; one that passes at 2 µops (`OOC_RENAME`, `OOC_ROB`)
+  says little about 4. Alone is not in the chip: the core at 20 ns added about 1 ns to its worst block.
+- **Routes stay the larger part**: 62 % of the ALU's path, 80 to 83 % of the fetch buffer's, the queue's and the uBTB's.
+- **Loop 1 moved least** (12.8 to 11.8 ns), and it is worth 20 %. The queue of 8 with one select has less fan-out on the
+  select but must take more wakeups than today's (3 ALUs + load). Measured first.
+- **Loop 2 is near**: 0.66 ns short with all functions, 2.34 ns over with ALU1's. The proposal, with the rare operations at 2
+  cycles, lies between, but its bypass has more sources: this harness has today's.
+- **The uBTB is a sixth loop**: 2.04 ns short at 8 entries, and the proposal wants 16. A new option in the model,
+  `taken_gap=2`, puts a bubble on each taken branch: **6.435, −6.8 %** (`Plan/model/results/g100.txt`). 8 entries without a
+  bubble is 6.660 (−3.5 %), 4 entries 6.400 (−7.3 %). The path has 9 LUT6: the compare of all entries, the choice of the
+  target and the priority of redirects, all back into `pc_q`. To try: redirects in a last mux with their own registers,
+  fewer candidates per lookup (set-associative), the sequential add apart.
+- **The tighter target costs area where it misses**: uBTB +15 %, `OOC_FBUF` +11 %, `OOC_FE` +10 %, `OOO_IQ` +6 %, `OOC_LSUDC` +5 %; those
+  that pass stay within 2 %. The engine's estimate of 59k (52k to 66k) has to absorb that, on a 75 % ceiling.
+
+The next step is 1.1 (`Doc/STRATEGY.md` section 5), the queue of 8 first. The gate S1-A stays open.

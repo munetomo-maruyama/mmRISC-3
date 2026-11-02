@@ -53,6 +53,8 @@ row "ROB 32, LQ / SQ 12, 8 checkpoints"             $P w=4 rob=32 lq=12 sq=12 ck
 row "ROB 64, LQ / SQ 24, 16 checkpoints"            $P w=4 rob=64 lq=24 sq=24 ckpt=16 iqd=3 iq=8 iql=12 alu=3 lsu=1 issue_w=4 st_data_issue=0 dec_w=6 fetch_bytes=32
 row "uBTB 8"                                        $J ubtb=8
 row "uBTB 32"                                       $J ubtb=32
+row "uBTB answers a cycle late: a bubble on every taken branch" $J taken_gap=2
+row "uBTB 4, no bubble"                              $J ubtb=4
 row "TAGE L"                                        $J pred=L
 row "TAGE S"                                        $J pred=S
 row "the multiply through CORE_MDU, one in 4 cycles" $J mdu_busy=4
