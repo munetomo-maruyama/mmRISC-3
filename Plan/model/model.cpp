@@ -9,7 +9,7 @@
 //       the 2-wide out-of-order core of mmRISC-3 (ooo.h); keys: w, dec_w,
 //       issue_w, fetch_bytes, fb, fe_depth, dec_depth, iss_to_ex, redirect,
 //       override_at, rob, iq, lq, sq, ckpt, alu, lsu, mul, mul_shared,
-//       lat_load, lat_mul, mdu_busy, ubtb, pred (perfect / gshare / S / M / L),
+//       lat_alu, lat_load, lat_mul, mdu_busy, ubtb, pred (perfect / gshare / S / M / L),
 //       fusion (0-3), chain, fuse_1w, fuse_2src, fuse_kinds, ck1, ck_jal, mem_cons, fwd, st_data_issue, lsu_cmt, mul_wb, keep_spec, alu_split,
 //       upd (TAGE update 0 at once, 1 at commit), upd_lag, stale, iters
 //   model tage <trace.bin>
@@ -83,6 +83,7 @@ int main(int argc, char** argv)
         c.mul = (int)o.get("mul", c.mul);
         c.issue_w = (int)o.get("issue_w", c.issue_w);
         c.mul_shared = o.get("mul_shared", c.mul_shared);
+        c.lat_alu = (int)o.get("lat_alu", c.lat_alu);
         c.lat_load = (int)o.get("lat_load", c.lat_load);
         c.lat_mul = (int)o.get("lat_mul", c.lat_mul);
         c.mdu_busy = (int)o.get("mdu_busy", c.mdu_busy);

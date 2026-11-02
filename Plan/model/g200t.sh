@@ -65,6 +65,12 @@ row "3 ALUs + 2 LSU, 5 issues"              $C4 alu=3 lsu=2 issue_w=5
 row "4 ALUs + 2 LSU, 6 issues"              $C4 alu=4 lsu=2 issue_w=6
 row "4 ALUs + LSU, 5 issues, 6 decoded, 32-byte fetch"    $C4 alu=4 issue_w=5 dec_w=6 fetch_bytes=32
 row "4 ALUs + 2 LSU, 6 issues, 6 decoded, 32-byte fetch"  $C4 alu=4 lsu=2 issue_w=6 dec_w=6 fetch_bytes=32
+echo "| **The proposal in a longer pipeline, for a higher clock** (Doc/STRATEGY.md 4.2) | | | |"
+row "66.7 MHz: decode +1, redirect +1, load-use 3, mul 3"  $C3 dec_depth=4 redirect=4 lat_load=3 lat_mul=3
+row "100 MHz, best: fetch, decode, RR +1, load-use 3, mul 4"  $C3 fe_depth=4 dec_depth=4 iss_to_ex=3 redirect=6 lat_load=3 lat_mul=4
+row "100 MHz, likely: + fetch +1, load-use 4"  $C3 fe_depth=5 dec_depth=4 iss_to_ex=3 redirect=7 lat_load=4 lat_mul=4 override_at=3
+row "100 MHz, worst: + ALU 2 cycles"       $C3 fe_depth=5 dec_depth=4 iss_to_ex=3 redirect=7 lat_load=4 lat_mul=4 override_at=3 lat_alu=2
+row "the 50 MHz proposal with ALU 2 cycles"  $C3 lat_alu=2
 echo "| **4 issues on a 2-wide core** | | | |"
 row "3 ALUs + LSU, 4 issues, 2 dispatched a cycle"  w=2 alu=3 issue_w=4 alu_split=0 iq=16 rob=32 lq=12 sq=12 ckpt=8 mul_wb=0 pred=M ubtb=16
 } | tee results/g200t.txt

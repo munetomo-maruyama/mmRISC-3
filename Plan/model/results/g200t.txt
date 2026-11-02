@@ -25,8 +25,8 @@
 | IQ 16, ROB 32, LQ / SQ 12                                  |  6.929 |  7.547 |  6.756 |
 | **the proposal**: + 8 checkpoints, free write slot, TAGE M, uBTB 16 |  7.170 |  7.743 |  6.970 |
 | the proposal + stores split                                |  7.324 |  7.889 |  7.132 |
-| the proposal + stores split + 2 LSU ports                                 |  7.504 |  8.097 |  7.311 |
-| the proposal + stores split + 6 decoded, 32-byte fetch            |  7.599 |  8.178 |  7.291 |
+| the proposal + stores split + 2 LSU ports                  |  7.504 |  8.097 |  7.311 |
+| the proposal + stores split + 6 decoded, 32-byte fetch     |  7.599 |  8.178 |  7.291 |
 | the proposal, a shorter pipeline (dec 2, redirect 2)       |  7.201 |  7.778 |  6.999 |
 | the proposal, load-use 3                                   |  6.421 |  6.954 |  6.230 |
 | the proposal, 2 LSU ports (3 ALUs, 5 issues)               |  7.459 |  8.023 |  7.257 |
@@ -38,5 +38,11 @@
 | 4 ALUs + 2 LSU, 6 issues                                   |  7.832 |  8.382 |  7.597 |
 | 4 ALUs + LSU, 5 issues, 6 decoded, 32-byte fetch           |  7.972 |  8.697 |  7.670 |
 | 4 ALUs + 2 LSU, 6 issues, 6 decoded, 32-byte fetch         |  8.603 |  9.406 |  8.253 |
+| **The proposal in a longer pipeline, for a higher clock** (Doc/STRATEGY.md 4.2) | | | |
+| 66.7 MHz: decode +1, redirect +1, load-use 3, mul 3        |  6.281 |  6.858 |  6.099 |
+| 100 MHz, best: fetch, decode, RR +1, load-use 3, mul 4     |  6.008 |  6.656 |  5.854 |
+| 100 MHz, likely: + fetch +1, load-use 4                    |  5.346 |  5.876 |  5.219 |
+| 100 MHz, worst: + ALU 2 cycles                             |  4.331 |  4.827 |  4.167 |
+| the 50 MHz proposal with ALU 2 cycles                      |  5.536 |  6.144 |  5.254 |
 | **4 issues on a 2-wide core** | | | |
 | 3 ALUs + LSU, 4 issues, 2 dispatched a cycle               |  6.038 |  6.482 |  5.889 |

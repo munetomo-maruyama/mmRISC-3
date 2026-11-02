@@ -144,6 +144,36 @@ writes and 9 reads is measured, 5,299 LUTs, +1.769 ns.)
   fetch, as long as 50 MHz holds. So choosing 3 now does not close 4.
 - **A cheap measurement now**: `synth_ooo.bat OOO_IQ 20.0 1 N=24` shows the queue at 24 entries (with today's 3 ports).
 
+### 4.2 A CPU clock of 100 MHz?
+
+(Asked by the author, 2026-11-02.) **Not as the target: it conflicts with the goal.** A clock of 100 MHz needs a longer
+pipeline, and that takes CoreMark/MHz below 6.0, though CoreMark per second rises. The pipelines are guesses from the
+measured paths; the 3-wide proposal in each (`Plan/model/results/g200t.txt`):
+
+| Clock | Pipeline | Model `-O2` /MHz | RTL (× 0.94) | CoreMark/s |
+|---|---|---|---|---|
+| **50 MHz** | The proposal | **7.17** | **6.7** | **337** |
+| 66.7 MHz | Decode +1, redirect +1, load-use 3, mul 3 | 6.28 | 5.9 | 394 |
+| 100 MHz, best case | Fetch, decode, RR +1, load-use 3, mul 4, 1-cycle ALU and wakeup held | 6.01 | 5.65 | 565 |
+| 100 MHz, likely | + fetch +1, load-use 4 | 5.35 | 5.0 | 503 |
+| 100 MHz, worst | + ALU 2 cycles | 4.33 | 4.1 | 407 |
+
+Why the risk is large, from the measurements:
+
+- **The period must halve.** The whole core has 19.8 ns today, 82 % of it routes. Alone, at a 20 ns target (so upper
+  bounds): the full ALU 18.5 ns, the front end 19.1, the LSU with the D$ 18.7, the CSR unit 16.5, the register file 17 to
+  18, the issue-queue loop 12.8 at 10 entries. Almost nothing large is under 10 ns, and 3-wide adds to all of them.
+- **mmRISC-2's assets are 50 MHz designs.** Its CPU_CORE closes with +0.002 ns (`Plan/OOC.md` 25.3). The caches, MMU, FPU,
+  CSR, L2 would need new pipelines and new verification: reuse is much of this project's plan.
+- **The loop that decides IPC.** If bypass + add + wakeup-select does not fit in 10 ns the ALU takes 2 cycles: −23 % alone.
+- **An outside reference**: NaxRiscv, built for Fmax, gives 5.02 CoreMark/MHz at 155 MHz on an Artix-7 of the fastest
+  grade, RV32, about 13k LUTs. Ours is the slowest grade, RV64, about 3 times the size.
+
+**Recommendation**: keep 50 MHz as the target. The CPU's clock is separate from LiteX's (`Doc/BOARD.md` 4), so
+**raising it afterwards is only a change of the MMCM**: measure Fmax at each step, and after S3 take what closes without
+changing the pipeline. Only if the goal became CoreMark per second instead of per MHz would a 100 MHz design be worth
+its risk, and then it should be decided now, because it changes everything in step 1.
+
 ---
 
 ## 5. Work order
@@ -213,6 +243,7 @@ a parameter; the board's own checks in step 2 run on mmRISC-2 first.
 | R5 | Ethernet speed | **1 Gb/s only** with LiteEth's RGMII (`Doc/BOARD.md` 6); a gigabit switch port is needed |
 | R6 | Fusion | Off; removed from the RTL if the width makes it pointless |
 | R7 | 3 or 4 wide | **3 first, with the width as a parameter**; 2 LSU ports, then 4-wide, after S1-B by measurement (4.1) |
+| R9 | CPU clock | **50 MHz as the target**, raised afterwards as far as it closes (4.2) |
 | R8 | LiteX | **Use its Nexys Video target as the base**, with the stock SoC as the first check (`Doc/BOARD.md` 2) |
 
 ---

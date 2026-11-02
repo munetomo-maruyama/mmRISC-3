@@ -5073,3 +5073,55 @@ Prompt 131 is logged in PROMPT.md, in this commit.
 With this FPGA's size, can it be extended from 2 issues to 4 issues?
 Also, LiteX seems to support the Nexys Video board, so please consider making use of those resources too.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**By area alone, 4-wide also fits on the XC7A200T. But 4-wide alone hardly speeds things up, and the real question is whether 50 MHz holds.** LiteX supports the Nexys Video, so it becomes the base on the board's side. Recorded in `Doc/STRATEGY` 4.1 and `Doc/BOARD` sections 2 to 4, pushed as dff98d9.
+
+**On 4-wide (4-issue)**
+A note on terms: today's core renames 2 and issues 3 a cycle (2 ALUs + LSU). The earlier proposal **already issues 4** (3 ALUs + LSU) and renames 3. Rename and dispatch width matter more than issues: 4 issues with 2 dispatched stays at 6.04. "4-wide" below means 4 renamed, dispatched and committed.
+
+| Configuration | Model `-O2` | RTL expected | Chip LUTs (estimate) | Needs besides the width |
+|---|---|---|---|---|
+| **3-wide (proposal)** | **7.17** | **6.7** | 84k, 62 % | |
+| 3-wide + 2 LSU ports | 7.46 | 7.0 | 92k, 68 % | D$ with 2 ports |
+| 4-wide (3 ALUs + LSU, the proposal's sizes) | 7.22 | 6.8 | 88k, 65 % | Almost no gain |
+| 4-wide (4 ALUs + LSU, IQ 24, ROB 48) | 7.45 | 7.0 | 96k, 71 % | Fetch limits it |
+| 4-wide (3 ALUs + 2 LSU) | 7.75 | 7.3 | 102k, 76 % | D$ with 2 ports |
+| 4-wide (4 ALUs + LSU, 6 decoded, 32-byte fetch) | 7.97 | 7.5 | 105k, 78 % | I$ 32 bytes wide |
+| 4-wide (4 ALUs + 2 LSU, 6 decoded, 32-byte fetch) | 8.60 | 8.1 | 115k, **85 %** | Both; over the 80 % |
+
+- **Area:** fits up to the ceiling of about 107k; the full version exceeds it. The 4-wide estimates are rougher than 3-wide's.
+- **Effect:** 4-wide alone gives +0.7 to 3.8 %. It pays only with a wider fetch and a second LSU port, each a large piece of work.
+- **Timing (unmeasured):** rename's dependence checks in a cycle go from 1 to 6, the bypass from 3 sources to 6, select from 3 ports to 5 or 6. Today's 2-wide has only +0.159 ns.
+
+**I recommend building 3-wide first.** It reaches the goal with a margin, and with the width as a parameter the way to 4-wide stays open. After gate S1-B (RTL `-O2` ≥ 6.5 with real caches), in order of measured effect: 2 LSU ports (+4 %), then 4-wide.
+
+This shows the timing of a 24-entry issue queue right away (with today's 3 ports):
+
+```bash
+synth_ooo.bat OOO_IQ 20.0 1 N=24
+```
+
+**Making use of LiteX**
+With the local LiteX, the stock target with Rocket, SD and Ethernet generated its Verilog, constraints and Vivado script (generation only; no Vivado, no board). The memory map is mmRISC-2's, main RAM 512 MiB from 0x8000_0000.
+
+**This changes the plan in two points.**
+1. **A first check (step 2.0):** the stock SoC (Rocket) as it is, to check BIOS, memory test, SD and TFTP, and as a Linux reference. The Vivado run needs no board. The order is stock SoC → mmRISC-2 → mmRISC-3.
+2. **The DDR3 recommendation changes:** last time LiteDRAM alone at 100 MHz. Now **all of LiteX at its default 100 MHz (DDR3-800), the CPU alone at 50 MHz**, using LiteX's AXI clock crossings in the CPU's wrapper. The stock target is used almost as it is, and the new logic is in one file. Peripherals at 100 MHz and the crossing's DRAM latency are to be measured.
+
+**Other parts available:** `xadc.py` (temperature and voltage, useful for the cooling concern); `spiflash4x` + LiteSPI (boot from flash); `i2c` (MAC address from the EEPROM); `icap.py` (reconfiguring from software); `fan` + `pwm.py` (if a fan is fitted).
+
+**Not used as they are:** `LVCMOS25` on switches and buttons (to `LVCMOS12`); `--eth-dynamic-ip` (tried: it conflicts with the default `eth_ip`, and the target has no `--eth-dhcp`; the Arty's is added to our target); `LedChaser` taking all LEDs; SD pins without timing constraints.
+
+The list is in `Doc/BOARD.md` section 2.
+
+Prompt 132 is logged in PROMPT.md, in this commit.
+<!-- /answer -->
+
+## 133. 2026-11-02 21:21:41 JST
+
+```text
+Is aiming for 100 MHz on the CPU core a large risk?
+```
