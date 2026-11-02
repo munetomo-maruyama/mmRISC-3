@@ -70,6 +70,7 @@ if {[llength $argv] > 4} {
 }
 
 set tag $top
+if {$period != 20.0} { append tag "_T[format %g $period]" }
 foreach g $gens { append tag "_[string map {= {}} $g]" }
 set outdir ./output/$tag
 file mkdir $outdir
@@ -118,12 +119,12 @@ if {$top eq "OOO_IQ" && [llength [get_ports -quiet ns_ok]]} { set_input_delay -c
 # ... and mdu_ok / p0_hold from flip-flops of OOO_MDUP (Plan/OOC.md 23)
 if {$top eq "OOO_IQ" && [llength [get_ports -quiet mdu_ok]]} { set_input_delay -clock clk 1.0 [get_ports {mdu_ok p0_hold}] }
 # OOC_RENAME's and OOC_DSREG's wakeup tags come straight from OOO_IQ's select (Plan/OOC.md 20):
-# its worst path reaches the port at about 13.2 ns (19.4), so they arrive at 13 ns, unregistered
+# its worst path reaches the port at about 13.2 ns of 20 (19.4), so they arrive at 65 % of the period, unregistered
 if {($top eq "OOC_RENAME" || $top eq "OOC_DSREG") && [llength [get_ports -quiet wk_*]]} {
-    set_input_delay -clock clk 13.0 [get_ports wk_*]
+    set_input_delay -clock clk [expr {0.65 * $period}] [get_ports wk_*]
 }
 # OOC_FE's g_take: D2's count taken, from fusion and renaming's go late in the cycle (Plan/CORE.md 5.2)
-if {$top eq "OOC_FE" && [llength [get_ports -quiet g_take*]]} { set_input_delay -clock clk 12.0 [get_ports g_take*] }
+if {$top eq "OOC_FE" && [llength [get_ports -quiet g_take*]]} { set_input_delay -clock clk [expr {0.6 * $period}] [get_ports g_take*] }
 if {[llength [get_ports -quiet rst_n]]} { set_false_path -from [get_ports rst_n] }
 
 write_checkpoint -force $outdir/post_synth.dcp

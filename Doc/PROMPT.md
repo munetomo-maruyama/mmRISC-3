@@ -5125,3 +5125,38 @@ Prompt 132 is logged in PROMPT.md, in this commit.
 ```text
 Is aiming for 100 MHz on the CPU core a large risk?
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**Yes, the risk is large. And not only technically: it conflicts with the goal of "-O2 above 6.0 CoreMark/MHz" itself.** 100 MHz needs a longer pipeline; performance per second rises, but CoreMark/MHz falls below 6.0.
+
+The 3-wide proposal with a longer pipeline in the model (g14 `-O2`; the stage counts are estimates from measured paths):
+
+| Clock | Pipeline | Model /MHz | RTL expected /MHz | CoreMark/s |
+|---|---|---|---|---|
+| **50 MHz** | The proposal | **7.17** | **6.7** | **337** |
+| 66.7 MHz | Decode +1, redirect +1, load 3, mul 3 | 6.28 | 5.9 | 394 |
+| 100 MHz (best) | Fetch, decode, RR +1, load 3, mul 4 | 6.01 | 5.65 | 565 |
+| 100 MHz (likely) | + fetch +1, load 4 | 5.35 | 5.0 | 503 |
+| 100 MHz (worst) | + ALU 2 cycles | 4.33 | 4.1 | 407 |
+
+**Why the risk is large**
+- **The period must halve.** The whole core is 19.8 ns today, 82 % of it routes. Alone: the full ALU 18.5 ns, the front end 19.1, the LSU with D$ 18.7, the CSR unit 16.5, the issue-queue loop 12.8 (10 entries). Almost no large block is under 10 ns. These are at a 20 ns target, so what Vivado did not squeeze may shorten; 3-wide makes them harder.
+- **mmRISC-2's assets are 50 MHz designs.** Its CPU_CORE has only +0.002 ns at 50 MHz. The premise of reusing the caches, MMU, FPU, CSR, L2 goes; they need new pipelines and verification.
+- **The loop that decides IPC is at stake.** If "bypass + add + wakeup-select" does not fit in 10 ns and the ALU takes 2 cycles, that alone costs 23 %.
+- **Outside examples are not easy either.** NaxRiscv, built for Fmax, gives 5.02 CoreMark/MHz at 155 MHz on the fastest-grade Artix-7 (RV32, about 13k LUTs). Ours is the slowest grade, RV64, about 3 times the size.
+
+**Recommendation**
+**Keep 50 MHz as the target.** The CPU's clock is separate from LiteX's (`Doc/BOARD.md` section 4), so raising it later is just the MMCM's setting. Measure Fmax at each step, and once Linux runs, raise it as far as it closes without changing the pipeline. CoreMark/MHz is basically kept (the DRAM latency grows in cycles; that part is measured).
+
+**If what matters is performance per second (CoreMark/s) rather than CoreMark/MHz, that is different.** As the table shows, 100 MHz could reach up to 1.7 times 50 MHz. Then all of step 1's design changes, so it should be decided now.
+
+Recorded in `Doc/STRATEGY.md` 4.2, the model's results in `Plan/model/results/g200t.txt`. The model has a new `lat_alu` option for the ALU's latency. Pushed as 7bcf0b6; prompt 133 is logged in PROMPT.md.
+<!-- /answer -->
+
+## 134. 2026-11-02 21:29:10 JST
+
+```text
+It is challenging, but I want to design aiming for 4-issues at 100 MHz. Please review the micro-architecture.
+```

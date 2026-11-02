@@ -2817,6 +2817,7 @@ file, the privilege level, the fetch buffer) as the worst.
 ## 28. The move to the XC7A200T (2026-11-02)
 
 `synth_ooo.tcl` now targets **xc7a200tsbg484-1** (`Doc/STRATEGY.md`). Every result above and in `output/` from before
-this date is on xc7a100tcsg324-1: same speed grade, smaller device. The first task on the new part is `synth_ooo.bat
-OOO_CPU` on the RTL of 289cc2a's successors, as a baseline (step 1.2). The budget is now `Doc/UARCH.md` 4.5; `Doc/UARCH.md`
+this date is on xc7a100tcsg324-1: same speed grade, smaller device. The first task on the new part, at the new target of 100 MHz, is `synth_ooo.bat
+t100` (results in `output/<top>_T10`), step 1.0: today's blocks at 10 ns. `OOC_ALU2` has a `FUSED` parameter for it, and the input
+delays fixed in ns (the wakeup tags, `g_take`) now scale with the period. The budget is now `Doc/UARCH.md` 4.5; `Doc/UARCH.md`
 4.4's overrun is history.

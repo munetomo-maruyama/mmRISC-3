@@ -7,11 +7,13 @@ REM   synth_ooo.bat prf        the five register files only
 REM   synth_ooo.bat OOC_ALU2   one top only (the arguments of synth_ooo.tcl)
 REM   synth_ooo.bat MM2_CPU_CORE   the calibration: mmRISC-2's CPU_CORE (not in the loop below: it is long)
 REM   synth_ooo.bat OOO_CPU    B7: mmRISC-3's whole core with its D$ (not in the loop either)
+REM   synth_ooo.bat t100       the loops that decide 100 MHz, at a 10 ns target, in output\<top>_T10 (Doc/STRATEGY.md 4.5)
 REM
 REM vivado is itself a batch file: without "call" this one would end after
 REM the first run outside a loop (the register files did not run, 2026-10-24)
 if not exist output mkdir output
 if /i "%~1"=="prf" goto :prf
+if /i "%~1"=="t100" goto :t100
 if not "%~1"=="" (
     call vivado -mode batch -source synth_ooo.tcl -log output\vivado_%~1.log -journal output\vivado_%~1.jou -tclargs %*
     goto :done
@@ -28,5 +30,13 @@ for %%p in (3_8 5_8 6_9 3_6 5_6) do (
         call vivado -mode batch -source synth_ooo.tcl -log output\vivado_prf_w%%wr%%x.log -journal output\vivado_prf_w%%wr%%x.jou -tclargs OOC_PRF 20.0 1 "NW=%%w NR=%%x"
     )
 )
+goto :done
+:t100
+for %%t in (OOO_IQ OOC_RENAME OOC_FBUF OOC_DEC OOC_ROB OOC_LSU OOC_LSUDC OOO_UBTB OOC_FE) do (
+    call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T10_%%t.log -journal output\vivado_T10_%%t.jou -tclargs %%t 10.0 1
+)
+REM the ALU ports without the fused compare: full, and ALU1's
+call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T10_ALU2.log -journal output\vivado_T10_ALU2.jou -tclargs OOC_ALU2 10.0 1 "FUSED=0"
+call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T10_ALU1.log -journal output\vivado_T10_ALU1.jou -tclargs OOC_ALU2 10.0 1 "FULL=0 FUSED=0"
 :done
 echo Done. The numbers are in output\*\summary.txt

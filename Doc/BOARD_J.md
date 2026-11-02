@@ -64,7 +64,8 @@
 | クロック | 周波数 | 用途 |
 |---|---|---|
 | ボードの発振器、ピンR4(MRCC、バンク34) | 100 MHz | MMCMの入力 |
-| **CPU、キャッシュ** | **50 MHz**、MMCMの新しい出力 | 作者の決定 |
+| **CPU、L1のヒットの経路** | **100 MHz、`sys`と同じクロック**(立ち上げのmmRISC-2は50 MHz) | 作者の決定、2026-11-02 |
+| CPUの半分の速度の島 | 50 MHz、同じMMCMから | `Doc/STRATEGY_J.md` 4.4 |
 | **LiteXの`sys`**: LiteDRAM、CSR、UART、SD、LiteEthのバス側 | **100 MHz、このボードの既定** | 4章 |
 | `sys4x`、`sys4x_dqs` | 400 MHz、90°の400 MHz | DDR3-800 |
 | IDELAYCTRL | 200 MHz | DDR3とRGMIIの受信の遅延 |
@@ -78,12 +79,12 @@
 
 | 案 | 内容 | 利点 | 欠点 |
 |---|---|---|---|
-| **A(おすすめ、2026-11-02に改訂)** | **LiteX全体をこのボードの既定の100 MHzに、CPUだけ50 MHz。** 乗り換えはCPUのラッパーの中: メモリバスは`AXIClockDomainCrossing`(か`get_port(clock_domain=...)`)、周辺とDMAのバスは`AXILiteClockDomainCrossing` | このボードで使われ試されているLiteXのターゲットのまま。全部品でJEDECの範囲内。帯域2倍。SDを速くできる。新しい論理が1ファイルにまとまる | 周辺が100 MHz。CSRアクセスが乗り換えを通る(ほとんど問題にならない)。DRAMの遅延に乗り換えのサイクルが乗るので測る |
+| **A(おすすめ、2026-11-02に改訂)** | **LiteX全体をこのボードの既定の100 MHzに。** mmRISC-3は同じクロックで動き、メモリバスに乗り換えがない。立ち上げのmmRISC-2は50 MHzで、乗り換えはそのラッパーの中: メモリバスは`AXIClockDomainCrossing`(か`get_port(clock_domain=...)`)、周辺とDMAのバスは`AXILiteClockDomainCrossing` | このボードで使われ試されているLiteXのターゲットのまま。全部品でJEDECの範囲内。帯域2倍。SDを速くできる。新しい論理が1ファイルにまとまる | 周辺が100 MHz。CSRアクセスが乗り換えを通る(ほとんど問題にならない)。DRAMの遅延に乗り換えのサイクルが乗るので測る |
 | B | LiteDRAMだけ100 MHz、ドメインを`sys`から分ける。周辺はCPUと50 MHz | 周辺のタイミングがArtyと同じ | LiteXのSoCの中でドメインの名前を変える、流儀に逆らう作り |
 | C | LiteDRAMの代わりにMIG(UG586)、AXIは100 MHz | Xilinxがサポートする流れ | 論理が増え、IPの流れ、BIOSの初期化が新しくなる。Aより得がない。**代替案としてだけ** |
 | D | ArtyのようにDDR3-400 | 作業なし | JEDECの範囲外。試すだけなら |
 
-ほかの点: 0x8000_0000〜0x9FFF_FFFFの512 MiBはmmRISC-2のメモリマップで空いている(`MEMMAP_J.md` 3章)。バンク35は1.5 V。CPU_L2とデバイスツリーは新しい大きさにする。mmRISC-2の`mtime`はCPUの中でCPUのクロックで数えるので、`timebase-frequency`は変わらない。BIOSとドライバのクロックの定数は`sys`の100 MHzになる。
+ほかの点: 0x8000_0000〜0x9FFF_FFFFの512 MiBはmmRISC-2のメモリマップで空いている(`MEMMAP_J.md` 3章)。バンク35は1.5 V。CPU_L2とデバイスツリーは新しい大きさにする。`mtime`はCPUの中でCPUのクロックから数えるので、`timebase-frequency`が500 kHzのままになるよう分周比を変える。BIOSとドライバのクロックの定数は`sys`の100 MHzになる。
 
 ---
 
@@ -181,6 +182,7 @@ ArtyのRGB LEDは明るすぎて1/16のデューティで点けていた。こ�
 | 9 | **VADJ**(8章): LiteXの`LVCMOS25`だとスイッチの1.2 VのHighをLowと読む | 設計 | `LVCMOS12`、`SET_VADJ`は触らない |
 | 10 | **デバッグプローブのPmod**はピン配置が同じ。200 Ωも同じ。プローブは3.3 V | 問題なし | 買うものなし |
 | 11 | **ArtyのPMOD MicroSDとEthernetは引き継がない** | 問題なし | J3とRJ-45に替わる。マニュアルはシールドケーブルを求めている |
-| 12 | **速度グレード。** これまでと同じ-1: 論理は2倍だが、速くはない | 既知 | `Doc/STRATEGY_J.md` 8 |
+| 12 | **速度グレード。** これまでと同じ-1: 論理は2倍だが、速くはない。**100 MHzの目標でこれが一番のリスクになる** | 既知 | `Doc/STRATEGY_J.md` 4.5、8 |
+| 13 | **100 MHz、約98k LUTの電力と熱**: 50 MHzの計画より多い。電源36 Wは見積もりに十分、1.0 Vレールは最大4 A | 確認 | 最初の全体ビルドで`report_power`。そこからファンかヒートシンクを決める |
 
 1、2、7の出典は販売店のページとAMDのUG973(2026-11-02に確認)。価格と在庫は変わる。

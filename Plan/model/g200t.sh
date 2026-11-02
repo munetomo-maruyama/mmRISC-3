@@ -1,6 +1,6 @@
 #!/bin/bash
 #---------------------------------------------------------------------------
-# g200t.sh : what the XC7A200T makes possible (Doc/STRATEGY.md 3): the model
+# g200t.sh : what the XC7A200T makes possible at 50 MHz (for 100 MHz, g100.sh): the model
 # from the configuration of the core as it is, one lever at a time, then the
 # combinations
 #
@@ -56,7 +56,7 @@ row "the proposal + stores split + 6 decoded, 32-byte fetch"  $C3 st_data_issue=
 row "the proposal, a shorter pipeline (dec 2, redirect 2)"  $C3 dec_depth=2 redirect=2
 row "the proposal, load-use 3"             $C3 lat_load=3
 row "the proposal, 2 LSU ports (3 ALUs, 5 issues)"  $C3 lsu=2 issue_w=5
-echo "| **4-wide** (IQ 24, ROB 48, LQ / SQ 16, 12 checkpoints; Doc/STRATEGY.md 4.1) | | | |"
+echo "| **4-wide** (IQ 24, ROB 48, LQ / SQ 16, 12 checkpoints) | | | |"
 C4="iq=24 rob=48 lq=16 sq=16 ckpt=12 mul_wb=0 pred=M ubtb=16 alu_split=0 w=4"
 row "4 wide alone: 3 ALUs + LSU, 4 issues, the proposal's sizes"  w=4 alu=3 issue_w=4 alu_split=0 iq=16 rob=32 lq=12 sq=12 ckpt=8 mul_wb=0 pred=M ubtb=16
 row "3 ALUs + LSU, 4 issues"                $C4 alu=3 issue_w=4
@@ -65,7 +65,7 @@ row "3 ALUs + 2 LSU, 5 issues"              $C4 alu=3 lsu=2 issue_w=5
 row "4 ALUs + 2 LSU, 6 issues"              $C4 alu=4 lsu=2 issue_w=6
 row "4 ALUs + LSU, 5 issues, 6 decoded, 32-byte fetch"    $C4 alu=4 issue_w=5 dec_w=6 fetch_bytes=32
 row "4 ALUs + 2 LSU, 6 issues, 6 decoded, 32-byte fetch"  $C4 alu=4 lsu=2 issue_w=6 dec_w=6 fetch_bytes=32
-echo "| **The proposal in a longer pipeline, for a higher clock** (Doc/STRATEGY.md 4.2) | | | |"
+echo "| **The proposal in a longer pipeline, for a higher clock** | | | |"
 row "66.7 MHz: decode +1, redirect +1, load-use 3, mul 3"  $C3 dec_depth=4 redirect=4 lat_load=3 lat_mul=3
 row "100 MHz, best: fetch, decode, RR +1, load-use 3, mul 4"  $C3 fe_depth=4 dec_depth=4 iss_to_ex=3 redirect=6 lat_load=3 lat_mul=4
 row "100 MHz, likely: + fetch +1, load-use 4"  $C3 fe_depth=5 dec_depth=4 iss_to_ex=3 redirect=7 lat_load=4 lat_mul=4 override_at=3

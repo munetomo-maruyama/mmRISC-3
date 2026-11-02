@@ -30,7 +30,7 @@
 | the proposal, a shorter pipeline (dec 2, redirect 2)       |  7.201 |  7.778 |  6.999 |
 | the proposal, load-use 3                                   |  6.421 |  6.954 |  6.230 |
 | the proposal, 2 LSU ports (3 ALUs, 5 issues)               |  7.459 |  8.023 |  7.257 |
-| **4-wide** (IQ 24, ROB 48, LQ / SQ 16, 12 checkpoints; Doc/STRATEGY.md 4.1) | | | |
+| **4-wide** (IQ 24, ROB 48, LQ / SQ 16, 12 checkpoints) | | | |
 | 4 wide alone: 3 ALUs + LSU, 4 issues, the proposal's sizes |  7.224 |  7.892 |  7.038 |
 | 3 ALUs + LSU, 4 issues                                     |  7.390 |  7.987 |  7.233 |
 | 4 ALUs + LSU, 5 issues                                     |  7.445 |  7.998 |  7.275 |
@@ -38,7 +38,7 @@
 | 4 ALUs + 2 LSU, 6 issues                                   |  7.832 |  8.382 |  7.597 |
 | 4 ALUs + LSU, 5 issues, 6 decoded, 32-byte fetch           |  7.972 |  8.697 |  7.670 |
 | 4 ALUs + 2 LSU, 6 issues, 6 decoded, 32-byte fetch         |  8.603 |  9.406 |  8.253 |
-| **The proposal in a longer pipeline, for a higher clock** (Doc/STRATEGY.md 4.2) | | | |
+| **The proposal in a longer pipeline, for a higher clock** | | | |
 | 66.7 MHz: decode +1, redirect +1, load-use 3, mul 3        |  6.281 |  6.858 |  6.099 |
 | 100 MHz, best: fetch, decode, RR +1, load-use 3, mul 4     |  6.008 |  6.656 |  5.854 |
 | 100 MHz, likely: + fetch +1, load-use 4                    |  5.346 |  5.876 |  5.219 |

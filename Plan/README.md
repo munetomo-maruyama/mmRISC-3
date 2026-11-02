@@ -4,7 +4,7 @@
 
 The studies of mmRISC-3 and their working files. **Most were made for the Arty A7-100T** (Phase 0 of
 [`STRATEGY_A100T.md`](STRATEGY_A100T.md)); the plan is now [`Doc/STRATEGY.md`](../Doc/STRATEGY.md), for the XC7A200T. The
-findings and measurements stand; the budgets and reductions are history. New: `model/g200t.sh`.
+findings and measurements stand; the budgets and reductions are history. New: `model/g200t.sh`, `model/g100.sh`.
 
 | Document | Content |
 |---|---|

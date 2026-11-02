@@ -1,0 +1,31 @@
+| configuration | -O2 | max | g13 |
+|---|---|---|---|
+| **in the 100 MHz pipeline** | | | |
+| 3-wide, 3 ALUs + LSU (4 issues), q8, mem 12                  |  5.853 |  6.426 |  5.714 |
+| 4-wide, 3 ALUs + LSU (4 issues), q8, mem 12                  |  6.247 |  6.736 |  6.123 |
+|   + stores split                                             |  6.483 |  6.935 |  6.358 |
+|   + 6 decoded, 32-byte fetch                                 |  6.370 |  6.985 |  6.198 |
+| **the proposal**: + both                                     |  6.901 |  7.426 |  6.680 |
+| the proposal, unified IQ 24 (for scale)                      |  7.017 |  7.508 |  6.780 |
+| the proposal + a second LSU port (5 issues)                  |  7.168 |  7.725 |  6.921 |
+| the proposal + a fourth ALU (5 issues)                       |  7.054 |  7.589 |  6.834 |
+| both of those (6 issues)                                     |  7.322 |  7.930 |  7.054 |
+| **the proposal, each assumption** | | | |
+| load-use 4                                                   |  6.357 |  6.772 |  6.149 |
+| load-use 5                                                   |  5.861 |  6.211 |  5.677 |
+| ALU 2 cycles (wakeup-select does not fit)                    |  5.510 |  5.976 |  5.212 |
+| Zbb 2 cycles                                                 |  6.661 |  7.098 |  6.452 |
+| Zbs, Zicond 2 cycles                                         |  6.492 |  6.953 |  6.680 |
+| Zba 2 cycles                                                 |  6.855 |  7.348 |  6.626 |
+| shifts 2 cycles                                              |  6.880 |  7.401 |  6.661 |
+| fetch 4, decode 4, redirect 5 (shorter)                      |  6.944 |  7.474 |  6.721 |
+| decode 6, select to EX 4, redirect 8 (longer)                |  6.789 |  7.297 |  6.574 |
+| queues of 6                                                  |  6.870 |  7.400 |  6.642 |
+| queues of 12                                                 |  6.912 |  7.433 |  6.689 |
+| ROB 32, LQ / SQ 12, 8 checkpoints                            |  6.388 |  6.977 |  6.191 |
+| ROB 64, LQ / SQ 24, 16 checkpoints                           |  7.066 |  7.545 |  6.847 |
+| uBTB 8                                                       |  6.660 |  7.232 |  6.479 |
+| uBTB 32                                                      |  6.971 |  7.530 |  6.733 |
+| TAGE L                                                       |  6.884 |  7.432 |  6.678 |
+| TAGE S                                                       |  6.764 |  7.387 |  6.560 |
+| the multiply through CORE_MDU, one in 4 cycles               |  6.546 |  6.787 |  6.338 |

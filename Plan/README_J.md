@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-mmRISC-3の検討と作業ファイル。**多くはArty A7-100T向け**(履歴の[`STRATEGY_A100T_J.md`](STRATEGY_A100T_J.md)のPhase 0)で、計画は今はXC7A200T向けの[`Doc/STRATEGY_J.md`](../Doc/STRATEGY_J.md)。知見と測定は生きており、予算と削減は履歴。新しいもの: `model/g200t.sh`。
+mmRISC-3の検討と作業ファイル。**多くはArty A7-100T向け**(履歴の[`STRATEGY_A100T_J.md`](STRATEGY_A100T_J.md)のPhase 0)で、計画は今はXC7A200T向けの[`Doc/STRATEGY_J.md`](../Doc/STRATEGY_J.md)。知見と測定は生きており、予算と削減は履歴。新しいもの: `model/g200t.sh`、`model/g100.sh`。
 
 | 文書 | 内容 |
 |---|---|

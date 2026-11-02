@@ -10,7 +10,7 @@
 //       issue_w, fetch_bytes, fb, fe_depth, dec_depth, iss_to_ex, redirect,
 //       override_at, rob, iq, lq, sq, ckpt, alu, lsu, mul, mul_shared,
 //       lat_alu, lat_load, lat_mul, mdu_busy, ubtb, pred (perfect / gshare / S / M / L),
-//       fusion (0-3), chain, fuse_1w, fuse_2src, fuse_kinds, ck1, ck_jal, mem_cons, fwd, st_data_issue, lsu_cmt, mul_wb, keep_spec, alu_split,
+//       fusion (0-3), chain, fuse_1w, fuse_2src, fuse_kinds, ck1, ck_jal, mem_cons, fwd, st_data_issue, lsu_cmt, mul_wb, keep_spec, alu_split, iqd, iql, cplx2,
 //       upd (TAGE update 0 at once, 1 at commit), upd_lag, stale, iters
 //   model tage <trace.bin>
 //       the conditional branches through TAGE-S / M / L (to hold against
@@ -103,6 +103,9 @@ int main(int argc, char** argv)
         c.mul_wb = (int)o.get("mul_wb", c.mul_wb);
         c.keep_spec = (int)o.get("keep_spec", c.keep_spec);
         c.alu_split = (int)o.get("alu_split", c.alu_split);
+        c.iqd = (int)o.get("iqd", c.iqd);
+        c.iql = (int)o.get("iql", c.iql);
+        c.cplx2 = (int)o.get("cplx2", c.cplx2);
         c.upd = (int)o.get("upd", c.upd);
         c.upd_lag = (int)o.get("upd_lag", c.upd_lag);
         c.stale = o.get("stale", c.stale);

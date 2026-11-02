@@ -862,16 +862,16 @@ EX (the resolution register of 5.20) or with D2's refill.
 
 ### 5.23 The change of plan (2026-11-02)
 
-The target is now the XC7A200T on a Nexys Video, 3-wide (`Doc/STRATEGY.md`). What stands of this document: the
+The target is now the XC7A200T on a Nexys Video, 4-issue at 100 MHz (`Doc/STRATEGY.md`). What stands of this document: the
 bring-up method, the tests and every finding of 5.1 to 5.22. What changes: B5's fusion stays off, and the steps ahead
-are those of `Doc/STRATEGY.md` 5 (1.1 to 1.8). The 2-wide core of 5.22, at 5.50 / 5.92 / 5.32 CoreMark/MHz, 50 MHz on the
+are those of `Doc/STRATEGY.md` 5 (1.0 to 1.8). The 2-wide core of 5.22, at 5.50 / 5.92 / 5.32 CoreMark/MHz, 50 MHz on the
 XC7A100T's numbers, is the starting point.
 
 ---
 
 ## 6. What G1 measures
 
-> **Replaced 2026-11-02** by the gates S1-A to S1-C of `Doc/STRATEGY.md` 5: `-O2` ≥ 6.5 in RTL, 50 MHz on the XC7A200T. The table is what G1 was for the Arty.
+> **Replaced 2026-11-02** by the gates S1-A to S1-C of `Doc/STRATEGY.md` 5: `-O2` ≥ 6.3 in RTL, 100 MHz on the XC7A200T. The table is what G1 was for the Arty.
 
 | Item | Criterion | Reference |
 |---|---|---|

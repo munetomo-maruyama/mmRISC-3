@@ -11,23 +11,26 @@
 
 ---
 
-## 0. The XC7A200T revision (2026-11-02)
+## 0. The revision for the XC7A200T and 100 MHz (2026-11-02)
 
-**The target device changed** (`Doc/STRATEGY.md`, `Doc/BOARD.md`). Sections 1 to 9 below describe the 2-wide core the
-RTL is today, and how the Arty's budget shaped it: the levers of section 6 and the gap of section 4.4 are history. The
-**proposal** that replaces the configuration, to be frozen at gate S1-A:
+**The target changed** (`Doc/STRATEGY.md`, `Doc/BOARD.md`): XC7A200T, 4-issue, 100 MHz. Sections 1 to 9 below describe the
+2-wide 50 MHz core the RTL is today, and how the Arty's budget shaped it: the levers of section 6 and the gap of section
+4.4 are history. The **proposal**, to be frozen at gate S1-A (`Doc/STRATEGY.md` 4 has the pipeline and the reasons):
 
 | Item | Today | Proposal |
 |---|---|---|
-| Rename, dispatch, commit | 2 | **3** |
-| Between decode and rename | group register, refilled when empty | **a decoded-instruction queue** |
+| Clock | 50 MHz | **100 MHz**; slow blocks in 50 MHz islands |
+| Fetch, decode | 16 B, 4 | **32 B, 6**, with a decoded-instruction queue |
+| Rename, dispatch, commit | 2 | **4** |
 | ALUs | ALU0 full, ALU1 limited | **3 full ALUs** |
-| Issue queue | 10, 3 issues | **16, 4 issues** |
-| ROB / LQ, SQ / checkpoints | 24 / 8 / 6 | **32 / 12 / 8** |
+| Schedulers | unified 10, 3 issues | **3 ALU queues of 8, a memory queue of 12: 4 issues** |
+| ROB / LQ, SQ / checkpoints | 24 / 8 / 6 | **48 / 16 / 12** |
+| Registers | 64, 3 writes, 6 reads | **80, 4 writes, 8 reads** |
+| Load-use / multiply | 2 / 2 | **3 / 4** |
+| Stores | with their data | **split** |
 | Predictor | TAGE S, uBTB 8 | **TAGE M, uBTB 16** |
-| Register file | 64, 3 writes, 6 reads | 64, **4 writes, 8 reads** |
-| Fusion | off | off (decided after the width) |
-| Model, `-O2` / most optimization / g13 | 5.805 / 6.322 / 5.668 | **7.170 / 7.743 / 6.970** (`Plan/model/results/g200t.txt`) |
+| Fusion | off | off |
+| Model: `-O2` / most optimization / g13 | 5.805 / 6.322 / 5.668 | **6.901 / 7.426 / 6.680** per MHz (`Plan/model/results/g100.txt`) |
 
 Sections 3.x and the block READMEs are updated as each change lands. The budget of the proposal is in section 4.5.
 
@@ -332,23 +335,23 @@ Block RAM and DSP are not the limit: 26.5 tiles are free, TAGE-S and the BTB nee
 
 ### 4.5 The budget on the XC7A200T (2026-11-02)
 
-The ceiling is 80 % of 134,600 LUTs, **107.7k**. With everything else at mmRISC-2's full size (39.6k, `Doc/STRATEGY.md`
-3), **the engine has 68k**. The engine as measured, and an estimate of the proposal block by block:
+The ceiling at 100 MHz is taken as 75 % of 134,600 LUTs, **101k**. With everything else at mmRISC-2's full size (39.6k,
+`Doc/STRATEGY.md` 3), **the engine has 61k**. The engine as measured, and an estimate of the proposal:
 
 | Part | Today, in `OOO_CPU` (`Plan/OOC.md` 27.9) | Proposal, estimated | Basis |
 |---|---|---|---|
-| Front end with decode | 7.8k | 10.5k | TAGE M, uBTB 16, the decoded queue |
-| Renaming, control, DS register | 2.4k | 4.5k | 3 µops, 8 checkpoints; renaming alone measured 2.7k at 2 µops |
-| Issue queue and payload | 2.0k | 5.3k | 16 entries measured 3.1k to 5.0k in earlier forms (`Plan/OOC.md`) |
-| ROB | 3.7k | 6.0k | 32 entries, 3 a cycle |
-| Register file | 2.2k | 3.7k | Measured alone: 3 / 8 3,223, 5 / 8 4,268 |
-| ALU ports with RR, EX, bypass, resolution | 4.8k | 9.0k | 3 full ports; one full ALU measured 1.9k |
-| LSU with its stages | 3.4k | 4.2k | 12 / 12; measured alone 2.9k at that size |
-| Multiplier, MDU wrapper, system unit, adapter | 0.7k | 0.8k | |
-| **Total** | **27.0k** (measured) | **about 44k** (40k to 48k) | |
+| Front end with decode | 7.8k | 15k | 32 B, 6 decoded, the queue, TAGE M, uBTB 16, more stages |
+| Renaming, control, DS register | 2.4k | 7.5k | 4 µops in 2 stages, 12 checkpoints |
+| Schedulers and payload | 2.0k | 6.5k | 4 small queues; a unified 16 measured 3.1k to 5.0k (`Plan/OOC.md`) |
+| ROB | 3.7k | 8k | 48 entries, 4 a cycle |
+| Register file | 2.2k | 4.6k | 80 registers; measured alone: 3 / 8 3,223, 5 / 8 4,268 |
+| ALU ports with RR, EX, bypass, resolution | 4.8k | 10k | 3 full ports, more stages; one full ALU measured 1.9k |
+| LSU with its stages | 3.4k | 6k | 16 / 16, split stores, M1 and M2 |
+| Multiplier, MDU wrapper, system unit, adapter | 0.7k | 1k | |
+| **Total** | **27.0k** (measured) | **about 59k** (52k to 66k) | Rough: nothing of it is measured yet |
 
-These are estimates until `OOO_CPU` measures them at each step of `Doc/STRATEGY.md` 5. Block RAM: mmRISC-2 used 108.5 of
-135 tiles on the Arty; 365 are here. DSP: 26 of 740 so far.
+Timing pressure raises the LUTs against these (duplication, replication). Measured at each step of `Doc/STRATEGY.md` 5.
+Block RAM: mmRISC-2 used 108.5 of 135 tiles on the Arty; 365 are here. DSP: 26 of 740 so far.
 
 ---
 

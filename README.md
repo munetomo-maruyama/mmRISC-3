@@ -7,8 +7,8 @@
 > [Claude Code](https://claude.com/claude-code), Anthropic's AI coding agent. The author sets the goals, chooses
 > among the options it proposes, and runs Vivado and the board.
 
-The successor of mmRISC-2: a home-made **out-of-order 64-bit RISC-V CPU (RV64GC)** in SystemVerilog that is to run
-Linux (BusyBox, Debian 13) on a **Digilent Nexys Video (XC7A200T-1SBG484C) at 50 MHz**, from the microSD slot J3, with
+The successor of mmRISC-2: a home-made **4-issue out-of-order 64-bit RISC-V CPU (RV64GC)** in SystemVerilog that is to run
+Linux (BusyBox, Debian 13) on a **Digilent Nexys Video (XC7A200T-1SBG484C) at 100 MHz**, from the microSD slot J3, with
 Ethernet (RTL8211E) and a JTAG / cJTAG port on Pmod JA. The peripherals come from LiteX, and the assets of mmRISC-2
 (caches, MMU, CSR, debug, FPU, verification environment) are reused.
 
@@ -18,17 +18,19 @@ The top priority is **CoreMark performance**:
 
 | Build | Goal | mmRISC-2 Rev.02 (board) |
 |---|---|---|
-| `-O2` | **comfortably above 6.0 CoreMark/MHz** (working target 6.5 in RTL, 6.2 on the board) | 2.794 |
+| `-O2` | **above 6.0 CoreMark/MHz at 100 MHz** (working target 6.3 in RTL, 6.1 on the board) | 2.794 at 50 MHz |
 
-Measured on the board under Linux at 50 MHz, with the same bitstream that runs Linux.
+Measured on the board under Linux, with the same bitstream that runs Linux.
 
 ## Status (2026-11-02)
 
 **The target changed from the Arty A7-100T to the Nexys Video** (the author's decision, 2026-11-02): the reductions
 needed to fit the smaller device were costing the performance. The 2-wide core is in `RTL/CPU/OOO`: in lock-step with
 Spike on riscv-arch-test and CoreMark (5.50 CoreMark/MHz with `-O2`), 50 MHz met out of context on the XC7A100T. The
-next step is **3-wide**: 7.17 in the model, about 44k LUTs for the engine, about 62 % of the new device. The work order
-is in [`Doc/STRATEGY.md`](Doc/STRATEGY.md) section 5: the core, the board (brought up with mmRISC-2 first), Linux.
+proposal for **4-issue at 100 MHz**: 4-wide, distributed schedulers, a pipeline about 4 stages longer; 6.90 in the model,
+about 59k LUTs for the engine, about 73 % of the new device. It is a challenge, and the loops that decide it are measured
+before the rework. The work order is in [`Doc/STRATEGY.md`](Doc/STRATEGY.md) section 5: the core, the board (brought up with
+LiteX's own SoC and mmRISC-2 first), Linux.
 
 ## Documents
 

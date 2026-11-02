@@ -1979,4 +1979,4 @@ WNS **−5.716 ns**(46段)、満たさない終点は15,202(TNS −22,896 ns)。
 
 ## 28. XC7A200Tへの移行(2026-11-02)
 
-`synth_ooo.tcl`の対象を**xc7a200tsbg484-1**にした(`Doc/STRATEGY_J.md`)。これより前の上の結果と`output/`は、xc7a100tcsg324-1のもの: 速度グレードは同じで、デバイスが小さい。新しい品種での最初の作業は、289cc2a以降のRTLの`synth_ooo.bat OOO_CPU`で、基準を取る(手順1.2)。予算は`Doc/UARCH_J.md` 4.5になり、`Doc/UARCH_J.md` 4.4の超過は履歴である。
+`synth_ooo.tcl`の対象を**xc7a200tsbg484-1**にした(`Doc/STRATEGY_J.md`)。これより前の上の結果と`output/`は、xc7a100tcsg324-1のもの: 速度グレードは同じで、デバイスが小さい。新しい品種、新しい目標の100 MHzでの最初の作業は`synth_ooo.bat t100`(結果は`output/<top>_T10`)で、手順1.0: 今のブロックを10 nsで。そのため`OOC_ALU2`に`FUSED`パラメータを足し、nsで固定だった入力遅延(wakeupのタグ、`g_take`)は周期に比例させた。予算は`Doc/UARCH_J.md` 4.5になり、`Doc/UARCH_J.md` 4.4の超過は履歴である。

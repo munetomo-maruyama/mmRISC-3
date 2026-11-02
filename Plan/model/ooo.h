@@ -66,6 +66,12 @@ struct OooCfg {
     int mul_wb = 0;             // a multiply on ALU0 takes a write slot a cycle after its issue: 1 ALU0's (OOO_IQ blk0), 2 ALU1's            // cycles more before a load's or a store's commit (OOO_LSU: its completion through a register) // a store issues with its data too (one µop, as OOO_LSU): its address is known then
     int keep_spec = 0;          // a µop issued on an open load keeps its issue-queue entry until the load
                                 // is decided, keep_spec cycles after its issue (OOO_IQ: 4, Plan/OOC.md 15)
+    int iqd = 0;                // >0: distributed schedulers: iqd ALU queues of iq entries each, a µop bound at
+                                // dispatch to the emptiest one and issued only on its port; loads and stores in
+                                // their own queue of iql entries (queue 0 alone takes MUL / DIV and system µops)
+    int iql = 12;
+    int cplx2 = 0;              // ALU µops of these classes take 2 cycles (mask of 1 << sub: 2 shift, 4 Zba, 8 Zbb,
+                                // 16 Zbs, 32 Zicond; mktrace.py)
     int alu_split = 0;          // the 2 ALU ports (with alu = 2, mul_shared; Doc/UARCH.md 6.11):
                                 //   0 pooled (either takes any ALU µop, MUL / DIV too)
                                 //   1 ALU0 / ALU1 apart, MUL / DIV and system on ALU0 only (the RTL)
@@ -189,6 +195,8 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     std::unordered_map<int, long> ready;        // register -> cycle a dependent may issue
     std::unordered_map<int, long> spec;         // register -> cycle its open loads are decided (keep_spec)
     std::unordered_map<long, int> use_alu, use_lsu, use_mul, use_all, use_a0, use_a1, use_mdu;
+    std::priority_queue<long, std::vector<long>, std::greater<long>> qh[9];   // iqd: the queues
+    std::unordered_map<long, int> useq[8];
     struct StInfo { long data_ready, commit; };
     std::unordered_map<uint64_t, StInfo> st_word;   // latest store per 8-byte word
     long st_addr_known = 0;
@@ -236,11 +244,33 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             d = fe;
         }
         if (u >= (size_t)c.rob && cm[u - c.rob] + 1 > d) { res.st_rob += cm[u - c.rob] + 1 - d; d = cm[u - c.rob] + 1; }
+        int bq = 0;                 // iqd: the queue this µop is bound to (iqd: the memory queue)
+        if (!c.iqd) {
         while (!iqh.empty() && iqh.top() < d) iqh.pop();
         if ((int)iqh.size() >= c.iq) {
             long need = iqh.top() + 1;
             res.st_iq += need - d; d = need;
             while (!iqh.empty() && iqh.top() < d) iqh.pop();
+        }
+        } else {
+            const Rec& br = t[pair && t[last].cls != C_ALU ? last : i];
+            bool memu = br.cls == C_LOAD || br.cls == C_STORE;
+            bool q0   = br.cls == C_MUL || br.cls == C_DIV || br.cls == C_SYS;
+            auto expire = [&](int q) { while (!qh[q].empty() && qh[q].top() < d) qh[q].pop(); };
+            auto cap = [&](int q) { return q == c.iqd ? c.iql : c.iq; };
+            for (;;) {
+                int lo = memu ? c.iqd : 0, hi = memu ? c.iqd : q0 ? 0 : c.iqd - 1;
+                int b = -1, bn = 1 << 30;
+                for (int q = lo; q <= hi; q++) {
+                    expire(q);
+                    int nn = (int)qh[q].size();
+                    if (nn < cap(q) && nn < bn) { b = q; bn = nn; }
+                }
+                if (b >= 0) { bq = b; break; }
+                long need = 1L << 60;
+                for (int q = lo; q <= hi; q++) need = std::min(need, qh[q].top() + 1);
+                res.st_iq += need - d; d = need;
+            }
         }
         int nld = 0, nst = 0;
         bool has_cti = false;     // the µop takes a checkpoint
@@ -290,7 +320,16 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 }
         const Rec& pr = t[pair && t[last].cls != C_ALU ? last : i];
         int port = (pr.cls == C_LOAD || pr.cls == C_STORE) ? 1 : (pr.cls == C_MUL || pr.cls == C_DIV) ? (c.mul_shared ? 0 : 2) : 0;
-        if (port == 0 && c.alu_split) {
+        if (c.iqd && port != 1) {
+            auto& uq = useq[bq];
+            while (uq[is] >= 1 || (c.issue_w && use_all[is] >= c.issue_w) ||
+                   ((pr.cls == C_MUL || pr.cls == C_DIV) && c.mdu_busy && use_mdu[is])) is++;
+            uq[is]++;
+            use_all[is]++;
+            if (c.mdu_busy && (pr.cls == C_MUL || pr.cls == C_DIV))
+                for (int q = 0; q < (pr.cls == C_DIV ? c.lat_div : c.mdu_busy); q++) use_mdu[is + q] = 1;
+            else if (pr.cls == C_DIV) for (int q = 1; q < c.lat_div; q++) uq[is + q] = 1;
+        } else if (port == 0 && c.alu_split) {
             // two ALU ports apart: ALU0 takes everything, ALU1 only what it has
             bool p0only = pr.cls == C_MUL || pr.cls == C_DIV || pr.cls == C_SYS;
             if (c.alu_split >= 2)
@@ -332,14 +371,14 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 }
             if (any_load) sp = std::max(sp, is + c.keep_spec);
         }
-        iqh.push(std::max(is, sp));
+        if (c.iqd) qh[bq].push(std::max(is, sp)); else iqh.push(std::max(is, sp));
 
         // ---- results
         long done = is;
         for (size_t k = i; k <= last; k++) {
             const Rec& r = t[k];
             int lat = r.cls == C_LOAD ? c.lat_load : r.cls == C_MUL ? c.lat_mul : r.cls == C_DIV ? c.lat_div
-                    : r.cls == C_FP ? c.lat_fp : c.lat_alu;
+                    : r.cls == C_FP ? c.lat_fp : (r.cls == C_ALU && (c.cplx2 >> r.sub & 1)) ? c.lat_alu + 1 : c.lat_alu;
             if (pair && k == last && t[i].cls == C_ALU && r.cls == C_ALU) lat = c.chain;
             long rd = is + lat;
             if (r.cls == C_LOAD) {

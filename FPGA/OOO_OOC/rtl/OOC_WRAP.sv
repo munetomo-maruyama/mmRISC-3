@@ -37,7 +37,8 @@
 
 module OOC_ALU2
     #(
-        parameter int FULL = 1          // 0: ALU1, the limited ALU (G0b L7)
+        parameter int FULL  = 1,        // 0: ALU1, the limited ALU (G0b L7)
+        parameter int FUSED = 1         // 0: no fused compare, as the core has it since Plan/CORE.md 5.22
     )
     (
         input  logic        clk,
@@ -79,7 +80,7 @@ module OOC_ALU2
     OOO_ALU2 #(.FULL(FULL[0])) u_alu2
         (.s1(s1), .s2(s2), .imm1(i1), .pc(pcq),
          .op1(o1), .uw1(u1), .shift1(h1), .word1(w1), .a1_sel(as1), .b1_imm(bi),
-         .is_br(ib), .br_op(bo), .br_fused(bf), .br_res1_a(br1), .br_o_sel(os),
+         .is_br(ib), .br_op(bo), .br_fused(FUSED != 0 && bf), .br_res1_a(br1), .br_o_sel(os),
          .res1(n1), .take_branch(nbr));
 
     assign out1 = r1;
