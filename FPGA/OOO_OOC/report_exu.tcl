@@ -34,10 +34,10 @@ proc exu_classes {fh outdir} {
                   flag  [concat {*u_exu/*r_ex_reg*} $sel $opr] {*u_exu/*fl_*_reg*} \
                   rare  {*u_exu/*ra_q_reg* *u_exu/*rb_q_reg* *u_exu/*rop_reg*} $res \
                   rf    {*u_prf/aq_reg* *u_prf/lq_reg*}     $opr \
-                  lvt   {*u_prf/*lvt_reg* s1_reg* *u_exu/*rt_reg* *u_exu/*rv_reg*} {*u_prf/lq_reg*} \
+                  lvt   {*u_prf/*lvt_reg* s1_reg* *u_exu/*rt_w_reg* *u_exu/*rv_w_reg*} {*u_prf/lq_reg*} \
                   tags  {s2_reg* s_us_reg* *u_exu/*rt_reg* *u_exu/*rv_reg* *u_exu/*ex_dst_reg* *u_exu/*ex_v_reg* *u_exu/*ex_wr_reg*} [concat $opr $sel] \
                   snoop {*u_exu/*r_sn_reg*}                 $opr \
-                  write {*u_exu/*r_wr_reg* *u_exu/*rt_reg* *u_exu/*rv_reg*} {*u_prf/*mem*}]
+                  write {*u_exu/*r_wr_reg* *u_exu/*rt_w_reg* *u_exu/*rv_w_reg*} {*u_prf/*mem*}]
     file delete -force $outdir/timing_loop.rpt
     foreach {name from to} $cls {
         set cf [exu_cells $from]

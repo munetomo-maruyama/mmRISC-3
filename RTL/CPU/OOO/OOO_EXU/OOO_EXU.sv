@@ -8,7 +8,9 @@
 //   r_ex -> EX's mux (sa, sb) -> OOO_ALUF -> r_ex
 //
 // A result has 4 + 1 sources' worth of sinks, so it is kept 3 times: r_ex for
-// EX's muxes, r_sn for RR2's, r_wr for the register file and whoever is outside.
+// EX's muxes, r_sn for RR2's, r_wr for the register file and whoever is outside;
+// so are a result's tag and valid: rt, rv for the comparisons, rt_w, rv_w for the
+// register file's write (1,000 RAM cells per address bit, Plan/OOC.md 28.7).
 //
 // How a source gets its value, with T the cycle a result is in r_*:
 //   a consumer in RR2 at T - 1   sa / sb choose r_ex in its EX
@@ -119,14 +121,16 @@ module OOO_EXU
     logic [63:0]         r_d  [NA+1];
     logic [NA:0]         rv, ev;
     logic [TAGW-1:0]     rt [NA+1];
+    (* keep = "true", max_fanout = 128 *) logic [NA:0]     rv_w;
+    (* keep = "true", max_fanout = 128 *) logic [TAGW-1:0] rt_w [NA+1];
     logic [TAGW-1:0]     et [NA+1];
 
     assign r_d[NA] = ld_d;
     assign ev[NA]  = ld_nv;
     assign et[NA]  = ld_nt;
     always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) rv <= '0;
-        else        rv <= flush ? '0 : ev;
+        if (!rst_n) begin rv <= '0; rv_w <= '0; end
+        else        begin rv <= flush ? '0 : ev; rv_w <= flush ? '0 : ev; end
     end
     for (genvar s = 0; s <= NA; s++) begin : g_res
         always_ff @(posedge clk) begin
@@ -134,11 +138,12 @@ module OOO_EXU
             r_sn[s] <= r_d[s];
             r_wr[s] <= r_d[s];
             rt[s]   <= et[s];
+            rt_w[s] <= et[s];
         end
         assign wb_d[s] = r_wr[s];
-        assign wb_t[s] = rt[s];
+        assign wb_t[s] = rt_w[s];
     end
-    assign wb_v = rv;
+    assign wb_v = rv_w;
 
     // ---- every port: RR2's operands and EX's mux
     logic [63:0] a [NA+1];
@@ -210,11 +215,11 @@ module OOO_EXU
             nsh    = rr_word[p] ? {1'b0, rr_const[p][1][4:0]} : rr_const[p][1][5:0];
             left_n = op == ALU_SLL && nsh != 6'd0;
         end
-        (* max_fanout = 16 *) logic c_inv, c_uw, c_gadd, c_glog, c_gsh, c_shl, c_sra, c_shw, c_gcz, c_word;
+        (* max_fanout = 16 *) logic c_inv, c_uw, c_gadd, c_gaddh, c_glog, c_gsh, c_gshh, c_shl, c_sra, c_shw, c_gcz;
         (* max_fanout = 16 *) logic [1:0] c_ash;
         (* max_fanout = 16 *) logic [2:0] c_lop;
         (* max_fanout = 16 *) logic [5:0] c_amt;
-        logic c_gbx, c_gslt, c_gsltu, c_gzh, c_gsb, c_gsxh, c_czn;
+        logic c_gaddw, c_gshw, c_gbx, c_gslt, c_gsltu, c_gzh, c_gsb, c_gsxh, c_czn;
         logic ex_v, ex_wr, ex_br;
         logic [TAGW-1:0] ex_dst;
         logic [2:0]      ex_brop;
@@ -223,10 +228,14 @@ module OOO_EXU
             c_uw    <= rr_uw[p];
             c_ash   <= rr_shift[p];
             c_gadd  <= wn && (op == ALU_ADD || op == ALU_SUB);
+            c_gaddh <= wn && (op == ALU_ADD || op == ALU_SUB) && !rr_word[p];
+            c_gaddw <= wn && (op == ALU_ADD || op == ALU_SUB) && rr_word[p];
             c_glog  <= wn && (op == ALU_XOR || op == ALU_OR || op == ALU_AND || op == ALU_ANDN || op == ALU_ORN || op == ALU_XNOR);
             c_lop   <= op == ALU_XOR ? 3'd0 : op == ALU_OR ? 3'd1 : op == ALU_AND ? 3'd2 :
                        op == ALU_ANDN ? 3'd3 : op == ALU_ORN ? 3'd4 : 3'd5;
             c_gsh   <= wn && (op == ALU_SLL || op == ALU_SRL || op == ALU_SRA);
+            c_gshh  <= wn && (op == ALU_SLL || op == ALU_SRL || op == ALU_SRA) && !rr_word[p];
+            c_gshw  <= wn && (op == ALU_SLL || op == ALU_SRL || op == ALU_SRA) && rr_word[p];
             c_shl   <= left_n;
             c_sra   <= op == ALU_SRA;
             c_shw   <= rr_word[p] && op != ALU_SLL;
@@ -239,7 +248,6 @@ module OOO_EXU
             c_gsxh  <= wn && op == ALU_SEXTH;
             c_gcz   <= wn && (op == ALU_CZEQZ || op == ALU_CZNEZ);
             c_czn   <= op == ALU_CZNEZ;
-            c_word  <= rr_word[p];
             ex_wr   <= rr_wr[p];
             ex_dst  <= rr_dst[p];
             ex_br   <= rr_br[p];
@@ -251,17 +259,18 @@ module OOO_EXU
         end
 
         // EX
-        logic [63:0] res;
+        logic [63:0] extra;
         /* verilator lint_off UNUSEDSIGNAL */      // (jalr's target only, port 0 only)
         logic [63:0] sum;
         /* verilator lint_on UNUSEDSIGNAL */
         logic        c_eq, c_lt, c_ltu;
         OOO_ALUF u_alu
             (.a(a[p]), .b(b[p]), .inv(c_inv), .a_uw(c_uw), .a_shift(c_ash),
-             .g_add(c_gadd), .g_log(c_glog), .lop(c_lop), .g_sh(c_gsh), .sh_left(c_shl), .sh_sra(c_sra),
+             .g_add(c_gadd), .g_addh(c_gaddh), .g_addw(c_gaddw), .g_log(c_glog), .lop(c_lop),
+             .g_sh(c_gsh), .g_shh(c_gshh), .g_shw(c_gshw), .sh_left(c_shl), .sh_sra(c_sra),
              .sh_w(c_shw), .amt(c_amt), .g_bx(c_gbx), .g_slt(c_gslt), .g_sltu(c_gsltu), .g_zh(c_gzh),
-             .g_sb(c_gsb), .g_sxh(c_gsxh), .g_cz(c_gcz), .cz_n(c_czn), .word(c_word),
-             .result(res), .sum(sum), .c_eq(c_eq), .c_lt(c_lt), .c_ltu(c_ltu));
+             .g_sb(c_gsb), .g_sxh(c_gsxh), .g_cz(c_gcz), .cz_n(c_czn), .extra(extra),
+             .result(r_d[p]), .sum(sum), .c_eq(c_eq), .c_lt(c_lt), .c_ltu(c_ltu));
 
         // EX + 1: a branch
         logic       fl_v, fl_eq, fl_lt, fl_ltu;
@@ -293,7 +302,7 @@ module OOO_EXU
         if (p == 0) begin : g_p0
             logic            s_ex, j_ex, rare_v;
             logic [5:0]      op_q, rop;
-            logic            ruw, rword;
+            logic            ruw, wq, rword;
             logic [1:0]      rsh;
             logic [TAGW-1:0] rare_t;
             logic [63:0]     ra_q, rb_q, lk_q, rare;
@@ -307,7 +316,8 @@ module OOO_EXU
                 rop    <= op_q;
                 ruw    <= c_uw;
                 rsh    <= c_ash;
-                rword  <= c_word;
+                wq     <= rr_word[0];
+                rword  <= wq;
                 rare_t <= ex_dst;
             end
             always_ff @(posedge clk or negedge rst_n) begin
@@ -316,7 +326,7 @@ module OOO_EXU
             end
             OOO_ALU #(.FULL(1'b1)) u_rare
                 (.op_a(ra_q), .op_b(rb_q), .alu_op(rop), .a_uw(ruw), .a_shift(rsh), .word_op(rword), .result(rare));
-            assign r_d[0] = res | lk_q | x_d | ({64{rare_v}} & rare);
+            assign extra  = lk_q | x_d | ({64{rare_v}} & rare);
             assign ev[0]  = (ex_v && ex_wr && !s_ex) || rare_v || x_nv;
             assign et[0]  = ({TAGW{ex_v && ex_wr && !s_ex}} & ex_dst) | ({TAGW{rare_v}} & rare_t) | ({TAGW{x_nv}} & x_nt);
             assign p0_a   = ra_q;
@@ -331,7 +341,7 @@ module OOO_EXU
             assign jr_v   = jq;
             assign jr_tgt = jt;
         end else begin : g_pn
-            assign r_d[p] = res;
+            assign extra  = 64'd0;
             assign ev[p]  = ex_v && ex_wr;
             assign et[p]  = ex_dst;
         end

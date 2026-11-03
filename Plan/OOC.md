@@ -3065,3 +3065,41 @@ How a source gets its value, with T the cycle its result is in a register: a con
 `summary.txt` has the classes (`report_exu.tcl`): `loop` (a result, through EX's mux and the ALU, to a result); `sel`, `ctl`, `oper` (the rest of EX); `flag`, `rare`; `rf`, `lvt`, `tags`, `snoop`, `write` (RR1, RR2, the write).
 
 If `loop` is short, the levers in order: `slli` out of EX (nothing in CoreMark), Zba's change of `a` by the fan-out, the fan-outs, the size of `max_fanout`.
+
+### 28.7 `OOC_EXU`, the first run: −0.356 ns; the last levels rebuilt (2026-11-03)
+
+`synth_ooo.bat exu`, `output/OOC_EXU_T10`, the design of 28.6 at 10 ns: **WNS −0.356 ns, so about 10.4 ns, 15,731 LUTs** (10,227 logic + 5,504 LUT RAM), 5,086 FF of which 2,395 are the harness's. `OOO_EXU` 7,703 LUTs, `OOO_PRF2` 8,027 (2,523 logic + 5,504 LUT RAM). Against `Doc/UARCH.md`'s rows, register file 4.6k and ALU ports 10k, 14.6k together: the sum is 1.1k over, all of it the register file.
+
+| Class | Worst at 10 ns | Levels | The path |
+|---|---|---|---|
+| `loop` | **−0.356** | 14 | Port 1 → port 0: bit 9, 6 carry cells, `sum[31]`, then 4 LUTs of `addw`'s sign into bit 61 |
+| `rare` | −0.338 | 9 | `rop` (fan-out 92) through `OOO_ALU`, 1.57 ns of logic, 8.65 ns of routes |
+| `sel` | −0.188 | 13 | The same way from a selection |
+| `oper` | −0.037 | 10 | `ob` → czero's zero test → the same last LUTs |
+| `write` | +0.035 | 0 | Tag → RAM write address: fan-out 654, 9.4 ns of route alone |
+| `tags` | +0.438 | 5 | `rt`, fan-out 515, compare, select of RR2's mux (fan-out 65, 4.1 ns) |
+| `lvt` | +1.057 | 6 | |
+| `ctl` | +1.288 | 7 | The funnel from its controls |
+| `rf` | +1.374 | 4 | |
+| `flag` | +1.518 | 15 | |
+| `snoop` | +2.772 | 2 | |
+
+The 10 worst paths all end in port 0's result. **The worst is not the adder but what follows it**: of 10.2 ns, 4.3 ns come after `sum[31]`: 2 LUTs of the AND-OR, `res[31]` with a fan-out of 33, the word's mux on each upper bit, and the OR with port 0's other results. A 64-bit add was not the limit: the full carry chain reaches `fl_lt` with +2.05 ns. Routes are 70 % of the path.
+
+**What changed, with no change in the model** (all timing estimates below are from the report, not measured):
+
+| Change | Why |
+|---|---|
+| `OOO_ALUF`'s last level is one LUT per bit: `g_add & sum`, `g_sh & sh`, `o`, and `sgn` in the upper half | From the sum to the register 1 LUT, or 2 for a word's sign (was 4, with the fan-out in the middle). Upper-half controls `g_addh`, `g_shh`, and `g_addw`, `g_shw` for the sign, decoded in RR2 |
+| Everything else goes in by `o`, and port 0's other results by `extra` into `o` | Port 0's extra LUT after the ALU is gone; czero, logic, `rare` and `x_d` are 2 levels before the register |
+| `slt` a term of the last level at bit 0 | The carry out comes late |
+| Tag and valid kept twice: `rt`, `rv` for comparisons, `rt_w`, `rv_w` (`max_fanout` 128) for the write | The write's fan-out was 515 on the comparisons' tag; `write` had no margin at all |
+| A bank of `OOO_PRF2` is 64 + 16, not one memory | 80 in one memory takes 2 cells of 64 per bit; 16 fit a cell of 32. **5,504 → about 4,160 LUT RAM** (expected), also fewer sinks for the write. Reads and writes as before |
+
+`rare` is unchanged in itself: its last levels are a little shorter, the −0.338 is partly because the placer had a worse path in front, as 28.5 saw. If the next run shows it is real, the cheap answer is a longer latency on queue 0, where the scheduler already has 4 for the multiplier: it costs nothing in CoreMark (those operations do not run there) but others would see it. Not done.
+
+**`synth_ooo.bat exu9`** runs this at 9 ns, in `output/OOC_EXU_T9`: 10 ns would stop improving once met (28.5), and this block needs margin too, the core adding about 1 ns (28.1). Target: about 9.3 ns, as the scheduler.
+
+Tests: `tb_exu`, `tb_prf2`, `tb_alu2` PASS with the same counts, as the behaviour is the same. `-Wall` clean on these modules and the harness's lines. Bug injection: M478 to M571, 93 mutations, all detected, one of them (M524) after its text was updated for the rewritten line.
+
+Levers if `loop` is still short, in order, as 28.6: `slli` out of EX, Zba's change of `a`, then fan-outs.

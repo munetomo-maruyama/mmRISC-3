@@ -1,0 +1,32 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Tue Nov  3 15:40:10 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_EXU_T10/utilization.rpt
+| Design       : OOC_EXU
+| Device       : xc7a200tsbg484-1
+| Speed File   : -1
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++-------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+|   Instance  |  Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++-------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+| OOC_EXU     |    (top) |      15731 |      10227 |    5504 |    0 | 5086 |      0 |      0 |          0 |
+|   (OOC_EXU) |    (top) |          1 |          1 |       0 |    0 | 2395 |      0 |      0 |          0 |
+|   u_exu     |  OOO_EXU |       7703 |       7703 |       0 |    0 | 2323 |      0 |      0 |          0 |
+|   u_prf     | OOO_PRF2 |       8027 |       2523 |    5504 |    0 |  368 |      0 |      0 |          0 |
++-------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
+
+

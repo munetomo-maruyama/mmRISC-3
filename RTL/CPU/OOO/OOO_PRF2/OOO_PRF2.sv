@@ -13,6 +13,10 @@
 // A write in RR1 is seen by comparing, as the LVT itself changes only at the
 // end of RR1.
 //
+// A bank is 64 + NH registers: 80 in a single memory would be 2 cells of 64 per
+// bit, where 16 take a cell of 32, smaller by a quarter (Plan/OOC.md 28.7). So
+// 64 < NREG <= 96, and NH a power of 2.
+//
 // Register 0 is not special here: it is never written, and whoever reads x0
 // does not use the read (OOO_EXU's rr_use). Two ports never write one register
 // in the same cycle (renaming gives every destination its own register).
@@ -39,6 +43,8 @@ module OOO_PRF2
 
     localparam int LW = (NW > 1) ? $clog2(NW) : 1;
     localparam int AW = $clog2(NREG);
+    localparam int NH = NREG - 64;
+    localparam int HW = $clog2(NH);
 
     logic [LW-1:0] lvt [NREG];
     logic [LW-1:0] lvn [NR];
@@ -63,12 +69,14 @@ module OOO_PRF2
     end
 
     for (genvar w = 0; w < NW; w++) begin : g_bank
-        (* ram_style = "distributed" *) logic [63:0] mem [NREG];
+        (* ram_style = "distributed" *) logic [63:0] mem_l [64];
+        (* ram_style = "distributed" *) logic [63:0] mem_h [NH];
         always_ff @(posedge clk) begin
-            if (we[w]) mem[wa[w]] <= wd[w];
+            if (we[w] && !wa[w][AW-1]) mem_l[wa[w][5:0]] <= wd[w];
+            if (we[w] &&  wa[w][AW-1]) mem_h[wa[w][HW-1:0]] <= wd[w];
         end
         for (genvar r = 0; r < NR; r++) begin : g_rd
-            assign rb[r][w] = mem[aq[r]];
+            assign rb[r][w] = aq[r][AW-1] ? mem_h[aq[r][HW-1:0]] : mem_l[aq[r][5:0]];
         end
     end
 

@@ -11,6 +11,7 @@ REM   synth_ooo.bat t100       the loops that decide 100 MHz, at a 10 ns target,
 REM   synth_ooo.bat sched      the distributed schedulers at a 10 ns target, in output\OOC_SCHED_T10
 REM   synth_ooo.bat sched85    the same at 8.5 ns, for the margin: output\OOC_SCHED_T8.5
 REM   synth_ooo.bat exu        bypass + ALU with the register file at a 10 ns target, in output\OOC_EXU_T10 (loop 2)
+REM   synth_ooo.bat exu9       the same at 9 ns, for the margin: output\OOC_EXU_T9
 REM   synth_ooo.bat schedrpt   the classes of that finished run, without running it again: output\OOC_SCHED_T10\summary_loop.txt
 REM
 REM vivado is itself a batch file: without "call" this one would end after
@@ -21,6 +22,7 @@ if /i "%~1"=="t100" goto :t100
 if /i "%~1"=="sched" goto :sched
 if /i "%~1"=="sched85" goto :sched85
 if /i "%~1"=="exu" goto :exu
+if /i "%~1"=="exu9" goto :exu9
 if /i "%~1"=="schedrpt" goto :schedrpt
 if not "%~1"=="" (
     call vivado -mode batch -source synth_ooo.tcl -log output\vivado_%~1.log -journal output\vivado_%~1.jou -tclargs %*
@@ -55,6 +57,9 @@ call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T85_SCHED.log -
 goto :done
 :exu
 call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T10_EXU.log -journal output\vivado_T10_EXU.jou -tclargs OOC_EXU 10.0 1
+goto :done
+:exu9
+call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T9_EXU.log -journal output\vivado_T9_EXU.jou -tclargs OOC_EXU 9.0 1
 goto :done
 :schedrpt
 call vivado -mode batch -source report_sched.tcl -log output\vivado_rpt_SCHED.log -journal output\vivado_rpt_SCHED.jou -tclargs output/OOC_SCHED_T10

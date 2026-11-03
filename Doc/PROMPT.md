@@ -5524,3 +5524,33 @@ Recorded in `Plan/OOC.md` 28.5 (Japanese in `Plan/OOC_J.md`); `Doc/STRATEGY.md` 
 ```text
 Yes, loop 2
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Loop 2 (bypass + ALU) is built in the new design and pushed (250f9f7). **The model is 6.823 CoreMark/MHz, −0.1 % from 6.829 after the dispatch redesign.** The tests pass and all 78 injected bugs are detected. Timing and size are unmeasured; the next Vivado run will tell.
+
+#### The result of `sched85` (the run you did first)
+`OOC_SCHED` against 8.5 ns: **WNS −0.776 ns, so about 9.3 ns**, about 0.7 ns in hand. At the 50 MHz (20 ns) target the core ran about 1 ns slower than its worst block, so this is not comfortable. The paths are close together (`loop` −0.776, `ff` −0.742, `guard` −0.702, `s1` −0.633), so no single fix settles it; reread at step 1.6.
+
+#### Which operations stay in 1 cycle
+With a class per operation in the trace, what CoreMark uses is narrow. This replaces the assumed "rare operations". Taking counts, `rev8`, `orc.b`, rotates, min / max, `bset` / `bclr` / `binv`, `bext`, shifts by a register to 2 cycles on queue 0, and `jalr` to queue 0, gives 6.823 / 7.315 / 6.599 (rv64gc 5.898); the −0.1 % is all from `jalr`. `slli` stays as the first lever if timing is short: no loss in CoreMark with Zb, but −5.7 % on rv64gc, Debian's default. These are CoreMark's numbers; other programs will see the 2-cycle operations.
+
+#### What was built
+`OOO_ALUF` (shifts by an immediate only, left by the same funnel), `OOO_EXU` (pc and immediates into the operand register in RR2, EX's mux of 5, decoded controls, 3 registers per result, `OOO_ALU` for the 2-cycle operations), `OOO_PRF2` (LVT in RR1, banks in RR2), and the harness `OOC_EXU`, which includes the 80 × 64 register file with 4 writes and 8 reads.
+
+#### Verification
+`tb_exu`: 1.5 million cycles through each of the 3 source paths; it found a real bug in the first version (a µop flushed in RR2 left its result to be ORed onto port 0), fixed. `tb_prf2`: no mismatch. Bug injection M478 to M556: 78 of 78 detected; one that did not build was fixed and detected, one equivalent was removed.
+
+#### Not verified
+Not yet through Vivado. No size estimate given; the register file should be the largest part. The harness leaves out the SQ, what is behind the multiplier and MDU, M2's delay before `ld_d`, and branch masks.
+
+#### Request
+Please run `synth_ooo.bat exu`; results in `output/OOC_EXU_T10`. Read `loop` first, then `sel`, `ctl`, `oper`, then `rf`, `lvt`, `tags`, `snoop`, `write`, and the total LUTs.
+<!-- /answer -->
+
+## 142. 2026-11-03 15:49:27 JST
+
+```text
+exu has finished.
+```
