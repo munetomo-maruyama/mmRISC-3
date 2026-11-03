@@ -3294,3 +3294,76 @@ What it says:
 | 6 | `OOC_UBTB2` | 8.9 ns (`idx` 8.6) |
 
 Left in step 1.1: M1 / M2 with block RAM (loop 3), rename of 4 (loop 4), the fetch buffer split (loop 5).
+
+### 28.13 Loop 3: `OOO_LSU2`, `OOO_DCH`, `OOO_DTLB2`, `OOC_LSU2`; what a store's data costs (2026-11-03)
+
+Not measured when written: `synth_ooo.bat lsu2`, in `output/OOC_LSU2_T9`, at 9 ns as loop 2 needed (28.9).
+
+Building M2 turned up something the model did not have, so that comes first.
+
+**A load whose store has no data yet.** The proposal splits stores: the address issues alone, and a load behind it need not wait for the data (+3.8 %). The model then gave such a load its value when the data came, and woke its dependents then. The scheduler cannot do that: a load's dependents are woken at a fixed time after its issue, with no cancel (`OOO_SCHED`), so a load that finds its store without the data has to replay at its commit, as for a miss. CoreMark does this about once in 270 instructions. New options in `Plan/model`: `ld_rp` (it replays), `sd_lag`, `sd_alu` (the data is a µop), `sd_q`, `ld_wt` (a wait table), `sd_ord`. `Plan/model/results/g100.txt`; rv64gc from the same options.
+
+| A store's data | `-O2` | most optimization | g13 | rv64gc | Replays in `-O2` |
+|---|---|---|---|---|---|
+| As modelled so far: no slot, no replays, no wait | 6.889 | 7.416 | 6.650 | 5.917 | 0 |
+| The same, with the replays, the data a cycle behind a dependent | **5.767** | 6.199 | 5.614 | 4.984 | 11,412 |
+| Stores not split: a store issues with its data | 6.320 | 6.903 | 6.129 | 5.568 | 0 |
+| A µop in any ALU queue: slot, dispatch, entry; no replays | 6.784 | 7.344 | 6.551 | 5.831 | 0 |
+| ... with replays | 5.588 | 6.041 | 5.435 | 4.939 | 12,825 |
+| ... with a wait table of 1,024 bits | 6.749 | 7.294 | 6.510 | | |
+| ... of 64 bits | 6.741 | 7.271 | 6.493 | 5.795 | 10 |
+| **... and on queue 2 alone: proposed** | **6.726** | **7.234** | **6.484** | **5.797** | 11 |
+| No µop: the SQ reads the data in order, 4 cycles behind, wait table | 6.464 | 6.833 | 6.272 | 5.655 | 18 |
+
+So: **+3.8 % was not real as it stood, and not splitting costs −8.3 % against what the proposal claimed, more than the +3.8 % suggested.** What keeps most of it:
+- **The data is a µop of its own**, in an ALU queue, with the operand going through to the SQ: a dispatch slot, an entry, an issue slot. −1.5 %.
+- **A wait table, as the Alpha 21264's**: a bit per load pc; a load that replayed for this waits next time for the data of all older stores. 64 bits are enough (10 replays against 11,000), so one LUT, read at decode. The rest of the cost is those loads' waiting: −0.6 %.
+- **Queue 2 alone**, so that the SQ's data has one write: −0.2 %.
+
+**The proposal: 6.726, −2.4 % against 6.889; about 6.32 in RTL at × 0.94**, just above the gate's 6.3, under step 1.2's "model ≥ 6.8". **The author decides** (`Doc/STRATEGY.md` 4.2 keeps it marked so). What it asks elsewhere: dispatch cracks a store into 2 µops; `OOO_SDISP` gives a marked load's row the columns of the older data µops (the cells are there, a load's row already covers all the queues); a kind "queue 2 only". Loop 1's block will have to be run again with that. The way from queue 2's operand to `sd_*` is not in `OOO_EXU` yet.
+
+An offset alias (below) costs nothing in these programs: 22 at most, 6.484 to 6.482.
+
+**The design** (`RTL/CPU/OOO/OOO_LSU2`, `OOO_DCH`, `OOO_DTLB2`, new; `OOO_LSU` stays with today's core). The D$ stays 64 sets of 4 ways, 64-byte lines, 16 KB. The pipeline: RR2, E, M1, M2, M3.
+
+| Item | Choice | Why |
+|---|---|---|
+| The arrays | Block RAM, read at the end of E; data, and 2 copies of the tags | Clock to out about 2.5 ns in M1; a copy of the tags for the drain, so loads and stores never wait for each other (today's `s_force`, `DRAIN_WAIT` go) |
+| Alignment | In M1, in each way, before the way is known; naturally aligned so one byte has a mux of 8, the others less; the sign from one mux of 8 chosen in E | About 40 LUTs a way; M2 has no shifter |
+| M2 | Tag compare, then one AND-OR of 5: 4 ways and the SQ's word | The levels of today's path that this removes: align, sign, the choice of way behind miss logic |
+| The result's valid | With any load in M2, whatever the hit | `ld_nv` has fan-out to 3 + 9 copies; a hit is late. A write that failed goes to a register nobody may read yet |
+| DTLB | 32 sets of 2 ways of 4 KB in LUT RAM, as `OOO_UBTB2`; a larger page is kept as the 4 KB asked for | 2 compares, not 32. In M1 from a register. No ASID: flushed at a change of `satp`, by a walk of the sets |
+| The search of the SQ | Page offset and bytes in M1, one store chosen; in M2 the physical tag, coverage, the data of that one | M1 has no physical address. A store with another page behind that offset: the load waits for it to leave |
+| Choosing the youngest | From the load's place in the ring, 2 priority encoders | No age matrix (240 FF less); the load carries `sq_tail` from dispatch, its older stores come from it and the head |
+| A store's data | Replicated to 64 bits when it comes, in LUT RAM, 2 copies | It is in the right lane for any load and any byte enable, without its offset: the data may come first. Also, the SQ's data takes 88 LUTs in place of 1,024 FF |
+| The SQ's word | A fifth way, aligned by the same function | |
+| Tries | Through RR2 in a free cycle, the address as the operand, offset 0; one RAM for loads and stores; at an event; in turn, but first the µop just answered (`done_id`) | No mux in E. And no fill path: a miss's data is found in the D$ by a try. One at a time; any recovery drops it |
+| What the scheduler guarantees | A load issues after every older store, so all the offsets are there in its M1 | No "store without an address" bit or check, which `OOO_LSU` had |
+| The drain | Own pipeline, D0 to D3; a store that misses or meets a tag write goes back | One a cycle, whatever the loads do |
+
+Levels expected, by counting. E: mux 2, adder, RAM's setup. M1: RAM, 3 for a way's align. The search: 3 for a match, 4 for the choice. M2: compare 3, way 1, AND-OR 2, or RAM, align 3, AND-OR 2. Size unknown; today's `OOC_LSUDC` is 7,989 LUTs with the miss logic.
+
+**What the run measures, and does not.** The hit path, the queues at 16, the drain, the DTLB. The harness has EX's mux of 5, the operand and the result's 3 registers, but not their other sinks. **Not there**: the miss handler (ports, step 1.7, half-rate); what is not cacheable, AMO, LR, SC (non-speculative at the ROB's head); the victim's read, which would go through RR2 as a try does, with a way to hold the queue off; PMP (in the DTLB's `r_ok`, `w_ok` from the walk with translation on; with it off, open); the wait table and the crack (decode, dispatch).
+
+**Verification.** `tb_lsu2`: 2 runs of 600,000 cycles, physical and translated: a random program over 8 pages and 6 lines per page, part of the time few pages, part of the time 4 pages in one set of the DTLB. Quiet phases: no new µops, recoveries or walks, and all must end. With nothing in flight, 2 pages change places behind a DTLB flush. The value of every load against program order, exceptions, a replay exactly when it ran twice, every store written in commit order into the way with its line, nothing else writing the data array.
+
+| Covered | Physical | Translated |
+|---|---|---|
+| Loads, stores | 53,045, 43,967 | 49,950, 42,910 |
+| Loads meeting a store (partly) | 4,634 (1,947) | 4,340 (1,733) |
+| Another page at the same offset | 12,021 | 10,754 |
+| Tries, replays | 39,858, 13,977 | 40,184, 13,417 |
+| Misses, stores' misses, evictions | 13,784, 8,519, 11,560 | 5,374, 2,987, 6,108 |
+| Walks, DTLB flushes | | 22,199, 119 |
+| Data late | 558 | 406 |
+| Exceptions, recoveries, flushes | 604, 885, 857 | 865, 788, 1,100 |
+
+**It found 2 faults in the design**: a try dropped by a recovery in M3 cleared its wait, so the load was lost; and tries by lowest number starved a store behind loads that kept losing their page, so they go in turn, and who was answered goes first. And 3 errors of its own: commits past unresolved branches, values behind an exception, too few pages.
+
+**Bug injection**: M650 to M706, **48 of 48 detected**, every line read. The passes before missed these, each read too:
+- **Bench gaps, closed**: a µop killed in RR2 (none was issued then), a line or a DTLB entry invalid hits (the tag stayed 0), the tag's top bit, a store not translated that forwards (its page must share a DTLB set with the load's), a flush that leaves a way (the mapping never changed), a store written over a tag write (too rare to show in a value: the bench now looks at the array's write enable; so `--public-flat-rw` for this test).
+- **Not needed, removed from the RTL**: the store-without-an-address check, 3 mutations with it: the scheduler guarantees it.
+- **Removed as they change only the time**: the head a cycle earlier (one try more), a store with no byte of the load matching (a wait), tries without an event, the data's or a translation's coming as no event (a store's leaving wakes them anyway), an event at the launch (the try sees what it did), no turns. So `sd_valid` and a store's M2 in `ev` are for speed, and a slower design passes.
+- **Not proved: `done_id`**. Without the first try the bench hung once (5,000 cycles without a commit), and has not since, with the thrash phase aimed at it. So it stays as a guard against a livelock that I could not make come on demand, with no mutation.
+
+What to read: `e_ram`, `dat`, `cam`, `hit`, `fwd`, then the rest, and the total. Levers if short: `DO_REG` is no use (a cycle); the sign and the upper half after M2's AND-OR; the DTLB's `tr_on` mux; an SQ of 12.

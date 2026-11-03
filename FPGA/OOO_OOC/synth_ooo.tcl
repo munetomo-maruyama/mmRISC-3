@@ -7,7 +7,7 @@
 #   cd FPGA/OOO_OOC
 #   vivado -mode batch -source synth_ooo.tcl -tclargs [top [period [impl [generics]]]]
 #
-#     top       OOC_ALU2 / OOC_EXU / OOC_UBTB2 / OOC_FUSE / OOC_PRF / OOC_RENAME / OOO_IQ / OOC_SCHED / OOO_UBTB / OOC_LSU / OOC_ROB
+#     top       OOC_ALU2 / OOC_EXU / OOC_UBTB2 / OOC_LSU2 / OOC_FUSE / OOC_PRF / OOC_RENAME / OOO_IQ / OOC_SCHED / OOO_UBTB / OOC_LSU / OOC_ROB
 #               / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC / OOC_IQPL / OOC_LSUDC / OOC_CTRL / OOC_DSREG / OOC_FERS / OOC_TRAP / OOC_SYS / OOC_CSRU / OOC_MDUP / OOC_PMUL
 #               / OOC_FE (the whole front end, OOO_FRONT; not in synth_ooo.bat's loop)
 #               / OOO_CPU (B7: the whole core with its D$, below; not in the loop)
@@ -92,7 +92,7 @@ if {$top eq "MM2_CPU_CORE"} {
 read_verilog -sv [list \
     $rtl/OOO_ALU/OOO_ALU.sv $rtl/OOO_ALU2/OOO_ALU2.sv $rtl/OOO_FUSE/OOO_FUSE.sv \
     $rtl/OOO_PRF/OOO_PRF.sv $rtl/OOO_RENAME/OOO_RENAME.sv $rtl/OOO_IQ/OOO_IQ.sv $rtl/OOO_SDISP/OOO_SDISP.sv $rtl/OOO_SCHED/OOO_SCHED.sv \
-    $rtl/OOO_UBTB/OOO_UBTB.sv $rtl/OOO_UBTB2/OOO_UBTB2.sv $rtl/OOO_LSU/OOO_LSU.sv $rtl/OOO_ROB/OOO_ROB.sv \
+    $rtl/OOO_UBTB/OOO_UBTB.sv $rtl/OOO_UBTB2/OOO_UBTB2.sv $rtl/OOO_LSU/OOO_LSU.sv $rtl/OOO_DCH/OOO_DCH.sv $rtl/OOO_DTLB2/OOO_DTLB2.sv $rtl/OOO_LSU2/OOO_LSU2.sv $rtl/OOO_ROB/OOO_ROB.sv \
     $rtl/OOO_FBUF/OOO_FBUF.sv $rtl/OOO_FTQ/OOO_FTQ.sv \
     $rtl/OOO_PREDEC/OOO_PREDEC.sv $rtl/OOO_TAGE/OOO_TAGE.sv $rtl/OOO_BTB/OOO_BTB.sv $rtl/OOO_RAS/OOO_RAS.sv \
     $rtl/OOO_FETCH/OOO_FETCH.sv $rtl/OOO_FRONT/OOO_FRONT.sv $core/CORE_DECOMP/CORE_DECOMP.sv $core/CORE_DEC/CORE_DEC.sv \
@@ -228,6 +228,10 @@ if {$impl} {
         exu_classes $fh $outdir
     }
     # OOC_UBTB2: the worst path of each class (report_ubtb.tcl)
+    if {$top eq "OOC_LSU2"} {
+        source report_lsu2.tcl
+        lsu2_classes $fh $outdir
+    }
     if {$top eq "OOC_UBTB2"} {
         source report_ubtb.tcl
         ubtb_classes $fh $outdir

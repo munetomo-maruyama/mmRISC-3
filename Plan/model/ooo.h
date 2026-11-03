@@ -66,6 +66,14 @@ struct OooCfg {
     bool ck_jal = true;         // a jal takes a checkpoint too (it cannot mispredict in the back end)
     bool mem_cons = true, fwd = true;
     bool st_data_issue = false;
+    int ld_rp = 0;              // a load that fails in M2 replays at its commit: 1 its store's data is late, 2 an offset alias, 3 both
+    int sd_lag = 0;             // the cycles a store's data takes into the SQ after a dependent could have issued
+    int sd_q = -1;              // sd_alu 2: all in this queue (the SQ's data has one write)
+    int sd_ord = 0;             // a store's data is read in order, one a cycle, oldest first
+    int rp_stall = 3;           // from a store's commit to its leaving the SQ
+    int ld_wt = 0;              // a wait table of this many bits, by the load's pc: a load that replayed waits for the data of all older stores
+    long ld_wt_clr = 0;         // ... cleared every so many cycles
+    int sd_alu = 0;             // a store's data takes an issue slot of an ALU queue when it is ready; 2: and a dispatch slot and an entry of that queue
     int lsu_cmt = 0;
     int mul_wb = 0;             // a multiply on ALU0 takes a write slot a cycle after its issue: 1 ALU0's (OOO_IQ blk0), 2 ALU1's            // cycles more before a load's or a store's commit (OOO_LSU: its completion through a register) // a store issues with its data too (one µop, as OOO_LSU): its address is known then
     int keep_spec = 0;          // a µop issued on an open load keeps its issue-queue entry until the load
@@ -95,6 +103,7 @@ struct OooCfg {
 struct OooResult {
     long insns = 0, uops = 0, cycles = 0;
     long m_br = 0, m_jal = 0, m_jalr = 0, overrides = 0, ubtb_taken_hits = 0, taken = 0;
+    long rp_data = 0, rp_alias = 0;
     long st_fe_misp = 0, st_fe_ovr = 0, st_fe_other = 0, st_rob = 0, st_iq = 0, st_lsq = 0, st_ckpt = 0;
     long fused = 0;
 };
@@ -235,6 +244,14 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     struct StInfo { long data_ready, commit; };
     std::unordered_map<uint64_t, StInfo> st_word;   // latest store per 8-byte word
     long st_addr_known = 0;
+    struct StOff { uint64_t mem; long commit; };
+    std::unordered_map<int, StOff> st_off;          // latest store per offset in a page, by 8-byte word
+    long rp_at = -1;                                // this µop's load replays
+    long ready_sd = 0, sd_last = 0;
+    std::vector<long> ds2;                          // sd_alu 2: dispatch slots
+    long st_data_known = 0;                         // all stores so far have their data
+    std::vector<uint8_t> wt(c.ld_wt > 0 ? c.ld_wt : 1, 0);
+    long wt_next = c.ld_wt_clr;
 
     long blk_f0 = 0; uint64_t blk_region = ~0ull;
     bool new_blk = true; long next_f0 = 0;
@@ -271,6 +288,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         size_t u = ds.size();
         long base = u ? ds[u - 1] : 0;
         if (u >= (size_t)c.w) base = std::max(base, ds[u - c.w] + 1);
+        if (c.sd_alu >= 2 && ds2.size() >= (size_t)c.w) base = std::max(base, ds2[ds2.size() - c.w] + 1);
         long d = base;
         long fe = dec[last] + c.dec_depth;
         if (fe > d) {
@@ -402,6 +420,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         if (has_cti) last_ck = d;
         if (first_ds < 0) first_ds = d;
         ds.push_back(d);
+        if (c.sd_alu >= 2) { ds2.push_back(d); if (nst && !c.st_data_issue) ds2.push_back(d); }
         for (size_t k = i; k <= last; k++) disp_i[k] = d;
 
         // ---- issue
@@ -416,6 +435,11 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             }
         bool any_load = nld > 0;
         if (any_load && c.mem_cons && st_addr_known > is) is = st_addr_known;
+        if (any_load && c.ld_wt) {
+            if (c.ld_wt_clr && is >= wt_next) { std::fill(wt.begin(), wt.end(), 0); wt_next = is + c.ld_wt_clr; }
+            for (size_t k = i; k <= last; k++)
+                if (t[k].cls == C_LOAD && wt[(t[k].pc >> 1) % c.ld_wt] && st_data_known + c.sd_lag - 2 > is) is = st_data_known + c.sd_lag - 2;
+        }
         if (any_load && !c.fwd)
             for (size_t k = i; k <= last; k++)
                 if (t[k].cls == C_LOAD) {
@@ -499,12 +523,59 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 auto it = st_word.find(r.mem >> 3);
                 if (c.fwd && it != st_word.end() && it->second.commit >= is)
                     rd = std::max(rd, it->second.data_ready + 1);
+                if (c.ld_rp) {
+                    if ((c.ld_rp & 1) && c.fwd && it != st_word.end() && it->second.commit >= is
+                        && it->second.data_ready + 1 + c.sd_lag > is + lat) {
+                        rd = std::max(rd, it->second.data_ready + 1 + c.sd_lag);
+                        res.rp_data++; rp_at = 1;
+                        if (c.ld_wt) wt[(r.pc >> 1) % c.ld_wt] = 1;
+                    }
+                    auto ia = st_off.find((int)((r.mem >> 3) & 0x1ff));
+                    if ((c.ld_rp & 2) && ia != st_off.end() && (ia->second.mem >> 3) != (r.mem >> 3)
+                        && ia->second.commit + c.rp_stall >= is + lat) {
+                        rd = std::max(rd, ia->second.commit + c.rp_stall + lat);
+                        res.rp_alias++; rp_at = 1;
+                    }
+                }
             }
             if (r.cls == C_STORE) {
                 long dr = is;
                 if (r.src[0] != NOREG && r.src[0] != r.base) { auto it = ready.find(r.src[0]); if (it != ready.end()) dr = std::max(dr, it->second); }
+                if (c.sd_alu && !c.st_data_issue) {
+                    dr = std::max(dr, d + 1);
+                    if (c.sd_alu >= 2) {
+                        // its own entry, in the queue next in turn with room, from a cycle after the store's if none has
+                        int qs = -1, hs = -1;
+                        for (long sd_d = d; qs < 0; sd_d++) {
+                            for (int w = 0; w < c.iqd && qs < 0; w++) {
+                                int q = c.sd_q >= 0 ? c.sd_q : rk[(rk_n + w) % c.iqd];
+                                for (int h = 2 * q; h <= 2 * q + 1 && qs < 0; h++) {
+                                    while (!qh[h].empty() && qh[h].top() < sd_d) qh[h].pop();
+                                    if ((int)qh[h].size() < c.iq / 2 && (sd_d > d || !bank_c[h])) { qs = q; hs = h; }
+                                }
+                            }
+                            if (qs >= 0) { dr = std::max(dr, sd_d + 1); if (sd_d == d) bank_c[hs] = true; }
+                            else res.st_iq++;
+                        }
+                        if (c.sd_q < 0) rk_n++;
+                        for (;; dr++) {
+                            if (c.issue_w && use_all[dr] >= c.issue_w) continue;
+                            if (useq[qs][dr] < 1) { useq[qs][dr]++; use_all[dr]++; break; }
+                        }
+                        qh[hs].push(dr + c.free_lag);
+                    } else
+                    for (;; dr++) {
+                        if (c.issue_w && use_all[dr] >= c.issue_w) continue;
+                        int qq = -1;
+                        for (int q = 0; q < c.iqd; q++) if (useq[q][dr] < 1) { qq = q; break; }
+                        if (qq >= 0) { useq[qq][dr]++; use_all[dr]++; break; }
+                    }
+                    ready_sd = dr;
+                }
+                if (c.sd_ord && !c.st_data_issue) { dr = std::max({dr, d + 1, sd_last + 1}); sd_last = dr; ready_sd = dr; }
                 rd = std::max(rd, dr);
                 st_addr_known = std::max(st_addr_known, is);
+                st_data_known = std::max(st_data_known, dr);
             }
             if (r.dst != NOREG) { ready[r.dst] = rd; if (c.keep_spec) spec[r.dst] = sp; }
             done = std::max(done, rd + c.iss_to_ex - 1);
@@ -532,7 +603,9 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 long dr = cmt;
                 auto it = t[k].src[0] != NOREG ? ready.find(t[k].src[0]) : ready.end();
                 dr = it != ready.end() ? it->second : is;
+                if ((c.sd_alu || c.sd_ord) && !c.st_data_issue) dr = ready_sd;
                 st_word[t[k].mem >> 3] = StInfo{dr, cmt};
+                st_off[(int)((t[k].mem >> 3) & 0x1ff)] = StOff{t[k].mem, cmt};
             }
         }
 
@@ -596,6 +669,10 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                     next_f0 = blk_f0 + c.taken_gap; new_blk = true; next_cause = 0;
                 }
             }
+        }
+        if (rp_at >= 0) {                       // what follows the load is fetched again
+            next_f0 = std::max(std::max(next_f0, cmt + c.redirect), blk_f0 + 1);
+            new_blk = true; next_cause = 1; rp_at = -1;
         }
         // the cycles of the port use behind every issue are no longer needed
         if ((u & 0xffff) == 0) {

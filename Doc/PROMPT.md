@@ -5734,3 +5734,62 @@ The record is section 28.11 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`). `Doc/ST
 ```text
 ubtb has finished. Please check it.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOC_UBTB2` meets 9 ns (WNS +0.124 ns, about 8.9 ns reached). 96 entries stay, and none of the levers is used.** For this block alone, the model's 6.889 / 7.416 / 6.650 / 5.917 stands. The record is pushed (7076ffb), with 0 `Ref/` files on the remote.
+
+#### Against today's uBTB
+Twelve times the entries, and smaller and faster than today's 8.
+
+| | `OOO_UBTB`, 8 entries (10 ns asked) | `OOO_UBTB2`, 96 entries (9 ns asked) |
+|---|---|---|
+| Slack | −2.037 ns | **+0.124 ns** |
+| Levels of the worst path | 12 | 8 |
+| LUTs after routing | 567 | **378** (190 logic + 188 LUT RAM) |
+| FF | 506 | 53 (and 184 of the harness) |
+
+#### By path
+
+| Class | Slack | Reached | Levels |
+|---|---|---|---|
+| `upd` (the update) | +0.124 | 8.88 ns | 8 |
+| **`idx` (the loop)** | **+0.361** | **8.64 ns** | 8 |
+| `tag` | +1.278 | 7.72 ns | 7 |
+| `out` | +1.897 | 7.10 ns | 7 |
+| `in` (from a redirect) | +4.231 | 4.77 ns | 1 |
+
+#### What it says
+- **As estimated:** 8 levels against 7 to 8 expected, 188 LUTs of RAM against about 180.
+- **8.88 ns is not the limit:** Vivado stops improving once the target is met, so it could be faster. It is within the block's 9.3 ns even with the placement spread of 0.26 ns, so no rerun at a tighter period is needed.
+- **The worst path is the update, not the loop:** `s_up`'s index with a fan-out of 313, through the compare into the set's order bits. If it ever matters the update can take 2 cycles, at the cost of training a cycle later. Not needed now.
+- **The loop is as designed:** `pi_q` → RAM → compare → `hit` → `sel` → target → last LUT, nothing else in it.
+
+#### The earlier worry, updated
+The joining may be easier than I feared. `in` has 4.2 ns to spare at 9 ns, so some logic could stand in front of `redirect` and `stall`.
+
+- **Probably fine:** `be_redirect` and `acc`.
+- **To watch:** `ovr`, the compare at F2.
+- **Not measured:** this run had no logic there, so this is an estimate. Step 1.4 measures it.
+
+#### Where it stands (all blocks alone)
+
+| Loop | Block | Reached |
+|---|---|---|
+| 1 | `OOC_SCHED` | 9.3 and 9.6 ns (`loop` 8.7 and 9.1) |
+| 2 | `OOC_EXU` | 9.2 ns |
+| 6 | `OOC_UBTB2` | 8.9 ns (`idx` 8.6) |
+
+The core added about 1 ns at 20 ns, so all 3 are within reach of 10 ns, though loop 1's margin remains small.
+
+Left in step 1.1: M1 / M2 with block RAM (loop 3), rename of 4 (loop 4), the fetch buffer split (loop 5). I recommend loop 3 next, in order: failing it means a load-use of 4 or 5, −7.9 % to −15 %, the largest loss among those left.
+
+The record is section 28.12 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`); `Doc/STRATEGY.md` 4.2, 4.5, 5 (Japanese `Doc/STRATEGY_J.md`) are updated too.
+<!-- /answer -->
+
+## 148. 2026-11-03 20:58:33 JST
+
+```text
+Yes, loop 3
+```

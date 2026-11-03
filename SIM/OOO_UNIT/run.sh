@@ -49,6 +49,7 @@ TOP[iqpl]=OOO_IQPL;     SRC[iqpl]="$R/OOO_IQPL/OOO_IQPL.sv"
 TOP[ubtb]=OOO_UBTB;     SRC[ubtb]="$R/OOO_UBTB/OOO_UBTB.sv"
 TOP[ubtb2]=OOO_UBTB2;   SRC[ubtb2]="$R/OOO_UBTB2/OOO_UBTB2.sv"
 TOP[lsu]=OOO_LSU;       SRC[lsu]="$R/OOO_LSU/OOO_LSU.sv"
+TOP[lsu2]=OOO_LSU2;     SRC[lsu2]="$R/OOO_DCH/OOO_DCH.sv $R/OOO_DTLB2/OOO_DTLB2.sv $R/OOO_LSU2/OOO_LSU2.sv"; GV[lsu2]="--public-flat-rw"
 TOP[dcad]=LSU_DC;       SRC[dcad]="$R/OOO_LSU/OOO_LSU.sv $R/OOO_DCAD/OOO_DCAD.sv $CA/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv $CA/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv $CA/DCACHE/DCACHE.sv $HERE/LSU_DC.sv"
 TOP[rob]=OOO_ROB;       SRC[rob]="$R/OOO_ROB/OOO_ROB.sv"
 TOP[fbuf]=OOO_FBUF;     SRC[fbuf]="$R/OOO_RARE/OOO_RARE.sv $R/OOO_FBUF/OOO_FBUF.sv"
@@ -61,7 +62,7 @@ TOP[dec]=OOO_DEC;       SRC[dec]="$C/CORE_DECOMP/CORE_DECOMP.sv $C/CORE_DEC/CORE
 XC[dec]="-I$SP/include -I$SP/include/riscv -I$SP/include/softfloat -I$SP/include/fesvr -Wno-c++20-extensions"
 XL[dec]="-L$SP/lib -lriscv -ldisasm -lsoftfloat -lfesvr -Wl,-rpath,$SP/lib -lpthread -ldl"
 TOP[fetch]=OOO_FETCH;   SRC[fetch]="$R/OOO_UBTB/OOO_UBTB.sv $R/OOO_PREDEC/OOO_PREDEC.sv $R/OOO_TAGE/OOO_TAGE.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FETCH/OOO_FETCH.sv"
-TESTS=${*:-alu2 alu1 exu fuse prf prf2 rename ctrl dsreg stage fers trap sys csru mdup pmul iq sched iqpl ubtb ubtb2 lsu dcad rob fbuf ftq predec ras btb tage fetch dec}
+TESTS=${*:-alu2 alu1 exu fuse prf prf2 rename ctrl dsreg stage fers trap sys csru mdup pmul iq sched iqpl ubtb ubtb2 lsu lsu2 dcad rob fbuf ftq predec ras btb tage fetch dec}
 
 fail=0
 for t in $TESTS; do

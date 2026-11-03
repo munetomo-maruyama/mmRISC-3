@@ -106,6 +106,14 @@ int main(int argc, char** argv)
         c.ck1 = o.get("ck1", c.ck1);
         c.ck_jal = o.get("ck_jal", c.ck_jal);
         c.mem_cons = o.get("mem_cons", c.mem_cons);
+        c.ld_rp = (int)o.get("ld_rp", c.ld_rp);
+        c.sd_lag = (int)o.get("sd_lag", c.sd_lag);
+        c.rp_stall = (int)o.get("rp_stall", c.rp_stall);
+        c.ld_wt = (int)o.get("ld_wt", c.ld_wt);
+        c.ld_wt_clr = (long)o.get("ld_wt_clr", c.ld_wt_clr);
+        c.sd_alu = (int)o.get("sd_alu", c.sd_alu);
+        c.sd_q = (int)o.get("sd_q", c.sd_q);
+        c.sd_ord = (int)o.get("sd_ord", c.sd_ord);
         c.fwd = o.get("fwd", c.fwd);
         c.st_data_issue = o.get("st_data_issue", c.st_data_issue);
         c.lsu_cmt = (int)o.get("lsu_cmt", c.lsu_cmt);
@@ -131,6 +139,7 @@ int main(int argc, char** argv)
         printf("mispredicted: branch %ld  jal %ld  jalr %ld  (MPKI %.2f)  overrides %ld  taken %ld, uBTB right %.1f %%\n",
                r.m_br, r.m_jal, r.m_jalr, (r.m_br + r.m_jal + r.m_jalr) * 1000.0 / r.insns, r.overrides,
                r.taken, 100.0 * r.ubtb_taken_hits / (r.taken ? r.taken : 1));
+        if (c.ld_rp) printf("loads replayed: the data late %ld, an offset alias %ld\n", r.rp_data, r.rp_alias);
         printf("dispatch held: front end after misprediction %ld, after override %ld, other %ld; ROB %ld  IQ %ld  LQ/SQ %ld  checkpoints %ld\n",
                r.st_fe_misp, r.st_fe_ovr, r.st_fe_other, r.st_rob, r.st_iq, r.st_lsq, r.st_ckpt);
     } else if (mode == "tage") {

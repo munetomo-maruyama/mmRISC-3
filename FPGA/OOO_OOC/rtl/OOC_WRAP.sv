@@ -1381,3 +1381,179 @@ module OOC_UBTB2
          .fetch_pc(pc), .pred_taken(tk), .pred_off(off), .upd_valid(s_uv), .upd_pc(s_up), .upd_taken(s_ut),
          .upd_target(s_ug), .upd_cond(s_uc), .upd_ret(s_ur));
 endmodule : OOC_UBTB2
+
+//---------------------------------------------------------------------------
+// OOC_LSU2: the memory port of the 4-issue core (OOO_LSU2, OOO_DCH, OOO_DTLB2;
+// Doc/STRATEGY.md 4.5 loop 3). What comes from outside is registered. E's operand
+// is as in OOO_EXU: EX's mux of 5 from registers, with a selection from a register;
+// the load's result into 3 registers, r_ex back into that mux. The others of those
+// registers are not here, so their fan-out is less than in the core.
+//---------------------------------------------------------------------------
+module OOC_LSU2
+    (
+        input  logic         clk,
+        input  logic         rst_n,
+        input  logic         tr_on,
+        input  logic [2:0]   lq_alloc,
+        input  logic [2:0]   sq_alloc,
+        input  logic         rr_valid,
+        input  logic         rr_ld,
+        input  logic [3:0]   rr_lq,
+        input  logic [3:0]   rr_sq,
+        input  logic [4:0]   rr_st,
+        input  logic [11:0]  rr_imm,
+        input  logic [1:0]   rr_size,
+        input  logic         rr_uns,
+        input  logic [6:0]   rr_dst,
+        input  logic [5:0]   rr_rob,
+        input  logic [11:0]  rr_bm,
+        input  logic [63:0]  rr_op,
+        input  logic [2:0]   rr_sa,
+        input  logic [2:0][63:0] alu,
+        input  logic         sd_valid,
+        input  logic [3:0]   sd_sq,
+        input  logic [1:0]   sd_size,
+        input  logic [63:0]  sd_data,
+        input  logic [2:0]   lq_commit,
+        input  logic [2:0]   sq_commit,
+        input  logic         restore,
+        input  logic [11:0]  kill,
+        input  logic [4:0]   restore_lq_tail,
+        input  logic [4:0]   restore_sq_tail,
+        input  logic         flush_all,
+        input  logic         fill_done,
+        input  logic         done_v,
+        input  logic [4:0]   done_id,
+        input  logic         tw_en,
+        input  logic [1:0]   tw_way,
+        input  logic [5:0]   tw_set,
+        input  logic [28:0]  tw_tag,
+        input  logic         rf_en,
+        input  logic [1:0]   rf_way,
+        input  logic [8:0]   rf_addr,
+        input  logic [63:0]  rf_data,
+        input  logic         tlb_done,
+        input  logic         tlb_we,
+        input  logic [38:12] tlb_vpn,
+        input  logic [39:12] tlb_ptag,
+        input  logic         tlb_r,
+        input  logic         tlb_w,
+        input  logic         tlb_flush,
+        output logic [4:0]   o_lq_tail,
+        output logic [4:0]   o_sq_tail,
+        output logic [4:0]   o_lq_free,
+        output logic [4:0]   o_sq_free,
+        output logic         o_nv,
+        output logic [6:0]   o_nt,
+        output logic [63:0]  o_wr,
+        output logic [63:0]  o_sn,
+        output logic         o_cl_v,
+        output logic [5:0]   o_cl_rob,
+        output logic         o_cl_exc,
+        output logic         o_cl_rp,
+        output logic         o_cs_v,
+        output logic [5:0]   o_cs_rob,
+        output logic         o_cs_exc,
+        output logic         o_wt_v,
+        output logic [5:0]   o_wt_rob,
+        output logic         o_drained,
+        output logic         o_miss,
+        output logic [39:6]  o_miss_line,
+        output logic [4:0]   o_miss_id,
+        output logic         o_stm,
+        output logic [39:6]  o_stm_line,
+        output logic         o_dirty,
+        output logic [1:0]   o_dirty_way,
+        output logic [5:0]   o_dirty_idx,
+        output logic         o_tm,
+        output logic [38:12] o_tm_vpn,
+        output logic         o_tbusy
+    );
+    logic         s_tr, s_rv, s_ld, s_uns, s_sv, s_res, s_fl, s_fd, s_twe, s_rfe, s_td, s_twx, s_tr_r, s_tr_w, s_tfl;
+    logic [2:0]   s_la, s_sa, s_lc, s_sc;
+    logic [3:0]   s_lq, s_sq, s_sdq;
+    logic [4:0]   s_st, s_rlt, s_rst, s_did, mi;
+    logic         s_dv;
+    logic [11:0]  s_imm, s_bm, s_kill;
+    logic [1:0]   s_size, s_sds, s_twy, s_rfy;
+    logic [6:0]   s_dst;
+    logic [5:0]   s_rob, s_tws;
+    logic [63:0]  s_op, s_sdd, s_rfd;
+    logic [2:0]   s_opsel;
+    logic [2:0][63:0] s_alu;
+    logic [28:0]  s_twt;
+    logic [8:0]   s_rfa;
+    logic [38:12] s_vpn;
+    logic [39:12] s_ptag;
+    always_ff @(posedge clk) begin
+        s_tr <= tr_on; s_la <= lq_alloc; s_sa <= sq_alloc;
+        s_rv <= rr_valid; s_ld <= rr_ld; s_lq <= rr_lq; s_sq <= rr_sq; s_st <= rr_st; s_imm <= rr_imm;
+        s_size <= rr_size; s_uns <= rr_uns; s_dst <= rr_dst; s_rob <= rr_rob; s_bm <= rr_bm;
+        s_op <= rr_op; s_opsel <= rr_sa; s_alu <= alu;
+        s_sv <= sd_valid; s_sdq <= sd_sq; s_sds <= sd_size; s_sdd <= sd_data;
+        s_lc <= lq_commit; s_sc <= sq_commit; s_res <= restore; s_kill <= kill;
+        s_rlt <= restore_lq_tail; s_rst <= restore_sq_tail; s_fl <= flush_all;
+        s_fd <= fill_done; s_dv <= done_v; s_did <= done_id; s_twe <= tw_en; s_twy <= tw_way; s_tws <= tw_set; s_twt <= tw_tag;
+        s_rfe <= rf_en; s_rfy <= rf_way; s_rfa <= rf_addr; s_rfd <= rf_data;
+        s_td <= tlb_done; s_twx <= tlb_we; s_vpn <= tlb_vpn; s_ptag <= tlb_ptag; s_tr_r <= tlb_r; s_tr_w <= tlb_w; s_tfl <= tlb_flush;
+    end
+
+    logic         rt_v;
+    logic [39:0]  rt_base;
+    logic         nv;
+    logic [6:0]   nt;
+    logic [63:0]  ld_d, e_base;
+    (* keep = "true" *) logic [63:0] r_ex, r_sn, r_wr;
+    logic [63:0]  oa;
+    (* max_fanout = 16 *) logic [2:0] sa;
+    always_ff @(posedge clk) begin
+        r_ex <= ld_d; r_sn <= ld_d; r_wr <= ld_d;
+        oa <= rt_v ? {{24{rt_base[39]}}, rt_base} : s_op;
+        sa <= rt_v ? 3'd0 : s_opsel;
+    end
+    logic [2:0][63:0] alu_q;
+    always_ff @(posedge clk) alu_q <= s_alu;
+    always @(*) begin
+        case (sa)
+            3'd1:    e_base = alu_q[0];
+            3'd2:    e_base = alu_q[1];
+            3'd3:    e_base = alu_q[2];
+            3'd4:    e_base = r_ex;
+            default: e_base = oa;
+        endcase
+    end
+
+    logic [4:0]   lt, st, lf, sf;
+    logic         clv, cle, clr, csv, cse, wtv, drn, ms, stm, drt, tm, tb;
+    logic [5:0]   clb, csb, wtb, dri;
+    logic [1:0]   dry;
+    logic [39:6]  ml, sl;
+    logic [38:12] tv;
+    OOO_LSU2 #(.NLQ(16), .NSQ(16), .PAW(40), .VA(39), .TAGW(7), .ROBW(6), .NCK(12)) u_lsu
+        (.clk(clk), .rst_n(rst_n), .tr_on(s_tr),
+         .lq_alloc(s_la), .sq_alloc(s_sa), .lq_tail(lt), .sq_tail(st), .lq_free(lf), .sq_free(sf),
+         .rr_valid(s_rv), .rr_ld(s_ld), .rr_lq(s_lq), .rr_sq(s_sq), .rr_st(s_st), .rr_imm(s_imm), .rr_size(s_size),
+         .rr_uns(s_uns), .rr_dst(s_dst), .rr_rob(s_rob), .rr_bm(s_bm), .rt_v(rt_v), .rt_base(rt_base),
+         .e_base(e_base), .ld_nv(nv), .ld_nt(nt), .ld_d(ld_d),
+         .cmp_ld_valid(clv), .cmp_ld_rob(clb), .cmp_ld_exc(cle), .cmp_ld_rp(clr),
+         .cmp_sa_valid(csv), .cmp_sa_rob(csb), .cmp_sa_exc(cse), .wt_valid(wtv), .wt_rob(wtb),
+         .sd_valid(s_sv), .sd_sq(s_sdq), .sd_size(s_sds), .sd_data(s_sdd),
+         .lq_commit(s_lc), .sq_commit(s_sc), .restore(s_res), .kill(s_kill),
+         .restore_lq_tail(s_rlt), .restore_sq_tail(s_rst), .flush_all(s_fl), .sq_drained(drn),
+         .miss_valid(ms), .miss_line(ml), .miss_id(mi), .st_miss_valid(stm), .st_miss_line(sl), .fill_done(s_fd),
+         .done_v(s_dv), .done_id(s_did),
+         .tw_en(s_twe), .tw_way(s_twy), .tw_set(s_tws), .tw_tag(s_twt),
+         .rf_en(s_rfe), .rf_way(s_rfy), .rf_addr(s_rfa), .rf_data(s_rfd),
+         .dirty_set(drt), .dirty_way(dry), .dirty_idx(dri),
+         .tlb_miss(tm), .tlb_miss_vpn(tv), .tlb_done(s_td), .tlb_we(s_twx), .tlb_vpn(s_vpn), .tlb_ptag(s_ptag),
+         .tlb_r(s_tr_r), .tlb_w(s_tr_w), .tlb_flush(s_tfl), .tlb_busy(tb));
+
+    always_ff @(posedge clk) begin
+        o_lq_tail <= lt; o_sq_tail <= st; o_lq_free <= lf; o_sq_free <= sf;
+        o_nv <= nv; o_nt <= nt; o_wr <= r_wr; o_sn <= r_sn;
+        o_cl_v <= clv; o_cl_rob <= clb; o_cl_exc <= cle; o_cl_rp <= clr;
+        o_cs_v <= csv; o_cs_rob <= csb; o_cs_exc <= cse; o_wt_v <= wtv; o_wt_rob <= wtb;
+        o_drained <= drn; o_miss <= ms; o_miss_line <= ml; o_miss_id <= mi; o_stm <= stm; o_stm_line <= sl;
+        o_dirty <= drt; o_dirty_way <= dry; o_dirty_idx <= dri; o_tm <= tm; o_tm_vpn <= tv; o_tbusy <= tb;
+    end
+endmodule : OOC_LSU2

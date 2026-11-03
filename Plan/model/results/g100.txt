@@ -46,6 +46,19 @@
 |   16, 4 sets of 4, round robin                               |  6.797 |  7.312 |  6.531 |
 |   48, 16 sets of 3, round robin                              |  6.879 |  7.414 |  6.618 |
 |   128, 32 sets of 4, round robin                             |  6.905 |  7.422 |  6.654 |
+| **stores: what a load does with a store whose data has not come** (Plan/OOC.md 28.13) | | | |
+|   as modelled so far: it waits, its dependents wake late, nothing fetched again |  6.889 |  7.416 |  6.650 |
+|   it replays at its commit, the data 1 cycle behind a dependent |  5.767 |  6.199 |  5.614 |
+|   stores not split: a store issues with its data             |  6.320 |  6.903 |  6.129 |
+|   the data a µop: an issue slot of an ALU queue, no replays |  6.825 |  7.334 |  6.589 |
+|   ... and a dispatch slot and an entry                       |  6.784 |  7.344 |  6.551 |
+|   ... and replays                                            |  5.588 |  6.041 |  5.435 |
+|   ... and a wait table of 1,024 bits                         |  6.749 |  7.294 |  6.510 |
+|   ... of 256 bits                                            |  6.744 |  7.291 |  6.511 |
+|   ... of 64 bits                                             |  6.741 |  7.271 |  6.493 |
+|   **as proposed: 64 bits, the data µops on queue 2 alone**  |  6.726 |  7.234 |  6.484 |
+|   ... with offset aliases replayed too                       |  6.726 |  7.234 |  6.482 |
+|   the data read from the SQ in order, no µop, 4 cycles behind |  6.464 |  6.833 |  6.272 |
 | uBTB 8                                                       |  6.660 |  7.232 |  6.479 |
 | uBTB 32                                                      |  6.971 |  7.530 |  6.733 |
 | uBTB answers a cycle late: a bubble on every taken branch    |  6.435 |  7.155 |  6.261 |

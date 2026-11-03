@@ -107,7 +107,7 @@ nothing asked for less: **they were all measured at a 20 ns target**, so they ar
 | Branch | compare and act in EX + 1 | compare in EX, **misprediction in EX + 1, restore in EX + 2** | Redirect 6 |
 | Load-use | 2 | **3**: E, M1 (block RAM), M2 (tags, way, forward, align) | 4 costs −7.9 %, hence the effort |
 | Multiply | 2 | **4, pipelined in DSP48** | Through CORE_MDU it would cost −5 % |
-| Stores | one µop, with data | **split**: the address issues on its own, the data joins in the SQ | +3.8 % |
+| Stores | one µop, with data | **split**: the address issues on its own, the data joins in the SQ. **Proposed 2026-11-03, for the author to decide: the data a µop on queue 2, with a wait table of 64 bits** | The +3.8 % assumed no replays: with them 5.767. **As proposed 6.726, −2.4 %; not split 6.320** (`Plan/OOC.md` 28.13) |
 | ROB / LQ, SQ / checkpoints | 24 / 8 / 6 | **48 / 16 / 12**, registers **80** | 32 / 12 / 8 costs −7.4 % |
 | Register file | 3 writes, 6 reads | **4 writes, 8 reads**, 2 stages (`OOO_PRF2`) | LVT apart from the data read |
 | Predictor | TAGE S, uBTB 8 | **TAGE M, uBTB 96**: 32 sets of 3 in LUT RAM (`OOO_UBTB2`) | 6.889, +1.0 % against 16 in one set; the block reaches about 8.9 ns alone (`Plan/OOC.md` 28.12). uBTB 8 costs −3.5 %, with more stages to an override |
@@ -161,7 +161,7 @@ LiteX stays at its default 100 MHz, the **same clock as the CPU**, so there is n
 |---|---|---|---|---|---|
 | 1 | **Wakeup + select** (IS) | 1 cycle, queue of 8 | ALU 2 cycles | **−20 %**: 5.51, a redesign | **+0.056 ns, the new design alone, without the payload, 5,353 LUTs** (`Plan/OOC.md` 28.5); **as built, 9.3 and 9.6 ns on 2 placements of one netlist; `loop` itself 8.7 and 9.1** (28.10). Today's block: −1.95 ns, 10 entries, 3 ports |
 | 2 | **Bypass + ALU** (EX) | 1 cycle | ALU 2 cycles | **−20 %** | Today's: −0.66 ns full; +2.34 ns ALU1's functions. **The new design, with the register file: about 9.2 ns asked for 9, 12,472 LUTs, model 6.823** (`Plan/OOC.md` 28.9). Alone: the core will add |
-| 3 | **M1 + M2** (load) | Load-use 3 | Load-use 4, 5 | −7.9 %, −15 % | −2.66 ns in one stage, to become two |
+| 3 | **M1 + M2** (load) | Load-use 3 | Load-use 4, 5 | −7.9 %, −15 % | Today's: −2.66 ns in one stage. The new design, `OOO_LSU2`, built, its run awaited (`Plan/OOC.md` 28.13) |
 | 4 | **Rename of 4** (R1, R2) | 2 stages | 3 stages | about −1 % | +1.04 ns at 2 µops, in one stage |
 | 5 | **Fetch buffer's boundaries** (D1) | 1 stage | 2 stages | about −1 % | −3.31 ns |
 | 6 | **uBTB** (F0), added by the measurement | 96 entries, no bubble | A bubble on each taken branch; or fewer entries | **−6.8 %**; 8 entries −3.5 %, 4 entries −7.3 % | Today's: −2.04 ns at 8 entries. **The new design, 96 entries: about 8.9 ns asked for 9, 378 LUTs, model 6.889** (`Plan/OOC.md` 28.12). Alone: joining it to fetch is step 1.4 |
@@ -195,7 +195,7 @@ and far less work, so the go / no-go is at gate S1-A.
 | # | Work | Done when |
 |---|---|---|
 | 1.0 | **Done 2026-11-02**: `synth_ooo.bat t100`: today's blocks at a 10 ns target, on the XC7A200T (`Plan/OOC.md` 28.1) | The real distance from 10 ns |
-| 1.1 | Harnesses of the new loops alone, in this order: a queue of 8 with its wakeups (`OOC_SCHED`, `synth_ooo.bat sched`, **meets 10 ns alone, 2026-11-03**), bypass + ALU with the new sources (`OOC_EXU`, `synth_ooo.bat exu`, **about 9.2 ns asked for 9, 2026-11-03**), a uBTB (`OOC_UBTB2`, `synth_ooo.bat ubtb`, **about 8.9 ns asked for 9, 2026-11-03**), M1 / M2 with block RAM, rename of 4, the fetch buffer split | **Gate S1-A**: all six within reach at 10 ns; the configuration frozen; **go, or fall back to 75 MHz, or to 50 MHz and 3-wide** |
+| 1.1 | Harnesses of the new loops alone, in this order: a queue of 8 with its wakeups (`OOC_SCHED`, `synth_ooo.bat sched`, **meets 10 ns alone, 2026-11-03**), bypass + ALU with the new sources (`OOC_EXU`, `synth_ooo.bat exu`, **about 9.2 ns asked for 9, 2026-11-03**), a uBTB (`OOC_UBTB2`, `synth_ooo.bat ubtb`, **about 8.9 ns asked for 9, 2026-11-03**), M1 / M2 with block RAM (`OOC_LSU2`, `synth_ooo.bat lsu2`, built 2026-11-03), rename of 4, the fetch buffer split | **Gate S1-A**: all six within reach at 10 ns; the configuration frozen; **go, or fall back to 75 MHz, or to 50 MHz and 3-wide** |
 | 1.2 | The model with the queue, the D1 boundary, the split store as they will be built | Model ≥ 6.8 |
 | 1.3 | The new pipeline at W = 2 first: stages added, no new function, the tests' references updated | Lock-step; cycles against the model |
 | 1.4 | Distributed schedulers; the decoded queue; 32-byte fetch, 6 decoded | Tests; cycles against the model |

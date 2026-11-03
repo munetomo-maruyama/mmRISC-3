@@ -75,6 +75,20 @@ row "  16, all in one set, round robin"                 $J $D $X ub_rr=1
 row "  16, 4 sets of 4, round robin"                    $J $D $X ub_sets=4 ub_rr=1
 row "  48, 16 sets of 3, round robin"                   $J $D $X ubtb=48 ub_sets=16 ub_rr=1
 row "  128, 32 sets of 4, round robin"                  $J $D $X ubtb=128 ub_sets=32 ub_rr=1
+U="ubtb=96 ub_sets=32 ub_rr=1"                                  # OOO_UBTB2 as built
+echo "| **stores: what a load does with a store whose data has not come** (Plan/OOC.md 28.13) | | | |"
+row "  as modelled so far: it waits, its dependents wake late, nothing fetched again" $J $D $X $U
+row "  it replays at its commit, the data 1 cycle behind a dependent" $J $D $X $U ld_rp=1 sd_lag=1
+row "  stores not split: a store issues with its data" $G st_data_issue=1 dec_w=6 fetch_bytes=32 $D $X $U
+row "  the data a µop: an issue slot of an ALU queue, no replays" $J $D $X $U sd_alu=1
+row "  ... and a dispatch slot and an entry" $J $D $X $U sd_alu=2
+row "  ... and replays" $J $D $X $U sd_alu=2 ld_rp=1 sd_lag=1
+row "  ... and a wait table of 1,024 bits" $J $D $X $U sd_alu=2 ld_rp=1 sd_lag=1 ld_wt=1024
+row "  ... of 256 bits" $J $D $X $U sd_alu=2 ld_rp=1 sd_lag=1 ld_wt=256
+row "  ... of 64 bits" $J $D $X $U sd_alu=2 ld_rp=1 sd_lag=1 ld_wt=64
+row "  **as proposed: 64 bits, the data µops on queue 2 alone**" $J $D $X $U sd_alu=2 sd_q=2 ld_rp=1 sd_lag=1 ld_wt=64
+row "  ... with offset aliases replayed too" $J $D $X $U sd_alu=2 sd_q=2 ld_rp=3 sd_lag=1 ld_wt=64
+row "  the data read from the SQ in order, no µop, 4 cycles behind" $J $D $X $U sd_ord=1 ld_rp=1 sd_lag=4 ld_wt=64
 row "uBTB 8"                                        $J ubtb=8
 row "uBTB 32"                                       $J ubtb=32
 row "uBTB answers a cycle late: a bubble on every taken branch" $J taken_gap=2
