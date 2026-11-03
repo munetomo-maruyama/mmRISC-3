@@ -3403,3 +3403,26 @@ What it says:
 Not built yet: the crack in decode and renaming, the table itself (a RAM of 64 × 1, trained by `wt_*` through the ROB's pc), the way from queue 2's operand to `sd_*`. They come with steps 1.3 and 1.4; only the crack bears on loop 4, which comes next.
 
 **Verification.** `tb_sched`: as before, with data µops and marked loads in the account: 443,860 issued, 28,355 data µops, a marked load held by one 20,545 times, no mismatch. Bug injection: all of `OOO_SCHED`, `OOO_SDISP`, with M710 to M716 new: **102 of 102 detected**, every line read (M445's text had moved, and was run again). -Wall clean on the blocks and harness.
+
+### 28.15 `OOC_SCHED` with stores in 2 µops: 9.06 ns; nothing lost (2026-11-03)
+
+`synth_ooo.bat sched85`, the RTL of 28.14, against the same target before the change (28.10).
+
+| Class | 8.5 ns, with the data µop | 8.5 ns, before (28.10) | 8.6 ns, before (28.10) |
+|---|---|---|---|
+| **Reached** | **9.06 ns** | 9.31 ns | 9.57 ns |
+| `s1` | −0.563 | −0.810 | −0.973 |
+| `guard` | −0.560 | −0.272 | −0.572 |
+| `ff` | −0.467 | −0.589 | −0.745 |
+| `loop` | **−0.186** | −0.179 | −0.504 |
+| `kill` | +0.200 | +0.120 | −0.056 |
+| `s2` | +0.279 | +0.530 | −0.058 |
+| `free` | +1.434 | +0.896 | +0.657 |
+| `wake` | +1.573 | +1.393 | +1.499 |
+| `issue` | +3.078 | +2.722 | +2.903 |
+| LUTs after routing | 5,707 | 5,692 | 5,716 |
+| FF in the block | 2,837 | 2,832 | |
+
+**The data µop and the marked load cost nothing that can be seen.** 15 LUTs and 5 FF more: 8 FF of `sdq` less what synthesis merged. **Not an improvement**: 9.06 against 9.31 is 0.25 ns, within the 0.26 ns of 2 placements, and this is a different netlist. `guard` went the other way by the same amount. What can be said: loop 1 stays at 9.1 to 9.6 ns, `loop` itself at 8.7 to 9.1, and the worst endpoint is still dispatch's S1 into the age bits, the lever of 28.10 still unused.
+
+So **the stores of 28.13 hold in loop 1**, and the model's 6.726 stands for what is built. Next: loop 4, rename of 4, with the store's 2 µops.

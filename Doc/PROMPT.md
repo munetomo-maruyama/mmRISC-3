@@ -5863,3 +5863,64 @@ The record is section 28.13 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`), the mod
 ```text
 tsu2 [lsu2] has finished. I accept the store proposal.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOC_LSU2` meets 9 ns (WNS +0.898 ns, about 8.1 ns reached), the widest margin of the loops so far.** The store proposal is recorded and in the scheduler, pushed (a59f9fc). The scheduler's timing has to be measured again.
+
+#### Loop 3 (I read "`tsu2`" as `lsu2`)
+
+| Class | Slack | Reached | Levels |
+|---|---|---|---|
+| **The tags to the result** | **+0.898** | **8.10 ns** | 7 |
+| `hit` (the physical tag to the result) | +1.344 | 7.66 ns | 7 |
+| `cam` (the search of the SQ) | +1.363 | 7.64 ns | 6 |
+| `fwd` (the SQ's data to the result) | +1.513 | 7.49 ns | 5 |
+| `drain` | +1.673 | 7.33 ns | 6 |
+| `tlb` | +2.094 | 6.91 ns | 5 |
+| `e_ram` (EX's mux, the adder, the arrays' address) | +2.124 | 6.88 ns | 5 |
+| `dat` (the data to a way's alignment) | +2.513 | 6.49 ns | 3 |
+
+- **Size:** 2,053 LUTs (with 248 LUT RAM), 1,335 FF (and 1,346 of the harness), 4 RAMB36 and 8 RAMB18.
+- **Against today's:** `OOC_LSUDC` is −2.657 ns at 10 ns, 7,989 LUTs, but with the miss logic (5,460 LUTs in `DCACHE`), so the sizes do not compare directly.
+- **Levels:** about as counted.
+- **No rerun needed:** 8.1 ns is a ceiling, well inside the 9.3 ns aimed at.
+- **The `tag` report:** it said "no cells", as Vivado moved `m2_t` into the block RAM's output register. Same cycles. `report_lsu2.tcl` is corrected.
+- **Not in yet:** the miss handler, what is not cacheable, the other sinks of EX's mux and `ld_d`, `sd_data` straight from EX's mux. What they cost is not known.
+
+#### The stores decision
+Reflected in `Doc/STRATEGY.md`. The model is 6.726 / 7.234 / 6.484 / 5.797, RTL about 6.32, 632 CoreMark/s.
+
+**Two points bear on the targets.**
+- **Gate S1-B (RTL ≥ 6.3):** only 0.02 in hand.
+- **Step 1.2 (model ≥ 6.8):** no longer met. I did not change the figure, only noted 6.73. Changing it is the author's call.
+
+#### The scheduler's change
+`OOO_SCHED` and `OOO_SDISP` have a kind for queue 2 alone (`disp_kind` 3), the data µop's mark (`disp_sd`), and marked loads (`disp_wl`). The row's cells exist already, so the loop itself does not grow.
+
+But the new terms are in dispatch's S1, the limit of `OOC_SCHED`, so it has to be measured again.
+
+- **Bench `tb_sched`:** 443,860 issued, 28,355 data µops, a marked load held by one 20,545 times, no mismatch.
+- **Bug injection:** all 102 of `OOO_SCHED` and `OOO_SDISP` detected, every line read. M710 to M716 are new; M445, whose text changed, was fixed and run again.
+- **Lint:** `-Wall` clean on blocks and harness.
+
+The crack into 2 µops at decode, the wait table itself and the way from queue 2 to the SQ are not built yet; they come with steps 1.3 and 1.4.
+
+#### Request
+Please run the following on Windows. The results overwrite `output/OOC_SCHED_T8.5`; the last ones stay in git.
+
+```bash
+synth_ooo.bat sched85
+```
+
+To compare with the last 9.31 ns (`loop` 8.7 ns); up to 0.26 ns is placement's spread. If that holds, next is loop 4 (rename of 4), which the store's 2 µops bear on too.
+
+The record is section 28.14 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
+<!-- /answer -->
+
+## 150. 2026-11-03 23:00:59 JST
+
+```text
+sched85 has finished.
+```
