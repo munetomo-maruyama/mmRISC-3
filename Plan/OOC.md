@@ -3213,3 +3213,45 @@ What it says:
 **A lever noted, not taken**: the age bits can update from `w2` a cycle later rather than `wa`, as an entry cannot ask before then. It would remove the worst endpoint at no cost, but the next ones (`ff`, `oc`) are 0.03 ns behind, within the spread, so a run could not show it.
 
 **Reading the two blocks**: scheduler 9.3 to 9.6 ns, EX 9.2 ns (one placement). Against 10 ns that is about 0.4 to 0.8 ns in hand, and the core added about 1 ns at 20 ns (28.1). Within reach for gate S1-A; not comfortable for the chip, and read again at step 1.6. Model 6.823. Loops 1 and 2, the two life-or-death ones, both reach 10 ns as blocks; the next is loop 6, the uBTB of 16.
+
+### 28.11 Loop 6: `OOO_UBTB2`, `OOC_UBTB2`, set-associative in LUT RAM (2026-11-03)
+
+Not measured when written: `synth_ooo.bat ubtb`, in `output/OOC_UBTB2_T9`, at 9 ns as loop 2 needed (28.9).
+
+Today's `OOO_UBTB` is 2.04 ns short at 8 entries (11.9 ns, 12 levels; 28.1), and 16 are wanted. Its path: compare all tags, then which parcel is first (`at`, `first`), then which entry (`sel`, fan-out 39), then the AND-OR of all targets. All of those grow with the entries.
+
+**What the model says first.** `Plan/model` had an ideal uBTB: all in one set, LRU, whatever is in the block. It now has sets (`ub_sets`, by the fetch block's address, so all transfers of a block share a set) and round robin (`ub_rr`).
+
+| uBTB | `-O2` | most optimization | g13 | rv64gc |
+|---|---|---|---|---|
+| 16, all in one set, LRU (the proposal so far) | 6.823 | 7.315 | 6.599 | 5.898 |
+| 16, all in one set, round robin (as `OOO_UBTB`) | 6.794 | 7.326 | 6.589 | 5.896 |
+| 16, 4 sets of 4, round robin | 6.797 | 7.312 | 6.531 | 5.890 |
+| 16, 8 sets of 2, round robin | 6.756 | 7.293 | 6.521 | 5.869 |
+| 24, 8 sets of 3, round robin | 6.848 | 7.375 | 6.563 | 5.906 |
+| 48, 16 sets of 3, round robin | 6.879 | 7.414 | 6.618 | 5.910 |
+| **96, 32 sets of 3, round robin** | **6.889** | **7.416** | **6.650** | **5.917** |
+| 128, 32 sets of 4, round robin | 6.905 | 7.422 | 6.654 | 5.921 |
+| 2,048, LRU (for scale) | 6.915 | 7.427 | 6.667 | 5.928 |
+
+So **sets cost almost nothing here**, and capacity is worth more than associativity. In LUT RAM a depth of 32 costs the same as one of 16, so the choice is 32 sets of 3: **96 entries, +1.0 % against the proposal's 16**, if the timing holds. Those figures are optimistic in 2 ways: tags are exact in the model, and training is immediate.
+
+**The design** (`RTL/CPU/OOO/OOO_UBTB2`, a new block; `OOO_UBTB` stays with today's core).
+
+| Item | Choice | Why |
+|---|---|---|
+| Storage | Distributed RAM, one copy for the prediction, one for the update | 3 tag compares instead of 16; the target's AND-OR is 3 inputs, not 16 |
+| Tag | 12 bits of the block's address above the index, not folded | One level less: folding was the first LUT of today's path. An alias costs an override, as before |
+| First in the block | 3 bits per set, which of 2 ways comes first, written with a way | No parcels compared and no priority in the path: one LUT for `sel` |
+| Predicted taken | One bit in the RAM, computed when the counter changes | Not computed from `cond` and the counter in the path |
+| Next address | Last LUT: `ovr ? hr : t \| late`; a redirect, a stall, the stack's top and the sequential address are in LUTs before it | Only the target's way is late |
+| Reset | None for the table, only its initial state | A stale entry is a misprediction checked at F2, as for stale code (`Plan/OOC.md`) |
+| The index | A register of its own (`pi_q`) with `max_fanout` 32 | The RAM's address has a large fan-out, the tag compare should not share it |
+
+Levels expected, counted: RAM, compare (2), hit, `sel`, target, last: 7 or 8, against 12. Size unknown until the run: by counting, about 180 LUTs of RAM plus the logic, against 567 LUTs and 505 FF for today's 8 entries.
+
+**What it asks of the core**: `redirect`, `redirect_pc`, `stall`, `ras_top` from registers. Today `OOO_FETCH` drives them from logic (`be_redirect || ovr`, `!acc`); the harness has registers, so **the run measures the loop, not its joining**. That has to be designed with the fetch of 32 bytes at step 1.4 and may cost: an override already takes its stages in the model, a `stall` from a register would be a cycle late.
+
+**Verification.** `tb_ubtb2`: 800,000 cycles against a reference table of 32 sets of 3: 513,821 predicted taken, 55,152 returns, 218,886 lookups with several hits, 241,445 fills, aliases in the table, no mismatch. Bug injection M610 to M645: 36 of 36 detected. `-Wall` clean on the block and the harness's lines. `results/g100.txt` has the rows above; the old ones are unchanged.
+
+What to read: `idx` (the index, through the RAM), `tag`, `in`, `out`, `upd`, and the total LUTs. Levers if short: 16 sets (same size; −0.1 %), a smaller tag, then fan-outs.

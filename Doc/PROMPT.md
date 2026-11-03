@@ -5645,3 +5645,30 @@ None of the prepared levers was needed: `slli`, Zba, `srli` stay in 1 cycle. `OO
 ```text
 Done.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOC_SCHED` reached 9.31 ns and 9.57 ns on 2 placements of one netlist. Latency 3 stays.** Loops 1 and 2, the life-or-death ones, both reach 10 ns as blocks alone. The model stays 6.823 (27ad7ba).
+
+Classes at 8.5 / 8.6 ns: `s1` −0.810 / −0.973, `ff` −0.589 / −0.745, `guard` −0.272 / −0.572, `loop` −0.179 / −0.504, `kill` +0.120 / −0.056, `s2` +0.530 / −0.058; 5,692 / 5,716 LUTs.
+
+#### What it says
+- The spread of placement alone is 0.26 ns: synthesis gave the same netlist in both. Differences under about 0.3 ns between single runs mean nothing.
+- The `rv` change did what it was for: `loop` is at 8.7 and 9.1 ns; the worst endpoints moved to `aq`, `ff`, `oc`, written by dispatch's first phase.
+- Latency 3 costs under 0.3 ns if anything.
+
+**Correction:** I said most of the 9.9 ns was placement noise. That is not borne out: 0.26 ns does not explain 0.6 ns. The rest is either the change or a worse netlist from synthesis; with `rv` changed in the same step they cannot be separated.
+
+#### Where it stands
+Scheduler 9.3 to 9.6 ns, EX 9.2 ns (one placement): 0.4 to 0.8 ns in hand, and the core added about 1 ns at 20 ns. Within reach for gate S1-A, not comfortable for the chip; read again at step 1.6. The scheduler's limit is dispatch's first phase, which shares its cycle with rename of 4, so loop 4 decides how far to take it. Noted, not taken: the age bits `aq` can update from `w2` a cycle later, but `ff`, `oc` are about 0.03 ns behind, so a run could not show it.
+
+#### Next
+Loop 6, the uBTB of 16: −6.8 % in the model if it fails; today's is −2.04 ns at 8 entries.
+<!-- /answer -->
+
+## 146. 2026-11-03 19:00:28 JST
+
+```text
+Yes, uBTB
+```

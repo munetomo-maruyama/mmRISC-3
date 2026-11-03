@@ -96,6 +96,8 @@ int main(int argc, char** argv)
         c.mdu_busy = (int)o.get("mdu_busy", c.mdu_busy);
         c.lat_div = (int)o.get("lat_div", c.lat_div);
         c.ubtb = (int)o.get("ubtb", c.ubtb);
+        c.ub_sets = (int)o.get("ub_sets", c.ub_sets);
+        c.ub_rr = o.get("ub_rr", c.ub_rr) != 0;
         c.fusion = (int)o.get("fusion", c.fusion);
         c.chain = (int)o.get("chain", c.chain);
         c.fuse_1w = o.get("fuse_1w", c.fuse_1w);

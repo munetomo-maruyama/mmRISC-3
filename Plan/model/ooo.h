@@ -51,6 +51,8 @@ struct OooCfg {
     int lat_alu = 1, lat_load = 2, lat_mul = 2, lat_div = 20, lat_fp = 4;
     int mdu_busy = 0;       // >0: one MDU, not pipelined (mmRISC-2's CORE_MDU): a multiply holds it this many cycles, a divide lat_div; a divide no longer holds ALU0
     int ubtb = 64;
+    int ub_sets = 1;       // uBTB: sets, indexed by the fetch block's address
+    bool ub_rr = false;    // uBTB: replaced round robin (false: LRU)
     std::string pred = "S";     // perfect, gshare, S, M, L (TAGE)
     int upd = 0;                // TAGE update: 0 at the prediction (trace-driven), 1 at the branch's commit
     int upd_lag = 1;            // upd=1: cycles after the commit (the FTQ pop's write, read by the next F0)
@@ -123,37 +125,56 @@ inline int fusion_level(const Rec& a, const Rec& b, int* kind = nullptr)
 
 // next-line predictor: fully associative, LRU, per control transfer
 struct Ubtb {
-    struct E { uint64_t target; uint8_t cnt; };
-    int cap;
-    std::list<uint64_t> lru;
-    std::unordered_map<uint64_t, std::pair<E, std::list<uint64_t>::iterator>> m;
-    explicit Ubtb(int n) : cap(n) {}
+    struct E { uint64_t pc = 0; bool v = false; uint64_t target = 0; uint8_t cnt = 0; long used = 0; };
+    int cap, sets, ways, block;
+    bool rr;
+    long now = 0;
+    std::vector<std::vector<E>> s;
+    std::vector<int> ptr;
+    // cap entries in sets of cap / sets, indexed by the block's address: all the
+    // transfers of a block share a set. rr: replaced round robin, as OOO_UBTB
+    Ubtb(int n, int nsets, bool round_robin, int fetch_block)
+        : cap(n), sets(nsets), ways(n ? n / nsets : 0), block(fetch_block), rr(round_robin)
+    {
+        if (cap) { s.assign(sets, std::vector<E>(ways)); ptr.assign(sets, 0); }
+    }
+    E* find(uint64_t pc, std::vector<E>** set, int* si)
+    {
+        *si = (int)((pc / block) % sets);
+        *set = &s[*si];
+        for (E& e : **set) if (e.v && e.pc == pc) return &e;
+        return nullptr;
+    }
     // predicted taken and target (returns use the RAS top, given)
     bool predict(const Rec& r, uint64_t ras_top, uint64_t& tgt)
     {
         if (cap == 0) return false;
-        auto it = m.find(r.pc);
-        if (it == m.end()) return false;
-        if (r.cls == C_BR && it->second.first.cnt < 2) return false;
-        tgt = (r.flags & F_RET) ? ras_top : it->second.first.target;
+        std::vector<E>* set; int si;
+        E* e = find(r.pc, &set, &si);
+        if (!e) return false;
+        if (r.cls == C_BR && e->cnt < 2) return false;
+        tgt = (r.flags & F_RET) ? ras_top : e->target;
         return true;
     }
     void update(const Rec& r, bool taken, uint64_t next)
     {
         if (cap == 0) return;
-        auto it = m.find(r.pc);
-        if (it == m.end()) {
+        now++;
+        std::vector<E>* set; int si;
+        E* e = find(r.pc, &set, &si);
+        if (!e) {
             if (!taken) return;
-            if ((int)m.size() >= cap) { m.erase(lru.back()); lru.pop_back(); }
-            lru.push_front(r.pc);
-            m[r.pc] = {E{next, 2}, lru.begin()};
+            int w = 0;
+            if (rr) { w = ptr[si]; ptr[si] = (ptr[si] + 1) % ways; }
+            else for (int i = 0; i < ways; i++) {
+                if (!(*set)[i].v) { w = i; break; }
+                if ((*set)[i].used < (*set)[w].used) w = i;
+            }
+            (*set)[w] = E{r.pc, true, next, 2, now};
             return;
         }
-        E& e = it->second.first;
-        if (taken) { e.target = next; if (e.cnt < 3) e.cnt++; } else if (e.cnt > 0) e.cnt--;
-        lru.erase(it->second.second);
-        lru.push_front(r.pc);
-        it->second.second = lru.begin();
+        if (taken) { e->target = next; if (e->cnt < 3) e->cnt++; } else if (e->cnt > 0) e->cnt--;
+        e->used = now;
     }
 };
 
@@ -190,7 +211,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     std::deque<TUpd> tq;                        // upd=1: the updates not made yet (commit order)
     std::vector<uint8_t> pht(8192, 2);
     unsigned ghist = 0;
-    Ubtb ub(c.ubtb);
+    Ubtb ub(c.ubtb, c.ub_sets, c.ub_rr, c.fetch_bytes);
     std::unordered_map<uint64_t, uint64_t> btb;  // pc -> last target (large; cold misses only)
     std::vector<uint64_t> ras(16);
     int ras_n = 0;

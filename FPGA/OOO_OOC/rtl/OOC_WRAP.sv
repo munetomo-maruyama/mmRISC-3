@@ -1344,3 +1344,40 @@ module OOC_EXU
          .wb_v(wv), .wb_t(wt), .wb_d(wd), .wb_nv(wnv), .wb_nt(wnt), .br_v(bv), .br_take(bt), .jr_v(jv), .jr_tgt(jt), .ag_v(av), .ag(ag), .sd(sd),
          .p0_a(a0), .p0_b(b0));
 endmodule : OOC_EXU
+
+//---------------------------------------------------------------------------
+// OOC_UBTB2: the next-line predictor of the 4-issue core (OOO_UBTB2; Doc/STRATEGY.md
+// 4.5 loop 6). What comes from outside is registered, as it has to be in the core.
+//---------------------------------------------------------------------------
+module OOC_UBTB2
+    (
+        input  logic         clk,
+        input  logic         rst_n,
+        input  logic         redirect,
+        input  logic [38:1]  redirect_pc,
+        input  logic [38:1]  ras_top,
+        input  logic         stall,
+        input  logic         upd_valid,
+        input  logic [38:1]  upd_pc,
+        input  logic         upd_taken,
+        input  logic [38:1]  upd_target,
+        input  logic         upd_cond,
+        input  logic         upd_ret,
+        output logic [38:1]  o_pc,
+        output logic         o_taken,
+        output logic [3:0]   o_off
+    );
+    logic         s_redirect, s_stall, s_uv, s_ut, s_uc, s_ur;
+    logic [38:1]  s_rp, s_ras, s_up, s_ug, pc;
+    logic         tk;
+    logic [3:0]   off;
+    always_ff @(posedge clk) begin
+        s_redirect <= redirect; s_rp <= redirect_pc; s_ras <= ras_top; s_stall <= stall;
+        s_uv <= upd_valid; s_up <= upd_pc; s_ut <= upd_taken; s_ug <= upd_target; s_uc <= upd_cond; s_ur <= upd_ret;
+        o_pc <= pc; o_taken <= tk; o_off <= off;
+    end
+    OOO_UBTB2 #(.SETS(32), .VA(39), .TW(12)) u_ub
+        (.clk(clk), .rst_n(rst_n), .redirect(s_redirect), .redirect_pc(s_rp), .ras_top(s_ras), .stall(s_stall),
+         .fetch_pc(pc), .pred_taken(tk), .pred_off(off), .upd_valid(s_uv), .upd_pc(s_up), .upd_taken(s_ut),
+         .upd_target(s_ug), .upd_cond(s_uc), .upd_ret(s_ur));
+endmodule : OOC_UBTB2

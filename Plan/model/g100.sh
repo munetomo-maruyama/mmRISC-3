@@ -70,6 +70,11 @@ row "  Zba 2 cycles too"                             $J $D slow2=67 q0_slow=1 q0
 row "  zext.h, sext 2 cycles too"                    $J $D slow2=131 q0_slow=1 q0_jalr=1
 row "ROB 32, LQ / SQ 12, 8 checkpoints"             $P w=4 rob=32 lq=12 sq=12 ckpt=8 iqd=3 iq=8 iql=12 alu=3 lsu=1 issue_w=4 st_data_issue=0 dec_w=6 fetch_bytes=32
 row "ROB 64, LQ / SQ 24, 16 checkpoints"            $P w=4 rob=64 lq=24 sq=24 ckpt=16 iqd=3 iq=8 iql=12 alu=3 lsu=1 issue_w=4 st_data_issue=0 dec_w=6 fetch_bytes=32
+row "  OOO_UBTB2 as built: 96, 32 sets of 3, round robin" $J $D $X ubtb=96 ub_sets=32 ub_rr=1
+row "  16, all in one set, round robin"                 $J $D $X ub_rr=1
+row "  16, 4 sets of 4, round robin"                    $J $D $X ub_sets=4 ub_rr=1
+row "  48, 16 sets of 3, round robin"                   $J $D $X ubtb=48 ub_sets=16 ub_rr=1
+row "  128, 32 sets of 4, round robin"                  $J $D $X ubtb=128 ub_sets=32 ub_rr=1
 row "uBTB 8"                                        $J ubtb=8
 row "uBTB 32"                                       $J ubtb=32
 row "uBTB answers a cycle late: a bubble on every taken branch" $J taken_gap=2
