@@ -159,8 +159,8 @@ LiteX stays at its default 100 MHz, the **same clock as the CPU**, so there is n
 
 | # | Loop | Target | If it fails | Model | Today at 10 ns (register to register) |
 |---|---|---|---|---|---|
-| 1 | **Wakeup + select** (IS) | 1 cycle, queue of 8 | ALU 2 cycles | **−20 %**: 5.51, a redesign | **+0.056 ns, the new design alone, without the payload, 5,353 LUTs** (`Plan/OOC.md` 28.5); about 9.3 ns when asked for 8.5, so 0.7 ns in hand. Today's block: −1.95 ns, 10 entries, 3 ports |
-| 2 | **Bypass + ALU** (EX) | 1 cycle | ALU 2 cycles | **−20 %** | Today's: −0.66 ns full; +2.34 ns ALU1's functions. **The new design, with the register file: about 10.7 ns asked for 9, 13,207 LUTs**; the slow operations, the shifter and the write rebuilt, `synth_ooo.bat exu9` awaited again (`Plan/OOC.md` 28.8) |
+| 1 | **Wakeup + select** (IS) | 1 cycle, queue of 8 | ALU 2 cycles | **−20 %**: 5.51, a redesign | **+0.056 ns, the new design alone, without the payload, 5,353 LUTs** (`Plan/OOC.md` 28.5); about 9.3 ns when asked for 8.5, **then about 9.9 ns after a change of 8 FF: mostly noise as far as read, to be measured** (28.9). Today's block: −1.95 ns, 10 entries, 3 ports |
+| 2 | **Bypass + ALU** (EX) | 1 cycle | ALU 2 cycles | **−20 %** | Today's: −0.66 ns full; +2.34 ns ALU1's functions. **The new design, with the register file: about 9.2 ns asked for 9, 12,472 LUTs, model 6.823** (`Plan/OOC.md` 28.9). Alone: the core will add |
 | 3 | **M1 + M2** (load) | Load-use 3 | Load-use 4, 5 | −7.9 %, −15 % | −2.66 ns in one stage, to become two |
 | 4 | **Rename of 4** (R1, R2) | 2 stages | 3 stages | about −1 % | +1.04 ns at 2 µops, in one stage |
 | 5 | **Fetch buffer's boundaries** (D1) | 1 stage | 2 stages | about −1 % | −3.31 ns |
@@ -195,7 +195,7 @@ and far less work, so the go / no-go is at gate S1-A.
 | # | Work | Done when |
 |---|---|---|
 | 1.0 | **Done 2026-11-02**: `synth_ooo.bat t100`: today's blocks at a 10 ns target, on the XC7A200T (`Plan/OOC.md` 28.1) | The real distance from 10 ns |
-| 1.1 | Harnesses of the new loops alone, in this order: a queue of 8 with its wakeups (`OOC_SCHED`, `synth_ooo.bat sched`, **meets 10 ns alone, 2026-11-03**), bypass + ALU with the new sources (`OOC_EXU`, `synth_ooo.bat exu`, **about 10.7 ns asked for 9, rebuilt, 2026-11-03**), a uBTB of 16, M1 / M2 with block RAM, rename of 4, the fetch buffer split | **Gate S1-A**: all six within reach at 10 ns; the configuration frozen; **go, or fall back to 75 MHz, or to 50 MHz and 3-wide** |
+| 1.1 | Harnesses of the new loops alone, in this order: a queue of 8 with its wakeups (`OOC_SCHED`, `synth_ooo.bat sched`, **meets 10 ns alone, 2026-11-03**), bypass + ALU with the new sources (`OOC_EXU`, `synth_ooo.bat exu`, **about 9.2 ns asked for 9, 2026-11-03**), a uBTB of 16, M1 / M2 with block RAM, rename of 4, the fetch buffer split | **Gate S1-A**: all six within reach at 10 ns; the configuration frozen; **go, or fall back to 75 MHz, or to 50 MHz and 3-wide** |
 | 1.2 | The model with the queue, the D1 boundary, the split store as they will be built | Model ≥ 6.8 |
 | 1.3 | The new pipeline at W = 2 first: stages added, no new function, the tests' references updated | Lock-step; cycles against the model |
 | 1.4 | Distributed schedulers; the decoded queue; 32-byte fetch, 6 decoded | Tests; cycles against the model |

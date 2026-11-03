@@ -10,6 +10,7 @@ REM   synth_ooo.bat OOO_CPU    B7: mmRISC-3's whole core with its D$ (not in the
 REM   synth_ooo.bat t100       the loops that decide 100 MHz, at a 10 ns target, in output\<top>_T10 (Doc/STRATEGY.md 4.5)
 REM   synth_ooo.bat sched      the distributed schedulers at a 10 ns target, in output\OOC_SCHED_T10
 REM   synth_ooo.bat sched85    the same at 8.5 ns, for the margin: output\OOC_SCHED_T8.5
+REM   synth_ooo.bat sched86    the same at 8.6 ns, to see the spread between 2 placements: output\OOC_SCHED_T8.6
 REM   synth_ooo.bat exu        bypass + ALU with the register file at a 10 ns target, in output\OOC_EXU_T10 (loop 2)
 REM   synth_ooo.bat exu9       the same at 9 ns, for the margin: output\OOC_EXU_T9
 REM   synth_ooo.bat schedrpt   the classes of that finished run, without running it again: output\OOC_SCHED_T10\summary_loop.txt
@@ -21,6 +22,7 @@ if /i "%~1"=="prf" goto :prf
 if /i "%~1"=="t100" goto :t100
 if /i "%~1"=="sched" goto :sched
 if /i "%~1"=="sched85" goto :sched85
+if /i "%~1"=="sched86" goto :sched86
 if /i "%~1"=="exu" goto :exu
 if /i "%~1"=="exu9" goto :exu9
 if /i "%~1"=="schedrpt" goto :schedrpt
@@ -54,6 +56,9 @@ call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T10_SCHED.log -
 goto :done
 :sched85
 call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T85_SCHED.log -journal output\vivado_T85_SCHED.jou -tclargs OOC_SCHED 8.5 1
+goto :done
+:sched86
+call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T86_SCHED.log -journal output\vivado_T86_SCHED.jou -tclargs OOC_SCHED 8.6 1
 goto :done
 :exu
 call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T10_EXU.log -journal output\vivado_T10_EXU.jou -tclargs OOC_EXU 10.0 1

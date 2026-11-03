@@ -225,7 +225,8 @@ module OOO_SCHED
                 oc[e] <= !flush && (wa[e] || (oc[e] && !col[e] && !killed[e]));
                 pw[e] <= !flush && ((wa[e] && f_wr[B]) || (pw[e] && !col[e] && !killed[e]));
                 v[e]  <= vn;
-                rv[e] <= vn && !wa[e] && wn[e] == '0;
+                // (not vn: a free entry has no v, so wa, dispatch's late signal, is not needed)
+                rv[e] <= !flush && v[e] && !g[e] && !killed[e] && wn[e] == '0;
                 gq[e] <= g[e] && !flush && !killed[e];
                 sr    <= srn;
             end

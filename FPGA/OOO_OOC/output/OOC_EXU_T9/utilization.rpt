@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Tue Nov  3 16:10:41 2026
+| Date         : Tue Nov  3 17:19:47 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOC_EXU_T9/utilization.rpt
 | Design       : OOC_EXU
@@ -19,14 +19,16 @@ Table of Contents
 1. Utilization by Hierarchy
 ---------------------------
 
-+-------------+----------+------------+------------+---------+------+------+--------+--------+------------+
-|   Instance  |  Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
-+-------------+----------+------------+------------+---------+------+------+--------+--------+------------+
-| OOC_EXU     |    (top) |      13207 |       9047 |    4160 |    0 | 4741 |      0 |      0 |          0 |
-|   (OOC_EXU) |    (top) |          1 |          1 |       0 |    0 | 2121 |      0 |      0 |          0 |
-|   u_exu     |  OOO_EXU |       7545 |       7545 |       0 |    0 | 2364 |      0 |      0 |          0 |
-|   u_prf     | OOO_PRF2 |       5661 |       1501 |    4160 |    0 |  256 |      0 |      0 |          0 |
-+-------------+----------+------------+------------+---------+------+------+--------+--------+------------+
++--------------------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+|         Instance         |  Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++--------------------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+| OOC_EXU                  |    (top) |      12472 |       8312 |    4160 |    0 | 5295 |      0 |      0 |          0 |
+|   (OOC_EXU)              |    (top) |          1 |          1 |       0 |    0 | 2118 |      0 |      0 |          0 |
+|   u_exu                  |  OOO_EXU |       5971 |       5971 |       0 |    0 | 2633 |      0 |      0 |          0 |
+|     (u_exu)              |  OOO_EXU |       4793 |       4793 |       0 |    0 | 2374 |      0 |      0 |          0 |
+|     g_alu[0].g_p0.u_rare | OOO_ALUR |       1178 |       1178 |       0 |    0 |  259 |      0 |      0 |          0 |
+|   u_prf                  | OOO_PRF2 |       6500 |       2340 |    4160 |    0 |  544 |      0 |      0 |          0 |
++--------------------------+----------+------------+------------+---------+------+------+--------+--------+------------+
 * Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
 
 

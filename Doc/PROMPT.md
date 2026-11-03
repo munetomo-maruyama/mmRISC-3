@@ -5587,3 +5587,35 @@ Please run `synth_ooo.bat exu9`; results in `output/OOC_EXU_T9`. 9 ns because at
 ```text
 exu9 has finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+`OOC_EXU` at 9 ns reached **WNS −1.674 ns (about 10.7 ns), 13,207 LUTs**: still 1.4 ns from the target of about 9.3 ns. I rebuilt the 3 slowest parts and pushed them (5275859). Timing and size of the rebuilt RTL are not measured yet.
+
+#### Result
+`rare` −1.674 (min / max compare, then a select of fan-out 64); `sel` −1.285 and `loop` −1.120 (`sraiw`'s sign through the funnel, then a fan-out of 96); `oper` −1.122; `write` −0.896 (write address, no logic, 9.2 ns of route); `tags` −0.207; `ctl` +0.117; `flag` +0.324.
+
+`rare` was real; the 64-bit add reaches the flags at 8.7 ns, so the shifter is what is long, not the adder. LUT RAM came out at exactly 4,160, `OOO_PRF2` from 8,027 to 5,661, together with `OOO_EXU` 1.4k under `Doc/UARCH.md`'s 14.6k.
+
+#### Changes
+1. The shifter is a rotation and a mask, with the fill not going through the rotation. No change in the model.
+2. `slt`: from 3 LUTs after the carry out to 1.
+3. New `OOO_ALUR` for the slow operations in 2 stages, **latency 3 instead of 2**. Queue 0 gets a latency-3 field in `OOO_SCHED`.
+4. Each read port has its own write address, 9 sets with the LVT's, 288 FF more.
+
+#### A point for you to decide
+Latency 3 costs nothing in CoreMark (6.823 / 7.315 / 6.599, rv64gc 5.898), as those operations do not run there. **In other programs shifts by a register and so on take 3 cycles**, and the model cannot say how much that matters. I put it in following the priority on 100 MHz and CoreMark; it can be revisited when Linux runs.
+
+#### Verification
+`tb_exu`, `tb_prf2`, `tb_sched` PASS. `-Wall` clean. Bug injection: all of `OOO_SCHED`'s and M478 to M609, 185 of 185 detected, every line read. One bench gap fixed: M530 (a flushed `jalr` leaves its link) was only ever detected by chance; the RTL was right.
+
+#### Request
+Please run `synth_ooo.bat exu9` and then `synth_ooo.bat sched85`, since `OOO_SCHED` changed too. If `loop` is still short the next lever is Zba's change of `a`; `slli` out of EX is now worth less.
+<!-- /answer -->
+
+## 144. 2026-11-03 17:38:39 JST
+
+```text
+exu9 and sched85 have finished.
+```

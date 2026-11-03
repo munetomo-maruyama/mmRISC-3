@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Tue Nov  3 13:41:14 2026
+| Date         : Tue Nov  3 17:35:46 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOC_SCHED_T8.5/utilization.rpt
 | Design       : OOC_SCHED
@@ -22,11 +22,11 @@ Table of Contents
 +---------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
 |    Instance   |   Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
 +---------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
-| OOC_SCHED     |     (top) |       5397 |       5397 |       0 |    0 | 3142 |      0 |      0 |          0 |
-|   (OOC_SCHED) |     (top) |          0 |          0 |       0 |    0 |  320 |      0 |      0 |          0 |
-|   u_sched     | OOO_SCHED |       5397 |       5397 |       0 |    0 | 2822 |      0 |      0 |          0 |
-|     (u_sched) | OOO_SCHED |        530 |        530 |       0 |    0 | 2524 |      0 |      0 |          0 |
-|     u_disp    | OOO_SDISP |       4867 |       4867 |       0 |    0 |  298 |      0 |      0 |          0 |
+| OOC_SCHED     |     (top) |       5868 |       5868 |       0 |    0 | 3153 |      0 |      0 |          0 |
+|   (OOC_SCHED) |     (top) |          0 |          0 |       0 |    0 |  323 |      0 |      0 |          0 |
+|   u_sched     | OOO_SCHED |       5868 |       5868 |       0 |    0 | 2830 |      0 |      0 |          0 |
+|     (u_sched) | OOO_SCHED |        654 |        654 |       0 |    0 | 2532 |      0 |      0 |          0 |
+|     u_disp    | OOO_SDISP |       5216 |       5216 |       0 |    0 |  298 |      0 |      0 |          0 |
 +---------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
 * Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
 

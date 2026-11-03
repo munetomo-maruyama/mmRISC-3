@@ -3140,3 +3140,47 @@ Tests: `tb_exu` (with `wb_nv`, `wb_nt` against the next cycle's `wb_v`, `wb_t`, 
 **Not measured yet**: all of this. `synth_ooo.bat exu9` again; `synth_ooo.bat sched85` too, as `OOO_SCHED` changed a little. Classes now: `rare1` (stage 1) and `rare` (stage 2).
 
 Levers if `loop` is still short, in order: `slli` out of EX (now worth less: it would take the rotation's 64 − n and little else), Zba's change of `a`, then fan-outs.
+
+### 28.9 `OOC_EXU` about 9.2 ns; `OOC_SCHED` about 9.9 ns, and how much of it is noise (2026-11-03)
+
+`synth_ooo.bat exu9` and `sched85`, the RTL of 28.8.
+
+**`OOC_EXU`: WNS −0.163 ns at 9 ns, so about 9.2 ns; 12,472 LUTs** (8,312 logic + 4,160 LUT RAM). 1.5 ns better than the run before. `OOO_EXU` 5,971 of which `OOO_ALUR` 1,178 (`OOO_ALU` measured 1.9k), `OOO_PRF2` 6,500; 2.1k under `Doc/UARCH.md`'s 14.6k, though the harness has no multiplier or resolution. 3,177 FF outside the harness's.
+
+| Class | At 9 ns | Before (28.8) | |
+|---|---|---|---|
+| `sel` | **−0.163** | −1.285 | 15 levels: selection → `a` → Zba's LUT → 7 carry cells → carry out → `slt` → bit 0 |
+| `loop` | −0.156 | −1.120 | The same from a result |
+| `oper` | +0.023 | −1.122 | |
+| `write` | +0.375 | −0.896 | Now the data, not the address: fan-out 17, 7.8 ns of route |
+| `tags` | +0.814 | −0.207 | |
+| `flag` | +0.906 | +0.324 | |
+| `rare1` | +0.962 | | New: stage 1 |
+| `lvt` | +0.989 | +0.932 | |
+| `rare` | +1.177 | −1.674 | Stage 2 |
+| `ctl` | +1.177 | +0.117 | |
+| `rf`, `snoop` | +1.937, +2.264 | +1.588, +3.036 | |
+
+**Loop 2 fits the target of about 9.3 ns, at a model of 6.823.** No lever had to be used: `slli`, Zba and `srli` stay in the cycle. The path left is the adder's own: `slt`, with 64 bits of carry. Routes are 65 % of it, against 84 % before. It is one block alone: the core will add to it.
+
+**`OOC_SCHED`: WNS −1.400 ns at 8.5 ns, so about 9.9 ns; 5,868 LUTs.** Was −0.776 and 5,397. The change was 8 FF and one term in queue 0's request, for latency 3 (28.8).
+
+| Class | 8.5 ns, now | Before | |
+|---|---|---|---|
+| `s1` | **−1.400** | −0.633 | Ends at `rv[27]`, in the memory queue |
+| `ff` | −1.310 | −0.742 | The same |
+| `guard` | −1.239 | −0.702 | |
+| `loop` | −0.997 | −0.776 | |
+| `s2` | +0.055 | +0.057 | |
+| `kill` | +0.490 | +1.112 | |
+| `wake` | +1.317 | +0.818 | |
+| `free` | +1.440 | −0.223 | **1.7 ns better** |
+| `issue` | +2.712 | +2.347 | |
+
+**I read this mostly as noise, but two runs cannot prove that.** The worst paths end in the memory queue, which the change does not touch, and `free` improved by 1.7 ns with nothing done for it. Synthesis gave 314 more LUTs, far more than 8 FF and a term should, 214 of them reported under `u_disp` (which is not dispatch alone, 28.5): it restructured, and the paths gained a level. If so, the 9.3 of 28.5 is one sample, and the block's real figure is somewhere from 9.3 to 9.9, which matters as much as the design: the gate cannot be read from single runs at this margin.
+
+**What changed.** `rv` no longer has `wa` in its input: `!wa` was redundant, as a free entry has no `v` (checked by a temporary check in `tb_sched`, which never fired; its output is byte for byte the same after the change, and all 95 mutations of the scheduler are detected). So dispatch's late signal leaves `rv`, where the 3 worst classes end. It still reaches `oc`, `v`, `pw`, which were 0.01 ns behind in the earlier run, so do not expect all of it.
+
+**To tell noise from cause**: `synth_ooo.bat sched85` and `synth_ooo.bat sched86` on the same RTL, 8.5 and 8.6 ns: the period differs by little, the placement by whatever it does. If they are about 9.3, latency 3 stays. If this RTL stays near 9.9 in both, the cheaper answer is latency 4 on queue 0, which needs no change to the scheduler and is the same in CoreMark; others pay a cycle.
+
+Verification: `tb_sched` as above; `-Wall` clean.
