@@ -539,7 +539,6 @@ M = [
     ('M521', 'OOO_EXU/OOO_EXU.sv', 'exu', "c_amt   <= left_n ? 6'd0 - nsh : nsh;", 'c_amt   <= nsh;', 'a left shift by n, not 64 - n'),
     ('M522', 'OOO_EXU/OOO_EXU.sv', 'exu', 'c_czn   <= op == ALU_CZNEZ;', "c_czn   <= 1'b0;", 'czero.nez as eqz'),
     ('M523', 'OOO_EXU/OOO_EXU.sv', 'exu', "c_lop   <= op == ALU_XOR ? 3'd0 : op == ALU_OR ? 3'd1 :", "c_lop   <= op == ALU_XOR ? 3'd0 : op == ALU_OR ? 3'd0 :", 'or as xor'),
-    ('M524', 'OOO_EXU/OOO_EXU.sv', 'exu', "begin rv <= flush ? '0 : ev;", 'begin rv <= ev;', 'a flush leaves results to come'),
     ('M525', 'OOO_EXU/OOO_EXU.sv', 'exu', 'else        ex_v <= rr_v[p] && !flush;', 'else        ex_v <= rr_v[p];', 'a flush leaves RR2'),
     ('M526', 'OOO_EXU/OOO_EXU.sv', 'exu', 'else        fl_v <= ex_v && ex_br && !flush;', 'else        fl_v <= ex_v && ex_br;', 'a flush leaves a branch in EX'),
     ('M527', 'OOO_EXU/OOO_EXU.sv', 'exu', "3'b101:  br_take[p] = !fl_lt;", "3'b101:  br_take[p] = fl_lt;", 'BGE as BLT'),

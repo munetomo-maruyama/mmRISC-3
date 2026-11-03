@@ -3100,6 +3100,6 @@ The 10 worst paths all end in port 0's result. **The worst is not the adder but 
 
 **`synth_ooo.bat exu9`** runs this at 9 ns, in `output/OOC_EXU_T9`: 10 ns would stop improving once met (28.5), and this block needs margin too, the core adding about 1 ns (28.1). Target: about 9.3 ns, as the scheduler.
 
-Tests: `tb_exu`, `tb_prf2`, `tb_alu2` PASS with the same counts, as the behaviour is the same. `-Wall` clean on these modules and the harness's lines. Bug injection: M478 to M571, 93 mutations, all detected, one of them (M524) after its text was updated for the rewritten line.
+Tests: `tb_exu`, `tb_prf2`, `tb_alu2` PASS with the same counts, as the behaviour is the same. `-Wall` clean on these modules and the harness's lines. Bug injection: M478 to M571, 92 mutations, all detected. One was removed as equivalent now: M524, `rv` not cleared by a flush. `rv` used to drive the write too; now it only gates comparisons, and a flushed tag is no live source, so a stale `rv` for the one cycle matches nothing. The write's own clear is M570, detected. The clear stays in the RTL.
 
 Levers if `loop` is still short, in order, as 28.6: `slli` out of EX, Zba's change of `a`, then fan-outs.
