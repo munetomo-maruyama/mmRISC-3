@@ -3103,3 +3103,40 @@ The 10 worst paths all end in port 0's result. **The worst is not the adder but 
 Tests: `tb_exu`, `tb_prf2`, `tb_alu2` PASS with the same counts, as the behaviour is the same. `-Wall` clean on these modules and the harness's lines. Bug injection: M478 to M571, 92 mutations, all detected. One was removed as equivalent now: M524, `rv` not cleared by a flush. `rv` used to drive the write too; now it only gates comparisons, and a flushed tag is no live source, so a stale `rv` for the one cycle matches nothing. The write's own clear is M570, detected. The clear stays in the RTL.
 
 Levers if `loop` is still short, in order, as 28.6: `slli` out of EX, Zba's change of `a`, then fan-outs.
+
+### 28.8 `OOC_EXU` at 9 ns: about 10.7 ns; the shifter, the slow operations, the write (2026-11-03)
+
+`synth_ooo.bat exu9`, `output/OOC_EXU_T9`, the RTL of 28.7 at 9 ns: **WNS −1.674 ns, so about 10.7 ns; 13,207 LUTs** (9,047 logic + 4,160 LUT RAM), 2,524 fewer than at 28.7's start. `OOO_PRF2` 5,661 (was 8,027): the LUT RAM came out at exactly the 4,160 expected, and its logic fell from 2,523 to 1,501. Together with `OOO_EXU`'s 7,545 this is 1.4k under `Doc/UARCH.md`'s 14.6k.
+
+| Class | Worst at 9 ns | So about | Levels | The path |
+|---|---|---|---|---|
+| `rare` | **−1.674** | 10.7 ns | 27 | `rop` → the comparison of min / max (17 carry cells) → select, fan-out 64 → 4 LUTs |
+| `sel` | −1.285 | 10.3 ns | 8 | A selection → `a` → **the sign of `sraiw`** through the funnel → `sgn`, fan-out 96 (the set pins) |
+| `oper` | −1.122 | 10.1 ns | 8 | `a` → the LUT in front of the funnel → 3 stages → last LUT |
+| `loop` | −1.120 | 10.1 ns | 8 | As `sel`, from a result |
+| `write` | −0.896 | 9.9 ns | 0 | Tag → RAM write address, fan-out 295, **9.2 ns of route, no logic**; `max_fanout` 128 did not reach it |
+| `tags` | −0.207 | 9.2 ns | 5 | |
+| `ctl` | +0.117 | 8.9 ns | 6 | |
+| `flag` | +0.324 | 8.7 ns | 21 | The whole carry chain |
+| `lvt`, `rf`, `snoop` | +0.932, +1.588, +3.036 | | | |
+
+What it says: **`rare` was real** (28.7 left that open), and is 0.4 ns ahead of the rest, so the rest may also be held back. **The worst of EX is no longer the adder**: 64 bits of add reach the flags at 8.7 ns, the shifter is what is long. `slt` through the carry out is −1.033: 3 LUTs after the carry.
+
+**What changed.**
+
+| Change | Why | Cost |
+|---|---|---|
+| **The shifter is a rotation and a mask** (`OOO_ALUF`): 3 stages of 4 to 1 on `a` with nothing in front, and `m`, 64 bits decoded from the immediate in RR2, on the last LUT. The fill goes in by `o` where `m` is 0, with no path through the rotation. Left by n is a rotation by 64 − n. `bexti` is a mask of 1 | 1 LUT level fewer from `a`, the fill's fan-out of 63 is gone, `sraiw` needs no `sgn`. `sgn` only keeps `addw` and `slliw` | None in the model; 64 FF per ALU for about 230 LUTs fewer per ALU (estimated) |
+| **`slt` is one LUT from the carry out**, on the last level of bit 0 | Was 3 | None |
+| **`OOO_ALUR`, new, replaces `OOO_ALU` for the slow operations**: decoded the cycle before, stage 1 (rotation and mask, counts, bit operations, comparison), stage 2 (the result). **Latency 3, was 2.** Queue 0 gets a latency-3 field (`OOO_SCHED`: 8 FF, and `rs[3]` in `req`) | Stage 1 has no result to select, stage 2 very little | **Nothing in CoreMark**: 6.823 / 7.315 / 6.599, rv64gc 5.898, as for latency 2, as CoreMark has none of them. **Other programs will see 3 cycles for a shift by a register**: `Plan/model` cannot say how much, it has no other program |
+| **Each read port's copy of the banks has its own write address and enable** (`OOO_PRF2`, 9 copies with the LVT's; 8 bits × 4 ports × 9 = 288 FF), from `wb_nv`, `wb_nt`, a cycle ahead | About 130 sinks each, near what they drive, rather than about 1,000 from one | 288 FF, less what the placer replicated |
+
+Latency 4 is the other choice (no change to the scheduler): the same in CoreMark, one more cycle for others, so 3.
+
+**Test gap found.** M530 (a flushed `jalr` leaves its link on port 0) came back undetected. Earlier campaigns detected it by luck: it shows only with a result from outside in the cycle right after the flush. `tb_exu` now gives one in that cycle, flushes 3 times as often, and checks the coverage (`cov_xfl`). The RTL was right; the bench was thin.
+
+Tests: `tb_exu` (with `wb_nv`, `wb_nt` against the next cycle's `wb_v`, `wb_t`, and the slow operations at latency 3), `tb_prf2` (address a cycle before the data), `tb_sched` (latency 3 now on queue 0 too; 89,386 issues at latency 3, loads included) PASS. `-Wall` clean on these modules and the harness's lines. Bug injection: all of `OOO_SCHED`'s, M478 to M609, 185 mutations, all detected, every line read (M530 after the bench's change).
+
+**Not measured yet**: all of this. `synth_ooo.bat exu9` again; `synth_ooo.bat sched85` too, as `OOO_SCHED` changed a little. Classes now: `rare1` (stage 1) and `rare` (stage 2).
+
+Levers if `loop` is still short, in order: `slli` out of EX (now worth less: it would take the rotation's 64 − n and little else), Zba's change of `a`, then fan-outs.

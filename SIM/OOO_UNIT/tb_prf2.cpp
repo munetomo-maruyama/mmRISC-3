@@ -2,8 +2,8 @@
 // tb_prf2.cpp : OOO_PRF2 (80 x 64, 4 writes, 8 reads, read in 2 stages) against
 // an array
 //
-// Every cycle up to 4 writes to different registers, never register 0, and 8
-// reads, often of the ones written now or just before. What a read gives one
+// Every cycle up to 4 writes to different registers, never register 0, their
+// address and enable given the cycle before the data, and 8 reads, often of the ones written now or just before. What a read gives one
 // cycle after its address: the array with every write up to the end of the cycle
 // of the address, not the writes of the cycle it comes out in.
 //---------------------------------------------------------------------------
@@ -23,28 +23,32 @@ int main(int argc, char** argv)
     long fwd = 0;
     d.clk = 0;
     for (int r = 1; r < NREG; r++) {
-        d.we = 1; d.wa = r; d.wd[0] = 0; d.wd[1] = 0;
+        d.we_n = 1; d.wa_n = r; d.wd[0] = 0; d.wd[1] = 0;
         d.eval(); d.clk = 1; d.eval(); d.clk = 0; d.eval();
     }
-    d.we = 0; d.eval(); d.clk = 1; d.eval(); d.clk = 0; d.eval();
+    d.we_n = 0;
+    for (int i = 0; i < 2; i++) { d.eval(); d.clk = 1; d.eval(); d.clk = 0; d.eval(); }
     long bad = 0, n = 0;
     int last_w[NW] = {1, 1, 1, 1};
     int ra[NR] = {0};
     uint64_t want[NR] = {0};
     bool have = false;
+    unsigned we = 0;                  // this cycle's writes, chosen in the one before
+    int wa[NW] = {0, 0, 0, 0};
     for (long cyc = 0; cyc < 300000; cyc++) {
         std::set<int> used;
-        unsigned we = 0;
-        uint64_t wd[NW]; int wa[NW];
+        unsigned nwe = 0;
+        uint64_t wd[NW]; int nwa[NW];
         for (int w = 0; w < NW; w++) {
-            wa[w] = (int)(rng() % NREG); wd[w] = rng();   // (the address means nothing without we)
+            wd[w] = rng();
+            nwa[w] = (int)(rng() % NREG);                 // (the address means nothing without we)
             if (rng() % 3 == 0) continue;
             int a;
             do a = 1 + (int)(rng() % (NREG - 1)); while (used.count(a));
-            used.insert(a); wa[w] = a; we |= 1u << w;
+            used.insert(a); nwa[w] = a; nwe |= 1u << w;
         }
-        d.we = we;
-        d.wa = (uint32_t)wa[0] | (uint32_t)wa[1] << 7 | (uint32_t)wa[2] << 14 | (uint32_t)wa[3] << 21;
+        d.we_n = nwe;
+        d.wa_n = (uint32_t)nwa[0] | (uint32_t)nwa[1] << 7 | (uint32_t)nwa[2] << 14 | (uint32_t)nwa[3] << 21;
         for (int w = 0; w < NW; w++) { d.wd[2 * w] = (uint32_t)wd[w]; d.wd[2 * w + 1] = (uint32_t)(wd[w] >> 32); }
         uint64_t rap = 0;
         int nra[NR];
@@ -71,6 +75,8 @@ int main(int argc, char** argv)
             ra[r] = nra[r]; want[r] = ref[nra[r]];
         }
         have = true;
+        we = nwe;
+        for (int w = 0; w < NW; w++) wa[w] = nwa[w];
     }
     if (fwd < 100000) { printf("coverage: %ld reads of a register written in that cycle\n", fwd); bad++; }
     printf("tb_prf2: %ld reads, %ld of them of a register being written, %ld mismatches: %s\n", n, fwd, bad, bad ? "FAIL" : "PASS");

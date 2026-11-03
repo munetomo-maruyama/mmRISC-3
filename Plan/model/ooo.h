@@ -79,6 +79,7 @@ struct OooCfg {
     int cplx2 = 0;              // ALU µops of these classes take 2 cycles (mask of 1 << sub: 2 shift, 4 Zba, 8 Zbb,
                                 // 16 Zbs, 32 Zicond; mktrace.py)
     int slow2 = 0;              // ALU µops of these classes (Rec.opx) take 2 cycles
+    int slow_lat = 0;           // ... or this many, if not 0
     bool q0_slow = false;       // iqd: ... and only in queue 0
     bool q0_jalr = false;       // iqd: jalr only in queue 0
     int alu_split = 0;          // the 2 ALU ports (with alu = 2, mul_shared; Doc/UARCH.md 6.11):
@@ -470,7 +471,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         for (size_t k = i; k <= last; k++) {
             const Rec& r = t[k];
             int lat = r.cls == C_LOAD ? c.lat_load : r.cls == C_MUL ? c.lat_mul : r.cls == C_DIV ? c.lat_div
-                    : r.cls == C_FP ? c.lat_fp : (r.cls == C_ALU && ((c.cplx2 >> r.sub & 1) || (c.slow2 & r.opx))) ? c.lat_alu + 1 : c.lat_alu;
+                    : r.cls == C_FP ? c.lat_fp : (r.cls == C_ALU && (c.slow2 & r.opx) && c.slow_lat) ? c.slow_lat : (r.cls == C_ALU && ((c.cplx2 >> r.sub & 1) || (c.slow2 & r.opx))) ? c.lat_alu + 1 : c.lat_alu;
             if (pair && k == last && t[i].cls == C_ALU && r.cls == C_ALU) lat = c.chain;
             long rd = is + lat;
             if (r.cls == C_LOAD) {

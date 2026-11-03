@@ -103,7 +103,7 @@ nothing asked for less: **they were all measured at a 20 ns target**, so they ar
 | **Rename, dispatch, commit** | 2 | **4**, rename in 2 stages | +6.7 % over 3 at the same clock |
 | **Schedulers** | unified 10, 3 issues | **3 ALU queues of 8, a memory queue of 12**, one select each: **4 issues** | A unified 24 is 1.7 % better but its loop cannot be expected to make 10 ns. Built with a **dependency matrix** and 2-phase dispatch (`OOO_SCHED`, `Plan/OOC.md` 28.4): 6.829 as built |
 | ALUs | 1 full, 1 limited | **3 of `OOO_ALUF`**: what CoreMark executes, in 1 cycle (`Plan/OOC.md` 28.6) | |
-| Other operations | in ALU0 | Counts, `rev8`, `orc.b`, rotates, min / max, `bset` / `bclr` / `binv`, `bext`, shifts by a register: **2 cycles, queue 0**; `jalr` on queue 0 | 6.823 as built, −0.1 %. `slli` next: nothing in CoreMark with Zb, −5.7 % on rv64gc |
+| Other operations | in ALU0 | Counts, `rev8`, `orc.b`, rotates, min / max, `bset` / `bclr` / `binv`, `bext`, shifts by a register: **3 cycles, queue 0** (`OOO_ALUR`); `jalr` on queue 0 | 6.823 as built, −0.1 %; 2 or 3 cycles alike in CoreMark, others will see it. `slli` next: nothing in CoreMark with Zb, −5.7 % on rv64gc |
 | Branch | compare and act in EX + 1 | compare in EX, **misprediction in EX + 1, restore in EX + 2** | Redirect 6 |
 | Load-use | 2 | **3**: E, M1 (block RAM), M2 (tags, way, forward, align) | 4 costs −7.9 %, hence the effort |
 | Multiply | 2 | **4, pipelined in DSP48** | Through CORE_MDU it would cost −5 % |
@@ -160,7 +160,7 @@ LiteX stays at its default 100 MHz, the **same clock as the CPU**, so there is n
 | # | Loop | Target | If it fails | Model | Today at 10 ns (register to register) |
 |---|---|---|---|---|---|
 | 1 | **Wakeup + select** (IS) | 1 cycle, queue of 8 | ALU 2 cycles | **−20 %**: 5.51, a redesign | **+0.056 ns, the new design alone, without the payload, 5,353 LUTs** (`Plan/OOC.md` 28.5); about 9.3 ns when asked for 8.5, so 0.7 ns in hand. Today's block: −1.95 ns, 10 entries, 3 ports |
-| 2 | **Bypass + ALU** (EX) | 1 cycle | ALU 2 cycles | **−20 %** | Today's: −0.66 ns full; +2.34 ns ALU1's functions. **The new design, with the register file: −0.356 ns, 15,731 LUTs; the worst is after the adder**, rebuilt, `synth_ooo.bat exu9` awaited (`Plan/OOC.md` 28.7) |
+| 2 | **Bypass + ALU** (EX) | 1 cycle | ALU 2 cycles | **−20 %** | Today's: −0.66 ns full; +2.34 ns ALU1's functions. **The new design, with the register file: about 10.7 ns asked for 9, 13,207 LUTs**; the slow operations, the shifter and the write rebuilt, `synth_ooo.bat exu9` awaited again (`Plan/OOC.md` 28.8) |
 | 3 | **M1 + M2** (load) | Load-use 3 | Load-use 4, 5 | −7.9 %, −15 % | −2.66 ns in one stage, to become two |
 | 4 | **Rename of 4** (R1, R2) | 2 stages | 3 stages | about −1 % | +1.04 ns at 2 µops, in one stage |
 | 5 | **Fetch buffer's boundaries** (D1) | 1 stage | 2 stages | about −1 % | −3.31 ns |
@@ -195,7 +195,7 @@ and far less work, so the go / no-go is at gate S1-A.
 | # | Work | Done when |
 |---|---|---|
 | 1.0 | **Done 2026-11-02**: `synth_ooo.bat t100`: today's blocks at a 10 ns target, on the XC7A200T (`Plan/OOC.md` 28.1) | The real distance from 10 ns |
-| 1.1 | Harnesses of the new loops alone, in this order: a queue of 8 with its wakeups (`OOC_SCHED`, `synth_ooo.bat sched`, **meets 10 ns alone, 2026-11-03**), bypass + ALU with the new sources (`OOC_EXU`, `synth_ooo.bat exu`, **about 10.4 ns, its last levels rebuilt, 2026-11-03**), a uBTB of 16, M1 / M2 with block RAM, rename of 4, the fetch buffer split | **Gate S1-A**: all six within reach at 10 ns; the configuration frozen; **go, or fall back to 75 MHz, or to 50 MHz and 3-wide** |
+| 1.1 | Harnesses of the new loops alone, in this order: a queue of 8 with its wakeups (`OOC_SCHED`, `synth_ooo.bat sched`, **meets 10 ns alone, 2026-11-03**), bypass + ALU with the new sources (`OOC_EXU`, `synth_ooo.bat exu`, **about 10.7 ns asked for 9, rebuilt, 2026-11-03**), a uBTB of 16, M1 / M2 with block RAM, rename of 4, the fetch buffer split | **Gate S1-A**: all six within reach at 10 ns; the configuration frozen; **go, or fall back to 75 MHz, or to 50 MHz and 3-wide** |
 | 1.2 | The model with the queue, the D1 boundary, the split store as they will be built | Model ≥ 6.8 |
 | 1.3 | The new pipeline at W = 2 first: stages added, no new function, the tests' references updated | Lock-step; cycles against the model |
 | 1.4 | Distributed schedulers; the decoded queue; 32-byte fetch, 6 decoded | Tests; cycles against the model |

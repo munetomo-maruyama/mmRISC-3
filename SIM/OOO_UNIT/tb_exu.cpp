@@ -115,6 +115,9 @@ int main(int argc, char** argv)
     Exp ex[NS][H];
     Later lt[H];
     bool slot0[H] = {};
+    unsigned p_nv = 0; uint32_t p_nt = 0;
+    bool p_fl = false;
+    long cov_xfl = 0;
     long cov_k[3] = {}, cov_rare = 0, cov_x = 0, cov_ld = 0, cov_jr = 0, cov_br = 0, cov_nw = 0, cov_fl = 0, cov_nw_rare = 0;
     long nres = 0;
 
@@ -153,8 +156,10 @@ int main(int argc, char** argv)
 
         // ---- from outside: x into port 0, a load into its own
         bool xn = false, ln = false; int xt = 0, lt_ = 0; uint64_t xd = 0, ld = rng();
-        if (rng() % 10 == 0 && !slot0[(c + 1) % H] && !ex[0][(c + 1) % H].v && fr.size() > 30) {
+        // (right after a flush too, on what port 0 might have left behind: a jalr's link)
+        if ((p_fl || rng() % 10 == 0) && !slot0[(c + 1) % H] && !ex[0][(c + 1) % H].v && fr.size() > 30) {
             xn = true; xt = alloc(); xd = rval(); sched(0, c + 1, xt, xd); cov_x++;
+            if (p_fl) cov_xfl++;
         }
         if (rng() % 4 == 0 && fr.size() > 30) {
             ln = true; lt_ = alloc(); ld = rval(); sched(3, c + 1, lt_, ld); cov_ld++;
@@ -189,7 +194,7 @@ int main(int argc, char** argv)
                     isbr = true; use1 = true;
                     if (rng() % 8 == 0) { use2 = false; k[1] = 0; } else use2 = true;
                 } else if (f <= 5 && p == 0) {
-                    // not in OOO_ALUF: latency 2
+                    // not in OOO_ALUF: latency 3
                     sl = true;
                     int g = rng() % 4;
                     if (g == 0) { static const int R[] = {2, 6, 7}; op = R[rng() % 3]; use2 = true; w = rng() & 1; }   // by a register
@@ -242,7 +247,7 @@ int main(int argc, char** argv)
             A[p] = a; B[p] = b;
             if (v) for (int x = 0; x < 2; x++) if (u[x]) cov_k[kd[x]]++;
             if (p < NA) {
-                long at = c + (sl ? 3 : 2);
+                long at = c + (sl ? 4 : 2);
                 bool taken = (p == 0) && slot0[at % H];     // port 0's write slot
                 if (v && wrr && p == 0 && (taken || ex[0][at % H].v)) { wrr = false; if (sl) { sl = false; op = 0; } }
                 if (v && wrr && p > 0 && ex[p][at % H].v) { wrr = false; }
@@ -253,7 +258,7 @@ int main(int argc, char** argv)
                     sched(p, at, dst, r);
                     if (sl) cov_rare++;
                 } else if (v) { wrr = false; }
-                if (v && !wrr) { cov_nw++; if (p == 0 && ex[0][(c + 2) % H].v) cov_nw_rare++; }
+                if (v && !wrr) { cov_nw++; if (p == 0 && (ex[0][(c + 2) % H].v || ex[0][(c + 3) % H].v)) cov_nw_rare++; }
                 if (v && isbr) {
                     int brop = (int[]){0, 1, 4, 5, 6, 7}[rng() % 6];
                     bool t = false;
@@ -290,7 +295,8 @@ int main(int argc, char** argv)
             }
         }
         // ---- flush now and then
-        bool fl = rng() % 3000 == 0;
+        bool fl = rng() % 1000 == 0;
+        p_fl = fl;
 
         d.rr_v = rrv; d.rr_use = use; d.rr_src = srcs; d.rr_wr = wr; d.rr_dst = dsts; d.rr_op = ops;
         d.rr_uw = uw; d.rr_shift = shifts; d.rr_word = word; d.rr_br = br; d.rr_brop = brops;
@@ -301,6 +307,10 @@ int main(int argc, char** argv)
         d.eval();
 
         // ---- what shows now
+        if (d.wb_v != p_nv) fail(c, "wb_nv", p_nv, d.wb_v);
+        for (int s = 0; s < NS; s++) if (((p_nv >> s) & 1) && (int)((p_nt >> (7 * s)) & 127) != (int)((d.wb_t >> (7 * s)) & 127))
+            fail(c, "wb_nt", (p_nt >> (7 * s)) & 127, (d.wb_t >> (7 * s)) & 127);
+        p_nv = d.wb_nv; p_nt = d.wb_nt;
         for (int s = 0; s < NS; s++) {
             Exp& e = ex[s][c % H];
             bool got = (d.wb_v >> s) & 1;
@@ -352,7 +362,7 @@ int main(int argc, char** argv)
 
         d.clk = 1; d.eval(); d.clk = 0; d.eval();
     }
-    bool cov = cov_rare > 1000 && cov_x > 1000 && cov_ld > 1000 && cov_jr > 1000 && cov_br > 1000 && cov_fl > 100 && cov_nw_rare > 1000 && cov_k[0] > 100000 && cov_k[1] > 100000 && cov_k[2] > 100000;
+    bool cov = cov_rare > 1000 && cov_x > 1000 && cov_ld > 1000 && cov_jr > 1000 && cov_br > 1000 && cov_fl > 100 && cov_xfl > 500 && cov_nw_rare > 1000 && cov_k[0] > 100000 && cov_k[1] > 100000 && cov_k[2] > 100000;
     printf("tb_exu: %ld results, %ld by slow, %ld from outside, %ld loads, %ld jalr, %ld branches, %ld flushes, %ld writing nothing beside a slot; sources %ld from EX's mux, %ld from RR2's, %ld from the file: %s %s\n",
            nres, cov_rare, cov_x, cov_ld, cov_jr, cov_br, cov_fl, cov_nw_rare, cov_k[0], cov_k[1], cov_k[2], cov ? "" : "(coverage short)", (bad || !cov) ? "FAIL" : "PASS");
     return (bad || !cov) ? 1 : 0;

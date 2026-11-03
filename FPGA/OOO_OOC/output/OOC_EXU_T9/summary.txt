@@ -1,0 +1,17 @@
+OOC_EXU   (period 9.0 ns, I/O delay 2.6999999999999997 ns each side on the ports)
+after synthesis: 12865 LUTs (8705 logic + 4160 LUT RAM; 9349 LUT cells), 4716 FF, 0 DSP, 1056 LUT RAM cells, 0.0 BRAM tiles
+after place and route: 13207 LUTs (9047 logic + 4160 LUT RAM; 9343 LUT cells), WNS -1.674 ns, register to register -1.674 ns (27 logic levels)
+  loop  worst  -1.120 ns ( 8 logic levels), from u_exu/g_res[0].r_ex_reg[0][63]/C to u_exu/g_res[1].r_ex_reg[1][34]/S
+  sel   worst  -1.285 ns ( 8 logic levels), from u_exu/g_p[1].sa_reg[0]_rep__0/C to u_exu/g_res[1].r_ex_reg[1][34]/S
+  ctl   worst   0.117 ns ( 6 logic levels), from u_exu/g_alu[1].c_sra_reg/C to u_exu/g_res[1].r_ex_reg[1][34]/S
+  oper  worst  -1.122 ns ( 8 logic levels), from u_exu/g_p[0].oa_reg[6]/C to u_exu/g_res[0].r_ex_reg[0][2]/D
+  flag  worst   0.324 ns (21 logic levels), from u_exu/g_res[2].r_ex_reg[2][5]/C to u_exu/g_alu[0].fl_lt_reg/D
+  rare  worst  -1.674 ns (27 logic levels), from u_exu/g_alu[0].g_p0.rop_reg[3]/C to u_exu/g_res[0].r_ex_reg[0][27]/D
+  rf    worst   1.588 ns ( 4 logic levels), from u_prf/lq_reg[7][1]/C to u_exu/g_p[3].ob_reg[61]/D
+  lvt   worst   0.932 ns ( 6 logic levels), from s1_reg[2][0][1]/C to u_prf/lq_reg[4][1]_rep__0/D
+  tags  worst  -0.207 ns ( 5 logic levels), from u_exu/g_res[3].rt_reg[3][4]/C to u_exu/g_p[3].ob_reg[55]/D
+  snoop worst   3.036 ns ( 2 logic levels), from u_exu/g_res[1].r_sn_reg[1][40]/C to u_exu/g_p[2].oa_reg[40]/D
+  write worst  -0.896 ns ( 0 logic levels), from u_exu/g_res[1].rt_w_reg[1][4]/C to u_prf/g_bank[1].mem_l_reg_r7_0_63_48_50/RAMA/WADR4
+instances (after place and route):
+    u_exu                  OOO_EXU                7545 LUTs (7545 logic + 0 LUT RAM), 2364 FF
+    u_prf                  OOO_PRF2               5661 LUTs (1501 logic + 4160 LUT RAM), 256 FF

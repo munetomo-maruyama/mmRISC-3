@@ -1318,8 +1318,8 @@ module OOC_EXU
     logic [63:0]       s_link, ld, xd;
     logic [11:0]       s_agi;
     logic [6:0]        lt, xt;
-    logic [3:0]        wv;
-    logic [3:0][6:0]   wt;
+    logic [3:0]        wv, wnv;
+    logic [3:0][6:0]   wt, wnt;
     logic [3:0][63:0]  wd;
     logic [2:0]        bv, bt;
     logic              jv, av;
@@ -1335,12 +1335,12 @@ module OOC_EXU
         o_ag <= ag; o_sd <= sd; o_a <= a0; o_b <= b0;
     end
     OOO_PRF2 #(.NREG(80), .NW(4), .NR(8)) u_prf
-        (.clk(clk), .ra1(s1), .rd(s_prf), .we(wv), .wa(wt), .wd(wd));
+        (.clk(clk), .ra1(s1), .rd(s_prf), .we_n(wnv), .wa_n(wnt), .wd(wd));
     OOO_EXU u_exu
         (.clk(clk), .rst_n(rst_n), .flush(fl), .rr_v(s_v), .rr_use(s_us), .rr_src(s2), .rr_prf(s_prf), .rr_const(s_cst),
          .rr_wr(s_wr), .rr_dst(s_dst), .rr_op(s_op), .rr_uw(s_uw), .rr_shift(s_sh), .rr_word(s_word), .rr_br(s_br),
          .rr_brop(s_brop), .rr_slow(s_slow), .rr_jalr(s_jalr), .rr_link(s_link), .rr_agi(s_agi),
          .ld_nv(lv), .ld_nt(lt), .ld_d(ld), .x_nv(xv), .x_nt(xt), .x_d(xd),
-         .wb_v(wv), .wb_t(wt), .wb_d(wd), .br_v(bv), .br_take(bt), .jr_v(jv), .jr_tgt(jt), .ag_v(av), .ag(ag), .sd(sd),
+         .wb_v(wv), .wb_t(wt), .wb_d(wd), .wb_nv(wnv), .wb_nt(wnt), .br_v(bv), .br_take(bt), .jr_v(jv), .jr_tgt(jt), .ag_v(av), .ag(ag), .sd(sd),
          .p0_a(a0), .p0_b(b0));
 endmodule : OOC_EXU

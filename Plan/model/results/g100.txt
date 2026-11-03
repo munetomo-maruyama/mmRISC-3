@@ -31,6 +31,8 @@
 |   queues of 10                                               |  6.862 |  7.336 |  6.642 |
 |   S1 not with R2: a stage more                               |  6.801 |  7.289 |  6.578 |
 | **OOO_EXU as built**: + rare, register shifts 2, queue 0; jalr q0 |  6.823 |  7.315 |  6.599 |
+|   those 3 cycles                                             |  6.823 |  7.315 |  6.599 |
+|   those 4 cycles                                             |  6.823 |  7.315 |  6.599 |
 |   slli 2 cycles too                                          |  6.824 |  7.316 |  6.599 |
 |   srli, srai 2 cycles too                                    |  6.725 |  7.206 |  6.514 |
 |   bexti 2 cycles too                                         |  6.629 |  7.109 |  6.599 |

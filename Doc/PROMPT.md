@@ -5554,3 +5554,36 @@ Please run `synth_ooo.bat exu`; results in `output/OOC_EXU_T10`. Read `loop` fir
 ```text
 exu has finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOC_EXU`'s first result is WNS −0.356 ns at 10 ns (about 10.4 ns), 15,731 LUTs.** The main cause of the delay was the levels behind the adder, so I rebuilt the RTL without changing the model and pushed it (9f96fdb, dd47a12). Timing and size of the rebuilt RTL are not measured yet.
+
+#### Result
+`loop` −0.356 (14 levels, port 1 to port 0, through `addw`'s sign extension); `rare` −0.338 (9 levels, through `OOO_ALU`, 8.65 ns of routes); `sel` −0.188; `oper` −0.037; `write` +0.035 (fan-out 654, 9.4 ns of route alone); `tags` +0.438; `lvt`, `ctl`, `rf`, `flag`, `snoop` +1.057, +1.288, +1.374, +1.518, +2.772.
+
+Size: `OOO_EXU` 7,703, `OOO_PRF2` 8,027; 1.1k over the 14.6k of `Doc/UARCH.md`, all of it the register file. Of the worst path's 10.2 ns, 4.3 ns are after `sum[31]`. A 64-bit add is not the limit: the whole carry chain still has +2.05 ns to the flags.
+
+#### Changes (the model stays 6.823)
+1. The ALU's last level is one LUT per bit: 1 LUT from the sum to the register, 2 for a word's sign (was 4).
+2. Port 0's other results go in earlier, inside the ALU, so its extra LUT after the ALU is gone.
+3. Tag and valid are kept apart for comparisons and for the write.
+4. The register file's banks are 64 + 16, not one memory of 80: LUT RAM expected from 5,504 to about 4,160.
+
+`rare` itself unchanged; if the next run shows it is real, a longer latency on queue 0 is the cheap answer, at no cost in CoreMark but seen by other programs. Not done.
+
+#### Verification
+Benches `tb_exu`, `tb_prf2`, `tb_alu2` PASS. `-Wall` clean on the changed modules and harness lines. Bug injection M478 to M571: 92 of 92 detected.
+
+**Correction:** commit 9f96fdb's record said "all 93 detected", which was wrong: M524 came back undetected and the same command had already pushed before I read it. M524 (`rv` not cleared by a flush) is equivalent in today's structure, since `rv` only gates comparisons and no µop reads a flushed tag. It was removed and the record corrected in dd47a12. The write's clear is M570, detected.
+
+#### Request
+Please run `synth_ooo.bat exu9`; results in `output/OOC_EXU_T9`. 9 ns because at 10 ns improvement stops once met, and the core adds about 1 ns; the target, as for the scheduler, is about 9.3 ns. Read `loop`, `rare`, `tags`, `write` and the total LUTs.
+<!-- /answer -->
+
+## 143. 2026-11-03 16:11:33 JST
+
+```text
+exu9 has finished.
+```

@@ -32,7 +32,7 @@
 // Dispatch takes 2 cycles, S1 and S2 (OOO_SDISP). An entry's fields are written
 // at the end of S1, its row at the end of S2; it can ask from the cycle after.
 // The fields a queue cannot use are not there (localparams below); the slots
-// keep to them: queues 1 .. NQ-1 latency 1 or 2; queue 0 latency 1, 2 or 4,
+// keep to them: queues 1 .. NQ-1 latency 1 or 2; queue 0 latency 1, 2, 3 or 4,
 // external, non-speculative, MDU; the memory queue a store (latency 1), a
 // load (3), external, non-speculative.
 //
@@ -201,7 +201,7 @@ module OOO_SCHED
         localparam int B  = b_of(e);
         localparam int D  = Q == 0 ? 3 : Q < NQ ? 1 : 2;  // the cycles it can wait after its issue
         localparam bit H2 = Q < NQ;      // it can have latency 2
-        localparam bit H3 = Q == NQ;     // 3
+        localparam bit H3 = Q == 0 || Q == NQ;  // 3
         localparam bit H4 = Q == 0;      // 4
         localparam bit HX = Q == 0 || Q == NQ;  // external, non-speculative
         logic         vn;
@@ -246,12 +246,17 @@ module OOO_SCHED
             assign l2q[e] = 1'b0;
         end
         if (H3) begin : g_l3
-            logic l3f, stf;
-            always_ff @(posedge clk) if (wa[e]) begin l3f <= f_l3[B]; stf <= f_st[B]; end
+            logic l3f;
+            always_ff @(posedge clk) if (wa[e]) l3f <= f_l3[B];
             assign l3q[e] = l3f;
-            assign stq[e] = stf;
         end else begin : g_nol3
             assign l3q[e] = 1'b0;
+        end
+        if (Q == NQ) begin : g_st
+            logic stf;
+            always_ff @(posedge clk) if (wa[e]) stf <= f_st[B];
+            assign stq[e] = stf;
+        end else begin : g_nost
             assign stq[e] = 1'b0;
         end
         if (H4) begin : g_l4
@@ -300,6 +305,7 @@ module OOO_SCHED
                 if (q < NQ && wrq[B+i]) begin
                     if (l1q[B+i] && rs[1]) req[i] = 1'b0;
                     if (l2q[B+i] && rs[2]) req[i] = 1'b0;
+                    if (l3q[B+i] && rs[3]) req[i] = 1'b0;
                     if (q == 0 && l1q[B+i] && q0_hold) req[i] = 1'b0;
                 end
                 if (nsq[B+i] && (!ns_ok || nsb)) req[i] = 1'b0;

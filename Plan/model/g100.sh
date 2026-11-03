@@ -60,6 +60,8 @@ row "  queues of 10"                                 $J $D iq=10
 row "  S1 not with R2: a stage more"                 $J $D dec_depth=6 redirect=7
 X="slow2=3 q0_slow=1 q0_jalr=1"                                 # OOO_EXU as built: what is not in OOO_ALUF 2 cycles, on queue 0
 row "**OOO_EXU as built**: + rare, register shifts 2, queue 0; jalr q0" $J $D $X
+row "  those 3 cycles"                                $J $D $X slow_lat=3
+row "  those 4 cycles"                                $J $D $X slow_lat=4
 row "  slli 2 cycles too"                            $J $D slow2=7 q0_slow=1 q0_jalr=1
 row "  srli, srai 2 cycles too"                      $J $D slow2=11 q0_slow=1 q0_jalr=1
 row "  bexti 2 cycles too"                           $J $D slow2=19 q0_slow=1 q0_jalr=1

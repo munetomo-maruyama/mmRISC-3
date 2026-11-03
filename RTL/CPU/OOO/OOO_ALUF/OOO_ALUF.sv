@@ -10,22 +10,23 @@
 //   adder    add, sub, addw, subw, add.uw, sh1add .. sh3add(.uw); slt, sltu and
 //            the comparison of a branch from its carry
 //   logic    xor, or, and, andn, orn, xnor
-//   shifter  slli, srli, srai and their word forms, by an immediate: no path
-//            from a register into the amount. bexti is its bit 0
+//   shifter  slli, srli, srai and their word forms, bexti: by an immediate
 //   the rest sext.b, sext.h, zext.h, czero.eqz, czero.nez
 //
-// Everything else takes 2 cycles in OOO_ALU, on queue 0 (OOO_EXU).
+// Everything else is OOO_ALUR's, on queue 0 (OOO_EXU).
 //
-// One right funnel: {hi, lo} >> amt, in 3 stages of 4 to 1. A left shift by n
-// is hi = a, lo = 0, amt = 64 - n (OOO_EXU gives n = 0 as a right shift), so no
-// reversal before and after, as in OOO_ALU.
+// The shifter is a rotation right, 3 stages of 4 to 1 with nothing in front, and
+// a mask m, decoded from the immediate in the stage before (Plan/OOC.md 28.8): a
+// bit of the result is the rotation's where m has a 1, the fill where it has a
+// 0. A left shift by n rotates by 64 - n. srai's sign does not go through the
+// rotation with its fan-out. The upper half of slliw is bit 31 of the rotation.
 //
-// The result is an AND-OR of the units: with all g_* at 0 it is 0, which is
+// The result is an AND-OR of the units: with all g_*, m at 0 it is 0, which is
 // what a µop that writes nothing gives. The last level is one LUT a bit, the
-// adder and the funnel on its inputs (Plan/OOC.md 28.7): what else makes a
+// adder and the rotation on its inputs (Plan/OOC.md 28.7): what else makes a
 // result, and extra (port 0's other results), comes in by o. So a word's sign
-// extension is 2 levels after the sum, not 4 with a fan-out in the middle: the
-// upper half has its own g_addh, g_shh, and takes bit 31 from sgn.
+// extension is 2 levels after the sum: the upper half has its own g_addh, and
+// takes bit 31 from sgn.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -45,14 +46,11 @@ module OOO_ALUF
         input  logic        g_addw,       //   bit 31 of the sum (addw, subw)
         input  logic        g_log,
         input  logic [2:0]  lop,          // 0 xor, 1 or, 2 and, 3 andn, 4 orn, 5 xnor
-        input  logic        g_sh,         // as g_add, for the funnel
-        input  logic        g_shh,
-        input  logic        g_shw,
-        input  logic        sh_left,
-        input  logic        sh_sra,
-        input  logic        sh_w,         // srliw, sraiw: the low half goes in
+        input  logic [63:0] m,            // the rotation's bits in the result
+        input  logic        fill63,       // the others: bit 63 of a (srai)
+        input  logic        fill31,       //   ... or bit 31 (sraiw, srliw by 0)
+        input  logic        g_slw,        // slliw: the upper half is bit 31
         input  logic [5:0]  amt,
-        input  logic        g_bx,         // bexti
         input  logic        g_slt,
         input  logic        g_sltu,
         input  logic        g_zh,         // zext.h
@@ -100,63 +98,49 @@ module OOO_ALUF
         endcase
     end
 
-    // the funnel
-    logic        fill;
-    logic [63:0] lo;
-    logic [62:0] hi;
-    logic [126:0] f;
-    logic [123:0] f0;
-    logic [111:0] f1;              // (the bits a later stage can reach)
-    logic [63:0] sh;
+    // the rotation
+    logic [63:0] r0, r1, rot;
     always @(*) begin
-        fill = sh_sra && (sh_w ? a[31] : a[63]);
-        if (sh_left) begin
-            lo = 64'd0;
-            hi = a[62:0];
-        end else begin
-            lo = sh_w ? {{32{fill}}, a[31:0]} : a;
-            hi = {63{fill}};
-        end
-        f = {hi, lo};
         case (amt[1:0])
-            2'd1:    f0 = f[124:1];
-            2'd2:    f0 = f[125:2];
-            2'd3:    f0 = f[126:3];
-            default: f0 = f[123:0];
+            2'd1:    r0 = {a[0],    a[63:1]};
+            2'd2:    r0 = {a[1:0],  a[63:2]};
+            2'd3:    r0 = {a[2:0],  a[63:3]};
+            default: r0 = a;
         endcase
         case (amt[3:2])
-            2'd1:    f1 = f0[115:4];
-            2'd2:    f1 = f0[119:8];
-            2'd3:    f1 = f0[123:12];
-            default: f1 = f0[111:0];
+            2'd1:    r1 = {r0[3:0],  r0[63:4]};
+            2'd2:    r1 = {r0[7:0],  r0[63:8]};
+            2'd3:    r1 = {r0[11:0], r0[63:12]};
+            default: r1 = r0;
         endcase
         case (amt[5:4])
-            2'd1:    sh = f1[79:16];
-            2'd2:    sh = f1[95:32];
-            2'd3:    sh = f1[111:48];
-            default: sh = f1[63:0];
+            2'd1:    rot = {r1[15:0], r1[63:16]};
+            2'd2:    rot = {r1[31:0], r1[63:32]};
+            2'd3:    rot = {r1[47:0], r1[63:48]};
+            default: rot = r1;
         endcase
     end
 
     // the rest; czero's zero test is the one late selection of many bits
     logic [63:0] x, o;
-    logic        cz_pass, slt, sgn;
+    logic        cz_pass, fill, slt, sgn;
     always @(*) begin
         cz_pass = cz_n ? (b == 64'd0) : (b != 64'd0);
-        x[0]     = (g_bx && sh[0]) || ((g_zh || g_sb || g_sxh) && a[0]);
-        x[7:1]   = (g_zh || g_sb || g_sxh) ? a[7:1] : 7'd0;
+        fill     = (fill63 && a[63]) || (fill31 && a[31]);
+        x[7:0]   = (g_zh || g_sb || g_sxh) ? a[7:0] : 8'd0;
         x[15:8]  = (g_zh || g_sxh) ? a[15:8] : g_sb ? {8{a[7]}} : 8'd0;
         x[63:16] = g_sb ? {48{a[7]}} : g_sxh ? {48{a[15]}} : 48'd0;
-        o   = ({64{g_log}} & l) | x | ({64{g_cz && cz_pass}} & a) | extra;
-        slt = (g_slt && c_lt) || (g_sltu && c_ltu);
-        sgn = (g_addw && sum[31]) || (g_shw && sh[31]);
+        o   = ({64{g_log}} & l) | x | ({64{g_cz && cz_pass}} & a) | ({64{fill}} & ~m) | extra;
+        // (one LUT from the carry out, which comes late)
+        slt = (g_slt || g_sltu) && (c_ltu ^ (g_slt && (a[63] ^ b[63])));
+        sgn = (g_addw && sum[31]) || (g_slw && rot[31]);
     end
 
     // the last level
     always @(*) begin
-        result[31:0]  = ({32{g_add}} & sum[31:0]) | ({32{g_sh}} & sh[31:0]) | o[31:0];
+        result[31:0]  = ({32{g_add}} & sum[31:0]) | (m[31:0] & rot[31:0]) | o[31:0];
         result[0]     = result[0] | slt;
-        result[63:32] = ({32{g_addh}} & sum[63:32]) | ({32{g_shh}} & sh[63:32]) | o[63:32] | {32{sgn}};
+        result[63:32] = ({32{g_addh}} & sum[63:32]) | (m[63:32] & rot[63:32]) | o[63:32] | {32{sgn}};
     end
 
 endmodule : OOO_ALUF

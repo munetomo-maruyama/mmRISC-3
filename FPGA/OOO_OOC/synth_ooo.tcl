@@ -98,7 +98,7 @@ read_verilog -sv [list \
     $rtl/OOO_FETCH/OOO_FETCH.sv $rtl/OOO_FRONT/OOO_FRONT.sv $core/CORE_DECOMP/CORE_DECOMP.sv $core/CORE_DEC/CORE_DEC.sv \
     $rtl/OOO_RARE/OOO_RARE.sv $rtl/OOO_DEC/OOO_DEC.sv $rtl/OOO_IQPL/OOO_IQPL.sv $rtl/OOO_DCAD/OOO_DCAD.sv $rtl/OOO_CTRL/OOO_CTRL.sv \
     $rtl/OOO_DSREG/OOO_DSREG.sv $rtl/OOO_FERS/OOO_FERS.sv $rtl/OOO_TRAP/OOO_TRAP.sv $rtl/OOO_SYS/OOO_SYS.sv \
-    $rtl/OOO_ALUF/OOO_ALUF.sv $rtl/OOO_EXU/OOO_EXU.sv $rtl/OOO_PRF2/OOO_PRF2.sv \
+    $rtl/OOO_ALUF/OOO_ALUF.sv $rtl/OOO_ALUR/OOO_ALUR.sv $rtl/OOO_EXU/OOO_EXU.sv $rtl/OOO_PRF2/OOO_PRF2.sv \
     $rtl/OOO_STAGE/OOO_STAGE.sv $rtl/OOO_CORE/OOO_CORE.sv $rtl/OOO_CPU/OOO_CPU.sv \
     $core/CORE_CSR/CORE_CSR.sv $rtl/OOO_CSRU/OOO_CSRU.sv $core/CORE_MDU/CORE_MDU.sv $rtl/OOO_MDUP/OOO_MDUP.sv $rtl/OOO_PMUL/OOO_PMUL.sv \
     $cache/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv $cache/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv \

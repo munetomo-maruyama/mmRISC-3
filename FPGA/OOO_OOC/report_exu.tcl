@@ -9,7 +9,8 @@
 #   ctl    the decoded operation to a result
 #   oper   the operand registers to a result
 #   flag   into a branch's flags
-#   rare   the operations of 2 cycles, to a result
+#   rare1  OOO_ALUR's stage 1
+#   rare   OOO_ALUR's stage 2, to a result
 #   rf     the register file's read, through RR2's mux, to the operands
 #   lvt    the live value table, its compare, into its register
 #   tags   the tags compared in RR2, to the operands and the selections
@@ -32,12 +33,13 @@ proc exu_classes {fh outdir} {
                   ctl   {*u_exu/*c_*_reg*}                  $res \
                   oper  $opr                                $res \
                   flag  [concat {*u_exu/*r_ex_reg*} $sel $opr] {*u_exu/*fl_*_reg*} \
-                  rare  {*u_exu/*ra_q_reg* *u_exu/*rb_q_reg* *u_exu/*rop_reg*} $res \
+                  rare1 {*u_exu/*ra_q_reg* *u_exu/*rb_q_reg* *u_rare/d_*_reg*} {*u_rare/q_*_reg*} \
+                  rare  {*u_rare/q_*_reg*}                  $res \
                   rf    {*u_prf/aq_reg* *u_prf/lq_reg*}     $opr \
-                  lvt   {*u_prf/*lvt_reg* s1_reg* *u_exu/*rt_w_reg* *u_exu/*rv_w_reg*} {*u_prf/lq_reg*} \
+                  lvt   {*u_prf/*lvt_reg* s1_reg* *u_prf/we_reg* *u_prf/wa_reg*} {*u_prf/lq_reg*} \
                   tags  {s2_reg* s_us_reg* *u_exu/*rt_reg* *u_exu/*rv_reg* *u_exu/*ex_dst_reg* *u_exu/*ex_v_reg* *u_exu/*ex_wr_reg*} [concat $opr $sel] \
                   snoop {*u_exu/*r_sn_reg*}                 $opr \
-                  write {*u_exu/*r_wr_reg* *u_exu/*rt_w_reg* *u_exu/*rv_w_reg*} {*u_prf/*mem*}]
+                  write {*u_exu/*r_wr_reg* *u_prf/we_reg* *u_prf/wa_reg*} {*u_prf/*mem*}]
     file delete -force $outdir/timing_loop.rpt
     foreach {name from to} $cls {
         set cf [exu_cells $from]

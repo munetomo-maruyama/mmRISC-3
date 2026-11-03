@@ -151,6 +151,7 @@ int main(int argc, char** argv)
             else if (x.kind == 1) {
                 int c = rng() % 10;
                 if (c < 2) x.lat = 2;
+                else if (c < 3) x.lat = 3;
                 else if (c < 5) x.lat = 4;
                 else if (c < 7) { x.ext = 1; x.md = 1; }
                 else if (c < 8) { x.ns = 1; if (rng() % 2) x.ext = 1; }
