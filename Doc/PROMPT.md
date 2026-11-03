@@ -5619,3 +5619,29 @@ Please run `synth_ooo.bat exu9` and then `synth_ooo.bat sched85`, since `OOO_SCH
 ```text
 exu9 and sched85 have finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**Loop 2 (bypass + ALU) meets its target.** `OOC_EXU` at 9 ns: WNS −0.163 ns (about 9.2 ns), 12,472 LUTs, model still 6.823. `OOC_SCHED`, on the other hand, went from about 9.3 ns to about 9.9 ns after a change of 8 FF. I read most of that as placement noise but cannot prove it yet, so I asked for 2 more runs.
+
+#### `OOC_EXU` (1.5 ns better than the 10.7 ns before)
+`sel` −0.163, `loop` −0.156 (15 levels: selection, `a`, Zba's LUT, carry, `slt`, bit 0); `oper` +0.023; `write` +0.375 (now the data, not the address); `tags` +0.814; `flag` +0.906; `rare1` +0.962; `rare` +1.177; `lvt`, `ctl`, `rf`, `snoop` +0.989, +1.177, +1.937, +2.264.
+
+None of the prepared levers was needed: `slli`, Zba, `srli` stay in 1 cycle. `OOO_EXU` 5,971 (of which `OOO_ALUR` 1,178), `OOO_PRF2` 6,500, 2.1k under the 14.6k estimate, though the harness has no multiplier or resolution. Still one block alone: the core will make it slower.
+
+#### `OOC_SCHED`
+`s1` −1.400, `ff` −1.310, `guard` −1.239, `loop` −0.997, `free` +1.440 (was −0.223); 5,868 LUTs (was 5,397). The worst paths end in the memory queue, which the change does not touch, and `free` improved with nothing done for it. If that is noise, the 9.3 was one sample too.
+
+#### Change
+`wa` removed from `rv`'s inputs: `!wa` is redundant, as a free entry has no `v`. A temporary check never fired, `tb_sched`'s output is byte for byte the same, all 95 mutations of the scheduler are detected.
+
+#### Request
+`synth_ooo.bat sched85` and `sched86`, same RTL. Both about 9.3: latency 3 stays. Both near 9.9: latency 4 on queue 0. Far apart: the spread itself is the answer, and the gate needs several runs.
+<!-- /answer -->
+
+## 145. 2026-11-03 18:57:07 JST
+
+```text
+Done.
+```

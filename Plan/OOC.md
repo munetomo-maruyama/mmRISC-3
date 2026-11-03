@@ -3184,3 +3184,32 @@ Levers if `loop` is still short, in order: `slli` out of EX (now worth less: it 
 **To tell noise from cause**: `synth_ooo.bat sched85` and `synth_ooo.bat sched86` on the same RTL, 8.5 and 8.6 ns: the period differs by little, the placement by whatever it does. If they are about 9.3, latency 3 stays. If this RTL stays near 9.9 in both, the cheaper answer is latency 4 on queue 0, which needs no change to the scheduler and is the same in CoreMark; others pay a cycle.
 
 Verification: `tb_sched` as above; `-Wall` clean.
+
+### 28.10 `OOC_SCHED` on 2 placements: 9.3 and 9.6 ns; latency 3 stays (2026-11-03)
+
+`synth_ooo.bat sched85` and `sched86`, the RTL of 28.9. **Synthesis gave the same netlist in both (5,607 LUTs, 3,147 FF), so this is the first measure of the spread of placement alone.**
+
+| Class | 8.5 ns (`T8.5`) | 8.6 ns (`T8.6`) | 8.5 ns, before `rv` changed (28.9) | 8.5 ns, the first (28.5) |
+|---|---|---|---|---|
+| **Reached** | **9.31 ns** | **9.57 ns** | 9.90 ns | 9.28 ns |
+| `s1` | −0.810 | −0.973 | −1.400 | −0.633 |
+| `ff` | −0.589 | −0.745 | −1.310 | −0.742 |
+| `guard` | −0.272 | −0.572 | −1.239 | −0.702 |
+| `loop` | **−0.179** | −0.504 | −0.997 | −0.776 |
+| `kill` | +0.120 | −0.056 | +0.490 | +1.112 |
+| `s2` | +0.530 | −0.058 | +0.055 | +0.057 |
+| `free` | +0.896 | +0.657 | +1.440 | −0.223 |
+| `wake` | +1.393 | +1.499 | +1.317 | +0.818 |
+| `issue` | +2.722 | +2.903 | +2.712 | +2.347 |
+| LUTs after routing | 5,692 | 5,716 | 5,868 | 5,397 |
+
+What it says:
+- **The spread of one netlist is 0.26 ns here.** So differences under about 0.3 ns between single runs mean nothing, and that applies to every comparison so far in this section.
+- **"Mostly noise" in 28.9 is not borne out.** 0.26 ns does not explain a change of 0.6 ns. Part of the 9.9 had a cause, or was synthesis giving a worse netlist (a different one, so outside this spread); with `rv` changed in the same step I cannot separate them.
+- **Latency 3 stays**, as 28.9 said for this outcome: 9.31 and 9.57 against 9.28 for the scheduler without it, which is within the spread at the low end. The cost, if any, is under 0.3 ns.
+- **The `rv` change did what it was for.** `loop`, the deciding loop, is at **8.7 and 9.1 ns**, and `guard` at 8.8 and 9.2. The worst endpoints moved from `rv` to the age bits `aq`, `ff`, `oc`: what dispatch's S1 still writes through `wa`.
+- **So the block's limit is now dispatch's first phase**, `dk` → steering → bank selection → `wa` (fan-out 33 to 37) → endpoint, 9 levels, 7.4 to 7.7 ns of route. In this harness `dk` comes from a register, and rename of 4 will have to share that cycle (28.5), so loop 4's harness decides what this has to be. I leave it until then.
+
+**A lever noted, not taken**: the age bits can update from `w2` a cycle later rather than `wa`, as an entry cannot ask before then. It would remove the worst endpoint at no cost, but the next ones (`ff`, `oc`) are 0.03 ns behind, within the spread, so a run could not show it.
+
+**Reading the two blocks**: scheduler 9.3 to 9.6 ns, EX 9.2 ns (one placement). Against 10 ns that is about 0.4 to 0.8 ns in hand, and the core added about 1 ns at 20 ns (28.1). Within reach for gate S1-A; not comfortable for the chip, and read again at step 1.6. Model 6.823. Loops 1 and 2, the two life-or-death ones, both reach 10 ns as blocks; the next is loop 6, the uBTB of 16.

@@ -159,7 +159,7 @@ LiteX stays at its default 100 MHz, the **same clock as the CPU**, so there is n
 
 | # | Loop | Target | If it fails | Model | Today at 10 ns (register to register) |
 |---|---|---|---|---|---|
-| 1 | **Wakeup + select** (IS) | 1 cycle, queue of 8 | ALU 2 cycles | **−20 %**: 5.51, a redesign | **+0.056 ns, the new design alone, without the payload, 5,353 LUTs** (`Plan/OOC.md` 28.5); about 9.3 ns when asked for 8.5, **then about 9.9 ns after a change of 8 FF: mostly noise as far as read, to be measured** (28.9). Today's block: −1.95 ns, 10 entries, 3 ports |
+| 1 | **Wakeup + select** (IS) | 1 cycle, queue of 8 | ALU 2 cycles | **−20 %**: 5.51, a redesign | **+0.056 ns, the new design alone, without the payload, 5,353 LUTs** (`Plan/OOC.md` 28.5); **as built, 9.3 and 9.6 ns on 2 placements of one netlist; `loop` itself 8.7 and 9.1** (28.10). Today's block: −1.95 ns, 10 entries, 3 ports |
 | 2 | **Bypass + ALU** (EX) | 1 cycle | ALU 2 cycles | **−20 %** | Today's: −0.66 ns full; +2.34 ns ALU1's functions. **The new design, with the register file: about 9.2 ns asked for 9, 12,472 LUTs, model 6.823** (`Plan/OOC.md` 28.9). Alone: the core will add |
 | 3 | **M1 + M2** (load) | Load-use 3 | Load-use 4, 5 | −7.9 %, −15 % | −2.66 ns in one stage, to become two |
 | 4 | **Rename of 4** (R1, R2) | 2 stages | 3 stages | about −1 % | +1.04 ns at 2 µops, in one stage |
