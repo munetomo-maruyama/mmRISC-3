@@ -1,0 +1,8 @@
+OOC_UBTB2   (period 9.0 ns, I/O delay 2.6999999999999997 ns each side on the ports)
+after synthesis: 392 LUTs (200 logic + 192 LUT RAM; 203 LUT cells), 237 FF, 0 DSP, 99 LUT RAM cells, 0.0 BRAM tiles
+after place and route: 378 LUTs (190 logic + 188 LUT RAM; 203 LUT cells), WNS 0.124 ns, register to register 0.124 ns (8 logic levels)
+  tag   worst   1.278 ns ( 7 logic levels), from u_ub/pc_q_reg[14]/C to u_ub/pi_q_reg[0]_rep/D
+  idx   worst   0.361 ns ( 8 logic levels), from u_ub/pi_q_reg[3]/C to u_ub/pi_q_reg[0]_rep/D
+  in    worst   4.231 ns ( 1 logic levels), from s_redirect_reg/C to u_ub/pi_q_reg[2]_rep/D
+  out   worst   1.897 ns ( 7 logic levels), from u_ub/pi_q_reg[3]/C to o_off_reg[0]/D
+  upd   worst   0.124 ns ( 8 logic levels), from s_up_reg[6]/C to u_ub/p_b_reg_0_31_0_2/RAMA_D1/I

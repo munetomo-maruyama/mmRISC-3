@@ -5672,3 +5672,65 @@ Loop 6, the uBTB of 16: −6.8 % in the model if it fails; today's is −2.04 ns
 ```text
 Yes, uBTB
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I built loop 6's uBTB as a new design, `OOO_UBTB2`, and pushed it (338ad20). **Not 16 entries but 3 ways of 32 sets in LUT RAM (96 entries). If the timing holds, the model goes from 6.823 to 6.889 (+1.0 %).** Timing and size are not measured yet.
+
+#### What the model says
+The model's uBTB was ideal: all in one set, LRU. I measured again with sets and round robin, as a real design has them.
+
+| uBTB | `-O2` | most optimization | g13 | rv64gc |
+|---|---|---|---|---|
+| 16, one set, LRU (the proposal so far) | 6.823 | 7.315 | 6.599 | 5.898 |
+| 16, one set, round robin | 6.794 | 7.326 | 6.589 | 5.896 |
+| 16, 4 sets of 4 | 6.797 | 7.312 | 6.531 | 5.890 |
+| 48, 16 sets of 3 | 6.879 | 7.414 | 6.618 | 5.910 |
+| **96, 32 sets of 3** | **6.889** | **7.416** | **6.650** | **5.917** |
+| 128, 32 sets of 4 | 6.905 | 7.422 | 6.654 | 5.921 |
+| 2,048, LRU (for scale) | 6.915 | 7.427 | 6.667 | 5.928 |
+
+- **Reading:** sets cost almost nothing, and capacity is worth more than associativity. In LUT RAM a depth of 32 costs the same as 16, hence 3 ways of 32 sets.
+- **Optimism in the figures:** the model has exact tags and immediate training. The real ones will be lower.
+
+#### The design
+Today's 8 entries take 12 levels and 11.9 ns: all tags compared, parcel priority, the entry's choice, the AND-OR of all targets in series, each growing with the entries.
+
+- **Only 3 compares:** distributed RAM is read by set, so 3 tag compares instead of 16, and the target's AND-OR has 3 inputs.
+- **Order in the block:** 3 bits per set say which way comes first, computed at the write. No parcel compares or priority in the path; `sel` is one LUT.
+- **Tag:** no longer folded, removing the first LUT of today's path.
+- **Predicted taken:** one bit in the RAM, computed when the counter changes.
+- **Next address:** redirect, stall, the stack's top and the sequential address are handled before the last LUT; only the target's way is late.
+- **Reset:** none for the table, only its initial state. A stale entry is a misprediction checked at F2.
+
+Counted, 7 to 8 levels are expected. The size is unknown until the run: about 180 LUTs of RAM by counting, plus logic; today's 8 entries are 567 LUTs, 505 FF.
+
+#### Verification
+- **Bench `tb_ubtb2`:** 800,000 cycles against a reference table of 3 ways, 32 sets, no mismatch: 510,000 predicted taken, 55,000 returns, 220,000 multiple hits, 240,000 fills, with tag aliases mixed in.
+- **Bug injection:** M610 to M645, all 36 detected. Every line was checked before the commit.
+- **Lint:** `-Wall` has no warnings on the block's and the harness's lines.
+- **Model table:** no earlier row changed.
+
+#### Not confirmed
+**This run measures the loop alone, not joining it to the core.** `OOO_UBTB2` assumes `redirect`, `redirect_pc`, `stall`, `ras_top` come from registers.
+
+The harness does that, but today's `OOO_FETCH` drives them from logic (`be_redirect || ovr`, `!acc`). A registered `stall` is a cycle late, so it may cost. I will design it with step 1.4's 32-byte fetch.
+
+#### Request
+Please run the following on Windows. It asks for 9 ns for the same reason as loop 2. The results go to `output/OOC_UBTB2_T9`.
+
+```bash
+synth_ooo.bat ubtb
+```
+
+To read: `idx` (the main path from the index through the RAM), `tag`, `in`, `out`, `upd`, and the total LUTs. If short, the levers in order: 16 sets (same size, −0.1 %), a shorter tag, fan-outs.
+
+The record is section 28.11 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`). `Doc/STRATEGY.md` 4.2, 4.5, 5 (and Japanese) are updated too. The RTL is `OOO_UBTB2.sv`.
+<!-- /answer -->
+
+## 147. 2026-11-03 20:17:40 JST
+
+```text
+ubtb has finished. Please check it.
+```

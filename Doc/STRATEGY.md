@@ -110,7 +110,7 @@ nothing asked for less: **they were all measured at a 20 ns target**, so they ar
 | Stores | one µop, with data | **split**: the address issues on its own, the data joins in the SQ | +3.8 % |
 | ROB / LQ, SQ / checkpoints | 24 / 8 / 6 | **48 / 16 / 12**, registers **80** | 32 / 12 / 8 costs −7.4 % |
 | Register file | 3 writes, 6 reads | **4 writes, 8 reads**, 2 stages (`OOO_PRF2`) | LVT apart from the data read |
-| Predictor | TAGE S, uBTB 8 | **TAGE M, uBTB 96**: 32 sets of 3 in LUT RAM (`OOO_UBTB2`) | 6.889, +1.0 % against 16 in one set, if the timing holds. uBTB 8 costs −3.5 %, with more stages to an override |
+| Predictor | TAGE S, uBTB 8 | **TAGE M, uBTB 96**: 32 sets of 3 in LUT RAM (`OOO_UBTB2`) | 6.889, +1.0 % against 16 in one set; the block reaches about 8.9 ns alone (`Plan/OOC.md` 28.12). uBTB 8 costs −3.5 %, with more stages to an override |
 | Fusion | off | **off**; out of the paths (`FUSE_AB`) | |
 
 ### 4.3 The pipeline
@@ -164,7 +164,7 @@ LiteX stays at its default 100 MHz, the **same clock as the CPU**, so there is n
 | 3 | **M1 + M2** (load) | Load-use 3 | Load-use 4, 5 | −7.9 %, −15 % | −2.66 ns in one stage, to become two |
 | 4 | **Rename of 4** (R1, R2) | 2 stages | 3 stages | about −1 % | +1.04 ns at 2 µops, in one stage |
 | 5 | **Fetch buffer's boundaries** (D1) | 1 stage | 2 stages | about −1 % | −3.31 ns |
-| 6 | **uBTB** (F0), added by the measurement | 16 entries, no bubble | A bubble on each taken branch; or fewer entries | **−6.8 %**; 8 entries −3.5 %, 4 entries −7.3 % | Today's: −2.04 ns at 8 entries. The new design, 96 entries, built, its run awaited (`Plan/OOC.md` 28.11) |
+| 6 | **uBTB** (F0), added by the measurement | 96 entries, no bubble | A bubble on each taken branch; or fewer entries | **−6.8 %**; 8 entries −3.5 %, 4 entries −7.3 % | Today's: −2.04 ns at 8 entries. **The new design, 96 entries: about 8.9 ns asked for 9, 378 LUTs, model 6.889** (`Plan/OOC.md` 28.12). Alone: joining it to fetch is step 1.4 |
 
 1 and 2 are life or death. They are measured first, and each has a design answer before giving up the cycle: dependency
 matrices in place of tag compares in the queues, duplicated tags and registers for fan-out, shifts apart from the adder.
@@ -195,7 +195,7 @@ and far less work, so the go / no-go is at gate S1-A.
 | # | Work | Done when |
 |---|---|---|
 | 1.0 | **Done 2026-11-02**: `synth_ooo.bat t100`: today's blocks at a 10 ns target, on the XC7A200T (`Plan/OOC.md` 28.1) | The real distance from 10 ns |
-| 1.1 | Harnesses of the new loops alone, in this order: a queue of 8 with its wakeups (`OOC_SCHED`, `synth_ooo.bat sched`, **meets 10 ns alone, 2026-11-03**), bypass + ALU with the new sources (`OOC_EXU`, `synth_ooo.bat exu`, **about 9.2 ns asked for 9, 2026-11-03**), a uBTB (`OOC_UBTB2`, `synth_ooo.bat ubtb`, built 2026-11-03), M1 / M2 with block RAM, rename of 4, the fetch buffer split | **Gate S1-A**: all six within reach at 10 ns; the configuration frozen; **go, or fall back to 75 MHz, or to 50 MHz and 3-wide** |
+| 1.1 | Harnesses of the new loops alone, in this order: a queue of 8 with its wakeups (`OOC_SCHED`, `synth_ooo.bat sched`, **meets 10 ns alone, 2026-11-03**), bypass + ALU with the new sources (`OOC_EXU`, `synth_ooo.bat exu`, **about 9.2 ns asked for 9, 2026-11-03**), a uBTB (`OOC_UBTB2`, `synth_ooo.bat ubtb`, **about 8.9 ns asked for 9, 2026-11-03**), M1 / M2 with block RAM, rename of 4, the fetch buffer split | **Gate S1-A**: all six within reach at 10 ns; the configuration frozen; **go, or fall back to 75 MHz, or to 50 MHz and 3-wide** |
 | 1.2 | The model with the queue, the D1 boundary, the split store as they will be built | Model ≥ 6.8 |
 | 1.3 | The new pipeline at W = 2 first: stages added, no new function, the tests' references updated | Lock-step; cycles against the model |
 | 1.4 | Distributed schedulers; the decoded queue; 32-byte fetch, 6 decoded | Tests; cycles against the model |

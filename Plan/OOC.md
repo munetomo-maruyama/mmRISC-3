@@ -3255,3 +3255,42 @@ Levels expected, counted: RAM, compare (2), hit, `sel`, target, last: 7 or 8, ag
 **Verification.** `tb_ubtb2`: 800,000 cycles against a reference table of 32 sets of 3: 513,821 predicted taken, 55,152 returns, 218,886 lookups with several hits, 241,445 fills, aliases in the table, no mismatch. Bug injection M610 to M645: 36 of 36 detected. `-Wall` clean on the block and the harness's lines. `results/g100.txt` has the rows above; the old ones are unchanged.
 
 What to read: `idx` (the index, through the RAM), `tag`, `in`, `out`, `upd`, and the total LUTs. Levers if short: 16 sets (same size; −0.1 %), a smaller tag, then fan-outs.
+
+### 28.12 `OOC_UBTB2` meets 9 ns: about 8.9 ns, 378 LUTs, 96 entries stay (2026-11-03)
+
+`synth_ooo.bat ubtb`, the RTL of 28.11, asked for 9 ns, in `output/OOC_UBTB2_T9`. **WNS +0.124 ns, register to register, at 96 entries: smaller and faster than today's 8.**
+
+| | `OOO_UBTB`, 8 entries (`T10`, 28.1) | `OOO_UBTB2`, 96 entries (`T9`) |
+|---|---|---|
+| Asked for | 10 ns | 9 ns |
+| Slack | −2.037 ns | **+0.124 ns** |
+| Levels of the worst path | 12 | 8 |
+| LUTs after routing | 567 | **378** (190 logic + 188 LUT RAM) |
+| FF | 506 | 53, and 184 of the harness |
+
+| Class | Slack at 9 ns | Reached | Levels | Route |
+|---|---|---|---|---|
+| `upd`: the update, compare, order bits, into the RAM | +0.124 | 8.88 ns | 8 | 75 % |
+| **`idx`: the index, through the RAM, to the fetch address: the loop** | **+0.361** | **8.64 ns** | 8 | 72 % |
+| `tag`: the fetch address's tag, to the fetch address | +1.278 | 7.72 ns | 7 | 74 % |
+| `out`: the prediction, to the register that takes it | +1.897 | 7.10 ns | 7 | 68 % |
+| `in`: a redirect, to the fetch address | +4.231 | 4.77 ns | 1 | 86 % |
+
+What it says:
+- **The count held**: 8 levels against 7 or 8 expected, and 188 LUTs of RAM against about 180.
+- **These are ceilings, not limits**: the target was met, so Vivado stopped improving. 8.88 ns is what it left, and no run at a tighter period is needed: the question was whether the block is within about 9.3 ns, and even with the spread of a placement (0.26 ns, 28.10) it is.
+- **The worst path is not the loop.** It is the update: `s_up`'s index with a fan-out of 313 (1.16 ns of route), then a tag read, the compare, `we_new`, `new_b`, into the set's order bits. Should it ever matter, the update can take a second cycle at no cost but training a cycle later. Not needed now.
+- **The loop is `pi_q` (fan-out 58) → RAM → compare → `hit` → `sel` → `sel_t` (fan-out 38) → target → last LUT**, as designed. Nothing else stands in it.
+- **The joining looks better than feared, not yet measured.** 28.11 asked for `redirect`, `stall`, `ras_top` from registers, and `in` has 4.2 ns to spare at 9 ns, with 3.3 ns of that path a net of fan-out 38 left unimproved. So some logic may stand in front of them: `be_redirect` and `acc` probably, while `ovr`, a compare at F2, is the one to look at. Step 1.4 decides, as said; this run did not have logic there.
+
+**Decision: 96 entries stay, none of the levers used.** The model's 6.889 / 7.416 / 6.650 / 5.917 stands as far as this block goes, with the two optimistic points of 28.11 (exact tags, immediate training).
+
+**Reading the three blocks**, each alone:
+
+| Loop | Block | Reached |
+|---|---|---|
+| 1 | `OOC_SCHED` | 9.3 and 9.6 ns (`loop` 8.7 and 9.1) |
+| 2 | `OOC_EXU` | 9.2 ns |
+| 6 | `OOC_UBTB2` | 8.9 ns (`idx` 8.6) |
+
+Left in step 1.1: M1 / M2 with block RAM (loop 3), rename of 4 (loop 4), the fetch buffer split (loop 5).
