@@ -2980,6 +2980,37 @@ At the usual 0.94 of the model the RTL would give about 6.42, above gate S1-B's 
 **What I proposed and did not do: the producer's entry from a table by tag.** Worked out, it does not pay: a table of 80 × 6 bits with 4 writes and 8 reads, plus a way to tell a live entry from
 a stale one (busy bits, with tags on a bus again), comes to about what the compare costs (288 compares), and it would bind the free list to banks. So the compare stays.
 
-**Size**: my estimate is about 5k LUTs, against 7,969. The last estimate was off by 2, so this one is to be read as a direction only; `utilization.rpt` now gives `u_disp` apart.
+**Size**: my estimate is about 5k LUTs, against 7,969. The last estimate was off by 2, so this one is to be read as a direction only; (`u_disp` in `utilization.rpt` turned out not to be dispatch alone: 28.5.)
 
 **Verification**: `tb_sched` has steering, banks and free entries in full, against the account. 3 seeds, no mismatch. Bug injection M382 to M477 replaces the last list: 93, all detected, after a first round that found 3 redundant conditions in the bank choice and the flush of the write slots (removed; a slot kept free for nothing after a flush costs a cycle at most) and a flush the bench never drove with slots valid (added).
+
+### 28.5 `OOC_SCHED` meets 10 ns (2026-11-03)
+
+`synth_ooo.bat sched`, in `output/OOC_SCHED_T10`: **the block meets 10 ns, register to register +0.056 ns, in 5,353 LUTs.** Only the block: no payload, no core around it.
+
+| | First run (28.3) | Now |
+|---|---|---|
+| Physical LUTs | 7,969 | **5,353** (−33 %; my estimate was about 5k) |
+| FFs (the harness's 318 included) | 2,910 after synthesis | 3,139 |
+| Register to register | −10.336 ns, 24 levels | **+0.056 ns, 9 levels** |
+| `loop`: request → grant → request | −2.429, 7 levels | +0.208, 9 levels |
+| `wake`: request → wait cell | −0.927, 4 levels | +2.036, 5 levels |
+| `free`: then occupied bits → the block, now a request → the first free entries | −10.336, 24 levels | +1.909, 9 levels |
+| `s1`: the slots' registers → the block | −8.612, 22 levels | +0.233, 9 levels |
+| `ff`: free entries, queue order → the block | −8.752, 22 levels (`steer`) | +0.329, 9 levels |
+| `s2`: S2's registers → the block | (not separate) | +1.032, 7 levels |
+| `kill`: kill, clr → the block | −1.126, 6 levels | +2.747, 4 levels |
+| `issue`: the grants' registers → out | +2.321, 4 levels | +4.504, 4 levels |
+
+#### What it says
+- **Dispatch was the problem, as 28.3 guessed, and the loop was not at its limit there.** No more tag-compare version to compare with: the matrix stays.
+- **The margin is not known.** Vivado's estimate after placement was +0.511, so it skipped physical optimization, and stopped working on the routes once they met: 84 % of the worst path is route (1.57 ns of logic, 8.32 ns of route), with a grant's net of fan-out 78 alone at 1.52 ns. So +0.056 is where it stopped, not where it could get. `synth_ooo.bat sched85` asks for 8.5 ns to find out, and 10 ns inside the whole core needs that margin.
+- **The worst path was in none of the classes I had defined.** It starts at a non-speculative flag: `nsf` → request → grant → column → row → `rv`. It is the loop with a longer start; `report_sched.tcl` now has the class `guard`.
+- **The report does not separate dispatch.** `u_disp` shows 4,825 LUTs and the rest of `u_sched` 531, but the wait cells alone need 1,296 and they are in `OOO_SCHED`: LUTs of `g_ent[14].rv[14]_i_22` and the like are named under `u_disp`, because synthesis rebuilds the hierarchy after flattening. So what 28.4 promised does not hold: only the sum is meaningful. Separating them needs a run with the hierarchy kept, which would not be the same netlist; nothing depends on it now, so I have not asked for one.
+
+#### What is still open
+- **The payload** (tags, ROB index, op fields, read by `rr_entry`) is not in the block: 1.1k LUTs remain of the budget of 6.5k. With one writer per bank it can be LUT RAM. Not designed yet, so that is an expectation.
+- **Sharing go with rename of 4**: here the slots come from registers, and `s1` at +0.233 already passes through go into `rv`. Whatever rename adds before go comes out of it. Loop 4's harness decides; a stage more costs 6.801 against 6.829.
+- **Loop 1 in the core**: 10 ns alone is not 10 ns in the chip (routes are 62 to 83 % of the paths, 28.1), hence the margin run and step 1.6.
+
+Loop 1 is within reach for gate S1-A; the other five are not measured as designed. Next is loop 2, bypass + ALU with the new sources.

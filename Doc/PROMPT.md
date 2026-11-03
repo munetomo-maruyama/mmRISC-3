@@ -5424,3 +5424,55 @@ Recorded in `Plan/OOC.md` 28.3 (with a Japanese version), pushed as 2c6bc0e.
 ```text
 Yes, redesign dispatch
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Dispatch is redesigned and pushed (3087363). **The model gives 6.829 CoreMark/MHz, −1.0 % against the proposal's 6.901.** It is −0.6 % against the last 6.870, but at the usual 0.94 of the model the RTL would give about 6.42, above gate S1-B's 6.3. Timing and size are to be confirmed by the next Vivado run.
+
+#### What changed
+Dispatch is now a module of its own, `OOO_SDISP`, so that the size can be read per block.
+
+| What was in one stage | Now |
+|---|---|
+| Occupied bits → free entries → go | The first free entry of each bank, chosen the cycle before, **in registers** |
+| Slots' decisions in sequence | A slot's bank does not depend on whether older slots go |
+| A mux of 4 slots at each entry | **A queue is 2 banks (even and odd entries), one write each**: no mux at the entry |
+| Tag compare through to `rv` in one stage | **S1:** up to the tag compare, then a register. **S2:** port select, wait cell, row, `rv` |
+
+#### CoreMark/MHz (model)
+| Step | `-O2` / most optimization / g13 |
+|---|---|
+| The last version | 6.870 / 7.378 / 6.644 |
+| Banks | 6.866 / 7.386 / 6.645 (no loss) |
+| **As built** (a freed entry reused a cycle later, the queue order from 2 cycles before) | **6.829 / 7.320 / 6.604** |
+| For reference: reuse 2 cycles later | 6.789 (why the grant stays in the free-entry path) |
+| For reference: queues of 10 | 6.862 (+0.5 % for 1.36 times the wait cells: not taken) |
+
+#### What changed from the last proposal
+- **The table by tag is dropped.** Worked out, with a way to tell stale entries it costs about what the tag compare does (288 compares), and it would bind the free list to banks.
+- **The tag-compare version is out of the RTL.** Its results stay in `output/OOC_SCHED_T10_MATRIX0`.
+
+#### Assumptions and what is not verified
+- **No stage is added, by assumption.** S1 runs alongside renaming's R2 and S2 is the existing DS. Whether rename of 4 can share go is for loop 4's harness; if not, a stage more gives 6.801.
+- **The size estimate is about 5k LUTs.** The last estimate was off by 2, so a direction only.
+
+#### Verification
+- **Tests:** steering, banks and free entries against the reference model, 3 seeds, no mismatch.
+- **Bug injection:** 93, all detected (M382 to M477, replacing the last list). The first round found 3 redundant conditions (removed), a flush with slots valid that the bench never drove (added) and 1 mutation that did not compile (fixed).
+
+#### Request
+Please run this on the Windows side; the results go to `output/OOC_SCHED_T10`.
+
+`synth_ooo.bat sched`
+
+What to read: 1) whether `loop` fits in 10 ns (its real value, out of dispatch's shadow); 2) the classes `s1`, `s2`, `ff`; 3) `u_disp` and the total LUTs (budget 6.5k with the payload).
+
+Recorded in `Plan/OOC.md` 28.4 (with a Japanese version); the RTL is `OOO_SDISP.sv` and `OOO_SCHED.sv`. The core still uses `OOO_IQ`.
+<!-- /answer -->
+
+## 140. 2026-11-03 13:28:04 JST
+
+```text
+Sched finished
+```

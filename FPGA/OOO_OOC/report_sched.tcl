@@ -6,6 +6,8 @@
 #   vivado -mode batch -source report_sched.tcl -tclargs output/OOC_SCHED_T10
 #
 #   loop   a request through its grant, to a request: the wakeup-select loop
+#   guard  what holds a request back (flags, write slots, ages, ns_ok ...), through
+#          the grant, to a request
 #   wake   a request into the wait cells
 #   free   a request into the next free entry
 #   s1     the slots' registers into S1's registers, and the entries' fields
@@ -24,6 +26,7 @@ proc sched_cells {pats} {
 proc sched_classes {fh outdir} {
     set inr {dv_reg* dk_reg* du_reg* ds_reg* dw_reg* dd_reg* dl_reg* dx_reg* db_reg* dn_reg* dm_reg* dt_reg*}
     set cls [list loop  {*u_sched/*rv_reg*}             {*u_sched/*rv_reg*} \
+                  guard {*u_sched/*nsf_reg* *u_sched/*mdf_reg* *u_sched/*l1q_reg* *u_sched/*l2f_reg* *u_sched/*l3f_reg* *u_sched/*l4f_reg* *u_sched/*wrq_reg* *u_sched/*aq_reg* *u_sched/*rs_reg* *u_sched/*rr_ns_reg* *u_sched/*rr_md_reg* nk_reg* mk_reg* qh_reg*} {*u_sched/*rv_reg*} \
                   wake  {*u_sched/*rv_reg*}             {*u_sched/*wq_reg*} \
                   free  {*u_sched/*rv_reg*}             {*u_disp/ff_reg* *u_disp/bf_reg*} \
                   s1    $inr                            {u_sched/*} \

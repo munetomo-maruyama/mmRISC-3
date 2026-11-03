@@ -1,0 +1,32 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Tue Nov  3 13:20:41 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_SCHED_T10/utilization_synth.rpt
+| Design       : OOC_SCHED
+| Device       : xc7a200tsbg484-1
+| Speed File   : -1
+| Design State : Synthesized
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++---------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
+|    Instance   |   Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++---------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
+| OOC_SCHED     |     (top) |       5343 |       5343 |       0 |    0 | 3139 |      0 |      0 |          0 |
+|   (OOC_SCHED) |     (top) |          0 |          0 |       0 |    0 |  318 |      0 |      0 |          0 |
+|   u_sched     | OOO_SCHED |       5343 |       5343 |       0 |    0 | 2821 |      0 |      0 |          0 |
+|     (u_sched) | OOO_SCHED |        531 |        531 |       0 |    0 | 2523 |      0 |      0 |          0 |
+|     u_disp    | OOO_SDISP |       4812 |       4812 |       0 |    0 |  298 |      0 |      0 |          0 |
++---------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
+
+

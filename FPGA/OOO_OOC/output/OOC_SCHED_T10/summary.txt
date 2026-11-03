@@ -1,0 +1,14 @@
+OOC_SCHED   (period 10.0 ns, I/O delay 3.0 ns each side on the ports)
+after synthesis: 5343 LUTs (5343 logic + 0 LUT RAM; 6247 LUT cells), 3139 FF, 0 DSP, 0 LUT RAM cells, 0.0 BRAM tiles
+after place and route: 5353 LUTs (5353 logic + 0 LUT RAM; 6246 LUT cells), WNS 0.056 ns, register to register 0.056 ns (9 logic levels)
+  loop  worst   0.208 ns ( 9 logic levels), from u_sched/g_ent[22].rv_reg[22]/C to u_sched/g_ent[14].rv_reg[14]/D
+  wake  worst   2.036 ns ( 5 logic levels), from u_sched/g_ent[13].rv_reg[13]/C to u_sched/g_row[25].g_col[15].wq_reg/R
+  free  worst   1.909 ns ( 9 logic levels), from u_sched/g_ent[4].rv_reg[4]/C to u_sched/u_disp/ff_reg[6]/D
+  s1    worst   0.233 ns ( 9 logic levels), from dk_reg[1][1]/C to u_sched/g_ent[34].rv_reg[34]/D
+  ff    worst   0.329 ns ( 9 logic levels), from u_sched/u_disp/rk_reg[0][0]/C to u_sched/g_ent[34].rv_reg[34]/D
+  s2    worst   1.032 ns ( 7 logic levels), from u_sched/u_disp/s2_reg[7][2]/C to u_sched/g_ent[35].rv_reg[35]/D
+  kill  worst   2.747 ns ( 4 logic levels), from ki_reg[2]/C to u_sched/g_ent[2].rv_reg[2]/D
+  issue worst   4.504 ns ( 4 logic levels), from u_sched/g_ent[25].gq_reg[25]/C to out_reg[49]/D
+instances (after place and route):
+    u_sched                OOO_SCHED              5353 LUTs (5353 logic + 0 LUT RAM), 2821 FF
+      u_disp               OOO_SDISP              4825 LUTs (4825 logic + 0 LUT RAM), 298 FF
