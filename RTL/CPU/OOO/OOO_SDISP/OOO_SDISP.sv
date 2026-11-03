@@ -28,7 +28,8 @@
 //   - a source's producer still pending: pw[j] && dq[j] == the source's tag.
 //     This compare replaces renaming's busy bits and the DS register's snoop.
 //   - a load: every older store not issued; a non-speculative µop: every older
-//     one still in its entry
+//     one still in its entry; a load the wait table marks (disp_wl): every older
+//     store's data µop not issued (Plan/OOC.md 28.13)
 //   - the same among the older slots of the group, at the entries they get
 // A column clearing in S1 was not seen in din: col_q takes it out in S2; one
 // clearing in S2 OOO_SCHED's cell takes out.
@@ -58,6 +59,8 @@ module OOO_SDISP
         input  logic [W-1:0][TAGW-1:0] disp_dst,
         input  logic [W-1:0]          disp_ns,
         input  logic [W-1:0]          disp_st,
+        input  logic [W-1:0]          disp_sd,
+        input  logic [W-1:0]          disp_wl,
         output logic [W-1:0]          disp_go,
         output logic [W-1:0][$clog2(NQ+1)-1:0] disp_q,
         output logic [W-1:0][$clog2(N > NM ? N : NM)-1:0] disp_e,
@@ -67,6 +70,7 @@ module OOO_SDISP
         input  logic [NQ*N+NM-1:0]    v,          // not issued yet
         input  logic [NQ*N+NM-1:0]    pw,         // a result pending
         input  logic [NQ*N+NM-1:0]    stq,        // a store
+        input  logic [NQ*N+NM-1:0]    sdq,        // a store's data
         input  logic [NQ*N+NM-1:0]    nsq,        // non-speculative
         input  logic [NQ*N+NM-1:0][TAGW-1:0] dq,  // its destination
         input  logic [NQ*N+NM-1:0]    col,        // its column clears now
@@ -108,7 +112,7 @@ module OOO_SDISP
         automatic logic [NQ:0] ua = '0;
         automatic logic [NQ:0] ub = '0;
         for (int k = 0; k < W; k++) begin
-            automatic int q = disp_kind[k] == 2'd2 ? NQ : disp_kind[k] == 2'd1 ? 0 : int'(rk[int'(nalu) % NQ]);
+            automatic int q = disp_kind[k] == 2'd2 ? NQ : disp_kind[k] == 2'd1 ? 0 : disp_kind[k] == 2'd3 ? NQ - 1 : int'(rk[int'(nalu) % NQ]);
             automatic logic ta = !ua[q] && bf[2*q];
             automatic logic tb = !ub[q] && !ta && bf[2*q+1];
             disp_q[k] = QW'(q);
@@ -184,6 +188,7 @@ module OOO_SDISP
                 for (int s = 0; s < 2; s++)
                     if (disp_use[k][s] && disp_wr[m] && disp_dst[m] == disp_src[k][s]) grp[k][m] = 1'b1;
                 if (disp_kind[k] == 2'd2 && !disp_st[k] && disp_st[m]) grp[k][m] = 1'b1;
+                if (disp_wl[k] && disp_sd[m]) grp[k][m] = 1'b1;
                 if (disp_ns[k] && disp_ns[m]) grp[k][m] = 1'b1;
             end
             for (int j = 0; j < NE; j++) begin
@@ -191,6 +196,7 @@ module OOO_SDISP
                 for (int s = 0; s < 2; s++)
                     if (disp_use[k][s] && pw[j] && dq[j] == disp_src[k][s]) b = 1'b1;
                 if (disp_kind[k] == 2'd2 && !disp_st[k] && v[j] && stq[j]) b = 1'b1;
+                if (disp_wl[k] && v[j] && sdq[j]) b = 1'b1;
                 if (disp_ns[k] && oc[j] && nsq[j]) b = 1'b1;
                 for (int m = 0; m < k; m++) if (grp[k][m] && bsel[b_of(j)][m] && ff[j]) b = 1'b1;
                 din[k][j] = b;

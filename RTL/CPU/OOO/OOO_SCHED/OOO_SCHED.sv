@@ -29,10 +29,15 @@
 // its column when it issues. A killed entry clears nothing: whoever waits for
 // it is younger, and dies with it.
 //
+// A store is 2 µops (Plan/OOC.md 28.13): the address in the memory queue, the data
+// in queue NQ-1 alone (disp_kind 3, disp_sd), as the SQ's data has one write; it
+// writes no register and clears its column at its issue. A load the wait table
+// marks (disp_wl) waits for the data µop of every older store too.
+//
 // Dispatch takes 2 cycles, S1 and S2 (OOO_SDISP). An entry's fields are written
 // at the end of S1, its row at the end of S2; it can ask from the cycle after.
 // The fields a queue cannot use are not there (localparams below); the slots
-// keep to them: queues 1 .. NQ-1 latency 1 or 2; queue 0 latency 1, 2, 3 or 4,
+// keep to them: queues 1 .. NQ-1 latency 1 or 2, queue NQ-1 a store's data too; queue 0 latency 1, 2, 3 or 4,
 // external, non-speculative, MDU; the memory queue a store (latency 1), a
 // load (3), external, non-speculative.
 //
@@ -72,7 +77,7 @@ module OOO_SCHED
 
         // dispatch (S1), in program order (0 the oldest), valid as a prefix
         input  logic [W-1:0]          disp_valid,
-        input  logic [W-1:0][1:0]     disp_kind,  // 0 any ALU queue, 1 queue 0 only, 2 the memory queue
+        input  logic [W-1:0][1:0]     disp_kind,  // 0 any ALU queue, 1 queue 0 only, 2 the memory queue, 3 queue NQ-1 only
         input  logic [W-1:0][1:0]     disp_use,   // the sources the µop waits for
         input  logic [W-1:0][1:0][TAGW-1:0] disp_src,
         input  logic [W-1:0]          disp_wr,    // it writes its destination
@@ -83,6 +88,8 @@ module OOO_SCHED
         input  logic [W-1:0]          disp_ns,    // non-speculative: only at the ROB head
         input  logic [W-1:0]          disp_md,    // an MDU µop (queue 0)
         input  logic [W-1:0]          disp_st,    // a store (memory queue): younger loads wait for its issue
+        input  logic [W-1:0]          disp_sd,    // a store's data (queue NQ-1)
+        input  logic [W-1:0]          disp_wl,    // a load: it waits for older stores' data too
         output logic [W-1:0]          disp_go,    // these go now
         output logic [W-1:0][$clog2(NQ+1)-1:0] disp_q,  // into this queue
         output logic [W-1:0][$clog2(N > NM ? N : NM)-1:0] disp_e,  // this entry of it
@@ -127,7 +134,7 @@ module OOO_SCHED
     logic [NE-1:0]           l2q;        // latency 2
     logic [NE-1:0]           l3q;        // latency 3
     logic [NE-1:0]           l4q;        // latency 4
-    logic [NE-1:0]           nsq, mdq, stq;
+    logic [NE-1:0]           nsq, mdq, stq, sdq;
     logic [NE-1:0][TAGW-1:0] dq;
     logic [NCK-1:0]          bq [NE];
     logic [NE-1:0]           sr0;        // the column clears now, by latency
@@ -156,18 +163,19 @@ module OOO_SCHED
         (.clk(clk), .rst_n(rst_n), .flush(flush),
          .disp_valid(disp_valid), .disp_kind(disp_kind), .disp_use(disp_use), .disp_src(disp_src),
          .disp_wr(disp_wr), .disp_dst(disp_dst), .disp_ns(disp_ns), .disp_st(disp_st),
+         .disp_sd(disp_sd), .disp_wl(disp_wl),
          .disp_go(disp_go), .disp_q(disp_q), .disp_e(disp_e),
-         .oc(oc), .v(v), .pw(pw), .stq(stq), .nsq(nsq), .dq(dq), .col(col),
+         .oc(oc), .v(v), .pw(pw), .stq(stq), .sdq(sdq), .nsq(nsq), .dq(dq), .col(col),
          .wa(wa), .bsel(bsel), .w2(w2), .pd(pd));
 
     // a bank's fields, from the slot it takes (one at most)
-    logic [NB-1:0]           f_wr, f_l1, f_l2, f_l3, f_l4, f_ns, f_md, f_st;
+    logic [NB-1:0]           f_wr, f_l1, f_l2, f_l3, f_l4, f_ns, f_md, f_st, f_sd;
     logic [TAGW-1:0]         f_dst [NB];
     logic [NCK-1:0]          f_bm  [NB];
     always @(*) begin
         for (int b = 0; b < NB; b++) begin
             f_wr[b] = 1'b0; f_l1[b] = 1'b0; f_l2[b] = 1'b0; f_l3[b] = 1'b0; f_l4[b] = 1'b0;
-            f_ns[b] = 1'b0; f_md[b] = 1'b0; f_st[b] = 1'b0;
+            f_ns[b] = 1'b0; f_md[b] = 1'b0; f_st[b] = 1'b0; f_sd[b] = 1'b0;
             f_dst[b] = '0; f_bm[b] = '0;
             for (int k = 0; k < W; k++) if (bsel[b][k]) begin
                 f_wr[b]  = f_wr[b] | disp_wr[k];
@@ -176,6 +184,7 @@ module OOO_SCHED
                 f_ns[b]  = f_ns[b] | disp_ns[k];
                 f_md[b]  = f_md[b] | disp_md[k];
                 f_st[b]  = f_st[b] | disp_st[k];
+                f_sd[b]  = f_sd[b] | disp_sd[k];
                 f_l1[b]  = f_l1[b] | (!disp_ext[k] && disp_lat[k] == 2'd0);
                 f_l2[b]  = f_l2[b] | (!disp_ext[k] && disp_lat[k] == 2'd1);
                 f_l3[b]  = f_l3[b] | (!disp_ext[k] && disp_lat[k] == 2'd2);
@@ -259,6 +268,13 @@ module OOO_SCHED
             assign stq[e] = stf;
         end else begin : g_nost
             assign stq[e] = 1'b0;
+        end
+        if (Q == NQ - 1) begin : g_sd
+            logic sdf;
+            always_ff @(posedge clk) if (wa[e]) sdf <= f_sd[B];
+            assign sdq[e] = sdf;
+        end else begin : g_nosd
+            assign sdq[e] = 1'b0;
         end
         if (H4) begin : g_l4
             logic l4f, mdf;

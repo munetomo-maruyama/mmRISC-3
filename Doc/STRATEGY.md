@@ -15,8 +15,8 @@
    **600 CoreMark per second**: 1.8 times the best 50 MHz design, 4.3 times mmRISC-2. Then BusyBox and Debian 13 from the
    microSD slot J3, Ethernet (RTL8211E), JTAG / cJTAG on Pmod JA.
 3. **The proposal**: 4 renamed, dispatched and committed a cycle, **4 issues (3 ALUs + LSU) from distributed schedulers**,
-   6 decoded from a 32-byte fetch, stores split, ROB 48, LQ / SQ 16, 12 checkpoints, TAGE M, in a pipeline about 4 stages
-   longer: **6.90 in the model, about 6.5 in RTL, 650 CoreMark/s**, about 98k LUTs (73 %).
+   6 decoded from a 32-byte fetch, stores split in 2 µops, ROB 48, LQ / SQ 16, 12 checkpoints, TAGE M, in a pipeline about 4 stages
+   longer: **6.73 in the model as built so far, about 6.3 in RTL, 632 CoreMark/s** (6.90, 6.5, 650 before the blocks were built), about 98k LUTs (73 %).
 4. **Six loops decide it** (section 4.5), and **they are measured first**. Today's blocks at a 10 ns target are done (step
    1.0: nothing refutes 100 MHz, nothing proves it); the new loops alone are next. If they fail, the CPU's clock comes down without changing the design: the fallback is 75 to 90 MHz, still
    ahead of 50 MHz.
@@ -40,7 +40,8 @@ In `g14 -O2`, the build the goal is measured on (`Plan/model/g100.sh`, `results/
 | 3-wide, 4 issues | 100 | 5.85 | 5.5 | 550 |
 | 4-wide, 4 issues, 16-byte fetch | 100 | 6.25 | 5.9 | 587 |
 | 4-wide, 4 issues, stores split | 100 | 6.48 | 6.1 | 609 |
-| **4-wide, 4 issues, stores split, 32-byte fetch, 6 decoded: the proposal** | **100** | **6.90** | **6.5** | **649** |
+| 4-wide, 4 issues, stores split, 32-byte fetch, 6 decoded: the proposal, its loops ideal | 100 | 6.90 | 6.5 | 649 |
+| **The same as built so far: `OOO_SCHED`, `OOO_EXU`, `OOO_UBTB2`, stores in 2 µops** (`Plan/OOC.md` 28.14) | **100** | **6.73** | **6.3** | **632** |
 | + a second LSU port (5 issues) | 100 | 7.17 | 6.7 | 674 |
 | + a fourth ALU too (6 issues) | 100 | 7.32 | 6.9 | 688 |
 
@@ -107,10 +108,10 @@ nothing asked for less: **they were all measured at a 20 ns target**, so they ar
 | Branch | compare and act in EX + 1 | compare in EX, **misprediction in EX + 1, restore in EX + 2** | Redirect 6 |
 | Load-use | 2 | **3**: E, M1 (block RAM), M2 (tags, way, forward, align) | 4 costs −7.9 %, hence the effort |
 | Multiply | 2 | **4, pipelined in DSP48** | Through CORE_MDU it would cost −5 % |
-| Stores | one µop, with data | **split**: the address issues on its own, the data joins in the SQ. **Proposed 2026-11-03, for the author to decide: the data a µop on queue 2, with a wait table of 64 bits** | The +3.8 % assumed no replays: with them 5.767. **As proposed 6.726, −2.4 %; not split 6.320** (`Plan/OOC.md` 28.13) |
+| Stores | one µop, with data | **2 µops**: the address in the memory queue, the data on queue 2 alone, into the SQ; **a wait table of 64 bits** for the loads that found no data (decided 2026-11-03) | The earlier +3.8 % assumed no replays: with them 5.767. **6.726, −2.4 %; not split 6.320** (`Plan/OOC.md` 28.13, 28.14) |
 | ROB / LQ, SQ / checkpoints | 24 / 8 / 6 | **48 / 16 / 12**, registers **80** | 32 / 12 / 8 costs −7.4 % |
 | Register file | 3 writes, 6 reads | **4 writes, 8 reads**, 2 stages (`OOO_PRF2`) | LVT apart from the data read |
-| Predictor | TAGE S, uBTB 8 | **TAGE M, uBTB 96**: 32 sets of 3 in LUT RAM (`OOO_UBTB2`) | 6.889, +1.0 % against 16 in one set; the block reaches about 8.9 ns alone (`Plan/OOC.md` 28.12). uBTB 8 costs −3.5 %, with more stages to an override |
+| Predictor | TAGE S, uBTB 8 | **TAGE M, uBTB 96**: 32 sets of 3 in LUT RAM (`OOO_UBTB2`) | +1.0 % against 16 in one set (6.889 before the stores); the block reaches about 8.9 ns alone (`Plan/OOC.md` 28.12). uBTB 8 costs −3.5 %, with more stages to an override |
 | Fusion | off | **off**; out of the paths (`FUSE_AB`) | |
 
 ### 4.3 The pipeline
@@ -161,7 +162,7 @@ LiteX stays at its default 100 MHz, the **same clock as the CPU**, so there is n
 |---|---|---|---|---|---|
 | 1 | **Wakeup + select** (IS) | 1 cycle, queue of 8 | ALU 2 cycles | **−20 %**: 5.51, a redesign | **+0.056 ns, the new design alone, without the payload, 5,353 LUTs** (`Plan/OOC.md` 28.5); **as built, 9.3 and 9.6 ns on 2 placements of one netlist; `loop` itself 8.7 and 9.1** (28.10). Today's block: −1.95 ns, 10 entries, 3 ports |
 | 2 | **Bypass + ALU** (EX) | 1 cycle | ALU 2 cycles | **−20 %** | Today's: −0.66 ns full; +2.34 ns ALU1's functions. **The new design, with the register file: about 9.2 ns asked for 9, 12,472 LUTs, model 6.823** (`Plan/OOC.md` 28.9). Alone: the core will add |
-| 3 | **M1 + M2** (load) | Load-use 3 | Load-use 4, 5 | −7.9 %, −15 % | Today's: −2.66 ns in one stage. The new design, `OOO_LSU2`, built, its run awaited (`Plan/OOC.md` 28.13) |
+| 3 | **M1 + M2** (load) | Load-use 3 | Load-use 4, 5 | −7.9 %, −15 % | Today's: −2.66 ns in one stage. **The new design, `OOO_LSU2`: about 8.1 ns asked for 9, 2,053 LUTs without the miss logic** (`Plan/OOC.md` 28.14). Alone |
 | 4 | **Rename of 4** (R1, R2) | 2 stages | 3 stages | about −1 % | +1.04 ns at 2 µops, in one stage |
 | 5 | **Fetch buffer's boundaries** (D1) | 1 stage | 2 stages | about −1 % | −3.31 ns |
 | 6 | **uBTB** (F0), added by the measurement | 96 entries, no bubble | A bubble on each taken branch; or fewer entries | **−6.8 %**; 8 entries −3.5 %, 4 entries −7.3 % | Today's: −2.04 ns at 8 entries. **The new design, 96 entries: about 8.9 ns asked for 9, 378 LUTs, model 6.889** (`Plan/OOC.md` 28.12). Alone: joining it to fetch is step 1.4 |
@@ -177,11 +178,11 @@ as much as a load-use of 4.
 
 **The ladder if 100 MHz does not close**, none of it changes the pipeline:
 
-| Whole core closes at | RTL 6.5 /MHz gives | Against the 50 MHz design (337) |
+| Whole core closes at | RTL 6.3 /MHz gives | Against the 50 MHz design (337) |
 |---|---|---|
-| 100 MHz | 650 CoreMark/s | 1.9 times |
-| 90 MHz | 585 | 1.7 |
-| 75 MHz | 488 | 1.4 |
+| 100 MHz | 632 CoreMark/s | 1.9 times |
+| 90 MHz | 569 | 1.7 |
+| 75 MHz | 474 | 1.4 |
 
 The lower the clock, the less this deep pipeline pays against the 3-wide 50 MHz design, which has the higher CoreMark/MHz
 and far less work, so the go / no-go is at gate S1-A.
@@ -195,8 +196,8 @@ and far less work, so the go / no-go is at gate S1-A.
 | # | Work | Done when |
 |---|---|---|
 | 1.0 | **Done 2026-11-02**: `synth_ooo.bat t100`: today's blocks at a 10 ns target, on the XC7A200T (`Plan/OOC.md` 28.1) | The real distance from 10 ns |
-| 1.1 | Harnesses of the new loops alone, in this order: a queue of 8 with its wakeups (`OOC_SCHED`, `synth_ooo.bat sched`, **meets 10 ns alone, 2026-11-03**), bypass + ALU with the new sources (`OOC_EXU`, `synth_ooo.bat exu`, **about 9.2 ns asked for 9, 2026-11-03**), a uBTB (`OOC_UBTB2`, `synth_ooo.bat ubtb`, **about 8.9 ns asked for 9, 2026-11-03**), M1 / M2 with block RAM (`OOC_LSU2`, `synth_ooo.bat lsu2`, built 2026-11-03), rename of 4, the fetch buffer split | **Gate S1-A**: all six within reach at 10 ns; the configuration frozen; **go, or fall back to 75 MHz, or to 50 MHz and 3-wide** |
-| 1.2 | The model with the queue, the D1 boundary, the split store as they will be built | Model ≥ 6.8 |
+| 1.1 | Harnesses of the new loops alone, in this order: a queue of 8 with its wakeups (`OOC_SCHED`, `synth_ooo.bat sched`, **meets 10 ns alone, 2026-11-03**), bypass + ALU with the new sources (`OOC_EXU`, `synth_ooo.bat exu`, **about 9.2 ns asked for 9, 2026-11-03**), a uBTB (`OOC_UBTB2`, `synth_ooo.bat ubtb`, **about 8.9 ns asked for 9, 2026-11-03**), M1 / M2 with block RAM (`OOC_LSU2`, `synth_ooo.bat lsu2`, **about 8.1 ns asked for 9, 2026-11-03**), rename of 4, the fetch buffer split | **Gate S1-A**: all six within reach at 10 ns; the configuration frozen; **go, or fall back to 75 MHz, or to 50 MHz and 3-wide** |
+| 1.2 | The model with the queue, the D1 boundary, the split store as they will be built | Model ≥ 6.8 (6.73 with the stores as decided: the author's to change, `Plan/OOC.md` 28.14) |
 | 1.3 | The new pipeline at W = 2 first: stages added, no new function, the tests' references updated | Lock-step; cycles against the model |
 | 1.4 | Distributed schedulers; the decoded queue; 32-byte fetch, 6 decoded | Tests; cycles against the model |
 | 1.5 | The width as a parameter, then W = 4; 3 ALUs; register file; ROB, LQ / SQ, checkpoints | Tests at both widths |
@@ -268,7 +269,7 @@ boundaries get their own directed tests; the board's checks in step 2 run on mmR
 | **Loops 1 or 2 do not make 10 ns** | −20 %, or a lower clock | Measured first (1.0, 1.1); the ladder |
 | **The whole chip does not close at 100 MHz** though each block does | A lower clock | 73 % utilisation is high for the clock; floorplanning; the ladder, with no pipeline change |
 | **The rework is close to a new core** | Much time: every stage, block and test changes; the findings of `Plan/CORE.md` 5 carry over, the RTL only partly | Staged (1.3 to 1.5), lock-step throughout; the 2-wide core stays in git as a working base |
-| The RTL falls further behind the model | Margin lost: 6.0 needs × 0.87 of 6.90 | Cycle comparison by function; a second LSU port in reserve |
+| The RTL falls further behind the model | Margin lost: 6.0 needs × 0.89 of 6.73 | Cycle comparison by function; a second LSU port in reserve |
 | Half-rate boundaries hide bugs | Failures under Linux | Directed tests; lock-step sees them |
 | L1 repipelined: mmRISC-2's verified caches change | New bugs in the hit path | Their tests kept; bug injection |
 | A longer build | Slower iteration | Out-of-context runs of the loops; Vivado runs under x86 emulation here |

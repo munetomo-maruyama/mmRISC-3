@@ -7,7 +7,7 @@
 #   e_ram  E: the operand, EX's mux, the adder, into the arrays' address
 #   e_m1   E: the same into M1's registers (the older stores, the mask)
 #   dat    M1: the arrays' data, aligned in each way
-#   tag    M1: the arrays' tags into a register
+#   tag    M2: the tags, from the RAM's own output register, compared, the way, the result
 #   tlb    M1: the DTLB
 #   cam    M1: the search of the SQ
 #   hit    M2: the tags compared, the way chosen, the result: the deciding one
@@ -32,7 +32,7 @@ proc lsu2_classes {fh outdir} {
         e_ram $e RAM \
         e_m1  $e {*u_lsu/m1_*} \
         dat   RAM {*u_lsu/m2_w_reg*} \
-        tag   RAM {*u_lsu/m2_t_reg*} \
+        tag   RAM $res \
         tlb   {*u_lsu/m1_a_reg*} {*u_lsu/m2_pt_reg* *u_lsu/m2_thit_reg* *u_lsu/m2_perm_reg*} \
         cam   {*u_lsu/m1_wa_reg* *u_lsu/m1_lmask_reg* *u_lsu/m1_older_reg* *u_lsu/m1_below_reg* *u_lsu/swa_reg* *u_lsu/smask_reg*} {*u_lsu/m2_fi_reg* *u_lsu/m2_any_reg*} \
         hit   {*u_lsu/m2_pt_reg* *u_lsu/m2_t_reg* *u_lsu/m2_any_reg*} $res \

@@ -461,7 +461,7 @@ M = [
     ('M442', 'OOO_SDISP/OOO_SDISP.sv', 'sched', "if (ta) ua[q] = 1'b1;", '', 'bank A not marked'),
     ('M443', 'OOO_SDISP/OOO_SDISP.sv', 'sched', "if (tb) ub[q] = 1'b1;", '', 'bank B not marked'),
     ('M444', 'OOO_SDISP/OOO_SDISP.sv', 'sched', "if (disp_kind[k] == 2'd0) nalu = nalu + 2'd1;", '', 'all any-ALU µops of a group to one queue'),
-    ('M445', 'OOO_SDISP/OOO_SDISP.sv', 'sched', "disp_kind[k] == 2'd1 ? 0 : int'(rk[int'(nalu) % NQ]);", "disp_kind[k] == 2'd1 ? 1 : int'(rk[int'(nalu) % NQ]);", 'a queue-0 µop elsewhere'),
+    ('M445', 'OOO_SDISP/OOO_SDISP.sv', 'sched', "disp_kind[k] == 2'd1 ? 0 : disp_kind[k] == 2'd3 ? NQ - 1 : int'(rk[int'(nalu) % NQ]);", "disp_kind[k] == 2'd1 ? 1 : disp_kind[k] == 2'd3 ? NQ - 1 : int'(rk[int'(nalu) % NQ]);", 'a queue-0 µop elsewhere'),
     ('M446', 'OOO_SDISP/OOO_SDISP.sv', 'sched', "if (cn[int'(o[b])] < cn[int'(o[b-1])]) begin", "if (cn[int'(o[b])] > cn[int'(o[b-1])]) begin", 'the fullest queue first'),
     ('M447', 'OOO_SDISP/OOO_SDISP.sv', 'sched', 'ok = ok && disp_valid[k] && room[k];', 'ok = disp_valid[k] && room[k];', 'a younger slot passes one that waits'),
     ('M448', 'OOO_SDISP/OOO_SDISP.sv', 'sched', 'automatic logic ok = !flush;', "automatic logic ok = 1'b1;", 'dispatch through a flush'),
@@ -707,6 +707,13 @@ M = [
     ('M703', 'OOO_DCH/OOO_DCH.sv', 'lsu2', "if (dw_en && int'(dw_way) == w && dw_strb[b])", "if (dw_en && int'(dw_way) == w)", 'byte enables ignored'),
     ('M704', 'OOO_DCH/OOO_DCH.sv', 'lsu2', "if (tw_en && int'(tw_way) == w) tlb[tw_set] <= tw_tag;", "if (tw_en && int'(tw_way) == 0) tlb[tw_set] <= tw_tag;", "the stores' tags not written"),
     ('M706', 'OOO_LSU2/OOO_LSU2.sv', 'lsu2', "d_hit[w] = s_t[w][TW] && s_t[w][TW-1:0] == d1_tag;", "d_hit[w] = s_t[w][TW-1:0] == d1_tag;", 'a store hits a line invalid'),
+    ('M710', 'OOO_SDISP/OOO_SDISP.sv', 'sched', "if (disp_wl[k] && v[j] && sdq[j]) b = 1'b1;", '', 'a marked load passes older data µops'),
+    ('M711', 'OOO_SDISP/OOO_SDISP.sv', 'sched', "if (disp_wl[k] && v[j] && sdq[j]) b = 1'b1;", "if (v[j] && sdq[j]) b = 1'b1;", 'everything waits for data µops'),
+    ('M712', 'OOO_SDISP/OOO_SDISP.sv', 'sched', "if (disp_wl[k] && v[j] && sdq[j]) b = 1'b1;", "if (disp_wl[k] && sdq[j]) b = 1'b1;", 'a marked load waits for data µops gone'),
+    ('M713', 'OOO_SDISP/OOO_SDISP.sv', 'sched', "if (disp_wl[k] && disp_sd[m]) grp[k][m] = 1'b1;", '', 'a marked load passes data µops of its group'),
+    ('M714', 'OOO_SDISP/OOO_SDISP.sv', 'sched', "disp_kind[k] == 2'd3 ? NQ - 1 : int'(rk", "disp_kind[k] == 2'd3 ? NQ - 2 : int'(rk", 'data µops in the wrong queue'),
+    ('M715', 'OOO_SCHED/OOO_SCHED.sv', 'sched', "if (Q == NQ - 1) begin : g_sd", "if (Q == NQ - 2) begin : g_sd", 'the field is in the wrong queue'),
+    ('M716', 'OOO_SCHED/OOO_SCHED.sv', 'sched', "f_sd[b]  = f_sd[b] | disp_sd[k];", "f_sd[b]  = f_sd[b] | disp_st[k];", 'the field takes the wrong bit'),
 ]
 
 

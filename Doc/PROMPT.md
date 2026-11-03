@@ -5793,3 +5793,73 @@ The record is section 28.12 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`); `Doc/ST
 ```text
 Yes, loop 3
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I built loop 3 as a new design, `OOO_LSU2`, and pushed it (df5dae9). Timing is not measured yet. **While building it I found the model about 2.4 % optimistic. You need to decide how stores go.**
+
+#### The model's error: what splitting stores assumed
+The proposal's split stores (+3.8 %) assumed that a load finding a store without its data just waits for the data.
+
+But `OOO_SCHED` wakes dependents at a fixed time, with no cancel, so that load can only replay at its commit. In CoreMark this happens about once in 270 instructions.
+
+| A store's data | `-O2` | most optimization | g13 | rv64gc |
+|---|---|---|---|---|
+| Model so far (no replays) | 6.889 | 7.416 | 6.650 | 5.917 |
+| The same with replays | **5.767** | 6.199 | 5.614 | 4.984 |
+| Not split | 6.320 | 6.903 | 6.129 | 5.568 |
+| A µop, replays, no wait table | 5.588 | 6.041 | 5.435 | 4.939 |
+| **Proposed: the data a µop on queue 2, a wait table of 64 bits** | **6.726** | **7.234** | **6.484** | **5.797** |
+
+- **What is in it:** the data as a µop costs −1.5 %, the wait table −0.6 %, queue 2 alone −0.2 %.
+- **The wait table:** a load that replayed waits for older stores' data from then on. As in the Alpha 21264. Replays go from about 11,000 to 11. 64 bits take one LUT.
+- **Against the targets:** RTL about 6.32 at × 0.94. Just over the gate's 6.3, under step 1.2's "model ≥ 6.8".
+- **Work left:** stores cracked in 2 µops, `OOO_SDISP` changed. Loop 1 needs another run, and the way from queue 2 to the SQ is to come.
+
+Given the aim of keeping CoreMark/MHz, I recommend this.
+
+#### What I built
+RR2, E, M1, M2, M3, load-use 3 cycles, D$ still 16 KB.
+
+- **Alignment in M1:** in each way, before the way is known. M2 is a tag compare and a 5-input AND-OR, 4 ways + SQ.
+- **SQ:** searched in M1 by the page offset alone, the physical tag checked in M2. Its data in LUT RAM, 88 LUTs by estimate in place of 1,024 FF.
+- **No waiting for the hit:** `ld_nv` goes out whatever the hit.
+- **Tries:** through RR2 in free cycles, so no mux in E and no fill path.
+- **Drain:** a pipeline of its own on the second copy of the tags, so loads and stores never wait for each other.
+- **DTLB:** 32 sets of 2 ways in LUT RAM, 2 compares.
+
+#### Verification
+- **Bench `tb_lsu2`:** 600,000 cycles each physical and translated, every load's value against program order, no mismatch.
+- **Design faults it found:**
+  - A try dropped by a recovery cleared its wait, and the load was lost.
+  - Tries by number starved a store.
+- **Bug injection:** M650 to M706, all 48 detected, every line read. Those missed along the way were handled by closing a bench gap, removing unneeded logic from the RTL, or dropping those that change only the time.
+- **Lint:** `-Wall` clean on the block's and harness's lines.
+
+#### Not confirmed
+- **`done_id`:** trying the µop just answered first is not proved. Without it the bench stopped once, but I could not reproduce that on purpose, so it has no mutation. It stays as a guard against a livelock.
+- **Not in the harness:**
+  - the miss handler (ports only)
+  - what is not cacheable, AMO, LR, SC
+  - the victim's read
+  - PMP with translation off
+  - the fan-out of the result registers' other sinks
+
+#### Request
+Whatever you decide on stores, please run the following on Windows. The load path is the same either way. Results go to `output/OOC_LSU2_T9`.
+
+```bash
+synth_ooo.bat lsu2
+```
+
+To read: `e_ram`, `dat`, `cam`, `hit`, `fwd`, then the rest and the total LUTs. Today's `OOC_LSUDC` was −2.66 ns in one stage, 7,989 LUTs with the miss logic.
+
+The record is section 28.13 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`), the model's table `g100.txt`. `Doc/STRATEGY.md` 4.2 (and Japanese) marks stores as awaiting the author.
+<!-- /answer -->
+
+## 149. 2026-11-03 22:17:57 JST
+
+```text
+tsu2 [lsu2] has finished. I accept the store proposal.
+```

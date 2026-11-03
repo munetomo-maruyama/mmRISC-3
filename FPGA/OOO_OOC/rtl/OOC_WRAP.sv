@@ -1225,13 +1225,15 @@ module OOC_SCHED
         input  logic [3:0]        disp_ns,
         input  logic [3:0]        disp_md,
         input  logic [3:0]        disp_st,
+        input  logic [3:0]        disp_sd,
+        input  logic [3:0]        disp_wl,
         input  logic [1:0]        ext_valid,
         input  logic [1:0][5:0]   ext_entry,
         output logic [97:0]       out
     );
     logic              fl, nk, mk, qh;
     logic [11:0]       ki, cl;
-    logic [3:0]        dv, dw, dx, dn, dm, dt, go;
+    logic [3:0]        dv, dw, dx, dn, dm, dt, dsd, dwl, go;
     logic [3:0][1:0]   dk, du, dl, dq;
     logic [3:0][1:0][6:0] ds;
     logic [3:0][6:0]   dd;
@@ -1245,14 +1247,14 @@ module OOC_SCHED
     always_ff @(posedge clk) begin
         fl <= flush; ki <= kill; cl <= clr; nk <= ns_ok; mk <= mdu_ok; qh <= q0_hold;
         dv <= disp_valid; dk <= disp_kind; du <= disp_use; ds <= disp_src; dw <= disp_wr; dd <= disp_dst;
-        dl <= disp_lat; dx <= disp_ext; db <= disp_bm; dn <= disp_ns; dm <= disp_md; dt <= disp_st;
+        dl <= disp_lat; dx <= disp_ext; db <= disp_bm; dn <= disp_ns; dm <= disp_md; dt <= disp_st; dsd <= disp_sd; dwl <= disp_wl;
         xv <= ext_valid; xe <= ext_entry;
         out <= {go, dq, de, rv, re, rb, rn, rm};
     end
     OOO_SCHED u_sched
         (.clk(clk), .rst_n(rst_n), .flush(fl), .kill(ki), .clr(cl), .ns_ok(nk), .mdu_ok(mk), .q0_hold(qh),
          .disp_valid(dv), .disp_kind(dk), .disp_use(du), .disp_src(ds), .disp_wr(dw), .disp_dst(dd),
-         .disp_lat(dl), .disp_ext(dx), .disp_bm(db), .disp_ns(dn), .disp_md(dm), .disp_st(dt),
+         .disp_lat(dl), .disp_ext(dx), .disp_bm(db), .disp_ns(dn), .disp_md(dm), .disp_st(dt), .disp_sd(dsd), .disp_wl(dwl),
          .disp_go(go), .disp_q(dq), .disp_e(de), .ext_valid(xv), .ext_entry(xe),
          .rr_valid(rv), .rr_entry(re), .rr_bm(rb), .rr_ns(rn), .rr_md(rm));
 endmodule : OOC_SCHED

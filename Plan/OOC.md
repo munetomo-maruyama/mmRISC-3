@@ -3367,3 +3367,39 @@ Levels expected, by counting. E: mux 2, adder, RAM's setup. M1: RAM, 3 for a way
 - **Not proved: `done_id`**. Without the first try the bench hung once (5,000 cycles without a commit), and has not since, with the thrash phase aimed at it. So it stays as a guard against a livelock that I could not make come on demand, with no mutation.
 
 What to read: `e_ram`, `dat`, `cam`, `hit`, `fwd`, then the rest, and the total. Levers if short: `DO_REG` is no use (a cycle); the sign and the upper half after M2's AND-OR; the DTLB's `tr_on` mux; an SQ of 12.
+
+### 28.14 `OOC_LSU2` about 8.1 ns, 2,053 LUTs; stores decided; the data µop in `OOO_SCHED` (2026-11-03)
+
+`synth_ooo.bat lsu2`, the RTL of 28.13, asked for 9 ns, in `output/OOC_LSU2_T9`. **WNS +0.898 ns, register to register: loop 3 fits, by the widest margin of the loops so far.**
+
+| Class | Slack at 9 ns | Reached | Levels |
+|---|---|---|---|
+| **The tags to the result**, RAM's output register, compare, way, AND-OR | **+0.898** | **8.10 ns** | 7 |
+| `hit`: the physical tag to the result | +1.344 | 7.66 ns | 7 |
+| `cam`: the search of the SQ | +1.363 | 7.64 ns | 6 |
+| `fwd`: the SQ's data to the result | +1.513 | 7.49 ns | 5 |
+| `drain` | +1.673 | 7.33 ns | 6 |
+| `try` | +2.007 | 6.99 ns | 6 |
+| `tlb` | +2.094 | 6.91 ns | 5 |
+| `e_ram`: EX's mux, the adder, the arrays' address | +2.124 | 6.88 ns | 5 |
+| `dat`: the data's clock to out, a way's alignment | +2.513 | 6.49 ns | 3 |
+| `ok` | +2.517 | 6.48 ns | 7 |
+| `e_m1` | +2.707 | 6.29 ns | 6 |
+| `m3` | +2.888 | 6.11 ns | 6 |
+| `way`: a way's word to the result | +5.242 | 3.76 ns | 2 |
+
+Size: 2,053 LUTs (1,778 logic, 248 LUT RAM, 27 shift registers), 1,335 FF in the block and 1,346 of the harness, 4 RAMB36 + 8 RAMB18. Today's `OOC_LSUDC`, −2.657 ns at 10, is 7,989 LUTs, but with all of the miss logic (5,460 in `DCACHE`), which this does not have; its `OOO_LSU` alone, 8 and 8 entries, is 2,242.
+
+What it says:
+- **Levels as counted**: 7 at M2 against 6 expected, 6 in the search against 7, 5 in E.
+- **The class `tag` said "no cells"**: Vivado moved `m2_t` into the block RAM's own output register, so the tags' first LUT starts about 1.2 ns after the clock. It is what the design wants, with the same cycles. `report_lsu2.tcl` now reads `tag` from the RAM to the result.
+- **It stopped once met**, so 8.1 ns is a ceiling. 70 % of the worst path is route, 1.9 ns of it the first way's hit, fan-out 26. No run at a tighter period is needed: the block is well inside about 9.3 ns.
+- **What this does not have will cost, how much is not known**: the miss handler, what is not cacheable, the other sinks of EX's mux and of `ld_d`, `sd_data` straight from EX's mux. None of them is in M2's compare; they load its neighbours.
+
+**The author accepts the stores of 28.13 (2026-11-03): the data a µop on queue 2, a wait table of 64 bits. The model is 6.726 / 7.234 / 6.484 / 5.797, RTL about 6.32, 632 CoreMark/s.** It leaves 0.02 over gate S1-B's 6.3, and step 1.2's "model ≥ 6.8" is no longer met; its figure is the author's to change (`Doc/STRATEGY.md` 5).
+
+**In `OOO_SCHED`, `OOO_SDISP`**: `disp_kind` 3, queue 2 alone; `disp_sd`, a field in that queue's 8 entries; `disp_wl`: a marked load's row takes the data µops not issued, with the same term as older stores' (and one for those of its group). Nothing new in the loop: the row's cells are there, a data µop clears its column at its issue as a store does. The new terms are in dispatch's S1, the limit of `OOC_SCHED` (28.10), so **it has to be measured again**: `synth_ooo.bat sched85`, to compare with 9.31 ns (spread 0.26 ns). `OOC_SCHED` has the 2 new inputs.
+
+Not built yet: the crack in decode and renaming, the table itself (a RAM of 64 × 1, trained by `wt_*` through the ROB's pc), the way from queue 2's operand to `sd_*`. They come with steps 1.3 and 1.4; only the crack bears on loop 4, which comes next.
+
+**Verification.** `tb_sched`: as before, with data µops and marked loads in the account: 443,860 issued, 28,355 data µops, a marked load held by one 20,545 times, no mismatch. Bug injection: all of `OOO_SCHED`, `OOO_SDISP`, with M710 to M716 new: **102 of 102 detected**, every line read (M445's text had moved, and was run again). -Wall clean on the blocks and harness.

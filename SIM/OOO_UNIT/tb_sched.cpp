@@ -10,7 +10,8 @@
 // has passed, not issued, with all its sources usable and none of the rules below against
 // it must be the one issued, and the only one: rr_* shows it the next cycle.
 //   - a load waits for every older store to have issued, a non-speculative
-//     µop for every older one to have left its entry, in any queue
+//     µop for every older one to have left its entry, in any queue; a marked
+//     load for every older store's data µop (on queue 2 alone) to have issued
 //   - a non-speculative µop needs ns_ok, and no non-speculative issue in the
 //     cycle before; an MDU µop the same with mdu_ok
 //   - a queue has one write port: a writer of latency L does not issue if a
@@ -51,7 +52,7 @@ static const long NEVER = 1L << 60;
 
 struct Uop {
     long id, disp, issued = -1, clr_at = NEVER;
-    int q, e, kind, use[2], src[2], wr, dst, lat, ext, ns, md, st;
+    int q, e, kind, use[2], src[2], wr, dst, lat, ext, ns, md, st, sd, wl;
     unsigned bm;
     long ext_at = NEVER;
 };
@@ -76,7 +77,7 @@ int main(int argc, char** argv)
     std::vector<long> wslot[NQ];            // the write slots taken, by queue
     int exp_v[4] = {0, 0, 0, 0}, exp_e[4] = {0, 0, 0, 0}; unsigned exp_bm[4] = {0, 0, 0, 0};
     int exp_ns = 0, exp_md = 0;
-    long next_id = 0, bad = 0, nissued = 0, nb2b = 0, ncross = 0, nkilled = 0, nflush = 0, nstall = 0, ndisp = 0;
+    long next_id = 0, bad = 0, nissued = 0, nb2b = 0, ncross = 0, nkilled = 0, nflush = 0, nstall = 0, ndisp = 0, nwl = 0, nsd = 0;
     long nlat[5] = {0, 0, 0, 0, 0}, nload_w = 0, nns = 0, nmd = 0, ngrp[5] = {0, 0, 0, 0, 0};
     int rate = 4;
 
@@ -145,9 +146,10 @@ int main(int argc, char** argv)
         for (int k = 0; k < nd; k++) {
             Uop x{};
             int r = rng() % 16;
-            x.kind = r < 9 ? 0 : r < 11 ? 1 : 2;
+            x.kind = r < 8 ? 0 : r < 9 ? 3 : r < 11 ? 1 : 2;
             x.wr = 1; x.lat = 1;
-            if (x.kind == 0) { if (rng() % 8 == 0) x.lat = 2; if (rng() % 6 == 0) { x.wr = 0; x.lat = 1; } }
+            if (x.kind == 3) { x.sd = 1; x.wr = 0; }
+            else if (x.kind == 0) { if (rng() % 8 == 0) x.lat = 2; if (rng() % 6 == 0) { x.wr = 0; x.lat = 1; } }
             else if (x.kind == 1) {
                 int c = rng() % 10;
                 if (c < 2) x.lat = 2;
@@ -157,7 +159,7 @@ int main(int argc, char** argv)
                 else if (c < 8) { x.ns = 1; if (rng() % 2) x.ext = 1; }
             } else {
                 int c = rng() % 10;
-                if (c < 6) x.lat = 3;
+                if (c < 6) { x.lat = 3; x.wl = rng() % 3 == 0; }
                 else if (c < 9) { x.st = 1; x.wr = 0; }
                 else { x.ns = 1; x.ext = 1; }
             }
@@ -174,7 +176,7 @@ int main(int argc, char** argv)
             // sources: an older µop that writes, or a value done
             for (int s = 0; s < 2; s++) {
                 x.use[s] = rng() % 4 != 0;
-                if (x.st && s == 1) x.use[s] = 0;      // the data joins in the SQ
+                if ((x.st || x.sd) && s == 1) x.use[s] = 0;      // one source each
                 x.src[s] = rng() % NT;
                 if (x.use[s]) {
                     std::vector<int> cand;
@@ -203,7 +205,7 @@ int main(int argc, char** argv)
         }
         // the inputs
         {
-            unsigned dv = 0, dk = 0, du = 0, dw = 0, dd = 0, dl = 0, dx = 0, dn = 0, dm = 0, dt = 0;
+            unsigned dv = 0, dk = 0, du = 0, dw = 0, dd = 0, dl = 0, dx = 0, dn = 0, dm = 0, dt = 0, dsd = 0, dwl = 0;
             uint64_t ds = 0, db = 0;
             for (size_t k = 0; k < g.size(); k++) {
                 Uop& x = g[k];
@@ -217,9 +219,10 @@ int main(int argc, char** argv)
                 dl |= (unsigned)(x.ext ? rng() % 4 : x.lat - 1) << (2 * k); dx |= (unsigned)x.ext << k;
                 db |= (uint64_t)x.bm << (12 * k);
                 dn |= (unsigned)x.ns << k; dm |= (unsigned)x.md << k; dt |= (unsigned)x.st << k;
+                dsd |= (unsigned)x.sd << k; dwl |= (unsigned)x.wl << k;
             }
             d.disp_valid = dv; d.disp_kind = dk; d.disp_use = du; d.disp_src = ds; d.disp_wr = dw; d.disp_dst = dd;
-            d.disp_lat = dl; d.disp_ext = dx; d.disp_bm = db; d.disp_ns = dn; d.disp_md = dm; d.disp_st = dt;
+            d.disp_lat = dl; d.disp_ext = dx; d.disp_bm = db; d.disp_ns = dn; d.disp_md = dm; d.disp_st = dt; d.disp_sd = dsd; d.disp_wl = dwl;
         }
         d.eval();
 
@@ -238,6 +241,7 @@ int main(int argc, char** argv)
                 for (auto& y : uops) {
                     if (y.id >= u.id) break;
                     if (y.issued < 0 && y.st && u.q == NQ && !u.st) ok = false;
+                    if (y.issued < 0 && y.sd && u.wl) { ok = false; nwl++; }
                     if (y.ns && u.ns && y.clr_at >= cyc) ok = false;   // its column, as a result's
                 }
                 if (q < NQ && u.wr && !u.ext) {
@@ -261,7 +265,7 @@ int main(int argc, char** argv)
                 continue;
             }
             Uop x = g[k];
-            int q = x.kind == 2 ? NQ : x.kind == 1 ? 0 : rk[nalu % NQ];
+            int q = x.kind == 2 ? NQ : x.kind == 1 ? 0 : x.kind == 3 ? NQ - 1 : rk[nalu % NQ];
             int h = -1;                          // A 0, B 1
             if (!ua[q] && !ub[q]) h = bfree[q][0] >= 0 ? 0 : bfree[q][1] >= 0 ? 1 : -1;
             else if (ua[q] && !ub[q] && bfree[q][1] >= 0) h = 1;
@@ -294,6 +298,7 @@ int main(int argc, char** argv)
             exp_ns |= u->ns; exp_md |= u->md;
             for (int s = 0; s < 2; s++) if (u->use[s]) refs[u->src[s]]--;
             if (u->ns) nns++;
+            if (u->sd) nsd++;
             if (u->md) nmd++;
             nissued++;
             if (!u->ext) {
@@ -369,7 +374,8 @@ int main(int argc, char** argv)
         d.clk = 1; d.eval(); d.clk = 0; d.eval();
     }
     bool cov = nissued > 100000 && nb2b > 10000 && ncross > 5000 && nkilled > 1000 && nflush > 50 &&
-               nlat[2] > 1000 && nlat[3] > 1000 && nlat[4] > 1000 && nns > 500 && nmd > 500 && ngrp[4] > 1000 && nstall > 1000;
+               nlat[2] > 1000 && nlat[3] > 1000 && nlat[4] > 1000 && nns > 500 && nmd > 500 && ngrp[4] > 1000 && nstall > 1000 && nsd > 1000 && nwl > 1000;
+    printf("tb_sched: %ld stores' data, a marked load held by one %ld times\n", nsd, nwl);
     printf("tb_sched: %ld issued (%ld, %ld, %ld, %ld at latency 1, 2, 3, 4; %ld MDU, %ld non-speculative), %ld back to back (%ld across queues), %ld killed, %ld flushes, %ld stalls, %ld groups of 4: %ld mismatches: %s\n",
            nissued, nlat[1], nlat[2], nlat[3], nlat[4], nmd, nns, nb2b, ncross, nkilled, nflush, nstall, ngrp[4], bad,
            bad == 0 && cov ? "PASS" : "FAIL");

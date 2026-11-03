@@ -1,0 +1,20 @@
+OOC_LSU2   (period 9.0 ns, I/O delay 2.6999999999999997 ns each side on the ports)
+after synthesis: 2169 LUTs (1876 logic + 250 LUT RAM; 2110 LUT cells), 2681 FF, 0 DSP, 64 LUT RAM cells, 8.0 BRAM tiles
+after place and route: 2053 LUTs (1778 logic + 248 LUT RAM; 2100 LUT cells), WNS 0.898 ns, register to register 0.898 ns (7 logic levels)
+  e_ram worst   2.124 ns ( 5 logic levels), from sa_reg[2]_rep__1/C to u_lsu/u_dch/g_way[1].tla_reg/ADDRARDADDR[8]
+  e_m1  worst   2.707 ns ( 6 logic levels), from sa_reg[2]_rep/C to u_lsu/m1_hi_reg[61]/D
+  dat   worst   2.513 ns ( 3 logic levels), from u_lsu/u_dch/g_way[2].mem_reg/CLKARDCLK to u_lsu/m2_w_reg[2][40]/D
+  tag: no cells
+  tlb   worst   2.094 ns ( 5 logic levels), from u_lsu/m1_a_reg[12]/C to u_lsu/m2_perm_reg/D
+  cam   worst   1.363 ns ( 6 logic levels), from u_lsu/swa_reg[2][0]/C to u_lsu/m2_fi_reg[2]/D
+  hit   worst   1.344 ns ( 7 logic levels), from u_lsu/m2_pt_reg[2]/C to r_ex_reg[55]/D
+  way   worst   5.242 ns ( 2 logic levels), from u_lsu/m2_w_reg[3][60]/C to r_wr_reg[60]/D
+  fwd   worst   1.513 ns ( 5 logic levels), from u_lsu/m2_fi_reg[1]/C to r_sn_reg[28]/D
+  ok    worst   2.517 ns ( 7 logic levels), from u_lsu/m2_fi_reg[1]/C to u_lsu/m3_ok_reg/D
+  m3    worst   2.888 ns ( 6 logic levels), from u_lsu/m3_bm_reg[11]/C to u_lsu/swait_reg[1]/D
+  drain worst   1.673 ns ( 6 logic levels), from u_lsu/d1_p_reg[1]/C to u_lsu/d2_way_reg[1]/D
+  try   worst   2.007 ns ( 6 logic levels), from u_lsu/sv_reg[4]/C to u_lsu/r_q_reg[3]/D
+instances (after place and route):
+    u_lsu                  OOO_LSU2               2053 LUTs (1778 logic + 248 LUT RAM), 1335 FF
+      u_dch                OOO_DCH                 623 LUTs (623 logic + 0 LUT RAM), 0 FF
+      u_tlb                OOO_DTLB2               157 LUTs (85 logic + 72 LUT RAM), 7 FF
