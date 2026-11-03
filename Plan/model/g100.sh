@@ -58,6 +58,14 @@ row "**as built**: + a freed entry a cycle later, the order 2 old" $J $D
 row "  a freed entry 2 cycles later"                 $J $D free_lag=2
 row "  queues of 10"                                 $J $D iq=10
 row "  S1 not with R2: a stage more"                 $J $D dec_depth=6 redirect=7
+X="slow2=3 q0_slow=1 q0_jalr=1"                                 # OOO_EXU as built: what is not in OOO_ALUF 2 cycles, on queue 0
+row "**OOO_EXU as built**: + rare, register shifts 2, queue 0; jalr q0" $J $D $X
+row "  slli 2 cycles too"                            $J $D slow2=7 q0_slow=1 q0_jalr=1
+row "  srli, srai 2 cycles too"                      $J $D slow2=11 q0_slow=1 q0_jalr=1
+row "  bexti 2 cycles too"                           $J $D slow2=19 q0_slow=1 q0_jalr=1
+row "  czero 2 cycles too"                           $J $D slow2=35 q0_slow=1 q0_jalr=1
+row "  Zba 2 cycles too"                             $J $D slow2=67 q0_slow=1 q0_jalr=1
+row "  zext.h, sext 2 cycles too"                    $J $D slow2=131 q0_slow=1 q0_jalr=1
 row "ROB 32, LQ / SQ 12, 8 checkpoints"             $P w=4 rob=32 lq=12 sq=12 ckpt=8 iqd=3 iq=8 iql=12 alu=3 lsu=1 issue_w=4 st_data_issue=0 dec_w=6 fetch_bytes=32
 row "ROB 64, LQ / SQ 24, 16 checkpoints"            $P w=4 rob=64 lq=24 sq=24 ckpt=16 iqd=3 iq=8 iql=12 alu=3 lsu=1 issue_w=4 st_data_issue=0 dec_w=6 fetch_bytes=32
 row "uBTB 8"                                        $J ubtb=8

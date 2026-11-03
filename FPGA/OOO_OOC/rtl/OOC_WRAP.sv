@@ -1256,3 +1256,91 @@ module OOC_SCHED
          .disp_go(go), .disp_q(dq), .disp_e(de), .ext_valid(xv), .ext_entry(xe),
          .rr_valid(rv), .rr_entry(re), .rr_bm(rb), .rr_ns(rn), .rr_md(rm));
 endmodule : OOC_SCHED
+
+//---------------------------------------------------------------------------
+// OOC_EXU: stages RR1, RR2, EX of the 4 ports with the register file (OOO_EXU,
+// OOO_PRF2, 80 registers, 4 writes, 8 reads; Doc/STRATEGY.md 4.5 loop 2); what
+// comes from RR1's payload and from outside, registered as the core will have it.
+//---------------------------------------------------------------------------
+module OOC_EXU
+    (
+        input  logic              clk,
+        input  logic              rst_n,
+        input  logic              flush,
+        input  logic [3:0]        v,
+        input  logic [3:0][1:0]   us,
+        input  logic [3:0][1:0][6:0] src,
+        input  logic [3:0][1:0][63:0] cst,
+        input  logic [2:0]        wr,
+        input  logic [2:0][6:0]   dst,
+        input  logic [2:0][5:0]   op,
+        input  logic [2:0]        uw,
+        input  logic [2:0][1:0]   sh,
+        input  logic [2:0]        word,
+        input  logic [2:0]        br,
+        input  logic [2:0][2:0]   brop,
+        input  logic              slow,
+        input  logic              jalr,
+        input  logic [63:0]       link,
+        input  logic [11:0]       agi,
+        input  logic              ld_nv,
+        input  logic [6:0]        ld_nt,
+        input  logic [63:0]       ld_d,
+        input  logic              x_nv,
+        input  logic [6:0]        x_nt,
+        input  logic [63:0]       x_d,
+        output logic [3:0]        o_wv,
+        output logic [3:0][6:0]   o_wt,
+        output logic [2:0]        o_bv,
+        output logic [2:0]        o_bt,
+        output logic              o_jv,
+        output logic [38:1]       o_jt,
+        output logic              o_av,
+        output logic [63:0]       o_ag,
+        output logic [63:0]       o_sd,
+        output logic [63:0]       o_a,
+        output logic [63:0]       o_b,
+        output logic [3:0][63:0]  o_wd
+    );
+    // RR1
+    logic [3:0][1:0][6:0] s1;
+    // RR2
+    logic              fl, s_slow, s_jalr, lv, xv;
+    logic [3:0]        s_v;
+    logic [3:0][1:0]   s_us;
+    logic [3:0][1:0][6:0] s2;
+    logic [3:0][1:0][63:0] s_cst, s_prf;
+    logic [2:0]        s_wr, s_uw, s_word, s_br;
+    logic [2:0][6:0]   s_dst;
+    logic [2:0][5:0]   s_op;
+    logic [2:0][1:0]   s_sh;
+    logic [2:0][2:0]   s_brop;
+    logic [63:0]       s_link, ld, xd;
+    logic [11:0]       s_agi;
+    logic [6:0]        lt, xt;
+    logic [3:0]        wv;
+    logic [3:0][6:0]   wt;
+    logic [3:0][63:0]  wd;
+    logic [2:0]        bv, bt;
+    logic              jv, av;
+    logic [38:1]       jt;
+    logic [63:0]       ag, sd, a0, b0;
+    always_ff @(posedge clk) begin
+        fl <= flush;
+        s1 <= src; s2 <= s1;
+        s_v <= v; s_us <= us; s_cst <= cst; s_wr <= wr; s_dst <= dst; s_op <= op; s_uw <= uw; s_sh <= sh;
+        s_word <= word; s_br <= br; s_brop <= brop; s_slow <= slow; s_jalr <= jalr; s_link <= link; s_agi <= agi;
+        lv <= ld_nv; lt <= ld_nt; ld <= ld_d; xv <= x_nv; xt <= x_nt; xd <= x_nv ? x_d : 64'd0;
+        o_wv <= wv; o_wt <= wt; o_wd <= wd; o_bv <= bv; o_bt <= bt; o_jv <= jv; o_jt <= jt; o_av <= av;
+        o_ag <= ag; o_sd <= sd; o_a <= a0; o_b <= b0;
+    end
+    OOO_PRF2 #(.NREG(80), .NW(4), .NR(8)) u_prf
+        (.clk(clk), .ra1(s1), .rd(s_prf), .we(wv), .wa(wt), .wd(wd));
+    OOO_EXU u_exu
+        (.clk(clk), .rst_n(rst_n), .flush(fl), .rr_v(s_v), .rr_use(s_us), .rr_src(s2), .rr_prf(s_prf), .rr_const(s_cst),
+         .rr_wr(s_wr), .rr_dst(s_dst), .rr_op(s_op), .rr_uw(s_uw), .rr_shift(s_sh), .rr_word(s_word), .rr_br(s_br),
+         .rr_brop(s_brop), .rr_slow(s_slow), .rr_jalr(s_jalr), .rr_link(s_link), .rr_agi(s_agi),
+         .ld_nv(lv), .ld_nt(lt), .ld_d(ld), .x_nv(xv), .x_nt(xt), .x_d(xd),
+         .wb_v(wv), .wb_t(wt), .wb_d(wd), .br_v(bv), .br_take(bt), .jr_v(jv), .jr_tgt(jt), .ag_v(av), .ag(ag), .sd(sd),
+         .p0_a(a0), .p0_b(b0));
+endmodule : OOC_EXU

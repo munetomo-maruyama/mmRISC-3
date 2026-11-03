@@ -1,0 +1,79 @@
+//---------------------------------------------------------------------------
+// OOO_PRF2.sv
+//
+// The integer physical register file at 100 MHz (Doc/STRATEGY.md 4.2, 4.3): as
+// OOO_PRF, one bank of distributed RAM per write port, each read by every read
+// port, and a live value table (LVT), but read in 2 stages (Plan/OOC.md 28.6):
+//
+//   RR1  ra1: the LVT says which bank, into a register with the address
+//   RR2  rd:  the banks read at that address, the one the LVT named
+//
+// So rd gives the value with all writes up to the end of RR1; a write at the
+// end of RR2 is not seen (OOO_EXU takes it from the result it is written from).
+// A write in RR1 is seen by comparing, as the LVT itself changes only at the
+// end of RR1.
+//
+// Register 0 is not special here: it is never written, and whoever reads x0
+// does not use the read (OOO_EXU's rr_use). Two ports never write one register
+// in the same cycle (renaming gives every destination its own register).
+//---------------------------------------------------------------------------
+
+`timescale 1ns/1ps
+
+module OOO_PRF2
+    #(
+        parameter int NREG = 80,
+        parameter int NW   = 4,
+        parameter int NR   = 8
+    )
+    (
+        input  logic                           clk,
+
+        input  logic [NR-1:0][$clog2(NREG)-1:0] ra1,
+        output logic [NR-1:0][63:0]             rd,
+
+        input  logic [NW-1:0]                   we,
+        input  logic [NW-1:0][$clog2(NREG)-1:0] wa,
+        input  logic [NW-1:0][63:0]             wd
+    );
+
+    localparam int LW = (NW > 1) ? $clog2(NW) : 1;
+    localparam int AW = $clog2(NREG);
+
+    logic [LW-1:0] lvt [NREG];
+    logic [LW-1:0] lvn [NR];
+    (* max_fanout = 16 *) logic [LW-1:0] lq [NR];
+    (* max_fanout = 32 *) logic [AW-1:0] aq [NR];
+    logic [63:0]   rb  [NR][NW];
+
+    always @(*) begin
+        for (int r = 0; r < NR; r++) begin
+            lvn[r] = lvt[ra1[r]];
+            for (int w = 0; w < NW; w++)
+                if (we[w] && wa[w] == ra1[r]) lvn[r] = LW'(w);
+        end
+    end
+    always_ff @(posedge clk) begin
+        for (int w = 0; w < NW; w++)
+            if (we[w]) lvt[wa[w]] <= LW'(w);
+        for (int r = 0; r < NR; r++) begin
+            lq[r] <= lvn[r];
+            aq[r] <= ra1[r];
+        end
+    end
+
+    for (genvar w = 0; w < NW; w++) begin : g_bank
+        (* ram_style = "distributed" *) logic [63:0] mem [NREG];
+        always_ff @(posedge clk) begin
+            if (we[w]) mem[wa[w]] <= wd[w];
+        end
+        for (genvar r = 0; r < NR; r++) begin : g_rd
+            assign rb[r][w] = mem[aq[r]];
+        end
+    end
+
+    for (genvar r = 0; r < NR; r++) begin : g_out
+        assign rd[r] = rb[r][lq[r]];
+    end
+
+endmodule : OOO_PRF2

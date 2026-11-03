@@ -3014,3 +3014,54 @@ a stale one (busy bits, with tags on a bus again), comes to about what the compa
 - **Loop 1 in the core**: 10 ns alone is not 10 ns in the chip (routes are 62 to 83 % of the paths, 28.1), hence the margin run and step 1.6.
 
 Loop 1 is within reach for gate S1-A; the other five are not measured as designed. Next is loop 2, bypass + ALU with the new sources.
+
+**The margin** (`synth_ooo.bat sched85`, `output/OOC_SCHED_T8.5`, the same RTL at 8.5 ns): WNS **−0.776 ns, so about 9.3 ns**, 5,397 LUTs. `loop` −0.776 (8 levels; 1.45 ns of logic, 7.78 ns of route), `ff` −0.742, `guard` −0.702, `s1` −0.633, `free` −0.223, `s2` +0.057, `wake` +0.818, `kill` +1.112, `issue` +2.347. So the block has about **0.7 ns in hand**, for a core that added about 1 ns to its worst block at 20 ns (28.1). Not comfortable, and to be read again in step 1.6. The paths are close together: nothing single stands out to fix.
+
+### 28.6 Loop 2: `OOO_EXU`, `OOO_ALUF`, `OOO_PRF2`, `OOC_EXU` (2026-11-03)
+
+The block of bypass + ALU as the proposal has it, not today's with more sources. Not measured when written: `synth_ooo.bat exu`, in `output/OOC_EXU_T10`.
+
+#### What stays in the cycle: measured, by operation
+The trace now keeps a class per operation (`Plan/model`: `opx`, `slow2`, `q0_slow`, `q0_jalr`; `results/g100.txt`). What CoreMark executes is narrow: of the operations beyond add, logic and compares only `sh1add.uw`, `sh2add.uw`, `zext.h`, `sext.h`, `sraiw`, `srliw`, `c.srli`, `srli`, `bexti`, `czero.eqz`. No left shift to speak of in the Zb builds, no shift by a register, no min / max at all.
+
+| Taken to 2 cycles, on top of the row before | `-O2` | most optimization | g13 | rv64gc (g13, Debian's default) |
+|---|---|---|---|---|
+| As built so far (28.4) | 6.829 | 7.320 | 6.604 | 5.902 |
+| **Counts, `rev8`, `orc.b`, rotates, min / max, `bset` / `bclr` / `binv`, `bext`, shifts by a register, all on queue 0; `jalr` on queue 0** | **6.823** | **7.315** | **6.599** | 5.898 |
+| ... and `slli` | 6.824 | 7.316 | 6.599 | 5.561 on queue 0 |
+| ... or `srli`, `srai` | 6.725 | 7.206 | 6.514 | 5.631 (alone) |
+| ... or `bexti` | 6.629 | 7.109 | 6.599 | |
+| ... or `czero` | 6.625 | 7.103 | 6.599 | |
+| ... or Zba | 6.647 | 7.085 | 6.427 | |
+| ... or `zext.h`, `sext` | 6.591 | 7.032 | 6.369 | |
+
+So the bold row is what `OOO_ALUF` leaves out, for −0.1 %, all of it from `jalr`. **`slli` is the one free lever left in CoreMark** (nothing with Zb), but costs 5.7 % on rv64gc, so it stays in EX while it fits. These are CoreMark's numbers: what leaves the cycle still runs, in 2 cycles, and other programs will see it.
+
+The "rare operations" of `Doc/STRATEGY.md` 4.2 was an assumption; this replaces it.
+
+#### The design
+| Item | Choice | Why |
+|---|---|---|
+| Shifts in EX | By an immediate only; left by the same funnel (`hi = a`, `amt = 64 - n`) | No path from a bypassed register into the amount with its fan-out of 64, and no reversal before and after |
+| Selections | Decoded in RR2, in registers, `max_fanout` 16 | Today's 6-bit `alu_op` is decoded in EX |
+| pc, immediate, zero | In the operand register from RR2 | `a1_sel` and `b1_imm` leave EX's path; today's worst path started at `a1_sel` |
+| EX's mux | Own register, 3 ALUs, load: 5 sources, selection in a register | As `Doc/STRATEGY.md` 4.3 |
+| A result | 3 registers: for EX's muxes, for RR2's, for the register file | 16 mux sinks and more than 16 RAM cells per bit |
+| A branch | On the adder, plus a comparator; flags in a register, the decision in EX + 1 | One adder less, no `br_op` in EX |
+| `jalr` | Queue 0; target from the adder's sum, link ORed into the result | No target adder or link on ports 1, 2 |
+| What is not in `OOO_ALUF` | `OOO_ALU` itself, from registers, in the cycle after EX | Verified, nothing new; its size may be trimmed later |
+| Register file | `OOO_PRF2`: LVT in RR1 with a compare against writes, banks in RR2 | The LVT and banks in one stage measured 17 to 18 ns |
+
+How a source gets its value, with T the cycle its result is in a register: a consumer in RR2 at T − 1 is given it by EX's mux, at T by RR2's mux, later from the register file. So RR2 has 6 sources, EX 5, and tags are compared only in RR2.
+
+**`OOC_EXU` includes the register file**: 80 × 64, 4 writes, 8 reads, so RR2 and the result's fan-out are real. It will be the largest part, I expect. The harness leaves out the SQ, the multiplier and the MDU behind `p0_a`, `p0_b`, and M2's real delay before `ld_d`. Branch masks are not in the block: those stay with valid bits in `OOO_STAGE` when it joins the core.
+
+#### Verification
+- `tb_exu`: 4 ports, 1.5 million cycles, each source through EX's mux (2.9 million), RR2's (1.4 million), or the modelled register file (1.8 million, stale if read too early). Values from `ref_alu`, the specification. Loads and results from outside at any time, write slots as the scheduler keeps them, flushes. **It found a bug in the first version**: a µop flushed in RR2 left its result to be ORed onto what port 0 shared its write with.
+- `tb_prf2`: 80 × 64, reads of a register being written (849,326 of 2.4 million).
+- Bug injection M478 to M556: 78 mutations, all detected. One more was removed, as equivalent: reading the LVT in RR2 instead gives the same values, since the register is there for timing only. `verilator -Wall` is clean on the new modules and the harness's lines.
+
+#### What to read from the run
+`summary.txt` has the classes (`report_exu.tcl`): `loop` (a result, through EX's mux and the ALU, to a result); `sel`, `ctl`, `oper` (the rest of EX); `flag`, `rare`; `rf`, `lvt`, `tags`, `snoop`, `write` (RR1, RR2, the write).
+
+If `loop` is short, the levers in order: `slli` out of EX (nothing in CoreMark), Zba's change of `a` by the fan-out, the fan-outs, the size of `max_fanout`.

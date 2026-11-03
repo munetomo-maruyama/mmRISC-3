@@ -1,0 +1,146 @@
+//---------------------------------------------------------------------------
+// OOO_ALUF.sv
+//
+// The ALU of one cycle at 100 MHz (Doc/STRATEGY.md 4.5 loop 2, Plan/OOC.md
+// 28.6). Combinational; OOO_EXU decodes the operation in the stage before, so
+// everything that selects comes from a register, and no selection depends on
+// the operands but czero's and the comparisons' results.
+//
+// What is here is what CoreMark executes (Plan/model: slow2):
+//   adder    add, sub, addw, subw, add.uw, sh1add .. sh3add(.uw); slt, sltu and
+//            the comparison of a branch from its carry
+//   logic    xor, or, and, andn, orn, xnor
+//   shifter  slli, srli, srai and their word forms, by an immediate: no path
+//            from a register into the amount. bexti is its bit 0
+//   the rest sext.b, sext.h, zext.h, czero.eqz, czero.nez
+//
+// Everything else takes 2 cycles in OOO_ALU, on queue 0 (OOO_EXU).
+//
+// One right funnel: {hi, lo} >> amt, in 3 stages of 4 to 1. A left shift by n
+// is hi = a, lo = 0, amt = 64 - n (OOO_EXU gives n = 0 as a right shift), so no
+// reversal before and after, as in OOO_ALU.
+//
+// The result is an AND-OR of the units: with all g_* at 0 it is 0, which is
+// what a µop that writes nothing gives (port 0 ORs its other results in).
+//---------------------------------------------------------------------------
+
+`timescale 1ns/1ps
+
+module OOO_ALUF
+    (
+        input  logic [63:0] a,
+        input  logic [63:0] b,
+
+        // the adder
+        input  logic        inv,          // a - b: sub, slt, sltu, a branch
+        input  logic        a_uw,         // a: the low half, zero extended
+        input  logic [1:0]  a_shift,      // a: shifted left by this much
+        // which unit gives the result
+        input  logic        g_add,
+        input  logic        g_log,
+        input  logic [2:0]  lop,          // 0 xor, 1 or, 2 and, 3 andn, 4 orn, 5 xnor
+        input  logic        g_sh,
+        input  logic        sh_left,
+        input  logic        sh_sra,
+        input  logic        sh_w,         // srliw, sraiw: the low half goes in
+        input  logic [5:0]  amt,
+        input  logic        g_bx,         // bexti
+        input  logic        g_slt,
+        input  logic        g_sltu,
+        input  logic        g_zh,         // zext.h
+        input  logic        g_sb,         // sext.b
+        input  logic        g_sxh,        // sext.h
+        input  logic        g_cz,         // czero
+        input  logic        cz_n,         // czero.nez
+        input  logic        word,         // the result sign extended from bit 31
+
+        output logic [63:0] result,
+        output logic [63:0] sum,          // the adder's sum (jalr's target, an address)
+        output logic        c_eq,         // a == b
+        output logic        c_lt,         // with inv: a < b signed
+        output logic        c_ltu         // with inv: a < b unsigned
+    );
+
+    // the adder: one LUT and carry per bit, behind the change of a
+    logic [63:0] az, as;
+    logic [64:0] s65;
+    always @(*) begin
+        az = a_uw ? {32'd0, a[31:0]} : a;
+        case (a_shift)
+            2'd1:    as = {az[62:0], 1'b0};
+            2'd2:    as = {az[61:0], 2'd0};
+            2'd3:    as = {az[60:0], 3'd0};
+            default: as = az;
+        endcase
+        s65   = {1'b0, as} + {1'b0, inv ? ~b : b} + {64'd0, inv};
+        sum   = s65[63:0];
+        c_ltu = !s65[64];
+        c_lt  = c_ltu ^ a[63] ^ b[63];
+        c_eq  = a == b;
+    end
+
+    // the logic unit: one LUT per bit
+    logic [63:0] l;
+    always @(*) begin
+        case (lop)
+            3'd0:    l = a ^ b;
+            3'd1:    l = a | b;
+            3'd2:    l = a & b;
+            3'd3:    l = a & ~b;
+            3'd4:    l = a | ~b;
+            default: l = ~(a ^ b);
+        endcase
+    end
+
+    // the funnel
+    logic        fill;
+    logic [63:0] lo;
+    logic [62:0] hi;
+    logic [126:0] f;
+    logic [123:0] f0;
+    logic [111:0] f1;              // (the bits a later stage can reach)
+    logic [63:0] sh;
+    always @(*) begin
+        fill = sh_sra && (sh_w ? a[31] : a[63]);
+        if (sh_left) begin
+            lo = 64'd0;
+            hi = a[62:0];
+        end else begin
+            lo = sh_w ? {{32{fill}}, a[31:0]} : a;
+            hi = {63{fill}};
+        end
+        f = {hi, lo};
+        case (amt[1:0])
+            2'd1:    f0 = f[124:1];
+            2'd2:    f0 = f[125:2];
+            2'd3:    f0 = f[126:3];
+            default: f0 = f[123:0];
+        endcase
+        case (amt[3:2])
+            2'd1:    f1 = f0[115:4];
+            2'd2:    f1 = f0[119:8];
+            2'd3:    f1 = f0[123:12];
+            default: f1 = f0[111:0];
+        endcase
+        case (amt[5:4])
+            2'd1:    sh = f1[79:16];
+            2'd2:    sh = f1[95:32];
+            2'd3:    sh = f1[111:48];
+            default: sh = f1[63:0];
+        endcase
+    end
+
+    // the rest; czero's zero test is the one late selection of many bits
+    logic [63:0] x, res;
+    logic        cz_pass;
+    always @(*) begin
+        cz_pass = cz_n ? (b == 64'd0) : (b != 64'd0);
+        x[0]     = (g_slt && c_lt) || (g_sltu && c_ltu) || (g_bx && sh[0]) || ((g_zh || g_sb || g_sxh) && a[0]);
+        x[7:1]   = (g_zh || g_sb || g_sxh) ? a[7:1] : 7'd0;
+        x[15:8]  = (g_zh || g_sxh) ? a[15:8] : g_sb ? {8{a[7]}} : 8'd0;
+        x[63:16] = g_sb ? {48{a[7]}} : g_sxh ? {48{a[15]}} : 48'd0;
+        res = ({64{g_add}} & sum) | ({64{g_log}} & l) | ({64{g_sh}} & sh) | x | ({64{g_cz && cz_pass}} & a);
+        result = word ? {{32{res[31]}}, res[31:0]} : res;
+    end
+
+endmodule : OOO_ALUF

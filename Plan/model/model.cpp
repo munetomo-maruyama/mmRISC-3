@@ -113,6 +113,9 @@ int main(int argc, char** argv)
         c.iqd = (int)o.get("iqd", c.iqd);
         c.iql = (int)o.get("iql", c.iql);
         c.cplx2 = (int)o.get("cplx2", c.cplx2);
+        c.slow2 = (int)o.get("slow2", c.slow2);
+        c.q0_slow = o.get("q0_slow", c.q0_slow) != 0;
+        c.q0_jalr = o.get("q0_jalr", c.q0_jalr) != 0;
         c.upd = (int)o.get("upd", c.upd);
         c.upd_lag = (int)o.get("upd_lag", c.upd_lag);
         c.stale = o.get("stale", c.stale);

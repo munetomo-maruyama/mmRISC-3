@@ -22,7 +22,7 @@ struct Rec {
     uint8_t  dst;       // 255: none (and never x0)
     uint8_t  base;
     uint8_t  op;
-    uint16_t pad0;
+    uint16_t opx;       // the class of an ALU operation (mktrace.py)
     uint32_t pad1;
 };
 #pragma pack(pop)

@@ -11,7 +11,7 @@
 #
 #   u64 pc, u64 mem (0: none), u8 size, u8 cls, u8 sub, u8 flags,
 #   u8 src[3] (255: none), u8 dst (255: none), u8 base (255: none),
-#   u8 op, u16 pad, u32 pad
+#   u8 op, u16 opx, u32 pad
 #
 #   cls  : 0 alu 1 br 2 jal 3 jalr 4 load 5 store 6 mul 7 div 8 sys 9 fp
 #   sub  : 0 - 1 shift 2 zba 3 zbb 4 zbs 5 zicond
@@ -19,6 +19,11 @@
 #          bit3 MULH family (2-cycle multiply in mmRISC-2)
 #   op   : 0 other 1 lui 2 auipc 3 slli 4 srli / srai 5 add / sh*add (two
 #          registers) 6 addi
+#   opx  : the class of an ALU operation for what stays in EX (Doc/STRATEGY.md
+#          4.2, the model's slow2), a bit: 1 rare (counts, rev8, orc.b, rotates,
+#          min / max, bset / bclr / binv, bext) 2 shift by a register
+#          4 left shift by an immediate 8 right shift by an immediate 16 bexti
+#          32 czero 64 Zba 128 zext.h, sext 256 andn, orn, xnor
 #---------------------------------------------------------------------------
 import os
 import struct
@@ -50,6 +55,21 @@ def op_of(mn):
     return 0
 
 
+OPX = {}
+for k, names in enumerate(('clz clzw ctz ctzw cpop cpopw rev8 orc.b rol rolw ror rori roriw rorw min max minu maxu '
+                           'bset bseti bclr bclri binv binvi bext',
+                           'sll srl sra sllw srlw sraw',
+                           'slli c.slli slliw slli.uw',
+                           'srli srai srliw sraiw c.srli c.srai',
+                           'bexti',
+                           'czero.eqz czero.nez',
+                           'sh1add sh2add sh3add sh1add.uw sh2add.uw sh3add.uw add.uw zext.w',
+                           'zext.h sext.h sext.b',
+                           'andn orn xnor')):
+    for m in names.split():
+        OPX[m] = 1 << k
+
+
 def main():
     tr = A.load_trace(sys.argv[1])
     taken = A.taken_flags(tr)
@@ -67,7 +87,7 @@ def main():
                                 SUB[x.sub], fl, *src,
                                 255 if x.dst is None else x.dst,
                                 255 if x.base is None else x.base,
-                                op_of(x.mn), 0, 0))
+                                op_of(x.mn), OPX.get(x.mn, 0), 0))
     print(f'{len(tr)} records')
 
 

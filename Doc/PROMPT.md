@@ -5476,3 +5476,51 @@ Recorded in `Plan/OOC.md` 28.4 (with a Japanese version); the RTL is `OOO_SDISP.
 ```text
 Sched finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOC_SCHED` meets 10 ns: register to register +0.056 ns, 5,353 LUTs.** A great improvement on the last −10.3 ns and 7,969 LUTs, and loop 1 is within reach of gate S1-A. But this is the block alone, without the payload or a core around it. Recorded and pushed (4a2c9ab).
+
+| | First run | This run |
+|---|---|---|
+| Physical LUTs | 7,969 | **5,353** (−33 %; my estimate was about 5k) |
+| Register to register | −10.336 ns, 24 levels | **+0.056 ns, 9 levels** |
+| `loop` (request → grant → request) | −2.429, 7 levels | +0.208, 9 levels |
+| `wake` (request → wait cell) | −0.927, 4 levels | +2.036, 5 levels |
+| `s1` (the slots' registers → the block) | −8.612, 22 levels | +0.233, 9 levels |
+| `ff` (free entries, queue order → the block) | −8.752, 22 levels (then `steer`) | +0.329, 9 levels |
+| `s2` (S2's registers → the block) | not separate | +1.032, 7 levels |
+| `free` (a request → the first free entries) | defined differently, no comparison | +1.909, 9 levels |
+| `kill` (kill, clr → the block) | −1.126, 6 levels | +2.747, 4 levels |
+| `issue` (the grants' registers → out) | +2.321, 4 levels | +4.504, 4 levels |
+
+As guessed last time, the problem was dispatch. The dependency matrix stays.
+
+#### Two corrections
+- **`u_disp`'s figure is not the size of dispatch.** I said last time that this would show it apart, but its 4,825 LUTs include the matrix's logic: the wait cells alone need 1,296 LUTs and the rest of `u_sched` has only 531. Synthesis rebuilds the hierarchy, so only the total means anything. No decision depends on the breakdown now, so I do not ask for a run to separate it.
+- **The worst path was in none of the classes I had defined.** It runs from the non-speculative flag `nsf` through the request and grant back to `rv`. `report_sched.tcl` now has a class `guard` (from the next run).
+
+#### What is not confirmed
+- **The real margin is still unknown.** Vivado stopped improving once the target was met. 84 % of the worst path is route, with only 1.57 ns of logic. The core needs this margin to keep 10 ns.
+- **The payload is not in.** About 1.1k LUTs remain of the budget of 6.5k. With one writer per bank it should be possible as LUT RAM, but it is not designed yet.
+- **Whether go can be shared with rename of 4 is not confirmed.** `s1` is at +0.233 ns now, and what rename adds before go comes out of it. A stage more takes the model from 6.829 to 6.801.
+- **The other 5 loops are not measured with their new design.**
+
+#### Request
+To measure the margin I added a run asking for 8.5 ns. Please run it on the Windows side; the results go to `output/OOC_SCHED_T8.5`.
+
+`synth_ooo.bat sched85`
+
+What to read: how near it gets to 8.5 ns, and the slacks of `guard` and `loop`.
+
+Loop 2 (bypass + ALU) can proceed alongside this run. I will not edit `synth_ooo.bat` while it runs.
+
+Recorded in `Plan/OOC.md` 28.5 (Japanese in `Plan/OOC_J.md`); `Doc/STRATEGY.md` 4.5 and 5 updated.
+<!-- /answer -->
+
+## 141. 2026-11-03 13:58:24 JST
+
+```text
+Yes, loop 2
+```
