@@ -3426,3 +3426,45 @@ Not built yet: the crack in decode and renaming, the table itself (a RAM of 64 �
 **The data µop and the marked load cost nothing that can be seen.** 15 LUTs and 5 FF more: 8 FF of `sdq` less what synthesis merged. **Not an improvement**: 9.06 against 9.31 is 0.25 ns, within the 0.26 ns of 2 placements, and this is a different netlist. `guard` went the other way by the same amount. What can be said: loop 1 stays at 9.1 to 9.6 ns, `loop` itself at 8.7 to 9.1, and the worst endpoint is still dispatch's S1 into the age bits, the lever of 28.10 still unused.
 
 So **the stores of 28.13 hold in loop 1**, and the model's 6.726 stands for what is built. Next: loop 4, rename of 4, with the store's 2 µops.
+
+### 28.16 Loop 4: `OOO_RENAME2`, `OOC_RENAME2`, rename of 4 in 2 stages (2026-11-03)
+
+Not measured when written: `synth_ooo.bat ren2`, in `output/OOC_RENAME2_T9`, at 9 ns. **`synth_ooo.bat sched85` has to run again too**: `OOO_SDISP` changed below.
+
+Today's `OOO_RENAME` is +1.04 ns at 2 µops in one stage, with 2,657 LUTs, a RAT of 4 + 2 read ports, 6 checkpoints in flip-flops. Scaled to 4 µops, 12 checkpoints, 80 registers, it would be 3 times the reads and 5 times the checkpoint bits. So it is a new block. `OOO_RENAME` stays with today's core.
+
+**What R1 and R2 have to be.** `OOO_SDISP`'s S1 is R2, and it compares `disp_src`, `disp_dst` from registers: so the physical sources and the new registers have to be known at the end of R1, not R2. So R1 does it all and R2 is registers.
+
+| Item | Choice | Why |
+|---|---|---|
+| R1 | RAT read, dependences among the 4, the new registers, the RAT written, at its end | S1 needs them from registers. Counted: 5 levels |
+| R2 | What S1 does not take stays in its slot; R1 moves when none is left | `adv` is S1's late `disp_go`. Slots do not shift, so no mux of 4 on some 170 bits; so `OOO_SDISP` takes gaps: a slot not valid has no part in steering (changed here) |
+| Busy bits | None | `OOO_SDISP` compares a source with what is pending (28.4) |
+| Free list | A ring of 64 places for 48 registers, 4 banks of LUT RAM, place p in bank p % 4 | A group's n places touch n banks once, for reads and for writes, so one port a bank. A power of 2, with no wrap logic. Read from a register per bank (`rb`), no adder in the path: about 32 LUTs against 48 × 7 FF and their muxes |
+| Short of registers | A group waits if fewer than 8 were free in the last cycle | No count in the path; the ROB's 48 entries keep it from happening but with nearly all writers. Not in the model |
+| Checkpoints | LUT RAM, one write, one read: 12 of 269 bits. **2 a group**, ids in a ring so one even, one odd, each its bank | About 360 LUTs + the read's mux against 3,200 FF and a mux of 12. A write of all the bits has one address, which is what LUT RAM is good for |
+| Inside a group | The RAT as it is after the group, a cycle later, and what undoes the younger µops: up to 3 | Every checkpoint takes the same data, as today's |
+| Restore | 2 cycles: the RAT, then the undoes through the RAT's write ports, the oldest on the port that wins | No mux of undoes on the RAT. The front end is at least 8 stages behind, so it costs nothing |
+| Ids | A restore gives its own id next | The open ones stay in a row of the ring. `OOO_RENAME`'s `restore_id + 1` leaves a hole: **found by the bench**, as ids were reused while open |
+
+**What the model says about checkpoints a cycle** (`Plan/model`: `ck_max`, `ck_end`):
+
+| Checkpoints | `-O2` | most optimization | g13 | rv64gc |
+|---|---|---|---|---|
+| Any number | 6.726 | 7.234 | 6.484 | 5.797 |
+| **2 a cycle: as built** | **6.722** | **7.234** | **6.487** | **5.797** |
+| 1 a cycle | 6.697 | 7.182 | 6.438 | 5.731 |
+| A checkpoint ends its group | 6.543 | 7.074 | 6.322 | 5.685 |
+| Any number, rename a stage more | 6.698 | 7.203 | 6.459 | 5.777 |
+
+The simplest choice, a checkpoint ending its group with no undoes, costs −2.7 %, so it is not taken. 1 a cycle costs −0.4 % and would have put RTL (× 0.94) under the gate's 6.3: 6.295. So **the model is now 6.722 / 7.234 / 6.487 / 5.797, RTL about 6.32**. A stage more for rename would cost −0.4 %, the fallback named in `Doc/STRATEGY.md` 4.5.
+
+**In `OOO_SDISP`**: slots may be not valid among valid ones: `ta`, `tb` and `nalu` take `disp_valid`; a slot not valid does not stop the younger ones. A bit more in S1, the block's limit, so it runs again.
+
+The store's 2 µops are 2 slots here, each with one source; neither takes a register. So nothing in this block knows about them: the crack comes before it, the ROB entry after.
+
+**What the run measures, and does not.** The harness has `disp_go` as a port with 55 % of the period as its delay, my estimate of where it comes in S1's worst path; the rest from registers. `adv` to about 170 R2 bits, the RAT's 224 and the ids is the path to read, with `go`. Not there: the ROB entry (`OOO_ROB` at 4 wide comes with step 1.5), the branch mask (`OOO_CTRL`), the decoded queue before it. `arat` is in flip-flops as today's, 224 FF and 4 writes: to be moved to banks with an LVT if size calls for it, as a flush can walk it in 8 cycles.
+
+**Verification.** `tb_rename2`: 800,000 cycles against a reference of its own: 605,485 µops, 80,921 sources inside a group, 45,921 groups with 2 checkpoints, 33,116 restores (10,342 with undoes, 9,832 at the earliest cycle), 777 flushes, 302,362 commits, 170,063 cycles short of registers, 207,313 slots held in R2, no mismatch. It found 2 faults: the next id after 2 checkpoints came from the first, and the hole above. `tb_sched`, with slots not valid among valid: 425,427 issued, 76,494 such slots, no mismatch. Bug injection: `rename2` M720 to M751 but M734, M751, **30 of 30**, `sched` with M717 to M719 **105 of 105**, every line read. M734 (an id for one not taken: its younger ones are not taken either) was equivalent and removed; M751 showed that `pk_head`, `pk_ad` need no enable, and the RTL lost it. M447's text had moved and was corrected. -Wall clean on the block and harness.
+
+What to read: `go`, `r1`, `read`, `tag`, `rat`, `ck`, `rest`, `cmt`, and the total. Levers if short: the R2 fields with `max_fanout`, a stage more (−0.4 %); the old mapping's 4 read ports could go to the ROB's commit.

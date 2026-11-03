@@ -31,6 +31,7 @@ mmRISC-3のOoOコアを**融合構成**(`Plan/STRATEGY_A100T_J.md` 4章)で作�
 | `OOO_ALUF` | `OOO_EXU`の1サイクルのALU: CoreMarkが実行するもの。残りは`OOO_ALUR`(`Plan/OOC_J.md` 28.6、28.8) |
 | `OOO_UBTB2` | 新しいコアのnext-line予測器: LUT RAMの3ウェイ32セット、32バイトのブロック。まだコアに入っていない(`Plan/OOC_J.md` 28.11) |
 | `OOO_LSU2` | 新しいコアのメモリポート: E、M1、M2、M3でロードから使用まで3、LQとSQは16、再試行はRR2を通す、専用のドレイン。まだコアに入っていない(`Plan/OOC_J.md` 28.13) |
+| `OOO_RENAME2` | 新しいコアのリネーム: 4 µop、2段、RATはFF、フリーリストとチェックポイントはLUT RAM。まだコアに入っていない(`Plan/OOC_J.md` 28.16) |
 | `OOO_DCH` | `OOO_LSU2`用のD$のアレイ: ブロックRAM、データとタグ2組 |
 | `OOO_DTLB2` | `OOO_LSU2`用のDTLB: LUT RAMの2ウェイ32セット、4 KB |
 | `OOO_ALUR` | `OOO_EXU`の遅い演算、キュー0、2段、レイテンシ3(`Plan/OOC_J.md` 28.8) |

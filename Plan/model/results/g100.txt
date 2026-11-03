@@ -59,6 +59,12 @@
 |   **as proposed: 64 bits, the data µops on queue 2 alone**  |  6.726 |  7.234 |  6.484 |
 |   ... with offset aliases replayed too                       |  6.726 |  7.234 |  6.482 |
 |   the data read from the SQ in order, no µop, 4 cycles behind |  6.464 |  6.833 |  6.272 |
+| **rename of 4: checkpoints in a cycle** (Plan/OOC.md 28.16) | | | |
+|   any number                                                 |  6.726 |  7.234 |  6.484 |
+|   **2 a cycle: as built**                                    |  6.722 |  7.234 |  6.487 |
+|   1 a cycle                                                  |  6.697 |  7.182 |  6.438 |
+|   a checkpoint ends its group                                |  6.543 |  7.074 |  6.322 |
+|   rename a stage more                                        |  6.698 |  7.203 |  6.459 |
 | uBTB 8                                                       |  6.660 |  7.232 |  6.479 |
 | uBTB 32                                                      |  6.971 |  7.530 |  6.733 |
 | uBTB answers a cycle late: a bubble on every taken branch    |  6.435 |  7.155 |  6.261 |

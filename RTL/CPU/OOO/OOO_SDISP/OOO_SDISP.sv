@@ -15,7 +15,8 @@
 // first µop into a queue takes bank A if it has room, else B; a second takes
 // B, only after A. A third, or none free, stops the slot and the younger ones.
 // The slot's bank does not depend on whether the older slots go: they all
-// go if it does.
+// go if it does. What went stays out of R2 (OOO_RENAME2) until its group has gone:
+// a slot not valid has no part in any of this.
 //
 // The registers that decide it:
 //   ff, bf   the first free entry of each bank, and that there is one, from
@@ -50,7 +51,7 @@ module OOO_SDISP
         input  logic                  rst_n,
         input  logic                  flush,
 
-        // the slots, in program order, valid as a prefix
+        // the slots, in program order; what is not valid has gone already
         input  logic [W-1:0]          disp_valid,
         input  logic [W-1:0][1:0]     disp_kind,
         input  logic [W-1:0][1:0]     disp_use,
@@ -113,8 +114,8 @@ module OOO_SDISP
         automatic logic [NQ:0] ub = '0;
         for (int k = 0; k < W; k++) begin
             automatic int q = disp_kind[k] == 2'd2 ? NQ : disp_kind[k] == 2'd1 ? 0 : disp_kind[k] == 2'd3 ? NQ - 1 : int'(rk[int'(nalu) % NQ]);
-            automatic logic ta = !ua[q] && bf[2*q];
-            automatic logic tb = !ub[q] && !ta && bf[2*q+1];
+            automatic logic ta = disp_valid[k] && !ua[q] && bf[2*q];
+            automatic logic tb = disp_valid[k] && !ub[q] && !ta && bf[2*q+1];
             disp_q[k] = QW'(q);
             room[k]   = ta || tb;
             for (int b = 0; b < NB; b++) bsel[b][k] = 1'b0;
@@ -122,14 +123,14 @@ module OOO_SDISP
             bsel[2*q+1][k] = tb;
             if (ta) ua[q] = 1'b1;
             if (tb) ub[q] = 1'b1;
-            if (disp_kind[k] == 2'd0) nalu = nalu + 2'd1;
+            if (disp_valid[k] && disp_kind[k] == 2'd0) nalu = nalu + 2'd1;
         end
     end
     always @(*) begin
         automatic logic ok = !flush;
         for (int k = 0; k < W; k++) begin
-            ok = ok && disp_valid[k] && room[k];
-            disp_go[k] = ok;
+            ok = ok && (!disp_valid[k] || room[k]);
+            disp_go[k] = ok && disp_valid[k];
             disp_e[k]  = '0;
             for (int b = 0; b < NB; b++) if (bsel[b][k]) disp_e[k] = disp_e[k] | fe[b];
         end

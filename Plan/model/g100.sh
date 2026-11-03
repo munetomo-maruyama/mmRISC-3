@@ -89,6 +89,13 @@ row "  ... of 64 bits" $J $D $X $U sd_alu=2 ld_rp=1 sd_lag=1 ld_wt=64
 row "  **as proposed: 64 bits, the data µops on queue 2 alone**" $J $D $X $U sd_alu=2 sd_q=2 ld_rp=1 sd_lag=1 ld_wt=64
 row "  ... with offset aliases replayed too" $J $D $X $U sd_alu=2 sd_q=2 ld_rp=3 sd_lag=1 ld_wt=64
 row "  the data read from the SQ in order, no µop, 4 cycles behind" $J $D $X $U sd_ord=1 ld_rp=1 sd_lag=4 ld_wt=64
+W="sd_alu=2 sd_q=2 ld_rp=1 sd_lag=1 ld_wt=64"                   # the stores as decided
+echo "| **rename of 4: checkpoints in a cycle** (Plan/OOC.md 28.16) | | | |"
+row "  any number" $J $D $X $U $W
+row "  **2 a cycle: as built**" $J $D $X $U $W ck_max=2
+row "  1 a cycle" $J $D $X $U $W ck_max=1
+row "  a checkpoint ends its group" $J $D $X $U $W ck_end=1
+row "  rename a stage more" $J $D $X $U $W dec_depth=6 redirect=7
 row "uBTB 8"                                        $J ubtb=8
 row "uBTB 32"                                       $J ubtb=32
 row "uBTB answers a cycle late: a bubble on every taken branch" $J taken_gap=2

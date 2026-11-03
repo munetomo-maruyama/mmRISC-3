@@ -113,6 +113,8 @@ int main(int argc, char** argv)
         c.ld_wt_clr = (long)o.get("ld_wt_clr", c.ld_wt_clr);
         c.sd_alu = (int)o.get("sd_alu", c.sd_alu);
         c.sd_q = (int)o.get("sd_q", c.sd_q);
+        c.ck_end = (int)o.get("ck_end", c.ck_end);
+        c.ck_max = (int)o.get("ck_max", c.ck_max);
         c.sd_ord = (int)o.get("sd_ord", c.sd_ord);
         c.fwd = o.get("fwd", c.fwd);
         c.st_data_issue = o.get("st_data_issue", c.st_data_issue);

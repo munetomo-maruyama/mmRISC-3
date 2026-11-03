@@ -34,6 +34,7 @@ to be used as they are in Phase 1, and are measured alone first (Phase 0, step 3
 | `OOO_ALUF` | `OOO_EXU`'s ALU of 1 cycle: what CoreMark executes; the rest is `OOO_ALUR`'s (`Plan/OOC.md` 28.6, 28.8) |
 | `OOO_UBTB2` | The new core's next-line predictor: 32 sets of 3 ways in LUT RAM, 32-byte blocks; not in the core yet (`Plan/OOC.md` 28.11) |
 | `OOO_LSU2` | The new core's memory port: E, M1, M2, M3 at load-use 3, LQ and SQ of 16, a try through RR2, a drain of its own; not in the core yet (`Plan/OOC.md` 28.13) |
+| `OOO_RENAME2` | The new core's renaming: 4 µops, 2 stages, RAT in flip-flops, free list and checkpoints in LUT RAM; not in the core yet (`Plan/OOC.md` 28.16) |
 | `OOO_DCH` | The D$'s arrays for `OOO_LSU2`: block RAM, data and 2 copies of the tags |
 | `OOO_DTLB2` | The DTLB for `OOO_LSU2`: 32 sets of 2 ways of 4 KB in LUT RAM |
 | `OOO_ALUR` | `OOO_EXU`'s slow operations, queue 0, in 2 stages, latency 3 (`Plan/OOC.md` 28.8) |

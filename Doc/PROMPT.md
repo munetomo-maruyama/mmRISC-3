@@ -5924,3 +5924,48 @@ The record is section 28.14 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
 ```text
 sched85 has finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**With the data µop in, `OOC_SCHED`'s timing is no worse (WNS −0.563 ns, about 9.06 ns reached).** The store proposal holds in loop 1 too, and the model's 6.726 is the value of the design as it stands. The record is pushed (8f99928).
+
+| Class | With the data µop (8.5 ns) | Before (8.5 ns) | Before (8.6 ns) |
+|---|---|---|---|
+| **Reached** | **9.06 ns** | 9.31 ns | 9.57 ns |
+| `s1` | −0.563 | −0.810 | −0.973 |
+| `guard` | −0.560 | −0.272 | −0.572 |
+| `ff` | −0.467 | −0.589 | −0.745 |
+| `loop` | **−0.186** | −0.179 | −0.504 |
+| `kill` | +0.200 | +0.120 | −0.056 |
+| `s2` | +0.279 | +0.530 | −0.058 |
+| LUTs after routing | 5,707 | 5,692 | 5,716 |
+
+- **Cost:** only 15 LUTs and 5 FF in the block.
+- **Not an improvement:** the 0.25 ns between 9.06 and 9.31 is within placement's spread of 0.26 ns. It is another netlist too, and `guard` got 0.29 ns worse.
+- **Loop 1 now:** still 9.1 to 9.6 ns, `loop` itself 8.7 to 9.1 ns.
+- **The worst path:** still dispatch's S1 into the age bits. The lever noted in 28.10 (updating the age bits from `w2`) is still unused.
+
+#### Where it stands (all blocks alone)
+
+| Loop | Block | Reached |
+|---|---|---|
+| 1 | `OOC_SCHED` | 9.1 to 9.6 ns (`loop` 8.7 to 9.1) |
+| 2 | `OOC_EXU` | 9.2 ns |
+| 3 | `OOC_LSU2` | 8.1 ns |
+| 6 | `OOC_UBTB2` | 8.9 ns |
+| 4 | Rename of 4 | not started |
+| 5 | The fetch buffer split | not started |
+
+The core added about 1 ns at 20 ns, so all 4 are within reach of 10 ns. Loops 1 and 2 have the smallest margin.
+
+I recommend loop 4 next. The store's 2 µops bear on rename's width, so they can be designed together. Today's `OOC_RENAME` has +1.04 ns at 10 ns with 2 µops, and 4 µops have not been measured.
+
+The record is section 28.15 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
+<!-- /answer -->
+
+## 151. 2026-11-03 23:11:08 JST
+
+```text
+Yes, loop 4
+```

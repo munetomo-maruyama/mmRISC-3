@@ -68,6 +68,8 @@ struct OooCfg {
     bool st_data_issue = false;
     int ld_rp = 0;              // a load that fails in M2 replays at its commit: 1 its store's data is late, 2 an offset alias, 3 both
     int sd_lag = 0;             // the cycles a store's data takes into the SQ after a dependent could have issued
+    int ck_max = 0;             // at most this many checkpoints taken a cycle
+    int ck_end = 0;             // a checkpoint ends its group: the next µop is renamed a cycle later
     int sd_q = -1;              // sd_alu 2: all in this queue (the SQ's data has one write)
     int sd_ord = 0;             // a store's data is read in order, one a cycle, oldest first
     int rp_stall = 3;           // from a store's commit to its leaving the SQ
@@ -257,6 +259,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     bool new_blk = true; long next_f0 = 0;
     int blk_cause = 0, next_cause = 0;          // 0 other, 1 misprediction, 2 override
     long first_ds = -1;
+    int ck_n = 0;               // how many in that cycle
     long last_ck = -1;          // the dispatch cycle of the last µop that took a checkpoint
 
     auto bp = [&](size_t i) -> long {           // fetch back-pressure from the fetch buffer
@@ -409,6 +412,8 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             if (j >= (size_t)c.sq && st_cm[j - c.sq] + 2 > d) { res.st_lsq += st_cm[j - c.sq] + 2 - d; d = st_cm[j - c.sq] + 2; }
         }
         if (has_cti && c.ck1 && last_ck >= d) { res.st_ckpt += last_ck + 1 - d; d = last_ck + 1; }
+        if (c.ck_end && last_ck >= d) { res.st_ckpt += last_ck + 1 - d; d = last_ck + 1; }
+        if (has_cti && c.ck_max && last_ck >= d && ck_n >= c.ck_max) { res.st_ckpt += last_ck + 1 - d; d = last_ck + 1; }
         if (has_cti && c.ckpt) {
             while (!ckh.empty() && ckh.top() < d) ckh.pop();
             if ((int)ckh.size() >= c.ckpt) {
@@ -417,7 +422,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 while (!ckh.empty() && ckh.top() < d) ckh.pop();
             }
         }
-        if (has_cti) last_ck = d;
+        if (has_cti) { ck_n = last_ck == d ? ck_n + 1 : 1; last_ck = d; }
         if (first_ds < 0) first_ds = d;
         ds.push_back(d);
         if (c.sd_alu >= 2) { ds2.push_back(d); if (nst && !c.st_data_issue) ds2.push_back(d); }

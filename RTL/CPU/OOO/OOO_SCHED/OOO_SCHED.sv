@@ -75,7 +75,7 @@ module OOO_SCHED
         input  logic                  mdu_ok,     // an MDU µop may issue now
         input  logic                  q0_hold,    // a result of the MDU waits for queue 0's write port
 
-        // dispatch (S1), in program order (0 the oldest), valid as a prefix
+        // dispatch (S1), in program order (0 the oldest); what is not valid has gone already
         input  logic [W-1:0]          disp_valid,
         input  logic [W-1:0][1:0]     disp_kind,  // 0 any ALU queue, 1 queue 0 only, 2 the memory queue, 3 queue NQ-1 only
         input  logic [W-1:0][1:0]     disp_use,   // the sources the µop waits for

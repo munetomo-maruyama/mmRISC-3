@@ -52,7 +52,7 @@ static const long NEVER = 1L << 60;
 
 struct Uop {
     long id, disp, issued = -1, clr_at = NEVER;
-    int q, e, kind, use[2], src[2], wr, dst, lat, ext, ns, md, st, sd, wl;
+    int q, e, kind, use[2], src[2], wr, dst, lat, ext, ns, md, st, sd, wl, hole;   // hole: the slot has gone already
     unsigned bm;
     long ext_at = NEVER;
 };
@@ -77,7 +77,7 @@ int main(int argc, char** argv)
     std::vector<long> wslot[NQ];            // the write slots taken, by queue
     int exp_v[4] = {0, 0, 0, 0}, exp_e[4] = {0, 0, 0, 0}; unsigned exp_bm[4] = {0, 0, 0, 0};
     int exp_ns = 0, exp_md = 0;
-    long next_id = 0, bad = 0, nissued = 0, nb2b = 0, ncross = 0, nkilled = 0, nflush = 0, nstall = 0, ndisp = 0, nwl = 0, nsd = 0;
+    long next_id = 0, bad = 0, nissued = 0, nb2b = 0, ncross = 0, nkilled = 0, nflush = 0, nstall = 0, ndisp = 0, nwl = 0, nsd = 0, nhole = 0;
     long nlat[5] = {0, 0, 0, 0, 0}, nload_w = 0, nns = 0, nmd = 0, ngrp[5] = {0, 0, 0, 0, 0};
     int rate = 4;
 
@@ -144,6 +144,8 @@ int main(int argc, char** argv)
         unsigned mask = 0;
         for (int id : open_ids) mask |= 1u << id;
         for (int k = 0; k < nd; k++) {
+            if (g.size() < (size_t)W && rng() % 6 == 0) { Uop h{}; h.hole = 1; h.lat = 1; g.push_back(h); nhole++; }
+            if (g.size() >= (size_t)W) break;
             Uop x{};
             int r = rng() % 16;
             x.kind = r < 8 ? 0 : r < 9 ? 3 : r < 11 ? 1 : 2;
@@ -209,7 +211,7 @@ int main(int argc, char** argv)
             uint64_t ds = 0, db = 0;
             for (size_t k = 0; k < g.size(); k++) {
                 Uop& x = g[k];
-                dv |= 1u << k; dk |= (unsigned)x.kind << (2 * k);
+                dv |= (unsigned)!x.hole << k; dk |= (unsigned)x.kind << (2 * k);
                 du |= (unsigned)(x.use[0] | (x.use[1] << 1)) << (2 * k);
                 ds |= (uint64_t)(x.src[0] | (x.src[1] << 7)) << (14 * k);
                 // the fields that do not count have any value: the destination of a µop that
@@ -261,6 +263,10 @@ int main(int argc, char** argv)
         for (size_t k = 0; k < (size_t)W; k++) {
             int go = (d.disp_go >> k) & 1;
             if (k >= g.size()) {
+                if (go && bad++ < 12) printf("MISMATCH cycle %ld: slot %zu goes, not valid\n", cyc, k);
+                continue;
+            }
+            if (g[k].hole) {
                 if (go && bad++ < 12) printf("MISMATCH cycle %ld: slot %zu goes, not valid\n", cyc, k);
                 continue;
             }
@@ -374,8 +380,8 @@ int main(int argc, char** argv)
         d.clk = 1; d.eval(); d.clk = 0; d.eval();
     }
     bool cov = nissued > 100000 && nb2b > 10000 && ncross > 5000 && nkilled > 1000 && nflush > 50 &&
-               nlat[2] > 1000 && nlat[3] > 1000 && nlat[4] > 1000 && nns > 500 && nmd > 500 && ngrp[4] > 1000 && nstall > 1000 && nsd > 1000 && nwl > 1000;
-    printf("tb_sched: %ld stores' data, a marked load held by one %ld times\n", nsd, nwl);
+               nlat[2] > 1000 && nlat[3] > 1000 && nlat[4] > 1000 && nns > 500 && nmd > 500 && ngrp[4] > 1000 && nstall > 1000 && nsd > 1000 && nwl > 1000 && nhole > 1000;
+    printf("tb_sched: %ld stores' data, a marked load held by one %ld times, %ld slots not valid among those valid\n", nsd, nwl, nhole);
     printf("tb_sched: %ld issued (%ld, %ld, %ld, %ld at latency 1, 2, 3, 4; %ld MDU, %ld non-speculative), %ld back to back (%ld across queues), %ld killed, %ld flushes, %ld stalls, %ld groups of 4: %ld mismatches: %s\n",
            nissued, nlat[1], nlat[2], nlat[3], nlat[4], nmd, nns, nb2b, ncross, nkilled, nflush, nstall, ngrp[4], bad,
            bad == 0 && cov ? "PASS" : "FAIL");

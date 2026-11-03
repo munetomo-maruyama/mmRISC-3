@@ -1559,3 +1559,58 @@ module OOC_LSU2
         o_dirty <= drt; o_dirty_way <= dry; o_dirty_idx <= dri; o_tm <= tm; o_tm_vpn <= tv; o_tbusy <= tb;
     end
 endmodule : OOC_LSU2
+
+//---------------------------------------------------------------------------
+// OOC_RENAME2: renaming of the 4-issue core (OOO_RENAME2; Doc/STRATEGY.md 4.5 loop
+// 4). What comes from outside is registered, but disp_go: OOO_SDISP's S1, late in
+// the cycle (a delay in synth_ooo.tcl).
+//---------------------------------------------------------------------------
+module OOC_RENAME2
+    (
+        input  logic              clk,
+        input  logic              rst_n,
+        input  logic [3:0]        in_valid,
+        input  logic [3:0][1:0][4:0] in_src,
+        input  logic [3:0]        in_wr,
+        input  logic [3:0][4:0]   in_dst,
+        input  logic [3:0]        in_ckpt,
+        input  logic [3:0]        disp_go,
+        input  logic [3:0]        cmt_wr,
+        input  logic [3:0][4:0]   cmt_arch,
+        input  logic [3:0][6:0]   cmt_new,
+        input  logic [3:0][6:0]   cmt_old,
+        input  logic              restore,
+        input  logic [3:0]        restore_id,
+        input  logic              flush_all,
+        output logic [2:0]        o_take,
+        output logic [3:0]        o_valid,
+        output logic [3:0][1:0][6:0] o_src,
+        output logic [3:0]        o_wr,
+        output logic [3:0][6:0]   o_dst,
+        output logic [3:0][6:0]   o_old,
+        output logic [3:0]        o_ck,
+        output logic [3:0][3:0]   o_ckid
+    );
+    logic [3:0]        s_iv, s_iw, s_ik, s_cw;
+    logic [3:0][1:0][4:0] s_is;
+    logic [3:0][4:0]   s_id, s_ca;
+    logic [3:0][6:0]   s_cn, s_co;
+    logic              s_re, s_fl;
+    logic [3:0]        s_ri;
+    logic [2:0]        take;
+    logic [3:0]        rv, rw, rc;
+    logic [3:0][1:0][6:0] rs;
+    logic [3:0][6:0]   rd, ro;
+    logic [3:0][3:0]   ri;
+    always_ff @(posedge clk) begin
+        s_iv <= in_valid; s_is <= in_src; s_iw <= in_wr; s_id <= in_dst; s_ik <= in_ckpt;
+        s_cw <= cmt_wr; s_ca <= cmt_arch; s_cn <= cmt_new; s_co <= cmt_old;
+        s_re <= restore; s_ri <= restore_id; s_fl <= flush_all;
+        o_take <= take; o_valid <= rv; o_src <= rs; o_wr <= rw; o_dst <= rd; o_old <= ro; o_ck <= rc; o_ckid <= ri;
+    end
+    OOO_RENAME2 #(.NREG(80), .TAGW(7), .NCK(12)) u_ren
+        (.clk(clk), .rst_n(rst_n), .in_valid(s_iv), .in_src(s_is), .in_wr(s_iw), .in_dst(s_id), .in_ckpt(s_ik),
+         .in_take(take), .r2_valid(rv), .r2_src(rs), .r2_wr(rw), .r2_dst(rd), .r2_old(ro), .r2_ck(rc), .r2_ckid(ri),
+         .disp_go(disp_go), .cmt_wr(s_cw), .cmt_arch(s_ca), .cmt_new(s_cn), .cmt_old(s_co),
+         .restore(s_re), .restore_id(s_ri), .flush_all(s_fl));
+endmodule : OOC_RENAME2
