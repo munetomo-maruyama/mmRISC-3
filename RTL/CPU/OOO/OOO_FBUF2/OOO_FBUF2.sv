@@ -13,7 +13,7 @@
 //   D1  the block being read (cur, flip-flops) gives its next instructions, by
 //       the table; a count down of what is left, and 6 counters, are all the loop
 //
-// One block a cycle: what is left of a block goes alone. It costs −0.1 % in the model,
+// One block a cycle: what is left of a block goes alone. It costs 0.03 % in the model,
 // as a block seldom has more than 6, and there is no second block in any path.
 //
 // A 32-bit instruction that starts at the last parcel is the next block's first: that
