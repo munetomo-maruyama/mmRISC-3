@@ -3756,3 +3756,17 @@ Model 6.656 / 7.182 / 6.415 / 5.733, RTL about 6.26.
 - **Levers left**, each measured: queues of 10 (+0.5 %), F4 into a register if it does not close (−1.2 %), rename in 3 stages (−0.4 %), a lower clock with no change of pipeline.
 
 These figures are the author's to set.
+
+### 28.24 Gate S1-A: go, configuration frozen, 100 MHz kept (2026-11-05)
+
+**The author's decision on 28.23: go, as proposed; 100 MHz stays the target as far as it can.**
+
+| What | Decided |
+|---|---|
+| Configuration | **Frozen**, as of 28.13 to 28.23: `Doc/STRATEGY.md` 4.2, 4.3 |
+| Clock | **100 MHz stays the target.** The sums of 28.23 say about 95 MHz; a lower clock is not a plan, only the last of the levers |
+| Goal | `-O2` above 6.0 CoreMark/MHz, above 600 CoreMark/s, unchanged |
+| Step 1.2 | "Model ≥ 6.8" is now **≥ 6.6**: met, at 6.656 |
+| Gate S1-B | "RTL ≥ 6.3" is now **≥ 6.2** |
+
+What follows from keeping 100 MHz: a lever that costs CoreMark/MHz is taken only when a measurement of the whole shows it is needed, and the first such measurement should come early. So step 1.6's `OOO_CPU` out of context runs from the first step of the new pipeline: what the core really adds over the blocks alone (about 1 ns, measured once, on another design at 50 MHz) is the largest number here that nobody has measured.

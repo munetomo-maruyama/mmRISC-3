@@ -6413,3 +6413,71 @@ The record is section 28.22 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
 ```text
 fe2 finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOC_FE2` is now about 9.5 ns in substance, well down from about 14.8 ns today. But by the sums the whole core would be about 95 MHz, so 100 MHz is not secured.** I still recommend going on. The record is pushed (543b917).
+
+#### `fe2` (9 ns asked)
+
+| Class | This run | Last run | Levels |
+|---|---|---|---|
+| The path to the history bits | −0.820 | − | 12 |
+| **`ovr`** | **−0.518** (9.52 ns) | −0.849 | 13 |
+| **`f3`** | **−0.503** (9.50 ns) | −0.726 | 10 |
+| `tab` | −0.212 (9.21 ns) | +0.381 | 10 |
+| `loop` | −0.139 (9.14 ns) | −0.817 | 9 |
+| `cut` | −0.126 (9.13 ns) | −0.531 | 10 |
+| `slot` | +0.725 (8.28 ns) | +0.734 | 6 |
+
+- **The 2 changes:** `f3` went from 19 levels to 10, LUTs down by 211 to 4,884, `loop` back by 0.68 ns.
+- **The worst path (WNS −0.820):** to the history bits, which need no hurry in F4. Moved a cycle on. Simulated, not measured in Vivado after that; it touches no other path, so I skipped a rerun.
+- **In substance:** without the history bits, the worst is `ovr` at about 9.5 ns.
+
+#### An error of procedure
+I committed bc7940a before seeing the bug injection's result. My edit had given 2 mutations one id and lost one's text. Fixed and rerun, both detected; `fdec` is all 34 detected. Noted in 543b917 and section 28.23.
+
+#### For gate S1-A
+
+| Block | Alone | With about 1 ns for the core |
+|---|---|---|
+| F0 to D1 (`OOC_FE2`) | 9.5 ns | 10.5 ns |
+| Loop 2 (`OOC_EXU`) | 9.2 ns | 10.2 ns |
+| Loop 4 (`OOC_RENAME2`) | 9.1 ns | 10.1 ns |
+| Loop 1 (`OOC_SCHED`) | 8.9 ns | 9.9 ns |
+| Loop 3 (`OOC_LSU2`) | 8.1 ns | 9.1 ns |
+
+The model is 6.656 / 7.182 / 6.415 / 5.733, RTL about 6.26.
+
+| The whole core at | CoreMark/s | Against the 50 MHz design (337) |
+|---|---|---|
+| 100 MHz | 626 | 1.9 times |
+| 95 MHz | 595 | 1.8 times |
+| 90 MHz | 563 | 1.7 times |
+| 75 MHz | 470 | 1.4 times |
+
+**The hard part:** 595 at 95 MHz just misses the goal of 600 CoreMark/s. The +1 ns was measured once, on another design at 50 MHz, and TAGE M, the I$, the FTQ, the ROB and the decoded queue are not measured.
+
+#### My recommendation: go
+Above about 54 MHz this configuration beats the 50 MHz design, and nothing so far argues for another. With:
+
+1. **Freezing** the configuration of 28.13 to 28.23.
+2. **Step 1.2:** "model ≥ 6.8" to **≥ 6.6**.
+3. **Gate S1-B:** "RTL ≥ 6.3" to **≥ 6.2**; the goal above 6.0 stays.
+4. **Levers left**, each measured if needed:
+   - queues of 10 (+0.5 %)
+   - F4's decision in a register (−1.2 %)
+   - rename in 3 stages (−0.4 %)
+   - a lower clock with no change of pipeline
+
+"Go" changes these 2 figures as proposed; tell me if you want others. With "Not yet", tell me what to measure next.
+
+The record is section 28.23 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
+<!-- /answer -->
+
+## 160. 2026-11-05 01:00:42 JST
+
+```text
+I want to keep 100 MHz as the target as far as possible. On that basis, let us go ahead with the proposal.
+```

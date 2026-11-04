@@ -51,7 +51,7 @@ In `g14 -O2`, the build the goal is measured on (`Plan/model/g100.sh`, `results/
 
 | Item | Rule |
 |---|---|
-| Goal | `-O2`: **above 6.0 CoreMark/MHz at 100 MHz** (working target 6.3 in RTL, 6.1 on the board) |
+| Goal | `-O2`: **above 6.0 CoreMark/MHz at 100 MHz** (working target 6.2 in RTL, 6.1 on the board; **100 MHz kept as the target, author, 2026-11-05**) |
 | Where it counts | On the board, under Linux, with the bitstream that runs Linux |
 | Compiler | GCC 14.2 (Debian 13); `-O2 -march=rv64imafdc_zicsr_zifencei_zba_zbb_zbs_zicond` |
 | In simulation | `OOO_CPU` with the real caches and a latency model of the DDR3, in lock-step with Spike |
@@ -84,7 +84,7 @@ The whole chip (physical LUTs). **At 100 MHz the ceiling is taken as about 75 %,
 
 ## 4. The micro-architecture for 100 MHz
 
-To be frozen at gate S1-A (section 5). Numbers are the model's; the sensitivity of each is in `results/g100.txt`.
+**Frozen at gate S1-A, 2026-11-05** (`Plan/OOC.md` 28.24). Numbers are the model's; the sensitivity of each is in `results/g100.txt`.
 
 ### 4.1 What fits in a cycle
 
@@ -196,13 +196,13 @@ and far less work, so the go / no-go is at gate S1-A.
 | # | Work | Done when |
 |---|---|---|
 | 1.0 | **Done 2026-11-02**: `synth_ooo.bat t100`: today's blocks at a 10 ns target, on the XC7A200T (`Plan/OOC.md` 28.1) | The real distance from 10 ns |
-| 1.1 | Harnesses of the new loops alone, in this order: a queue of 8 with its wakeups (`OOC_SCHED`, `synth_ooo.bat sched`, **about 8.9 ns asked for 8.5, 2026-11-04**), bypass + ALU with the new sources (`OOC_EXU`, `synth_ooo.bat exu`, **about 9.2 ns asked for 9, 2026-11-03**), a uBTB (`OOC_UBTB2`, `synth_ooo.bat ubtb`, **about 8.9 ns asked for 9, 2026-11-03**), M1 / M2 with block RAM (`OOC_LSU2`, `synth_ooo.bat lsu2`, **about 8.1 ns asked for 9, 2026-11-03**), rename of 4 (`OOC_RENAME2`, `synth_ooo.bat ren2`, **about 9.1 ns asked for 9, 2026-11-04**), the fetch buffer (`OOC_FBUF2`, `synth_ooo.bat fbuf2`, **about 8.65 ns asked for 9, 2026-11-04**), F0 to D1 joined (`OOC_FE2`, `synth_ooo.bat fe2`, **about 9.5 ns asked for 9, 2026-11-05**). All six measured: `Plan/OOC.md` 28.20, 28.23 | **Gate S1-A**: all six within reach at 10 ns; the configuration frozen; **go, or fall back to 75 MHz, or to 50 MHz and 3-wide** |
-| 1.2 | The model with the queue, the D1 boundary, the split store as they will be built | Model ≥ 6.8 (6.66 as built: the author's to change, `Plan/OOC.md` 28.14, 28.21) |
-| 1.3 | The new pipeline at W = 2 first: stages added, no new function, the tests' references updated | Lock-step; cycles against the model |
+| 1.1 | Harnesses of the new loops alone, in this order: a queue of 8 with its wakeups (`OOC_SCHED`, `synth_ooo.bat sched`, **about 8.9 ns asked for 8.5, 2026-11-04**), bypass + ALU with the new sources (`OOC_EXU`, `synth_ooo.bat exu`, **about 9.2 ns asked for 9, 2026-11-03**), a uBTB (`OOC_UBTB2`, `synth_ooo.bat ubtb`, **about 8.9 ns asked for 9, 2026-11-03**), M1 / M2 with block RAM (`OOC_LSU2`, `synth_ooo.bat lsu2`, **about 8.1 ns asked for 9, 2026-11-03**), rename of 4 (`OOC_RENAME2`, `synth_ooo.bat ren2`, **about 9.1 ns asked for 9, 2026-11-04**), the fetch buffer (`OOC_FBUF2`, `synth_ooo.bat fbuf2`, **about 8.65 ns asked for 9, 2026-11-04**), F0 to D1 joined (`OOC_FE2`, `synth_ooo.bat fe2`, **about 9.5 ns asked for 9, 2026-11-05**). All six measured: `Plan/OOC.md` 28.20, 28.23 | **Gate S1-A, passed 2026-11-05: go** (`Plan/OOC.md` 28.24): all six within reach at 10 ns; the configuration frozen |
+| 1.2 | The model with the queue, the D1 boundary, the split store as they will be built | **Done 2026-11-05**: model ≥ 6.6, by the author (`Plan/OOC.md` 28.24): 6.656 as built |
+| 1.3 | The new pipeline at W = 2 first: stages added, no new function, the tests' references updated; `OOO_CPU` out of context from here on (1.6), to measure what the core adds | Lock-step; cycles against the model |
 | 1.4 | Distributed schedulers; the decoded queue; 32-byte fetch, 6 decoded | Tests; cycles against the model |
 | 1.5 | The width as a parameter, then W = 4; 3 ALUs; register file; ROB, LQ / SQ, checkpoints | Tests at both widths |
 | 1.6 | Timing at every step at 10 ns: `OOO_CPU` out of context | Slack reported per loop |
-| 1.7 | L1 hit paths at 100 MHz; half-rate islands; the real I$, L2; CoreMark on `OOO_CPU` | **Gate S1-B**: RTL `-O2` ≥ 6.3 with real caches, 100 MHz, tests and bug injection clean |
+| 1.7 | L1 hit paths at 100 MHz; half-rate islands; the real I$, L2; CoreMark on `OOO_CPU` | **Gate S1-B**: RTL `-O2` ≥ 6.2 with real caches, 100 MHz, tests and bug injection clean |
 | 1.8 | Interrupts, MMU (Sv39), FPU, debug, PMU; arch tests for F / D / S; Linux on the simulator | **Gate S1-C**: Linux prompt in simulation |
 
 ### Step 2: the peripherals and the board
@@ -258,7 +258,7 @@ boundaries get their own directed tests; the board's checks in step 2 run on mmR
 | R7 | Second LSU port, fourth ALU | After S1-B, only if timing and the 75 % ceiling allow |
 | R8 | LiteX | Its Nexys Video target as the base (`Doc/BOARD.md` 2) |
 | R9 | Half-rate islands | Recommended (4.4), against rewriting mmRISC-2's blocks |
-| R10 | Go / no-go | At S1-A, on measurements: the ladder of 4.5 |
+| R10 | Go / no-go | **Decided at S1-A, 2026-11-05: go**, 100 MHz kept; the ladder of 4.5 is the last lever |
 
 ---
 
