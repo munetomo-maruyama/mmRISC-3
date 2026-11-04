@@ -18,12 +18,18 @@
 // go if it does. What went stays out of R2 (OOO_RENAME2) until its group has gone:
 // a slot not valid has no part in any of this.
 //
+// Which queue, and the how manieth in it, are chosen a cycle ahead (Plan/OOC.md 28.17),
+// for the slots as they will be in the next cycle (s0_*: R1's if the group moves
+// on, else what stays of R2's). So disp_go is 3 levels from registers, and whoever
+// waits for it (OOO_RENAME2's adv) has the time.
+//
 // The registers that decide it:
 //   ff, bf   the first free entry of each bank, and that there is one, from
 //            the state of the last cycle: an entry can be chosen the cycle
 //            after its column clears (a killed one a cycle later)
 //   rk       the ALU queues, the emptiest first, as they were: the first
 //            any-ALU µop of a group goes to rk[0], the next to rk[1], rk[2], rk[0]
+//   sq, sr   a slot's queue and how many go before it there
 //
 // What a slot waits for (din, a bit per entry, kept for S2):
 //   - a source's producer still pending: pw[j] && dq[j] == the source's tag.
@@ -51,6 +57,9 @@ module OOO_SDISP
         input  logic                  rst_n,
         input  logic                  flush,
 
+        // the slots of the next cycle
+        input  logic [W-1:0]          s0_valid,
+        input  logic [W-1:0][1:0]     s0_kind,
         // the slots, in program order; what is not valid has gone already
         input  logic [W-1:0]          disp_valid,
         input  logic [W-1:0][1:0]     disp_kind,
@@ -106,24 +115,45 @@ module OOO_SDISP
         for (int e = 0; e < NE; e++) if (ff[e]) fe[b_of(e)] = fe[b_of(e)] | LW'(e - q_of(e) * N);
     end
 
-    // ---- steering
+    // ---- steering, a cycle ahead: for the slots as they will be (s0_*), which queue
+    // and how many of the group go to it before this one
+    logic [QW-1:0] sq_n [W];
+    logic [1:0]    sr_n [W];
+    logic [QW-1:0] sq [W];
+    logic [1:0]    sr [W];
+    always @(*) begin
+        automatic logic [1:0] nalu = 2'd0;
+        automatic logic [1:0] cn_q [NQ+1];
+        for (int q = 0; q <= NQ; q++) cn_q[q] = 2'd0;
+        for (int k = 0; k < W; k++) begin
+            automatic logic [QW-1:0] q = QW'(s0_kind[k] == 2'd2 ? NQ : s0_kind[k] == 2'd1 ? 0 : s0_kind[k] == 2'd3 ? NQ - 1 : int'(rk[int'(nalu) % NQ]));
+            sq_n[k] = q;
+            sr_n[k] = cn_q[q];
+            if (s0_valid[k] && cn_q[q] != 2'd2) cn_q[q] = cn_q[q] + 2'd1;
+            if (s0_valid[k] && s0_kind[k] == 2'd0) nalu = nalu + 2'd1;
+        end
+    end
+    always_ff @(posedge clk) begin
+        for (int k = 0; k < W; k++) begin
+            sq[k] <= sq_n[k];
+            sr[k] <= sr_n[k];
+        end
+    end
+    // the bank, from a register and the banks' room: the first takes A, else B; a second
+    // takes B after A, which it knows the first took if A had room; a third waits
     logic [W-1:0] room;
     always @(*) begin
-        automatic logic [1:0]  nalu = 2'd0;
-        automatic logic [NQ:0] ua = '0;
-        automatic logic [NQ:0] ub = '0;
         for (int k = 0; k < W; k++) begin
-            automatic int q = disp_kind[k] == 2'd2 ? NQ : disp_kind[k] == 2'd1 ? 0 : disp_kind[k] == 2'd3 ? NQ - 1 : int'(rk[int'(nalu) % NQ]);
-            automatic logic ta = disp_valid[k] && !ua[q] && bf[2*q];
-            automatic logic tb = disp_valid[k] && !ub[q] && !ta && bf[2*q+1];
-            disp_q[k] = QW'(q);
+            automatic logic fa = bf[{sq[k], 1'b0}];
+            automatic logic fb = bf[{sq[k], 1'b1}];
+            automatic logic ta = disp_valid[k] && sr[k] == 2'd0 && fa;
+            automatic logic tb = disp_valid[k] && ((sr[k] == 2'd0 && !fa && fb) ||
+                                                   (sr[k] == 2'd1 && fa && fb));
+            disp_q[k] = sq[k];
             room[k]   = ta || tb;
             for (int b = 0; b < NB; b++) bsel[b][k] = 1'b0;
-            bsel[2*q][k]   = ta;
-            bsel[2*q+1][k] = tb;
-            if (ta) ua[q] = 1'b1;
-            if (tb) ub[q] = 1'b1;
-            if (disp_valid[k] && disp_kind[k] == 2'd0) nalu = nalu + 2'd1;
+            bsel[{sq[k], 1'b0}][k] = ta;
+            bsel[{sq[k], 1'b1}][k] = tb;
         end
     end
     always @(*) begin

@@ -96,6 +96,11 @@ row "  **2 a cycle: as built**" $J $D $X $U $W ck_max=2
 row "  1 a cycle" $J $D $X $U $W ck_max=1
 row "  a checkpoint ends its group" $J $D $X $U $W ck_end=1
 row "  rename a stage more" $J $D $X $U $W dec_depth=6 redirect=7
+echo "| **steering in the cycle before S1** (Plan/OOC.md 28.17) | | | |"
+row "  the order 2 old: S1 as before" $J $D $X $U $W ck_max=2
+row "  **the order 3 old, chosen again every cycle: as built**" $J $D $X $U $W ck_max=2 rk_lag=3
+row "  the order 4 old" $J $D $X $U $W ck_max=2 rk_lag=4
+row "  a group's queues fixed at R1, not chosen again" $J $D $X $U $W ck_max=2 rk_lag=3 hole_bank=1
 row "uBTB 8"                                        $J ubtb=8
 row "uBTB 32"                                       $J ubtb=32
 row "uBTB answers a cycle late: a bubble on every taken branch" $J taken_gap=2

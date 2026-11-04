@@ -5969,3 +5969,84 @@ The record is section 28.15 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
 ```text
 Yes, loop 4
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I built loop 4 as a new design, `OOO_RENAME2`, and pushed it (20b579b): 4 µops renamed in 2 stages. **The model is 6.722, about the same as the 6.726 before.** Timing is not measured yet.
+
+#### Where the design starts
+`OOO_SDISP`'s S1 is in R2 and compares the physical sources and new registers from registers, so these must be known at the end of R1. So R1 does all of renaming, and R2 is little but registers.
+
+| Item | Choice | Why |
+|---|---|---|
+| R1 | RAT read, dependences among the 4, new registers, RAT write | 5 levels by count |
+| R2 | What S1 does not take stays in its slot; R1 moves when it is empty | No mux of 4 on about 170 bits |
+| Busy bits | None | `OOO_SDISP` compares |
+| Free list | A ring of 64 places for 48 registers, 4 banks of LUT RAM | A group needs one port a bank; about 32 LUTs by estimate |
+| Checkpoints | LUT RAM, 269 bits × 12, at most 2 a group | About 360 LUTs and a read mux in place of 3,200 FF and a mux of 12 |
+| Restore | 2 cycles (the RAT, then undoing the group's younger µops) | No mux added on the RAT; the front end is at least 8 stages behind, so no loss |
+
+#### The model (checkpoints a cycle)
+
+| A cycle | `-O2` | most optimization | g13 | rv64gc |
+|---|---|---|---|---|
+| Any number | 6.726 | 7.234 | 6.484 | 5.797 |
+| **2 (chosen)** | **6.722** | **7.234** | **6.487** | **5.797** |
+| 1 | 6.697 | 7.182 | 6.438 | 5.731 |
+| A checkpoint ends its group | 6.543 | 7.074 | 6.322 | 5.685 |
+| Any number, rename in 3 stages | 6.698 | 7.203 | 6.459 | 5.777 |
+
+- **Why:** the simplest, ending the group, costs −2.7 %. 1 costs −0.4 % and puts RTL at 6.295, under the gate's 6.3.
+- **Value now:** with 2, RTL about 6.32.
+- **Lever if short:** rename in 3 stages, −0.4 %.
+- **Not in the model:** a group waits when fewer than 8 registers are free. It should happen only with nearly all the ROB writing, but it is not measured.
+
+#### The change in `OOO_SDISP`
+What stays in R2 leaves gaps in the slots, so slots may be not valid among valid ones.
+
+That adds inputs to S1, the limit of `OOC_SCHED`, so **`sched85` has to run again**.
+
+#### Verification
+- **Bench `tb_rename2`:** 800,000 cycles against its own reference, no mismatch: 605,485 µops, 45,921 groups with 2 checkpoints, 33,116 restores (9,832 at the earliest cycle), 170,063 cycles short of registers.
+- **Design faults found:**
+  - The next id after 2 checkpoints came from the first.
+  - `restore_id + 1`, as in today's `OOO_RENAME`, left a hole and open ids were reused. The restored id now goes next.
+- **`tb_sched`:** 76,494 gaps among the slots, no mismatch.
+- **Bug injection:** all 30 of `rename2` and 105 of `sched` detected, every line read. M734 was equivalent and removed; M751 showed an enable not needed, removed from the RTL.
+- **Lint:** `-Wall` clean on blocks and harness.
+
+#### Not confirmed
+- **When `disp_go` arrives:** the harness has 55 % of the period, an estimate from S1's worst path, not a measurement.
+- **Not in:** ROB entries, branch masks, the decoded queue before it.
+- **`arat`:** still in FF (224), to change if size calls for it.
+
+#### Request
+Please run these 2 on Windows. Results go to `output/OOC_RENAME2_T9` and `output/OOC_SCHED_T8.5`.
+
+```bash
+synth_ooo.bat ren2
+```
+
+```bash
+synth_ooo.bat sched85
+```
+
+To read:
+- **`ren2`:** `go` first (S1 to the state), then `r1`, `read`, `tag`, `rat`, `ck`, `rest`, `cmt` and the total LUTs.
+- **`sched85`:** against the last 9.06 ns; up to 0.26 ns is placement's spread.
+
+The record is section 28.16 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`). Step 1.2's "model ≥ 6.8" is unchanged, with a note "6.72 as built, the author's to change".
+<!-- /answer -->
+
+## 152. 2026-11-04 22:09:31 JST
+
+```text
+Both finished
+```
+
+## 153. 2026-11-04 22:44:12 JST
+
+```text
+Try again
+```

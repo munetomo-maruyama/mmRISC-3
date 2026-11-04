@@ -1,0 +1,30 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Wed Nov  4 21:57:30 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_RENAME2_T9/utilization_synth.rpt
+| Design       : OOC_RENAME2
+| Device       : xc7a200tsbg484-1
+| Speed File   : -1
+| Design State : Synthesized
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++-----------------+-------------+------------+------------+---------+------+-----+--------+--------+------------+
+|     Instance    |    Module   | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs | RAMB36 | RAMB18 | DSP Blocks |
++-----------------+-------------+------------+------------+---------+------+-----+--------+--------+------------+
+| OOC_RENAME2     |       (top) |       3181 |       2805 |     376 |    0 | 990 |      0 |      0 |          0 |
+|   (OOC_RENAME2) |       (top) |          3 |          3 |       0 |    0 | 311 |      0 |      0 |          0 |
+|   u_ren         | OOO_RENAME2 |       3178 |       2802 |     376 |    0 | 679 |      0 |      0 |          0 |
++-----------------+-------------+------------+------------+---------+------+-----+--------+--------+------------+
+
+

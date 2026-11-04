@@ -3468,3 +3468,43 @@ The store's 2 µops are 2 slots here, each with one source; neither takes a regi
 **Verification.** `tb_rename2`: 800,000 cycles against a reference of its own: 605,485 µops, 80,921 sources inside a group, 45,921 groups with 2 checkpoints, 33,116 restores (10,342 with undoes, 9,832 at the earliest cycle), 777 flushes, 302,362 commits, 170,063 cycles short of registers, 207,313 slots held in R2, no mismatch. It found 2 faults: the next id after 2 checkpoints came from the first, and the hole above. `tb_sched`, with slots not valid among valid: 425,427 issued, 76,494 such slots, no mismatch. Bug injection: `rename2` M720 to M751 but M734, M751, **30 of 30**, `sched` with M717 to M719 **105 of 105**, every line read. M734 (an id for one not taken: its younger ones are not taken either) was equivalent and removed; M751 showed that `pk_head`, `pk_ad` need no enable, and the RTL lost it. M447's text had moved and was corrected. -Wall clean on the block and harness.
 
 What to read: `go`, `r1`, `read`, `tag`, `rat`, `ck`, `rest`, `cmt`, and the total. Levers if short: the R2 fields with `max_fanout`, a stage more (−0.4 %); the old mapping's 4 read ports could go to the ROB's commit.
+
+### 28.17 `OOC_RENAME2` about 8.1 ns but for `disp_go`; `OOC_SCHED` 9.95 ns with gaps; steering a cycle ahead (2026-11-04)
+
+`synth_ooo.bat ren2`, the RTL of 28.16, in `output/OOC_RENAME2_T9`, and `sched85`.
+
+**`OOC_RENAME2` at 9 ns: register to register +0.909 ns, 8.09 ns, 3,146 LUTs (376 LUT RAM), 679 FF in the block.** Today's 2-µop block is 2,657 LUTs: 4 µops, 12 checkpoints and 80 registers for 18 % more.
+
+| Class | Slack at 9 ns | Reached | Levels |
+|---|---|---|---|
+| **`go`: the port, at 55 % of the period, to the state** | **−0.092** | 4.83 ns of path after the port | 5 |
+| `rat` | +0.909 | 8.09 ns | 5 |
+| `rest` | +1.347 | 7.65 ns | 3 |
+| `ck` | +1.728 | 7.27 ns | 3 |
+| `cmt` | +1.813 | 7.19 ns | 3 |
+| `r1` | +2.359 | 6.64 ns | 5 |
+| `read` | +2.580 | 6.42 ns | 5 |
+| `tag` | +2.624 | 6.38 ns | 4 |
+
+Levels as counted (5). So what is left is one question: when `disp_go` comes.
+
+**`OOC_SCHED` at 8.5 ns, with `disp_valid` in the steering: 9.95 ns**, against 9.06 ns (28.15), 5,808 LUTs. 0.89 ns is more than the 0.26 ns of placement. `s1` −1.450, `ff` −1.290, `guard` −0.943, `loop` −0.767, `kill` −0.454, `s2` −0.079. The worst path is 10 levels: slot's kind, its queue by `rk` and `nalu`, the older slots' banks one after another, `disp_go`, then `wa`. And it shows the estimate of 28.16 was wrong: **`disp_go[3]` comes about 7 levels in, at 70 to 80 % of the period, not 55 %.** With the 4.83 ns behind it, `adv` would need about 11 ns. Taking `disp_valid` out of the steering would give back S1, not `adv`.
+
+**So the steering moves a cycle ahead.** In the cycle before S1, for the slots as they will be then (`s0_valid`, `s0_kind`: R1's if the group moves on, else what stays of R2's), `OOO_SDISP` chooses each slot's queue and how many go before it there, into registers (`sq`, `sr`). In S1 a slot's bank is 1 or 2 LUTs from those and the banks' room: the first takes A, else B; a second takes B if A has room too, as then the first took A; a third waits. `disp_go` is about 3 levels from registers, and `wa`'s path, the worst of S1, the same levels shorter. Nothing else in S1 changes.
+
+| Steering | `-O2` | most optimization | g13 | rv64gc |
+|---|---|---|---|---|
+| The order 2 old, in S1 (28.16) | 6.722 | 7.234 | 6.487 | 5.797 |
+| **The order 3 old, chosen again every cycle: as built** | **6.709** | **7.229** | **6.465** | **5.757** |
+| The order 4 old | 6.665 | 7.208 | 6.421 | 5.729 |
+| A group's queues fixed at R1, not chosen again | 6.502 | 7.002 | 6.261 | 5.597 |
+
+The last row is why it has to be chosen again every cycle: a µop stuck on a full queue goes to an emptier one a cycle later, which is worth 3 %. So `s0_*` is a mux by `adv`, and `disp_go` runs into it: the reason `sq`, `sr` need `disp_go` early too.
+
+**The model is now 6.709 / 7.229 / 6.465 / 5.757, RTL at × 0.94 about 6.31, 631 CoreMark/s. That is 0.01 over gate S1-B's 6.3: nothing in hand.** A lever if the RTL falls short: queues of 10 (6.767 on the row of 28.13), with loop 1's cost to measure.
+
+**The harness** `OOC_SCHED` now has R2 as `OOO_RENAME2` has it: what stays stays, `adv` enables the fields, and `s0_*` is the mux. `report_sched.tcl` has 2 new classes: `go`, to the top bits of `out`, and `ahead`. `OOC_RENAME2`'s `disp_go` delay is now 45 % of the period, to be checked against `go`: at 9 ns that is 4 ns; if `go` says later, the delay goes with it.
+
+**Verification.** `tb_sched`: the group is chosen at the end of the cycle before, with the order the block has then: 421,091 issued, 76,109 slots not valid among those valid, 26,588 data µops, no mismatch. Bug injection on all of `OOO_SCHED`, `OOO_SDISP`, with the steering's rewritten and M779 new: **106 of 106 detected**, every line read; M778 (no new queue for a slot not valid) was equivalent and removed. The mux `s0_*` itself is R2's, not in this block: the bench's groups do not stay, so choosing again is not tested until R2 joins it; the harness has it for the timing.
+
+Next: `synth_ooo.bat sched85` and `ren2`. To read: `go`, then `s1`, `ff`, `loop`, against 9.06 ns.

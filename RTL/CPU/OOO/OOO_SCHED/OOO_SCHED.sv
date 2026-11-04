@@ -75,6 +75,9 @@ module OOO_SCHED
         input  logic                  mdu_ok,     // an MDU µop may issue now
         input  logic                  q0_hold,    // a result of the MDU waits for queue 0's write port
 
+        // what the slots of dispatch will be in the next cycle (S1's steering is chosen ahead)
+        input  logic [W-1:0]          s0_valid,
+        input  logic [W-1:0][1:0]     s0_kind,
         // dispatch (S1), in program order (0 the oldest); what is not valid has gone already
         input  logic [W-1:0]          disp_valid,
         input  logic [W-1:0][1:0]     disp_kind,  // 0 any ALU queue, 1 queue 0 only, 2 the memory queue, 3 queue NQ-1 only
@@ -161,6 +164,7 @@ module OOO_SCHED
     logic [NE-1:0]        pd [NB];
     OOO_SDISP #(.NQ(NQ), .N(N), .NM(NM), .W(W), .TAGW(TAGW)) u_disp
         (.clk(clk), .rst_n(rst_n), .flush(flush),
+         .s0_valid(s0_valid), .s0_kind(s0_kind),
          .disp_valid(disp_valid), .disp_kind(disp_kind), .disp_use(disp_use), .disp_src(disp_src),
          .disp_wr(disp_wr), .disp_dst(disp_dst), .disp_ns(disp_ns), .disp_st(disp_st),
          .disp_sd(disp_sd), .disp_wl(disp_wl),

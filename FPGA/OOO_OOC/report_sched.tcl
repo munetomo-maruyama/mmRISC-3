@@ -12,6 +12,8 @@
 #   free   a request into the next free entry
 #   s1     the slots' registers into S1's registers, and the entries' fields
 #   ff     the first free entries and the queue order into the same
+#   go     the steering and the banks' room to disp_go (the top bits of out)
+#   ahead  the steering of the next cycle
 #   s2     S2's registers into the rows and the requests
 #   kill   kill, clr into the block
 #   issue  the grants in a register, out of the block
@@ -24,13 +26,15 @@ proc sched_cells {pats} {
     return [get_cells -quiet -hierarchical -filter "IS_SEQUENTIAL && ([join $f { || }])"]
 }
 proc sched_classes {fh outdir} {
-    set inr {dv_reg* dk_reg* du_reg* ds_reg* dw_reg* dd_reg* dl_reg* dx_reg* db_reg* dn_reg* dm_reg* dt_reg*}
+    set inr {dv_reg* dk_reg* du_reg* ds_reg* dw_reg* dd_reg* dl_reg* dx_reg* db_reg* dn_reg* dm_reg* dt_reg* dsd_reg* dwl_reg* *u_disp/sq_reg* *u_disp/sr_reg*}
     set cls [list loop  {*u_sched/*rv_reg*}             {*u_sched/*rv_reg*} \
                   guard {*u_sched/*nsf_reg* *u_sched/*mdf_reg* *u_sched/*l1q_reg* *u_sched/*l2f_reg* *u_sched/*l3f_reg* *u_sched/*l4f_reg* *u_sched/*wrq_reg* *u_sched/*aq_reg* *u_sched/*rs_reg* *u_sched/*rr_ns_reg* *u_sched/*rr_md_reg* nk_reg* mk_reg* qh_reg*} {*u_sched/*rv_reg*} \
                   wake  {*u_sched/*rv_reg*}             {*u_sched/*wq_reg*} \
                   free  {*u_sched/*rv_reg*}             {*u_disp/ff_reg* *u_disp/bf_reg*} \
                   s1    $inr                            {u_sched/*} \
                   ff    {*u_disp/ff_reg* *u_disp/bf_reg* *u_disp/rk_reg*} {u_sched/*} \
+                  go    {dv_reg* *u_disp/sq_reg* *u_disp/sr_reg* *u_disp/bf_reg*} {out_reg[94]* out_reg[95]* out_reg[96]* out_reg[97]*} \
+                  ahead {dv_reg* dk_reg* i_v_reg* i_k_reg* *u_disp/rk_reg* *u_disp/sq_reg* *u_disp/sr_reg* *u_disp/bf_reg*} {*u_disp/sq_reg* *u_disp/sr_reg*} \
                   s2    {*u_disp/d2_reg* *u_disp/s2_reg* *u_disp/w2_reg* *u_disp/col_q_reg*} {u_sched/*} \
                   kill  {ki_reg* cl_reg*}               {u_sched/*} \
                   issue {*u_sched/*gq_reg*}             {out_reg*}]

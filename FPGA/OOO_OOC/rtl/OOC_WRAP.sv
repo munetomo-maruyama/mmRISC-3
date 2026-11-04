@@ -1234,6 +1234,12 @@ module OOC_SCHED
     logic              fl, nk, mk, qh;
     logic [11:0]       ki, cl;
     logic [3:0]        dv, dw, dx, dn, dm, dt, dsd, dwl, go;
+    logic [3:0]        i_v, i_w, i_x, i_n, i_m, i_t, i_sd, i_wl, v_n;
+    logic [3:0][1:0]   i_k, i_u, i_l, k_n;
+    logic [3:0][1:0][6:0] i_s;
+    logic [3:0][6:0]   i_d;
+    logic [3:0][11:0]  i_b;
+    (* max_fanout = 32 *) logic adv;
     logic [3:0][1:0]   dk, du, dl, dq;
     logic [3:0][1:0][6:0] ds;
     logic [3:0][6:0]   dd;
@@ -1246,13 +1252,23 @@ module OOC_SCHED
     logic              rn, rm;
     always_ff @(posedge clk) begin
         fl <= flush; ki <= kill; cl <= clr; nk <= ns_ok; mk <= mdu_ok; qh <= q0_hold;
-        dv <= disp_valid; dk <= disp_kind; du <= disp_use; ds <= disp_src; dw <= disp_wr; dd <= disp_dst;
-        dl <= disp_lat; dx <= disp_ext; db <= disp_bm; dn <= disp_ns; dm <= disp_md; dt <= disp_st; dsd <= disp_sd; dwl <= disp_wl;
+        i_v <= disp_valid; i_k <= disp_kind; i_u <= disp_use; i_s <= disp_src; i_w <= disp_wr; i_d <= disp_dst;
+        i_l <= disp_lat; i_x <= disp_ext; i_b <= disp_bm; i_n <= disp_ns; i_m <= disp_md; i_t <= disp_st; i_sd <= disp_sd; i_wl <= disp_wl;
+        // R2: what S1 does not take stays, the rest moves on when none is left (OOO_RENAME2)
+        dv <= v_n;
+        if (adv) begin
+            dk <= i_k; du <= i_u; ds <= i_s; dw <= i_w; dd <= i_d;
+            dl <= i_l; dx <= i_x; db <= i_b; dn <= i_n; dm <= i_m; dt <= i_t; dsd <= i_sd; dwl <= i_wl;
+        end
         xv <= ext_valid; xe <= ext_entry;
         out <= {go, dq, de, rv, re, rb, rn, rm};
     end
+    assign adv = (dv & ~go) == 4'd0;
+    assign v_n = adv ? i_v : dv & ~go;
+    assign k_n = adv ? i_k : dk;
     OOO_SCHED u_sched
         (.clk(clk), .rst_n(rst_n), .flush(fl), .kill(ki), .clr(cl), .ns_ok(nk), .mdu_ok(mk), .q0_hold(qh),
+         .s0_valid(v_n), .s0_kind(k_n),
          .disp_valid(dv), .disp_kind(dk), .disp_use(du), .disp_src(ds), .disp_wr(dw), .disp_dst(dd),
          .disp_lat(dl), .disp_ext(dx), .disp_bm(db), .disp_ns(dn), .disp_md(dm), .disp_st(dt), .disp_sd(dsd), .disp_wl(dwl),
          .disp_go(go), .disp_q(dq), .disp_e(de), .ext_valid(xv), .ext_entry(xe),

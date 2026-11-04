@@ -65,6 +65,11 @@
 |   1 a cycle                                                  |  6.697 |  7.182 |  6.438 |
 |   a checkpoint ends its group                                |  6.543 |  7.074 |  6.322 |
 |   rename a stage more                                        |  6.698 |  7.203 |  6.459 |
+| **steering in the cycle before S1** (Plan/OOC.md 28.17) | | | |
+|   the order 2 old: S1 as before                              |  6.722 |  7.234 |  6.487 |
+|   **the order 3 old, chosen again every cycle: as built**    |  6.709 |  7.229 |  6.465 |
+|   the order 4 old                                            |  6.665 |  7.208 |  6.421 |
+|   a group's queues fixed at R1, not chosen again             |  6.502 |  7.002 |  6.261 |
 | uBTB 8                                                       |  6.660 |  7.232 |  6.479 |
 | uBTB 32                                                      |  6.971 |  7.530 |  6.733 |
 | uBTB answers a cycle late: a bubble on every taken branch    |  6.435 |  7.155 |  6.261 |

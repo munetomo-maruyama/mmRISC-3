@@ -18,11 +18,11 @@
 //     µop of its queue already takes the slot of c + L; in queue 0 a writer of
 //     latency 1 does not issue with q0_hold
 //
-// Dispatch: disp_go is checked in full: the queue each slot should go to (any
-// ALU: the queues as full as they were in the last cycle, emptiest first, then
-// in turn), a prefix, as long as its queue has a bank for it: a queue's even
-// entries are bank A, its odd ones B, one µop a cycle each; the first µop takes
-// A if it has a free entry, else B, a second B after A. A bank's free entry is
+// Dispatch: disp_go is checked in full: the queue each slot should go to, chosen a
+// cycle ahead (any ALU: the queues as full as they were in the cycle before that,
+// emptiest first, then in turn), as long as its queue has a bank for it: a queue's
+// even entries are bank A, its odd ones B, one µop a cycle each; the first µop takes
+// A if it has a free entry, else B, a second B if A has one too (so the first took A). A bank's free entry is
 // its lowest as the last cycle left it: free then, or whose µop told its
 // dependents then (c + L - 1, or the cycle of ext_*), and not taken then. disp_e
 // must be it, and is where the issue is looked for after (rr_entry).
@@ -52,7 +52,7 @@ static const long NEVER = 1L << 60;
 
 struct Uop {
     long id, disp, issued = -1, clr_at = NEVER;
-    int q, e, kind, use[2], src[2], wr, dst, lat, ext, ns, md, st, sd, wl, hole;   // hole: the slot has gone already
+    int q, e, kind, use[2], src[2], wr, dst, lat, ext, ns, md, st, sd, wl, hole, xq, xr;   // hole: the slot has gone already
     unsigned bm;
     long ext_at = NEVER;
 };
@@ -80,6 +80,8 @@ int main(int argc, char** argv)
     long next_id = 0, bad = 0, nissued = 0, nb2b = 0, ncross = 0, nkilled = 0, nflush = 0, nstall = 0, ndisp = 0, nwl = 0, nsd = 0, nhole = 0;
     long nlat[5] = {0, 0, 0, 0, 0}, nload_w = 0, nns = 0, nmd = 0, ngrp[5] = {0, 0, 0, 0, 0};
     int rate = 4;
+    std::vector<Uop> g;                     // the group: what does not go is forgotten
+    std::vector<int> taken, rd;             // its destinations, its sources
 
     for (long cyc = 0; cyc < 400000; cyc++) {
         // ---- what the last cycle issued, seen now
@@ -137,74 +139,9 @@ int main(int argc, char** argv)
         }
         d.ext_valid = xv; d.ext_entry = xe;
 
-        // the group: regenerated every cycle, what does not go is forgotten
-        std::vector<Uop> g;
-        std::vector<int> taken, rd;             // the group's destinations, its sources
-        int nd = kill_id >= 0 ? 0 : rng() % (rate + 1);   // (in a flush cycle none must go)
-        unsigned mask = 0;
-        for (int id : open_ids) mask |= 1u << id;
-        for (int k = 0; k < nd; k++) {
-            if (g.size() < (size_t)W && rng() % 6 == 0) { Uop h{}; h.hole = 1; h.lat = 1; g.push_back(h); nhole++; }
-            if (g.size() >= (size_t)W) break;
-            Uop x{};
-            int r = rng() % 16;
-            x.kind = r < 8 ? 0 : r < 9 ? 3 : r < 11 ? 1 : 2;
-            x.wr = 1; x.lat = 1;
-            if (x.kind == 3) { x.sd = 1; x.wr = 0; }
-            else if (x.kind == 0) { if (rng() % 8 == 0) x.lat = 2; if (rng() % 6 == 0) { x.wr = 0; x.lat = 1; } }
-            else if (x.kind == 1) {
-                int c = rng() % 10;
-                if (c < 2) x.lat = 2;
-                else if (c < 3) x.lat = 3;
-                else if (c < 5) x.lat = 4;
-                else if (c < 7) { x.ext = 1; x.md = 1; }
-                else if (c < 8) { x.ns = 1; if (rng() % 2) x.ext = 1; }
-            } else {
-                int c = rng() % 10;
-                if (c < 6) { x.lat = 3; x.wl = rng() % 3 == 0; }
-                else if (c < 9) { x.st = 1; x.wr = 0; }
-                else { x.ns = 1; x.ext = 1; }
-            }
-            // a new destination tag
-            int t = -1;
-            for (int tr = 0; tr < 40 && t < 0; tr++) {
-                int c = rng() % NT;
-                if (!inflight[c] && refs[c] == 0 && tag_free_at[c] <= cyc && std::find(taken.begin(), taken.end(), c) == taken.end() &&
-                    std::find(rd.begin(), rd.end(), c) == rd.end()) t = c;
-            }
-            if (t < 0) break;
-            taken.push_back(t);
-            x.dst = t;
-            // sources: an older µop that writes, or a value done
-            for (int s = 0; s < 2; s++) {
-                x.use[s] = rng() % 4 != 0;
-                if ((x.st || x.sd) && s == 1) x.use[s] = 0;      // one source each
-                x.src[s] = rng() % NT;
-                if (x.use[s]) {
-                    std::vector<int> cand;
-                    for (auto& u : uops) if (u.wr && u.clr_at >= cyc) cand.push_back(u.dst);
-                    for (auto& y : g) if (y.wr) cand.push_back(y.dst);
-                    if (!cand.empty() && rng() % 8 != 0) x.src[s] = cand[rng() % cand.size()];
-                    else {
-                        int c = -1;
-                        for (int tr = 0; tr < 40 && c < 0; tr++) {
-                            int z = rng() % NT;
-                            if (!inflight[z] && !dead[z] && std::find(taken.begin(), taken.end(), z) == taken.end()) c = z;
-                        }
-                        if (c < 0) x.use[s] = 0; else x.src[s] = c;
-                    }
-                }
-            }
-            for (int s = 0; s < 2; s++) if (x.use[s]) rd.push_back(x.src[s]);
-            x.bm = mask;
-            if (rng() % 8 == 0) {                // it opens a checkpoint after it
-                std::vector<int> fr;
-                for (int i = 0; i < NCK; i++) if (!(mask >> i & 1) && i != kill_id && i != clr_id) fr.push_back(i);
-                x.ext_at = fr.empty() ? -1 : fr[rng() % fr.size()];   // (kept here until it is known to go)
-            } else x.ext_at = -1;
-            if (x.ext_at >= 0) mask |= 1u << x.ext_at;
-            g.push_back(x);
-        }
+        // the group chosen at the end of the last cycle; a kill takes it away
+        if (kill_id >= 0) g.clear();
+        if (clr_id >= 0) for (auto& x : g) x.bm &= ~(1u << clr_id);
         // the inputs
         {
             unsigned dv = 0, dk = 0, du = 0, dw = 0, dd = 0, dl = 0, dx = 0, dn = 0, dm = 0, dt = 0, dsd = 0, dwl = 0;
@@ -257,8 +194,7 @@ int main(int argc, char** argv)
         }
         // ---- dispatch
         bool ok = flush == 0;
-        int nalu = 0, ngo = 0;
-        bool ua[4] = {}, ub[4] = {};
+        int ngo = 0;
         std::vector<Uop> gone;
         for (size_t k = 0; k < (size_t)W; k++) {
             int go = (d.disp_go >> k) & 1;
@@ -271,17 +207,15 @@ int main(int argc, char** argv)
                 continue;
             }
             Uop x = g[k];
-            int q = x.kind == 2 ? NQ : x.kind == 1 ? 0 : x.kind == 3 ? NQ - 1 : rk[nalu % NQ];
+            int q = x.xq;
             int h = -1;                          // A 0, B 1
-            if (!ua[q] && !ub[q]) h = bfree[q][0] >= 0 ? 0 : bfree[q][1] >= 0 ? 1 : -1;
-            else if (ua[q] && !ub[q] && bfree[q][1] >= 0) h = 1;
-            if (x.kind == 0) nalu++;
+            if (x.xr == 0) h = bfree[q][0] >= 0 ? 0 : bfree[q][1] >= 0 ? 1 : -1;
+            else if (x.xr == 1 && bfree[q][0] >= 0 && bfree[q][1] >= 0) h = 1;
             if (h < 0 && ok) nstall++;
             ok = ok && h >= 0;
             if (go != (int)ok && bad++ < 12)
                 printf("MISMATCH cycle %ld: slot %zu go %d, expected %d (queue %d, %d in it)\n", cyc, k, go, ok, q, cnt[q]);
             if (!go || !ok) { ok = false; continue; }
-            (h ? ub : ua)[q] = true;
             int dq = bits(d.disp_q, 2 * k, 2), de = bits(d.disp_e, 4 * k, 4);
             if (dq != q && bad++ < 12) printf("MISMATCH cycle %ld: slot %zu to queue %d, expected %d\n", cyc, k, dq, q);
             if (de != bfree[q][h] && bad++ < 12) printf("MISMATCH cycle %ld: slot %zu to entry %d of queue %d, expected %d\n", cyc, k, de, q, bfree[q][h]);
@@ -369,6 +303,87 @@ int main(int argc, char** argv)
             }
         }
         if (clr_id >= 0) for (auto& u : uops) u.bm &= ~(1u << clr_id);
+        // the group: regenerated every cycle, what does not go is forgotten
+        g.clear(); taken.clear(); rd.clear();
+        int nd = rng() % (rate + 1);            // (in a flush cycle none must go)
+        unsigned mask = 0;
+        for (int id : open_ids) mask |= 1u << id;
+        for (int k = 0; k < nd; k++) {
+            if (g.size() < (size_t)W && rng() % 6 == 0) { Uop h{}; h.hole = 1; h.lat = 1; g.push_back(h); nhole++; }
+            if (g.size() >= (size_t)W) break;
+            Uop x{};
+            int r = rng() % 16;
+            x.kind = r < 8 ? 0 : r < 9 ? 3 : r < 11 ? 1 : 2;
+            x.wr = 1; x.lat = 1;
+            if (x.kind == 3) { x.sd = 1; x.wr = 0; }
+            else if (x.kind == 0) { if (rng() % 8 == 0) x.lat = 2; if (rng() % 6 == 0) { x.wr = 0; x.lat = 1; } }
+            else if (x.kind == 1) {
+                int c = rng() % 10;
+                if (c < 2) x.lat = 2;
+                else if (c < 3) x.lat = 3;
+                else if (c < 5) x.lat = 4;
+                else if (c < 7) { x.ext = 1; x.md = 1; }
+                else if (c < 8) { x.ns = 1; if (rng() % 2) x.ext = 1; }
+            } else {
+                int c = rng() % 10;
+                if (c < 6) { x.lat = 3; x.wl = rng() % 3 == 0; }
+                else if (c < 9) { x.st = 1; x.wr = 0; }
+                else { x.ns = 1; x.ext = 1; }
+            }
+            // a new destination tag
+            int t = -1;
+            for (int tr = 0; tr < 40 && t < 0; tr++) {
+                int c = rng() % NT;
+                if (!inflight[c] && refs[c] == 0 && tag_free_at[c] <= cyc && std::find(taken.begin(), taken.end(), c) == taken.end() &&
+                    std::find(rd.begin(), rd.end(), c) == rd.end()) t = c;
+            }
+            if (t < 0) break;
+            taken.push_back(t);
+            x.dst = t;
+            // sources: an older µop that writes, or a value done
+            for (int s = 0; s < 2; s++) {
+                x.use[s] = rng() % 4 != 0;
+                if ((x.st || x.sd) && s == 1) x.use[s] = 0;      // one source each
+                x.src[s] = rng() % NT;
+                if (x.use[s]) {
+                    std::vector<int> cand;
+                    for (auto& u : uops) if (u.wr && u.clr_at >= cyc) cand.push_back(u.dst);
+                    for (auto& y : g) if (y.wr) cand.push_back(y.dst);
+                    if (!cand.empty() && rng() % 8 != 0) x.src[s] = cand[rng() % cand.size()];
+                    else {
+                        int c = -1;
+                        for (int tr = 0; tr < 40 && c < 0; tr++) {
+                            int z = rng() % NT;
+                            if (!inflight[z] && !dead[z] && std::find(taken.begin(), taken.end(), z) == taken.end()) c = z;
+                        }
+                        if (c < 0) x.use[s] = 0; else x.src[s] = c;
+                    }
+                }
+            }
+            for (int s = 0; s < 2; s++) if (x.use[s]) rd.push_back(x.src[s]);
+            x.bm = mask;
+            if (rng() % 8 == 0) {                // it opens a checkpoint after it
+                std::vector<int> fr;
+                for (int i = 0; i < NCK; i++) if (!(mask >> i & 1) && i != kill_id && i != clr_id) fr.push_back(i);
+                x.ext_at = fr.empty() ? -1 : fr[rng() % fr.size()];   // (kept here until it is known to go)
+            } else x.ext_at = -1;
+            if (x.ext_at >= 0) mask |= 1u << x.ext_at;
+            g.push_back(x);
+        }
+        // ... and its steering, with the order the block has now
+        {
+            int nalu = 0, cq[4] = {0, 0, 0, 0};
+            unsigned sv = 0, sk = 0;
+            for (size_t k = 0; k < g.size(); k++) {
+                Uop& x = g[k];
+                sv |= (unsigned)!x.hole << k; sk |= (unsigned)x.kind << (2 * k);
+                if (x.hole) continue;
+                x.xq = x.kind == 2 ? NQ : x.kind == 1 ? 0 : x.kind == 3 ? NQ - 1 : rk[nalu % NQ];
+                x.xr = cq[x.xq]++;
+                if (x.kind == 0) nalu++;
+            }
+            d.s0_valid = sv; d.s0_kind = sk;
+        }
         // ---- the ALU queues by how full, as the block saw them this cycle
         {
             int c0[NQ], o[NQ];

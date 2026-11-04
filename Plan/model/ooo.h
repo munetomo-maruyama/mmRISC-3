@@ -68,6 +68,7 @@ struct OooCfg {
     bool st_data_issue = false;
     int ld_rp = 0;              // a load that fails in M2 replays at its commit: 1 its store's data is late, 2 an offset alias, 3 both
     int sd_lag = 0;             // the cycles a store's data takes into the SQ after a dependent could have issued
+    int hole_bank = 0;          // OOO_SDISP as a stage before: a group's queues and banks stay with it through a stall
     int ck_max = 0;             // at most this many checkpoints taken a cycle
     int ck_end = 0;             // a checkpoint ends its group: the next µop is renamed a cycle later
     int sd_q = -1;              // sd_alu 2: all in this queue (the SQ's data has one write)
@@ -259,6 +260,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     bool new_blk = true; long next_f0 = 0;
     int blk_cause = 0, next_cause = 0;          // 0 other, 1 misprediction, 2 override
     long first_ds = -1;
+    bool steer_stall = false; int rk_keep[9] = {};
     int ck_n = 0;               // how many in that cycle
     long last_ck = -1;          // the dispatch cycle of the last µop that took a checkpoint
 
@@ -333,8 +335,15 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                             rk[q] = q;
                         }
                         std::stable_sort(rk, rk + c.iqd, [&](int x, int y) { return cn[x] < cn[y]; });
-                        rk_c = d; rk_n = 0;
-                        for (int h = 0; h < 2 * (c.iqd + 1); h++) bank_c[h] = false;
+                        // (hole_bank: what is left of a group after a stall keeps the banks its older ones took, and its queues)
+                        if (!(c.hole_bank && steer_stall)) {
+                            rk_c = d; rk_n = 0;
+                            for (int h = 0; h < 2 * (c.iqd + 1); h++) bank_c[h] = false;
+                        } else {
+                            rk_c = d;
+                            for (int q = 0; q < c.iqd; q++) rk[q] = rk_keep[q];
+                        }
+                        steer_stall = false;
                     }
                     int q = memu ? c.iqd : q0 ? 0 : rk[rk_n % c.iqd];
                     int ha = 2 * q, hb = 2 * q + 1;
@@ -343,12 +352,16 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                     int h = -1;
                     if (!bank_c[ha] && !bank_c[hb]) h = (int)qh[ha].size() < bcap ? ha : (int)qh[hb].size() < bcap ? hb : -1;
                     else if (bank_c[ha] && !bank_c[hb]) h = (int)qh[hb].size() < bcap ? hb : -1;
+                    // (hole_bank: a queue's second by its rank alone: B, with A free too, wherever the first went)
+                    if (c.hole_bank && h < 0 && bank_c[hb] != bank_c[ha] && (int)qh[ha].size() < bcap && (int)qh[hb].size() < bcap) h = hb;
                     if (h >= 0) {
                         bq = h; bank_c[h] = true;
                         if (!memu && !q0) rk_n++;
                         break;
                     }
-                    res.st_iq++; d++;
+                    // (a third into a queue starts a group of its own: OOO_RENAME2 does not take it with the others)
+                    res.st_iq++; d++; steer_stall = !(bank_c[ha] && bank_c[hb]);
+                    for (int q = 0; q < c.iqd; q++) rk_keep[q] = rk[q];
                     continue;
                 }
                 if (c.steer == 2 && !memu && !q0) {

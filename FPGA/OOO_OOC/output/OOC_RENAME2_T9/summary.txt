@@ -1,0 +1,11 @@
+OOC_RENAME2   (period 9.0 ns, I/O delay 2.6999999999999997 ns each side on the ports)
+after synthesis: 3181 LUTs (2805 logic + 376 LUT RAM; 2961 LUT cells), 990 FF, 0 DSP, 96 LUT RAM cells, 0.0 BRAM tiles
+after place and route: 3146 LUTs (2770 logic + 376 LUT RAM; 2959 LUT cells), WNS -0.092 ns, register to register 0.909 ns (5 logic levels)
+  r1    worst   2.359 ns ( 5 logic levels), from s_iv_reg[2]/C to u_ren/r2_dst_reg[3][1]/D
+  read  worst   2.580 ns ( 5 logic levels), from u_ren/rat_reg[11][0]/C to u_ren/r2_old_reg[3][0]/D
+  tag   worst   2.624 ns ( 4 logic levels), from u_ren/rb_reg[2][0]/C to u_ren/r2_old_reg[3][0]/D
+  rat   worst   0.909 ns ( 5 logic levels), from s_iw_reg[1]/C to u_ren/rat_reg[5][6]/D
+  ck    worst   1.728 ns ( 3 logic levels), from u_ren/r2_ckid_reg[0][0]/C to u_ren/ck1_reg_0_7_216_221/RAMA/WADR1
+  rest  worst   1.347 ns ( 3 logic levels), from s_ri_reg[1]/C to u_ren/rat_reg[7][0]/D
+  cmt   worst   1.813 ns ( 3 logic levels), from s_cw_reg[3]/C to u_ren/fl3_reg_0_15_0_5/RAMA/WADR0
+  go    worst  -0.092 ns ( 5 logic levels), from the port to u_ren/rat_reg[26][1]/CE
