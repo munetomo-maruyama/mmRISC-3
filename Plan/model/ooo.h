@@ -70,6 +70,7 @@ struct OooCfg {
     int sd_lag = 0;             // the cycles a store's data takes into the SQ after a dependent could have issued
     int dec_block = 0;          // decode takes one block a cycle: a block's first instruction starts a new group
     int hole_bank = 0;          // OOO_SDISP as a stage before: a group's queues and banks stay with it through a stall
+    int cmp_lag = 0;            // cycles from a result to its done bit in the ROB (a register in between)
     int ck_max = 0;             // at most this many checkpoints taken a cycle
     int ck_end = 0;             // a checkpoint ends its group: the next µop is renamed a cycle later
     int sd_q = -1;              // sd_alu 2: all in this queue (the SQ's data has one write)
@@ -602,7 +603,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             if (r.dst != NOREG) { ready[r.dst] = rd; if (c.keep_spec) spec[r.dst] = sp; }
             done = std::max(done, rd + c.iss_to_ex - 1);
         }
-        long cmt = done + 1;
+        long cmt = done + 1 + c.cmp_lag;
         if (c.lsu_cmt) for (size_t k = i; k <= last; k++) if (t[k].cls == C_LOAD || t[k].cls == C_STORE) { cmt = done + 1 + c.lsu_cmt; break; }
         if (u >= 1) cmt = std::max(cmt, cm[u - 1]);
         if (u >= (size_t)c.w) cmt = std::max(cmt, cm[u - c.w] + 1);

@@ -115,6 +115,7 @@ int main(int argc, char** argv)
         c.sd_q = (int)o.get("sd_q", c.sd_q);
         c.ck_end = (int)o.get("ck_end", c.ck_end);
         c.ck_max = (int)o.get("ck_max", c.ck_max);
+        c.cmp_lag = (int)o.get("cmp_lag", c.cmp_lag);
         c.hole_bank = (int)o.get("hole_bank", c.hole_bank);
         c.dec_block = (int)o.get("dec_block", c.dec_block);
         c.sd_ord = (int)o.get("sd_ord", c.sd_ord);

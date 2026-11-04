@@ -6522,13 +6522,48 @@ Yes, step 1.3
 <!-- answer -->
 **Claude Code's answer**
 
-Step 1.3 has begun. The first stage, RR1, is in the core and all the lock-step tests pass; select to EX is 3 cycles now.
+Step 1.3 has begun. The first stage, RR1, is in the core, select to EX is 3 cycles. All the lock-step tests pass first time; pushed (467a817).
 
-| `g14 -O2`, cycles | Before | After | |
+#### The plan for step 1.3
+Today's 2-wide core moves to the new pipeline a stage at a time, width unchanged, with the tests passing each time.
+
+| # | What | Change | Status |
+|---|---|---|---|
+| A | RR1 (select to EX 3 cycles) | `iss_to_ex` 2 to 3 | **Done** |
+| B | Load-use 3 cycles (E, M1, M2, today's D$) | `lat_load` 2 to 3 | Next |
+| C | Multiply 4 cycles | `lat_mul` 2 to 4 | |
+| D | Decode and rename 5 stages | `dec_depth` 3 to 5 | |
+| E | Fetch 5 stages (override at F4) | `fe_depth`, `override_at` | |
+| F | The redirect 6 stages after EX | `redirect` 3 to 6 | |
+
+#### A's result
+
+| `g14 -O2`, cycles | Before | After | Increase |
 |---|---|---|---|
 | RTL | 1,817,188 | 1,857,214 | +2.20 % |
-| Model (`iss_to_ex` 2, 3) | 1,722,666 | 1,756,596 | +1.97 % |
+| Model (`iss_to_ex` 2 to 3) | 1,722,666 | 1,756,596 | +1.97 % |
+| Model / RTL (what × 0.94 comes from) | 0.948 | 0.946 | |
 
-Request: `synth_ooo.bat cpu10`.
+- **Against the model:** cycles grow about the same, and the ratio barely moves.
+- **Lock-step:** all of `run_core.sh` (60, 96, 186, 127 programs on both tops) and CoreMark on 4 configurations, 3 builds each: 0 failures.
+- **Bug injection:** `mutate_core.py` not run. Only a stage was added; it comes together at the end of step 1.3.
+
+#### Request: the whole core at a 10 ns target
+A new run, `cpu10`, measures for the first time at the 100 MHz target what the core adds. Until now there is only the one figure at 20 ns.
+
+```bash
+synth_ooo.bat cpu10
+```
+
+Results go to `output/OOO_CPU_T10`. Today's core will miss 10 ns by far, which does not matter: against each block's value alone in 28.1, **how much does each block grow in the core?** Under about 1 ns brings 100 MHz nearer; over it calls for the levers early.
+
+This answer went into `Doc/PROMPT.md` in a short form first; next turn it is replaced by this translation.
+
+The record is section 28.25 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
 <!-- /answer -->
 
+## 162. 2026-11-05 01:37:09 JST
+
+```text
+cpu10 finished
+```

@@ -1,0 +1,85 @@
+OOO_CPU   (period 10.0 ns, I/O delay 3.0 ns each side on the ports)
+after synthesis: 36550 LUTs (33714 logic + 2826 LUT RAM; 38288 LUT cells), 18274 FF, 26 DSP, 723 LUT RAM cells, 11.5 BRAM tiles
+after place and route: 37240 LUTs (34416 logic + 2816 LUT RAM; 38229 LUT cells), WNS -8.824 ns, register to register -8.824 ns (23 logic levels)
+the worst paths between flip-flops (one per endpoint):
+   -8.824 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[51]/R
+   -8.824 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[52]/R
+   -8.824 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[53]/R
+   -8.824 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[61]/R
+   -8.775 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[14]/CE
+   -8.775 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[16]/CE
+   -8.775 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[17]/CE
+   -8.775 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[31]/CE
+   -8.750 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[35]/R
+   -8.750 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[36]/R
+   -8.750 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[37]/R
+   -8.741 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[15]/CE
+   -8.741 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[23]/CE
+   -8.741 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[2]/CE
+   -8.741 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[8]/CE
+   -8.741 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[59]/R
+   -8.737 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[56]/R
+   -8.737 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[57]/R
+   -8.729 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[43]/R
+   -8.729 ns 23 levels  u_core/u_rob/g_ent[10].exc_reg[10]/C -> u_core/u_trap/tv_d_reg[55]/R
+the worst path into / out of each block's flip-flops:
+  u_core/u_csr             in  -7.688 ns (25 levels, from u_core/rob_insn_reg[13][25]/C)  out  -8.528 ns (23 levels, to u_core/u_trap/tv_d_reg[51]/R)
+  u_core/u_ctrl            in  -7.484 ns (34 levels, from u_core/g_alu[1].u_ex/out_data_reg[195]/C)  out  -7.024 ns (21 levels, to u_core/u_trap/tv_d_reg[51]/R)
+  u_core/u_dsreg           in  -2.829 ns (10 levels, from u_core/u_rob/g_ent[10].exc_reg[10]/C)  out  -5.421 ns (18 levels, to u_core/u_trap/tv_d_reg[51]/R)
+  u_core/u_ex2             in  -7.657 ns (34 levels, from u_core/g_alu[0].u_wb/out_data_reg[67]/C)  out  -6.289 ns (18 levels, to u_core/u_rob/g_ent[16].exc_reg[16]/CE)
+  u_core/u_front           in  -6.167 ns (16 levels, from u_core/u_front/u_fbuf/hb_reg[0]/C)  out  -6.167 ns (16 levels, to u_core/u_front/u_fbuf/hoff_reg[0]/D)
+  u_core/u_iq              in  -7.353 ns (34 levels, from u_core/g_alu[1].u_ex/out_data_reg[195]/C)  out  -6.701 ns (20 levels, to u_core/u_trap/tv_d_reg[51]/R)
+  u_core/u_iqpl            in  -1.907 ns ( 9 levels, from u_core/u_rob/g_ent[10].exc_reg[10]/C)  out   1.924 ns ( 2 levels, to u_core/g_alu[1].u_ex/out_data_reg[85]_srl2/D)
+  u_core/u_lsu             in  -6.337 ns (13 levels, from u_dc/u_tag/tag_mem_reg_3/CLKARDCLK)  out  -7.651 ns (35 levels, to u_core/u_rob/g_ent[8].done_reg[8]/D)
+  u_core/u_mdup            in  -7.531 ns (34 levels, from u_core/g_alu[1].u_ex/out_data_reg[195]/C)  out  -4.967 ns (19 levels, to u_core/u_mdup/u_mdu/acc_reg[54]/D)
+  u_core/u_pmul            in  -3.900 ns ( 5 levels, from u_core/g_alu[0].u_wb/out_data_reg[66]/C)  out  -1.312 ns (11 levels, to u_core/u_prf/g_bank[1].mem_reg_r5_0_63_63_63/DP/I)
+  u_core/u_prf             in  -7.112 ns (18 levels, from u_core/u_rob/g_ent[10].exc_reg[10]/C)  out  -0.606 ns ( 6 levels, to u_core/u_ex2/out_data_reg[244]/D)
+  u_core/u_rename          in  -4.496 ns (13 levels, from u_core/u_iq/g_ent[8].vq_reg/C)  out  -2.233 ns (11 levels, to u_core/u_front/g_d_reg[1][rd][4]/R)
+  u_core/u_rob             in  -7.914 ns (35 levels, from u_core/g_alu[0].u_wb/out_data_reg[67]/C)  out  -8.824 ns (23 levels, to u_core/u_trap/tv_d_reg[51]/R)
+  u_core/u_rr2             in  -7.543 ns (34 levels, from u_core/g_alu[1].u_ex/out_data_reg[195]/C)  out  -1.805 ns ( 6 levels, to u_core/u_ex2/out_data_reg[244]/D)
+  u_core/u_sys             in  -4.275 ns (14 levels, from u_dc/u_tag/tag_mem_reg_2/CLKARDCLK)  out   2.580 ns ( 7 levels, to u_dc/rob_done_reg[6]/D)
+  u_core/u_trap            in  -8.824 ns (23 levels, from u_core/u_rob/g_ent[10].exc_reg[10]/C)  out  -4.779 ns (17 levels, to u_core/u_trap/tv_d_reg[51]/R)
+  u_core/g_alu[0].u_ex     in  -7.587 ns (34 levels, from u_core/g_alu[1].u_ex/out_data_reg[195]/C)  out  -7.798 ns (35 levels, to u_core/u_rob/g_ent[8].done_reg[8]/D)
+  u_core/g_alu[0].u_rr     in  -7.598 ns (34 levels, from u_core/g_alu[1].u_ex/out_data_reg[195]/C)  out  -2.542 ns ( 2 levels, to u_core/g_alu[0].u_ex/out_data_reg[237]/D)
+  u_core/g_alu[0].u_wb     in  -6.293 ns (17 levels, from u_core/g_alu[0].u_ex/out_data_reg[74]_rep__0_replica_1/C)  out  -7.914 ns (35 levels, to u_core/u_rob/g_ent[8].done_reg[8]/D)
+  u_core/g_alu[1].u_ex     in  -7.546 ns (34 levels, from u_core/g_alu[1].u_ex/out_data_reg[195]/C)  out  -7.598 ns (34 levels, to u_core/g_alu[0].u_rr/out_bm_reg[2]/D)
+  u_core/g_alu[1].u_rr     in  -7.428 ns (34 levels, from u_core/g_alu[1].u_ex/out_data_reg[195]/C)  out  -2.465 ns ( 1 levels, to u_core/g_alu[1].u_ex/out_data_reg[262]/R)
+  u_core/g_alu[1].u_wb     in  -3.245 ns (25 levels, from u_core/u_lsu/wb_tag_reg[5]/C)  out  -7.799 ns (34 levels, to u_core/u_rob/g_ent[8].done_reg[8]/D)
+  u_core/u_front/u_fbuf    in  -6.167 ns (16 levels, from u_core/u_front/u_fbuf/hb_reg[0]/C)  out  -6.167 ns (16 levels, to u_core/u_front/u_fbuf/hoff_reg[0]/D)
+  u_core/u_front/u_fers    in  -5.133 ns (21 levels, from u_core/u_rob/head_reg[1]/C)  out  -0.520 ns ( 2 levels, to u_core/u_front/u_fetch/u_ubtb/pc_q_reg[22]/D)
+  u_core/u_front/u_fetch   in  -6.022 ns (15 levels, from u_core/u_front/u_fetch/u_ubtb/pc_q_reg[22]/C)  out  -6.022 ns (15 levels, to u_core/u_front/u_fetch/u_ubtb/pc_q_reg[33]/D)
+  u_core/u_front/u_ftq     in  -5.151 ns (13 levels, from u_core/u_front/u_fetch/carry_v_reg/C)  out  -0.515 ns ( 5 levels, to u_core/u_front/up_ex_q_reg[0]/D)
+  u_dc                     in  -6.025 ns (18 levels, from u_dc/u_tag/tag_mem_reg_2/CLKARDCLK)  out  -7.118 ns (20 levels, to u_core/u_rob/g_ent[16].exc_reg[16]/CE)
+  u_dcad                   in  -3.723 ns (13 levels, from u_dc/u_tag/tag_mem_reg_2/CLKARDCLK)  out  -5.767 ns (21 levels, to u_core/u_rob/g_ent[16].exc_reg[16]/CE)
+instances (after place and route):
+    u_core                 OOO_CORE              31011 LUTs (28257 logic + 2746 LUT RAM), 12877 FF
+        u_alu1             OOO_ALU__parameterized0     64 LUTs (64 logic + 0 LUT RAM), 0 FF
+      u_csr                OOO_CSRU                662 LUTs (662 logic + 0 LUT RAM), 1823 FF
+        u_csr              CORE_CSR                662 LUTs (662 logic + 0 LUT RAM), 1821 FF
+      u_ctrl               OOO_CTRL                300 LUTs (300 logic + 0 LUT RAM), 138 FF
+      u_dsreg              OOO_DSREG               444 LUTs (444 logic + 0 LUT RAM), 514 FF
+      u_ex2                OOO_STAGE__parameterized0_6    133 LUTs (133 logic + 0 LUT RAM), 180 FF
+      u_front              OOO_FRONT              7721 LUTs (7035 logic + 686 LUT RAM), 2478 FF
+        u_fbuf             OOO_FBUF               1176 LUTs (984 logic + 192 LUT RAM), 14 FF
+        u_fers             OOO_FERS                 14 LUTs (14 logic + 0 LUT RAM), 50 FF
+        u_fetch            OOO_FETCH              2935 LUTs (2853 logic + 82 LUT RAM), 1040 FF
+          u_btb            OOO_BTB                  74 LUTs (74 logic + 0 LUT RAM), 51 FF
+          u_ras            OOO_RAS                 374 LUTs (322 logic + 52 LUT RAM), 4 FF
+          u_tage           OOO_TAGE               1060 LUTs (1060 logic + 0 LUT RAM), 343 FF
+          u_ubtb           OOO_UBTB               1385 LUTs (1385 logic + 0 LUT RAM), 505 FF
+        u_ftq              OOO_FTQ                 677 LUTs (365 logic + 312 LUT RAM), 10 FF
+      u_iq                 OOO_IQ                 1804 LUTs (1804 logic + 0 LUT RAM), 494 FF
+      u_iqpl               OOO_IQPL                439 LUTs (111 logic + 328 LUT RAM), 22 FF
+      u_lsu                OOO_LSU                3198 LUTs (3198 logic + 0 LUT RAM), 1752 FF
+      u_mdup               OOO_MDUP               3113 LUTs (3113 logic + 0 LUT RAM), 949 FF
+        u_mdu              CORE_MDU               3028 LUTs (3028 logic + 0 LUT RAM), 922 FF
+      u_pmul               OOO_PMUL                271 LUTs (271 logic + 0 LUT RAM), 82 FF
+      u_prf                OOO_PRF                2242 LUTs (694 logic + 1548 LUT RAM), 126 FF
+      u_rename             OOO_RENAME             1814 LUTs (1814 logic + 0 LUT RAM), 1929 FF
+      u_rob                OOO_ROB                3762 LUTs (3578 logic + 184 LUT RAM), 203 FF
+      u_sys                OOO_SYS                  88 LUTs (88 logic + 0 LUT RAM), 18 FF
+      u_trap               OOO_TRAP                 69 LUTs (69 logic + 0 LUT RAM), 72 FF
+    u_dc                   DCACHE                 6039 LUTs (6039 logic + 0 LUT RAM), 5308 FF
+      u_dat                CACHE_DATA_ARRAY       1063 LUTs (1063 logic + 0 LUT RAM), 0 FF
+      u_tag                CACHE_TAG_ARRAY        2403 LUTs (2403 logic + 0 LUT RAM), 520 FF
+    u_dcad                 OOO_DCAD                190 LUTs (120 logic + 70 LUT RAM), 102 FF

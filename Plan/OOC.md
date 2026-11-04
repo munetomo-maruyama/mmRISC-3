@@ -3795,3 +3795,45 @@ Step 1.3 moves today's 2-wide core to the new pipeline, width unchanged, a stage
 So the model holds on this step. Lock-step with Spike: all of `run_core.sh` (60, 96, 186, 127 programs on both tops) and CoreMark on all 4 configurations, 3 builds each: 0 failures, first time. Bug injection of the core (`mutate_core.py`) is left for the end of step 1.3: nothing new to be wrong yet.
 
 **`synth_ooo.bat cpu10`: new.** The whole of today's core with its D$, at a 10 ns target, `output/OOO_CPU_T10`. It is what 28.24 asked for: **against each block's own `T10` of 28.1, what does the core add at this target?** That has been a single figure, measured at 20 ns. The core is today's, and it will miss by a lot; it is the difference per block that is wanted.
+
+### 28.26 `OOO_CPU` at 10 ns: 18.8 ns, and it is the joins (2026-11-05)
+
+`synth_ooo.bat cpu10`, today's core with step 1.3 A, asked for 10 ns, in `output/OOO_CPU_T10`. **WNS −8.824 ns, about 18.8 ns, 37,240 LUTs, 23 levels.** Not a surprise for this core, but **the question of 28.24 does not get the answer it asked for**.
+
+**What limits it is no block but the paths between them**, 23 to 35 levels through 3 or 4 blocks, each of them fitting 50 MHz by design:
+
+| Worst | Levels | Path |
+|---|---|---|
+| −8.82 | 23 | The ROB head's exception → the commit's decision → `flush`, `rob_restore` → OOO_CTRL's go → dispatch valid → the tval's read → OOO_TRAP |
+| −7.91 | 35 | A result in WB → bypass → ALU → the misprediction → the ROB's done bit |
+| −7.80 | 35 | EX → ALU → the misprediction → the ROB's done bit |
+| −7.69 | 25 | `rob_insn` → OOO_CSRU |
+| −7.65 | 35 | The LSU's bypass and address → the ROB's done bit |
+| −7.60 | 34 | ALU1's EX to the other ports' stages, the queue, OOO_CTRL, OOO_MDUP |
+| −6.17 | 16 | The fetch buffer's loop, as itself: −3.31 alone |
+| −6.02 | 15 | Fetch's own: `OOC_FE` −4.79 alone |
+
+What it says:
+- **The "about 1 ns the core adds" is still not measured.** The only same path in both is the buffer's loop, 2.86 ns worse here, and fetch, 1.2. But Vivado does not work on paths behind one 2 to 3 ns worse, so those are upper bounds, and they say little for a design with these joins cut.
+- **The six loops were never the whole.** These joins are not in them. None is a limit of principle: each is a decision made in the same cycle as something it could follow by a cycle. But they have to be cut, and that is new work, not in step 1.3's plan.
+
+**What cutting them costs in the model** (`cmp_lag`, as built):
+
+| | `-O2` | most optimization | g13 | rv64gc |
+|---|---|---|---|---|
+| As built | 6.656 | 7.182 | 6.415 | 5.733 |
+| Every result's done bit a cycle later | 6.624 | 7.156 | 6.384 | 5.710 |
+| 2 cycles later | 6.577 | 7.111 | 6.339 | 5.661 |
+| The redirect a cycle later | 6.643 | 7.166 | 6.403 | 5.724 |
+| Both a cycle later | 6.610 | 7.141 | 6.372 | 5.701 |
+
+Only a branch's done bit needs the misprediction: the others come from registers. So **the proposal is: a branch completes with the registered resolution, everything else as now**, costing less than the −0.5 % of the second row, to be measured; a trap's flush from a register, which costs nothing in CoreMark. So:
+
+| # | Cut | Expected |
+|---|---|---|
+| A2a | The ROB head's exception, through a register, before `flush` | The −8.82 path goes; traps a cycle later |
+| A2b | A branch's completion from the registered resolution | The −7.9 family goes |
+| A2c | The LSU's completion from a register | −7.65 goes (OOO_LSU2 has it so) |
+| A2d | `rob_insn` read a stage before the CSR | −7.69 goes |
+
+Then `cpu10` again: **each cut shows the next**, and only then will the whole say what the core adds.
