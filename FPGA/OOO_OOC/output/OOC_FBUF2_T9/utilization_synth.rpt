@@ -1,0 +1,30 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Wed Nov  4 23:44:05 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_FBUF2_T9/utilization_synth.rpt
+| Design       : OOC_FBUF2
+| Device       : xc7a200tsbg484-1
+| Speed File   : -1
+| Design State : Synthesized
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++---------------+-----------+------------+------------+---------+------+-----+--------+--------+------------+
+|    Instance   |   Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs | RAMB36 | RAMB18 | DSP Blocks |
++---------------+-----------+------------+------------+---------+------+-----+--------+--------+------------+
+| OOC_FBUF2     |     (top) |       2026 |       1766 |     260 |    0 | 989 |      0 |      0 |          0 |
+|   (OOC_FBUF2) |     (top) |          0 |          0 |       0 |    0 | 531 |      0 |      0 |          0 |
+|   u_fb        | OOO_FBUF2 |       2026 |       1766 |     260 |    0 | 458 |      0 |      0 |          0 |
++---------------+-----------+------------+------------+---------+------+-----+--------+--------+------------+
+
+

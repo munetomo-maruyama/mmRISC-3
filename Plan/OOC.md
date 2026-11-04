@@ -3597,3 +3597,47 @@ So one block a cycle costs nothing to speak of, as a block seldom has more than 
 **Verification.** `tb_fbuf2`: 2 million cycles against the program it is given: 706,068 blocks (414,424 taken, 65,702 with only a first half), 2,911,760 instructions in, 141,020 across 2 blocks, 294,573 cycles with 6, 992 flushes, no mismatch; every instruction's bits, parcel, FTQ entry, taken, slot 0's rare, the number given exactly, nothing idle. Bug injection: M780 to M811 but M801, **31 of 31**, every line read; M801 (a block straight in also written to the RAM, with the pointer not moved) was equivalent and removed. -Wall clean on the block and harness.
 
 What to read: `loop`, `slot`, `tab`, `rare`, `load`, `ram`, and the total. Levers if short: the slots' positions read a cycle ahead; `tab` across F3 and F4.
+
+### 28.20 `OOC_FBUF2` about 8.65 ns, 2,003 LUTs; all six loops measured; gate S1-A open (2026-11-04)
+
+`synth_ooo.bat fbuf2`, the RTL of 28.19, asked for 9 ns, in `output/OOC_FBUF2_T9`. **WNS +0.352 ns, register to register.** Today's is −3.31 ns at 10 ns.
+
+| Class | Slack at 9 ns | Reached | Levels |
+|---|---|---|---|
+| Worst: `c_v`, the count, keep it, into the RAM's write enable | +0.352 | 8.65 ns | 5 |
+| `tab`: the starts to the same | +0.541 | 8.46 ns | 5 |
+| `slot`: counters, table, parcels, to the slots | +1.015 | 7.99 ns | 7 |
+| `load` | +2.807 | 6.19 ns | 2 |
+| `ram` | +2.794 | 6.21 ns | 2 |
+| `rare` | +2.845 | 6.16 ns | 7 |
+| **`loop`: the head's loop** | **+3.505** | **5.50 ns** | 2 |
+
+Size: 2,003 LUTs (258 LUT RAM), 458 FF in the block. Today's: 1,115 LUTs for 4 slots from 16-byte blocks.
+
+What it says:
+- **The loop is gone as a limit**: 2 levels against 15. It stopped once met, so 5.50 ns is a ceiling.
+- **The worst path is no loop**: an empty block not being written. 81 % route. An easy lever if it ever matters: a block's emptiness from `in_st` alone.
+- **The count held**: the slots 7 levels, about as expected. The table is 5 levels, against about 8 counted: LUTs took more than I gave them.
+
+**Decision: it holds, no lever used. The model stands at 6.707 / 7.226 / 6.460 / 5.755, RTL about 6.305, 630 CoreMark/s.**
+
+**All six loops, each alone:**
+
+| Loop | Block | Asked for | Reached | LUTs | Today's at 10 ns |
+|---|---|---|---|---|---|
+| 1 Wakeup + select | `OOC_SCHED` | 8.5 ns | **8.91 ns** (`loop` 8.64); 9.1 to 9.6 on earlier RTL | 5,710 | −1.95 |
+| 2 Bypass + ALU | `OOC_EXU`, with the register file | 9 ns | **9.16 ns** | 12,472 | −0.66 |
+| 3 M1 + M2 | `OOC_LSU2`, without the miss logic | 9 ns | **8.10 ns** | 2,053 | −2.66 |
+| 4 Rename of 4 | `OOC_RENAME2` | 9 ns | **9.09 ns** with `disp_go` as measured; 8.1 from registers | 3,143 | +1.04, 2 µops |
+| 5 Fetch buffer | `OOC_FBUF2` | 9 ns | **8.65 ns** (`loop` 5.50) | 2,003 | −3.31 |
+| 6 uBTB | `OOC_UBTB2` | 9 ns | **8.88 ns** (`idx` 8.64) | 378 | −2.04, 8 entries |
+
+**Gate S1-A (`Doc/STRATEGY.md` 5): "all six within reach at 10 ns; the configuration frozen; go, or fall back to 75 MHz, or to 50 MHz and 3-wide".** It is the author's. What I can put in front of it:
+
+- **For going on.** All six are under 9.2 ns alone, against the 10.6 to 14.3 of today's. None uses the fallback in its row. The worst of the model's costs, a load-use of 4 or an ALU in 2 cycles, are not needed.
+- **The margin is thin.** The core added about 1 ns at 20 ns (28.1). So loops 2 and 4 would be at about 10.2 and 10.1 ns, and loop 1 about 9.9. That is within reach, not inside it. It was measured once, at 50 MHz, on another design.
+- **The joins are not measured.** `OOO_FETCH` at 32 bytes with the predecode's `in_st` (`OOC_FE` is −4.79 ns today, the worst of all, and is not one of the six), the FTQ, decode of 6, the decoded queue with the store's crack, the ROB at 4 wide (`OOC_ROB`: +1.03 at 2), `OOO_CTRL`, the miss handler, what is not cacheable. `OOC_FE` is the largest of these.
+- **CoreMark/MHz has no margin.** The model went from 6.90 to 6.707 as the blocks were built: stores −2.4 %, steering −0.2 %, the rest less. At × 0.94 that is 6.305, against gate S1-B's 6.3; and 0.94 is today's core's ratio. The goal itself, above 6.0, needs × 0.895. Step 1.2's "model ≥ 6.8" is not met, and that figure is the author's to change.
+- **A lever for the model, unmeasured.** Queues of 10: about +0.5 %, at loop 1's cost.
+
+**My recommendation: go, with the configuration of 28.13 to 28.19 frozen; step 1.2's figure at 6.7; gate S1-B's 6.3 kept as a working target, knowing that the goal is above 6.0.** The fallback to 90 MHz stays open without a change of pipeline (567 CoreMark/s), and it can be decided at step 1.6 with a whole core to measure. And the next piece of work should be the largest unknown: `OOC_FE`.

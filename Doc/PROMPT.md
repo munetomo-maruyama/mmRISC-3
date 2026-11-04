@@ -6181,3 +6181,63 @@ The record is section 28.18 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
 ```text
 Yes, loop 5
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I built loop 5 as a new design, `OOO_FBUF2`, and pushed it (7fc3707). **All six loops now exist.** Its timing is not measured yet. The model is 6.707, and in RTL terms the gate's margin is nearly gone.
+
+#### The design
+Today's `OOO_FBUF` is slow for a 15-level loop: head parcel, a window of 8 parcels, the lengths one after another, the count taken, head parcel (−3.31 ns at 10 ns). So **nothing in the loop looks at an instruction any more.**
+
+| Item | Choice | Why |
+|---|---|---|
+| Boundaries | From F3's predecode (`in_st`) | The chain of lengths leaves |
+| F4 | A table of the block's instructions (where, how many) | About 8 levels from registers, by count |
+| D1 | The head is an instruction: a count down and a counter per slot | **The loop is 3 levels by count** |
+| One block a cycle | What is left of a block goes alone | No second block or window in any path |
+| Across 2 blocks | The first half kept in the next block's place 0 | One input more on the slots' mux |
+| Rare classes | A block with any gives 1 instruction a cycle | Rare stays out of the count |
+
+#### The model
+
+| Decode | `-O2` | most optimization | g13 | rv64gc |
+|---|---|---|---|---|
+| 6 across blocks (last time) | 6.709 | 7.229 | 6.465 | 5.757 |
+| **One block a cycle (chosen)** | **6.707** | **7.226** | **6.460** | **5.755** |
+| 6 across blocks, decode a stage more | 6.681 | 7.198 | 6.440 | 5.738 |
+
+One block costs next to nothing, as a block seldom has more than 6.
+
+**Against the targets:** RTL at × 0.94 about 6.305, 630 CoreMark/s, 0.005 over gate S1-B's 6.3. That 0.94 was measured on today's core and may not hold for the new one. It may well fall under 6.3 in the real thing, so gate S1-A needs a decision.
+
+#### Verification
+- **Bench `tb_fbuf2`:** 2 million cycles against the program given, no mismatch: 706,068 blocks, 2,911,760 instructions, 141,020 across 2 blocks, 294,573 cycles with 6.
+- **Bug injection:** 31 of M780 to M811 all detected, every line read. M801 was equivalent and removed.
+- **Lint:** `-Wall` clean on block and harness.
+
+#### Not confirmed
+- **Size:** the slots' muxes of 17 are about 1,150 LUTs by estimate, larger than today's 1,115 in all.
+- **`in_st`:** from a register in the harness. Whether `OOO_PREDEC` gives 16 parcels' worth by F3's end is not measured.
+- **Rare's cost:** 1 instruction a cycle is not in the model. It tells in FP-heavy code.
+- **Not in:** `OOO_FETCH` at 32 bytes, the FTQ, decode of 6, the decoded queue with the store's crack (step 1.4).
+
+#### Request
+Please run the following on Windows. Results go to `output/OOC_FBUF2_T9`.
+
+```bash
+synth_ooo.bat fbuf2
+```
+
+To read: `loop`, `slot`, `tab`, `rare`, `load`, `ram` and the total LUTs. Levers if short: the slots' positions read a cycle ahead, `tab` across F3 and F4.
+
+When it is done all 6 are in, and gate S1-A comes next. Besides the blocks' figures, you will need to decide on the thin 0.94 and step 1.2's "model ≥ 6.8" there.
+
+The record is section 28.19 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
+<!-- /answer -->
+
+## 156. 2026-11-04 23:46:45 JST
+
+```text
+fbuf2 finished
+```

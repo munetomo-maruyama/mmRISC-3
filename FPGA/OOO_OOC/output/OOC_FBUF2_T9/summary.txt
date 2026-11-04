@@ -1,0 +1,9 @@
+OOC_FBUF2   (period 9.0 ns, I/O delay 2.6999999999999997 ns each side on the ports)
+after synthesis: 2026 LUTs (1766 logic + 260 LUT RAM; 2048 LUT cells), 989 FF, 0 DSP, 66 LUT RAM cells, 0.0 BRAM tiles
+after place and route: 2003 LUTs (1745 logic + 258 LUT RAM; 2048 LUT cells), WNS 0.352 ns, register to register 0.352 ns (5 logic levels)
+  loop  worst   3.505 ns ( 2 logic levels), from u_fb/rem_reg[1]/C to u_fb/hj_reg[5][1]_rep/R
+  slot  worst   1.015 ns ( 7 logic levels), from u_fb/p_reg[7][1]/C to o_inst_reg[4][29]/R
+  tab   worst   0.541 ns ( 5 logic levels), from s_st_reg[2]/C to u_fb/mem_reg_0_7_132_137/RAMA/WE
+  rare  worst   2.845 ns ( 7 logic levels), from s_d_reg[172]/C to u_fb/rb_reg/D
+  load  worst   2.807 ns ( 2 logic levels), from u_fb/rem_reg[1]/C to u_fb/p_reg[12][4]/CE
+  ram   worst   2.794 ns ( 2 logic levels), from u_fb/hb_reg[0]/C to u_fb/p_reg[8][4]/D
