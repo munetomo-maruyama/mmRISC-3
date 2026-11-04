@@ -3641,3 +3641,32 @@ What it says:
 - **A lever for the model, unmeasured.** Queues of 10: about +0.5 %, at loop 1's cost.
 
 **My recommendation: go, with the configuration of 28.13 to 28.19 frozen; step 1.2's figure at 6.7; gate S1-B's 6.3 kept as a working target, knowing that the goal is above 6.0.** The fallback to 90 MHz stays open without a change of pipeline (567 CoreMark/s), and it can be decided at step 1.6 with a whole core to measure. And the next piece of work should be the largest unknown: `OOC_FE`.
+
+### 28.21 The largest unknown: `OOO_FDEC`, `OOC_FE2`, F3 and F4 of 32-byte fetch; the override is a stage later (2026-11-05)
+
+The author held gate S1-A for this: today's `OOC_FE` is −4.79 ns at 10 ns, the worst of all, and none of the six loops. Not measured when written: `synth_ooo.bat fe2`, in `output/OOC_FE2_T9`, at 9 ns.
+
+**What building it showed first: the override cannot be in F3.** The proposal had F3 do predecode, TAGE's decision and the override, and `override_at=3`. With 16 parcels: the boundaries are about 6 levels, a parcel's kind 1 more, the count of branches 3, the prediction 2, the first taken 3, the choice 2, into F0 1: about 18 levels, and the 16 targets beside them. Today's has 8 parcels, the same chain, and is the path at −4.79. So 2 stages:
+
+| Stage | What | Why |
+|---|---|---|
+| F3 | Boundaries, kinds, 16 targets, **each target compared with where fetch went on**, which branch of the block | All from F2's registers, none of it waits for a decision |
+| F4 | A branch's prediction from its own parcel's base counter and its slot's hit; the first taken; whether fetch was right, from the compares already made; the next address | About 8 levels, and F0's last LUT has room: `in` was +4.2 ns (28.12) |
+| The buffer | `in_st` runs on past the taken transfer, `in_first` comes late and only cuts the count | `OOO_FBUF2`'s table does not wait for the choice. A rare class past the transfer slows the block, nothing else |
+| The stack | Read in F4, moved at F4's end, the call's address without an adder | Today's worst path was this push |
+
+So the override leaves in F4, and the model's `override_at` is 4 on the same reckoning as today's 2 (F2, then F0 again a cycle on).
+
+| Override | `-O2` | most optimization | g13 | rv64gc |
+|---|---|---|---|---|
+| `override_at` 3: the proposal | 6.707 | 7.226 | 6.460 | 5.755 |
+| **`override_at` 4: from F4, in F4: as built** | **6.656** | **7.182** | **6.415** | **5.733** |
+| `override_at` 5: F4's decision in a register, if F4 does not fit | 6.574 | 7.114 | 6.352 | 5.693 |
+
+**The model is 6.656, −0.8 %. RTL at × 0.94 about 6.26, 626 CoreMark/s: under gate S1-B's 6.3 by 0.04, above the goal of 6.0.** If F4 does not fit, 6.574 and 6.18.
+
+**What the run measures, and does not.** `OOC_FE2` joins `OOO_FDEC`, `OOO_UBTB2`, `OOO_RAS` and `OOO_FBUF2`: the override into F0, the cut into the table, the training into the uBTB. From registers: the data of F2, TAGE's and the BTB's results. **Not there**: the arrays and tag compares of F1 and F2, the I$ (mmRISC-2's, to repipeline: step 1.7), TAGE M itself and its update, the FTQ, the requests in flight and the credit (`OOO_FETCH`'s `qpc`, which `f3_expect` stands for). So it answers for today's worst path, not for all of `OOC_FE`.
+
+**Verification.** `tb_fdec`: 600,000 cycles against a walk of each block written apart: 352,823 blocks, 290,292 taken, 194,335 overrides, 74,065 first halves, 17,211 finished in the next block, 71,827 returns, 148,965 slot predictions, 2,375 flushes, no mismatch. `tb_fbuf2` with the late cut: no mismatch. Bug injection: `fdec` M820 to M849 **30 of 30**; `fbuf2` with M812 to M815 new **35 of 35**; every line read. M828, M840, M841 got through at first: fetch's guess was never near the right place, nor a place another choice would have gone to; the bench now does that. -Wall clean on the blocks and the harness.
+
+What to read: `ovr`, `f3`, `cut`, `ras`, `ubup`, `tab`, `loop`, `slot`, `dloop`, and the total. Levers if short: `cnt` into F4; F4's decision in a register (6.574).

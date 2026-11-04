@@ -83,7 +83,7 @@ int main(int argc, char** argv)
         bool push = !fl && rng() % 4 != 0 && (cyc >> 12 & 3) != 3;
         Blk b;
         uint32_t data[8] = {0};
-        unsigned st = 0;
+        unsigned st = 0, first = 0;
         bool btk = false;
         uint64_t pc_n = pc;
         bool fh_n = first_half; uint16_t fhv_n = fh; int fhf_n = fh_ftq;
@@ -101,8 +101,11 @@ int main(int argc, char** argv)
                 x.taken = is_taken[(a - 1) % MEM];
                 b.v.push_back(x);
                 fh_n = false;
-                if (x.taken) { btk = true; stop = true; pc_n = target[(a - 1) % MEM]; }
                 k++;
+                if (x.taken) {
+                    btk = true; stop = true; pc_n = target[(a - 1) % MEM]; first = 1u;
+                    while (k < 16) { st |= 1u << k; k += (mem[(base + k) % MEM] & 3) == 3 ? 2 : 1; }
+                }
             }
             while (!stop && k < 16) {
                 uint16_t p = mem[(base + k) % MEM];
@@ -121,14 +124,19 @@ int main(int argc, char** argv)
                 x.taken = is_taken[ia % MEM];
                 b.v.push_back(x);
                 k += len2 ? 2 : 1;
-                if (x.taken) { btk = true; stop = true; pc_n = target[ia % MEM]; break; }
+                if (x.taken) {
+                    btk = true; stop = true; pc_n = target[ia % MEM]; first = 1u << (k - 1);
+                    // the predecode goes on past it, not knowing
+                    while (k < 16) { st |= 1u << k; k += (mem[(base + k) % MEM] & 3) == 3 ? 2 : 1; }
+                    break;
+                }
             }
             if (!stop) pc_n = base + 16;
         }
         d.in_valid = push;
         for (int i = 0; i < 8; i++) d.in_data[i] = data[i];
         d.in_st = st;
-        d.in_taken = btk;
+        d.in_first = first;
         d.in_ftq = ftq;
         d.flush = fl;
         d.out_ready = rng() % 4 != 0;
@@ -182,7 +190,12 @@ int main(int argc, char** argv)
             if (!b.v.empty() && b.v[0].off == 15 && b.v[0].rvc == false && first_half) ncross++;
             if (b.v.empty()) nonly++;
             if (btk) ntk++;
-            for (auto& x : b.v) if (x.rare) b.anyr = true;
+            // (past a taken transfer too, which is not known in time: the block only goes slower)
+            if (!b.v.empty() && b.v[0].off == 15 && b.v[0].rare) b.anyr = true;
+            for (int k2 = 0; k2 < 16; k2++) {
+                uint16_t pk = (uint16_t)(data[k2 / 2] >> (16 * (k2 & 1)));
+                if ((st >> k2 & 1) && !(k2 == 15 && (pk & 3) == 3) && rare_of(pk)) b.anyr = true;
+            }
             if (!b.v.empty()) q.push_back(b);
             pc = pc_n; first_half = fh_n; fh = fhv_n; fh_ftq = fhf_n;
             ftq = (ftq + 1) & 31;

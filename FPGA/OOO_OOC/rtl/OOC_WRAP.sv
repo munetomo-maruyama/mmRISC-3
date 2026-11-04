@@ -1644,7 +1644,7 @@ module OOC_FBUF2
         input  logic          in_valid,
         input  logic [255:0]  in_data,
         input  logic [15:0]   in_st,
-        input  logic          in_taken,
+        input  logic [15:0]   in_first,
         input  logic [4:0]    in_ftq,
         input  logic          out_ready,
         output logic          o_in_ready,
@@ -1657,9 +1657,9 @@ module OOC_FBUF2
         output logic [5:0]    o_taken,
         output logic          o_rare
     );
-    logic          s_fl, s_v, s_tk, s_or;
+    logic          s_fl, s_v, s_or;
     logic [255:0]  s_d;
-    logic [15:0]   s_st;
+    logic [15:0]   s_st, s_fi;
     logic [4:0]    s_f;
     logic          ir, rr;
     logic [3:0]    fr;
@@ -1668,11 +1668,113 @@ module OOC_FBUF2
     logic [5:0][3:0]  oo;
     logic [5:0][4:0]  ff;
     always_ff @(posedge clk) begin
-        s_fl <= flush; s_v <= in_valid; s_d <= in_data; s_st <= in_st; s_tk <= in_taken; s_f <= in_ftq; s_or <= out_ready;
+        s_fl <= flush; s_v <= in_valid; s_d <= in_data; s_st <= in_st; s_fi <= in_first; s_f <= in_ftq; s_or <= out_ready;
         o_in_ready <= ir; o_free <= fr; o_valid <= v; o_inst <= ii; o_rvc <= rv; o_off <= oo; o_ftq <= ff; o_taken <= tk; o_rare <= rr;
     end
     OOO_FBUF2 #(.NB(8), .FTQW(5)) u_fb
         (.clk(clk), .rst_n(rst_n), .flush(s_fl), .in_ready(ir), .free_n(fr), .in_valid(s_v), .in_data(s_d), .in_st(s_st),
-         .in_taken(s_tk), .in_ftq(s_f), .out_ready(s_or), .out_valid(v), .out_inst(ii), .out_rvc(rv), .out_off(oo),
+         .in_first(s_fi), .in_ftq(s_f), .out_ready(s_or), .out_valid(v), .out_inst(ii), .out_rvc(rv), .out_off(oo),
          .out_ftq(ff), .out_taken(tk), .out_rare(rr));
 endmodule : OOC_FBUF2
+
+//---------------------------------------------------------------------------
+// OOC_FE2: F3, F4, F0 and D1 of the 4-issue core together (OOO_FDEC, OOO_UBTB2,
+// OOO_FBUF2; Plan/OOC.md 28.21): the override from F4 into F0's last LUT, the cut into
+// the buffer's table. F1 and F2 (the arrays) are registers from outside.
+//---------------------------------------------------------------------------
+module OOC_FE2
+    (
+        input  logic          clk,
+        input  logic          rst_n,
+        input  logic          be_redirect,
+        input  logic [38:1]   be_pc,
+        input  logic          stall,
+        input  logic          f3_valid,
+        input  logic [38:5]   f3_line,
+        input  logic [3:0]    f3_start,
+        input  logic          f3_seq,
+        input  logic [255:0]  f3_data,
+        input  logic [38:1]   f3_expect,
+        input  logic [2:0]    f3_hv,
+        input  logic [2:0]    f3_pp,
+        input  logic [15:0]   f3_base,
+        input  logic          f3_bh,
+        input  logic [3:0]    f3_boff,
+        input  logic [38:1]   f3_btgt,
+        input  logic [4:0]    f4_ftq,
+        input  logic          rs_valid,
+        input  logic [3:0]    rs_ptr,
+        input  logic [38:1]   rs_val,
+        input  logic          rs_push,
+        input  logic [38:1]   rs_addr,
+        input  logic          rs_pop,
+        input  logic          out_ready,
+        output logic [38:1]   o_pc,
+        output logic          o_taken,
+        output logic [3:0]    o_off,
+        output logic [1:0]    o_hn,
+        output logic [2:0]    o_ht,
+        output logic [3:0]    o_snp,
+        output logic [38:1]   o_snv,
+        output logic          o_ir,
+        output logic [3:0]    o_free,
+        output logic [5:0]    o_valid,
+        output logic [5:0][31:0] o_inst,
+        output logic [5:0]    o_rvc,
+        output logic [5:0][3:0] o_soff,
+        output logic [5:0][4:0] o_ftq,
+        output logic [5:0]    o_stk,
+        output logic          o_rare
+    );
+    logic         s_be, s_st, s_v, s_seq, s_bh, s_rv, s_rpu, s_rpo, s_or;
+    logic [38:1]  s_bp, s_exp, s_bt, s_rval, s_radd;
+    logic [38:5]  s_l;
+    logic [3:0]   s_s, s_bo, s_rp;
+    logic [255:0] s_d;
+    logic [2:0]   s_hv, s_pp;
+    logic [15:0]  s_b;
+    logic [4:0]   s_ftq;
+    always_ff @(posedge clk) begin
+        s_be <= be_redirect; s_bp <= be_pc; s_st <= stall; s_v <= f3_valid; s_l <= f3_line; s_s <= f3_start; s_seq <= f3_seq;
+        s_d <= f3_data; s_exp <= f3_expect; s_hv <= f3_hv; s_pp <= f3_pp; s_b <= f3_base; s_bh <= f3_bh; s_bo <= f3_boff; s_bt <= f3_btgt;
+        s_ftq <= f4_ftq; s_rv <= rs_valid; s_rp <= rs_ptr; s_rval <= rs_val; s_rpu <= rs_push; s_radd <= rs_addr; s_rpo <= rs_pop; s_or <= out_ready;
+    end
+    logic          ovr, fv, cr, uv, ut, uc, ur;
+    logic [38:1]   op, up, ug, top, snv, pc;
+    logic [15:0]   fst, ffr;
+    logic [255:0]  fd;
+    logic [1:0]    hn;
+    logic [2:0]    ht;
+    logic [3:0]    snp, off;
+    logic          tk;
+    OOO_FDEC #(.VA(39)) u_fd
+        (.clk(clk), .rst_n(rst_n), .flush(s_be), .f3_valid(s_v), .f3_line(s_l), .f3_start(s_s), .f3_seq(s_seq), .f3_data(s_d),
+         .f3_expect(s_exp), .f3_hv(s_hv), .f3_pp(s_pp), .f3_base(s_b), .f3_bh(s_bh), .f3_boff(s_bo), .f3_btgt(s_bt),
+         .f4_valid(fv), .f4_st(fst), .f4_first(ffr), .f4_cross(cr), .f4_data(fd), .ovr(ovr), .ovr_pc(op), .f4_hn(hn), .f4_ht(ht),
+         .ub_valid(uv), .ub_pc(up), .ub_taken(ut), .ub_tgt(ug), .ub_cond(uc), .ub_ret(ur),
+         .rs_valid(s_rv), .rs_ptr(s_rp), .rs_val(s_rval), .rs_push(s_rpu), .rs_addr(s_radd), .rs_pop(s_rpo),
+         .ras_top(top), .snap_ptr(snp), .snap_val(snv));
+    OOO_UBTB2 #(.SETS(32), .VA(39), .TW(12)) u_ub
+        (.clk(clk), .rst_n(rst_n), .redirect(s_be || ovr), .redirect_pc(s_be ? s_bp : op), .ras_top(top), .stall(s_st),
+         .fetch_pc(pc), .pred_taken(tk), .pred_off(off), .upd_valid(uv), .upd_pc(up), .upd_taken(ut), .upd_target(ug),
+         .upd_cond(uc), .upd_ret(ur));
+    logic          ir;
+    logic [3:0]    fr;
+    logic [5:0]    v, rv, stk;
+    logic [5:0][31:0] ii;
+    logic [5:0][3:0]  so;
+    logic [5:0][4:0]  ff;
+    logic          rr;
+    OOO_FBUF2 #(.NB(8), .FTQW(5)) u_fb
+        (.clk(clk), .rst_n(rst_n), .flush(s_be), .in_ready(ir), .free_n(fr), .in_valid(fv && !s_be), .in_data(fd), .in_st(fst),
+         .in_first(ffr), .in_ftq(s_ftq), .out_ready(s_or), .out_valid(v), .out_inst(ii), .out_rvc(rv), .out_off(so),
+         .out_ftq(ff), .out_taken(stk), .out_rare(rr));
+    /* verilator lint_off UNUSEDSIGNAL */
+    logic cr_q;
+    /* verilator lint_on UNUSEDSIGNAL */
+    always_ff @(posedge clk) begin
+        cr_q <= cr;
+        o_pc <= pc; o_taken <= tk; o_off <= off; o_hn <= hn; o_ht <= ht; o_snp <= snp; o_snv <= snv;
+        o_ir <= ir; o_free <= fr; o_valid <= v; o_inst <= ii; o_rvc <= rv; o_soff <= so; o_ftq <= ff; o_stk <= stk; o_rare <= rr;
+    end
+endmodule : OOC_FE2

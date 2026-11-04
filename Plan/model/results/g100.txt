@@ -73,6 +73,10 @@
 | **decode: one block a cycle** (Plan/OOC.md 28.19) | | | |
 |   **one block a cycle: as built**                            |  6.707 |  7.226 |  6.460 |
 |   a stage more instead                                       |  6.681 |  7.198 |  6.440 |
+| **the override: F4, not F3** (Plan/OOC.md 28.21) | | | |
+|   override_at 3: what the proposal took                      |  6.707 |  7.226 |  6.460 |
+|   **override_at 4: from F4, in F4: as built**                |  6.656 |  7.182 |  6.415 |
+|   override_at 5: F4's decision in a register                 |  6.574 |  7.114 |  6.352 |
 | uBTB 8                                                       |  6.660 |  7.232 |  6.479 |
 | uBTB 32                                                      |  6.971 |  7.530 |  6.733 |
 | uBTB answers a cycle late: a bubble on every taken branch    |  6.435 |  7.155 |  6.261 |

@@ -36,6 +36,7 @@ to be used as they are in Phase 1, and are measured alone first (Phase 0, step 3
 | `OOO_LSU2` | The new core's memory port: E, M1, M2, M3 at load-use 3, LQ and SQ of 16, a try through RR2, a drain of its own; not in the core yet (`Plan/OOC.md` 28.13) |
 | `OOO_RENAME2` | The new core's renaming: 4 µops, 2 stages, RAT in flip-flops, free list and checkpoints in LUT RAM; not in the core yet (`Plan/OOC.md` 28.16) |
 | `OOO_FBUF2` | The new core's fetch buffer: 32-byte blocks in, 6 instructions out, one block a cycle, the head an instruction; not in the core yet (`Plan/OOC.md` 28.19) |
+| `OOO_FDEC` | The new core's F3 and F4: predecode of 32 bytes, the decision, the override, the stack; not in the core yet (`Plan/OOC.md` 28.21) |
 | `OOO_DCH` | The D$'s arrays for `OOO_LSU2`: block RAM, data and 2 copies of the tags |
 | `OOO_DTLB2` | The DTLB for `OOO_LSU2`: 32 sets of 2 ways of 4 KB in LUT RAM |
 | `OOO_ALUR` | `OOO_EXU`'s slow operations, queue 0, in 2 stages, latency 3 (`Plan/OOC.md` 28.8) |

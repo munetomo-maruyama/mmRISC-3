@@ -6241,3 +6241,56 @@ The record is section 28.19 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
 ```text
 fbuf2 finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOC_FBUF2` meets 9 ns (WNS +0.352 ns, about 8.65 ns reached). All 6 loops now fit under 9.2 ns alone, so gate S1-A can be decided.** Please decide. The record is pushed (97f0a46).
+
+#### `fbuf2`
+
+| Class | Slack | Reached | Levels |
+|---|---|---|---|
+| Worst (an empty block's test to the RAM's write enable) | +0.352 | 8.65 ns | 5 |
+| `tab` | +0.541 | 8.46 ns | 5 |
+| `slot` | +1.015 | 7.99 ns | 7 |
+| **`loop` (the head's loop)** | **+3.505** | **5.50 ns** | 2 |
+
+2,003 LUTs, 458 FF in the block. Larger than today's 1,115 LUTs for 4 slots, but the 15-level loop is 2 levels now and no longer the limit.
+
+#### All 6 loops (each alone)
+
+| Loop | Block | Reached | LUTs | Today's (slack at 10 ns) |
+|---|---|---|---|---|
+| 1 Wakeup + select | `OOC_SCHED` | **8.91 ns** (`loop` 8.64) | 5,710 | −1.95 |
+| 2 Bypass + ALU | `OOC_EXU` | **9.16 ns** | 12,472 | −0.66 |
+| 3 M1 + M2 | `OOC_LSU2` | **8.10 ns** | 2,053 | −2.66 |
+| 4 Rename of 4 | `OOC_RENAME2` | **9.09 ns** | 3,143 | +1.04 (2 µops) |
+| 5 Fetch buffer | `OOC_FBUF2` | **8.65 ns** | 2,003 | −3.31 |
+| 6 uBTB | `OOC_UBTB2` | **8.88 ns** | 378 | −2.04 (8 entries) |
+
+#### For gate S1-A
+- **For going on:** all 6 under 9.2 ns, with none of the loops' fallbacks used (such as a load-use of 4).
+- **Timing's margin is thin:** the core added about 1 ns, so loops 2 and 4 would be about 10.2 and 10.1 ns, loop 1 about 9.9. Within reach, no margin. That 1 ns itself was measured once, on another design at 50 MHz.
+- **The joins are not measured:** the largest worry is `OOC_FE`, −4.79 ns today, the worst of all, and not one of the 6. Then the FTQ, decode of 6, the decoded queue, the ROB at 4 wide, the miss handler.
+- **CoreMark/MHz has no margin either:** the model fell from 6.90 to 6.707 as the blocks were built. At × 0.94 about 6.305, about gate S1-B's 6.3. For the goal above 6.0 alone, × 0.895 is enough.
+
+#### My recommendation: go
+With these conditions:
+
+1. **Configuration:** frozen as in 28.13 to 28.19.
+2. **Step 1.2:** "model ≥ 6.8" changed to "≥ 6.7"; it cannot be met as it is.
+3. **Gate S1-B's 6.3:** kept as a working target; the goal above 6.0 judged apart if it is missed.
+4. **The fallback to 90 MHz:** stays open with no change of pipeline (567 CoreMark/s), to decide at step 1.6 with the whole core measured.
+5. **Next:** by the table it is step 1.2, but first measure the largest unknown, `OOC_FE` (32-byte fetch). If that does not fit, the other results lose their meaning.
+
+With "Not yet", `OOC_FE` alone is measured before freezing. The next work is the same either way; the difference is whether the configuration is frozen now.
+
+The record is section 28.20 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
+<!-- /answer -->
+
+## 157. 2026-11-04 23:55:19 JST
+
+```text
+Not yet
+```

@@ -8,8 +8,9 @@
 // lengths one after another, the count taken, the head parcel. So the boundaries are
 // not found here at all, and the head is an instruction, not a parcel:
 //
-//   F4  in_st, from the predecode of F3, says where instructions start. From it a
-//       table of the block's instructions: where each one is (p), how many (n)
+//   F4  in_st, from the predecode of F3, says where instructions start, on past a
+//       taken transfer, which is known only now (in_first, late). From them a table
+//       of the block's instructions: where each one is (p), how many (n)
 //   D1  the block being read (cur, flip-flops) gives its next instructions, by
 //       the table; a count down of what is left, and 6 counters, are all the loop
 //
@@ -22,7 +23,7 @@
 // predecode knows that the next block's parcel 0 is no start.
 //
 // A rare class (OOO_RARE: decoded in slot 0 alone) has no part in the count: a block
-// with one anywhere gives one instruction a cycle. FP code pays for that; its unit is
+// with one anywhere, past its taken transfer too, gives one instruction a cycle. FP code pays for that; its unit is
 // half-rate in any case (Doc/STRATEGY.md 4.4).
 //
 // The blocks wait in distributed RAM, a wide word with one read and one write; a block
@@ -47,8 +48,8 @@ module OOO_FBUF2
         output logic [$clog2(NB):0]      free_n,     // blocks it can take (fetch's credit)
         input  logic                     in_valid,
         input  logic [255:0]             in_data,    // parcel k in bits 16k+15 .. 16k
-        input  logic [15:0]              in_st,      // an instruction starts at this parcel
-        input  logic                     in_taken,   // its last instruction is a predicted-taken transfer
+        input  logic [15:0]              in_st,      // an instruction starts at this parcel (past a taken transfer too)
+        input  logic [15:0]              in_first,   // the predicted-taken transfer that ends it, by its last parcel
         input  logic [FTQW-1:0]          in_ftq,
 
         // D1: to decode's registers
@@ -84,7 +85,8 @@ module OOO_FBUF2
 
     logic [4:0]  n_in;
     logic [4:0]  p_in [16];
-    logic        rb_in;
+    logic        rb_in, in_taken, any_in;
+    logic [4:0]  cum [16];                   // how many start up to this parcel
     always @(*) begin
         automatic logic [4:0] c = 5'(c_v);   // how many before this parcel
         strad = in_st[15] && in_data[241:240] == 2'b11;
@@ -95,20 +97,24 @@ module OOO_FBUF2
             for (int j = 0; j < 16; j++)
                 if (su[k] && c == 5'(j)) p_in[j] = p_in[j] | 5'(k + 1);
             if (su[k]) c = c + 5'd1;
+            cum[k] = c;
         end
-        n_in  = c;
+        in_taken = in_first != 16'd0;
+        n_in = in_taken ? 5'd0 : c;
+        for (int k = 0; k < 16; k++) if (in_first[k]) n_in = n_in | cum[k];
+        any_in = c != 5'd0;
         rb_in = (c_v && rp_in[0]) || ({su} & rp_in[16:1]) != 16'd0;
     end
 
     logic take_in;                           // a block comes in now
     logic keep_in;                           // ... and it has instructions
     assign take_in = in_valid && in_ready && !flush;
-    assign keep_in = take_in && n_in != 5'd0;
+    assign keep_in = take_in && any_in;      // (a taken transfer ends an instruction, so with one n_in is not 0)
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n)        c_v <= 1'b0;
         else if (flush)    c_v <= 1'b0;
-        else if (take_in)  c_v <= strad;
+        else if (take_in)  c_v <= strad && !in_taken;
     end
     always_ff @(posedge clk) begin
         if (take_in) begin

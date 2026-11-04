@@ -104,6 +104,10 @@ row "  a group's queues fixed at R1, not chosen again" $J $D $X $U $W ck_max=2 r
 echo "| **decode: one block a cycle** (Plan/OOC.md 28.19) | | | |"
 row "  **one block a cycle: as built**" $J $D $X $U $W ck_max=2 rk_lag=3 dec_block=1
 row "  a stage more instead" $J $D $X $U $W ck_max=2 rk_lag=3 dec_depth=6 redirect=7
+echo "| **the override: F4, not F3** (Plan/OOC.md 28.21) | | | |"
+row "  override_at 3: what the proposal took" $J $D $X $U $W ck_max=2 rk_lag=3 dec_block=1 override_at=3
+row "  **override_at 4: from F4, in F4: as built**" $J $D $X $U $W ck_max=2 rk_lag=3 dec_block=1 override_at=4
+row "  override_at 5: F4's decision in a register" $J $D $X $U $W ck_max=2 rk_lag=3 dec_block=1 override_at=5
 row "uBTB 8"                                        $J ubtb=8
 row "uBTB 32"                                       $J ubtb=32
 row "uBTB answers a cycle late: a bubble on every taken branch" $J taken_gap=2
