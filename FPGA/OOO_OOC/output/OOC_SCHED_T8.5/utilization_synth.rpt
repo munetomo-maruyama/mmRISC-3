@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Wed Nov  4 22:04:20 2026
+| Date         : Wed Nov  4 23:12:16 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOC_SCHED_T8.5/utilization_synth.rpt
 | Design       : OOC_SCHED
@@ -22,11 +22,11 @@ Table of Contents
 +---------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
 |    Instance   |   Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
 +---------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
-| OOC_SCHED     |     (top) |       5665 |       5665 |       0 |    0 | 3163 |      0 |      0 |          0 |
-|   (OOC_SCHED) |     (top) |          0 |          0 |       0 |    0 |  326 |      0 |      0 |          0 |
-|   u_sched     | OOO_SCHED |       5665 |       5665 |       0 |    0 | 2837 |      0 |      0 |          0 |
-|     (u_sched) | OOO_SCHED |        634 |        634 |       0 |    0 | 2539 |      0 |      0 |          0 |
-|     u_disp    | OOO_SDISP |       5031 |       5031 |       0 |    0 |  298 |      0 |      0 |          0 |
+| OOC_SCHED     |     (top) |       5657 |       5657 |       0 |    0 | 3363 |      0 |      0 |          0 |
+|   (OOC_SCHED) |     (top) |          0 |          0 |       0 |    0 |  513 |      0 |      0 |          0 |
+|   u_sched     | OOO_SCHED |       5657 |       5657 |       0 |    0 | 2850 |      0 |      0 |          0 |
+|     (u_sched) | OOO_SCHED |        660 |        660 |       0 |    0 | 2539 |      0 |      0 |          0 |
+|     u_disp    | OOO_SDISP |       4997 |       4997 |       0 |    0 |  311 |      0 |      0 |          0 |
 +---------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
 
 

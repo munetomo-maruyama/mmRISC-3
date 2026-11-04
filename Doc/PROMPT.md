@@ -6050,3 +6050,78 @@ Both finished
 ```text
 Try again
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**The 2 results showed a problem, so I redesigned dispatch (ee23252).** `OOC_RENAME2` itself nearly fits, but `disp_go` is later than I estimated, and S1 had got worse, to about 9.95 ns. So steering moved a cycle ahead. Simulation passes; it is not measured in Vivado yet.
+
+#### `ren2` (9 ns asked)
+Register to register +0.909 ns (8.09 ns), 3,146 LUTs, 679 FF in the block. Today's 2-µop one is 2,657 LUTs, so widening to 4 µops costs 18 %.
+
+| Class | Slack | Reached | Levels |
+|---|---|---|---|
+| **`go` (port to state)** | **−0.092** | 4.83 ns after the port | 5 |
+| `rat` | +0.909 | 8.09 ns | 5 |
+| `rest` | +1.347 | 7.65 ns | 3 |
+| `ck` | +1.728 | 7.27 ns | 3 |
+| `r1` | +2.359 | 6.64 ns | 5 |
+| `read` | +2.580 | 6.42 ns | 5 |
+| `tag` | +2.624 | 6.38 ns | 4 |
+
+#### `sched85`: worse, about 9.95 ns
+0.89 ns later than the last 9.06 ns, more than placement's spread of 0.26 ns. The cause is `disp_valid` added to the steering last time, to handle gaps in R2.
+
+**My estimate was wrong too.** `disp_go[3]` comes at 70 to 80 % of the period, not 55 %. With the 4.83 ns behind it, `adv` would take about 11 ns and not fit 100 MHz.
+
+#### The answer: steering a cycle ahead
+In the cycle before S1, each slot's queue and how many go before it there are chosen into registers (`sq`, `sr`).
+
+- **S1:** the bank is 1 or 2 LUTs from those and the room.
+- **`disp_go`:** about 3 levels from registers, by estimate.
+- **`wa`:** S1's worst path gets shorter by as much.
+
+| Steering | `-O2` | most optimization | g13 | rv64gc |
+|---|---|---|---|---|
+| The order 2 old, in S1 (last time) | 6.722 | 7.234 | 6.487 | 5.797 |
+| **The order 3 old, chosen again every cycle (chosen)** | **6.709** | **7.229** | **6.465** | **5.757** |
+| Queues fixed at R1, not chosen again | 6.502 | 7.002 | 6.261 | 5.597 |
+
+Fixing costs −3 %, so it is chosen again every cycle: a µop stuck on a full queue can move to an emptier one the next cycle.
+
+#### What it does to the targets
+**The model is 6.709, RTL at × 0.94 about 6.31, 631 CoreMark/s. Only 0.01 over gate S1-B's 6.3.** If the RTL falls below the model from here, the gate is missed. A lever if short is queues of 10 (6.767 under other conditions), with the effect on loop 1 to measure.
+
+#### Verification
+- **Bench `tb_sched`:** 421,091 issued, 76,109 slots not valid among valid, no mismatch.
+- **Bug injection:** all 106 of `OOO_SCHED` and `OOO_SDISP` detected, every line read. M778 was equivalent and removed.
+- **The last fix:** a type only, for a lint warning; the bench and 5 steering mutations rerun, not all.
+- **Lint:** `-Wall` clean on blocks and harness.
+
+#### Not confirmed
+- **Choosing again:** the mux `s0_*` is on R2's side and the bench's groups do not stay, so it is not tested until R2 is joined. The harness has it for timing only.
+- **`disp_go`'s delay:** 45 % of the period now in `OOC_RENAME2`, also an estimate, to be checked by this `go`.
+
+#### Request
+Please run these 2 on Windows, in this order; `sched85`'s `go` checks what `ren2` assumes.
+
+```bash
+synth_ooo.bat sched85
+```
+
+```bash
+synth_ooo.bat ren2
+```
+
+To read:
+- **`sched85`:** first the new class `go`, whether it is within 45 % of the period; then `s1`, `ff`, `loop` against 9.06 ns.
+- **`ren2`:** `go`'s slack and the total.
+
+The record is section 28.17 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
+<!-- /answer -->
+
+## 154. 2026-11-04 23:19:50 JST
+
+```text
+Both finished
+```

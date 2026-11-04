@@ -124,8 +124,8 @@ if {$top eq "OOO_IQ" && [llength [get_ports -quiet mdu_ok]]} { set_input_delay -
 if {($top eq "OOC_RENAME" || $top eq "OOC_DSREG") && [llength [get_ports -quiet wk_*]]} {
     set_input_delay -clock clk [expr {0.65 * $period}] [get_ports wk_*]
 }
-# OOC_RENAME2's disp_go: OOO_SDISP's S1, 3 levels from registers with steering chosen ahead (Plan/OOC.md 28.17)
-if {$top eq "OOC_RENAME2" && [llength [get_ports -quiet disp_go*]]} { set_input_delay -clock clk [expr {0.45 * $period}] [get_ports disp_go*] }
+# OOC_RENAME2's disp_go: OOO_SDISP's S1, measured at about 4.9 ns (OOC_SCHED's class go; Plan/OOC.md 28.18)
+if {$top eq "OOC_RENAME2" && [llength [get_ports -quiet disp_go*]]} { set_input_delay -clock clk [expr {0.55 * $period}] [get_ports disp_go*] }
 # OOC_FE's g_take: D2's count taken, from fusion and renaming's go late in the cycle (Plan/CORE.md 5.2)
 if {$top eq "OOC_FE" && [llength [get_ports -quiet g_take*]]} { set_input_delay -clock clk [expr {0.6 * $period}] [get_ports g_take*] }
 if {[llength [get_ports -quiet rst_n]]} { set_false_path -from [get_ports rst_n] }

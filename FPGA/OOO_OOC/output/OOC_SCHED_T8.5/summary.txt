@@ -1,15 +1,17 @@
 OOC_SCHED   (period 8.5 ns, I/O delay 2.55 ns each side on the ports)
-after synthesis: 5665 LUTs (5665 logic + 0 LUT RAM; 6061 LUT cells), 3163 FF, 0 DSP, 0 LUT RAM cells, 0.0 BRAM tiles
-after place and route: 5808 LUTs (5808 logic + 0 LUT RAM; 6054 LUT cells), WNS -1.450 ns, register to register -1.450 ns (10 logic levels)
-  loop  worst  -0.767 ns ( 9 logic levels), from u_sched/g_ent[12].rv_reg[12]/C to u_sched/g_ent[18].rv_reg[18]/D
-  guard worst  -0.943 ns ( 9 logic levels), from u_sched/g_ent[25].g_ns.nsf_reg/C to u_sched/g_ent[11].rv_reg[11]/D
-  wake  worst   1.378 ns ( 5 logic levels), from u_sched/g_ent[6].rv_reg[6]/C to u_sched/g_row[31].g_col[2].wq_reg/D
-  free  worst   0.418 ns ( 6 logic levels), from u_sched/g_ent[6].rv_reg[6]/C to u_sched/u_disp/bf_reg[0]/D
-  s1    worst  -1.450 ns (10 logic levels), from dk_reg[0][0]/C to u_sched/g_q[0].g_i[1].g_j[7].aq_reg/D
-  ff    worst  -1.290 ns (10 logic levels), from u_sched/u_disp/rk_reg[0][0]/C to u_sched/g_q[0].g_i[1].g_j[7].aq_reg/D
-  s2    worst  -0.079 ns ( 7 logic levels), from u_sched/u_disp/s2_reg[7][2]/C to u_sched/g_ent[25].rv_reg[25]/D
-  kill  worst  -0.454 ns ( 7 logic levels), from ki_reg[9]/C to u_sched/g_ent[11].rv_reg[11]/D
-  issue worst   3.236 ns ( 4 logic levels), from u_sched/g_ent[29].gq_reg[29]/C to out_reg[45]/D
+after synthesis: 5657 LUTs (5657 logic + 0 LUT RAM; 6011 LUT cells), 3363 FF, 0 DSP, 0 LUT RAM cells, 0.0 BRAM tiles
+after place and route: 5710 LUTs (5710 logic + 0 LUT RAM; 5973 LUT cells), WNS -0.405 ns, register to register -0.405 ns (8 logic levels)
+  loop  worst  -0.136 ns ( 8 logic levels), from u_sched/g_ent[20].rv_reg[20]/C to u_sched/g_ent[31].rv_reg[31]/D
+  guard worst  -0.402 ns ( 8 logic levels), from u_sched/g_ent[2].g_ns.nsf_reg/C to u_sched/g_ent[34].rv_reg[34]/D
+  wake  worst   1.401 ns ( 4 logic levels), from u_sched/g_ent[27].rv_reg[27]/C to u_sched/g_row[35].g_col[24].wq_reg/D
+  free  worst   1.113 ns ( 5 logic levels), from u_sched/g_ent[26].rv_reg[26]/C to u_sched/u_disp/bf_reg[7]/D
+  s1    worst   0.232 ns (12 logic levels), from u_sched/u_disp/sq_reg[3][1]/C to u_sched/u_disp/sr_reg[3][1]/D
+  ff    worst   0.001 ns (14 logic levels), from u_sched/u_disp/bf_reg[6]_replica/C to u_sched/u_disp/sr_reg[3][1]/D
+  go    worst   3.573 ns ( 5 logic levels), from u_sched/u_disp/bf_reg[6]_replica/C to out_reg[96]/D
+  ahead worst   0.001 ns (14 logic levels), from u_sched/u_disp/bf_reg[6]_replica/C to u_sched/u_disp/sr_reg[3][1]/D
+  s2    worst   0.258 ns ( 7 logic levels), from u_sched/u_disp/d2_reg[1][15]/C to u_sched/g_ent[11].rv_reg[11]/D
+  kill  worst   0.215 ns ( 8 logic levels), from ki_reg[10]/C to u_sched/g_ent[23].rv_reg[23]/D
+  issue worst   2.486 ns ( 3 logic levels), from u_sched/g_ent[31].gq_reg[31]/C to out_reg[46]/D
 instances (after place and route):
-    u_sched                OOO_SCHED              5808 LUTs (5808 logic + 0 LUT RAM), 2837 FF
-      u_disp               OOO_SDISP              5161 LUTs (5161 logic + 0 LUT RAM), 298 FF
+    u_sched                OOO_SCHED              5710 LUTs (5710 logic + 0 LUT RAM), 2851 FF
+      u_disp               OOO_SDISP              5039 LUTs (5039 logic + 0 LUT RAM), 312 FF

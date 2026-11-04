@@ -3508,3 +3508,56 @@ The last row is why it has to be chosen again every cycle: a µop stuck on a ful
 **Verification.** `tb_sched`: the group is chosen at the end of the cycle before, with the order the block has then: 421,091 issued, 76,109 slots not valid among those valid, 26,588 data µops, no mismatch. Bug injection on all of `OOO_SCHED`, `OOO_SDISP`, with the steering's rewritten and M779 new: **106 of 106 detected**, every line read; M778 (no new queue for a slot not valid) was equivalent and removed. The mux `s0_*` itself is R2's, not in this block: the bench's groups do not stay, so choosing again is not tested until R2 joins it; the harness has it for the timing.
 
 Next: `synth_ooo.bat sched85` and `ren2`. To read: `go`, then `s1`, `ff`, `loop`, against 9.06 ns.
+
+### 28.18 Steering a cycle ahead: `OOC_SCHED` 8.91 ns, `OOC_RENAME2` about 9.1 ns; loops 1 and 4 hold (2026-11-04)
+
+`synth_ooo.bat sched85` and `ren2`, the RTL of 28.17.
+
+| `OOC_SCHED` at 8.5 ns | Steering ahead | With gaps in S1 (28.17) | Before gaps (28.15) |
+|---|---|---|---|
+| **Reached** | **8.91 ns** | 9.95 ns | 9.06 ns |
+| `guard` | **−0.402** | −0.943 | −0.560 |
+| `loop` | −0.136 | −0.767 | −0.186 |
+| `ff` | +0.001 | −1.290 | −0.467 |
+| `ahead`: the steering of the next cycle | +0.001 (14 levels) | | |
+| `s1` | **+0.232** | −1.450 | −0.563 |
+| `s2` | +0.258 | −0.079 | +0.279 |
+| `kill` | +0.215 | −0.454 | +0.200 |
+| `free` | +1.113 | +0.418 | +1.434 |
+| `wake` | +1.401 | +1.378 | +1.573 |
+| `issue` | +2.486 | +3.236 | +3.078 |
+| `go`: to `disp_go` | +3.573 (5 levels) | | |
+| LUTs after routing | 5,710 | 5,808 | 5,707 |
+| FF in the block | 2,851 | 2,837 | 2,837 |
+
+**The first run of this block under 9 ns, with the harness now carrying R2.** The overall gain of 0.15 ns against 28.15 is within the spread (0.26 ns), but **`s1` moved by 0.8 ns, which is not**: dispatch is no longer the limit. What limits now is the loop itself: `guard` 8.90, `loop` 8.64. 14 FF more for `sq`, `sr`, no LUTs to speak of.
+
+**`disp_go` comes at about 4.9 ns** (`go`, 8.5 − 3.57), 58 % of that period: 5 levels, not the 3 I counted, and not optimized as it had time to spare. `ahead` runs through it, `adv`, the mux, the rank, 14 levels, and was met at +0.001, so Vivado stopped there: it is a ceiling, and worth looking at when the core is joined.
+
+| `OOC_RENAME2` at 9 ns | `disp_go` at 45 % | `disp_go` at 55 % (28.17) |
+|---|---|---|
+| `go` | +0.289 | −0.092 |
+| `rat` | +1.082 | +0.909 |
+| `ck` | +1.857 | +1.728 |
+| `rest` | +2.325 | +1.347 |
+| `cmt` | +2.377 | +1.813 |
+| `r1` | +2.394 | +2.359 |
+| `tag` | +2.878 | +2.624 |
+| `read` | +2.897 | +2.580 |
+| LUTs | 3,143 | 3,146 |
+
+The RTL of the block is the same in both, so they measure 2 arrivals. **The 45 % I set (4.05 ns) is earlier than the 4.9 ns measured, so the run to go by is the earlier one**, 55 % (4.95 ns): −0.092, **about 9.1 ns**. Register to register, 7.9 to 8.1 ns. No run is needed for that; the delay in `synth_ooo.tcl` goes back to 55 %.
+
+**Decision: both hold, no lever used. The model stands at 6.709 / 7.229 / 6.465 / 5.757, RTL about 6.31.**
+
+Where the loops are, each alone:
+
+| Loop | Block | Reached |
+|---|---|---|
+| 1 | `OOC_SCHED` | 8.9 ns (`loop` 8.6), 9.1 to 9.6 before |
+| 2 | `OOC_EXU` | 9.2 ns |
+| 3 | `OOC_LSU2` | 8.1 ns |
+| 4 | `OOC_RENAME2` | 9.1 ns with `disp_go`; 8.1 from registers |
+| 6 | `OOC_UBTB2` | 8.9 ns |
+
+Left in step 1.1: the fetch buffer split (loop 5), −3.31 ns as today's. Then gate S1-A.
