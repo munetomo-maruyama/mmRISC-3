@@ -3725,6 +3725,7 @@ Next: `synth_ooo.bat fe2` again. To read: `ovr`, `f3`, `loop`, `cut`, against th
 What it says:
 - **The 2 changes worked**: `f3` lost 9 levels, its worst now the count of branches. 0.33 ns on `ovr`, and 0.68 on `loop`, which did follow it (28.22). 211 LUTs fewer.
 - **The history bits move a cycle on** (`f5_hn`, `f5_ht`, from registers): they have no one waiting. Done, with the bench; **no new run**: nothing else depends on them, and the next worst are in this table.
+- **`tb_fdec` passes with them there; bug injection on `fdec` 34 of 34**, every line read (bc7940a went in before M843 and M844 had run: my edit had given 2 mutations one id. Corrected in the next commit and both detected).
 - **So F0 to D1 is about 9.5 ns alone, against about 14.8 ns.** Not in it: the arrays, the I$, TAGE M, the FTQ, the requests in flight.
 
 A history lag noted: the tables are read at F1 and the history pushed at F5, so a block reads with more blocks missing than today's 2. For the block TAGE-S at `slots=3`: 4,772 mispredictions at lag 2, 4,757 at lag 4 on `-O2`; 4,969 and 5,264 on g13. Under 6 %, of about 1 in 1,000 instructions. Not in the model, whose TAGE M is also not the block's: `OOO_TAGE` is S, and M has yet to be built.
