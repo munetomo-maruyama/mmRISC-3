@@ -6481,3 +6481,54 @@ The record is section 28.23 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
 ```text
 I want to keep 100 MHz as the target as far as possible. On that basis, let us go ahead with the proposal.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Gate S1-A is recorded as "go" and the configuration frozen. **100 MHz stays the target.** Pushed (a49eb1c).
+
+#### What was decided
+
+| Item | Decision |
+|---|---|
+| Configuration | Frozen as in 28.13 to 28.23 (model 6.656 / 7.182 / 6.415 / 5.733) |
+| Clock | **100 MHz stays the target**; lowering it is the last resort |
+| Goal | `-O2` above 6.0 CoreMark/MHz, above 600 CoreMark/s (unchanged) |
+| Step 1.2 | "Model ≥ 6.6": met at 6.656, done |
+| Gate S1-B | "RTL ≥ 6.2" |
+| Working target | RTL 6.2, board 6.1 |
+
+#### What changes to keep 100 MHz
+**A lever that costs CoreMark/MHz is used only when a measurement of the whole core shows it is needed.** Queues of 10 are treated the same, as they may hurt loop 1.
+
+That needs measuring the whole early. The least certain number now is the "about 1 ns" the core adds, measured once, on another design at 50 MHz. At 0.5 ns 100 MHz is reached; at 1.5 ns it recedes. So `Doc/STRATEGY.md` now has step 1.6's `OOO_CPU` measured from the start of step 1.3.
+
+#### Next: step 1.3
+Today's 2-wide core moves to the new pipeline first, with no change of width.
+
+- **Stages added:** fetch 5, decode and rename 5, select to EX 3, load-use 3 cycles. No new function.
+- **Checks:** lock-step, cycles against the model, and `OOO_CPU` measured at each stage.
+- **The blocks built:** joined from step 1.4 on. New slow paths that the joining shows are dealt with then.
+
+The record is section 28.24 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
+<!-- /answer -->
+
+## 161. 2026-11-05 01:04:00 JST
+
+```text
+Yes, step 1.3
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Step 1.3 has begun. The first stage, RR1, is in the core and all the lock-step tests pass; select to EX is 3 cycles now.
+
+| `g14 -O2`, cycles | Before | After | |
+|---|---|---|---|
+| RTL | 1,817,188 | 1,857,214 | +2.20 % |
+| Model (`iss_to_ex` 2, 3) | 1,722,666 | 1,756,596 | +1.97 % |
+
+Request: `synth_ooo.bat cpu10`.
+<!-- /answer -->
+

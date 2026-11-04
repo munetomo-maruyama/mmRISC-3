@@ -16,7 +16,9 @@
 //              writes OOO_ROB, OOO_IQ and OOO_IQPL
 //   IS         OOO_IQ: port 0 (ALU0, OOO_ALU2 full; OOO_CSRU, OOO_SYS,
 //              OOO_PMUL, OOO_MDUP), port 1 (ALU1, FULL 0), port 2 (OOO_LSU)
-//   RR         OOO_STAGE; OOO_PRF (2 reads a port), OOO_IQPL's record, the
+//   RR1        OOO_STAGE; OOO_IQPL's record (step 1.3, Doc/STRATEGY.md 5: select
+//              to EX 3 cycles, as OOO_EXU and OOO_PRF2 will need)
+//   RR         OOO_STAGE; OOO_PRF (2 reads a port), the record kept, the
 //              pc array and the target array (OOO_FRONT)
 //   EX         OOO_STAGE; the operands from the RR read or the 3 write-back
 //              registers (the bypass), OOO_ALU2, branch resolution (the
@@ -698,6 +700,19 @@ module OOO_CORE
     logic [1:0][TAGW-1:0]      wbi_t;
     logic [1:0][63:0]          wbi_d;
 
+    // RR1: what IS chose, for all the ports. The record is read here
+    logic [2:0]                r1_v;
+    logic [2:0][NCKPT-1:0]     r1_bm;
+    logic [2:0][RRW-1:0]       r1_d;
+    rec_t [2:0]                rr_rq;       // the record, in RR
+    for (genvar p = 0; p < 3; p++) begin : g_r1
+        OOO_STAGE #(.W(RRW), .NCK(NCKPT)) u_r1
+            (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
+             .in_valid(iss_valid[p]), .in_bm(iss_bm[p]), .in_data({iss_src[p][1], iss_src[p][0], iss_dst[p], iss_wr[p]}),
+             .out_valid(r1_v[p]), .out_bm(r1_bm[p]), .out_data(r1_d[p]));
+    end
+    always_ff @(posedge clk) rr_rq <= rr_rec;
+
     for (genvar p = 0; p < 2; p++) begin : g_alu
         // RR
         logic            rr_v;
@@ -711,13 +726,13 @@ module OOO_CORE
         ex_t             rx;
         OOO_STAGE #(.W(RRW), .NCK(NCKPT)) u_rr
             (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
-             .in_valid(iss_valid[p]), .in_bm(iss_bm[p]), .in_data({iss_src[p][1], iss_src[p][0], iss_dst[p], iss_wr[p]}),
+             .in_valid(r1_v[p]), .in_bm(r1_bm[p]), .in_data(r1_d[p]),
              .out_valid(rr_v), .out_bm(rr_bm), .out_data(rr_d));
         assign {rr_t2, rr_t1, rr_dst, rr_wr} = rr_d;
         assign prf_ra[2*p]   = rr_t1;
         assign prf_ra[2*p+1] = rr_t2;
-        assign pa_idx[p]     = rr_rec[p].ftq - FTQW'(rr_rec[p].xline);
-        assign ta_idx[p]     = rr_rec[p].ftq;
+        assign pa_idx[p]     = rr_rq[p].ftq - FTQW'(rr_rq[p].xline);
+        assign ta_idx[p]     = rr_rq[p].ftq;
         always @(*) begin
             rx      = '0;
             rx.v1   = prf_rd[2*p];
@@ -726,7 +741,7 @@ module OOO_CORE
             rx.t2   = rr_t2;
             rx.dst  = rr_dst;
             rx.wr   = rr_wr;
-            rx.rec  = rr_rec[p];
+            rx.rec  = rr_rq[p];
             rx.line = pa_line[p];
             rx.ta   = ta_tgt[p];
         end
@@ -911,7 +926,7 @@ module OOO_CORE
     logic [63:0]     p2_a, p2_b;
     OOO_STAGE #(.W(RRW), .NCK(NCKPT)) u_rr2
         (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
-         .in_valid(iss_valid[2]), .in_bm(iss_bm[2]), .in_data({iss_src[2][1], iss_src[2][0], iss_dst[2], iss_wr[2]}),
+         .in_valid(r1_v[2]), .in_bm(r1_bm[2]), .in_data(r1_d[2]),
          .out_valid(p2_rr_v), .out_bm(p2_rr_bm), .out_data(p2_rr_d));
     assign {p2_rr_t2, p2_rr_t1, p2_rr_dst, p2_rr_wr} = p2_rr_d;
     assign prf_ra[4] = p2_rr_t1;                                // the base
@@ -924,7 +939,7 @@ module OOO_CORE
         p2_rx.t2  = p2_rr_t2;
         p2_rx.dst = p2_rr_dst;
         p2_rx.wr  = p2_rr_wr;
-        p2_rx.rec = rr_rec[2];
+        p2_rx.rec = rr_rq[2];
     end
     OOO_STAGE #(.W($bits(ex_t)), .NCK(NCKPT)) u_ex2
         (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),

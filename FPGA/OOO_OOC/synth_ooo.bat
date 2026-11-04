@@ -18,6 +18,7 @@ REM   synth_ooo.bat lsu2       the memory port of the new core at 9 ns, in outpu
 REM   synth_ooo.bat ren2       renaming of 4 at 9 ns, in output\OOC_RENAME2_T9 (loop 4)
 REM   synth_ooo.bat fbuf2      the fetch buffer of the new core at 9 ns, in output\OOC_FBUF2_T9 (loop 5)
 REM   synth_ooo.bat fe2        F3, F4, F0, D1 of the new core together at 9 ns, in output\OOC_FE2_T9
+REM   synth_ooo.bat cpu10      the whole core with its D$ at a 10 ns target, in output\OOO_CPU_T10 (what the core adds: step 1.3)
 REM   synth_ooo.bat schedrpt   the classes of that finished run, without running it again: output\OOC_SCHED_T10\summary_loop.txt
 REM
 REM vivado is itself a batch file: without "call" this one would end after
@@ -35,6 +36,7 @@ if /i "%~1"=="lsu2" goto :lsu2
 if /i "%~1"=="ren2" goto :ren2
 if /i "%~1"=="fbuf2" goto :fbuf2
 if /i "%~1"=="fe2" goto :fe2
+if /i "%~1"=="cpu10" goto :cpu10
 if /i "%~1"=="schedrpt" goto :schedrpt
 if not "%~1"=="" (
     call vivado -mode batch -source synth_ooo.tcl -log output\vivado_%~1.log -journal output\vivado_%~1.jou -tclargs %*
@@ -90,6 +92,9 @@ call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T9_FBUF2.log -j
 goto :done
 :fe2
 call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T9_FE2.log -journal output\vivado_T9_FE2.jou -tclargs OOC_FE2 9.0 1
+goto :done
+:cpu10
+call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T10_CPU.log -journal output\vivado_T10_CPU.jou -tclargs OOO_CPU 10.0 1
 goto :done
 :schedrpt
 call vivado -mode batch -source report_sched.tcl -log output\vivado_rpt_SCHED.log -journal output\vivado_rpt_SCHED.jou -tclargs output/OOC_SCHED_T10

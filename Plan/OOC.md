@@ -3770,3 +3770,28 @@ These figures are the author's to set.
 | Gate S1-B | "RTL ≥ 6.3" is now **≥ 6.2** |
 
 What follows from keeping 100 MHz: a lever that costs CoreMark/MHz is taken only when a measurement of the whole shows it is needed, and the first such measurement should come early. So step 1.6's `OOO_CPU` out of context runs from the first step of the new pipeline: what the core really adds over the blocks alone (about 1 ns, measured once, on another design at 50 MHz) is the largest number here that nobody has measured.
+
+### 28.25 Step 1.3, the first stage: RR1, select to EX in 3 cycles; `OOO_CPU` at 10 ns (2026-11-05)
+
+Step 1.3 moves today's 2-wide core to the new pipeline, width unchanged, a stage at a time, with the tests passing after each: Plan:
+
+| # | What | From, to | Status |
+|---|---|---|---|
+| A | RR1: select to EX 3 cycles | `iss_to_ex` 2, 3 | **Done here** |
+| B | Load-use 3: E, M1, M2, on today's D$ | `lat_load` 2, 3 | Next |
+| C | Multiply 4 cycles | `lat_mul` 2, 4 | |
+| D | Decode and rename 5 stages: D1, D2, D3, R1, R2 | `dec_depth` 3, 5 | |
+| E | Fetch 5 stages: override at F4 | `fe_depth`, `override_at` | |
+| F | The redirect 6 after EX | `redirect` 3, 6 | |
+
+**A.** A stage on all 3 ports between IS and RR (`OOO_CORE`: `g_r1`, the record kept in `rr_rq`); nothing else moves, as every µop waits one more and their distances stay. Bypass and register file as they are.
+
+| `g14 -O2`, cycles | Before | After | |
+|---|---|---|---|
+| RTL | 1,817,188 | 1,857,214 | +2.20 % |
+| Model, today's options, `iss_to_ex` 2, 3 | 1,722,666 | 1,756,596 | +1.97 % |
+| RTL / model | 0.948 | 0.946 | |
+
+So the model holds on this step. Lock-step with Spike: all of `run_core.sh` (60, 96, 186, 127 programs on both tops) and CoreMark on all 4 configurations, 3 builds each: 0 failures, first time. Bug injection of the core (`mutate_core.py`) is left for the end of step 1.3: nothing new to be wrong yet.
+
+**`synth_ooo.bat cpu10`: new.** The whole of today's core with its D$, at a 10 ns target, `output/OOO_CPU_T10`. It is what 28.24 asked for: **against each block's own `T10` of 28.1, what does the core add at this target?** That has been a single figure, measured at 20 ns. The core is today's, and it will miss by a lot; it is the difference per block that is wanted.
