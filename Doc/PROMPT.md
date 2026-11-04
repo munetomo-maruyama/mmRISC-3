@@ -6125,3 +6125,59 @@ The record is section 28.17 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
 ```text
 Both finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**Steering a cycle ahead worked. `OOC_SCHED` reaches about 8.91 ns, under 9 ns for the first time, and loops 1 and 4 both hold with no lever used.** The model stays 6.709. The record is pushed (6310715).
+
+#### `sched85` (8.5 ns asked)
+
+| Class | This run | With gaps in S1 | Before gaps |
+|---|---|---|---|
+| **Reached** | **8.91 ns** | 9.95 ns | 9.06 ns |
+| `guard` | **−0.402** | −0.943 | −0.560 |
+| `loop` | −0.136 | −0.767 | −0.186 |
+| `ff` | +0.001 | −1.290 | −0.467 |
+| `s1` | **+0.232** | −1.450 | −0.563 |
+| LUTs after routing | 5,710 | 5,808 | 5,707 |
+
+- **What really worked:** the overall 0.15 ns (9.06 to 8.91) is within placement's spread, but `s1`'s 0.8 ns is real. Dispatch is no longer the limit.
+- **The limit now:** the loop itself, `guard` 8.90 ns, `loop` 8.64 ns.
+- **Harness:** it now includes R2, so this is closer to the real core than before.
+- **A path to watch:** `ahead` (the next cycle's steering) has 14 levels and stopped at +0.001 ns. Its margin is unknown; to check when joined to the core.
+
+#### When `disp_go` comes: my estimate was off again
+The new class `go` measures about 4.9 ns (58 % of the period), 5 levels. More than the 3 I counted, and the 45 % (4.05 ns) I gave `ren2` last time was too early.
+
+So this `ren2` (WNS +0.289 ns) is optimistic. The block's RTL is the same, so **the one to go by is the earlier run at 55 % (4.95 ns), −0.092 ns, about 9.1 ns.** No rerun needed. The delay in `synth_ooo.tcl` is back at 55 %.
+
+The `go` path had time to spare and was not optimized. It may be faster, but that is not confirmed.
+
+#### Where it stands (all blocks alone)
+
+| Loop | Block | Reached |
+|---|---|---|
+| 1 | `OOC_SCHED` | 8.9 ns (`loop` 8.6) |
+| 2 | `OOC_EXU` | 9.2 ns |
+| 3 | `OOC_LSU2` | 8.1 ns |
+| 4 | `OOC_RENAME2` | 9.1 ns (register to register about 8.1) |
+| 6 | `OOC_UBTB2` | 8.9 ns |
+| 5 | The fetch buffer split | not started (today's −3.31 ns at 10 ns) |
+
+The core added about 1 ns at 20 ns, so all 5 are within reach of 10 ns. What joins the blocks is not measured yet.
+
+#### Against the targets
+The model is 6.709 / 7.229 / 6.465 / 5.757, RTL about 6.31, 631 CoreMark/s, still 0.01 over gate S1-B's 6.3. Step 1.2's "model ≥ 6.8" is still not met. Whether to change that is the author's call.
+
+#### Next
+Only loop 5 is left in step 1.1, then gate S1-A can be decided. Today's fetch buffer had the largest shortfall of the 6 loops (−3.31 ns at 10 ns), so I recommend it next.
+
+The record is section 28.18 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
+<!-- /answer -->
+
+## 155. 2026-11-04 23:22:49 JST
+
+```text
+Yes, loop 5
+```

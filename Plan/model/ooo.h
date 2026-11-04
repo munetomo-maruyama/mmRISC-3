@@ -68,6 +68,7 @@ struct OooCfg {
     bool st_data_issue = false;
     int ld_rp = 0;              // a load that fails in M2 replays at its commit: 1 its store's data is late, 2 an offset alias, 3 both
     int sd_lag = 0;             // the cycles a store's data takes into the SQ after a dependent could have issued
+    int dec_block = 0;          // decode takes one block a cycle: a block's first instruction starts a new group
     int hole_bank = 0;          // OOO_SDISP as a stage before: a group's queues and banks stay with it through a stall
     int ck_max = 0;             // at most this many checkpoints taken a cycle
     int ck_end = 0;             // a checkpoint ends its group: the next µop is renamed a cycle later
@@ -275,16 +276,19 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         for (size_t k = i; k <= last; k++) {
             const Rec& r = t[k];
             uint64_t r0 = r.pc / c.fetch_bytes, r1 = (r.pc + r.size - 1) / c.fetch_bytes;
+            bool nb = false;                    // dec_block: this instruction is the first of a block
             if (new_blk) {
-                blk_region = r0; blk_f0 = std::max(next_f0, bp(k)); blk_cause = next_cause; new_blk = false;
+                blk_region = r0; blk_f0 = std::max(next_f0, bp(k)); blk_cause = next_cause; new_blk = false; nb = true;
             } else if (r0 != blk_region) {
-                blk_region = r0; blk_f0 = std::max(blk_f0 + 1, bp(k)); blk_cause = 0;
+                blk_region = r0; blk_f0 = std::max(blk_f0 + 1, bp(k)); blk_cause = 0; nb = true;
             }
-            if (r1 != blk_region) { blk_region = r1; blk_f0 = std::max(blk_f0 + 1, bp(k)); blk_cause = 0; }
+            bool cross = r1 != blk_region;
+            if (cross) { blk_region = r1; blk_f0 = std::max(blk_f0 + 1, bp(k)); blk_cause = 0; }
             long avail = blk_f0 + c.fe_depth;
             long d = avail;
             if (k > 0) {
                 d = std::max(d, dec[k - 1]);
+                if (c.dec_block && (nb || cross)) d = std::max(d, dec[k - 1] + 1);  // (one that crosses is the next block's first)
                 if (k >= (size_t)c.dec_w) d = std::max(d, dec[k - c.dec_w] + 1);
             }
             dec[k] = d;

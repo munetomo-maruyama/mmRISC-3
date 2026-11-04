@@ -1630,3 +1630,49 @@ module OOC_RENAME2
          .disp_go(disp_go), .cmt_wr(s_cw), .cmt_arch(s_ca), .cmt_new(s_cn), .cmt_old(s_co),
          .restore(s_re), .restore_id(s_ri), .flush_all(s_fl));
 endmodule : OOC_RENAME2
+
+//---------------------------------------------------------------------------
+// OOC_FBUF2: the fetch buffer of the 4-issue core (OOO_FBUF2; Doc/STRATEGY.md 4.5
+// loop 5). What comes from outside is registered, what goes out too: the slots into
+// what would be D2's registers.
+//---------------------------------------------------------------------------
+module OOC_FBUF2
+    (
+        input  logic          clk,
+        input  logic          rst_n,
+        input  logic          flush,
+        input  logic          in_valid,
+        input  logic [255:0]  in_data,
+        input  logic [15:0]   in_st,
+        input  logic          in_taken,
+        input  logic [4:0]    in_ftq,
+        input  logic          out_ready,
+        output logic          o_in_ready,
+        output logic [3:0]    o_free,
+        output logic [5:0]    o_valid,
+        output logic [5:0][31:0] o_inst,
+        output logic [5:0]    o_rvc,
+        output logic [5:0][3:0] o_off,
+        output logic [5:0][4:0] o_ftq,
+        output logic [5:0]    o_taken,
+        output logic          o_rare
+    );
+    logic          s_fl, s_v, s_tk, s_or;
+    logic [255:0]  s_d;
+    logic [15:0]   s_st;
+    logic [4:0]    s_f;
+    logic          ir, rr;
+    logic [3:0]    fr;
+    logic [5:0]    v, rv, tk;
+    logic [5:0][31:0] ii;
+    logic [5:0][3:0]  oo;
+    logic [5:0][4:0]  ff;
+    always_ff @(posedge clk) begin
+        s_fl <= flush; s_v <= in_valid; s_d <= in_data; s_st <= in_st; s_tk <= in_taken; s_f <= in_ftq; s_or <= out_ready;
+        o_in_ready <= ir; o_free <= fr; o_valid <= v; o_inst <= ii; o_rvc <= rv; o_off <= oo; o_ftq <= ff; o_taken <= tk; o_rare <= rr;
+    end
+    OOO_FBUF2 #(.NB(8), .FTQW(5)) u_fb
+        (.clk(clk), .rst_n(rst_n), .flush(s_fl), .in_ready(ir), .free_n(fr), .in_valid(s_v), .in_data(s_d), .in_st(s_st),
+         .in_taken(s_tk), .in_ftq(s_f), .out_ready(s_or), .out_valid(v), .out_inst(ii), .out_rvc(rv), .out_off(oo),
+         .out_ftq(ff), .out_taken(tk), .out_rare(rr));
+endmodule : OOC_FBUF2

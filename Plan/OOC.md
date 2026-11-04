@@ -3561,3 +3561,39 @@ Where the loops are, each alone:
 | 6 | `OOC_UBTB2` | 8.9 ns |
 
 Left in step 1.1: the fetch buffer split (loop 5), −3.31 ns as today's. Then gate S1-A.
+
+### 28.19 Loop 5: `OOO_FBUF2`, `OOC_FBUF2`, the head an instruction, not a parcel (2026-11-04)
+
+Not measured when written: `synth_ooo.bat fbuf2`, in `output/OOC_FBUF2_T9`, at 9 ns.
+
+Today's `OOO_FBUF` is −3.31 ns at 10 ns, 15 levels: the head parcel, a window of 8 parcels from 2 blocks, the lengths one after another, the count taken, the head parcel. For 32-byte blocks and 6 instructions all of those grow. `OOO_FBUF` stays with today's core.
+
+**Nothing in the loop looks at an instruction any more.**
+
+| Item | Choice | Why |
+|---|---|---|
+| Boundaries | From F3's predecode (`in_st`), which has to find them anyway | The chain of lengths is gone from here |
+| F4 | A table of the block's instructions: where each is (`p`), how many (`n`), whether any is rare | 16 × 5 bits; counted about 8 levels from registers |
+| D1 | The head is an instruction: a count down of what is left and a counter per slot | **The loop is what is left → how many → what is left: 3 levels**, against 15 |
+| One block a cycle | What is left of a block goes alone | No second block in any path, no window. The model below |
+| Slots | Counter → table → a mux of 17 of parcels, per slot | Not a loop. About 1,150 LUTs: the largest part |
+| Across 2 blocks | A first half at the last parcel is the next block's first: that block keeps it in place 0, and its FTQ entry | The slots' mux has one more input; a block with only a first half is not kept |
+| Rare classes | A block with any gives 1 instruction a cycle | Not in the count. CoreMark has none where it counts; FP code pays, with its unit half-rate anyway. **Not in the model** |
+| The blocks that wait | 8 in LUT RAM, one wide word; a block goes straight to the one being read when none waits | About 400 bits at about 270 LUTs; no extra cycle |
+| Decode's room | All or nothing, from the decoded queue's room in a register | No late `consume` |
+
+**The model** (`Plan/model`: `dec_block`):
+
+| Decode | `-O2` | most optimization | g13 | rv64gc |
+|---|---|---|---|---|
+| Any 6 across blocks (28.17) | 6.709 | 7.229 | 6.465 | 5.757 |
+| **One block a cycle: as built** | **6.707** | **7.226** | **6.460** | **5.755** |
+| Any 6, decode a stage more | 6.681 | 7.198 | 6.440 | 5.738 |
+
+So one block a cycle costs nothing to speak of, as a block seldom has more than 6, and it saves a stage worth −0.4 %. **RTL at × 0.94 about 6.305, 630 CoreMark/s: 0.005 over gate S1-B's 6.3.** The gate is now a matter of the 0.94 itself, which is today's core's ratio and not known for this one. I am saying so plainly: it is for gate S1-A.
+
+**What the run measures, and does not.** F4's table, D1, the wait, from registers into what would be D2's. `in_st` from a register: OOO_PREDEC has to give it at F3's end, 16 parcels and the carry-in, not measured. Not there: `OOO_FETCH` at 32 bytes, the FTQ, decode of 6, the decoded queue with the store's crack (step 1.4).
+
+**Verification.** `tb_fbuf2`: 2 million cycles against the program it is given: 706,068 blocks (414,424 taken, 65,702 with only a first half), 2,911,760 instructions in, 141,020 across 2 blocks, 294,573 cycles with 6, 992 flushes, no mismatch; every instruction's bits, parcel, FTQ entry, taken, slot 0's rare, the number given exactly, nothing idle. Bug injection: M780 to M811 but M801, **31 of 31**, every line read; M801 (a block straight in also written to the RAM, with the pointer not moved) was equivalent and removed. -Wall clean on the block and harness.
+
+What to read: `loop`, `slot`, `tab`, `rare`, `load`, `ram`, and the total. Levers if short: the slots' positions read a cycle ahead; `tab` across F3 and F4.

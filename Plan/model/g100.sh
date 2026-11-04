@@ -101,6 +101,9 @@ row "  the order 2 old: S1 as before" $J $D $X $U $W ck_max=2
 row "  **the order 3 old, chosen again every cycle: as built**" $J $D $X $U $W ck_max=2 rk_lag=3
 row "  the order 4 old" $J $D $X $U $W ck_max=2 rk_lag=4
 row "  a group's queues fixed at R1, not chosen again" $J $D $X $U $W ck_max=2 rk_lag=3 hole_bank=1
+echo "| **decode: one block a cycle** (Plan/OOC.md 28.19) | | | |"
+row "  **one block a cycle: as built**" $J $D $X $U $W ck_max=2 rk_lag=3 dec_block=1
+row "  a stage more instead" $J $D $X $U $W ck_max=2 rk_lag=3 dec_depth=6 redirect=7
 row "uBTB 8"                                        $J ubtb=8
 row "uBTB 32"                                       $J ubtb=32
 row "uBTB answers a cycle late: a bubble on every taken branch" $J taken_gap=2
