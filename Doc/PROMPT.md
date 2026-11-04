@@ -6294,3 +6294,63 @@ The record is section 28.20 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
 ```text
 Not yet
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I built F3 and F4 as a new block, `OOO_FDEC`, and pushed it with `OOC_FE2`, a harness joining them to F0 and the fetch buffer (4d8e2d6). Simulation passes; timing is not measured yet. **While building it I found the override comes a stage later than the proposal. The model falls to 6.656, RTL about 6.26, under gate S1-B's 6.3.**
+
+#### What I found: the override does not fit in F3
+The proposal did predecode, TAGE's decision and the override all in F3. With 16 parcels that is about 18 levels by count, not one cycle. Today's, with 8 parcels and the same chain, is the −4.79 ns path itself. So 2 stages:
+
+| Stage | What | Aim |
+|---|---|---|
+| F3 | Boundaries, kinds, 16 targets, each compared with where fetch went on | Nothing waits for a decision |
+| F4 | Prediction, the first taken, right or wrong from the compares made, the next address | About 8 levels by estimate; F0's last LUT has room |
+| Buffer | `in_st` runs past a taken transfer; the late `in_first` only cuts the count | `OOO_FBUF2`'s table does not wait for the decision |
+| Stack | Read in F4, moved at its end, the call's address with no adder | Removes the push that was today's worst path |
+
+| Override | `-O2` | most optimization | g13 | rv64gc |
+|---|---|---|---|---|
+| `override_at` 3 (proposal) | 6.707 | 7.226 | 6.460 | 5.755 |
+| **`override_at` 4 (from F4; this design)** | **6.656** | **7.182** | **6.415** | **5.733** |
+| `override_at` 5 (F4's decision in a register) | 6.574 | 7.114 | 6.352 | 5.693 |
+
+#### What it does to the targets
+- **This design:** RTL at × 0.94 about 6.26, 626 CoreMark/s. 0.04 under gate S1-B's 6.3, above the goal of 6.0.
+- **If F4 does not fit:** model 6.574, RTL about 6.18.
+- **Margin:** 6.0 needs × 0.90. The difference from today's 0.94 is what is left.
+
+#### Verification
+- **Bench `tb_fdec`:** 600,000 cycles against a reference written apart, no mismatch: 352,823 blocks, 194,335 overrides, 17,211 instructions finished in the next block.
+- **`tb_fbuf2`:** no mismatch with the late cut (`in_first`).
+- **Bug injection:** all 30 of `fdec` and 35 of `fbuf2` detected, every line read. M828, M840, M841 got through at first, so the bench was fixed.
+- **Lint:** `-Wall` clean on blocks and harness.
+
+#### Not confirmed
+This run answers for today's worst path, not all of `OOC_FE`. Not in the harness:
+
+- The arrays and tag compares of F1 and F2, the I$
+- TAGE M itself and its update
+- The FTQ
+- The requests in flight and the credit
+
+#### Request
+Please run the following on Windows. Results go to `output/OOC_FE2_T9`.
+
+```bash
+synth_ooo.bat fe2
+```
+
+To read: `ovr` (F4's override into F0), `f3`, `cut`, `ras`, `ubup`, `tab`, `loop`, `slot`, `dloop` and the total LUTs. Levers if short: `cnt` into F4, F4's decision in a register (6.574).
+
+When it is done we return to gate S1-A, where you will also need to decide whether to lower gate S1-B's 6.3.
+
+The record is section 28.21 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
+<!-- /answer -->
+
+## 158. 2026-11-05 00:32:23 JST
+
+```text
+fe2 finished
+```

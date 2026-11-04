@@ -3670,3 +3670,37 @@ So the override leaves in F4, and the model's `override_at` is 4 on the same rec
 **Verification.** `tb_fdec`: 600,000 cycles against a walk of each block written apart: 352,823 blocks, 290,292 taken, 194,335 overrides, 74,065 first halves, 17,211 finished in the next block, 71,827 returns, 148,965 slot predictions, 2,375 flushes, no mismatch. `tb_fbuf2` with the late cut: no mismatch. Bug injection: `fdec` M820 to M849 **30 of 30**; `fbuf2` with M812 to M815 new **35 of 35**; every line read. M828, M840, M841 got through at first: fetch's guess was never near the right place, nor a place another choice would have gone to; the bench now does that. -Wall clean on the blocks and the harness.
 
 What to read: `ovr`, `f3`, `cut`, `ras`, `ubup`, `tab`, `loop`, `slot`, `dloop`, and the total. Levers if short: `cnt` into F4; F4's decision in a register (6.574).
+
+### 28.22 `OOC_FE2`: 9.85 ns; 2 changes that cost nothing, to measure again (2026-11-05)
+
+`synth_ooo.bat fe2`, the RTL of 28.21, asked for 9 ns, in `output/OOC_FE2_T9`. **WNS −0.849 ns, about 9.85 ns, 5,095 LUTs (498 LUT RAM).** Today's `OOC_FE` is −4.79 ns at 10 ns, about 14.8 ns, 7,290 LUTs (with decode, which this does not have).
+
+| Class | Slack at 9 ns | Reached | Levels |
+|---|---|---|---|
+| **`ovr`: F4's choice into F0** | **−0.849** | 9.85 ns | 12 |
+| `loop`: F0's own | −0.817 | 9.82 ns | 9 |
+| `f3`: the block to F4's registers | −0.726 | 9.73 ns | 19 |
+| `cut`: F4's choice into the buffer's table | −0.531 | 9.53 ns | 11 |
+| `ras` | −0.378 | 9.38 ns | 8 |
+| `ubup` | −0.101 | 9.10 ns | 10 |
+| `tab` | +0.381 | 8.62 ns | 8 |
+| `slot` | +0.734 | 8.27 ns | 6 |
+| `dloop` | +2.992 | 6.01 ns | 2 |
+
+What it says:
+- **The worst path of today is gone**, by 5 ns, and the F4 path did fit in a cycle, at 12 levels against about 8 counted: the choice's carry chain (3 CARRY4), `first`, fan-out 55, the compare's AND-OR over 3 LUTs, then F0.
+- **`loop` 9.82 is not a change of the loop**: alone it is 8.64 (28.12), with the same logic. It is placed with what pulls on `pc_q` and was not worked on past the worst, so I read it as following `ovr`, which the next run will tell.
+- **`f3`'s 19 levels are the boundaries in front of the target compares**: `c_v`, the chain, `hi`, the offset's form, the adder, the compare. The compare needs none of the boundaries, if it can tell the form otherwise.
+
+**2 changes, at no cost in the model's terms:**
+
+| Change | What | Why |
+|---|---|---|
+| A target's form from the bits alone | 32-bit if the parcel before looks like a branch or a jal; otherwise by the parcel's own bit | The chain leaves the adders and compares. Wrong only for a 16-bit transfer right behind the second half of a 32-bit instruction whose bits 22:16 look like that opcode. It costs a wrong target that the back end finds. **In the 4 CoreMark builds there are 5 such places, and none runs: 0 in 12.7 million instructions** |
+| The compare's own `first_s`, and the kinds in F3 | A per-parcel "is right" kept in a register, and a copy of `first` with only this load | By count 2 levels less into `ovr`, and fan-out 55 stays away from it |
+
+Not in the model, as it has no effect on these programs. The block's comment says so.
+
+**Verification.** `tb_fdec`: the walk with the same rule for the form: 352,822 blocks, 194,336 overrides, no mismatch. Bug injection on `fdec`: M820 to M853, **34 of 34**, every line read, with M850 to M853 new. -Wall clean.
+
+Next: `synth_ooo.bat fe2` again. To read: `ovr`, `f3`, `loop`, `cut`, against the table above. **Gate S1-A stays open until then.**

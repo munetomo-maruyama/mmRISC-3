@@ -71,6 +71,24 @@ static Dec dec16(uint32_t c) {
     return x;
 }
 
+// a target's offset and whether less 1, from the parcels' bits alone (what OOO_FDEC does)
+static void raw_off(uint16_t lo, uint16_t c, bool lo_ok, int64_t& off, int& less) {
+    uint32_t i = (uint32_t)lo | ((uint32_t)c << 16);
+    int op = i & 127;
+    less = 0;
+    if (lo_ok && (op == 0x63 || op == 0x6f)) { off = dec32(i).off; less = 1; return; }
+    if ((c >> 14) & 1) {
+        int64_t o = ((c >> 3) & 3) | (((c >> 10) & 3) << 2) | (((c >> 2) & 1) << 4) | (((c >> 5) & 3) << 5) | (((c >> 12) & 1) << 7);
+        if ((c >> 12) & 1) o |= ~0ll << 7;
+        off = o;
+    } else {
+        int64_t o = ((c >> 3) & 7) | (((c >> 11) & 1) << 3) | (((c >> 2) & 1) << 4) | (((c >> 7) & 1) << 5) | (((c >> 6) & 1) << 6) |
+                    (((c >> 9) & 3) << 7) | (((c >> 8) & 1) << 9) | (((c >> 12) & 1) << 10);
+        if ((c >> 12) & 1) o |= ~0ll << 10;
+        off = o;
+    }
+}
+
 static uint16_t rnd_parcel() {
     switch (rng() % 12) {
     case 0: return (uint16_t)(0xC001 | ((rng() & 0x1fff) & 0x1ffc));         // c.beqz, c.bnez
@@ -127,7 +145,10 @@ int main(int argc, char** argv)
             int nbr = 0;
             auto seen = [&](int e, const Dec& x, int hi) {
                 if (stop) return;
-                uint64_t tg = ((n.line << 4) + e + (uint64_t)x.off - hi) & VM;
+                (void)hi;
+                int64_t ro; int rl;
+                raw_off(e ? n.p[e-1] : n.cp, n.p[e], e != 0 || n.cu, ro, rl);
+                uint64_t tg = ((n.line << 4) + e + (uint64_t)ro - rl) & VM;
                 bool t = false;
                 if (x.br) {
                     if (nbr < 3) { t = (n.hv >> nbr & 1) ? (n.pp >> nbr & 1) : (n.base >> e & 1); nbr++; }
@@ -180,7 +201,10 @@ int main(int argc, char** argv)
             int ee = -1; bool ic = false, ir = false, ib = false;
             auto seen = [&](int e, const Dec& x, int hi) {
                 if (stop) return;
-                uint64_t tg = ((f4.line << 4) + e + (uint64_t)x.off - hi) & VM;
+                (void)hi;
+                int64_t ro; int rl;
+                raw_off(e ? f4.p[e-1] : f4.cp, f4.p[e], e != 0 || f4.cu, ro, rl);
+                uint64_t tg = ((f4.line << 4) + e + (uint64_t)ro - rl) & VM;
                 bool t = false;
                 if (x.br) {
                     if (nbr < 3) {

@@ -9,6 +9,10 @@
 //   F3  from the block in registers: where instructions start, what ends at each
 //       parcel, its target; which conditional branch of the block it is; whether each
 //       target is where fetch went on (every one compared, ahead of any choice)
+//       (A target's form is told from the parcels' bits alone, not from the boundaries,
+//       so the compares do not wait for them: a 16-bit transfer right behind a parcel
+//       that only looks like a 32-bit one gets a wrong target, which the back end
+//       finds: Plan/OOC.md 28.22)
 //   F4  from those in registers: the first transfer predicted taken, whether fetch
 //       was right, the next address. A wrong one redirects F0 (ovr), and the block
 //       after the taken transfer is cut (first, for OOO_FBUF2)
@@ -111,34 +115,31 @@ module OOO_FDEC
         for (int e = 0; e < 16; e++) begin
             automatic logic [31:0] i = {p[e], (e == 0) ? c_p : p[e-1]};
             automatic logic [15:0] c = p[e];
-            automatic logic [20:0] imm = '0;
+            automatic logic [20:0] imm;
+            automatic logic        f32 = (e != 0 || c_use) && (i[6:0] == 7'b1100011 || i[6:0] == 7'b1101111);
             automatic logic [4:0]  rd = i[11:7];
             automatic logic [4:0]  rs1 = hi[e] ? i[19:15] : c[11:7];
             br[e] = 1'b0; jal[e] = 1'b0; jalr[e] = 1'b0; call[e] = 1'b0; ret[e] = 1'b0;
             if (hi[e]) begin
                 case (i[6:0])
-                    7'b1100011: begin br[e] = 1'b1; imm = {{10{i[31]}}, i[7], i[30:25], i[11:8]}; end
-                    7'b1101111: begin
-                        jal[e] = 1'b1; call[e] = link(rd);
-                        imm = {{2{i[31]}}, i[19:12], i[20], i[30:21]};
-                    end
+                    7'b1100011: br[e] = 1'b1;
+                    7'b1101111: begin jal[e] = 1'b1; call[e] = link(rd); end
                     7'b1100111: if (i[14:12] == 3'b000) begin
                         jalr[e] = 1'b1; call[e] = link(rd); ret[e] = link(rs1) && !link(rd);
                     end
                     default: ;
                 endcase
             end else if (st[e] && !l32[e]) begin
-                if (c[1:0] == 2'b01 && c[15:13] == 3'b101) begin
-                    jal[e] = 1'b1;
-                    imm    = {{11{c[12]}}, c[8], c[10:9], c[6], c[7], c[2], c[11], c[5:3]};
-                end else if (c[1:0] == 2'b01 && c[15:14] == 2'b11) begin
-                    br[e] = 1'b1;
-                    imm   = {{14{c[12]}}, c[6:5], c[2], c[11:10], c[4:3]};
-                end else if (c[1:0] == 2'b10 && c[15:13] == 3'b100 && c[6:2] == 5'd0 && rs1 != 5'd0) begin
+                if (c[1:0] == 2'b01 && c[15:13] == 3'b101) jal[e] = 1'b1;
+                else if (c[1:0] == 2'b01 && c[15:14] == 2'b11) br[e] = 1'b1;
+                else if (c[1:0] == 2'b10 && c[15:13] == 3'b100 && c[6:2] == 5'd0 && rs1 != 5'd0) begin
                     jalr[e] = 1'b1; call[e] = c[12]; ret[e] = !c[12] && link(rs1);
                 end
             end
-            tgt[e] = {f3_line, 4'(e)} + {{(VA-22){imm[20]}}, imm} - (VA-1)'(hi[e]);
+            if (f32)            imm = i[3] ? {{2{i[31]}}, i[19:12], i[20], i[30:21]} : {{10{i[31]}}, i[7], i[30:25], i[11:8]};
+            else if (c[14])     imm = {{14{c[12]}}, c[6:5], c[2], c[11:10], c[4:3]};
+            else                imm = {{11{c[12]}}, c[8], c[10:9], c[6], c[7], c[2], c[11], c[5:3]};
+            tgt[e] = {f3_line, 4'(e)} + {{(VA-22){imm[20]}}, imm} - (VA-1)'(f32);
             s_e[e] = tgt[e] == f3_expect;
         end
     end
@@ -162,13 +163,13 @@ module OOO_FDEC
 
     // ---- F4's registers
     logic                v4;
-    logic [15:0]         st4, br4, jal4, ret4, call4, uj4, s4, base4;
+    logic [15:0]         st4, br4, jal4, ret4, call4, uj4, ok4, base4;
     logic [15:0][VA-1:1] tgt4;
     logic [1:0]          cnt4 [16];
     logic [2:0]          hv4, pp4;
     logic [VA-1:5]       line4, lp14;
     logic [VA-1:1]       btgt4, exp4;
-    logic                beq4, seq4;
+    logic                seq4;
     logic                cross4;
     logic                drop;
     assign drop = flush || ovr;
@@ -189,7 +190,7 @@ module OOO_FDEC
         ret4   <= ret;
         call4  <= call;
         uj4    <= uj;
-        s4     <= s_e;
+        for (int e = 0; e < 16; e++) ok4[e] <= (br[e] || jal[e]) ? s_e[e] : b_eq;
         base4  <= f3_base;
         tgt4   <= tgt;
         hv4    <= f3_hv;
@@ -198,7 +199,6 @@ module OOO_FDEC
         lp14   <= line_p1;
         btgt4  <= f3_btgt;
         exp4   <= f3_expect;
-        beq4   <= b_eq;
         seq4   <= seq_eq;
         cross4 <= st[15] && l32[15];
         f4_data <= f3_data;
@@ -209,6 +209,7 @@ module OOO_FDEC
     // ---- F4: the first predicted taken
     logic [VA-1:1] top;
     logic [15:0]   tk, first;
+    (* keep = "true" *) logic [15:0] first_s;  // for the compare alone: first has many others
     logic          taken;
     always @(*) begin
         for (int e = 0; e < 16; e++) begin
@@ -221,7 +222,8 @@ module OOO_FDEC
             endcase
             tk[e] = uj4[e] || (br4[e] && d);
         end
-        first = tk & (~tk + 16'd1);
+        first   = tk & (~tk + 16'd1);
+        first_s = tk & (~tk + 16'd1);
         taken = tk != 16'd0;
     end
 
@@ -231,14 +233,10 @@ module OOO_FDEC
     assign top_eq  = top == exp4;
     assign ras_top = top;
     always @(*) begin
-        same = !taken && seq4;
+        same = (!taken && seq4) || ((first_s & ~ret4 & ok4) != 16'd0) || ((first_s & ret4) != 16'd0 && top_eq);
         nxt  = taken ? '0 : {lp14, 4'd0};
-        for (int e = 0; e < 16; e++) begin
-            if (first[e]) begin
-                same = same || ((br4[e] || jal4[e]) ? s4[e] : ret4[e] ? top_eq : beq4);
-                nxt  = nxt | ((br4[e] || jal4[e]) ? tgt4[e] : ret4[e] ? top : btgt4);
-            end
-        end
+        for (int e = 0; e < 16; e++)
+            if (first[e]) nxt = nxt | ((br4[e] || jal4[e]) ? tgt4[e] : ret4[e] ? top : btgt4);
     end
     assign f4_valid = v4;
     assign f4_st    = st4;

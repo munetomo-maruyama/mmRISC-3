@@ -21,7 +21,7 @@ proc fe2_cells {pats} {
     return [get_cells -quiet -hierarchical -filter "IS_SEQUENTIAL && ([join $f { || }])"]
 }
 proc fe2_classes {fh outdir} {
-    set f4 {*u_fd/v4_reg* *u_fd/uj4_reg* *u_fd/br4_reg* *u_fd/cnt4_reg* *u_fd/hv4_reg* *u_fd/pp4_reg* *u_fd/base4_reg* *u_fd/s4_reg* *u_fd/jal4_reg* *u_fd/ret4_reg* *u_fd/tgt4_reg* *u_fd/seq4_reg*}
+    set f4 {*u_fd/v4_reg* *u_fd/uj4_reg* *u_fd/br4_reg* *u_fd/cnt4_reg* *u_fd/hv4_reg* *u_fd/pp4_reg* *u_fd/base4_reg* *u_fd/ok4_reg* *u_fd/jal4_reg* *u_fd/ret4_reg* *u_fd/tgt4_reg* *u_fd/seq4_reg*}
     set pc {*u_ub/pc_q_reg* *u_ub/pi_q_reg*}
     set cur {*u_fb/w_reg* *u_fb/g_cw* *u_fb/p_reg* *u_fb/rp_reg* *u_fb/rb_reg* *u_fb/rem_reg* *u_fb/mem_reg*}
     set cnt {*u_fb/rem_reg* *u_fb/hj_reg* *u_fb/rb_reg*}
