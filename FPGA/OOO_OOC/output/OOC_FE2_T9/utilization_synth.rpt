@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Thu Nov  5 00:24:59 2026
+| Date         : Thu Nov  5 00:44:23 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOC_FE2_T9/utilization_synth.rpt
 | Design       : OOC_FE2
@@ -22,12 +22,12 @@ Table of Contents
 +-------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
 |   Instance  |   Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
 +-------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
-| OOC_FE2     |     (top) |       5056 |       4548 |     508 |    0 | 2636 |      0 |      0 |          0 |
+| OOC_FE2     |     (top) |       4891 |       4383 |     508 |    0 | 2635 |      0 |      0 |          0 |
 |   (OOC_FE2) |     (top) |          0 |          0 |       0 |    0 |  868 |      0 |      0 |          0 |
 |   u_fb      | OOO_FBUF2 |       1633 |       1373 |     260 |    0 |  458 |      0 |      0 |          0 |
-|   u_fd      |  OOO_FDEC |       3074 |       3018 |      56 |    0 | 1257 |      0 |      0 |          0 |
-|     (u_fd)  |  OOO_FDEC |       2052 |       2052 |       0 |    0 | 1253 |      0 |      0 |          0 |
-|     u_ras   |   OOO_RAS |       1022 |        966 |      56 |    0 |    4 |      0 |      0 |          0 |
+|   u_fd      |  OOO_FDEC |       2909 |       2853 |      56 |    0 | 1256 |      0 |      0 |          0 |
+|     (u_fd)  |  OOO_FDEC |       1907 |       1907 |       0 |    0 | 1252 |      0 |      0 |          0 |
+|     u_ras   |   OOO_RAS |       1002 |        946 |      56 |    0 |    4 |      0 |      0 |          0 |
 |   u_ub      | OOO_UBTB2 |        349 |        157 |     192 |    0 |   53 |      0 |      0 |          0 |
 +-------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
 

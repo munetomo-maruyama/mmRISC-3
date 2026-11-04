@@ -115,6 +115,7 @@ int main(int argc, char** argv)
     uint64_t st_v[16] = {0};
     int sp = -1;                 // not known until the first move: taken from the block
     bool ub_v = false, ub_t = false, ub_c = false, ub_r = false; uint64_t ub_p = 0, ub_g = 0;
+    bool hv_n = false; int hn_n = 0, ht_n = 0;
     long nb = 0, nov = 0, ntk = 0, ncr = 0, ncu = 0, nret = 0, ncall = 0, nsl = 0, nfl = 0, nbtb = 0;
 
     for (long cyc = 0; cyc < 600000; cyc++) {
@@ -236,7 +237,7 @@ int main(int argc, char** argv)
             if ((bool)d.f4_cross != cross4) FAIL("cycle %ld: cross", cyc);
             if ((bool)d.ovr != ovr_exp) FAIL("cycle %ld: ovr %d, expected %d (next %llx, expect %llx)", cyc, (int)d.ovr, ovr_exp, (unsigned long long)nxt, (unsigned long long)f4.expect);
             if (((uint64_t)d.ovr_pc & VM) != (nxt & VM)) FAIL("cycle %ld: next %llx, expected %llx", cyc, (unsigned long long)d.ovr_pc, (unsigned long long)nxt);
-            if ((int)d.f4_hn != hn || ((int)d.f4_ht & ((1 << hn) - 1)) != ht) FAIL("cycle %ld: history %d %x, expected %d %x", cyc, (int)d.f4_hn, (int)d.f4_ht, hn, ht);
+            hv_n = true; hn_n = hn; ht_n = ht;
             if (ovr_exp) nov++;
             if (ee >= 0) ntk++;
             if (cross4) ncr++;
@@ -259,9 +260,13 @@ int main(int argc, char** argv)
         }
 
         // ---- the edge
+        bool hv_c = hv_n; int hn_c = hn_n, ht_c = ht_n;
+        hv_n = false;
         bool drop = fl || ovr_exp;
         bool ov_now = ovr_exp;
         d.clk = 1; d.eval(); d.clk = 0; d.eval();
+        if (hv_c && ((int)d.f5_hn != hn_c || ((int)d.f5_ht & ((1 << hn_c) - 1)) != ht_c))
+            FAIL("cycle %ld: history %d %x, expected %d %x", cyc, (int)d.f5_hn, (int)d.f5_ht, hn_c, ht_c);
         if ((bool)d.ub_valid != ub_v) FAIL("cycle %ld: training %d, expected %d", cyc, (int)d.ub_valid, ub_v);
         if (ub_v) {
             if ((uint64_t)d.ub_pc != (ub_p & VM)) FAIL("cycle %ld: training at %llx, expected %llx", cyc, (unsigned long long)d.ub_pc, (unsigned long long)ub_p);

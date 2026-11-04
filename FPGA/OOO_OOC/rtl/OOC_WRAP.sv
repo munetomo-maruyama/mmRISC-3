@@ -1750,7 +1750,7 @@ module OOC_FE2
     OOO_FDEC #(.VA(39)) u_fd
         (.clk(clk), .rst_n(rst_n), .flush(s_be), .f3_valid(s_v), .f3_line(s_l), .f3_start(s_s), .f3_seq(s_seq), .f3_data(s_d),
          .f3_expect(s_exp), .f3_hv(s_hv), .f3_pp(s_pp), .f3_base(s_b), .f3_bh(s_bh), .f3_boff(s_bo), .f3_btgt(s_bt),
-         .f4_valid(fv), .f4_st(fst), .f4_first(ffr), .f4_cross(cr), .f4_data(fd), .ovr(ovr), .ovr_pc(op), .f4_hn(hn), .f4_ht(ht),
+         .f4_valid(fv), .f4_st(fst), .f4_first(ffr), .f4_cross(cr), .f4_data(fd), .ovr(ovr), .ovr_pc(op), .f5_hn(hn), .f5_ht(ht),
          .ub_valid(uv), .ub_pc(up), .ub_taken(ut), .ub_tgt(ug), .ub_cond(uc), .ub_ret(ur),
          .rs_valid(s_rv), .rs_ptr(s_rp), .rs_val(s_rval), .rs_push(s_rpu), .rs_addr(s_radd), .rs_pop(s_rpo),
          .ras_top(top), .snap_ptr(snp), .snap_val(snv));

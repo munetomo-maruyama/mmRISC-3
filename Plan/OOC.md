@@ -3704,3 +3704,54 @@ Not in the model, as it has no effect on these programs. The block's comment say
 **Verification.** `tb_fdec`: the walk with the same rule for the form: 352,822 blocks, 194,336 overrides, no mismatch. Bug injection on `fdec`: M820 to M853, **34 of 34**, every line read, with M850 to M853 new. -Wall clean.
 
 Next: `synth_ooo.bat fe2` again. To read: `ovr`, `f3`, `loop`, `cut`, against the table above. **Gate S1-A stays open until then.**
+
+### 28.23 `OOC_FE2`: 9.5 ns; gate S1-A again (2026-11-05)
+
+`synth_ooo.bat fe2`, the RTL of 28.22, asked for 9 ns, in `output/OOC_FE2_T9`: **WNS −0.820 ns, 4,884 LUTs. But the worst path, into the history bits, is not one the design needs in F4.**
+
+| Class | Now | Before (28.22) | Levels now |
+|---|---|---|---|
+| The history bits (not a class): into `o_ht` | **−0.820** | | 12 |
+| **`ovr`** | **−0.518**, 9.52 ns | −0.849 | 13 |
+| **`f3`** | **−0.503**, 9.50 ns | −0.726 (19 levels) | 10 |
+| `tab` | −0.212, 9.21 ns | +0.381 | 10 |
+| `loop` | −0.139, 9.14 ns | −0.817 | 9 |
+| `cut` | −0.126, 9.13 ns | −0.531 | 10 |
+| `ubup` | +0.144, 8.86 ns | −0.101 | 10 |
+| `ras` | +0.291, 8.71 ns | −0.378 | 11 |
+| `slot` | +0.725, 8.28 ns | +0.734 | 6 |
+| `dloop` | +3.015, 5.99 ns | +2.992 | 2 |
+
+What it says:
+- **The 2 changes worked**: `f3` lost 9 levels, its worst now the count of branches. 0.33 ns on `ovr`, and 0.68 on `loop`, which did follow it (28.22). 211 LUTs fewer.
+- **The history bits move a cycle on** (`f5_hn`, `f5_ht`, from registers): they have no one waiting. Done, with the bench; **no new run**: nothing else depends on them, and the next worst are in this table.
+- **So F0 to D1 is about 9.5 ns alone, against about 14.8 ns.** Not in it: the arrays, the I$, TAGE M, the FTQ, the requests in flight.
+
+A history lag noted: the tables are read at F1 and the history pushed at F5, so a block reads with more blocks missing than today's 2. For the block TAGE-S at `slots=3`: 4,772 mispredictions at lag 2, 4,757 at lag 4 on `-O2`; 4,969 and 5,264 on g13. Under 6 %, of about 1 in 1,000 instructions. Not in the model, whose TAGE M is also not the block's: `OOO_TAGE` is S, and M has yet to be built.
+
+**Gate S1-A, as it stands now.**
+
+| What | Alone | With about 1 ns for the core |
+|---|---|---|
+| F0 to D1 (`OOC_FE2`) | 9.5 ns | 10.5 |
+| Loop 2 (`OOC_EXU`) | 9.2 ns | 10.2 |
+| Loop 4 (`OOC_RENAME2`) | 9.1 ns | 10.1 |
+| Loop 1 (`OOC_SCHED`) | 8.9 ns | 9.9 |
+| Loop 3 (`OOC_LSU2`) | 8.1 ns | 9.1 |
+
+Model 6.656 / 7.182 / 6.415 / 5.733, RTL about 6.26.
+
+| Whole core at | CoreMark/s at 6.26 | Against the 50 MHz design (337) |
+|---|---|---|
+| 100 MHz | 626 | 1.9 times |
+| 95 MHz | 595 | 1.8 |
+| 90 MHz | 563 | 1.7 |
+| 75 MHz | 470 | 1.4 |
+
+**What I recommend: go.** 100 MHz is not secured: the sums above say about 95 MHz, and the goal of 600 CoreMark/s then needs 6.3 or the levers that are left. But the configuration beats the 50 MHz design at any clock above about 54 MHz, and nothing found so far argues for another one. With it:
+- **Freeze** the configuration of 28.13 to 28.23.
+- **Step 1.2's** "model ≥ 6.8" to **≥ 6.6**.
+- **Gate S1-B's** "RTL ≥ 6.3" to **≥ 6.2**; the goal stays above 6.0.
+- **Levers left**, each measured: queues of 10 (+0.5 %), F4 into a register if it does not close (−1.2 %), rename in 3 stages (−0.4 %), a lower clock with no change of pipeline.
+
+These figures are the author's to set.

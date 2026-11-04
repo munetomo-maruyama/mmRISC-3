@@ -61,8 +61,8 @@ module OOO_FDEC
         output logic [255:0]        f4_data,
         output logic                ovr,        // F0 was wrong
         output logic [VA-1:1]       ovr_pc,
-        output logic [1:0]          f4_hn,      // slot predictions it takes
-        output logic [2:0]          f4_ht,      // ... and they, slot 0 first
+        output logic [1:0]          f5_hn,      // a cycle on: the slot predictions it takes
+        output logic [2:0]          f5_ht,      // ... and they, slot 0 first
 
         // ---- the training of the uBTB: registers, a cycle after
         output logic                ub_valid,
@@ -245,18 +245,26 @@ module OOO_FDEC
     assign ovr      = v4 && !same && !flush;
     assign ovr_pc   = nxt;
 
-    // what goes into the history
+    // what goes into the history, a cycle on: nothing here is in a hurry
+    logic [15:0] tk5, first5, br5;
+    logic [1:0]  cnt5 [16];
+    always_ff @(posedge clk) begin
+        tk5    <= tk;
+        first5 <= first;
+        br5    <= br4;
+        for (int e = 0; e < 16; e++) cnt5[e] <= cnt4[e];
+    end
     always @(*) begin
-        automatic logic [15:0] upto = first - 16'(taken);     // the parcels before the end
+        automatic logic [15:0] upto = first5 - 16'(first5 != 16'd0);     // the parcels before the end
         automatic logic [1:0]  n = 2'd0;
-        f4_ht = 3'd0;
+        f5_ht = 3'd0;
         for (int e = 0; e < 16; e++) begin
-            if (br4[e] && cnt4[e] != 2'd3 && (!taken || upto[e] || first[e])) begin
-                f4_ht[n] = tk[e];
+            if (br5[e] && cnt5[e] != 2'd3 && (first5 == 16'd0 || upto[e] || first5[e])) begin
+                f5_ht[n] = tk5[e];
                 n = n + 2'd1;
             end
         end
-        f4_hn = n;
+        f5_hn = n;
     end
 
     // the stack: moved by the transfer that ends the block

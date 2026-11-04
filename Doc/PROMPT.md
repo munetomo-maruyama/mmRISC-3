@@ -6354,3 +6354,62 @@ The record is section 28.21 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
 ```text
 fe2 finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOC_FE2` reached about 9.85 ns (WNS −0.849 ns, 5,095 LUTs). That is 5 ns off today's `OOC_FE` of about 14.8 ns, and the path worried about most is gone.** But the core adds about 1 ns, so it is not enough. I made 2 changes that shorten it without costing CoreMark and pushed them (7fc095f). Please measure again.
+
+(An interim message said "S1 is about 9.85 ns in `fe2`"; the figure is for `OOC_FE2` as a whole.)
+
+#### `fe2` (9 ns asked)
+
+| Class | Slack | Reached | Levels |
+|---|---|---|---|
+| **`ovr` (F4's choice into F0)** | **−0.849** | 9.85 ns | 12 |
+| `loop` (F0's own) | −0.817 | 9.82 ns | 9 |
+| `f3` (the block to F4's registers) | −0.726 | 9.73 ns | 19 |
+| `cut` (F4's choice into the buffer's table) | −0.531 | 9.53 ns | 11 |
+| `ras` | −0.378 | 9.38 ns | 8 |
+| `ubup` | −0.101 | 9.10 ns | 10 |
+| `tab` | +0.381 | 8.62 ns | 8 |
+| `slot` | +0.734 | 8.27 ns | 6 |
+| `dloop` | +2.992 | 6.01 ns | 2 |
+
+- **`ovr`:** F4's path fits in a cycle, at 12 levels against about 8 estimated.
+- **`loop`:** 8.64 ns alone, the same logic. I read it as the effect of placement with the rest; the next run will tell.
+- **`f3`:** most of its 19 levels are the boundaries' chain in front of the target compares.
+
+#### The 2 changes
+
+| Change | What | Effect |
+|---|---|---|
+| A target's form from the bits alone | 32-bit if the parcel before looks like a branch or a jal | The chain leaves the adders and compares |
+| A `first_s` for the compare alone | "Right or not" per parcel in a register, a copy of `first` for the compare | By count 2 levels less to `ovr`, away from the fan-out of 55 |
+
+The first gets a target wrong when a 32-bit instruction's second half happens to look like a branch and a 16-bit transfer follows it. Behaviour stays correct: the back end finds it as a misprediction. **The 4 CoreMark builds have 5 such places, none of which runs: 0 in 12.7 million instructions.** So the model stays 6.656. It may occur in other programs.
+
+#### Verification
+- **Bench `tb_fdec`:** against a reference with the same rule, no mismatch (352,822 blocks, 194,336 overrides).
+- **Bug injection:** all 34 of `fdec` detected, every line read. M850 to M853 are new.
+- **Lint:** `-Wall` clean on blocks and harness.
+
+#### Request
+Please run the following on Windows. It overwrites `output/OOC_FE2_T9`; this run's results stay in git.
+
+```bash
+synth_ooo.bat fe2
+```
+
+To compare with the table: `ovr`, `f3`, `loop`, `cut`, above all whether `loop` returns to its value alone.
+
+If it comes down to about 9.3 ns, gate S1-A has what it needs. If not, the next levers are `cnt` into F4 and F4's decision in a register (model 6.574, RTL about 6.18).
+
+The record is section 28.22 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
+<!-- /answer -->
+
+## 159. 2026-11-05 00:47:48 JST
+
+```text
+fe2 finished
+```

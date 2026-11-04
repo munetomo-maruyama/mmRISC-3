@@ -1,17 +1,17 @@
 OOC_FE2   (period 9.0 ns, I/O delay 2.6999999999999997 ns each side on the ports)
-after synthesis: 5056 LUTs (4548 logic + 508 LUT RAM; 5026 LUT cells), 2636 FF, 0 DSP, 181 LUT RAM cells, 0.0 BRAM tiles
-after place and route: 5095 LUTs (4597 logic + 498 LUT RAM; 4998 LUT cells), WNS -0.849 ns, register to register -0.849 ns (12 logic levels)
-  f3    worst  -0.726 ns (19 logic levels), from u_fd/c_v_reg/C to u_fd/s4_reg[15]/D
-  ovr   worst  -0.849 ns (12 logic levels), from u_fd/hv4_reg[1]_replica_2/C to u_ub/pi_q_reg[3]_rep/D
-  ras   worst  -0.378 ns ( 8 logic levels), from u_fd/hv4_reg[1]_replica_2/C to u_fd/u_ras/ptr_reg[3]/CE
-  ubup  worst  -0.101 ns (10 logic levels), from u_fd/hv4_reg[1]_replica_2/C to u_fd/ub_tgt_reg[28]/D
-  cut   worst  -0.531 ns (11 logic levels), from u_fd/hv4_reg[1]_replica_2/C to u_fb/mem_reg_0_7_354_359/RAMA/I
-  tab   worst   0.381 ns ( 8 logic levels), from u_fd/st4_reg[6]/C to u_fb/mem_reg_0_7_300_305/RAMA/I
-  loop  worst  -0.817 ns ( 9 logic levels), from u_ub/pi_q_reg[0]/C to u_ub/pi_q_reg[4]_rep/D
-  slot  worst   0.734 ns ( 6 logic levels), from u_fb/p_reg[9][0]/C to o_inst_reg[2][27]/R
-  dloop worst   2.992 ns ( 2 logic levels), from u_fb/rem_reg[4]/C to u_fb/hj_reg[2][1]_rep/D
+after synthesis: 4891 LUTs (4383 logic + 508 LUT RAM; 4860 LUT cells), 2635 FF, 0 DSP, 181 LUT RAM cells, 0.0 BRAM tiles
+after place and route: 4884 LUTs (4386 logic + 498 LUT RAM; 4823 LUT cells), WNS -0.820 ns, register to register -0.820 ns (12 logic levels)
+  f3    worst  -0.503 ns (10 logic levels), from s_s_reg[3]/C to u_fd/cnt4_reg[14][0]/D
+  ovr   worst  -0.518 ns (13 logic levels), from u_fd/pp4_reg[1]/C to u_ub/pi_q_reg[0]/D
+  ras   worst   0.291 ns (11 logic levels), from u_fd/pp4_reg[1]/C to u_fd/u_ras/mem_reg_r2_0_15_12_17/RAMA/WE
+  ubup  worst   0.144 ns (10 logic levels), from u_fd/pp4_reg[1]/C to u_fd/ub_tgt_reg[11]/D
+  cut   worst  -0.126 ns (10 logic levels), from u_fd/pp4_reg[1]/C to u_fb/rem_reg[1]/D
+  tab   worst  -0.212 ns (10 logic levels), from u_fd/st4_reg[0]/C to u_fb/p_reg[4][0]/D
+  loop  worst  -0.139 ns ( 9 logic levels), from u_ub/pi_q_reg[1]/C to u_ub/pc_q_reg[8]/D
+  slot  worst   0.725 ns ( 6 logic levels), from u_fb/p_reg[1][0]/C to o_inst_reg[0][26]/R
+  dloop worst   3.015 ns ( 2 logic levels), from u_fb/rb_reg/C to u_fb/hj_reg[5][0]_rep/S
 instances (after place and route):
     u_fb                   OOO_FBUF2              1613 LUTs (1355 logic + 258 LUT RAM), 458 FF
-    u_fd                   OOO_FDEC               3143 LUTs (3091 logic + 52 LUT RAM), 1266 FF
-      u_ras                OOO_RAS                1020 LUTs (968 logic + 52 LUT RAM), 5 FF
-    u_ub                   OOO_UBTB2               339 LUTs (151 logic + 188 LUT RAM), 53 FF
+    u_fd                   OOO_FDEC               2933 LUTs (2881 logic + 52 LUT RAM), 1266 FF
+      u_ras                OOO_RAS                 999 LUTs (947 logic + 52 LUT RAM), 4 FF
+    u_ub                   OOO_UBTB2               338 LUTs (150 logic + 188 LUT RAM), 53 FF

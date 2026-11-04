@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Thu Nov  5 00:28:20 2026
+| Date         : Thu Nov  5 00:47:29 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOC_FE2_T9/utilization.rpt
 | Design       : OOC_FE2
@@ -22,13 +22,13 @@ Table of Contents
 +-------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
 |   Instance  |   Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
 +-------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
-| OOC_FE2     |     (top) |       5095 |       4597 |     498 |    0 | 2645 |      0 |      0 |          0 |
-|   (OOC_FE2) |     (top) |          0 |          0 |       0 |    0 |  868 |      0 |      0 |          0 |
+| OOC_FE2     |     (top) |       4884 |       4386 |     498 |    0 | 2647 |      0 |      0 |          0 |
+|   (OOC_FE2) |     (top) |          0 |          0 |       0 |    0 |  870 |      0 |      0 |          0 |
 |   u_fb      | OOO_FBUF2 |       1613 |       1355 |     258 |    0 |  458 |      0 |      0 |          0 |
-|   u_fd      |  OOO_FDEC |       3143 |       3091 |      52 |    0 | 1266 |      0 |      0 |          0 |
-|     (u_fd)  |  OOO_FDEC |       2124 |       2124 |       0 |    0 | 1261 |      0 |      0 |          0 |
-|     u_ras   |   OOO_RAS |       1020 |        968 |      52 |    0 |    5 |      0 |      0 |          0 |
-|   u_ub      | OOO_UBTB2 |        339 |        151 |     188 |    0 |   53 |      0 |      0 |          0 |
+|   u_fd      |  OOO_FDEC |       2933 |       2881 |      52 |    0 | 1266 |      0 |      0 |          0 |
+|     (u_fd)  |  OOO_FDEC |       1934 |       1934 |       0 |    0 | 1262 |      0 |      0 |          0 |
+|     u_ras   |   OOO_RAS |        999 |        947 |      52 |    0 |    4 |      0 |      0 |          0 |
+|   u_ub      | OOO_UBTB2 |        338 |        150 |     188 |    0 |   53 |      0 |      0 |          0 |
 +-------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
 * Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
 
