@@ -12,16 +12,22 @@
 // requests, oldest first by an age matrix, the issued µops' destination tags,
 // a compare against every source, ready bits. What is new against OOO_IQ:
 //
-// Ports select one after another: 3, 2, 1, then 0 from what is left, so that a µop
-// an ALUF can take does not keep ALU0 from one only ALU0 can take; 5, then 4 from what
-// is left, so that a load does not keep LSU0 from a store. The chain of 4 selects is
-// the longest path; the fallback is OOO_SCHED, a select to each queue (-2.4 % in the
-// model, Plan/model/results/g50.txt).
+// The ALU ports do not select one after another: a chain of 4 selects took 15.4 of the
+// 21 ns the first version reached (Plan/OOC.md 29.2). Every any-ALU µop counts the ready
+// any-ALU µops older than it, saturating at 4, in a tree of 4 LUT levels (rank): 0 goes
+// to port 3, 1 to port 2, 2 to port 1, 3 to port 0, so a port's grant does not depend on
+// another's. Port 0 also takes what only ALU0 can: the oldest such µop goes when at most 3
+// any-ALU µops are older than it (those go to ports 3, 2, 1), an any-ALU µop of rank 3 when
+// no such µop is older than it. A µop a write slot holds back keeps its rank: its port
+// idles for that cycle, and a younger one does not pass it to that port.
+// Port 5 selects, then port 4 from what is left, so that a load does not keep LSU0 from
+// a store: these 2 are a chain, as a load's wakeup comes a cycle later, off the loop.
 //
 // Entries are in 4 banks of 6, so that the payload can be 4 LUT RAMs each written by
 // one µop (OOO_IQPL's way): a cycle's µops go to different banks, each to the first
 // free entry of its bank. There is no search of 24 for 4, and it costs -0.1 % in the
-// model (iq_bank).
+// model (iq_bank). The fields of a slot go to its bank on one bus, 4 to 1 for the bank, not
+// for each entry of it.
 //
 // A new entry's age row is all ones but for what is written after it in the same
 // cycle: the bits of empty entries do not count, as an empty entry requests nothing.
@@ -125,7 +131,31 @@ module OOO_IQ2
         return g;
     endfunction
 
-    logic [N-1:0] ready_all, anyalu, alu0, ld, mem, g [6];
+    // how many of x, as far as 4: 3 at a time, then pairs of sums
+    function automatic logic [2:0] sat_add(input logic [2:0] p, input logic [2:0] q);
+        logic [3:0] s;
+        s = 4'(p) + 4'(q);
+        return s >= 4'd4 ? 3'd4 : s[2:0];
+    endfunction
+    function automatic logic [2:0] count4(input logic [N-1:0] x);
+        logic [2:0] c [N];
+        automatic int n = (N + 2) / 3;
+        for (int k = 0; k < n; k++) begin
+            logic [2:0] b;
+            b = '0;
+            for (int j = 3 * k; j < 3 * k + 3 && j < N; j++) b[j - 3 * k] = x[j];
+            c[k] = 3'(b[0]) + 3'(b[1]) + 3'(b[2]);
+        end
+        while (n > 1) begin
+            for (int k = 0; k < n / 2; k++) c[k] = sat_add(c[2 * k], c[2 * k + 1]);
+            if (n % 2 == 1) c[n / 2] = c[n - 1];
+            n = (n + 1) / 2;
+        end
+        return c[0];
+    endfunction
+
+    logic [N-1:0] ready_all, anyalu, only0, ld, mem, g [6];
+    logic [2:0]   rank [N];                   // any-ALU µops older than this one, as far as 4
     always @(*) begin
         for (int i = 0; i < N; i++) begin
             // (the waits for older entries are registers, off the
@@ -133,15 +163,20 @@ module OOO_IQ2
             ready_all[i] = v[i] && ((rdy[i] | ~use_s[i]) == 2'b11) &&
                            (!ns[i] || ns_ok) && !nw[i] && !sw[i];
             anyalu[i] = ready_all[i] && port[i] == 2'd0;
-            alu0[i]   = ready_all[i] && (port[i] == 2'd0 || port[i] == 2'd1) &&
+            only0[i]  = ready_all[i] && port[i] == 2'd1 &&
                         !(blk0 && wr[i] && !lat2[i] && !md[i]) && !(md[i] && !mdu_ok);
             mem[i]    = ready_all[i] && port[i] == 2'd2;
             ld[i]     = mem[i] && !st[i] && !ns[i];
         end
-        g[3] = oldest(anyalu);
-        g[2] = oldest(anyalu & ~g[3]);
-        g[1] = oldest(anyalu & ~g[3] & ~g[2] & ~({N{blk1}} & wr));
-        g[0] = oldest(alu0 & ~g[3] & ~g[2] & ~g[1]);
+        for (int i = 0; i < N; i++) begin
+            automatic logic no_only0 = (only0 & older[i]) == '0;
+            rank[i] = count4(anyalu & older[i]);
+            g[3][i] = anyalu[i] && rank[i] == 3'd0;
+            g[2][i] = anyalu[i] && rank[i] == 3'd1;
+            g[1][i] = anyalu[i] && rank[i] == 3'd2 && !(blk1 && wr[i]);
+            g[0][i] = no_only0 && ((anyalu[i] && rank[i] == 3'd3 && !(blk0 && wr[i])) ||
+                                   (only0[i] && rank[i] <= 3'd3));
+        end
         g[5] = oldest(ld);
         g[4] = oldest(mem & ~g[5]);
     end
@@ -233,18 +268,22 @@ module OOO_IQ2
 
     // ---- free entries for dispatch: the first of each bank; the k-th slot takes
     // the k-th bank with room
-    logic [3:0][EW-1:0] fe;       // the entry each dispatched µop goes to
-    logic [3:0]         fev;
+    logic [NBANK-1:0]        bf;      // the bank has room
+    logic [EW-1:0]           be [NBANK];   // ... this entry first
+    logic [1:0]              bs [NBANK];   // the slot of the bank
+    logic [3:0][EW-1:0]      fe;      // the entry each dispatched µop goes to
+    logic [3:0]              fev;
     always @(*) begin
         automatic logic [2:0] n = 3'd0;
         fe  = '0;
         fev = '0;
         for (int b = 0; b < NBANK; b++) begin
-            automatic logic          f = 1'b0;
-            automatic logic [EW-1:0] e = '0;
-            for (int i = BS - 1; i >= 0; i--) if (!v[b*BS + i]) begin f = 1'b1; e = EW'(b*BS + i); end
-            if (f && n < 3'd4) begin
-                fe[n[1:0]]  = e;
+            bf[b] = 1'b0;
+            be[b] = '0;
+            for (int i = BS - 1; i >= 0; i--) if (!v[b*BS + i]) begin bf[b] = 1'b1; be[b] = EW'(b*BS + i); end
+            bs[b] = n[1:0];
+            if (bf[b]) begin
+                fe[n[1:0]]  = be[b];
                 fev[n[1:0]] = 1'b1;
                 n = n + 3'd1;
             end
@@ -254,22 +293,25 @@ module OOO_IQ2
     end
 
     // which entries are written this cycle; the sources of the slots against the tags
-    logic [N-1:0]        dw [4];      // by slot
+    logic [NBANK-1:0]    bw;          // the bank is written
     logic [N-1:0]        dany;
-    logic [N-1:0]        dafter [4];  // written after this slot, in the same cycle
+    logic [N-1:0]        dafter [NBANK];  // written after this bank's slot, in the same cycle
     logic [N-1:0]        st_stay, ns_stay;
     logic [3:0]          dst_older, dns_older;   // an earlier slot writes a store (non-speculative µop)
     logic [3:0][1:0]     dwk;
     always @(*) begin
-        for (int d = 0; d < 4; d++) begin
-            for (int i = 0; i < N; i++) dw[d][i] = !flush && disp_valid[d] && fev[d] && fe[d] == EW'(i);
+        for (int d = 0; d < 4; d++)
             for (int s = 0; s < 2; s++) dwk[d][s] = disp_rdy[d][s] || woken(disp_src[d][s]);
+        dany = '0;
+        for (int b = 0; b < NBANK; b++) begin
+            bw[b] = bf[b] && disp_valid[bs[b]];   // (flush wins at the valid bit)
+            for (int i = 0; i < N; i++) if (bw[b] && be[b] == EW'(i)) dany[i] = 1'b1;
         end
-        dany = dw[0] | dw[1] | dw[2] | dw[3];
-        dafter[3] = '0;
-        dafter[2] = dw[3];
-        dafter[1] = dw[3] | dw[2];
-        dafter[0] = dw[3] | dw[2] | dw[1];
+        for (int b = 0; b < NBANK; b++) begin
+            dafter[b] = '0;
+            for (int o = 0; o < NBANK; o++)
+                if (bs[o] > bs[b]) for (int i = 0; i < BS; i++) dafter[b][o*BS + i] = dany[o*BS + i];
+        end
         dst_older[0] = 1'b0;
         dns_older[0] = 1'b0;
         for (int d = 1; d < 4; d++) begin
@@ -284,8 +326,38 @@ module OOO_IQ2
         ns_stay = v & ns & ~issued;
     end
 
+    // the fields of a bank's slot, on one bus for its entries
+    logic [1:0]           b_port [NBANK], b_use [NBANK], b_rdy [NBANK];
+    logic [1:0][TAGW-1:0] b_src  [NBANK];
+    logic                 b_wr   [NBANK], b_lat2 [NBANK], b_ns [NBANK], b_md [NBANK], b_st [NBANK];
+    logic [TAGW-1:0]      b_dst  [NBANK];
+    logic [NCK-1:0]       b_bm   [NBANK];
+    logic                 b_wt   [NBANK], b_wn [NBANK];
+    always @(*) begin
+        for (int b = 0; b < NBANK; b++) begin
+            automatic logic [1:0] k = bs[b];
+            b_port[b] = disp_port[k];
+            b_use[b]  = disp_use[k];
+            b_rdy[b]  = dwk[k];
+            b_src[b]  = disp_src[k];
+            b_wr[b]   = disp_wr[k];
+            b_lat2[b] = disp_lat2[k];
+            b_ns[b]   = disp_ns[k];
+            b_md[b]   = disp_md[k];
+            b_st[b]   = disp_st[k];
+            b_dst[b]  = disp_dst[k];
+            b_bm[b]   = disp_bm[k];
+            // a load waits while an older store is in the queue: every
+            // store that stays, and those of the group before it
+            b_wt[b]   = disp_port[k] == 2'd2 && !disp_st[k] && (st_stay != '0 || dst_older[k]);
+            // a non-speculative µop the same for an older one
+            b_wn[b]   = disp_ns[k] && (ns_stay != '0 || dns_older[k]);
+        end
+    end
+
     // every entry keeps its own fields
     for (genvar i = 0; i < N; i++) begin : g_ent
+        localparam int B = i / BS;    // its bank
         logic                 vq, lq, wq;
         logic [1:0]           pq, uq, rq;
         logic [1:0][TAGW-1:0] sq;
@@ -309,12 +381,6 @@ module OOO_IQ2
         assign sw[i]    = wtq;
         assign nw[i]    = wnq;
 
-        logic [1:0] sel;              // the slot that writes this entry
-        always @(*) begin
-            sel = 2'd0;
-            for (int d = 1; d < 4; d++) if (dw[d][i]) sel = 2'(d);
-        end
-
         always_ff @(posedge clk or negedge rst_n) begin
             if (!rst_n) begin
                 vq <= 1'b0;
@@ -328,25 +394,22 @@ module OOO_IQ2
         end
         always_ff @(posedge clk) begin
             if (dany[i]) begin
-                pq <= disp_port[sel];
-                uq <= disp_use[sel];
-                sq <= disp_src[sel];
-                rq <= dwk[sel];
-                wq <= disp_wr[sel];
-                dq <= disp_dst[sel];
-                lq <= disp_lat2[sel];
-                bq <= disp_bm[sel];
-                nq <= disp_ns[sel];
-                mq <= disp_md[sel];
-                tq <= disp_st[sel];
+                pq  <= b_port[B];
+                uq  <= b_use[B];
+                sq  <= b_src[B];
+                rq  <= b_rdy[B];
+                wq  <= b_wr[B];
+                dq  <= b_dst[B];
+                lq  <= b_lat2[B];
+                bq  <= b_bm[B];
+                nq  <= b_ns[B];
+                mq  <= b_md[B];
+                tq  <= b_st[B];
+                wtq <= b_wt[B];
+                wnq <= b_wn[B];
                 // age: younger than every entry but what is written after it
-                oq <= ~dafter[sel];
+                oq <= ~dafter[B];
                 oq[i] <= 1'b0;
-                // a load waits while an older store is in the queue: every
-                // store that stays, and those of the group before it
-                wtq <= disp_port[sel] == 2'd2 && !disp_st[sel] && (st_stay != '0 || dst_older[sel]);
-                // a non-speculative µop the same for an older one
-                wnq <= disp_ns[sel] && (ns_stay != '0 || dns_older[sel]);
             end else begin
                 bq <= bq & ~clr;
                 for (int s = 0; s < 2; s++) if (woken(sq[s])) rq[s] <= 1'b1;

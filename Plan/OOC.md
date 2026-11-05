@@ -3903,3 +3903,49 @@ All together −0.5 %. The gain of "only on ALU 0" on rv64gc is the model's: wit
 | Above 18 ns | No margin: first a dependency matrix or a chain of fewer selects, then `OOO_SCHED` (−2.4 %) |
 
 These limits are my judgement, before any measurement.
+
+### 29.2 `OOC_IQ2` about 21.1 ns: the chain of selects; selected by rank instead (2026-11-05)
+
+**Measured** (`synth_ooo.bat iq2`, asked for 15 ns): **WNS −6.138 ns, about 21.1 ns; 9,968 LUTs (no LUT RAM), 2,211 FF, without the payload.** 19 levels, 86 % routes. Over the 18 ns of 29.1, and over 20 ns alone.
+
+| Class | Slack at 15 ns | Levels | Reached |
+|---|---|---|---|
+| `guard` | −6.138 | 19 | 21.1 ns |
+| `loop` | −6.097 | 19 | 21.1 ns |
+| `free` | −5.776 | 19 | 20.8 ns |
+| `age` | −5.657 | 18 | 20.7 ns |
+| `wait` | −5.444 | 19 | 20.4 ns |
+| `issue` | −3.480 | 16 | 18.5 ns |
+| `leave` | −3.295 | 14 | 18.3 ns |
+| `wk` | −2.836 | 15 | 17.8 ns |
+| `delay` | −1.606 | 14 | 16.6 ns |
+| `kill` | +2.640 | 4 | 12.4 ns |
+| `slot` | +2.696 | 3 | 12.3 ns |
+| `ready` | +6.703 | 3 | 8.3 ns |
+
+**The worst `loop` path, by what it does:**
+
+| Part | ns | |
+|---|---|---|
+| Ready bit, first select (port 3) | 5.9 | Clock to Q too |
+| Second select (port 2) | 5.4 | Nets of 24 to 65 fan-out between them |
+| Third select | 4.1 | |
+| **The chain of selects** | **15.4** | **73 %** |
+| The tag's AND-OR | 2.5 | Its net: fan-out 88 |
+| Compare, ready bit | 3.2 | |
+
+So it is the chain, not the tags. A dependency matrix would take off at most part of the last 5.7 ns; the chain takes 15.4.
+
+**The change: selected by rank, no chain.** Every any-ALU µop counts the ready any-ALU µops older than it, saturating at 4, in a tree of 4 LUT levels. Rank 0 goes to port 3, 1 to port 2, 2 to port 1, 3 to port 0. No port's grant depends on another's. Port 0 also takes the oldest ALU0-only µop when at most 3 any-ALU µops are older than it. Ports 5 and 4 stay a chain of 2: a load's wakeup comes a cycle later, off the loop.
+
+The price: a µop that a write slot holds back keeps its rank, so its port idles that cycle where the chain would have given it to a younger µop. That happens only in the cycle after a multiply or with `p0_hold`, and only with 3 or 4 any-ALU µops ready. It is not in the model; I expect it below what the model can show, but that is not measured.
+
+**The LUTs.** 9,968 against the 9k I estimated with the payload: the queue is over its share. Where it can be seen: each entry had a 4-to-1 mux on about 44 bits for the slot that writes it. Since a bank has one entry written a cycle, **the mux is now per bank, on one bus**: 4 of them, not 24. The count of 24 per entry adds some of it back.
+
+**Also removed:** `!flush` when a bank is written. The campaign left it undetected (M889 of the first set), and it is redundant: flush wins at the valid bit, and an empty entry's fields do not count. The bench now also dispatches in a flush.
+
+**A mistake of mine in the campaign's filter:** `grep -v " DETECTED "` also hides `NOT DETECTED`, so one run showed only "47 of 48". I ran it again keeping every line to see which. (The first set's 39 of 39 is not affected: the total says so.)
+
+**The bench and mutations**: `tb_iq2` 0 mismatches, with port 0's rule above as the reference. M860 to M908 on the final RTL: 49 of 49 detected, every line read before this commit. The first run is kept as `output/OOC_IQ2_T15_chain`.
+
+**Next**: `synth_ooo.bat iq2` again, the same 15 ns. My estimate is 13 to 15 ns: select about 7, then 5.7 for the tags. Not measured.

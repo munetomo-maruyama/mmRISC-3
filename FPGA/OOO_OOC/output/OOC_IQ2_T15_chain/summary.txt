@@ -1,0 +1,15 @@
+OOC_IQ2   (period 15.0 ns, I/O delay 4.5 ns each side on the ports)
+after synthesis: 9583 LUTs (9583 logic + 0 LUT RAM; 10407 LUT cells), 2211 FF, 0 DSP, 0 LUT RAM cells, 0.0 BRAM tiles
+after place and route: 9968 LUTs (9968 logic + 0 LUT RAM; 10308 LUT cells), WNS -6.138 ns, register to register -6.138 ns (19 logic levels)
+  loop  worst  -6.097 ns (19 logic levels), from u_iq/g_ent[18].rq_reg[0]/C to u_iq/g_ent[19].rq_reg[1]/D
+  guard worst  -6.138 ns (19 logic levels), from i_nk_reg_replica_1/C to u_iq/g_ent[19].rq_reg[1]/D
+  age   worst  -5.657 ns (18 logic levels), from u_iq/g_ent[23].oq_reg[10]/C to u_iq/g_ent[19].rq_reg[1]/D
+  delay worst  -1.606 ns (14 logic levels), from u_iq/d_v0_reg/C to u_iq/g_ent[19].rq_reg[1]/D
+  leave worst  -3.295 ns (14 logic levels), from u_iq/g_ent[3].rq_reg[1]/C to u_iq/g_ent[17].vq_reg/D
+  wait  worst  -5.444 ns (19 logic levels), from u_iq/g_ent[18].rq_reg[0]/C to u_iq/g_ent[12].wnq_reg/D
+  slot  worst   2.696 ns ( 3 logic levels), from i_v_reg[0]/C to u_iq/g_ent[4].bq_reg[1]/D
+  free  worst  -5.776 ns (19 logic levels), from u_iq/g_ent[2].vq_reg/C to u_iq/g_ent[19].rq_reg[1]/D
+  kill  worst   2.640 ns ( 4 logic levels), from i_fl_reg/C to u_iq/g_ent[10].oq_reg[18]/D
+  issue worst  -3.480 ns (16 logic levels), from u_iq/g_ent[3].rq_reg[1]/C to o_iss_reg[1]/D
+  wk    worst  -2.836 ns (15 logic levels), from u_iq/g_ent[18].rq_reg[0]/C to o_wk_reg[63]/D
+  ready worst   6.703 ns ( 3 logic levels), from u_iq/g_ent[2].vq_reg/C to o_disp_reg[2]/D

@@ -6776,3 +6776,56 @@ Step 1.1 measures the six loops at a 20 ns target in order. First the unified 24
 ```text
 Yes, from the unified queue
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**The unified queue `OOO_IQ2` and its harness are done and pushed (2e9bc3a; 0 Ref on origin/dev). Simulation passes, but timing and LUTs are not measured yet.** Please run the following on Windows; the results go to `output\OOC_IQ2_T15`.
+
+```bash
+synth_ooo.bat iq2
+```
+
+## What was made
+- **Structure:** unified, 24 entries, 4 µops in, 6 ports, tag compare as in `OOO_IQ`. The straightforward design is measured before anything cleverer.
+- **Order of selection:** the ALU ports select in the order 3, 2, 1, then port 0 from what is left. The LSU ports: port 5, then port 4 from what is left. The longest path is "4 stages of select, the tag's AND-OR, 9 compares".
+- **Simplifications:** free entries come from the top of each of 4 banks. An age row does not depend on the result of the select.
+
+## The price, checked in the model
+The model treated every port as able to run anything. With the RTL's limits:
+
+| Limit | `-O2` |
+|---|---|
+| None | 8.677 |
+| A store only on LSU 0 | 8.669 |
+| Multiply, divide, system, slow operations only on ALU 0 | 8.664 |
+| ... a multiply takes port 1's write slot | 8.652 |
+| 4 banks of 6 | 8.667 |
+| **All (as built)** | **8.633** |
+
+All together only −0.5 %. Maximum optimization 9.445, rv64gc 7.391. The register file can come down to 11 reads and 6 writes (port 5 needs one source, and a multiply uses an existing write slot).
+
+## Verification
+- **Bench `tb_iq2`:** 400,000 cycles, 532,542 µops, 0 mismatches. All 6 ports at once in 2,734 cycles; the queue full (95,133 cycles) and banks short (136,842 cycles) were passed through.
+- **Bug injection:** M860 to M898, all 39 detected, read before the commit.
+- **Lint:** no warnings at `-Wall` on `OOO_IQ2` and the harness's lines.
+
+## What to look at in the measurement
+The target is 20 ns, but this runs at 15 ns: Vivado stops when a target is met, and knowing the margin for the joins needs a harder target. In `summary_loop.txt`, the `loop` line decides as follows; these limits are my judgement before any measurement.
+
+| `loop` reaches | Reading |
+|---|---|
+| About 15 ns or less | Room for the joins: unified 24 stays |
+| 15 to 18 ns | Unified 24 possible: look at the paths before deciding |
+| Above 18 ns | No margin: first a dependency matrix or a shorter chain of selects, then `OOO_SCHED` (−2.4 %) |
+
+The payload is not in this measurement. `OOO_IQPL` with 4 writes and 6 reads is made after seeing this loop, so the LUTs grow by that much yet.
+
+The record is section 29.1 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 168. 2026-11-05 19:55:25 JST
+
+```text
+iq2 finished
+```

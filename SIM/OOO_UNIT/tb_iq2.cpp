@@ -8,13 +8,14 @@
 //   a value announced on ext_* in cycle c is usable from c + 1.
 //
 // Every cycle, the µops in the queue (dispatched in an earlier cycle), not issued, with
-// all sources usable are "ready". The queue must issue: on port 3 the oldest ready
-// any-ALU µop, on port 2 the next, on port 1 the next that does not write in the
-// cycle after a multiply, on port 0 the oldest ready ALU µop of the rest (with
-// mdu_ok, p0_hold); on port 5 the oldest ready load, on port 4 the oldest ready
-// LSU µop of the rest; nothing else. That checks the wakeup (back to back for
-// latency 1), the select (oldest first, no port idle while a µop is ready for it) and
-// that nothing issues early or twice.
+// all sources usable are "ready". The queue must issue, from the ready any-ALU µops in
+// age order: the 1st on port 3, the 2nd on port 2, the 3rd on port 1 unless it writes in
+// the cycle after a multiply (then port 1 idles), and on port 0 the older of: the 4th
+// (unless p0_hold and it writes) and the oldest ready ALU0-only µop that mdu_ok and p0_hold
+// let go, this one only with at most 3 any-ALU µops older. On port 5 the oldest ready
+// load, on port 4 the oldest ready LSU µop of the rest; nothing else. That checks the
+// wakeup (back to back for latency 1), the select (oldest first, no port idle while
+// a µop is ready for it) and that nothing issues early or twice.
 //
 // Also checked: disp_ready (the banks with a free entry as the last cycle left them)
 // and disp_entry (the k-th slot: the first free entry of the k-th bank with one), that
@@ -72,7 +73,7 @@ int main(int argc, char** argv)
     std::map<int, Uop> q;                   // in the queue, by destination tag
     std::vector<std::pair<long, int>> ext_due;   // (cycle, tag) to announce on ext
     long next_id = 0, bad = 0, issued_n = 0, flushes = 0, nkill = 0, nkilled = 0, nclr = 0, nns = 0;
-    long nwk = 0, nport[6] = {0}, nsix = 0, nfull = 0, nlow = 0, nblk1 = 0, nst = 0;
+    long nwk = 0, nport[6] = {0}, nsix = 0, nfull = 0, nlow = 0, nblk1 = 0, nst = 0, nidle0 = 0;
     std::vector<int> open_ids;              // checkpoint ids open, in program order
     const int NCK = 12;
     long cyc;
@@ -120,7 +121,7 @@ int main(int argc, char** argv)
         for (auto& e : ext_due) recent.push_back(e.second);
         Uop u[4];
         int nd = 0;
-        for (int k = 0; k < ndisp && !flush; k++) {
+        for (int k = 0; k < ndisp; k++) {   // (in a flush too: those µops are lost with the rest)
             if (k >= exp_ready) break;
             Uop& x = u[nd];
             int t0 = -1;
@@ -230,10 +231,26 @@ int main(int argc, char** argv)
             }
             return b;
         };
-        exp[3] = pick([](const Uop& x) { return x.port == 0; });
-        exp[2] = pick([](const Uop& x) { return x.port == 0; });
-        exp[1] = pick([&](const Uop& x) { return x.port == 0 && !(blk1 && x.wr); });
-        exp[0] = pick([&](const Uop& x) { return x.port != 2 && !(x.md && !mdu_ok) && !(blk0 && x.wr && !x.lat2 && !x.md); });
+        {
+            std::vector<const Uop*> ra, r0;       // ready any-ALU, ALU0-only µops, by age
+            for (auto& kv : q) if (ready(kv.second)) {
+                const Uop& x = kv.second;
+                if (x.port == 0) ra.push_back(&x);
+                else if (x.port == 1 && !(x.md && !mdu_ok) && !(blk0 && x.wr && !x.lat2 && !x.md)) r0.push_back(&x);
+            }
+            auto by_age = [](const Uop* a, const Uop* b) { return a->id < b->id; };
+            std::sort(ra.begin(), ra.end(), by_age);
+            std::sort(r0.begin(), r0.end(), by_age);
+            if (ra.size() > 0) exp[3] = ra[0];
+            if (ra.size() > 1) exp[2] = ra[1];
+            if (ra.size() > 2 && !(blk1 && ra[2]->wr)) exp[1] = ra[2];
+            if (ra.size() > 2 && blk1 && ra[2]->wr) nblk1++;
+            const Uop* a4 = ra.size() > 3 ? ra[3] : nullptr;   // the 4th
+            const Uop* o0 = r0.empty() ? nullptr : r0[0];
+            if (o0 && (!a4 || o0->id < a4->id)) exp[0] = o0;
+            else if (a4 && (!o0 || a4->id < o0->id) && !(blk0 && a4->wr)) exp[0] = a4;
+            if (a4 && blk0 && a4->wr && o0 && a4->id < o0->id) nidle0++;
+        }
         exp[5] = pick([](const Uop& x) { return x.port == 2 && !x.st && !x.ns; });
         exp[4] = pick([](const Uop& x) { return x.port == 2; });
         const Uop* e0 = exp[0]; const Uop* e4 = exp[4]; const Uop* e5 = exp[5];
@@ -244,7 +261,6 @@ int main(int argc, char** argv)
             for (int p = 0; p < 6; p++) ens |= exp[p] && exp[p]->ns;
             if ((bool)d.iss_ns != ens && bad++ < 10) printf("MISMATCH cycle %ld: iss_ns %d, expected %d\n", cyc, (int)d.iss_ns, ens);
             if (ens) nns++;
-            if (blk1) for (auto& kv : q) if (ready(kv.second) && kv.second.port == 0 && kv.second.wr && exp[1] != &kv.second) { nblk1++; break; }
             int all = 0;
             for (int p = 0; p < 6; p++) {
                 bool v = (d.iss_valid >> p) & 1;
@@ -301,6 +317,7 @@ int main(int argc, char** argv)
                 for (int s2 = 0; s2 < 2; s2++) if (x.use[s2]) refs[x.src[s2]]--;
                 avail[x.dst] = cyc + 1; tag_free_at[x.dst] = cyc + 4;
             }
+            for (int k = 0; k < nd; k++) { avail[u[k].dst] = cyc + 1; tag_free_at[u[k].dst] = cyc + 4; }
             q.clear();
             open_ids.clear();
             flushes++;
@@ -341,7 +358,7 @@ int main(int argc, char** argv)
             }
         }
     }
-    bool cov = nsix > 100 && nfull > 1000 && nlow > 1000 && nkill > 1000 && nblk1 > 100 && nst > 1000;
+    bool cov = nsix > 100 && nfull > 1000 && nlow > 1000 && nkill > 1000 && nblk1 > 100 && nst > 1000 && nidle0 > 10;
     for (int p = 0; p < 6; p++) cov = cov && nport[p] > 10000;
     printf("tb_iq2: %ld cycles, %ld µops issued (%ld %ld %ld %ld %ld %ld by port, %ld stores, %ld cycles with 6, %ld non-speculative), queue full %ld, banks short %ld, a multiply's slot %ld, %ld kills (%ld µops killed), %ld clears, %ld flushes, %ld wakeups, %ld mismatches: %s\n",
            cyc, issued_n, nport[0], nport[1], nport[2], nport[3], nport[4], nport[5], nst, nsix, nns, nfull, nlow, nblk1, nkill, nkilled, nclr, flushes, nwk, bad, bad == 0 && cov ? "PASS" : "FAIL");
