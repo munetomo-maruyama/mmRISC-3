@@ -7359,3 +7359,56 @@ The record is section 29.12 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J
 ```text
 Yes, loop 6
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**As loop 6 I made `OOO_BUSY`, and pushed `OOC_REN3`, joining rename, busy bits and the unified queue (ac83233; 0 Ref on origin/dev). Simulation passes, but timing and LUTs are not measured yet.** Please run the following on Windows; the results go to `output\OOC_REN3_T15`.
+
+```bash
+synth_ooo.bat ren3
+```
+
+## Changes from what I said last time
+Last time I wrote that something against misses at the DS stage was needed. It is not.
+
+- **No new stage:** `OOO_RENAME2`'s R1 is the stage R as it is, and R2, keeping what did not go, is the DS register. The model's depth stands.
+- **No snoop of the DS register:** the busy bits are read in the cycle of dispatch, so wakeups up to the cycle before are in them. That cycle's wakeup is `OOO_IQ2`'s to see.
+
+## What was made
+- **`OOO_BUSY`:** 80 bits. Set as a µop enters the DS register, cleared by 9 wakeup tags.
+- **`OOO_IQ2`:** now takes gaps, as when only slots 2, 3 are left in the DS register.
+- **`OOO_RENAME2`:** 3 outputs added, for what goes on at R1's edge.
+
+## The first join of blocks
+`OOC_REN3` differs from the measurements alone so far: it joins blocks. 2 paths are in it that no harness had.
+
+| Path | What |
+|---|---|
+| `adv` | The queue's room, `disp_ready`, the slots that go, to whether R moves |
+| `wake` | The queue's ready bit, the select, the wakeup tag, to the busy bits |
+
+The decoded queue, ROB and LQ / SQ are not joined yet.
+
+## Verification
+- **Benches:** `tb_busy`, `tb_iq2` (with gaps) and `tb_rename2` (with the new check), all 0 mismatches.
+- **Bug injection:** 62 on the queue, `OOO_BUSY` and `OOO_RENAME2`'s new outputs, all detected, read before the commit.
+- **For what was undetected:** "a slot not valid holds a non-speculative µop" was not detected at first, as the bench drove 0 on slots not valid. It now drives any value.
+- **A false loop:** lint warned of a combinational loop between `disp_ready` and `go`. It was not a real loop; splitting the description removed it.
+
+## What to look at in the measurement
+My estimates, both before measuring:
+
+- **Timing:** `adv` about 11 to 14 ns, `wake` about 15 ns. I expect the queue's own `loop`, 15.6 ns, to stay the worst or close to it.
+- **LUTs:** about 13.5k (queue 8.9k, rename 3.1k, busy bits about 1.5k).
+
+With this the loops have gone round. Given the result, I set out the material for gate S1-A (freezing the configuration).
+
+The record is section 29.13 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 180. 2026-11-06 00:08:13 JST
+
+```text
+ren3 finished
+```

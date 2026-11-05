@@ -1,0 +1,15 @@
+OOC_REN3   (period 15.0 ns, I/O delay 4.5 ns each side on the ports)
+after synthesis: 13043 LUTs (12667 logic + 376 LUT RAM; 14112 LUT cells), 3134 FF, 0 DSP, 96 LUT RAM cells, 0.0 BRAM tiles
+after place and route: 13368 LUTs (12992 logic + 376 LUT RAM; 14105 LUT cells), WNS -0.953 ns, register to register -0.953 ns (14 logic levels)
+  r     worst   5.173 ns ( 4 logic levels), from s_id_reg[0][4]/C to u_ren/r2_dst_reg[2][0]/D
+  adv   worst   0.150 ns (11 logic levels), from u_iq/g_ent[3].vq_reg/C to u_ren/rat_reg[9][4]/CE
+  go    worst  -0.237 ns (13 logic levels), from u_iq/g_ent[21].vq_reg/C to u_iq/g_ent[15].rq_reg[0]/D
+  rdy   worst   2.771 ns ( 7 logic levels), from u_ren/r2_src_reg[0][1][0]/C to u_iq/g_ent[8].rq_reg[1]/D
+  wake  worst  -0.444 ns (12 logic levels), from u_iq/g_ent[22].rq_reg[1]/C to u_busy/busy_reg[7]/D
+  loop  worst  -0.953 ns (14 logic levels), from u_iq/g_ent[22].rq_reg[1]/C to u_iq/g_ent[16].rq_reg[1]/D
+  rest  worst   3.509 ns ( 6 logic levels), from s_re_reg/C to u_ren/rat_reg[9][4]/CE
+  cmt   worst   6.197 ns ( 5 logic levels), from s_cw_reg[0]/C to u_ren/fl2_reg_0_15_6_6/DP/WADR3
+instances (after place and route):
+    u_busy                 OOO_BUSY                326 LUTs (326 logic + 0 LUT RAM), 80 FF
+    u_iq                   OOO_IQ2                9227 LUTs (9227 logic + 0 LUT RAM), 1683 FF
+    u_ren                  OOO_RENAME2            3813 LUTs (3437 logic + 376 LUT RAM), 681 FF

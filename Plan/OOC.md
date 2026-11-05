@@ -4277,3 +4277,54 @@ So 2 blocks are all of the gain, +2.1 % over 1.
 **What is not in the join:** the decoded queue in front, the ROB and LQ / SQ behind (`room` is a register), the checkpoint's id into the branch masks.
 
 **My estimates, before measuring.** Timing: `adv` about 11 to 14 ns, `wake` about 15 ns: `wk` was 12.3 ns, and a tag's decode to 80 lines adds a few levels; the queue's own `loop` 15.6 ns stays the worst or thereabouts. LUTs: 8.9k + 3.1k + busy about 1.5k = about 13.5k.
+
+### 29.14 `OOC_REN3` about 16.0 ns, 13,368 LUTs; gate S1-A set out (2026-11-06)
+
+**Measured** (`synth_ooo.bat ren3`, asked for 15 ns): **WNS −0.953 ns, about 16.0 ns; 13,368 LUTs (12,992 logic + 376 LUT RAM), 3,138 FF.** `OOO_IQ2` 9,227, `OOO_RENAME2` 3,813, **`OOO_BUSY` 326** (I had estimated about 1.5k: Vivado shares the tags' decode far better than I reckoned).
+
+| Class | Slack at 15 ns | Levels | Reached |
+|---|---|---|---|
+| `loop` | −0.953 | 14 | 16.0 ns |
+| `wake` a ready bit to the busy bits | −0.444 | 12 | 15.4 ns |
+| `go` the queue's room into its entries | −0.237 | 13 | 15.2 ns |
+| `adv` the queue's room to R's move | +0.150 | 11 | 14.9 ns |
+| `rdy` the busy bits into the queue | +2.771 | 7 | 12.2 ns |
+| `rest` | +3.509 | 6 | 11.5 ns |
+| `r` | +5.173 | 4 | 9.8 ns |
+| `cmt` | +6.197 | 5 | 8.8 ns |
+
+**The worst path**: the queue's loop, 15.6 ns alone, now going on through a slot's woken tag into a new entry: +0.4 ns for the join. This first join adds little, and both new paths are within 15.5 ns.
+
+**Gate S1-A, set out for the author.**
+
+| What | Result |
+|---|---|
+| **Model as built** | **8.633 `-O2`, 9.445 max, 8.265 g13, 7.391 rv64gc**; today's core 5.805 |
+| RTL at × 0.94 | About 8.1, 406 CoreMark/s (× 0.94 not checked at this width) |
+| Working targets proposed | RTL ≥ 8.0: needs × 0.927 of the model |
+
+| Loop | Block | Reached, asked for 15 ns | LUTs |
+|---|---|---|---|
+| 1, 6 | `OOC_REN3`: queue, rename, busy bits | 16.0 ns | 13,368, no payload |
+| 2 | `OOC_EXU2` | met | 20,332 |
+| 3 | `OOC_LSU3` | 14.1 ns | 3,326, no miss logic |
+| 4, 5 | `OOC_FE3` | 15.3 ns | 6,539, no F1 |
+
+**So about 4 ns against 20 ns on the worst.** On the 100 MHz attempt, joining the core added 1.2 to 2.9 ns where it could be compared (28.26), and paths between blocks of 15 to 20 ns then appeared, in a core that had not been cut for them. I expect some of those here too, as `OOO_CPU` at 20 ns had little to spare (+0.159 ns): the 4 cuts of 28.26 stay in hand. **Not proven: the whole core at 20 ns.**
+
+| LUTs | |
+|---|---|
+| Measured, the 4 harnesses | 43.6k |
+| Still estimates: payload 2.1k, F1 and TAGE M and FTQ and decode 7.5k, ROB 8k, control 3k, miss logic 1.7k, multiplier and system unit 1k | 23.3k |
+| The engine | **about 66.9k** |
+| mmRISC-2's parts and LiteX | 39.6k |
+| **The chip** | **about 106.5k, 79 %**, 1.2k under the ceiling |
+
+**What I recommend: go.** Freeze the configuration of `Doc/STRATEGY.md` 4.2 and start step 1.2, the width as a parameter in `OOO_CORE`. All six loops are within reach, each with a known fallback; nothing measured so far asks for a port to go.
+
+What it does not settle, and how each is watched:
+- **The LUTs have no room**: 1.2k. Measured at each step (1.6). In hand: `OOO_RAS`, 64 registers (−5.7k, −2.4 %), 3 ALUs (−3.5 %).
+- **The whole core at 20 ns**: measured at each step; the cuts of 28.26 in hand.
+- **× 0.94 at this width**: cycles against the model at each step.
+
+These are the author's to decide: the gate, and the working targets of RTL 8.0 and board 7.8.
