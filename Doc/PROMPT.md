@@ -7412,3 +7412,60 @@ The record is section 29.13 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J
 ```text
 ren3 finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOC_REN3` reached about 16.0 ns (WNS −0.953 ns), 13,368 LUTs. Joining the blocks added only 0.4 ns. With this the 6 loops have gone round, so please decide gate S1-A (freezing the configuration).** The record is pushed (2d33efb; 0 Ref on origin/dev).
+
+## The result
+`OOO_IQ2` 9,227 LUTs, `OOO_RENAME2` 3,813, `OOO_BUSY` 326. The busy bits came in far below the estimated 1.5k.
+
+| Class | Slack at 15 ns | Reached |
+|---|---|---|
+| `loop` | −0.953 | 16.0 ns |
+| `wake` (ready bit to busy bits) | −0.444 | 15.4 ns |
+| `go` (the queue's room to entries) | −0.237 | 15.2 ns |
+| `adv` (the queue's room to R's move) | +0.150 | 14.9 ns |
+
+The worst is the queue's own loop, up 0.4 ns from 15.6 ns alone. The 2 new paths are both within 15.5 ns.
+
+## The material for gate S1-A
+
+| Item | Value |
+|---|---|
+| Model (as built) | `-O2` 8.633, max optimization 9.445, rv64gc 7.391 (today's core `-O2` 5.805) |
+| RTL estimate | About 8.1, 406 CoreMark/s (× 0.94 not checked at this width) |
+| Timing (asked for 15 ns) | Worst 16.0 ns. About 4 ns to spare against 20 ns |
+| LUTs | About 106.5k (79 %) for the chip. 1.2k to the ceiling of 107.7k |
+
+| Loop | Block | Reached | LUTs |
+|---|---|---|---|
+| 1, 6 | `OOC_REN3` | 16.0 ns | 13,368 (no payload) |
+| 2 | `OOC_EXU2` | Met 15 ns | 20,332 |
+| 3 | `OOC_LSU3` | 14.1 ns | 3,326 (no miss logic) |
+| 4, 5 | `OOC_FE3` | 15.3 ns | 6,539 (no F1) |
+
+Of the LUTs, 43.6k are measured, 23.3k still estimated, and mmRISC-2's parts and LiteX 39.6k. The main estimates: ROB 8k, F1 and decode etc. 7.5k, control 3k.
+
+## What I recommend: freeze the configuration and go to step 1.2
+All 6 loops are within reach, each with a fallback of known price. Nothing measured so far asks for a port to go.
+
+3 things are not settled, though:
+
+- **The whole core at 20 ns is not proven:** in the 100 MHz attempt, long paths between blocks appeared in the core when not cut. Today's core also had little to spare at 20 ns (+0.159 ns), so I expect some here too. The 4 cuts proposed before stay in hand.
+- **The LUTs have no room:** 1.2k left, with many parts still estimated. Measured at each step. If short, look in order at `OOO_RAS`, 64 registers (−5.7k, −2.4 %), 3 ALUs (−3.5 %).
+- **× 0.94 is not checked at this width:** cycles against the model at each step.
+
+## What needs your decision
+- **The gate:** if frozen, step 1.2 next is the width as a parameter of `OOO_CORE`. From here today's 2-wide core is actually reworked.
+- **Working targets:** RTL 8.0 and board 7.8 are my proposal. RTL 8.0 needs × 0.927 of the model. Say if they should change.
+
+The record is section 29.14 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 181. 2026-11-06 00:11:02 JST
+
+```text
+Freeze it and go to step 1.2
+```

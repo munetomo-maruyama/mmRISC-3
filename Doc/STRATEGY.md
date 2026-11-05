@@ -60,7 +60,7 @@ What moves CoreMark/MHz from the chosen 8.677:
 
 | Item | Rule |
 |---|---|
-| Goal | `-O2`: **as high a CoreMark/MHz as can be had**. Working target at 50 MHz: **8.0 in RTL, 7.8 on the board** (proposed by Claude Code; the author set no number) |
+| Goal | `-O2`: **as high a CoreMark/MHz as can be had**. Working target at 50 MHz: **8.0 in RTL, 7.8 on the board** (proposed by Claude Code, accepted at gate S1-A) |
 | Where it counts | On the board, under Linux, with the bitstream that runs Linux |
 | Compiler | GCC 14.2 (Debian 13); `-O2 -march=rv64imafdc_zicsr_zifencei_zba_zbb_zbs_zicond` |
 | In simulation | `OOO_CPU` with the real caches and a latency model of the DDR3, in lock-step with Spike |
@@ -104,6 +104,8 @@ Vivado stops once a target is met, so the blocks' results at 20 ns are upper bou
 (`Plan/OOC.md` 28.1).
 
 ### 4.2 The configuration
+
+**Frozen at gate S1-A, 2026-11-06.**
 
 | Item | Today | **Proposal** | Why |
 |---|---|---|---|
@@ -203,7 +205,7 @@ All stay in the tree with their benches.
 | # | Work | Done when |
 |---|---|---|
 | 1.0 | **Done 2026-11-05**: the configuration in the model (`Plan/model/g50.sh`); RR1 out of the core | 8.68; lock-step and CoreMark as before RR1 |
-| 1.1 | Harnesses of the six loops at a 20 ns target, in the order of 4.5: unified 24 first (`OOC_IQ2`), then the register file with bypass and 4 ALUs, 2 load ports, fetch, fetch buffer, rename. `OOO_CPU` at 20 ns at each join | **Gate S1-A**: all within 20 ns, or a fallback taken with its price; the LUTs under 80 % by the sums; the configuration frozen |
+| 1.1 | **Done 2026-11-06**: harnesses of the six loops at a 20 ns target, in the order of 4.5: unified 24 first (`OOC_IQ2`), then the register file with bypass and 4 ALUs, 2 load ports, fetch, fetch buffer, rename. `OOO_CPU` at 20 ns at each join | **Gate S1-A, passed 2026-11-06: go, by the author** (`Plan/OOC.md` 29.14, 29.15): all within reach of 20 ns, no fallback taken; about 106.5k LUTs by the sums; **the configuration frozen**; working targets RTL 8.0, board 7.8 |
 | 1.2 | The width as a parameter of `OOO_CORE`, then W = 4: ROB, LQ / SQ, checkpoints, rename; tests at both widths | Lock-step; cycles against the model |
 | 1.3 | Queue of 24, 6 issues; 4 ALUs; the register file | Tests; cycles against the model |
 | 1.4 | The second LSU port | Tests; cycles against the model |
@@ -266,7 +268,7 @@ step 2 run on mmRISC-2 first.
 | R8 | LiteX | Its Nexys Video target as the base (`Doc/BOARD.md` 2) |
 | R9 | Load-use 1 at 33.3 MHz | Not taken: +11 % CoreMark/MHz, −26 % CoreMark/s, a new structure. Open if the author wants the last of CoreMark/MHz |
 | R10 | 66.7 MHz | Not a goal: −5.4 % CoreMark/MHz, +26 % CoreMark/s. Looked at when 50 MHz is complete and its margin measured |
-| R11 | Working targets of section 2 | Proposed; the author's to change |
+| R11 | Working targets of section 2 | Accepted at gate S1-A, 2026-11-06 |
 
 ---
 

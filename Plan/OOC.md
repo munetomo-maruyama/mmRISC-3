@@ -4328,3 +4328,7 @@ What it does not settle, and how each is watched:
 - **× 0.94 at this width**: cycles against the model at each step.
 
 These are the author's to decide: the gate, and the working targets of RTL 8.0 and board 7.8.
+
+### 29.15 Gate S1-A passed: go, configuration frozen (2026-11-06)
+
+The author, 2026-11-06 (`Doc/PROMPT.md` 181): freeze, and on to step 1.2. So `Doc/STRATEGY.md` 4.2 is frozen, with the working targets of RTL 8.0 and board 7.8 standing, as they were set out in 29.14 and not changed.
