@@ -3949,3 +3949,34 @@ The price: a µop that a write slot holds back keeps its rank, so its port idles
 **The bench and mutations**: `tb_iq2` 0 mismatches, with port 0's rule above as the reference. M860 to M908 on the final RTL: 49 of 49 detected, every line read before this commit. The first run is kept as `output/OOC_IQ2_T15_chain`.
 
 **Next**: `synth_ooo.bat iq2` again, the same 15 ns. My estimate is 13 to 15 ns: select about 7, then 5.7 for the tags. Not measured.
+
+### 29.3 `OOC_IQ2` about 15.6 ns, 8,888 LUTs: selected by rank (2026-11-05)
+
+**Measured** (`synth_ooo.bat iq2`, asked for 15 ns): **WNS −0.619 ns, about 15.6 ns; 8,888 LUTs, 2,212 FF, without the payload.** 13 levels, 86 % routes. −5.5 ns and −1,080 LUTs against the chain (29.2).
+
+| Class | Slack at 15 ns, chain | Now | Levels | Reached |
+|---|---|---|---|---|
+| `loop` | −6.097 | **−0.619** | 13 | 15.6 ns |
+| `guard` | −6.138 | −0.610 | 13 | 15.6 ns |
+| `wait` | −5.444 | −0.508 | 14 | 15.5 ns |
+| `free` | −5.776 | −0.153 | 13 | 15.2 ns |
+| `age` | −5.657 | +0.136 | 12 | 14.9 ns |
+| `issue` | −3.480 | +0.141 | 14 | 14.9 ns |
+| `wk` | −2.836 | +2.658 | 10 | 12.3 ns |
+| `leave` | −3.295 | +2.804 | 11 | 12.2 ns |
+| `delay` | −1.606 | +3.968 | 8 | 11.0 ns |
+| `slot` | +2.696 | +4.580 | 5 | 10.4 ns |
+| `kill` | +2.640 | +6.725 | 5 | 8.3 ns |
+| `ready` | +6.703 | +8.052 | 3 | 7.0 ns |
+
+**The worst path now:** clock to Q and ready 2.6 (from the clock's edge at 0.97), the rank and its grant to the issued tag 8.8, the tag's fan-out of 57 1.7, compare 3.4: 15.6 in all. My estimate was 13 to 15 ns; it is a little above.
+
+**Reading (the table of 29.1): 15 to 18 ns, "possible", at its lower edge. Unified 24 stays.** There are about 4.4 ns against the 20 ns for what the core adds. How much that is, is the question at the joins: the whole core added 2.86 and 1.2 ns where it could be compared (28.26), and those are upper bounds. Vivado stopped near its target here, so the block's limit may be lower; a run at a harder target would tell, and is not needed until the joins ask.
+
+**The price not measured**: the idle port of 29.2 is not in the model.
+
+**The LUTs: the budget moves.** The queue 8.9k without its payload; the payload, in 4 banks with 6 reads, estimated at 2.1k (not built). So 11k against the 9k taken, and the whole chip about 111k, 82 %, over the ceiling of 80 %, with only this part measured. **What is left to decide it is mostly the register file and the ALU ports**, loop 2, next.
+
+The first run stays as `output/OOC_IQ2_T15_chain`.
+
+**Next**: loop 2, the register file of 6 writes and 11 reads with bypass and 4 ALUs. It decides the most LUTs still unknown.

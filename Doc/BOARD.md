@@ -200,6 +200,6 @@ The Arty's RGB LEDs were too bright and ran at 1/16 duty; these have 100 Ω and 
 | 10 | **The pmod for the debug probe** keeps its pinout; 200 Ω as before; the probe's 3.3 V | Fine | Nothing to buy |
 | 11 | **The PMOD MicroSD and Ethernet of the Arty do not carry over** | Fine | J3 and the RJ-45 replace them; a shielded cable is asked for by the manual |
 | 12 | **Speed grade.** -1 as before: twice the logic, not faster logic; **a reason 100 MHz was given up, 2026-11-05** | Known | `Doc/STRATEGY.md` 1 |
-| 13 | **Power and heat** with about 109k LUTs at 50 MHz, LiteX at 100 MHz. 36 W of supply is ample for the estimate, the 1.0 V rail 4 A max | Check | `report_power` on the first full build; fan or heat sink decided from it |
+| 13 | **Power and heat** with about 111k LUTs at 50 MHz, LiteX at 100 MHz. 36 W of supply is ample for the estimate, the 1.0 V rail 4 A max | Check | `report_power` on the first full build; fan or heat sink decided from it |
 
 Sources for 1, 2 and 7 are distributor pages and AMD's UG973, checked 2026-11-02; prices and stock change.

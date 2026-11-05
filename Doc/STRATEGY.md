@@ -18,7 +18,7 @@
    issues**, ROB 48, LQ / SQ 16, 12 checkpoints, TAGE M, uBTB 96, in **today's pipeline depth**: **8.68 in the model, about 8.2
    in RTL (× 0.94), about 408 CoreMark/s**. Today's core measures 5.50 and 275.
 4. **The half-rate islands go**: the whole CPU is on one clock, and the L1 hit paths stay as they are in mmRISC-2.
-5. **Not measured yet**: this width at 20 ns, and the LUTs, estimated at about 109k, 81 %, at the ceiling. **Six loops are
+5. **Not measured yet**: this width at 20 ns, and the LUTs, estimated at about 111k, 82 %, over the ceiling. **Six loops are
    measured first** (section 4.5), as for 100 MHz; each has a fallback with its price.
 
 ---
@@ -84,11 +84,11 @@ The whole chip (physical LUTs). **At 50 MHz the ceiling is taken as about 80 %, 
 | LiteX SoC with Ethernet | 5.3k | mmRISC-2 4,826 (MII); RGMII estimated |
 | Outside the core: L1 caches, L2, debug, MMIO, DMA, arbiter | 12.6k | mmRISC-2 measured |
 | Core blocks kept: CSR, MMU, MDU, FPU, FP registers | 21.7k | mmRISC-2 measured |
-| **The out-of-order engine** | **about 69k** (60k to 78k) | Below; today's measured 27.0k |
-| **Total** | **about 109k, 81 %** | **At the ceiling**: measured at gate S1-A; the fallbacks of 4.5 give LUTs back |
+| **The out-of-order engine** | **about 71k** (62k to 80k) | Below; today's measured 27.0k |
+| **Total** | **about 111k, 82 %** | **Over the ceiling of 80 %**: measured at gate S1-A; the fallbacks of 4.5 give LUTs back |
 
-The engine, estimated from `Doc/UARCH.md` 4.5 (nothing of it measured): front end with decode 14k, renaming and control 7k, a
-queue of 24 with 6 selects and its payload 9k, ROB 8k, register file of 6 writes and 12 reads 8k, 4 ALU ports with RR, EX, bypass
+The engine, estimated from `Doc/UARCH.md` 4.5 (only the queue measured): front end with decode 14k, renaming and control 7k, a
+queue of 24 with 6 selects **8.9k measured** and its payload 2.1k, ROB 8k, register file of 6 writes and 11 reads 8k, 4 ALU ports with RR, EX, bypass
 and resolution 13k, 2 LSU ports 9k, multiplier and system unit 1k.
 
 ---
@@ -118,7 +118,7 @@ Vivado stops once a target is met, so the blocks' results at 20 ns are upper bou
 | Multiply | 2 | **2, pipelined** (`OOO_PMUL`) | |
 | Stores | one µop, with data | **The same** | Split with replays −8.4 %; the +2.6 % without them cannot be had (`Plan/OOC.md` 29) |
 | ROB / LQ, SQ / checkpoints | 24 / 8 / 6 | **48 / 16 / 12**, registers **80** | |
-| Register file | 3 writes, 6 reads | **6 writes, 12 reads** | The largest unknown in LUTs |
+| Register file | 3 writes, 6 reads | **6 writes, 11 reads** | The largest unknown in LUTs |
 | Predictor | TAGE S, uBTB 8 | **TAGE M, uBTB 96** (`OOO_UBTB2`) | |
 | Fusion | off | **off** | +0.7 %: a lever after S1-B |
 
@@ -166,8 +166,8 @@ One MMCM, for example: VCO 800 MHz, 100 MHz (/8), 400 MHz (/2), 400 MHz at 90° 
 
 | # | Loop | Target | If it fails | Model | Known so far |
 |---|---|---|---|---|---|
-| 1 | **Wakeup + select** | 1 cycle, unified 24, 6 selects | Distributed queues (`OOO_SCHED`) | −2.4 % | Today's 11.8 ns, 10 entries, 3 ports. `OOO_SCHED` 8.9 ns, 8 entries each. **`OOO_IQ2`, model 8.63 with its limits: about 21.1 ns with a chain of selects, 9,968 LUTs without the payload; selected by rank now, to measure** (`Plan/OOC.md` 29.2) |
-| 2 | **Bypass + ALU + register file** | RR and EX, 6 results, 12 reads, 6 writes | 3 ALUs; the register file double-pumped on the 100 MHz clock | −3.5 % | `OOO_EXU` with `OOO_PRF2` 9.2 ns a stage, 12,472 LUTs, 3 ALUs, 4 writes, 8 reads |
+| 1 | **Wakeup + select** | 1 cycle, unified 24, 6 selects | Distributed queues (`OOO_SCHED`) | −2.4 % | Today's 11.8 ns, 10 entries, 3 ports. `OOO_SCHED` 8.9 ns, 8 entries each. **`OOO_IQ2`, model 8.63 with its limits: about 15.6 ns asked for 15, 8,888 LUTs without the payload** (`Plan/OOC.md` 29.3). Alone |
+| 2 | **Bypass + ALU + register file** | RR and EX, 6 results, 11 reads, 6 writes | 3 ALUs; the register file double-pumped on the 100 MHz clock | −3.5 % | `OOO_EXU` with `OOO_PRF2` 9.2 ns a stage, 12,472 LUTs, 3 ALUs, 4 writes, 8 reads |
 | 3 | **Load** | Load-use 2, 2 ports | 1 LSU; load-use 3 | −8.0 %; −12.7 % | Today's 12.6 ns, 1 port |
 | 4 | **Fetch** | 32 B, 3 stages, the override at F2 | A stage more, the override with it | −2.1 % | Today's 14.3 ns, 16 B. `OOC_FE2` 9.5 ns a stage, 5 stages |
 | 5 | **Fetch buffer** | 6 a cycle, across blocks | One block a cycle (`OOO_FBUF2` as it is) | −2.2 % | `OOO_FBUF2` 8.65 ns, one block |
@@ -272,7 +272,7 @@ step 2 run on mmRISC-2 first.
 
 | Risk | Effect | Counter |
 |---|---|---|
-| **The LUTs: about 109k against 107.7k**, nothing measured | Ports come down | Measured at S1-A; 3 ALUs, distributed queues, unified 16; the register file double-pumped |
+| **The LUTs: about 111k against 107.7k**, only the queue measured | Ports come down | Measured at S1-A; 3 ALUs, distributed queues, unified 16; the register file double-pumped |
 | **The width does not close at 20 ns** though the depth is today's | A fallback of 4.5 | Measured first; today's core has little margin at 20 ns, but Vivado stops when met |
 | **The rework is close to a new core** | Much time | Staged (1.2 to 1.5), lock-step throughout; the 2-wide core stays in git as a working base |
 | The RTL falls further behind the model at this width | Margin lost: 8.0 needs × 0.92 of 8.68 | Cycle comparison by function |

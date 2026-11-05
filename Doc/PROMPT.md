@@ -6829,3 +6829,54 @@ The record is section 29.1 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.
 ```text
 iq2 finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**The first `OOC_IQ2` reached about 21.1 ns at a 15 ns target, 9,968 LUTs (WNS −6.138 ns, no payload).** Over both the 18 ns limit and 20 ns. The cause was the chain of selects, so I changed how the ALU ports select and pushed it (b8f03ad; 0 Ref on origin/dev). The new version's timing is not measured yet.
+
+## Why it was slow
+The worst `loop` path (19 levels, 86 % routes):
+
+| Part | ns |
+|---|---|
+| Ready bit and first select (port 3) | 5.9 |
+| Second select (port 2) | 5.4 |
+| Third select | 4.1 |
+| **The chain of selects** | **15.4 (73 %)** |
+| The tag's AND-OR | 2.5 |
+| Compare, ready bit | 3.2 |
+
+Last time I wrote that above 18 ns comes first a dependency matrix or a shorter chain; a dependency matrix takes off only part of the last 5.7 ns. So the chain went.
+
+## What changed
+- **Select by rank:** every any-ALU µop counts the ready any-ALU µops older than it, saturating at 4. Rank 0 goes to port 3, 1 to port 2, 2 to port 1, 3 to port 0, so the ports no longer depend on each other. An ALU0-only µop goes on port 0 when at most 3 any-ALU µops are older.
+- **LSU ports:** ports 5, 4 stay a chain of 2: a load's wakeup comes a cycle later, off the loop.
+- **LUTs:** the mux of about 44 bits choosing the writing slot went from each of 24 entries to each of 4 banks, as the queue alone had passed the 9k estimated with its payload. Counting the rank adds some back.
+
+## The price
+A µop that a write slot holds back keeps its rank, so its port is empty that cycle. This is in the cycle after a multiply or with `p0_hold`, and with 3 or more any-ALU µops ready. It is not in the model; I expect it small, but it is not measured.
+
+## Verification
+- **Bench:** `tb_iq2` 0 mismatches, with the new rule for port 0 as its reference; it also dispatches in a flush now.
+- **Bug injection:** M860 to M908 on the final RTL, all 49 detected, read before the commit.
+- **A redundant condition found:** on the way 1 (`!flush` at a bank's write) went undetected; it turned out to be logically unnecessary and was removed.
+- **My mistake:** `grep -v " DETECTED "` also hid the `NOT DETECTED` line. I ran it again keeping every line, and found which one.
+
+## The next measurement
+Please run the following on Windows. The first result stays in `output/OOC_IQ2_T15_chain`, so the new one goes to `OOC_IQ2_T15`.
+
+```bash
+synth_ooo.bat iq2
+```
+
+My estimate is 13 to 15 ns (select about 7 ns, tags 5.7 ns), also before any measurement. Last time's table of readings stands.
+
+The record is section 29.2 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 169. 2026-11-05 20:35:51 JST
+
+```text
+iq2 finished
+```
