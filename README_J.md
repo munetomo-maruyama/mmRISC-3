@@ -7,7 +7,7 @@
 > 作者は目標を決め、Claude Code が出した案から選び、Vivado と実機を動かす。
 
 mmRISC-2 の後継。**4 発行のアウトオブオーダ 64bit RISC-V CPU(RV64GC)** を SystemVerilog で自作し、**Digilent Nexys Video
-(XC7A200T-1SBG484C、100 MHz)** で、microSD スロット J3 から Linux(BusyBox、Debian 13)を起動する。Ethernet(RTL8211E)と
+(XC7A200T-1SBG484C、50 MHz)** で、microSD スロット J3 から Linux(BusyBox、Debian 13)を起動する。Ethernet(RTL8211E)と
 Pmod JA の JTAG / cJTAG も使う。周辺回路は LiteX から持ってきて、mmRISC-2 の資産(キャッシュ、MMU、CSR、デバッグ、FPU、
 検証環境)を流用する。
 
@@ -17,16 +17,16 @@ Pmod JA の JTAG / cJTAG も使う。周辺回路は LiteX から持ってきて
 
 | ビルド | 目標 | mmRISC-2 Rev.02(実機) |
 |---|---|---|
-| `-O2` | **100 MHz で 6.0 CoreMark/MHz 以上**(作業上の目標は RTL で 6.3、実機で 6.1) | 50 MHz で 2.794 |
+| `-O2` | **できる限り高い CoreMark/MHz、クロックにはこだわらない**。CPU は 50 MHz(作業上の目標は RTL で 8.0、実機で 7.8) | 50 MHz で 2.794 |
 
 実機の Linux 上で、Linux を動かすのと同じビットストリームで測る。
 
-## 現状(2026-11-02)
+## 現状(2026-11-05)
 
 **対象を Arty A7-100T から Nexys Video に変えた**(作者の決定、2026-11-02): 小さなデバイスに入れるための削減が性能を削っていた。
 2 命令幅のコアが `RTL/CPU/OOO` にある: riscv-arch-test と CoreMark を Spike とのロックステップで通し(`-O2` で 5.50 CoreMark/MHz)、
-XC7A100T の単体合成で 50 MHz を満たす。**100 MHz、4 発行**の提案: 4 命令幅、分散スケジューラ、約 4 段長いパイプライン。モデルで 6.90、アウトオブオーダの部分は約 59k LUT、新しいデバイスの約 73 %。
-挑戦であり、決め手になるループを作り直しの前に測る。作業の順序は [`Doc/STRATEGY_J.md`](Doc/STRATEGY_J.md) 5 章: コア、ボード(まず LiteX 自身の SoC と mmRISC-2 で立ち上げる)、Linux。
+単体合成で 50 MHz を満たす。**2026-11-05 に 100 MHz は断念した**(コア全体で約 18.8 ns、深いパイプラインは CoreMark/MHz を下げる)。提案: **リネーム 4、デコード 6、ALU 4 + LSU 2、6 発行、今と同じ段数、50 MHz**。モデルで 8.68、アウトオブオーダの部分は約 69k LUT、デバイスの約 81 % で上限ぎりぎり。
+決め手になるループを作り直しの前に 20 ns で測る。作業の順序は [`Doc/STRATEGY_J.md`](Doc/STRATEGY_J.md) 5 章: コア、ボード(まず LiteX 自身の SoC と mmRISC-2 で立ち上げる)、Linux。
 
 ## 文書
 

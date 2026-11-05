@@ -3837,3 +3837,33 @@ Only a branch's done bit needs the misprediction: the others come from registers
 | A2d | `rob_insn` read a stage before the CSR | −7.69 goes |
 
 Then `cpu10` again: **each cut shows the next**, and only then will the whole say what the core adds.
+
+---
+
+## 29. 100 MHz given up: 50 MHz, CoreMark/MHz first (2026-11-05)
+
+**The author's decision** (`Doc/PROMPT.md` 163, 164): 100 MHz is not aimed at on this device; CoreMark/MHz comes first; the CPU at 50 MHz, LiteX at 100 MHz. The plan is `Doc/STRATEGY.md`; the one it replaces is kept as `Plan/STRATEGY_100MHz.md`. Sections 28.1 to 28.26 stand as measurements: they are what the fallbacks of `Doc/STRATEGY.md` 4.5 rest on.
+
+**The model** (`Plan/model/g50.sh`, `results/g50.txt`): 4 renamed, 6 decoded, 32-byte fetch, 4 ALUs + 2 LSUs, 6 issues, unified queue of 24, ROB 48, LQ / SQ 16, 12 checkpoints, TAGE M, uBTB 96, today's depth: **8.677, `-O2`; 9.480 maximum optimization; 8.300 g13; 7.401 rv64gc**.
+
+**A correction to what I told the author before the decision.** That comparison used stores split in 2 µops with no replays, the same assumption that had to be taken back in 28.13: it gave 8.90 at 50 MHz. A late store's data does replay a load: **split with replays 7.947, −8.4 %; one µop with its data, as today, 8.677**. So stores stay as they are. It also made other rows too high:
+
+| | Told before | With one-µop stores |
+|---|---|---|
+| 33.3 MHz, load-use 1 | 9.74 | 9.66 |
+| 50 MHz | 8.90 | **8.68** |
+| 66.7 MHz, load-use 2 | 8.63 | 8.21: this row now also delays the override with the added fetch stage |
+| 66.7 MHz, load-use 3 | 7.83 | 7.27 |
+| 100 MHz | 7.39 | 7.00 |
+| 4 ALUs + 1 LSU | 8.49 | 7.98 |
+| 3 ALUs + 2 LSUs | 8.63 | 8.37 |
+
+The order of the clocks and the choice of 50 MHz do not change.
+
+**Rows that did not end.** With 4 distributed queues, `steer=3` (`OOO_SDISP`'s steering) and 2 LSU ports the model did not finish in 150 s, so those rows are not in `results/g50.txt`. A store's data µop on an ALU queue (`sd_alu`) without distributed queues did not end either. Neither is the chosen configuration; the cause was not looked into. If the fallback of loop 1 is taken, the model has to be looked at first.
+
+**RR1 taken out** (28.25): `OOO_CORE.sv` is as it was before 467a817. CoreMark `-O2` on `OOO_CORE` with no misses: **1,817,188 cycles**, as before RR1 (1,857,214 with it); `run_core.sh` 0 failures in all its runs, `run_coremark.sh` PASS.
+
+**The 4 cuts of 28.26 are not made**: at 20 ns they are not asked for yet.
+
+**Next**: step 1.1, the six loops of `Doc/STRATEGY.md` 4.5 at a 20 ns target, the unified queue of 24 with 6 selects first.

@@ -8,7 +8,7 @@
 > among the options it proposes, and runs Vivado and the board.
 
 The successor of mmRISC-2: a home-made **4-issue out-of-order 64-bit RISC-V CPU (RV64GC)** in SystemVerilog that is to run
-Linux (BusyBox, Debian 13) on a **Digilent Nexys Video (XC7A200T-1SBG484C) at 100 MHz**, from the microSD slot J3, with
+Linux (BusyBox, Debian 13) on a **Digilent Nexys Video (XC7A200T-1SBG484C) at 50 MHz**, from the microSD slot J3, with
 Ethernet (RTL8211E) and a JTAG / cJTAG port on Pmod JA. The peripherals come from LiteX, and the assets of mmRISC-2
 (caches, MMU, CSR, debug, FPU, verification environment) are reused.
 
@@ -18,18 +18,18 @@ The top priority is **CoreMark performance**:
 
 | Build | Goal | mmRISC-2 Rev.02 (board) |
 |---|---|---|
-| `-O2` | **above 6.0 CoreMark/MHz at 100 MHz** (working target 6.3 in RTL, 6.1 on the board) | 2.794 at 50 MHz |
+| `-O2` | **as high a CoreMark/MHz as can be had, the clock not insisted on**; CPU at 50 MHz (working target 8.0 in RTL, 7.8 on the board) | 2.794 at 50 MHz |
 
 Measured on the board under Linux, with the same bitstream that runs Linux.
 
-## Status (2026-11-02)
+## Status (2026-11-05)
 
 **The target changed from the Arty A7-100T to the Nexys Video** (the author's decision, 2026-11-02): the reductions
 needed to fit the smaller device were costing the performance. The 2-wide core is in `RTL/CPU/OOO`: in lock-step with
-Spike on riscv-arch-test and CoreMark (5.50 CoreMark/MHz with `-O2`), 50 MHz met out of context on the XC7A100T. The
-proposal for **4-issue at 100 MHz**: 4-wide, distributed schedulers, a pipeline about 4 stages longer; 6.90 in the model,
-about 59k LUTs for the engine, about 73 % of the new device. It is a challenge, and the loops that decide it are measured
-before the rework. The work order is in [`Doc/STRATEGY.md`](Doc/STRATEGY.md) section 5: the core, the board (brought up with
+Spike on riscv-arch-test and CoreMark (5.50 CoreMark/MHz with `-O2`), 50 MHz met out of context. **100 MHz was given up on
+2026-11-05** (the whole core reached about 18.8 ns, and a deep pipeline loses CoreMark/MHz). The proposal: **4 renamed, 6
+decoded, 4 ALUs + 2 LSUs, 6 issues, at today's pipeline depth, 50 MHz**: 8.68 in the model, about 69k LUTs for the engine,
+about 81 % of the device, at the ceiling. The loops that decide it are measured at 20 ns before the rework. The work order is in [`Doc/STRATEGY.md`](Doc/STRATEGY.md) section 5: the core, the board (brought up with
 LiteX's own SoC and mmRISC-2 first), Linux.
 
 ## Documents

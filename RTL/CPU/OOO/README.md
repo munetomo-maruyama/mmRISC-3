@@ -2,7 +2,7 @@
 
 [日本語](README_J.md)
 
-> **2026-11-02**: the core here is the 2-wide one of `Plan/CORE.md` 5.22; it is to become 4-issue at 100 MHz on the XC7A200T (`Doc/STRATEGY.md` 4, 5).
+> **2026-11-05**: the core here is the 2-wide one of `Plan/CORE.md` 5.22; it is to become 4-wide with 6 issues at 50 MHz on the XC7A200T (`Doc/STRATEGY.md` 4, 5). The blocks built for 100 MHz stay here, with their benches: which are used is in `Doc/STRATEGY.md` 4.6.
 
 The first blocks of mmRISC-3's out-of-order core in the **fusion configuration** (`Plan/STRATEGY_A100T.md` section 4): the
 loops that have to close in one cycle at 50 MHz and the parts whose cost decides the configuration. They are written

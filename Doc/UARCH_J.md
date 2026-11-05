@@ -1,6 +1,6 @@
 # mmRISC-3 マイクロアーキテクチャ仕様書(G0)
 
-- **2026-11-02に改訂: まず0章を読むこと。** 対象はXC7A200Tになった
+- **2026-11-05に改訂: 100 MHzは断念した。下の0章と4.5は履歴。構成は`Doc/STRATEGY_J.md` 4。** 2026-11-02に改訂: まず0章を読むこと。対象はXC7A200Tになった
 - 日付: 2026-10-24
 - 位置づけ: `Plan/STRATEGY_A100T_J.md` 7章のG0の仕様書(`Plan/ISSUES_J.md` 5章の手順5)。Phase 1のマイクロアーキテクチャを凍結し、予測するCoreMark/MHzとLUTの予算を数字で示す。**2026-10-24に条件付きで通過**(作者の決定は9章。予算はG0bで決める)。
 - 根拠: サイクルモデル(`Plan/MODEL_J.md`、`Plan/model/g0.sh` → `Plan/model/results/g0.txt`)、RTLブロックとそのVivado結果(`Plan/OOC_J.md`)、mmRISC-2 Rev.02の階層別の実測(`Plan/ISSUES_J.md` 2章)、削減の選択肢(`Plan/REDUCE_J.md`)。

@@ -6567,3 +6567,155 @@ The record is section 28.25 of `Plan/OOC.md` (Japanese `Plan/OOC_J.md`).
 ```text
 cpu10 finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOO_CPU` at a 10 ns target reached about 18.8 ns (WNS −8.824 ns, 37,240 LUTs). But what I wanted to know, how much building into the core adds, could not be measured**, because the limit lay in paths between blocks, not inside them. The record is pushed (c63201c).
+
+#### The limit is in the paths between blocks
+
+| Worst slack | Levels | Path |
+|---|---|---|
+| −8.82 | 23 | ROB head exception → flush → go of `OOO_CTRL` → dispatch valid → tval read → `OOO_TRAP` |
+| −7.91 | 35 | WB result → bypass → ALU → misprediction → ROB done bit |
+| −7.80 | 35 | EX → ALU → misprediction → ROB done bit |
+| −7.69 | 25 | `rob_insn` → `OOO_CSRU` |
+| −7.65 | 35 | LSU bypass and address → ROB done bit |
+| −7.60 | 34 | ALU1's EX to the other ports' stages, the queues, `OOO_CTRL`, `OOO_MDUP` |
+| −6.17 | 16 | The fetch buffer loop (alone −3.31) |
+| −6.02 | 15 | Fetch itself (`OOC_FE` alone −4.79) |
+
+- **"About 1 ns" is still unknown:** only the fetch buffer (+2.86 ns) and fetch (+1.2 ns) compare with their runs alone. Vivado does not optimize paths behind worse ones, so those two are upper bounds.
+- **The 6 loops were not all of it:** these joins are not among the loops I have been measuring. They are not limits in principle, just decisions taken in the same cycle that could wait a cycle. Cutting them was not in the plan of step 1.3, though.
+
+#### Proposal: cut 4 first
+
+| # | What is cut | Expected |
+|---|---|---|
+| A2a | The ROB head's exception goes into a register before the flush | The −8.82 path goes. A trap is a cycle later |
+| A2b | A branch's completion comes from the registered resolution | The −7.9 family goes |
+| A2c | The LSU's completion comes from a register (`OOO_LSU2` has this form already) | −7.65 goes |
+| A2d | `rob_insn` is read a stage before the CSR | −7.69 goes |
+
+#### The cost in CoreMark (model)
+
+| | `-O2` | Max optimization | g13 | rv64gc |
+|---|---|---|---|---|
+| The design now | 6.656 | 7.182 | 6.415 | 5.733 |
+| All results' done a cycle later | 6.624 | 7.156 | 6.384 | 5.710 |
+| The redirect a cycle later | 6.643 | 7.166 | 6.403 | 5.724 |
+
+Only a branch's done needs the misprediction decision; other results come from registers. The proposal delays only a branch's completion, so the cost should be below the −0.5 % of the second row. The actual value will be checked in RTL cycles after the cuts.
+
+A trap a cycle later should cost next to nothing in CoreMark. In Linux, with interrupts and exceptions more frequent, the effect is not checked.
+
+#### What comes next
+After the 4 cuts, `cpu10` runs again. Each cut shows the next path, so this takes a few rounds. Only then is it known how much building into the core adds.
+
+I recommend this before stage B (load-use 3 cycles): if these paths remain, adding a stage tells nothing from the measurement.
+
+The record is section 28.26 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 163. 2026-11-05 17:47:17 JST
+
+```text
+I want to change direction again here.
+Aiming at 100 MHz on this FPGA seems difficult.
+This time CoreMark/MHz maximization takes priority, so I will not insist on the operating frequency.
+
+What is a realistic operating frequency for the CPU?
+There are interfaces such as DDR3 and Ethernet, so I think it also depends on the operating
+frequencies of those peripherals.
+Please propose an operating frequency for each system block.
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**For the CPU I propose 50 MHz. The peripherals stay as now planned, LiteX at 100 MHz, and neither DDR3 nor Ethernet limits the CPU's clock.** But the 50 MHz operation of the wide configuration compared here has not been measured. Only today's 2-wide core has: WNS +0.159 ns at a 20 ns target, about 18.8 ns at a 10 ns target.
+
+## What decides the CPU's clock
+What moves CoreMark/MHz is load-use; the other stages move it little (model, `-O2`, the 50 MHz configuration below).
+
+| Change | CoreMark/MHz |
+|---|---|
+| **Load-use 2 → 3** | **−12 %** |
+| Multiply 2 → 3 | −1.6 % |
+| A register-read stage more | −1.0 % |
+| A fetch or a decode stage more | −0.26 % each |
+| Decode and redirect a stage shorter each | +0.5 % |
+
+So the answer is **the highest clock that keeps load-use 2 and ALU 1 cycle**. Today's LSU takes about 12.7 ns for its load stage alone, and the routes between blocks add to that.
+
+## The candidate clocks
+Every row is one configuration: 4 renamed, 6 decoded, 32-byte fetch, 4 ALUs + 2 LSUs (6 issues), stores split, uBTB 96. RTL is assumed to be the model × 0.94, today's ratio.
+
+| CPU | Pipeline | Model | RTL estimate | CoreMark/s | Feasibility |
+|---|---|---|---|---|---|
+| 33.3 MHz | **Load-use 1** (block RAM read on the falling edge) | 9.74 | 9.2 | 305 | A structural change, not measured |
+| 40 MHz | Shorter than 50 MHz | 8.95 | 8.4 | 336 | Almost nothing gained by going down to 40 MHz |
+| **50 MHz** | **Load-use 2, multiply 2** | **8.90** | **8.4** | **418** | **The main candidate**, the same stages as today's core |
+| 66.7 MHz | Load-use 2, each stage +1 | 8.63 | 8.1 | 541 | Possible if the paths between blocks are cut |
+| 66.7 MHz | Load-use 3 | 7.83 | 7.4 | 491 | Load-use costs a lot |
+| 100 MHz | Deep pipeline | 7.39 | 6.9 | 695 | Given up this time |
+
+With maximum optimization, the 50 MHz configuration gives 9.76 in the model. Today's core measures 5.50, so the step is large.
+
+## The clock of each block
+
+| Block | Clock | Why |
+|---|---|---|
+| The whole core (fetch to ROB), L1 | **50 MHz** | As above |
+| FPU, MDU, CSR, PTW / PMP | **50 MHz** | The CPU's own clock, so no half-rate islands |
+| L2, debug, CLINT, PLIC | **50 MHz** | The same. `mtime` by a divider of 100, 500 kHz as before |
+| LiteX `sys` (LiteDRAM, CSR, UART, SD logic, LiteEth's bus side) | **100 MHz** | Needed for DDR3-800, LiteX's default on this board |
+| DDR3 PHY `sys4x`, `sys4x_dqs` | **400 MHz** (`dqs` at 90°) | 800 MT/s is the board's specified value |
+| IDELAYCTRL | **200 MHz** | For DDR3 and RGMII's receive delay |
+| Ethernet RGMII | **125 MHz** | `LiteEthPHYRGMII` is 1 Gb/s only, from the PHY's receive clock |
+| microSD | **Starts at 25 MHz, up to 50 MHz** | LiteSDCard's divider; 3.3 V only |
+| JTAG / cJTAG (Pmod JA) | **Up to 10 MHz** (asynchronous) | The limit of JA's 200 Ω series resistors |
+
+- **An MMCM setting, as an example:** from a VCO of 800 MHz, 100 MHz (/8), 400 MHz (/2), 200 MHz (/4), 50 MHz (/16). Not checked in Vivado.
+- **The crossing on the bus:** 50 / 100 MHz between the CPU and LiteX, with `AXIClockDomainCrossing` and `AXILiteClockDomainCrossing`, as in mmRISC-2's bring-up plan.
+
+## How it depends on the peripherals
+- **DDR3:** JEDEC's lower limit of 303 MHz and the 1:4 ratio need LiteX at about 76 MHz or above; 800 MT/s as the upper limit gives 100 MHz at most. So 100 MHz.
+- **Ethernet and SD:** both are complete on LiteX's side. Under Linux, though, the transfer rate is capped by the CPU's copy, which has not been estimated.
+- **CoreMark:** the crossing's delay counts only on a cache miss, so the effect should be small. This is checked under Linux.
+
+## Unchecked points and risks
+- **6 issues at 50 MHz:** the register file with 12 reads and 6 writes and the 6 bypass sources have not been synthesized.
+- **LUTs:** the estimate of about 98k is for the 100 MHz 4-issue design, and is to be redone. If 2 LSU ports and 4 ALUs do not fit, the configuration comes down: 4 ALUs + 1 LSU 8.49, 3 ALUs + 2 LSUs 8.63.
+- **The × 0.94 ratio:** not checked for the wide configuration.
+
+## What needs your decision
+- **I recommend 50 MHz:** it keeps load-use 2, and needs no half-rate islands or their crossings.
+- **Where 33.3 MHz stands:** by CoreMark/MHz alone, load-use 1 at 33.3 MHz is the highest, 9.74 (+9.5 % on 50 MHz). But CoreMark/s falls 27 %, Linux is slower, and block RAM read on the falling edge needs verification of its own. It depends on how far CoreMark/MHz is to be put first.
+- **66.7 MHz:** not a goal; a candidate to go up to once 50 MHz is complete and the margin measured. CoreMark/MHz −3 %, CoreMark/s +29 %.
+
+Once decided, I go on to 2 things:
+- rewriting the goal, the configuration and the gates of `Doc/STRATEGY`;
+- sorting the RR1 stage now in the core and the blocks built for 100 MHz (reuse or stop).
+
+This comparison is not yet recorded in the documents. The addition to `Doc/PROMPT.md` is not committed yet, and goes with the next commit.
+<!-- /answer -->
+
+## 164. 2026-11-05 17:59:40 JST
+
+```text
+Proceed with 50 MHz
+```
+
+## 165. 2026-11-05 18:03:16 JST
+
+```text
+Try again
+```
+
+## 166. 2026-11-05 18:08:53 JST
+
+```text
+Please try again
+```

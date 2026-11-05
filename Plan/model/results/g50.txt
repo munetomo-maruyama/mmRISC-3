@@ -1,0 +1,39 @@
+| configuration | -O2 | max | g13 | rv64gc |
+|---|---|---|---|---|
+| today's core (2-wide, without RR1)                             |  5.805 |  6.322 |  5.668 |  4.859 |
+| **the configuration** | | | | |
+| **4 renamed, 6 decoded, 32-byte fetch, 4 ALUs + 2 LSUs, 6 issues** |  8.677 |  9.480 |  8.300 |  7.401 |
+| **stores (the chosen: one µop, with its data)** | | | | |
+| split in 2 µops, no replays: not to be had                    |  8.900 |  9.749 |  8.513 |  7.636 |
+| split in 2 µops, a late data replays at commit, wait table 64 |  7.947 |  8.711 |  7.593 |  6.792 |
+| **fewer ports, smaller front end** | | | | |
+| 4 ALUs + 1 LSU, 5 issues                                       |  7.982 |  8.697 |  7.678 |  6.936 |
+| 3 ALUs + 2 LSUs, 5 issues                                      |  8.374 |  9.056 |  8.004 |  7.067 |
+| 3 ALUs + 1 LSU, 4 issues                                       |  7.715 |  8.369 |  7.446 |  6.666 |
+| 4 decoded, 16-byte fetch                                       |  7.923 |  8.555 |  7.665 |  7.183 |
+| **the queue** | | | | |
+| unified 16                                                     |  8.554 |  9.336 |  8.182 |  7.278 |
+| unified 32                                                     |  8.682 |  9.486 |  8.306 |  7.407 |
+| 4 ALU queues of 8, a memory queue of 12, one select each       |  8.470 |  9.179 |  8.119 |  7.229 |
+| **the front end** | | | | |
+| fetch a stage more, the override a stage later                 |  8.492 |  9.337 |  8.161 |  7.330 |
+| the 100 MHz fetch: 5 stages, the override at F4                |  8.276 |  9.131 |  7.988 |  7.220 |
+| decode one block a cycle                                       |  8.490 |  9.369 |  8.206 |  7.379 |
+| decode a stage more                                            |  8.632 |  9.428 |  8.259 |  7.370 |
+| the 100 MHz front end as built: all of the above               |  8.178 |  8.991 |  7.880 |  7.174 |
+| **the back end** | | | | |
+| RR1: select to EX 3 cycles                                     |  8.583 |  9.371 |  8.203 |  7.295 |
+| multiply 3                                                     |  8.534 |  9.408 |  8.169 |  7.280 |
+| load-use 3                                                     |  7.575 |  8.207 |  7.286 |  6.579 |
+| ALU 2 cycles                                                   |  6.357 |  7.002 |  5.981 |  5.092 |
+| **what more could be asked (after gate S1-B, if LUTs allow)** | | | | |
+| ROB 64, LQ / SQ 24, 16 checkpoints                             |  8.809 |  9.563 |  8.442 |  7.564 |
+| fusion 2 (one write, two sources)                              |  8.734 |  9.587 |  8.385 |  7.607 |
+| 5 renamed                                                      |  8.793 |  9.732 |  8.430 |  7.532 |
+| TAGE L                                                         |  8.656 |  9.485 |  8.295 |  7.389 |
+| **other clocks, the same ports** | | | | |
+| 40 MHz: decode and redirect a stage shorter                    |  8.722 |  9.532 |  8.340 |  7.433 |
+| 33.3 MHz: load-use 1, block RAM on the falling edge            |  9.663 | 10.796 |  9.305 |  8.310 |
+| 66.7 MHz: load-use 2, fetch, decode, RR, multiply a stage more |  8.209 |  9.083 |  7.889 |  7.058 |
+| 66.7 MHz: the same with load-use 3                             |  7.269 |  7.944 |  7.005 |  6.308 |
+| 100 MHz: the 100 MHz pipeline, load-use 3, multiply 4          |  6.998 |  7.715 |  6.754 |  6.145 |

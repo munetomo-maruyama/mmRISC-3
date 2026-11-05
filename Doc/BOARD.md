@@ -69,12 +69,13 @@ crossings, the status LEDs, the device tree, the timing constraints.
 | Clock | Frequency | Use |
 |---|---|---|
 | Board's oscillator, pin R4 (MRCC, bank 34) | 100 MHz | MMCM input |
-| **CPU, L1 hit paths** | **100 MHz, the same clock as `sys`** (mmRISC-2 in the bring-up: 50 MHz) | The author's decision, 2026-11-02 |
-| CPU's half-rate islands | 50 MHz, from the same MMCM | `Doc/STRATEGY.md` 4.4 |
+| **The whole CPU** (mmRISC-3, and mmRISC-2 in the bring-up) | **50 MHz, from the same MMCM** | The author's decision, 2026-11-05: `Doc/STRATEGY.md` 4.4 |
 | **LiteX `sys`**: LiteDRAM, CSR, UART, SD, LiteEth's bus side | **100 MHz, its default on this board** | Section 4 |
 | `sys4x`, `sys4x_dqs` | 400 MHz, 400 MHz at 90° | DDR3-800 |
 | IDELAYCTRL | 200 MHz | DDR3 and RGMII's receive delay |
 | RGMII transmit | 125 MHz with a 2 ns phase | A PLL fed by the PHY's receive clock (section 6) |
+| microSD | 25 MHz, then up to 50 MHz | LiteSDCard's divider of `sys` (section 5) |
+| JTAG / cJTAG on JA | At most 10 MHz, asynchronous | JA's 200 Ω series resistors (section 7) |
 
 ---
 
@@ -88,7 +89,7 @@ bought.
 
 | Option | What | For | Against |
 |---|---|---|---|
-| **A (recommended; revised 2026-11-02)** | **All of LiteX at 100 MHz, its default here.** mmRISC-3 runs on that same clock, with no crossing on the memory bus. mmRISC-2, in the bring-up, runs at 50 MHz with crossings in its wrapper: the memory bus through `AXIClockDomainCrossing` (or `get_port(clock_domain=...)`), the peripheral and DMA buses through `AXILiteClockDomainCrossing` | LiteX's target as it is, which is what is used and tested on this board; within JEDEC on all parts; twice the bandwidth; SD can go faster; all new logic in one file | Peripherals at 100 MHz; CSR accesses take the crossing (rarely matters); the DRAM's latency has crossing cycles to be measured |
+| **A (recommended; revised 2026-11-05)** | **All of LiteX at 100 MHz, its default here.** The CPU, mmRISC-2 in the bring-up and then mmRISC-3, runs at 50 MHz with crossings in its wrapper: the memory bus through `AXIClockDomainCrossing` (or `get_port(clock_domain=...)`), the peripheral and DMA buses through `AXILiteClockDomainCrossing` | LiteX's target as it is, which is what is used and tested on this board; within JEDEC on all parts; twice the bandwidth; SD can go faster; all new logic in one file | Peripherals at 100 MHz; CSR accesses take the crossing (rarely matters); the DRAM's latency has crossing cycles to be measured |
 | B | LiteDRAM alone at 100 MHz, its domain split from `sys`; the peripherals at 50 MHz with the CPU | Peripherals' timing as on the Arty | Renames domains inside LiteX's SoC, against its grain |
 | C | MIG (UG586) in place of LiteDRAM, its AXI at 100 MHz | Xilinx's supported flow | More logic, an IP flow, a new BIOS init; no gain over A. **Fallback only** |
 | D | DDR3-400 as on the Arty | No work | Outside the JEDEC range; a trial at most |
@@ -198,7 +199,7 @@ The Arty's RGB LEDs were too bright and ran at 1/16 duty; these have 100 Ω and 
 | 9 | **VADJ** (section 8): LiteX's `LVCMOS25` on switches would read a 1.2 V high as low | Design | `LVCMOS12`, `SET_VADJ` untouched |
 | 10 | **The pmod for the debug probe** keeps its pinout; 200 Ω as before; the probe's 3.3 V | Fine | Nothing to buy |
 | 11 | **The PMOD MicroSD and Ethernet of the Arty do not carry over** | Fine | J3 and the RJ-45 replace them; a shielded cable is asked for by the manual |
-| 12 | **Speed grade.** -1 as before: twice the logic, not faster logic; **the goal of 100 MHz makes this the main risk** | Known | `Doc/STRATEGY.md` 4.5, 8 |
-| 13 | **Power and heat at 100 MHz** with about 98k LUTs: more than the 50 MHz plan. 36 W of supply is ample for the estimate, the 1.0 V rail 4 A max | Check | `report_power` on the first full build; fan or heat sink decided from it |
+| 12 | **Speed grade.** -1 as before: twice the logic, not faster logic; **a reason 100 MHz was given up, 2026-11-05** | Known | `Doc/STRATEGY.md` 1 |
+| 13 | **Power and heat** with about 109k LUTs at 50 MHz, LiteX at 100 MHz. 36 W of supply is ample for the estimate, the 1.0 V rail 4 A max | Check | `report_power` on the first full build; fan or heat sink decided from it |
 
 Sources for 1, 2 and 7 are distributor pages and AMD's UG973, checked 2026-11-02; prices and stock change.

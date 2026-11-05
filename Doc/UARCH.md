@@ -1,6 +1,6 @@
 # mmRISC-3 micro-architecture specification (G0)
 
-- **Revised 2026-11-02: read section 0 first.** The target is now the XC7A200T
+- **Revised 2026-11-05: 100 MHz is given up, and section 0 and 4.5 below are history; the configuration is `Doc/STRATEGY.md` 4.** Revised 2026-11-02: read section 0 first. The target is now the XC7A200T
 - Date: 2026-10-24
 - Status: the G0 specification of `Plan/STRATEGY_A100T.md` section 7 (step 5 of `Plan/ISSUES.md` section 5): the
   micro-architecture of Phase 1 frozen, the predicted CoreMark/MHz and the LUT budget in numbers. **Passed with a
