@@ -3867,3 +3867,39 @@ The order of the clocks and the choice of 50 MHz do not change.
 **The 4 cuts of 28.26 are not made**: at 20 ns they are not asked for yet.
 
 **Next**: step 1.1, the six loops of `Doc/STRATEGY.md` 4.5 at a 20 ns target, the unified queue of 24 with 6 selects first.
+
+### 29.1 Loop 1: `OOO_IQ2`, `OOC_IQ2`, the queue of 24 with 6 selects (2026-11-05)
+
+**The block.** `RTL/CPU/OOO/OOO_IQ2`: unified, 24 entries, 4 µops in, 6 ports, tag compare as in `OOO_IQ`: the straightforward design first, to be measured before anything cleverer. Ports 3, 2, 1, then 0 from what is left; 5, then 4 from what is left. So the longest path is a chain of 4 selects, then a tag's AND-OR, then 9 compares.
+
+**What it asks of the model, which treated every port as able to take anything** (new options `st_lsu0`, `p0_ops`, `p0_opx`, `iq_bank`; `results/g50.txt`):
+
+| Limit | -O2 | max | g13 | rv64gc |
+|---|---|---|---|---|
+| None | 8.677 | 9.480 | 8.300 | 7.401 |
+| A store only on LSU 0 (so port 5 reads one source: 11 reads, not 12) | 8.669 | 9.472 | 8.295 | 7.401 |
+| Multiply, divide, system only on ALU 0 | 8.664 | 9.480 | 8.288 | 7.415 |
+| ... and the slow operations | 8.664 | 9.480 | 8.288 | 7.415 |
+| ... a multiply takes port 1's write slot (6 writes, not 7) | 8.652 | 9.456 | 8.277 | 7.397 |
+| 4 banks of 6 | 8.667 | 9.476 | 8.293 | 7.397 |
+| **All: as built** | **8.633** | **9.445** | **8.265** | **7.391** |
+
+All together −0.5 %. The gain of "only on ALU 0" on rv64gc is the model's: with no limit a divide stopped all 4 ALUs, with it only the MDU.
+
+**Simplifications from the 50 MHz budget and from 4 writes:**
+- The free entries: the first of each bank, not a search of 24 for 4.
+- The age row of a new entry: all ones but for what is written after it, as an empty entry requests nothing. So the row does not depend on the select.
+
+**The bench.** `tb_iq2`: an account of when every value can be used, kept apart from the queue's bits, as `tb_iq`; 400,000 cycles, 532,542 µops, 2,734 cycles with all 6 ports, the queue full in 95,133 cycles, the banks short in 136,842, 0 mismatches. **Mutations M860 to M898: 39 of 39 detected.**
+
+**The harness.** `OOC_IQ2`, `report_iq2.tcl`, `synth_ooo.bat iq2`, **at 15 ns**, not 20: Vivado stops when a target is met, and what is wanted is the margin for the joins. No payload yet (`OOO_IQPL` with 4 writes and 6 reads comes after this loop). Lint clean on its lines with `-Wall`.
+
+**What the result will decide:**
+
+| `loop` reaches | Reading |
+|---|---|
+| About 15 ns or less | Room for the joins: unified 24 stays |
+| 15 to 18 ns | Unified 24 possible: then look at the paths before deciding |
+| Above 18 ns | No margin: first a dependency matrix or a chain of fewer selects, then `OOO_SCHED` (−2.4 %) |
+
+These limits are my judgement, before any measurement.

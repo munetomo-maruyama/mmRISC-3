@@ -166,7 +166,7 @@ One MMCM, for example: VCO 800 MHz, 100 MHz (/8), 400 MHz (/2), 400 MHz at 90° 
 
 | # | Loop | Target | If it fails | Model | Known so far |
 |---|---|---|---|---|---|
-| 1 | **Wakeup + select** | 1 cycle, unified 24, 6 selects | Distributed queues (`OOO_SCHED`) | −2.4 % | Today's 11.8 ns, 10 entries, 3 ports. `OOO_SCHED` 8.9 ns, 8 entries each. Unified 24: not measured |
+| 1 | **Wakeup + select** | 1 cycle, unified 24, 6 selects | Distributed queues (`OOO_SCHED`) | −2.4 % | Today's 11.8 ns, 10 entries, 3 ports. `OOO_SCHED` 8.9 ns, 8 entries each. **Built: `OOO_IQ2`, model 8.63 with its limits (`Plan/OOC.md` 29.1); `synth_ooo.bat iq2` to run** |
 | 2 | **Bypass + ALU + register file** | RR and EX, 6 results, 12 reads, 6 writes | 3 ALUs; the register file double-pumped on the 100 MHz clock | −3.5 % | `OOO_EXU` with `OOO_PRF2` 9.2 ns a stage, 12,472 LUTs, 3 ALUs, 4 writes, 8 reads |
 | 3 | **Load** | Load-use 2, 2 ports | 1 LSU; load-use 3 | −8.0 %; −12.7 % | Today's 12.6 ns, 1 port |
 | 4 | **Fetch** | 32 B, 3 stages, the override at F2 | A stage more, the override with it | −2.1 % | Today's 14.3 ns, 16 B. `OOC_FE2` 9.5 ns a stage, 5 stages |
@@ -201,7 +201,7 @@ All stay in the tree with their benches.
 | # | Work | Done when |
 |---|---|---|
 | 1.0 | **Done 2026-11-05**: the configuration in the model (`Plan/model/g50.sh`); RR1 out of the core | 8.68; lock-step and CoreMark as before RR1 |
-| 1.1 | Harnesses of the six loops at a 20 ns target, in the order of 4.5: unified 24 first, then the register file with bypass and 4 ALUs, 2 load ports, fetch, fetch buffer, rename. `OOO_CPU` at 20 ns at each join | **Gate S1-A**: all within 20 ns, or a fallback taken with its price; the LUTs under 80 % by the sums; the configuration frozen |
+| 1.1 | Harnesses of the six loops at a 20 ns target, in the order of 4.5: unified 24 first (`OOC_IQ2`), then the register file with bypass and 4 ALUs, 2 load ports, fetch, fetch buffer, rename. `OOO_CPU` at 20 ns at each join | **Gate S1-A**: all within 20 ns, or a fallback taken with its price; the LUTs under 80 % by the sums; the configuration frozen |
 | 1.2 | The width as a parameter of `OOO_CORE`, then W = 4: ROB, LQ / SQ, checkpoints, rename; tests at both widths | Lock-step; cycles against the model |
 | 1.3 | Queue of 24, 6 issues; 4 ALUs; the register file | Tests; cycles against the model |
 | 1.4 | The second LSU port | Tests; cycles against the model |

@@ -34,6 +34,7 @@ TOP[prf]=OOO_PRF;       SRC[prf]="$R/OOO_PRF/OOO_PRF.sv"
 TOP[rename]=OOO_RENAME; SRC[rename]="$R/OOO_RENAME/OOO_RENAME.sv"
 TOP[rename2]=OOO_RENAME2; SRC[rename2]="$R/OOO_RENAME2/OOO_RENAME2.sv"; GV[rename2]="--public-flat-rw"
 TOP[iq]=OOO_IQ;         SRC[iq]="$R/OOO_IQ/OOO_IQ.sv"
+TOP[iq2]=OOO_IQ2;       SRC[iq2]="$R/OOO_IQ2/OOO_IQ2.sv"
 TOP[sched]=OOO_SCHED;   SRC[sched]="$R/OOO_SDISP/OOO_SDISP.sv $R/OOO_SCHED/OOO_SCHED.sv"
 TOP[exu]=OOO_EXU;       SRC[exu]="$R/OOO_ALUR/OOO_ALUR.sv $R/OOO_ALUF/OOO_ALUF.sv $R/OOO_EXU/OOO_EXU.sv"
 TOP[prf2]=OOO_PRF2;     SRC[prf2]="$R/OOO_PRF2/OOO_PRF2.sv"
@@ -65,7 +66,7 @@ TOP[dec]=OOO_DEC;       SRC[dec]="$C/CORE_DECOMP/CORE_DECOMP.sv $C/CORE_DEC/CORE
 XC[dec]="-I$SP/include -I$SP/include/riscv -I$SP/include/softfloat -I$SP/include/fesvr -Wno-c++20-extensions"
 XL[dec]="-L$SP/lib -lriscv -ldisasm -lsoftfloat -lfesvr -Wl,-rpath,$SP/lib -lpthread -ldl"
 TOP[fetch]=OOO_FETCH;   SRC[fetch]="$R/OOO_UBTB/OOO_UBTB.sv $R/OOO_PREDEC/OOO_PREDEC.sv $R/OOO_TAGE/OOO_TAGE.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FETCH/OOO_FETCH.sv"
-TESTS=${*:-alu2 alu1 exu fuse prf prf2 rename rename2 ctrl dsreg stage fers trap sys csru mdup pmul iq sched iqpl ubtb ubtb2 lsu lsu2 dcad rob fbuf fbuf2 fdec ftq predec ras btb tage fetch dec}
+TESTS=${*:-alu2 alu1 exu fuse prf prf2 rename rename2 ctrl dsreg stage fers trap sys csru mdup pmul iq iq2 sched iqpl ubtb ubtb2 lsu lsu2 dcad rob fbuf fbuf2 fdec ftq predec ras btb tage fetch dec}
 
 fail=0
 for t in $TESTS; do

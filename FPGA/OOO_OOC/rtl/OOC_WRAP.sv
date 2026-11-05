@@ -27,6 +27,7 @@
 //   OOC_MDUP    port 0's MDU (CORE_MDU)
 //   OOC_PMUL    the pipelined mul / mulw beside it
 //   OOC_FE      the front end put together (OOO_FRONT)
+//   OOC_IQ2     the queue of 24 with 6 selects (OOO_IQ2, Doc/STRATEGY.md 4.5 loop 1)
 //
 // The FTQ has 16 blocks since D-18 (2026-10-29): OOC_FE has them. OOC_ROB,
 // OOC_FBUF, OOC_FTQ, OOC_CTRL and OOC_FERS keep the 8 (an index of 3 bits)
@@ -1274,6 +1275,76 @@ module OOC_SCHED
          .disp_go(go), .disp_q(dq), .disp_e(de), .ext_valid(xv), .ext_entry(xe),
          .rr_valid(rv), .rr_entry(re), .rr_bm(rb), .rr_ns(rn), .rr_md(rm));
 endmodule : OOC_SCHED
+
+//---------------------------------------------------------------------------
+// OOC_IQ2: the issue queue of the 4-wide core at 50 MHz, its inputs and outputs in
+// flip-flops. The wakeup tags have their own register (o_wk): renaming's busy bits and
+// the DS register will read them a little later than that in the core.
+//---------------------------------------------------------------------------
+module OOC_IQ2
+    (
+        input  logic              clk,
+        input  logic              rst_n,
+        input  logic              flush,
+        input  logic [11:0]       kill,
+        input  logic [11:0]       clr,
+        input  logic              ns_ok,
+        input  logic              mdu_ok,
+        input  logic              p0_hold,
+        input  logic [3:0]        disp_valid,
+        input  logic [3:0][1:0]   disp_port,
+        input  logic [3:0][1:0]   disp_use,
+        input  logic [3:0][1:0][6:0] disp_src,
+        input  logic [3:0][1:0]   disp_rdy,
+        input  logic [3:0]        disp_wr,
+        input  logic [3:0][6:0]   disp_dst,
+        input  logic [3:0]        disp_lat2,
+        input  logic [3:0][11:0]  disp_bm,
+        input  logic [3:0]        disp_ns,
+        input  logic [3:0]        disp_md,
+        input  logic [3:0]        disp_st,
+        input  logic [1:0]        ext_valid,
+        input  logic [1:0][6:0]   ext_tag,
+        output logic [241:0]      o_iss,
+        output logic [71:0]       o_wk,
+        output logic [22:0]       o_disp
+    );
+    logic              i_fl, i_nk, i_mk, i_ph;
+    logic [11:0]       i_ki, i_cl;
+    logic [3:0]        i_v, i_w, i_l, i_n, i_m, i_t;
+    logic [3:0][1:0]   i_p, i_u, i_r;
+    logic [3:0][1:0][6:0] i_s;
+    logic [3:0][6:0]   i_d;
+    logic [3:0][11:0]  i_b;
+    logic [1:0]        i_xv;
+    logic [1:0][6:0]   i_xt;
+    logic [2:0]        dr;
+    logic [3:0][4:0]   de;
+    logic [5:0]        iv, iw;
+    logic [5:0][4:0]   ie;
+    logic [5:0][1:0][6:0] is;
+    logic [5:0][6:0]   id;
+    logic [5:0][11:0]  ib;
+    logic              in, im;
+    logic [8:0]        wv;
+    logic [8:0][6:0]   wt;
+    always_ff @(posedge clk) begin
+        i_fl <= flush; i_ki <= kill; i_cl <= clr; i_nk <= ns_ok; i_mk <= mdu_ok; i_ph <= p0_hold;
+        i_v <= disp_valid; i_p <= disp_port; i_u <= disp_use; i_s <= disp_src; i_r <= disp_rdy; i_w <= disp_wr;
+        i_d <= disp_dst; i_l <= disp_lat2; i_b <= disp_bm; i_n <= disp_ns; i_m <= disp_md; i_t <= disp_st;
+        i_xv <= ext_valid; i_xt <= ext_tag;
+        o_iss  <= {iv, ie, is, iw, id, ib, in, im};
+        o_wk   <= {wv, wt};
+        o_disp <= {dr, de};
+    end
+    OOO_IQ2 u_iq
+        (.clk(clk), .rst_n(rst_n), .flush(i_fl), .kill(i_ki), .clr(i_cl), .ns_ok(i_nk), .mdu_ok(i_mk), .p0_hold(i_ph),
+         .disp_ready(dr), .disp_entry(de), .disp_valid(i_v), .disp_port(i_p), .disp_use(i_u), .disp_src(i_s),
+         .disp_rdy(i_r), .disp_wr(i_w), .disp_dst(i_d), .disp_lat2(i_l), .disp_bm(i_b), .disp_ns(i_n), .disp_md(i_m),
+         .disp_st(i_t), .ext_valid(i_xv), .ext_tag(i_xt),
+         .iss_valid(iv), .iss_entry(ie), .iss_src(is), .iss_wr(iw), .iss_dst(id), .iss_bm(ib), .iss_ns(in), .iss_md(im),
+         .wk_valid(wv), .wk_tag(wt));
+endmodule : OOC_IQ2
 
 //---------------------------------------------------------------------------
 // OOC_EXU: stages RR1, RR2, EX of the 4 ports with the register file (OOO_EXU,

@@ -6719,3 +6719,60 @@ Try again
 ```text
 Please try again
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**I rewrote the plan for the CPU at 50 MHz and LiteX at 100 MHz, and took RR1 out of the core. It is pushed (9dc2447; 0 Ref on origin/dev). But a number I gave last time was wrong: at 50 MHz the value is 8.68, not 8.90.** The choice of 50 MHz does not change.
+
+## The correction
+Last time's comparison assumed stores split in 2 µops with no replays, the same mistake I took back in 28.13. With replays the split falls to −8.4 % (7.95), so **stores stay one µop, as in today's core**.
+
+| Configuration (`-O2`) | Before | Corrected | RTL estimate | CoreMark/s |
+|---|---|---|---|---|
+| 33.3 MHz, load-use 1 | 9.74 | 9.66 | 9.1 | 302 |
+| **50 MHz (chosen)** | **8.90** | **8.68** | **8.2** | **408** |
+| 66.7 MHz, load-use 2 | 8.63 | 8.21 | 7.7 | 515 |
+| 100 MHz | 7.39 | 7.00 | 6.6 | 658 |
+| 50 MHz, 4 ALUs + 1 LSU | 8.49 | 7.98 | | |
+| 50 MHz, 3 ALUs + 2 LSUs | 8.63 | 8.37 | | |
+
+- **Why 66.7 MHz fell so far:** besides the stores, the condition now delays the override with the added fetch stage. Against 50 MHz: −5.4 % CoreMark/MHz, +26 % CoreMark/s.
+- **Against 33.3 MHz:** +11 % CoreMark/MHz, −26 % CoreMark/s.
+- **RTL estimate:** the model × 0.94, not checked for this width.
+- **Others:** the 50 MHz configuration gives 9.48 at maximum optimization, 7.40 on rv64gc.
+
+## The configuration decided
+4 renamed, 6 decoded, 32-byte fetch, 4 ALUs + 2 LSUs with 6 issues, a unified queue of 24, ROB 48, LQ / SQ 16, 12 checkpoints, TAGE M, uBTB 96, today's depth.
+
+## What was done
+- **Documents:** `Doc/STRATEGY`, `Doc/BOARD`, `README` in both languages; a note in `Doc/UARCH` making the sections concerned history. The 100 MHz plan stays as `Plan/STRATEGY_100MHz`. The half-rate islands go; each block's clock is in section 4.4 of STRATEGY.
+- **RR1 removed:** CoreMark `-O2` 1,817,188 cycles, exactly as before RR1 (1,857,214 with it). `run_core.sh` 0 failures, `run_coremark.sh` PASS.
+- **Model:** `Plan/model/g50.sh` and `results/g50.txt`. The record is section 29 of `Plan/OOC`.
+
+## What becomes of the blocks built for 100 MHz
+All stay in the tree with their benches (section 4.6 of STRATEGY).
+
+| What | Blocks |
+|---|---|
+| Used | `OOO_UBTB2`, `OOO_RENAME2`, `OOO_FDEC`, `OOO_ALUF` |
+| The starting point | `OOO_FBUF2` |
+| Its functions only | `OOO_ALUR` |
+| Kept as the fallback | `OOO_SCHED`, `OOO_SDISP` |
+| Not used | `OOO_EXU`, `OOO_PRF2`, `OOO_LSU2`, `OOO_DCH`, `OOO_DTLB2` |
+
+## Unchecked points and risks
+- **LUTs are the largest risk:** the estimate of about 109k (81 %) is a little over the ceiling of 107.7k (80 %) taken for 50 MHz. Nothing of it is measured. It is measured at gate S1-A, and if it does not fit the fallbacks with known prices come in (3 ALUs −3.5 %, distributed queues −2.4 %).
+- **Closing at 20 ns is not measured:** above all the unified 24 with 6 selects and the register file of 12 reads and 6 writes.
+- **Rows of the model that did not end:** distributed queues with `steer=3` and 2 LSU ports did not end in 150 s. The cause was not looked into; if loop 1 takes the distributed fallback, the model is looked at first.
+- **The working targets are my proposal:** RTL 8.0, board 7.8. Say if they should change.
+
+## The next step
+Step 1.1 measures the six loops at a 20 ns target in order. First the unified 24 with 6 selects: it matters most to CoreMark/MHz and takes many LUTs. I prepare the harness, and you run Vivado.
+<!-- /answer -->
+
+## 167. 2026-11-05 19:23:12 JST
+
+```text
+Yes, from the unified queue
+```

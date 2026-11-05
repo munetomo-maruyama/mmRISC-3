@@ -72,6 +72,10 @@ struct OooCfg {
     int hole_bank = 0;          // OOO_SDISP as a stage before: a group's queues and banks stay with it through a stall
     int cmp_lag = 0;            // cycles from a result to its done bit in the ROB (a register in between)
     int ck_max = 0;             // at most this many checkpoints taken a cycle
+    int p0_ops = 0;             // unified queue: MUL, DIV and system µops only on one ALU port, one a cycle; DIV keeps only the MDU (OOO_IQ2)
+    int p0_opx = 0;             // ... and the ALU µops of these classes (Rec.opx), in their usual latency
+    int st_lsu0 = 0;            // unified queue: one store a cycle, on the first LSU port
+    int iq_bank = 0;            // unified queue: iq entries in this many banks of LUT RAM: a cycle's µops go to different banks
     int ck_end = 0;             // a checkpoint ends its group: the next µop is renamed a cycle later
     int sd_q = -1;              // sd_alu 2: all in this queue (the SQ's data has one write)
     int sd_ord = 0;             // a store's data is read in order, one a cycle, oldest first
@@ -239,7 +243,9 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     std::priority_queue<long, std::vector<long>, std::greater<long>> iqh, ckh;
     std::unordered_map<int, long> ready;        // register -> cycle a dependent may issue
     std::unordered_map<int, long> spec;         // register -> cycle its open loads are decided (keep_spec)
-    std::unordered_map<long, int> use_alu, use_lsu, use_mul, use_all, use_a0, use_a1, use_mdu;
+    std::unordered_map<long, int> use_alu, use_lsu, use_mul, use_all, use_a0, use_a1, use_mdu, use_p0, use_st;
+    std::priority_queue<long, std::vector<long>, std::greater<long>> qb[8];   // iq_bank: the banks
+    long bk_d = -1; int bk_m = 0;                   // ... those taken in that dispatch cycle
     std::priority_queue<long, std::vector<long>, std::greater<long>> qh[9];   // iqd: the queues
     long q_wr_c[9] = {-1,-1,-1,-1,-1,-1,-1,-1,-1}; int q_wr_n[9] = {}; int rr_q = 0;
     long rk_c = -1; int rk[9] = {}, rk_n = 0;
@@ -308,7 +314,8 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         }
         if (u >= (size_t)c.rob && cm[u - c.rob] + 1 > d) { res.st_rob += cm[u - c.rob] + 1 - d; d = cm[u - c.rob] + 1; }
         int bq = 0;                 // iqd: the queue this µop is bound to (iqd: the memory queue)
-        if (!c.iqd) {
+        if (c.iq_bank) {
+        } else if (!c.iqd) {
         while (!iqh.empty() && iqh.top() < d) iqh.pop();
         if ((int)iqh.size() >= c.iq) {
             long need = iqh.top() + 1;
@@ -441,6 +448,19 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             }
         }
         if (has_cti) { ck_n = last_ck == d ? ck_n + 1 : 1; last_ck = d; }
+        int bk = 0;                 // iq_bank: the bank this µop goes to
+        if (c.iq_bank) {
+            for (;;) {
+                if (bk_d != d) { bk_d = d; bk_m = 0; }
+                for (bk = 0; bk < c.iq_bank; bk++) {
+                    while (!qb[bk].empty() && qb[bk].top() < d) qb[bk].pop();
+                    if (!(bk_m >> bk & 1) && (int)qb[bk].size() < c.iq / c.iq_bank) break;
+                }
+                if (bk < c.iq_bank) break;
+                res.st_iq++; d++;
+            }
+            bk_m |= 1 << bk;
+        }
         if (first_ds < 0) first_ds = d;
         ds.push_back(d);
         if (c.sd_alu >= 2) { ds2.push_back(d); if (nst && !c.st_data_issue) ds2.push_back(d); }
@@ -504,10 +524,18 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         } else {
             auto& use = port == 1 ? use_lsu : port == 2 ? use_mul : use_alu;
             int cap = port == 1 ? c.lsu : port == 2 ? c.mul : c.alu;
-            while (use[is] >= cap || (c.issue_w && use_all[is] >= c.issue_w)) is++;
+            bool p0 = c.p0_ops && (pr.cls == C_MUL || pr.cls == C_DIV || pr.cls == C_SYS || (pr.cls == C_ALU && (c.p0_opx & pr.opx)));
+            bool st0 = c.st_lsu0 && pr.cls == C_STORE;
+            bool md = c.p0_ops && pr.cls == C_DIV;
+            while (use[is] >= cap || (c.issue_w && use_all[is] >= c.issue_w) || (p0 && use_p0[is] >= 1) ||
+                   (st0 && use_st[is] >= 1) || (md && use_mdu[is])) is++;
             use[is]++;
             use_all[is]++;
-            if (pr.cls == C_DIV) for (int q = 1; q < c.lat_div; q++) use[is + q] = cap;   // not pipelined
+            if (p0) use_p0[is]++;
+            if (st0) use_st[is]++;
+            if (c.p0_ops && c.mul_wb && pr.cls == C_MUL) use_alu[is + 1]++;   // its write slot: another port's
+            if (md) for (int q = 0; q < c.lat_div; q++) use_mdu[is + q] = 1;
+            else if (pr.cls == C_DIV) for (int q = 1; q < c.lat_div; q++) use[is + q] = cap;   // not pipelined
         }
         // the open loads it issues on: its entry stays until they are decided
         long sp = 0;
@@ -532,7 +560,8 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 while (l.size() > 32) l.erase(l.begin());
                 l.push_back({d, fr});
             }
-        } else iqh.push(std::max(is, sp));
+        } else if (c.iq_bank) qb[bk].push(std::max(is, sp));
+        else iqh.push(std::max(is, sp));
 
         // ---- results
         long done = is;
@@ -700,7 +729,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         // the cycles of the port use behind every issue are no longer needed
         if ((u & 0xffff) == 0) {
             long lim = is - 4096;
-            for (auto* mp : {&use_alu, &use_lsu, &use_mul, &use_all, &use_a0, &use_a1, &use_mdu})
+            for (auto* mp : {&use_alu, &use_lsu, &use_mul, &use_all, &use_a0, &use_a1, &use_mdu, &use_p0, &use_st})
                 for (auto it = mp->begin(); it != mp->end();) it = it->first < lim ? mp->erase(it) : std::next(it);
         }
         i = last + 1;
