@@ -4332,3 +4332,29 @@ These are the author's to decide: the gate, and the working targets of RTL 8.0 a
 ### 29.15 Gate S1-A passed: go, configuration frozen (2026-11-06)
 
 The author, 2026-11-06 (`Doc/PROMPT.md` 181): freeze, and on to step 1.2. So `Doc/STRATEGY.md` 4.2 is frozen, with the working targets of RTL 8.0 and board 7.8 standing, as they were set out in 29.14 and not changed.
+
+### 29.16 Step 1.2, A: the frozen sizes at 2-wide; how the core changes from here (2026-11-06)
+
+**How the core changes.** `Doc/STRATEGY.md` said "the width as a parameter of `OOO_CORE`". That does not fit what was built: `OOO_RENAME2`, `OOO_IQ2`, `OOO_EXU2`, `OOO_LSU3` are of their width, not parameters of today's blocks. So `OOO_CORE` changes **a piece at a time, each piece passing lock-step and compared with the model before the next**, in place of tests at 2 widths:
+
+| Piece | What | Step | The model's row |
+|---|---|---|---|
+| **A, done** | ROB 48, LQ / SQ 16, 12 checkpoints, at 2-wide | 1.2 | base, those sizes, `regs=64` |
+| B | `OOO_RENAME2`, `OOO_BUSY`, 80 registers, 2 slots of 4 in use | 1.2 | `regs` off |
+| C | Dispatch and commit of 4: ROB, control, the group | 1.2 | `w=4` |
+| D | `OOO_IQ2`, its payload, `OOO_EXU2`, 4 ALUs, `OOO_PRF` 6 writes 11 reads: together, as the queue's ports are the units' | 1.3 | as built, 1 LSU port |
+| E | `OOO_LSU3`, `OOO_DCH2`, the miss logic | 1.4 | as built, 16-byte fetch |
+| F | `OOO_FDEC2`, `OOO_FBUF3`, `OOO_UBTB2`, the I$ of 32 bytes, 6 decoded, the decoded queue, TAGE M | 1.5 | **8.633** |
+
+C with today's queue may be a dead end in timing and queue's writes; if it costs more than it teaches, C and D go together. `OOO_CPU` at 20 ns (step 1.6) at the end of each piece that changes a path: from C on.
+
+**A.** `OOO_CORE`: 12 checkpoints, ROB 48, LQ / SQ 16, and what their widths reach (`rec_t`, the tails, `dc_req_tag`, `dc_fill_tag`, `dc_kill`, `OOO_DCAD`'s `NLQ`, `tb_core`'s reading of `br_rob`). **Registers stay 64 for this piece**: `OOO_RENAME` needs NREG − 32 a power of two, and it goes in B.
+
+| CoreMark, no misses | RTL cycles | Model /MHz |
+|---|---|---|
+| Before (64 registers, ROB 24, LQ / SQ 8, 6 checkpoints) | 1,817,188 | 5.805 |
+| **A** | **1,806,314, −0.60 %** | **5.839, +0.59 %** |
+
+So the RTL follows the model, here. `run_core.sh`: 0 failures in all its runs. `run_coremark.sh`: PASS on `OOO_CORE` and `OOO_CPU`, misses at random too. `mutate_core.py` not run on this piece, as nothing but sizes changed; it runs at B.
+
+**Next**: B.

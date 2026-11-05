@@ -96,14 +96,14 @@ module OOO_CORE
         // the D$ (OOO_LSU's abstract port: OOO_DCAD and the D$, or a model)
         output logic                        dc_req_valid,
         output logic [PAW-1:0]              dc_req_addr,
-        output logic [2:0]                  dc_req_tag,
+        output logic [3:0]                  dc_req_tag,
         input  logic                        dc_hit,
         input  logic [63:0]                 dc_rdata,
         input  logic                        dc_fill_valid,
-        input  logic [2:0]                  dc_fill_tag,
+        input  logic [3:0]                  dc_fill_tag,
         input  logic [63:0]                 dc_fill_data,
         output logic                        dc_fill_ready,
-        output logic [7:0]                  dc_kill,
+        output logic [15:0]                 dc_kill,
         output logic                        dc_st_valid,
         output logic [PAW-1:0]              dc_st_addr,
         output logic [63:0]                 dc_st_data,
@@ -137,9 +137,9 @@ module OOO_CORE
     );
 
     localparam int NFTQ  = 16, FTQW = 4;        // D-18
-    localparam int NCKPT = 6,  CW   = 3;
+    localparam int NCKPT = 12, CW   = 4;        // step 1.2 A (Plan/OOC.md 29.16): the frozen sizes first
     localparam int TAGW  = 6;                   // 64 physical registers
-    localparam int NROB  = 24, ROBW = 5;
+    localparam int NROB  = 48, ROBW = 6;
     localparam int NIQ   = 10, IQW  = 4;
     // the fusion kinds (OOO_FUSE's KINDS): ALU + branch (B5a, 8'h80) is off (5.21). FUSE_AB gates the pair's
     // uses after D2 as well: the record goes through OOO_IQPL's LUT RAM, where synthesis cannot see `fused` as a
@@ -155,8 +155,8 @@ module OOO_CORE
     typedef struct packed {
         logic [1:0]      kind;                  // port 0's units: K_ALU (and branches, jumps), K_MDU, K_CSR, K_SYS
         logic [3:0]      xop;                   // an MDU µop's CORE_MDU op (0: mul / mulw, OOO_PMUL); a system µop's OOO_SYS op
-        logic [2:0]      lq;                    // a load's LQ entry, a store's SQ entry (OOO_LSU)
-        logic [2:0]      sq;
+        logic [3:0]      lq;                    // a load's LQ entry, a store's SQ entry (OOO_LSU)
+        logic [3:0]      sq;
         logic [1:0]      msize;                 // 0 byte .. 3 double
         logic            uns;                   // a load zero extended
         logic            is_ld;                 // (a µop of port 2: a load, else a store)
@@ -516,12 +516,12 @@ module OOO_CORE
 
     // the LSU's side of dispatch, commit and recovery
     logic [1:0]                lq_avail, sq_avail, lq_commit, sq_commit;
-    logic [1:0][3:0]           ck_lq_tail, ck_sq_tail;
-    logic [3:0]                restore_lq_tail, restore_sq_tail;
-    logic [1:0][2:0]           disp_lq, disp_sq;
+    logic [1:0][4:0]           ck_lq_tail, ck_sq_tail;
+    logic [4:0]                restore_lq_tail, restore_sq_tail;
+    logic [1:0][3:0]           disp_lq, disp_sq;
 
     /* verilator lint_off PINCONNECTEMPTY */   // (what OOO_TRAP and interrupts take: not yet)
-    OOO_CTRL #(.NCKPT(NCKPT), .CW(CW), .VA(VA), .FTQW(FTQW), .LW(3), .TAGW(TAGW)) u_ctrl
+    OOO_CTRL #(.NCKPT(NCKPT), .CW(CW), .VA(VA), .FTQW(FTQW), .LW(4), .TAGW(TAGW)) u_ctrl
         (.clk(clk), .rst_n(rst_n),
          .r_valid(r_valid), .r_ckpt(r_ckpt), .r_ckpt_id(ren_ckpt_id), .r_ren_ready(ren_ready), .r_go(r_go),
          .ds_valid(ds_valid), .ds_load(ds_load), .ds_ld({ds[1].ld, ds[0].ld}), .ds_st({ds[1].st, ds[0].st}),
@@ -946,7 +946,7 @@ module OOO_CORE
     /* verilator lint_on UNUSEDSIGNAL */
     logic            cmp_ld_v, cmp_ld_e, cmp_ld_rp, cmp_st_v, cmp_st_e;
     logic [ROBW-1:0] cmp_ld_rob, cmp_st_rob;
-    OOO_LSU #(.NLQ(8), .NSQ(8), .PAW(PAW), .TAGW(TAGW), .ROBW(ROBW), .NCK(NCKPT)) u_lsu
+    OOO_LSU #(.NLQ(16), .NSQ(16), .PAW(PAW), .TAGW(TAGW), .ROBW(ROBW), .NCK(NCKPT)) u_lsu
         (.clk(clk), .rst_n(rst_n),
          .disp_valid(d_go), .disp_ld({ds[1].ld, ds[0].ld}), .disp_st({ds[1].st, ds[0].st}), .disp_rob(disp_rob),
          .lq_avail(lq_avail), .sq_avail(sq_avail), .disp_lq(disp_lq), .disp_sq(disp_sq),

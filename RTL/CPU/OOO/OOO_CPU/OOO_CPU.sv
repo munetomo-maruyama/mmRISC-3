@@ -110,11 +110,11 @@ module OOO_CPU
 
     logic             dc_req_valid, dc_hit, dc_fill_valid, dc_fill_ready, dc_st_valid, dc_st_ready;
     logic [PAW-1:0]   dc_req_addr, dc_st_addr;
-    logic [2:0]       dc_req_tag, dc_fill_tag;
+    logic [3:0]       dc_req_tag, dc_fill_tag;
     logic [63:0]      dc_rdata, dc_fill_data, dc_st_data;
     logic [7:0]       dc_st_mask;
     /* verilator lint_off UNUSEDSIGNAL */      // (OOO_DCAD drops old answers itself)
-    logic [7:0]       dc_kill;
+    logic [15:0]      dc_kill;
     /* verilator lint_on UNUSEDSIGNAL */
 
     logic             fl_req, fl_take, fl_done;
@@ -141,7 +141,7 @@ module OOO_CPU
     logic [4:0]       d_req_cmd;
     logic [63:0]      d_req_wdata, d_resp_data, d_hit_now_data;
     /* verilator lint_off PINCONNECTEMPTY */
-    OOO_DCAD #(.NLQ(8), .PAW(PAW), .DEPTH(8)) u_dcad
+    OOO_DCAD #(.NLQ(16), .PAW(PAW), .DEPTH(8)) u_dcad
         (.clk(clk), .rst_n(rst_n),
          .dc_req_valid(dc_req_valid), .dc_req_addr(dc_req_addr), .dc_req_tag(dc_req_tag), .dc_hit(dc_hit),
          .dc_rdata(dc_rdata), .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),

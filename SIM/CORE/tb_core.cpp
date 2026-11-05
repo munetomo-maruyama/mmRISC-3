@@ -79,7 +79,7 @@ static std::string check_resolution(TopRoot* rp)
     char m[160];
     for (int p = 0; p < 2; p++) {
         if (!((rp->CORE(br_valid) >> p) & 1)) continue;
-        int rob = (rp->CORE(br_rob) >> (5 * p)) & 31;
+        int rob = (rp->CORE(br_rob) >> (6 * p)) & 63;
         uint32_t in = rp->CORE(sh_insn)[rob];
         uint64_t pc = wbits(rp->CORE(br_pc), (VA - 1) * p, VA - 1);
         if (pc != wbits(rp->CORE(sh_pc)[rob], 0, VA - 1)) {     // the pc array's line and the parcel against dispatch's pc
@@ -115,7 +115,7 @@ static std::string check_resolution(TopRoot* rp)
         bool any = false;
         for (int p = 0; p < 2 && !any; p++) {
             if (!((rp->CORE(br_valid) >> p) & 1)) continue;
-            uint32_t in = rp->CORE(sh_insn)[(rp->CORE(br_rob) >> (5 * p)) & 31];
+            uint32_t in = rp->CORE(sh_insn)[(rp->CORE(br_rob) >> (6 * p)) & 63];
             uint64_t pc = wbits(rp->CORE(br_pc), (VA - 1) * p, VA - 1);
             any = (uint64_t)rp->CORE(bt_pc) == pc + ((in & 3) == 3 ? 1 : 0) && !((rp->CORE(br_ret) >> p) & 1);
         }
@@ -153,9 +153,9 @@ static bool run(const Opts& o, const std::string& elf)
     // the register file starts at 0, as Spike's: it has no reset (a boot ROM would clear it), and a program's
     // start may save registers it has not written yet (CoreMark's does)
     for (int i = 0; i < 64; i++) {
-        d->rootp->CORE(u_prf__DOT__g_bank__BRA__0__KET____DOT__mem)[i] = 0;
-        d->rootp->CORE(u_prf__DOT__g_bank__BRA__1__KET____DOT__mem)[i] = 0;
-        d->rootp->CORE(u_prf__DOT__g_bank__BRA__2__KET____DOT__mem)[i] = 0;
+        d->rootp->CORE(u_prf__DOT__g_bank__BRA__0__KET____DOT__g_one__DOT__mem)[i] = 0;
+        d->rootp->CORE(u_prf__DOT__g_bank__BRA__1__KET____DOT__g_one__DOT__mem)[i] = 0;
+        d->rootp->CORE(u_prf__DOT__g_bank__BRA__2__KET____DOT__g_one__DOT__mem)[i] = 0;
         d->rootp->CORE(u_prf__DOT__lvt)[i] = 0;
     }
     long restores = 0, replays = 0;

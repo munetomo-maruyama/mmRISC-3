@@ -206,10 +206,10 @@ All stay in the tree with their benches.
 |---|---|---|
 | 1.0 | **Done 2026-11-05**: the configuration in the model (`Plan/model/g50.sh`); RR1 out of the core | 8.68; lock-step and CoreMark as before RR1 |
 | 1.1 | **Done 2026-11-06**: harnesses of the six loops at a 20 ns target, in the order of 4.5: unified 24 first (`OOC_IQ2`), then the register file with bypass and 4 ALUs, 2 load ports, fetch, fetch buffer, rename. `OOO_CPU` at 20 ns at each join | **Gate S1-A, passed 2026-11-06: go, by the author** (`Plan/OOC.md` 29.14, 29.15): all within reach of 20 ns, no fallback taken; about 106.5k LUTs by the sums; **the configuration frozen**; working targets RTL 8.0, board 7.8 |
-| 1.2 | The width as a parameter of `OOO_CORE`, then W = 4: ROB, LQ / SQ, checkpoints, rename; tests at both widths | Lock-step; cycles against the model |
-| 1.3 | Queue of 24, 6 issues; 4 ALUs; the register file | Tests; cycles against the model |
-| 1.4 | The second LSU port | Tests; cycles against the model |
-| 1.5 | 32-byte fetch, 6 decoded, the decoded queue, TAGE M, uBTB 96 | Tests; cycles against the model |
+| 1.2 | In `OOO_CORE`, each in lock-step (`Plan/OOC.md` 29.16): **A, done 2026-11-06**: ROB 48, LQ / SQ 16, 12 checkpoints at 2-wide. **B**: `OOO_RENAME2`, `OOO_BUSY`, 80 registers. **C**: dispatch and commit of 4: ROB, control | Lock-step; cycles against the model |
+| 1.3 | **D**: `OOO_IQ2`, its payload, `OOO_EXU2`, 4 ALUs, the register file: they go together, as the queue's ports are the units' | Tests; cycles against the model |
+| 1.4 | **E**: `OOO_LSU3`, `OOO_DCH2`, the miss logic: the second LSU port | Tests; cycles against the model |
+| 1.5 | **F**: `OOO_FDEC2`, `OOO_FBUF3`, `OOO_UBTB2`, the I$ of 32 bytes, 6 decoded, the decoded queue, TAGE M | Tests; cycles against the model |
 | 1.6 | Timing at every step at 20 ns: `OOO_CPU` out of context | Slack and LUTs reported |
 | 1.7 | The real I$, L2; CoreMark on `OOO_CPU` | **Gate S1-B**: RTL `-O2` ≥ 8.0 with real caches, 50 MHz, tests and bug injection clean |
 | 1.8 | Interrupts, MMU (Sv39), FPU, debug, PMU; arch tests for F / D / S; Linux on the simulator | **Gate S1-C**: Linux prompt in simulation |
@@ -249,8 +249,8 @@ mmRISC-2, then mmRISC-3.
 ## 6. Verification
 
 Unchanged in kind: lock-step with Spike at every instruction, riscv-arch-test, bug injection into every block and the
-glue, cycle comparison with the model. New: each test at both widths while the width is a parameter; the board's checks in
-step 2 run on mmRISC-2 first.
+glue, cycle comparison with the model. The core changes a piece at a time, each passing lock-step before the next; the
+board's checks in step 2 run on mmRISC-2 first.
 
 ---
 
