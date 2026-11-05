@@ -25,7 +25,8 @@
 //
 // Entries are in 4 banks of 6, so that the payload can be 4 LUT RAMs each written by
 // one µop (OOO_IQPL's way): a cycle's µops go to different banks, each to the first
-// free entry of its bank. There is no search of 24 for 4, and it costs -0.1 % in the
+// free entry of its bank. The valid slots need not be a prefix (the DS register keeps what
+// did not go in its slot), but no more than disp_ready of them. There is no search of 24 for 4, and it costs -0.1 % in the
 // model (iq_bank). The fields of a slot go to its bank on one bus, 4 to 1 for the bank, not
 // for each entry of it.
 //
@@ -70,7 +71,7 @@ module OOO_IQ2
         // dispatch: up to 4 µops a cycle, in program order (0 the oldest)
         output logic [2:0]            disp_ready, // room for this many
         output logic [3:0][$clog2(N)-1:0] disp_entry, // the entries they go to (for the payload)
-        input  logic [3:0]            disp_valid,
+        input  logic [3:0]            disp_valid, // oldest in the lowest slot, gaps allowed
         input  logic [3:0][1:0]       disp_port,  // 0 any ALU, 1 ALU0 only, 2 LSU
         input  logic [3:0][1:0]       disp_use,   // the sources the µop reads
         input  logic [3:0][1:0][TAGW-1:0] disp_src,
@@ -266,29 +267,41 @@ module OOO_IQ2
     assign blk0 = p0_hold;
     assign blk1 = d_v0;
 
-    // ---- free entries for dispatch: the first of each bank; the k-th slot takes
+    // ---- free entries for dispatch: the first of each bank; the k-th valid slot takes
     // the k-th bank with room
     logic [NBANK-1:0]        bf;      // the bank has room
     logic [EW-1:0]           be [NBANK];   // ... this entry first
     logic [1:0]              bs [NBANK];   // the slot of the bank
+    logic [NBANK-1:0]        bg;      // ... and takes a µop
     logic [3:0][EW-1:0]      fe;      // the entry each dispatched µop goes to
-    logic [3:0]              fev;
+    logic [1:0]              sl [4];  // the k-th valid slot
+    logic [2:0]              nv;
+    logic [1:0]              br [NBANK];   // the rank of a bank among those with room
     always @(*) begin
         automatic logic [2:0] n = 3'd0;
-        fe  = '0;
-        fev = '0;
         for (int b = 0; b < NBANK; b++) begin
             bf[b] = 1'b0;
             be[b] = '0;
             for (int i = BS - 1; i >= 0; i--) if (!v[b*BS + i]) begin bf[b] = 1'b1; be[b] = EW'(b*BS + i); end
-            bs[b] = n[1:0];
-            if (bf[b]) begin
-                fe[n[1:0]]  = be[b];
-                fev[n[1:0]] = 1'b1;
-                n = n + 3'd1;
-            end
+            br[b] = n[1:0];
+            if (bf[b]) n = n + 3'd1;
         end
         disp_ready = n;
+    end
+    // (apart: disp_ready does not depend on what goes, which depends on it)
+    always @(*) begin
+        nv = 3'd0;
+        for (int k = 0; k < 4; k++) sl[k] = 2'd0;
+        for (int k = 0; k < 4; k++) if (disp_valid[k]) begin
+            sl[nv[1:0]] = 2'(k);
+            nv = nv + 3'd1;
+        end
+        fe = '0;
+        for (int b = 0; b < NBANK; b++) begin
+            bs[b] = sl[br[b]];
+            bg[b] = bf[b] && 3'(br[b]) < nv;
+            if (bg[b]) fe[bs[b]] = be[b];
+        end
         disp_entry = fe;
     end
 
@@ -304,7 +317,7 @@ module OOO_IQ2
             for (int s = 0; s < 2; s++) dwk[d][s] = disp_rdy[d][s] || woken(disp_src[d][s]);
         dany = '0;
         for (int b = 0; b < NBANK; b++) begin
-            bw[b] = bf[b] && disp_valid[bs[b]];   // (flush wins at the valid bit)
+            bw[b] = bg[b];                 // (flush wins at the valid bit)
             for (int i = 0; i < N; i++) if (bw[b] && be[b] == EW'(i)) dany[i] = 1'b1;
         end
         for (int b = 0; b < NBANK; b++) begin
@@ -315,8 +328,8 @@ module OOO_IQ2
         dst_older[0] = 1'b0;
         dns_older[0] = 1'b0;
         for (int d = 1; d < 4; d++) begin
-            dst_older[d] = dst_older[d-1] || (disp_valid[d-1] && fev[d-1] && disp_st[d-1]);
-            dns_older[d] = dns_older[d-1] || (disp_valid[d-1] && fev[d-1] && disp_ns[d-1]);
+            dst_older[d] = dst_older[d-1] || (disp_valid[d-1] && disp_st[d-1]);
+            dns_older[d] = dns_older[d-1] || (disp_valid[d-1] && disp_ns[d-1]);
         end
         // the stores (non-speculative µops) still in the queue next cycle for the
         // loads (non-speculative µops) that wait: a killed one needs no term,

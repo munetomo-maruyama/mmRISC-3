@@ -66,6 +66,11 @@ module OOO_RENAME2
         input  logic [3:0]                in_ckpt,     // a checkpoint after this µop
         output logic [2:0]                in_take,     // how many it takes this cycle, 0 .. 4
 
+        // ---- R1: what goes on at this edge (OOO_BUSY, and what travels with R2 outside)
+        output logic                      r1_adv,
+        output logic [3:0]                r1_wr,
+        output logic [3:0][TAGW-1:0]      r1_tag,
+
         // ---- R2
         output logic [3:0]                r2_valid,
         output logic [3:0][1:0][TAGW-1:0] r2_src,
@@ -174,6 +179,13 @@ module OOO_RENAME2
     // ---- R1 moves on when R2 has nothing left
     logic adv;
     assign adv = (r2_valid & ~disp_go) == 4'd0 && free_ok && !init_b && !u_v && !restore && !flush_all;
+    assign r1_adv = adv;
+    always @(*) begin
+        for (int k = 0; k < 4; k++) begin
+            r1_wr[k]  = adv && wr[k];
+            r1_tag[k] = tag[k];
+        end
+    end
 
     // ---- R2
     (* max_fanout = 32 *) logic adv_d;

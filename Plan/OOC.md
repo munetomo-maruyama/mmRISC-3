@@ -4252,3 +4252,28 @@ So 2 blocks are all of the gain, +2.1 % over 1.
 **Model 8.633 as built so far; RTL at × 0.94 about 8.1, 406 CoreMark/s.**
 
 **Next: loop 6, and it is not only timing.** `OOO_RENAME2` was built for `OOO_SDISP`, which compares a source with what is pending, so it has no busy bits. `OOO_IQ2` compares tags and asks `disp_rdy`. So the rename of this core needs busy bits: 80 bits, 8 reads, cleared by 9 wakeup tags and the wakeups of the DS register, which is a block `OOO_RENAME2` does not have. This is the last of the loops, and after it gate S1-A.
+
+### 29.13 Loop 6: `OOO_BUSY`, `OOC_REN3`, the first join (2026-11-05)
+
+**Rename needs no new stage and no new block but one.** `OOO_RENAME2`'s R1 is the stage R, and its R2, which keeps what did not go, is the DS register. So it is used as it is, and the stage count stays the model's `dec_depth` 3: D1, D2, R. It gets 3 outputs, what goes on at R1's edge (`r1_adv`, `r1_wr`, `r1_tag`), which `tb_rename2` now checks against R2 a cycle on.
+
+**`OOO_BUSY`: 80 bits.** Set as a µop goes into the DS register, cleared by the wakeup tags, read by the DS register's sources in the cycle they dispatch. **So the DS register needs no snoop** as I had said in 29.12: the bits are current up to this cycle, and a wakeup of this very cycle is `OOO_IQ2`'s (`disp_rdy || woken`). A source on an older µop of its group is busy already, as a group is set at one edge. A recovery does nothing: a killed µop's register keeps its bit until given out again.
+
+**`OOO_IQ2` takes gaps.** The DS register keeps what did not go in its own slot, so what goes next may be slots 2 and 3. So now the k-th **valid** slot takes the k-th bank with room. `disp_entry` is by slot.
+
+**The first join.** `OOC_REN3` is rename, busy bits and queue together, with the wakeups going back: `synth_ooo.bat ren3`, 15 ns. This has 2 paths no harness had:
+
+| Path | What |
+|---|---|
+| `adv` | The queue's valid bits, `disp_ready`, the slots that go, to whether R moves: the RAT and the DS register's write enable |
+| `wake` | A ready bit, the select, the wakeup tag, into the busy bits |
+
+**Verification.**
+- `tb_busy`, against an array: 398,347 sets, 1,350,115 wakeups, 22,305 set and woken at once: 0 mismatches.
+- `tb_iq2`, now with gaps, and anything on a slot not valid: 0 mismatches.
+- `tb_rename2` with the new check: 0 mismatches.
+- Mutations: the queue's and `OOO_BUSY`'s and M1102: 62, all detected, every line read. M1093 "a slot not valid holds a non-speculative one" was undetected at first, as the bench drove 0 there; it now drives anything there.
+
+**What is not in the join:** the decoded queue in front, the ROB and LQ / SQ behind (`room` is a register), the checkpoint's id into the branch masks.
+
+**My estimates, before measuring.** Timing: `adv` about 11 to 14 ns, `wake` about 15 ns: `wk` was 12.3 ns, and a tag's decode to 80 lines adds a few levels; the queue's own `loop` 15.6 ns stays the worst or thereabouts. LUTs: 8.9k + 3.1k + busy about 1.5k = about 13.5k.

@@ -73,7 +73,7 @@ int main(int argc, char** argv)
     std::map<int, Uop> q;                   // in the queue, by destination tag
     std::vector<std::pair<long, int>> ext_due;   // (cycle, tag) to announce on ext
     long next_id = 0, bad = 0, issued_n = 0, flushes = 0, nkill = 0, nkilled = 0, nclr = 0, nns = 0;
-    long nwk = 0, nport[6] = {0}, nsix = 0, nfull = 0, nlow = 0, nblk1 = 0, nst = 0, nidle0 = 0;
+    long nwk = 0, nport[6] = {0}, nsix = 0, nfull = 0, nlow = 0, nblk1 = 0, nst = 0, nidle0 = 0, ngap = 0;
     std::vector<int> open_ids;              // checkpoint ids open, in program order
     const int NCK = 12;
     long cyc;
@@ -91,10 +91,6 @@ int main(int argc, char** argv)
             d.eval();
             if ((int)d.disp_ready != exp_ready && bad++ < 10)
                 printf("MISMATCH cycle %ld: disp_ready %d, expected %d (%d entries)\n", cyc, (int)d.disp_ready, exp_ready, (int)q.size());
-            for (int k = 0; k < exp_ready; k++) {
-                int e = (d.disp_entry >> (5 * k)) & 31;
-                if (e != exp_e[k] && bad++ < 10) printf("MISMATCH cycle %ld: disp_entry of slot %d %d, expected %d\n", cyc, k, e, exp_e[k]);
-            }
             if (q.size() >= 23) nfull++;
             if (exp_ready < 4) nlow++;
         }
@@ -184,28 +180,48 @@ int main(int argc, char** argv)
         d.kill = kill_id >= 0 ? 1u << kill_id : 0;
         d.clr = clr_id >= 0 ? 1u << clr_id : 0;
         unsigned clrm = clr_id >= 0 ? 1u << clr_id : 0, killm = kill_id >= 0 ? 1u << kill_id : 0;
-        d.disp_valid = (1u << nd) - 1;
+        // the µops in slots, oldest lowest, with gaps now and then
+        int pos[4];
+        {
+            unsigned mask = 0;
+            if (rng() & 1) mask = (1u << nd) - 1;
+            else while (__builtin_popcount(mask) != nd) mask = rng() & 15;
+            int k = 0;
+            for (int i = 0; i < 4; i++) if ((mask >> i) & 1) pos[k++] = i;
+            d.disp_valid = mask;
+            if (mask != (1u << nd) - 1) ngap++;
+        }
         uint64_t src = 0, dst = 0, bmw = 0;
         uint32_t port = 0, use = 0, rdy = 0, wr = 0, lat2 = 0, nsw = 0, mdw = 0, stw = 0;
         for (int k = 0; k < nd; k++) {
             Uop& x = u[k];
-            port |= x.port << (2 * k); lat2 |= x.lat2 << k;
+            int ps = pos[k];
+            port |= x.port << (2 * ps); lat2 |= x.lat2 << ps;
             for (int s = 0; s < 2; s++) {
-                use |= x.use[s] << (2 * k + s);
-                src |= (uint64_t)x.src[s] << (TW * (2 * k + s));
-                rdy |= (avail[x.src[s]] <= cyc) << (2 * k + s);
+                use |= x.use[s] << (2 * ps + s);
+                src |= (uint64_t)x.src[s] << (TW * (2 * ps + s));
+                rdy |= (avail[x.src[s]] <= cyc) << (2 * ps + s);
             }
-            wr |= x.wr << k; dst |= (uint64_t)x.dst << (TW * k);
-            bmw |= (uint64_t)x.bm << (NCK * k);
-            nsw |= (uint32_t)x.ns << k;
-            mdw |= (uint32_t)x.md << k;
-            stw |= (uint32_t)x.st << k;
+            wr |= x.wr << ps; dst |= (uint64_t)x.dst << (TW * ps);
+            bmw |= (uint64_t)x.bm << (NCK * ps);
+            nsw |= (uint32_t)x.ns << ps;
+            mdw |= (uint32_t)x.md << ps;
+            stw |= (uint32_t)x.st << ps;
+        }
+        {   // a slot not valid holds anything
+            unsigned jm = ~(unsigned)d.disp_valid & 15;
+            nsw |= rng() & jm; stw |= rng() & jm; mdw |= rng() & jm; wr |= rng() & jm; lat2 |= rng() & jm;
+            for (int k = 0; k < 4; k++) if ((jm >> k) & 1) port |= (rng() & 3) << (2 * k);
         }
         d.disp_port = port; d.disp_use = use; d.disp_src = src; d.disp_rdy = rdy;
         d.disp_wr = wr; d.disp_dst = dst; d.disp_lat2 = lat2; d.disp_bm = bmw; d.disp_ns = nsw; d.disp_md = mdw; d.disp_st = stw;
         d.ext_valid = extv; d.ext_tag = extt;
         d.eval();
-        for (int k = 0; k < nd; k++) u[k].entry = exp_e[k];
+        for (int k = 0; k < nd; k++) {
+            u[k].entry = exp_e[k];
+            int e = (d.disp_entry >> (5 * pos[k])) & 31;
+            if (e != exp_e[k] && bad++ < 10) printf("MISMATCH cycle %ld: disp_entry of slot %d %d, expected %d\n", cyc, pos[k], e, exp_e[k]);
+        }
 
         // ---- what must issue now
         auto ready = [&](const Uop& x) {
@@ -358,7 +374,7 @@ int main(int argc, char** argv)
             }
         }
     }
-    bool cov = nsix > 100 && nfull > 1000 && nlow > 1000 && nkill > 1000 && nblk1 > 100 && nst > 1000 && nidle0 > 10;
+    bool cov = nsix > 100 && nfull > 1000 && nlow > 1000 && nkill > 1000 && nblk1 > 100 && nst > 1000 && nidle0 > 10 && ngap > 10000;
     for (int p = 0; p < 6; p++) cov = cov && nport[p] > 10000;
     printf("tb_iq2: %ld cycles, %ld µops issued (%ld %ld %ld %ld %ld %ld by port, %ld stores, %ld cycles with 6, %ld non-speculative), queue full %ld, banks short %ld, a multiply's slot %ld, %ld kills (%ld µops killed), %ld clears, %ld flushes, %ld wakeups, %ld mismatches: %s\n",
            cyc, issued_n, nport[0], nport[1], nport[2], nport[3], nport[4], nport[5], nst, nsix, nns, nfull, nlow, nblk1, nkill, nkilled, nclr, flushes, nwk, bad, bad == 0 && cov ? "PASS" : "FAIL");

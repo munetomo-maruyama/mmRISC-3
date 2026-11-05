@@ -172,7 +172,7 @@ One MMCM, for example: VCO 800 MHz, 100 MHz (/8), 400 MHz (/2), 400 MHz at 90° 
 | 3 | **Load** | Load-use 2, 2 ports | 1 LSU; load-use 3 | −8.0 %; −12.7 % | Today's 12.6 ns, 1 port. **`OOO_LSU3`, a copy of the D$'s arrays a port: about 14.1 ns asked for 15, 3,326 LUTs, 14 tiles, without the miss logic** (`Plan/OOC.md` 29.8). Alone |
 | 4 | **Fetch** | 32 B, 3 stages, the override at F2, from registers: the arrays and the way in F1 | A stage more, the override with it | −2.0 % | Today's 14.3 ns, 16 B. `OOC_FE2` 9.5 ns a stage, 5 stages. **`OOO_FDEC2`, F3 and F4 in one stage, with `OOO_UBTB2`, `OOO_FBUF3`: about 15.3 ns asked for 15, 6,539 LUTs** (`Plan/OOC.md` 29.12). Alone, without F1 |
 | 5 | **Fetch buffer** | 6 a cycle, from 2 blocks | One block a cycle (`OOO_FBUF2`) | −2.1 % | `OOO_FBUF2` 8.65 ns, one block. **`OOO_FBUF3`, in `OOC_FE3`: `slot` 12.9 ns, 3,187 LUTs** (`Plan/OOC.md` 29.12). Alone |
-| 6 | **Rename of 4** | 1 stage | A stage more | −0.5 % | `OOO_RENAME2` 9.1 ns in 2 stages |
+| 6 | **Rename of 4** | R, with the DS register as `OOO_RENAME2`'s R2 | A stage more | −0.5 % | `OOO_RENAME2` 9.1 ns. **Built: `OOO_BUSY`, joined with `OOO_IQ2`; `synth_ooo.bat ren3` to run** (`Plan/OOC.md` 29.13) |
 
 Between blocks, the 4 cuts proposed for 100 MHz (`Plan/OOC.md` 28.26) are not needed now, and are made only if the 20 ns run asks.
 
@@ -182,7 +182,7 @@ Between blocks, the 4 cuts proposed for 100 MHz (`Plan/OOC.md` 28.26) are not ne
 |---|---|
 | RR1 in `OOO_CORE` | **Removed** (`Plan/OOC.md` 29): −1.1 % in the model, +2.20 % cycles measured |
 | `OOO_UBTB2` | **Used as it is** |
-| `OOO_RENAME2` | **Used**; its 2 stages joined if loop 6 allows |
+| `OOO_RENAME2` | **Used as it is**: its R1 is R, its R2 the DS register. `OOO_BUSY` beside it |
 | `OOO_FDEC` | **The starting point** of `OOO_FDEC2`: F3 and F4 in F2 |
 | `OOO_FBUF2` | **The starting point** of `OOO_FBUF3`: a second block beside the first |
 | `OOO_ALUF` | **Used** on 3 ports |

@@ -30,7 +30,8 @@
 //   OOC_IQ2     the queue of 24 with 6 selects (OOO_IQ2, Doc/STRATEGY.md 4.5 loop 1)
 //   OOC_EXU2    RR, EX of the 6 ports with the register file (OOO_EXU2, loop 2)
 //   OOC_LSU3    the 2 memory ports of the 50 MHz core (OOO_LSU3, loop 3)
-//   OOC_FE3     F2, F0 and D1 of the 50 MHz core together (OOO_FDEC2, loop 4)
+//   OOC_FE3     F2, F0 and D1 of the 50 MHz core together (OOO_FDEC2, OOO_FBUF3, loops 4, 5)
+//   OOC_REN3    rename, busy bits and the queue of the 50 MHz core joined (loop 6)
 //
 // The FTQ has 16 blocks since D-18 (2026-10-29): OOC_FE has them. OOC_ROB,
 // OOC_FBUF, OOC_FTQ, OOC_CTRL and OOC_FERS keep the 8 (an index of 3 bits)
@@ -1837,6 +1838,130 @@ module OOC_FE3
 endmodule : OOC_FE3
 
 //---------------------------------------------------------------------------
+// OOC_REN3: rename, busy bits and the issue queue of the 50 MHz core joined (OOO_RENAME2,
+// OOO_BUSY, OOO_IQ2; Doc/STRATEGY.md 4.5 loop 6): the first join. A µop goes from R into the
+// DS register (R2) and from there into the queue, as far as there is room, and the wakeups
+// come back to the busy bits. What goes with a µop outside the block travels in R2's own
+// registers here. The room in ROB, LQ and SQ is a register.
+//---------------------------------------------------------------------------
+module OOC_REN3
+    (
+        input  logic              clk,
+        input  logic              rst_n,
+        input  logic [3:0]        in_valid,
+        input  logic [3:0][1:0][4:0] in_src,
+        input  logic [3:0]        in_wr,
+        input  logic [3:0][4:0]   in_dst,
+        input  logic [3:0]        in_ckpt,
+        input  logic [3:0][1:0]   in_port,
+        input  logic [3:0][1:0]   in_use,
+        input  logic [3:0]        in_lat2,
+        input  logic [3:0][11:0]  in_bm,
+        input  logic [3:0]        in_ns,
+        input  logic [3:0]        in_md,
+        input  logic [3:0]        in_st,
+        input  logic [2:0]        room,
+        input  logic [3:0]        cmt_wr,
+        input  logic [3:0][4:0]   cmt_arch,
+        input  logic [3:0][6:0]   cmt_new,
+        input  logic [3:0][6:0]   cmt_old,
+        input  logic              restore,
+        input  logic [3:0]        restore_id,
+        input  logic [11:0]       kill,
+        input  logic [11:0]       clr,
+        input  logic              flush_all,
+        input  logic              ns_ok,
+        input  logic              mdu_ok,
+        input  logic              p0_hold,
+        input  logic [1:0]        ext_valid,
+        input  logic [1:0][6:0]   ext_tag,
+        output logic [2:0]        o_take,
+        output logic [3:0][6:0]   o_old,
+        output logic [3:0]        o_ck,
+        output logic [3:0][3:0]   o_ckid,
+        output logic [3:0]        o_go,
+        output logic [3:0][4:0]   o_entry,
+        output logic [241:0]      o_iss
+    );
+    logic [3:0]        s_iv, s_iw, s_ik, s_cw, s_il, s_in, s_im, s_it;
+    logic [3:0][1:0][4:0] s_is;
+    logic [3:0][4:0]   s_id, s_ca;
+    logic [3:0][6:0]   s_cn, s_co;
+    logic [3:0][1:0]   s_ip, s_iu;
+    logic [3:0][11:0]  s_ib;
+    logic              s_re, s_fl, s_nk, s_mk, s_ph;
+    logic [3:0]        s_ri;
+    logic [11:0]       s_ki, s_cl;
+    logic [2:0]        s_room;
+    logic [1:0]        s_xv;
+    logic [1:0][6:0]   s_xt;
+    always_ff @(posedge clk) begin
+        s_iv <= in_valid; s_is <= in_src; s_iw <= in_wr; s_id <= in_dst; s_ik <= in_ckpt;
+        s_ip <= in_port; s_iu <= in_use; s_il <= in_lat2; s_ib <= in_bm; s_in <= in_ns; s_im <= in_md; s_it <= in_st;
+        s_cw <= cmt_wr; s_ca <= cmt_arch; s_cn <= cmt_new; s_co <= cmt_old;
+        s_re <= restore; s_ri <= restore_id; s_ki <= kill; s_cl <= clr; s_fl <= flush_all;
+        s_nk <= ns_ok; s_mk <= mdu_ok; s_ph <= p0_hold; s_room <= room; s_xv <= ext_valid; s_xt <= ext_tag;
+    end
+
+    logic [2:0]        take, dr;
+    logic              adv;
+    logic [3:0]        wr1, rv, rw, rc, go;
+    logic [3:0][6:0]   t1, rd, ro;
+    logic [3:0][1:0][6:0] rs;
+    logic [3:0][3:0]   ri;
+    OOO_RENAME2 #(.NREG(80), .TAGW(7), .NCK(12)) u_ren
+        (.clk(clk), .rst_n(rst_n), .in_valid(s_iv), .in_src(s_is), .in_wr(s_iw), .in_dst(s_id), .in_ckpt(s_ik),
+         .in_take(take), .r1_adv(adv), .r1_wr(wr1), .r1_tag(t1), .r2_valid(rv), .r2_src(rs), .r2_wr(rw), .r2_dst(rd), .r2_old(ro),
+         .r2_ck(rc), .r2_ckid(ri), .disp_go(go), .cmt_wr(s_cw), .cmt_arch(s_ca), .cmt_new(s_cn), .cmt_old(s_co),
+         .restore(s_re), .restore_id(s_ri), .flush_all(s_fl));
+
+    // what travels with R2
+    logic [3:0][1:0]   d_p, d_u;
+    logic [3:0]        d_l, d_n, d_m, d_t;
+    logic [3:0][11:0]  d_b;
+    always_ff @(posedge clk) begin
+        if (adv) begin
+            d_p <= s_ip; d_u <= s_iu; d_l <= s_il; d_b <= s_ib; d_n <= s_in; d_m <= s_im; d_t <= s_it;
+        end
+    end
+
+    // the DS register into the queue: the oldest, as far as there is room
+    always @(*) begin
+        automatic logic [2:0] c = 3'd0;
+        automatic logic [2:0] m = dr < s_room ? dr : s_room;
+        for (int k = 0; k < 4; k++) begin
+            go[k] = rv[k] && c < m;
+            if (rv[k]) c = c + 3'd1;
+        end
+    end
+
+    logic [8:0]        wv;
+    logic [8:0][6:0]   wt;
+    logic [3:0][1:0]   rdy;
+    OOO_BUSY #(.NREG(80), .TAGW(7), .NWK(9)) u_busy
+        (.clk(clk), .rst_n(rst_n), .set_v(wr1), .set_t(t1), .wk_valid(wv), .wk_tag(wt), .rd_t(rs), .rd_rdy(rdy));
+
+    logic [3:0][4:0]   de;
+    logic [5:0]        iv, iw;
+    logic [5:0][4:0]   ie;
+    logic [5:0][1:0][6:0] is;
+    logic [5:0][6:0]   id;
+    logic [5:0][11:0]  ib;
+    logic              in, im;
+    OOO_IQ2 u_iq
+        (.clk(clk), .rst_n(rst_n), .flush(s_fl), .kill(s_ki), .clr(s_cl), .ns_ok(s_nk), .mdu_ok(s_mk), .p0_hold(s_ph),
+         .disp_ready(dr), .disp_entry(de), .disp_valid(go), .disp_port(d_p), .disp_use(d_u), .disp_src(rs),
+         .disp_rdy(rdy), .disp_wr(rw), .disp_dst(rd), .disp_lat2(d_l), .disp_bm(d_b), .disp_ns(d_n), .disp_md(d_m),
+         .disp_st(d_t), .ext_valid(s_xv), .ext_tag(s_xt),
+         .iss_valid(iv), .iss_entry(ie), .iss_src(is), .iss_wr(iw), .iss_dst(id), .iss_bm(ib), .iss_ns(in), .iss_md(im),
+         .wk_valid(wv), .wk_tag(wt));
+    always_ff @(posedge clk) begin
+        o_take <= take; o_old <= ro; o_ck <= rc; o_ckid <= ri; o_go <= go; o_entry <= de;
+        o_iss <= {iv, ie, is, iw, id, ib, in, im};
+    end
+endmodule : OOC_REN3
+
+//---------------------------------------------------------------------------
 // OOC_UBTB2: the next-line predictor of the 4-issue core (OOO_UBTB2; Doc/STRATEGY.md
 // 4.5 loop 6). What comes from outside is registered, as it has to be in the core.
 //---------------------------------------------------------------------------
@@ -2099,7 +2224,7 @@ module OOC_RENAME2
     end
     OOO_RENAME2 #(.NREG(80), .TAGW(7), .NCK(12)) u_ren
         (.clk(clk), .rst_n(rst_n), .in_valid(s_iv), .in_src(s_is), .in_wr(s_iw), .in_dst(s_id), .in_ckpt(s_ik),
-         .in_take(take), .r2_valid(rv), .r2_src(rs), .r2_wr(rw), .r2_dst(rd), .r2_old(ro), .r2_ck(rc), .r2_ckid(ri),
+         .in_take(take), .r1_adv(), .r1_wr(), .r1_tag(), .r2_valid(rv), .r2_src(rs), .r2_wr(rw), .r2_dst(rd), .r2_old(ro), .r2_ck(rc), .r2_ckid(ri),
          .disp_go(disp_go), .cmt_wr(s_cw), .cmt_arch(s_ca), .cmt_new(s_cn), .cmt_old(s_co),
          .restore(s_re), .restore_id(s_ri), .flush_all(s_fl));
 endmodule : OOC_RENAME2

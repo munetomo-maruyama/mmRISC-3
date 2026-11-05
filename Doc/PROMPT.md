@@ -7310,3 +7310,52 @@ The record is section 29.11 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J
 ```text
 fe3 finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOC_FE3` with `OOO_FBUF3` reached about 15.3 ns (WNS −0.281 ns), 6,539 LUTs. Loop 5 is done alone, at no cost in cycles.** The record is pushed (1f76bb7; 0 Ref on origin/dev).
+
+## The result
+LUTs are +1,380 on the `OOO_FBUF2` version, as estimated (+1k to 1.5k). The worst stays F2's `ovr`, as expected.
+
+| Class | With `OOO_FBUF2` | Now | Reached |
+|---|---|---|---|
+| `ovr` | +0.018 | −0.281 | 15.3 ns |
+| `cut`, `tab` | +1.128, +0.783 | +0.650 | 14.4 ns |
+| `slot` | +3.272 | +2.112 | 12.9 ns |
+| `dloop` | +9.539 | +2.723 | 12.3 ns |
+| `move` (new) | | +2.809 | 12.2 ns |
+
+The buffer's own loop grew from 5.5 ns to 12.3 ns, well within 20 ns.
+
+## Where the 6 loops stand
+
+| Loop | Block | Reached | LUTs | What is kept in the model |
+|---|---|---|---|---|
+| 1 | `OOC_IQ2` | 15.6 ns | 8,888 (no payload) | 2.4 % against distributed queues |
+| 2 | `OOC_EXU2` | Met 15 ns | 20,332 | 3.5 % against 3 ALUs |
+| 3 | `OOC_LSU3` | 14.1 ns | 3,326 (no miss logic) | 12.7 % against load-use 3, 8.0 % against 1 port |
+| 4, 5 | `OOC_FE3` | 15.3 ns | 6,539 (no F1) | 2.0 %, 2.1 % |
+| 6 | Rename of 4 | Not measured | | 0.5 % against a stage more |
+
+**The model so far is 8.633, the RTL estimate about 8.1, about 406 CoreMark/s.** All are alone; what joining the blocks adds is still unknown. The RTL estimate still assumes × 0.94.
+
+## The next step
+Loop 6 is not only about timing. `OOO_RENAME2` was made for the distributed schedulers, so it has no busy bits. The unified `OOO_IQ2` compares tags, so it needs `disp_rdy`, saying whether a source is ready already.
+
+So this core's rename needs:
+
+- **Busy bits:** 80 bits, 8 reads, cleared by 9 wakeup tags.
+- **Against misses at the DS stage:** a µop between rename and dispatch must not miss a wakeup in between.
+
+The effect on CoreMark/MHz is small (a stage more −0.5 %), but the core needs this. It is the last of the loops; after it comes the judgement of gate S1-A (freezing the configuration).
+
+The record is section 29.12 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 179. 2026-11-05 23:36:26 JST
+
+```text
+Yes, loop 6
+```

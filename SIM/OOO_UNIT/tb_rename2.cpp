@@ -212,7 +212,18 @@ int main(int argc, char** argv)
         if (left_all && !free_ok && !rest && !flush && rest_wait == 0 && cyc > 20) nshort++;
 
         // ---- the edge
-        d.clk = 1; d.eval(); d.clk = 0; d.eval();
+        {
+            // what goes on at the edge, for OOO_BUSY and what travels with R2
+            bool ra = d.r1_adv; unsigned rw = d.r1_wr; uint32_t rt = d.r1_tag;
+            if (!ra && rw) { if (bad++ < 10) printf("cycle: a register set though R1 stays\n"); }
+            d.clk = 1; d.eval(); d.clk = 0; d.eval();
+            if (ra) {
+                if (d.r2_wr != rw && bad++ < 10) printf("cycle: r1_wr %x, then r2_wr %x\n", rw, (unsigned)d.r2_wr);
+                for (int k = 0; k < 4; k++) if (((rw >> k) & 1) && ((rt >> (7 * k)) & 127) != ((d.r2_dst >> (7 * k)) & 127) && bad++ < 10)
+                    printf("cycle: r1_tag %d, then r2_dst differs\n", k);
+            }
+        }
+
 
         free_ok = cyc >= 12 && free_seen >= 8;   // (as the block looks at them: before this edge's)
         if (((rtail - rhead) & 63) < 4) nwrap++;
