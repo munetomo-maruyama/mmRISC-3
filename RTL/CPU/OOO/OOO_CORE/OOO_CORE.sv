@@ -10,10 +10,10 @@
 //   D2         the group rotated to its oldest valid slot (the group
 //              register keeps what D2 left in its place), OOO_FUSE (off:
 //              ALU + branch, B5a, is there but turned off, 5.21),
-//              OOO_RENAME, OOO_CTRL's r_go; g_take back to the front end
-//   DS         OOO_DSREG (tags, ready snoop, and the µop's payload: the
-//              record of OOO_IQPL, pc, destination, ...); OOO_CTRL's d_go
-//              writes OOO_ROB, OOO_IQ and OOO_IQPL
+//              OOO_RENAME2's R1, OOO_CTRL's r_go; g_take back to the front end
+//   DS         OOO_RENAME2's R2 (tags; 2 slots of its 4 so far: Plan/OOC.md 29.17), OOO_BUSY
+//              for the ready bits, and the µop's payload: the record of OOO_IQPL,
+//              pc, ...; OOO_CTRL's d_go writes OOO_ROB, OOO_IQ and OOO_IQPL
 //   IS         OOO_IQ: port 0 (ALU0, OOO_ALU2 full; OOO_CSRU, OOO_SYS,
 //              OOO_PMUL, OOO_MDUP), port 1 (ALU1, FULL 0), port 2 (OOO_LSU)
 //   RR         OOO_STAGE; OOO_PRF (2 reads a port), OOO_IQPL's record, the
@@ -138,7 +138,7 @@ module OOO_CORE
 
     localparam int NFTQ  = 16, FTQW = 4;        // D-18
     localparam int NCKPT = 12, CW   = 4;        // step 1.2 A (Plan/OOC.md 29.16): the frozen sizes first
-    localparam int TAGW  = 6;                   // 64 physical registers
+    localparam int TAGW  = 7;                   // 80 physical registers
     localparam int NROB  = 48, ROBW = 6;
     localparam int NIQ   = 10, IQW  = 4;
     // the fusion kinds (OOO_FUSE's KINDS): ALU + branch (B5a, 8'h80) is off (5.21). FUSE_AB gates the pair's
@@ -342,9 +342,6 @@ module OOO_CORE
     logic [1:0][1:0][4:0] ren_src;
     logic [1:0][4:0]     ren_dst;
     logic [1:0][CW-1:0]  ren_ckpt_id;
-    logic [1:0][1:0][TAGW-1:0] ren_osrc;
-    logic [1:0][1:0]     ren_ordy;
-    logic [1:0][TAGW-1:0] ren_odst, ren_oold;
     logic                ren_ready;
     dsp_t [1:0]          d2;
     logic [1:0][1:0]     us, us2;               // the group slot of each µop (us2: a pair's branch)
@@ -434,8 +431,6 @@ module OOO_CORE
             d2[j].pc             = g_pc[s];
             d2[j].wr             = ren_wr[j];
             d2[j].arch           = g_rd[s];
-            d2[j].dst            = ren_odst[j];
-            d2[j].old            = ren_oold[j];
             d2[j].rec.kind       = g_cls[s] == 3'd6 ? K_MDU : g_is_csr[s] ? K_CSR : sysop_v ? K_SYS : K_ALU;
             d2[j].rec.xop        = g_cls[s] == 3'd6 ? g_mdu_op[s] : {1'b0, sysop};
             // illegal (and in Phase 1 an FP instruction: no FPU), EBREAK, ECALL
@@ -465,16 +460,32 @@ module OOO_CORE
     logic [1:0][VA-1:1]        cmt_pc;
     logic [1:0][FTQW-1:0]      cmt_ftq;
 
-    OOO_RENAME #(.NREG(64), .TAGW(TAGW), .NCKPT(NCKPT), .NWK(NWK)) u_rename
-        (.clk(clk), .rst_n(rst_n), .ready(ren_ready), .in_valid(r_go), .in_use(ren_use), .in_src(ren_src),
-         .in_wr(ren_wr), .in_dst(ren_dst), .in_ckpt(r_ckpt), .out_ckpt_id(ren_ckpt_id),
-         .out_src(ren_osrc), .out_rdy(ren_ordy), .out_dst(ren_odst), .out_old(ren_oold),
-         .wk_valid(wk_valid), .wk_tag(wk_tag), .free_valid(free_valid), .free_tag(free_tag),
-         .restore(restore), .restore_id(restore_id),
-         .cmt_valid(cmt_valid), .cmt_wr(cmt_wr), .cmt_arch(cmt_arch), .cmt_new(cmt_new), .flush_all(flush_all));
+    // ---- renaming: slots 0, 1 of 4 so far (Plan/OOC.md 29.17)
+    logic [1:0]                d_go;
+    logic [3:0]                r1_wr, r2_v_all, r2_wr_all, r2_ck_all;
+    logic [3:0][TAGW-1:0]      r1_tag, r2_dst_all, r2_old_all;
+    logic [3:0][1:0][TAGW-1:0] r2_src_all;
+    logic [3:0][CW-1:0]        r2_ckid_all, r1_ckid;
+    /* verilator lint_off UNUSEDSIGNAL */
+    logic                      r1_adv;
+    logic [2:0]                r1_take;
+    /* verilator lint_on UNUSEDSIGNAL */
+    logic [3:0][1:0]           ren_rdy;
+    OOO_RENAME2 #(.NREG(80), .TAGW(TAGW), .NCK(NCKPT)) u_rename
+        (.clk(clk), .rst_n(rst_n), .in_valid({2'b00, r_go}), .in_src({20'd0, ren_src}),
+         .in_wr({2'b00, ren_wr}), .in_dst({10'd0, ren_dst}), .in_ckpt({2'b00, r_ckpt}), .in_take(r1_take),
+         .r1_adv(r1_adv), .r1_wr(r1_wr), .r1_tag(r1_tag), .r1_ready(ren_ready), .r1_ckid(r1_ckid),
+         .r2_valid(r2_v_all), .r2_src(r2_src_all), .r2_wr(r2_wr_all), .r2_dst(r2_dst_all), .r2_old(r2_old_all),
+         .r2_ck(r2_ck_all), .r2_ckid(r2_ckid_all), .disp_go({2'b00, d_go}),
+         .cmt_wr({2'b00, free_valid}), .cmt_arch({10'd0, cmt_arch}), .cmt_new({(2*TAGW)'(0), cmt_new}),
+         .cmt_old({(2*TAGW)'(0), free_tag}), .restore(restore), .restore_id(restore_id), .flush_all(flush_all));
+    assign ren_ckpt_id = r1_ckid[1:0];
+    OOO_BUSY #(.NREG(80), .TAGW(TAGW), .NWK(NWK)) u_busy
+        (.clk(clk), .rst_n(rst_n), .set_v(r1_wr), .set_t(r1_tag), .wk_valid(wk_valid), .wk_tag(wk_tag),
+         .rd_t(r2_src_all), .rd_rdy(ren_rdy));
 
     // ---- DS
-    logic [1:0]                d_go, rob_avail, iq_ready;
+    logic [1:0]                rob_avail, iq_ready;
     /* verilator lint_off UNUSEDSIGNAL */      // (d_go says what dispatches)
     logic [1:0]                ds_valid;
     /* verilator lint_on UNUSEDSIGNAL */
@@ -486,10 +497,26 @@ module OOO_CORE
     logic [1:0][ROBW-1:0]      disp_rob;
     logic [1:0][IQW-1:0]       disp_entry;
 
-    OOO_DSREG #(.W($bits(dsp_t)), .TAGW(TAGW), .NB(NWK)) u_dsreg
-        (.clk(clk), .rst_n(rst_n), .load(ds_load), .in_src(ren_osrc), .in_use(ren_use), .in_rdy(ren_ordy),
-         .in_data(d2), .wk_valid(wk_valid), .wk_tag(wk_tag),
-         .ds_src(ds_src), .ds_use(ds_use), .ds_rdy(ds_rdy), .ds_data(ds));
+    // the DS register: the tags are R2's, the ready bits from the busy bits as of now
+    // (OOO_BUSY: no snoop is needed), and the rest of the µop travels beside them
+    dsp_t [1:0]                ds_q;
+    logic [1:0][1:0]           ds_use_q;
+    always_ff @(posedge clk) begin
+        if (ds_load) begin
+            ds_q     <= d2;
+            ds_use_q <= ren_use;
+        end
+    end
+    always @(*) begin
+        ds     = ds_q;
+        ds_use = ds_use_q;
+        for (int j = 0; j < 2; j++) begin
+            ds[j].dst = r2_wr_all[j] ? r2_dst_all[j] : '0;   // (tag 0: a result for x0 is not written, 5.7)
+            ds[j].old = r2_old_all[j];
+            ds_src[j] = r2_src_all[j];
+            ds_rdy[j] = ren_rdy[j];
+        end
+    end
 
     // the resolution (registered: e_* as EX makes it, Plan/CORE.md 5.20)
     logic [1:0]                br_valid /*verilator public_flat_rd*/;
@@ -1038,7 +1065,7 @@ module OOO_CORE
     end
 
     /* verilator lint_off PINCONNECTEMPTY */
-    OOO_PRF #(.NREG(64), .NW(3), .NR(6)) u_prf
+    OOO_PRF #(.NREG(80), .NW(3), .NR(6)) u_prf
         (.clk(clk), .ra(prf_ra), .rd(prf_rd), .we(prf_we), .wa(prf_wa), .wd(prf_wd));
     /* verilator lint_on PINCONNECTEMPTY */
 

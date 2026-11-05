@@ -206,7 +206,7 @@ All stay in the tree with their benches.
 |---|---|---|
 | 1.0 | **Done 2026-11-05**: the configuration in the model (`Plan/model/g50.sh`); RR1 out of the core | 8.68; lock-step and CoreMark as before RR1 |
 | 1.1 | **Done 2026-11-06**: harnesses of the six loops at a 20 ns target, in the order of 4.5: unified 24 first (`OOC_IQ2`), then the register file with bypass and 4 ALUs, 2 load ports, fetch, fetch buffer, rename. `OOO_CPU` at 20 ns at each join | **Gate S1-A, passed 2026-11-06: go, by the author** (`Plan/OOC.md` 29.14, 29.15): all within reach of 20 ns, no fallback taken; about 106.5k LUTs by the sums; **the configuration frozen**; working targets RTL 8.0, board 7.8 |
-| 1.2 | In `OOO_CORE`, each in lock-step (`Plan/OOC.md` 29.16): **A, done 2026-11-06**: ROB 48, LQ / SQ 16, 12 checkpoints at 2-wide. **B**: `OOO_RENAME2`, `OOO_BUSY`, 80 registers. **C**: dispatch and commit of 4: ROB, control | Lock-step; cycles against the model |
+| 1.2 | In `OOO_CORE`, each in lock-step (`Plan/OOC.md` 29.16): **A, done 2026-11-06**: ROB 48, LQ / SQ 16, 12 checkpoints at 2-wide. **B, done 2026-11-06**: `OOO_RENAME2`, `OOO_BUSY`, 80 registers. **C**: dispatch and commit of 4: ROB, control | Lock-step; cycles against the model |
 | 1.3 | **D**: `OOO_IQ2`, its payload, `OOO_EXU2`, 4 ALUs, the register file: they go together, as the queue's ports are the units' | Tests; cycles against the model |
 | 1.4 | **E**: `OOO_LSU3`, `OOO_DCH2`, the miss logic: the second LSU port | Tests; cycles against the model |
 | 1.5 | **F**: `OOO_FDEC2`, `OOO_FBUF3`, `OOO_UBTB2`, the I$ of 32 bytes, 6 decoded, the decoded queue, TAGE M | Tests; cycles against the model |

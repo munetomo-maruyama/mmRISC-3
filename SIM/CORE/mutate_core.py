@@ -21,6 +21,8 @@
 # Every line of the result is to be read: grep NOT.
 #
 # Left out, as found by the first campaign:
+#   - every µop reading 2 sources (ds_use): only later, as what it waits for needlessly is
+#     woken in time: cycles, no value (Plan/OOC.md 29.17);
 #   - the wrap of the rotated slots past slot 3 masked: they are below the
 #     oldest valid slot and never valid (the mask is gone from the RTL);
 #   - an empty µop offered with a destination (renaming's ready counting
@@ -87,6 +89,12 @@ MUT = [
     (C, "d2[j].rec.ret        = g_is_jalr[s] && link_rs1 && !link_rd;", "d2[j].rec.ret        = g_is_jalr[s] && link_rs1;", 'a call through x1 / x5 counted as a return'),
     (C, "d2[j].rec.call       = g_is_jalr[s] && link_rd;", "d2[j].rec.call       = 1'b0;", 'jalr calls not calls (the RAS on a restore)'),
     # DS, ROB, IQ
+    (C, "ds[j].dst = r2_wr_all[j] ? r2_dst_all[j] : '0;", "ds[j].dst = r2_dst_all[j];", 'DS: a load to x0 writes a free register (found so, 29.17)'),
+    (C, "ds_rdy[j] = ren_rdy[j];", "ds_rdy[j] = 2'b11;", 'DS: every source ready'),
+    (C, ".set_v(r1_wr)", ".set_v(4'd0)", 'busy bits never set'),
+    (C, "assign ren_ckpt_id = r1_ckid[1:0];", "assign ren_ckpt_id = {2{r1_ckid[0]}};", 'renaming: µop 1 told µop 0\'s id'),
+    (C, ".cmt_wr({2'b00, free_valid})", ".cmt_wr({2'b00, 1'b0, free_valid[0]})", 'renaming: the second commit does not count'),
+    (C, ".cmt_old({(2*TAGW)'(0), free_tag})", ".cmt_old({(2*TAGW)'(0), free_tag[0], free_tag[0]})", 'renaming: the old mapping of the first for both'),
     (C, "wrec[j].rob = disp_rob[j];", "wrec[j].rob = disp_rob[0];", 'the record: µop 1 with µop 0\'s ROB entry'),
     (C, ".disp_new({ds[1].dst, ds[0].dst}), .disp_old({ds[1].old, ds[0].old})", ".disp_new({ds[1].dst, ds[0].dst}), .disp_old({ds[1].dst, ds[0].dst})",
      'ROB: the new mapping as the old'),

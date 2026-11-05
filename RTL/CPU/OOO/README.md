@@ -2,7 +2,7 @@
 
 [日本語](README_J.md)
 
-> **2026-11-06**: the core here is the 2-wide one of `Plan/CORE.md` 5.22, with the frozen sizes of ROB, LQ / SQ and checkpoints; it is becoming 4-wide with 6 issues at 50 MHz on the XC7A200T, a piece at a time (`Doc/STRATEGY.md` 4, 5; `Plan/OOC.md` 29.16). The blocks built for 100 MHz stay here, with their benches: which are used is in `Doc/STRATEGY.md` 4.6.
+> **2026-11-06**: the core here is the 2-wide one of `Plan/CORE.md` 5.22, with the frozen sizes of ROB, LQ / SQ and checkpoints, `OOO_RENAME2` and `OOO_BUSY` in place of `OOO_RENAME` and `OOO_DSREG`; it is becoming 4-wide with 6 issues at 50 MHz on the XC7A200T, a piece at a time (`Doc/STRATEGY.md` 4, 5; `Plan/OOC.md` 29.16). The blocks built for 100 MHz stay here, with their benches: which are used is in `Doc/STRATEGY.md` 4.6.
 
 The first blocks of mmRISC-3's out-of-order core in the **fusion configuration** (`Plan/STRATEGY_A100T.md` section 4): the
 loops that have to close in one cycle at 50 MHz and the parts whose cost decides the configuration. They are written

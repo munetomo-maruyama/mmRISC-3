@@ -1911,7 +1911,7 @@ module OOC_REN3
     logic [3:0][3:0]   ri;
     OOO_RENAME2 #(.NREG(80), .TAGW(7), .NCK(12)) u_ren
         (.clk(clk), .rst_n(rst_n), .in_valid(s_iv), .in_src(s_is), .in_wr(s_iw), .in_dst(s_id), .in_ckpt(s_ik),
-         .in_take(take), .r1_adv(adv), .r1_wr(wr1), .r1_tag(t1), .r2_valid(rv), .r2_src(rs), .r2_wr(rw), .r2_dst(rd), .r2_old(ro),
+         .in_take(take), .r1_adv(adv), .r1_wr(wr1), .r1_tag(t1), .r1_ready(), .r1_ckid(), .r2_valid(rv), .r2_src(rs), .r2_wr(rw), .r2_dst(rd), .r2_old(ro),
          .r2_ck(rc), .r2_ckid(ri), .disp_go(go), .cmt_wr(s_cw), .cmt_arch(s_ca), .cmt_new(s_cn), .cmt_old(s_co),
          .restore(s_re), .restore_id(s_ri), .flush_all(s_fl));
 
@@ -2224,7 +2224,7 @@ module OOC_RENAME2
     end
     OOO_RENAME2 #(.NREG(80), .TAGW(7), .NCK(12)) u_ren
         (.clk(clk), .rst_n(rst_n), .in_valid(s_iv), .in_src(s_is), .in_wr(s_iw), .in_dst(s_id), .in_ckpt(s_ik),
-         .in_take(take), .r1_adv(), .r1_wr(), .r1_tag(), .r2_valid(rv), .r2_src(rs), .r2_wr(rw), .r2_dst(rd), .r2_old(ro), .r2_ck(rc), .r2_ckid(ri),
+         .in_take(take), .r1_adv(), .r1_wr(), .r1_tag(), .r1_ready(), .r1_ckid(), .r2_valid(rv), .r2_src(rs), .r2_wr(rw), .r2_dst(rd), .r2_old(ro), .r2_ck(rc), .r2_ckid(ri),
          .disp_go(disp_go), .cmt_wr(s_cw), .cmt_arch(s_ca), .cmt_new(s_cn), .cmt_old(s_co),
          .restore(s_re), .restore_id(s_ri), .flush_all(s_fl));
 endmodule : OOC_RENAME2

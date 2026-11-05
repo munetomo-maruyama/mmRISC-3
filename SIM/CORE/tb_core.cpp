@@ -152,12 +152,17 @@ static bool run(const Opts& o, const std::string& elf)
     d->rst_n = 1; d->eval(); d->rst_n = 0; d->eval(); d->rst_n = 1; d->eval();
     // the register file starts at 0, as Spike's: it has no reset (a boot ROM would clear it), and a program's
     // start may save registers it has not written yet (CoreMark's does)
-    for (int i = 0; i < 64; i++) {
-        d->rootp->CORE(u_prf__DOT__g_bank__BRA__0__KET____DOT__g_one__DOT__mem)[i] = 0;
-        d->rootp->CORE(u_prf__DOT__g_bank__BRA__1__KET____DOT__g_one__DOT__mem)[i] = 0;
-        d->rootp->CORE(u_prf__DOT__g_bank__BRA__2__KET____DOT__g_one__DOT__mem)[i] = 0;
-        d->rootp->CORE(u_prf__DOT__lvt)[i] = 0;
+    for (int w = 0; w < 64; w++) {
+        d->rootp->CORE(u_prf__DOT__g_bank__BRA__0__KET____DOT__g_two__DOT__lo)[w] = 0;
+        d->rootp->CORE(u_prf__DOT__g_bank__BRA__1__KET____DOT__g_two__DOT__lo)[w] = 0;
+        d->rootp->CORE(u_prf__DOT__g_bank__BRA__2__KET____DOT__g_two__DOT__lo)[w] = 0;
     }
+    for (int w = 0; w < 16; w++) {
+        d->rootp->CORE(u_prf__DOT__g_bank__BRA__0__KET____DOT__g_two__DOT__hi)[w] = 0;
+        d->rootp->CORE(u_prf__DOT__g_bank__BRA__1__KET____DOT__g_two__DOT__hi)[w] = 0;
+        d->rootp->CORE(u_prf__DOT__g_bank__BRA__2__KET____DOT__g_two__DOT__hi)[w] = 0;
+    }
+    for (int i = 0; i < 80; i++) d->rootp->CORE(u_prf__DOT__lvt)[i] = 0;
     long restores = 0, replays = 0;
     bool res_bad = false;
     for (uint64_t cyc = 0; !b.done(); cyc++) {

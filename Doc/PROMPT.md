@@ -7473,5 +7473,45 @@ Freeze it and go to step 1.2
 <!-- answer -->
 **Claude Code's answer**
 
-(That turn's closing is in the next one: gate S1-A recorded, step 1.2's first piece done. See section 29.16 of [Plan/OOC.md](Plan/OOC.md).)
+**I recorded the passing of gate S1-A and froze the configuration. As the first piece of step 1.2 (A), I widened today's core, still 2-wide, to ROB 48, LQ / SQ 16 and 12 checkpoints, and pushed it (31af4ee; 0 Ref on origin/dev).** The working targets of RTL 8.0 and board 7.8 stand as well.
+
+## How step 1.2 goes changed
+STRATEGY said "the width as a parameter of `OOO_CORE`, with tests at both widths", but that does not fit the blocks built. `OOO_RENAME2`, `OOO_IQ2` and the like are fixed at 4-wide, 6 issues from the start, not parameters of today's blocks.
+
+So it now goes **replacing one at a time, passing lock-step and comparing with the model each time**.
+
+| Piece | What | Model compared with |
+|---|---|---|
+| **A (done)** | ROB 48, LQ / SQ 16, 12 checkpoints (still 2-wide) | The base with those sizes |
+| B | `OOO_RENAME2`, `OOO_BUSY`, 80 registers | The same, no register limit |
+| C | Dispatch and commit of 4 (ROB, control) | `w=4` |
+| D | `OOO_IQ2`, `OOO_EXU2`, 4 ALUs, register file | 1 LSU port |
+| E | `OOO_LSU3`, `OOO_DCH2`, miss logic | 16-byte fetch |
+| F | 32-byte fetch, 6 decoded, TAGE M | **8.633** |
+
+C with today's queue may be a dead end, so if it costs more than it teaches, C and D go together.
+
+## The result of A
+
+| CoreMark, no misses | RTL cycles | Model /MHz |
+|---|---|---|
+| Before | 1,817,188 | 5.805 |
+| **A** | **1,806,314 (−0.60 %)** | **5.839 (+0.59 %)** |
+
+The RTL moved as the model predicted.
+
+- **Regression:** `run_core.sh` 0 failures in all runs; `run_coremark.sh` PASS on `OOO_CORE`, `OOO_CPU` and random misses.
+- **Registers stay 64:** today's `OOO_RENAME` asks registers − 32 to be a power of two; that goes in B.
+- **Not done:** `mutate_core.py` (the core's bug injection) was not run, as only sizes changed. It runs at B.
+
+## The next step
+Next, B replaces rename with `OOO_RENAME2` and `OOO_BUSY`. Here a new block first runs inside today's core. The recovery's way (how checkpoints are kept) changes, so joining with `OOO_CTRL` is the main work. Vivado is asked from C on; B does not need it.
+
+The record is sections 29.15, 29.16 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
 <!-- /answer -->
+
+## 182. 2026-11-06 00:35:03 JST
+
+```text
+Yes, on to B
+```

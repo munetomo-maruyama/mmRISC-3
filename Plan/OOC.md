@@ -4358,3 +4358,22 @@ C with today's queue may be a dead end in timing and queue's writes; if it costs
 So the RTL follows the model, here. `run_core.sh`: 0 failures in all its runs. `run_coremark.sh`: PASS on `OOO_CORE` and `OOO_CPU`, misses at random too. `mutate_core.py` not run on this piece, as nothing but sizes changed; it runs at B.
 
 **Next**: B.
+
+### 29.17 Step 1.2, B: `OOO_RENAME2`, `OOO_BUSY`, 80 registers in the core (2026-11-06)
+
+`OOO_CORE`: `OOO_RENAME2` in place of `OOO_RENAME` and `OOO_DSREG`, slots 0 and 1 of its 4 in use, with `OOO_BUSY`; R2's tags, and the ready bits from the busy bits, into `OOO_IQ`; the rest of the µop in a plain register beside them. `OOO_CTRL` is unchanged: its `r_ren_ready` is `OOO_RENAME2`'s new `r1_ready`, its `r_ckpt_id` the new `r1_ckid`, and its `d_go` the block's `disp_go`. 80 registers, 7-bit tags.
+
+| CoreMark, no misses | RTL cycles | Model /MHz |
+|---|---|---|
+| A | 1,806,314 | 5.839 |
+| **B** | **1,805,278, −0.06 %** | **5.839** (the limit of 64 costs nothing at 2-wide) |
+
+`OOO_CPU`, the real D$: 1,832,102. `run_core.sh`: 0 failures in all 12 runs. `run_coremark.sh`: PASS.
+
+**A fault, found by lock-step, and only by the riscv tests.** CoreMark passed at once. `ls-*` and the arch tests did not: a load to x0 wrote a free register. The core takes tag 0 as "no write" from the LSU, the multiplier and the MDU (`Plan/CORE.md` 5.7), and `OOO_RENAME` gave a tag 0 for no destination; `OOO_RENAME2` gives the free list's top. So DS now gives 0 where R2 says no write. **That says something about how far CoreMark alone can be trusted here: all 12 runs at every piece.**
+
+**Bug injection: `mutate_core.py`, 98, 96 detected at first, every line read.** The 2:
+- "Every µop reads 2 sources" (`ds_use`), new: costs cycles only, as what it waits for is woken in time. No value goes wrong. Left out, with a note in the script.
+- **"D2: both taken when only µop 0 goes": a real fault that is no longer reached.** `r_go[1]` is false with `r_go[0]` true only if slot 1's id is live and slot 0's not: 11 checkpoints open. With 6 that happened; with 12 no test gets there. **Not fixed here:** this line goes in C, which rewrites `r_go` for 4; C needs a directed program with many branches open behind a long operation.
+
+**Next**: C, dispatch and commit of 4.

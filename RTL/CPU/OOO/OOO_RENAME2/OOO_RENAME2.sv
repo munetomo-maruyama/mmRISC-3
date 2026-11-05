@@ -70,6 +70,8 @@ module OOO_RENAME2
         output logic                      r1_adv,
         output logic [3:0]                r1_wr,
         output logic [3:0][TAGW-1:0]      r1_tag,
+        output logic                      r1_ready,    // registers are there, no restore is going on
+        output logic [3:0][$clog2(NCK)-1:0] r1_ckid,   // the id a slot takes if it goes with those before
 
         // ---- R2
         output logic [3:0]                r2_valid,
@@ -176,14 +178,17 @@ module OOO_RENAME2
         end
     end
 
+    logic [CW-1:0] id_n [4];
     // ---- R1 moves on when R2 has nothing left
     logic adv;
     assign adv = (r2_valid & ~disp_go) == 4'd0 && free_ok && !init_b && !u_v && !restore && !flush_all;
     assign r1_adv = adv;
+    assign r1_ready = free_ok && !init_b && !u_v;
     always @(*) begin
         for (int k = 0; k < 4; k++) begin
             r1_wr[k]  = adv && wr[k];
             r1_tag[k] = tag[k];
+            r1_ckid[k] = id_n[k];
         end
     end
 
@@ -196,12 +201,11 @@ module OOO_RENAME2
         else if (adv)                     r2_valid <= take;
         else                              r2_valid <= r2_valid & ~disp_go;
     end
-    logic [CW-1:0] id_n [4];
     always @(*) begin
         automatic logic [CW-1:0] c = ck_next;
         for (int k = 0; k < 4; k++) begin
             id_n[k] = c;
-            if (take[k] && in_ckpt[k]) c = cinc(c);
+            if (in_ckpt[k]) c = cinc(c);        // (not by take: what asks for an id cannot wait for what goes)
         end
     end
     always_ff @(posedge clk) begin
