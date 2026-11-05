@@ -7020,3 +7020,41 @@ The first result stays in `output/OOC_EXU2_T15_first`. The record is section 29.
 ```text
 exu2 finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOC_EXU2` met 15 ns (WNS +0.163 ns) and came down to 20,332 LUTs.** The split took off 2,640 LUTs, close to the estimate of about 2.8k. Loop 2 is done alone. The record is pushed (0ade83d; 0 Ref on origin/dev).
+
+| Part | Before the split | After |
+|---|---|---|
+| Register file | 15,622 | **12,839** |
+| ALU ports and bypass | 7,351 | 7,494 |
+| Total | 22,972 | **20,332** |
+
+Timing hardly changes (`sel` +0.969, `loop` +1.093). About 5 ns to spare against 20 ns, for joining blocks and a load's late data. The class `write` found no cells because the arrays have new names; `report_exu2.tcl` is corrected for the next run.
+
+## The LUT estimate
+The chip's estimate is about 110k (82 %), **still 2.2k over the ceiling of 80 %**. Only the queue itself (8.9k) and loop 2 (20.3k) are measured. The queue's payload, the front end, renaming, the ROB and the LSU are still estimates.
+
+What can be used if it does not fit:
+
+| Means | LUTs | CoreMark/MHz |
+|---|---|---|
+| 64 registers | −5.7k or more | −2.4 % |
+| 3 ALUs | Not measured | −3.5 % |
+| The register file used twice at 100 MHz | Not looked at | No loss expected (not checked) |
+
+## The next step
+Next is loop 3 (2 load ports, load-use 2). There is a new problem here. The D$'s block RAM has only 2 ports, and 2 loads use both. So **a store's drain and a fill have to take a port from a load**.
+
+The model does not count this contention yet, so today's 8.63 may be a little high. I first put this limit in the model and check the price, then make the RTL. I recommend measuring through loop 3 and deciding on LUTs together, rather than cutting now.
+
+The record is section 29.6 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 173. 2026-11-05 21:56:59 JST
+
+```text
+Yes, loop 3
+```

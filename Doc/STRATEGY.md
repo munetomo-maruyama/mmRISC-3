@@ -169,7 +169,7 @@ One MMCM, for example: VCO 800 MHz, 100 MHz (/8), 400 MHz (/2), 400 MHz at 90° 
 |---|---|---|---|---|---|
 | 1 | **Wakeup + select** | 1 cycle, unified 24, 6 selects | Distributed queues (`OOO_SCHED`) | −2.4 % | Today's 11.8 ns, 10 entries, 3 ports. `OOO_SCHED` 8.9 ns, 8 entries each. **`OOO_IQ2`, model 8.63 with its limits: about 15.6 ns asked for 15, 8,888 LUTs without the payload** (`Plan/OOC.md` 29.3). Alone |
 | 2 | **Bypass + ALU + register file** | RR and EX, 6 results, 11 reads, 6 writes | 3 ALUs; the register file double-pumped on the 100 MHz clock | −3.5 % | `OOO_EXU` with `OOO_PRF2` 9.2 ns a stage, 12,472 LUTs, 3 ALUs, 4 writes, 8 reads. **`OOO_EXU2`, one bypass: met 15 ns, 20,332 LUTs, the register file 12,839 of them** (`Plan/OOC.md` 29.6). Alone |
-| 3 | **Load** | Load-use 2, 2 ports | 1 LSU; load-use 3 | −8.0 %; −12.7 % | Today's 12.6 ns, 1 port |
+| 3 | **Load** | Load-use 2, 2 ports | 1 LSU; load-use 3 | −8.0 %; −12.7 % | Today's 12.6 ns, 1 port. **Built: `OOO_LSU3`, a copy of the D$'s arrays a port; `synth_ooo.bat lsu3` to run** (`Plan/OOC.md` 29.7) |
 | 4 | **Fetch** | 32 B, 3 stages, the override at F2 | A stage more, the override with it | −2.1 % | Today's 14.3 ns, 16 B. `OOC_FE2` 9.5 ns a stage, 5 stages |
 | 5 | **Fetch buffer** | 6 a cycle, across blocks | One block a cycle (`OOO_FBUF2` as it is) | −2.2 % | `OOO_FBUF2` 8.65 ns, one block |
 | 6 | **Rename of 4** | 1 stage | A stage more | −0.5 % | `OOO_RENAME2` 9.1 ns in 2 stages |
@@ -189,7 +189,8 @@ Between blocks, the 4 cuts proposed for 100 MHz (`Plan/OOC.md` 28.26) are not ne
 | `OOO_ALUR` | **Used** on port 0, in 1 cycle (`STAGE2` = 0) |
 | `OOO_SCHED`, `OOO_SDISP` | **The fallback** of loop 1 |
 | `OOO_EXU`, `OOO_PRF2` | Not used as they are: they split RR in 2 stages. `OOO_EXU2` starts from `OOO_EXU`, with one bypass and today's `OOO_PRF` |
-| `OOO_LSU2`, `OOO_DCH`, `OOO_DTLB2` | Not used: load-use 3, stores in 2 µops. Today's `OOO_LSU` gets the second port |
+| `OOO_LSU2`, `OOO_DCH` | **The starting point** of `OOO_LSU3`, `OOO_DCH2`: M1 and M2 in one stage, stores one µop, 2 ports. `OOO_LSU`, one port on mmRISC-2's D$, is not extended |
+| `OOO_DTLB2` | **Used**, one per port |
 
 All stay in the tree with their benches.
 
@@ -277,7 +278,7 @@ step 2 run on mmRISC-2 first.
 | **The width does not close at 20 ns** though the depth is today's | A fallback of 4.5 | Measured first; today's core has little margin at 20 ns, but Vivado stops when met |
 | **The rework is close to a new core** | Much time | Staged (1.2 to 1.5), lock-step throughout; the 2-wide core stays in git as a working base |
 | The RTL falls further behind the model at this width | Margin lost: 8.0 needs × 0.92 of 8.68 | Cycle comparison by function |
-| Load-use 2 with 2 ports, the D$ true dual port | Loop 3 | Measured at 1.1 |
+| Load-use 2 with 2 ports | Loop 3 | Measured at 1.1. A copy of the D$'s arrays a port: 14 tiles of 365, so no port is taken from a load |
 | A longer build | Slower iteration | Out-of-context runs of the loops; Vivado runs under x86 emulation here |
 | Board concerns | `Doc/BOARD.md` 10 | |
 

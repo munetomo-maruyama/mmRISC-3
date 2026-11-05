@@ -4063,3 +4063,32 @@ Timing as before: `sel` +0.969, `loop` +1.093, `oper` +1.406; the worst is again
 **What is in hand if it does not fit:** 64 registers −5.7k and more at −2.4 %; 3 ALUs −3.5 %; the register file double-pumped on the 100 MHz clock, not tried.
 
 **Next**: loop 3, 2 load ports at load-use 2. The D$'s block RAM has 2 ports, and 2 loads take both: **a store's drain and a fill then have to take one from a load**, which the model does not count. That has to be modelled first, as a limit of the same kind as those of 29.1.
+
+### 29.7 Loop 3: `OOO_LSU3`, `OOO_DCH2`, `OOC_LSU3`, 2 ports at load-use 2 (2026-11-05)
+
+**The D$'s ports: not a limit after all.** 29.6 said a store's drain and a fill would have to take a block RAM port from a load, to be modelled first. They need not: **each load port has its own copy of the arrays** (`OOO_DCH2`), a simple dual-port RAM each, and every write goes to all. 8 RAMB36 for the data and tags in 6 tiles: 14 of 365, and block RAM costs no LUTs. So no load waits for a drain or a fill, and nothing has to go in the model.
+
+**The block.** `OOO_LSU3`, from `OOO_LSU2`, not from today's `OOO_LSU`, which is one port on mmRISC-2's D$. This changes `Doc/STRATEGY.md` 4.6, which had said the opposite before this was looked at. RR, E, M (M1 and M2 of `OOO_LSU2` in one stage), W. Port 0 takes loads, stores, and what is tried again; port 1 loads. Stores are one µop, so no load finds a store without its data; no wait table, no data µop.
+
+**One thing made simpler by the campaign.** With "port 1 never misses" and "port 1 never walks" undetected, I looked: a load of port 1 that needs a line goes to wait and is tried on port 0, which asks. It comes to the same, a few cycles later on a miss. So **only port 0 asks**, and the mux on `t_ptag` and on M's latest signals goes. A load of port 1 that needs one is an event, so that it is tried at once. It is not in the model: the model has its caches ideal, and a miss is much longer than those cycles.
+
+**A fault found: `miss_id` for walks.** At first `miss_id` was also used for a walk, by a mux on misses: a walk of port 0 gave port 1's id, so the µop answered had no first go, and 4 pages in a set of the DTLB went round for ever ("nothing commits", translated). A separate `walk_id` it is. As in 28.13, the bench's thrash of the DTLB is what shows it.
+
+**The bench.** `tb_lsu3`, from `tb_lsu2`: 600,000 cycles twice, physical and translated. New checks, each because a mutation went undetected:
+- A store must not write a register.
+- A line must not be asked for by a load that has its result.
+- A walk must be for a good address of a µop in flight.
+- In coverage: loads on port 1 done in one go, and loads with a store in the same word and no byte in common done in one go.
+- A new phase: one load at a time on port 1 with nothing else going on, which must finish in 1,000 cycles.
+- A recovery on a try just before the quiet phase.
+
+Another mistake of mine: the first solo phase never issued stores left from before, so the bench itself failed, and in that run all 5 mutations "detected" meant nothing. I read the unmutated run before believing it again.
+
+**Mutations: M960 to M1017 with gaps, 51 of 51 detected** on the final RTL and bench, every line read. Left out, each looked at:
+- M970 "a try keeps what it was": equivalent, the same values.
+- M1005 "a store written lets nobody go": cycles only; the store leaving lets it go.
+- M1000 to M1004: their code is gone, as above.
+
+**The harness.** `OOC_LSU3`, `report_lsu3.tcl`, `synth_ooo.bat lsu3`, at 15 ns. The address as in `OOO_EXU2`: EX's mux of 7 and the adder, then block RAM's address. The load's result into `r_ex`; the register file's write of it is not here, and comes on top. `-Wall` clean on its lines. **No miss handler yet** (outside, by `miss_*`), so these LUTs are not the whole LSU.
+
+**My estimates, before measuring.** `OOO_LSU2` reached 8.1 ns a stage and 2,053 LUTs: M in one stage about 14 to 17 ns, with the search as the longest. LUTs 4k to 5k, against 9k in the budget for 2 LSU ports with the miss logic. **If M is above about 17 ns**, what is in hand: the search and the forward by one-hot AND-OR rather than an index, or a small fifth way for the last store only.
