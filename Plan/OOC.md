@@ -4161,3 +4161,37 @@ So the price is the override's bubble, not the stage; and a larger uBTB gives ne
 | Above 19 ns | The override a stage later, −2.0 %, unless the paths say otherwise |
 
 And `tab`: if the starts into the buffer's table are what is long, a register in front of the table costs −0.3 % and no bubble.
+
+### 29.10 `OOC_FE3` met 15 ns: 3 stages stay (2026-11-05)
+
+**Measured** (`synth_ooo.bat fe3`, asked for 15 ns): **WNS +0.018 ns, met; 5,159 LUTs (4,661 logic + 498 LUT RAM), 1,539 FF.** `OOO_FDEC2` 2,716 (of which `OOO_RAS` 1,173), `OOO_FBUF2` 1,687, `OOO_UBTB2` 765.
+
+| Class | Slack at 15 ns | Levels | Reached |
+|---|---|---|---|
+| `ovr` the block to F0 | +0.018 | 18 | 15.0 ns |
+| `ras` | +0.357 | 16 | 14.6 ns |
+| `ubup` | +0.427 | 14 | 14.6 ns |
+| `tab` | +0.783 | 12 | 14.2 ns |
+| `cut` | +1.128 | 15 | 13.9 ns |
+| `pred` | +2.593 | 12 | 12.4 ns |
+| `hist` | +2.812 | 13 | 12.2 ns |
+| `slot` | +3.272 | 6 | 11.7 ns |
+| `loop` | +4.235 | 9 | 10.8 ns |
+| `dloop` | +9.539 | 2 | 5.5 ns |
+
+**The worst path**: a parcel, the boundaries, the kinds, the count of branches, in about 8 ns, the choice's carry chain, `first_s` 2.5 ns, the compares' AND-OR, F0: 18 levels against about 16 counted. It met its target, so Vivado stopped there.
+
+**Reading (the table of 29.9): about 17 ns or less, so 3 stages stay: 8.63, not 8.46.** That is +2.0 % for moving the arrays' time to F1. About 5 ns to spare against 20 ns. No register before the table is needed either (`tab` 14.2 ns).
+
+**What this leaves out.** F1: block RAM's output, 2 to 3 ns, the tags' compare and the way into registers, which should fit well within 20 ns, but not measured. TAGE M's and the BTB's, as today. The FTQ. Those are in the front end's 14k in `Doc/STRATEGY.md` 3: 5.2k here against today's 7.8k whole.
+
+**A note on `OOO_RAS`: 1,173 LUTs for 16 entries**, 1,121 of it logic: more than I would expect for a stack in LUT RAM, and worth a look if LUTs are short.
+
+| Loop | Block | Reached | LUTs |
+|---|---|---|---|
+| 1 | `OOC_IQ2` | 15.6 ns | 8,888 without its payload |
+| 2 | `OOC_EXU2` | below 15 ns, met | 20,332 |
+| 3 | `OOC_LSU3` | 14.1 ns | 3,326 without its miss logic |
+| 4 | `OOC_FE3` | 15.0 ns, met | 5,159 without F1 |
+
+**Next**: loop 5: the fetch buffer gives 6 across 2 blocks; one block a cycle costs −2.2 % (8.49 against 8.68 at the time of `results/g50.txt`'s row). It is the last with a real price; rename in one stage (loop 6) is −0.5 %.

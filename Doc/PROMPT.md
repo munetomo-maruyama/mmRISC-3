@@ -7153,3 +7153,60 @@ The record is section 29.8 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.
 ```text
 Yes, loop 4
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOO_FDEC2` for loop 4 and its harness are done and pushed (b26e5f2; 0 Ref on origin/dev). Simulation passes, but timing and LUTs are not measured yet.** Please run the following on Windows; the results go to `output\OOC_FE3_T15`.
+
+```bash
+synth_ooo.bat fe3
+```
+
+## What is at stake
+The model's values (`-O2`).
+
+| Fetch | Model | Difference |
+|---|---|---|
+| 3 stages, the override at F2 | 8.633 | |
+| A stage more after the override | 8.611 | −0.3 % |
+| The override a stage later | 8.482 | −1.7 % |
+| Both | 8.460 | −2.0 % |
+| 3 stages, uBTB of 4,096 | 8.649 | +0.2 % |
+
+Most of the price is the override's bubble, not the stage. A larger uBTB gains next to nothing, so overrides seem mainly to come from a difference in direction prediction.
+
+## Why 3 stages can be had
+I had been thinking of way select in F2, which would make F2 about 23 ns. But the arrays are read at the end of F0, so **the data's arrival, the tags' compare and way select can all be done in F1, into registers**. `OOO_TAGE` and `OOO_BTB` already compare in F1. F2 starts from registers and needs none of the arrays' time.
+
+`OOO_FDEC2` is F3 and F4 of `OOO_FDEC` in one stage. The targets' compares run beside the boundaries and the choice, so the levels do not simply add up; I count about 16 on the longest.
+
+## A change of behaviour
+A first half at parcel 15 is now kept unless the block ends in a taken transfer. Before, an override dropped it, so an override to "not taken" lost the first half and the back end recovered.
+
+## Verification
+- **Bench `tb_fdec2`:** 525,126 blocks (289,224 overrides, 110,073 first halves, 108,406 returns), 0 mismatches.
+- **Bug injection:** M1020 to M1057, all 38 detected, read before the commit. Those carried over from `OOO_FDEC` and new ones.
+- **Lint:** no warnings at `-Wall`.
+
+## What to look at in the measurement
+In `summary_loop.txt`, the `ovr` line decides as follows; these limits are my judgement before measuring.
+
+| `ovr` reaches | Reading |
+|---|---|
+| About 17 ns or less | 3 stages stay |
+| 17 to 19 ns | Possible. Look at the paths, and turn the boundaries from a chain to groups |
+| Above 19 ns | The override a stage later (−2.0 %), unless the paths show another way |
+
+If `tab` (the starts to the buffer's table) is long, a register in front of the table does it (−0.3 %, no bubble).
+
+This harness has none of F1 itself (block RAM, tags, way select), TAGE M, the FTQ, or a fetch buffer across blocks (loop 5).
+
+The record is section 29.9 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 176. 2026-11-05 23:13:07 JST
+
+```text
+fe3 finished
+```
