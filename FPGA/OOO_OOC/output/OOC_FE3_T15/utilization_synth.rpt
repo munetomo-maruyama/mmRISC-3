@@ -1,0 +1,34 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Thu Nov  5 23:29:26 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_FE3_T15/utilization_synth.rpt
+| Design       : OOC_FE3
+| Device       : xc7a200tsbg484-1
+| Speed File   : -1
+| Design State : Synthesized
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++-------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
+|   Instance  |   Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++-------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
+| OOC_FE3     |     (top) |       6556 |       6048 |     508 |    0 | 1944 |      0 |      0 |          0 |
+|   (OOC_FE3) |     (top) |          0 |          0 |       0 |    0 |  888 |      0 |      0 |          0 |
+|   u_fb      | OOO_FBUF3 |       3194 |       2934 |     260 |    0 |  843 |      0 |      0 |          0 |
+|   u_fd      | OOO_FDEC2 |       2863 |       2807 |      56 |    0 |  160 |      0 |      0 |          0 |
+|     (u_fd)  | OOO_FDEC2 |       1724 |       1724 |       0 |    0 |  156 |      0 |      0 |          0 |
+|     u_ras   |   OOO_RAS |       1139 |       1083 |      56 |    0 |    4 |      0 |      0 |          0 |
+|   u_ub      | OOO_UBTB2 |        499 |        307 |     192 |    0 |   53 |      0 |      0 |          0 |
++-------------+-----------+------------+------------+---------+------+------+--------+--------+------------+
+
+

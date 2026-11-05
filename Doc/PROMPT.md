@@ -7259,3 +7259,54 @@ The record is section 29.10 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J
 ```text
 Yes, loop 5
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**I made `OOO_FBUF3` for loop 5, joined it into `OOC_FE3` and pushed (fe732a5; 0 Ref on origin/dev). Simulation passes, but timing and LUTs are not measured yet.** Please run the following again on Windows; the results go to `output\OOC_FE3_T15`. The last result stays in `output/OOC_FE3_T15_fbuf2`.
+
+```bash
+synth_ooo.bat fe3
+```
+
+## What is at stake
+I added a limit on blocks taken a cycle to the model.
+
+| Decode takes a cycle | `-O2` | Max optimization | rv64gc |
+|---|---|---|---|
+| No limit | 8.633 | 9.445 | 7.393 |
+| **2 blocks** | **8.633** | **9.445** | **7.393** |
+| 1 block | 8.456 | 9.358 | 7.370 |
+
+**Reading 2 blocks costs nothing**, +2.1 % over 1 block.
+
+## What was made
+A second block in flip-flops beside `OOO_FBUF2`'s. Slot j takes from the next block if what is left of this one is not enough. A rare-class instruction still goes alone, and nothing goes beside a block with one.
+
+## A limit on refilling
+Refilling is 1 block a cycle. So with short blocks finished each cycle, the second stays empty even with blocks waiting.
+
+I first took that for a fault, but in the steady state there is no loss, as fetch also gives at most 1 block a cycle. Only a backlog drains no faster.
+
+The model drains a backlog 2 blocks at a time, so here alone it is a little more optimistic than RTL. Another read of the RAM (about 260 LUTs) would solve it, but I do not do it until RTL's cycles against the model show a difference.
+
+## Verification
+- **Bench `tb_fbuf3`:** slot by slot across 2 blocks, 0 mismatches. 359,068 cycles gave from 2 blocks.
+- **Bug injection:** M1060 to M1088 but M1065, all 28 detected, every line read.
+- **The 2 undetected:** `cr` in `d1` was a redundant term, removed with it. "No refill as it moves" differed only in cycles, so the coverage is now stricter and catches it.
+- **Lint:** no warnings at `-Wall`.
+
+## What to look at in the measurement
+My estimates, both before measuring:
+
+- **Timing:** `slot` up about 2 levels from 11.7 ns. I expect F2's `ovr` (about 15 ns) to stay the worst.
+- **LUTs:** about +1k to 1.5k. The same harness, so directly comparable with the last 5,159. A new class, `move` (from the second to the first), to look at too.
+
+The record is section 29.11 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 178. 2026-11-05 23:34:12 JST
+
+```text
+fe3 finished
+```

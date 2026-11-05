@@ -4219,3 +4219,36 @@ So 2 blocks are all of the gain, +2.1 % over 1.
 **The harness.** `OOC_FE3` now joins `OOO_FBUF3` in place of `OOO_FBUF2`; `report_fe3.tcl` has a new class `move`. `synth_ooo.bat fe3` again, 15 ns. The first run stays as `output/OOC_FE3_T15_fbuf2`. -Wall clean on its lines.
 
 **My estimates, before measuring.** Timing: `slot` was 11.7 ns; the second block's mux adds about 2 levels; `move` is short. So F2's `ovr` at about 15 ns stays the worst. LUTs: about +1k to 1.5k, as a block in flip-flops is about 400 FF, and each of 6 slots gets a 2-to-1 of 32 bits and more.
+
+### 29.12 `OOC_FE3` with `OOO_FBUF3`: about 15.3 ns, 6,539 LUTs (2026-11-05)
+
+**Measured** (`synth_ooo.bat fe3`, the same 15 ns): **WNS −0.281 ns, about 15.3 ns; 6,539 LUTs (6,041 logic + 498 LUT RAM), 1,944 FF.** +1,380 LUTs against `OOO_FBUF2`, as estimated (+1k to 1.5k). `OOO_FBUF3` 3,187, 843 FF; `OOO_FDEC2` 2,866 (`OOO_RAS` 1,138); `OOO_UBTB2` 501.
+
+| Class | With `OOO_FBUF2` | Now | Levels | Reached |
+|---|---|---|---|---|
+| `ovr` | +0.018 | −0.281 | 17 | 15.3 ns |
+| `ubup` | +0.427 | −0.170 | 14 | 15.2 ns |
+| `cut`, `tab` | +1.128, +0.783 | +0.650 | 17 | 14.4 ns |
+| `ras` | +0.357 | +0.709 | 16 | 14.3 ns |
+| `pred` | +2.593 | +1.357 | 14 | 13.6 ns |
+| `slot` | +3.272 | +2.112 | 8 | 12.9 ns |
+| `dloop` | +9.539 | +2.723 | 12 | 12.3 ns |
+| `hist` | +2.812 | +2.769 | 13 | 12.2 ns |
+| `loop` | +4.235 | +2.807 | 9 | 12.2 ns |
+| `move` | | +2.809 | 10 | 12.2 ns |
+
+**Reading**: the worst stays F2's `ovr`, as expected. The block's own loop grew from 5.5 to 12.3 ns, and the slots to 12.9 ns, all well within 20 ns. **Loop 5 is done alone, at no cost in cycles.** About 4.7 ns to spare for the front end.
+
+**Where the 6 loops stand:**
+
+| Loop | Block | Reached | LUTs | What is kept in the model |
+|---|---|---|---|---|
+| 1 | `OOC_IQ2` | 15.6 ns | 8,888, no payload | 2.4 % against distributed queues |
+| 2 | `OOC_EXU2` | met 15 ns | 20,332 | 3.5 % against 3 ALUs |
+| 3 | `OOC_LSU3` | 14.1 ns | 3,326, no miss logic | 12.7 % against load-use 3; 8.0 % against 1 port |
+| 4, 5 | `OOC_FE3` | 15.3 ns | 6,539, no F1 | 2.0 %, 2.1 % |
+| 6 | Rename of 4 | not measured | | 0.5 % against a stage more |
+
+**Model 8.633 as built so far; RTL at × 0.94 about 8.1, 406 CoreMark/s.**
+
+**Next: loop 6, and it is not only timing.** `OOO_RENAME2` was built for `OOO_SDISP`, which compares a source with what is pending, so it has no busy bits. `OOO_IQ2` compares tags and asks `disp_rdy`. So the rename of this core needs busy bits: 80 bits, 8 reads, cleared by 9 wakeup tags and the wakeups of the DS register, which is a block `OOO_RENAME2` does not have. This is the last of the loops, and after it gate S1-A.
