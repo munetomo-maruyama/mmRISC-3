@@ -1,0 +1,34 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Thu Nov  5 22:47:55 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_LSU3_T15/utilization_synth.rpt
+| Design       : OOC_LSU3
+| Device       : xc7a200tsbg484-1
+| Speed File   : -1
+| Design State : Synthesized
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++---------------------+-------------+------------+------------+---------+------+------+--------+--------+------------+
+|       Instance      |    Module   | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++---------------------+-------------+------------+------------+---------+------+------+--------+--------+------------+
+| OOC_LSU3            |       (top) |       3462 |       3030 |     428 |    4 | 2923 |      8 |     12 |          0 |
+|   (OOC_LSU3)        |       (top) |          0 |          0 |       0 |    0 | 1679 |      0 |      0 |          0 |
+|   u_lsu             |    OOO_LSU3 |       3462 |       3030 |     428 |    4 | 1244 |      8 |     12 |          0 |
+|     (u_lsu)         |    OOO_LSU3 |       1958 |       1670 |     284 |    4 | 1230 |      0 |      0 |          0 |
+|     g_port[0].u_tlb |   OOO_DTLB2 |        226 |        154 |      72 |    0 |    7 |      0 |      0 |          0 |
+|     g_port[1].u_tlb | OOO_DTLB2_0 |        204 |        132 |      72 |    0 |    7 |      0 |      0 |          0 |
+|     u_dch           |    OOO_DCH2 |       1074 |       1074 |       0 |    0 |    0 |      8 |     12 |          0 |
++---------------------+-------------+------------+------------+---------+------+------+--------+--------+------------+
+
+

@@ -7058,3 +7058,54 @@ The record is section 29.6 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.
 ```text
 Yes, loop 3
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOO_LSU3` and `OOO_DCH2` for loop 3 and the harness are done and pushed (348e7cb; 0 Ref on origin/dev). Simulation passes, but timing and LUTs are not measured yet.** Please run the following on Windows; the results go to `output\OOC_LSU3_T15`.
+
+```bash
+synth_ooo.bat lsu3
+```
+
+## A correction to last time
+Last time I wrote that a store's drain and a fill take a port from a load, so the model comes first. That was not needed. **With a copy of the D$'s arrays for each load port**, a load does not wait for a drain or a fill. Block RAM takes about 14 of 365 tiles (estimated), and uses no LUTs. The model's 8.63 stands.
+
+I also changed section 4.6 of STRATEGY, which said "add a second port to today's `OOO_LSU`". Today's `OOO_LSU` is one port on mmRISC-2's D$, so `OOO_LSU2` is the starting point.
+
+## What was made
+| Stage | Work |
+|---|---|
+| E | The address (from `OOO_EXU2`), block RAM read at the end of the stage, a store's data |
+| M | Data aligned, tags compared, DTLB, SQ search, the result chosen (`OOO_LSU2`'s M1 and M2 in one stage) |
+| W | Complete, wait, miss or walk |
+
+- **Ports:** port 0 handles loads, stores and tries; port 1 only loads.
+- **Stores:** one µop, so a load never meets a store without its data.
+- **Made simpler by bug injection:** "port 1 never misses" went undetected. Looking into it, a try on port 0 comes to the same. So only port 0 asks for lines and walks. A miss is some cycles slower; this is not in the model.
+
+## Verification
+- **Bench `tb_lsu3`:** physical and translated, 600,000 cycles each.
+- **Bug injection:** all 51 detected on the final RTL and bench, every line read.
+- **Left out of it:** "a try keeps what it was" is equivalent; "a store written lets nobody go" differs only in cycles; the code of M1000 to M1004 is gone.
+- **A fault found:** at first `miss_id` also served walks, and 4 pages in a set of the DTLB went round for ever. A separate `walk_id` fixed it.
+- **For what was undetected:** checks added to the bench, such as a store not writing a register, and a load that has its result not asking for a line.
+
+There was a mistake of mine too. The bench's new phase did not issue stores left from before, so it failed even with no mutation, and "all 5 detected" then meant nothing. I checked that the unmutated run passes, then ran everything again.
+
+## What to look at in the measurement
+My estimates, both before measuring:
+
+- **Timing:** about 14 to 17 ns for stage M. `OOO_LSU2` was 8.1 ns a stage. I expect the SQ's search to be the longest.
+- **LUTs:** 4k to 5k. The miss logic is not there yet, so this is not the whole LSU (the budget is 9k with it).
+
+Above 17 ns, I would first try the search and forward by one-hot AND-OR in place of an index. The path writing a load's result into the register file is not in this measurement; it comes on top in the core.
+
+The record is section 29.7 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 174. 2026-11-05 22:51:03 JST
+
+```text
+lsu3 finished
+```

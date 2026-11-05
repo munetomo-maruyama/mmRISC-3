@@ -1,0 +1,35 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Thu Nov  5 22:50:13 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_LSU3_T15/utilization.rpt
+| Design       : OOC_LSU3
+| Device       : xc7a200tsbg484-1
+| Speed File   : -1
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++---------------------+-------------+------------+------------+---------+------+------+--------+--------+------------+
+|       Instance      |    Module   | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++---------------------+-------------+------------+------------+---------+------+------+--------+--------+------------+
+| OOC_LSU3            |       (top) |       3326 |       2894 |     428 |    4 | 2923 |      8 |     12 |          0 |
+|   (OOC_LSU3)        |       (top) |          0 |          0 |       0 |    0 | 1679 |      0 |      0 |          0 |
+|   u_lsu             |    OOO_LSU3 |       3326 |       2894 |     428 |    4 | 1244 |      8 |     12 |          0 |
+|     (u_lsu)         |    OOO_LSU3 |       1941 |       1653 |     284 |    4 | 1230 |      0 |      0 |          0 |
+|     g_port[0].u_tlb |   OOO_DTLB2 |        203 |        131 |      72 |    0 |    7 |      0 |      0 |          0 |
+|     g_port[1].u_tlb | OOO_DTLB2_0 |        181 |        109 |      72 |    0 |    7 |      0 |      0 |          0 |
+|     u_dch           |    OOO_DCH2 |       1017 |       1017 |       0 |    0 |    0 |      8 |     12 |          0 |
++---------------------+-------------+------------+------------+---------+------+------+--------+--------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
+
+

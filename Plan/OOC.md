@@ -4092,3 +4092,37 @@ Another mistake of mine: the first solo phase never issued stores left from befo
 **The harness.** `OOC_LSU3`, `report_lsu3.tcl`, `synth_ooo.bat lsu3`, at 15 ns. The address as in `OOO_EXU2`: EX's mux of 7 and the adder, then block RAM's address. The load's result into `r_ex`; the register file's write of it is not here, and comes on top. `-Wall` clean on its lines. **No miss handler yet** (outside, by `miss_*`), so these LUTs are not the whole LSU.
 
 **My estimates, before measuring.** `OOO_LSU2` reached 8.1 ns a stage and 2,053 LUTs: M in one stage about 14 to 17 ns, with the search as the longest. LUTs 4k to 5k, against 9k in the budget for 2 LSU ports with the miss logic. **If M is above about 17 ns**, what is in hand: the search and the forward by one-hot AND-OR rather than an index, or a small fifth way for the last store only.
+
+### 29.8 `OOC_LSU3` about 14.1 ns, 3,326 LUTs (2026-11-05)
+
+**Measured** (`synth_ooo.bat lsu3`, asked for 15 ns): **WNS +0.914 ns, met, about 14.1 ns; 3,326 LUTs (2,894 logic + 428 LUT RAM + 4 SRL), 2,923 FF (1,244 in the block), 14.0 tiles of block RAM** (as estimated). As it was met, Vivado stopped: an upper bound. Without the miss logic.
+
+| Class | Slack at 15 ns | Levels | Reached |
+|---|---|---|---|
+| `cam` the search, the way, the forward, to the result | +0.914 | 12 | 14.1 ns |
+| `ok` into what came of it | +1.703 | 13 | 13.3 ns |
+| `tlb` the DTLB, the tags compared, the way | +2.436 | 10 | 12.6 ns |
+| `e_ram` EX's mux, the adder, block RAM's address | +4.813 | 4 | 10.2 ns |
+| `ram` tags or data to the result | +5.071 | 6 | 9.9 ns |
+| `e_m` | +5.908 | 10 | 9.1 ns |
+| `sel` | +6.523 | 4 | 8.5 ns |
+| `drain` | +6.764 | 7 | 8.2 ns |
+| `stm` | +6.964 | 6 | 8.0 ns |
+| `try` | +7.002 | 8 | 8.0 ns |
+| `w` | +7.017 | 5 | 8.0 ns |
+
+**The worst path**: as expected the search: the offset's compare, the index (fan-out 104) 9.6 ns, the SQ's data 1.1, aligned and into the result 3.3.
+
+**Reading: loop 3 is not the limit, and load-use 2 with 2 ports holds.** Against 20 ns about 5.9 ns to spare, for the register file's write and the joins. Against my estimates: at the low end of 14 to 17 ns, and below 4k to 5k in LUTs.
+
+**So 66.7 MHz is not ruled out by this loop**, nor by 1 and 2, alone. That is for later (`Doc/STRATEGY.md` 7 R10).
+
+**The budget.** The LSU 3.3k measured, its miss logic estimated at 1.7k, against the 9k taken: the engine about 66k, the chip about **106k, 79 %, just under the ceiling of 80 %**. What stays estimated: the front end 14k, renaming and control 7k, the queue's payload 2.1k, the ROB 8k. Some of the 12.6k "outside the core" may also go, as `OOO_DCH2` replaces mmRISC-2's D$ arrays and hit path. Not counted until seen.
+
+| Loop | Block | Reached | LUTs |
+|---|---|---|---|
+| 1 | `OOC_IQ2` | 15.6 ns | 8,888 without its payload |
+| 2 | `OOC_EXU2` | below 15 ns, met | 20,332 |
+| 3 | `OOC_LSU3` | 14.1 ns | 3,326 without its miss logic |
+
+**Next**: loop 4, fetch: 32 bytes, 3 stages, the override at F2: the largest unknown left, and the last with much in cycles (−2.1 % a stage).
