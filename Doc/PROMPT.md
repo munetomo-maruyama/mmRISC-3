@@ -6917,3 +6917,49 @@ The record is section 29.3 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.
 ```text
 Yes, loop 2
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOO_EXU2` for loop 2 and its harness are done and pushed (979d783; 0 Ref on origin/dev). Simulation passes, but timing and LUTs are not measured yet.** Please run the following on Windows; the results go to `output\OOC_EXU2_T15`.
+
+```bash
+synth_ooo.bat exu2
+```
+
+## What was made
+Stages RR and EX: 4 ALU ports, 2 memory ports, 6 results. The register file is `OOO_PRF`, 80 registers, 6 writes, 11 reads.
+
+From `OOO_EXU`, for 100 MHz, what 20 ns allows was simplified:
+
+| Change | Effect |
+|---|---|
+| **The bypass from 2 stages to 1** | A result goes into the register file at the same edge as `r_ex`, so RR's second mux and the copies of results go. The model's bypass is the same, so no cost in cycles |
+| The register file read in RR, in 1 stage | No need for `OOO_PRF2`'s read in 2 stages |
+| Slow operations on port 0 in 1 cycle | `OOO_ALUR` with `STAGE2` = 0: the cost of latency 3 goes |
+| An address out in EX, combinational | For block RAM read at the end of EX: load-use 2 needs it |
+
+A jalr runs only on port 0. The model stays at 8.633: no cost visible at this precision.
+
+## Verification
+- **Bench `tb_exu2`:** 1,000,000 cycles, 2.7 million results against a reference written from the RISC-V specification, 0 mismatches. Sources about half through EX's mux, half from the register file.
+- **Bug injection:** M910 to M952, all 43 detected, read before the commit.
+- **Others:** `tb_exu` still passes with the parameter on `OOO_ALUR`.
+- **Lint:** no warnings at `-Wall` on `OOO_EXU2` and the harness's lines.
+
+## What to look at in the measurement
+My estimates, both before measuring:
+
+- **Timing:** 11 to 14 ns. `OOO_EXU` reached 9.2 ns a stage with 5 results, so I do not expect the limit here.
+- **LUTs:** 20k to 25k. STRATEGY's estimate has 21k for the register file and the ALU ports. Above 25k, first look at using the register file twice on the 100 MHz clock.
+
+This harness's result is a little optimistic against the core. A load's data comes from a register, where in the core it comes late in M (measured in loop 3). An address also goes to a register, where in the core it goes on to block RAM.
+
+The record is section 29.4 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 171. 2026-11-05 21:02:59 JST
+
+```text
+exu2 finished
+```

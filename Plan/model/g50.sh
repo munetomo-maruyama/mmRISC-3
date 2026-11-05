@@ -53,6 +53,15 @@ row "... a multiply takes another port's write slot" $F p0_ops=1 p0_opx=3 mul_wb
 row "4 banks of 6: a cycle's µops in different banks" $F iq_bank=4
 row "... and a jalr only on ALU 0"                  $F p0_ops=2 p0_opx=3 mul_wb=2
 row "**all of these: as it is built**"              $F st_lsu0=1 p0_ops=2 p0_opx=3 mul_wb=2 iq_bank=4
+txt "physical registers, as built"
+Q="st_lsu0=1 p0_ops=2 p0_opx=3 mul_wb=2 iq_bank=4"
+row "no limit"                                       $F $Q
+row "80"                                             $F $Q regs=80
+row "72"                                             $F $Q regs=72
+row "64"                                             $F $Q regs=64
+row "64, ROB 40"                                     $F $Q regs=64 rob=40
+row "56"                                             $F $Q regs=56
+row "48"                                             $F $Q regs=48
 txt "the front end"
 row "fetch a stage more, the override a stage later" $F fe_depth=4 override_at=3
 row "the 100 MHz fetch: 5 stages, the override at F4" $F fe_depth=5 override_at=4

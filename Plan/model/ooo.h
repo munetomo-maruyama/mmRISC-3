@@ -75,6 +75,7 @@ struct OooCfg {
     int p0_ops = 0;             // unified queue: MUL, DIV and system µops only on one ALU port, one a cycle; DIV keeps only the MDU (OOO_IQ2); 2: and jalr (OOO_EXU2)
     int p0_opx = 0;             // ... and the ALU µops of these classes (Rec.opx), in their usual latency
     int st_lsu0 = 0;            // unified queue: one store a cycle, on the first LSU port
+    int regs = 0;               // physical registers (0: no limit): a µop that writes waits for one; freed when the next writer of its register commits
     int iq_bank = 0;            // unified queue: iq entries in this many banks of LUT RAM: a cycle's µops go to different banks
     int ck_end = 0;             // a checkpoint ends its group: the next µop is renamed a cycle later
     int sd_q = -1;              // sd_alu 2: all in this queue (the SQ's data has one write)
@@ -240,6 +241,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     std::vector<long> ds, cm;                   // per µop: dispatch, commit
     ds.reserve(n); cm.reserve(n);
     std::vector<long> ld_cm, st_cm;             // commit cycles of loads / stores, in order
+    std::vector<long> wr_cm;                    // ... of the µops that take a register
     std::priority_queue<long, std::vector<long>, std::greater<long>> iqh, ckh;
     std::unordered_map<int, long> ready;        // register -> cycle a dependent may issue
     std::unordered_map<int, long> spec;         // register -> cycle its open loads are decided (keep_spec)
@@ -423,9 +425,11 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             }
         }
         int nld = 0, nst = 0;
+        int nwr = 0;                // registers taken
         bool has_cti = false;     // the µop takes a checkpoint
         for (size_t k = i; k <= last; k++) {
             nld += t[k].cls == C_LOAD; nst += t[k].cls == C_STORE;
+            nwr += t[k].dst != NOREG && t[k].dst != 0;
             has_cti |= is_cti(t[k]) && (c.ck_jal || t[k].cls != C_JAL);
         }
         for (int q = 0; q < nld; q++) {
@@ -435,6 +439,10 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         for (int q = 0; q < nst; q++) {
             size_t j = st_cm.size() + q;
             if (j >= (size_t)c.sq && st_cm[j - c.sq] + 2 > d) { res.st_lsq += st_cm[j - c.sq] + 2 - d; d = st_cm[j - c.sq] + 2; }
+        }
+        if (c.regs) for (int q = 0; q < nwr; q++) {
+            size_t j = wr_cm.size() + q, n = c.regs - 32;
+            if (j >= n && wr_cm[j - n] + 1 > d) { res.st_rob += wr_cm[j - n] + 1 - d; d = wr_cm[j - n] + 1; }
         }
         if (has_cti && c.ck1 && last_ck >= d) { res.st_ckpt += last_ck + 1 - d; d = last_ck + 1; }
         if (c.ck_end && last_ck >= d) { res.st_ckpt += last_ck + 1 - d; d = last_ck + 1; }
@@ -650,6 +658,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         }
         for (size_t k = i; k <= last; k++) {
             if (t[k].cls == C_LOAD) ld_cm.push_back(cmt);
+            if (t[k].dst != NOREG && t[k].dst != 0) wr_cm.push_back(cmt);
             if (t[k].cls == C_STORE) {
                 st_cm.push_back(cmt);
                 long dr = cmt;

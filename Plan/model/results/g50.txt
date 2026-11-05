@@ -23,6 +23,14 @@
 | 4 banks of 6: a cycle's µops in different banks               |  8.667 |  9.476 |  8.293 |  7.397 |
 | ... and a jalr only on ALU 0                                   |  8.652 |  9.456 |  8.277 |  7.397 |
 | **all of these: as it is built**                               |  8.633 |  9.445 |  8.265 |  7.391 |
+| **physical registers, as built** | | | | |
+| no limit                                                       |  8.633 |  9.445 |  8.265 |  7.391 |
+| 80                                                             |  8.633 |  9.445 |  8.265 |  7.391 |
+| 72                                                             |  8.587 |  9.401 |  8.223 |  7.354 |
+| 64                                                             |  8.425 |  9.321 |  8.077 |  7.194 |
+| 64, ROB 40                                                     |  8.414 |  9.290 |  8.062 |  7.177 |
+| 56                                                             |  8.146 |  9.029 |  7.816 |  6.889 |
+| 48                                                             |  7.421 |  8.254 |  7.165 |  6.143 |
 | **the front end** | | | | |
 | fetch a stage more, the override a stage later                 |  8.492 |  9.337 |  8.161 |  7.330 |
 | the 100 MHz fetch: 5 stages, the override at F4                |  8.276 |  9.131 |  7.988 |  7.220 |

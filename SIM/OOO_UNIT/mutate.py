@@ -909,6 +909,9 @@ M = [
     ('M950', 'OOO_EXU2/OOO_EXU2.sv', 'exu2', 'assign et[4+s]  = ld_nt[s];', 'assign et[4+s]  = ld_nt[0];', "load 1's tag"),
     ('M951', 'OOO_ALUR/OOO_ALUR.sv', 'exu2', "q_pa    = d_lpick ? lt : !lt;", "q_pa    = lt;", 'max as min in 1 cycle'),
     ('M952', 'OOO_ALUR/OOO_ALUR.sv', 'exu2', "q_fill  = fill;", "q_fill  = 1'b0;", 'sra by a register without its fill'),
+    ('M953', 'OOO_PRF/OOO_PRF.sv', 'prf', "if (we[w] && wa[w] != '0 && !wa[w][6]) lo[wa[w][5:0]] <= wd[w];", "if (we[w] && wa[w] != '0) lo[wa[w][5:0]] <= wd[w];", 'a write above 64 also lands in the first part'),
+    ('M954', 'OOO_PRF/OOO_PRF.sv', 'prf', "if (we[w] && wa[w][6]) hi[wa[w][HW-1:0]] <= wd[w];", "if (wa[w][6]) hi[wa[w][HW-1:0]] <= wd[w];", 'the second part written without we'),
+    ('M955', 'OOO_PRF/OOO_PRF.sv', 'prf', "assign rb[r][w] = ra[r][6] ? hi[ra[r][HW-1:0]] : lo[ra[r][5:0]];", "assign rb[r][w] = lo[ra[r][5:0]];", 'the second part not read'),
 ]
 
 

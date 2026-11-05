@@ -3998,3 +3998,54 @@ The first run stays as `output/OOC_IQ2_T15_chain`.
 **The harness.** `OOC_EXU2`, `report_exu2.tcl`, `synth_ooo.bat exu2`, at 15 ns as loop 1. A load's data comes from a register there; in the core it comes late in M (loop 3). An address goes to a register there; in the core it goes on to block RAM, so what `ag` leaves will matter. `-Wall` clean on its lines.
 
 **My estimates, before measuring.** Timing: I do not expect the loop to be the limit, as `OOO_EXU` reached 9.2 ns a stage with 5 sources; 11 to 14 ns. **LUTs: 20k to 25k**: the estimate in `Doc/STRATEGY.md` 3 has 21k for the register file and the ALU ports without the LSU's own logic. Above that, the register file double-pumped on the 100 MHz clock is the first thing to look at.
+
+### 29.5 `OOC_EXU2` met 15 ns, 22,972 LUTs: the register file is the size (2026-11-05)
+
+**Measured** (`synth_ooo.bat exu2`, asked for 15 ns): **WNS +0.104 ns, met; 22,972 LUTs (11,620 logic + 11,352 LUT RAM), 4,297 FF.** As it was met, Vivado stopped: 15 ns is an upper bound.
+
+| Part | LUTs | LUT RAM | FF |
+|---|---|---|---|
+| `u_prf`, `OOO_PRF` 80, 6 writes, 11 reads | **15,622** | 11,352 | 237 |
+| `u_exu`, `OOO_EXU2` | 7,351 | 0 | 1,906 |
+| of which `OOO_ALUR` | 1,130 | 0 | 59 |
+
+| Class | Slack at 15 ns | Levels | Reached |
+|---|---|---|---|
+| `write` | +0.345 | 17 | 14.7 ns |
+| `loop` | +1.161 | 17 | 13.8 ns |
+| `sel` | +1.388 | 18 | 13.6 ns |
+| `rf` | +1.399 | 6 | 13.6 ns |
+| `oper` | +1.537 | 17 | 13.5 ns |
+| `tags` | +2.378 | 4 | 12.6 ns |
+| `ag` | +2.406 | 15 | 12.6 ns |
+| `lvt` | +3.098 | 6 | 11.9 ns |
+| `load` | +3.269 | 0 | 11.7 ns |
+| `ctl` | +4.191 | 21 | 10.8 ns |
+| `flag` | +4.586 | 21 | 10.4 ns |
+
+The worst of all: a write address, 14.7 ns with **no logic level**, 97 % route: a fan-out Vivado had no reason to improve. The worst `loop` path is through `OOO_ALUR` (min / max's comparison, 7 CARRY4), not the operations CoreMark runs.
+
+**Timing: loop 2 is not the limit**, as estimated: about 5 ns against 20 ns.
+
+**LUTs: within the estimate of 20k to 25k, but not as I split it.** The register file 15.6k against 8k; the ALU ports and bypass 7.4k against 13k. Together 23.0k against 21k.
+
+**Why the register file is so large.** 11 reads take 4 RAM64M a bit (3 reads each), 4 LUTs each: 16 LUTs a bit in each of 6 banks. 80 registers need more than 64 entries, and Vivado makes a second 64-deep array for the 16 above: so 32 LUTs a bit, half of it for 16 registers. 384 bits × 30 = 11.5k, as measured.
+
+**Fewer registers?** New in the model: `regs` (`results/g50.txt`, as built):
+
+| Registers | -O2 | max | rv64gc | Against 80 |
+|---|---|---|---|---|
+| No limit, 80 | 8.633 | 9.445 | 7.391 | |
+| 72 | 8.587 | 9.401 | 7.354 | −0.5 % |
+| 64 | 8.425 | 9.321 | 7.194 | −2.4 % |
+| 56 | 8.146 | 9.029 | 6.889 | −5.6 % |
+
+64 would save about 5.7k LUTs of RAM at −2.4 %. CoreMark/MHz comes first, so not yet.
+
+**The change, which costs no cycle: above 64, a bank is 2 arrays.** The 16 above in their own array, which fits RAM32M: 2 bits in 4 LUTs, 8 LUTs a bit rather than 16. My estimate: **about −2.8k LUTs**, the register file about 12.8k, the whole about 20.2k. `OOO_PRF` with 64 registers, as today's core has it, is unchanged.
+
+**The bench found wanting.** Of the mutations on the new code, "the second part written without `we`" went undetected: `tb_prf` drove address 0 on a port not writing. It now names anything there, and M954 is detected. "x0 written" (a first M956) is equivalent, as register 0 reads as zero whatever is in it, so it is not kept. M8, M9, M953 to M955: 5 of 5 detected.
+
+The first run stays as `output/OOC_EXU2_T15_first`.
+
+**Next**: `synth_ooo.bat exu2` again, the same 15 ns.

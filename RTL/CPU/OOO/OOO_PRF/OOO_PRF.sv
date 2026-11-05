@@ -20,6 +20,11 @@
 // pair has 3 sources) + 2 or 3 (LSU, a store pair has 3) = 8 or 9; writes
 // 2 + 2 (a fused pair writes up to 2) + 1 or 2 (a load pair) = 5 or 6,
 // or 3 when fused pairs write one register (Plan/MODEL.md: -4 % / -9 %).
+//
+// Above 64 registers a bank is 2 arrays, the first 64 and the rest. The rest would take
+// as much RAM again as a 64-deep array (OOC_EXU2: 16 LUTs a bit in each bank and each
+// part); on its own, not above 32 deep, it takes half (RAM32M: 2 bits in 4 LUTs,
+// Plan/OOC.md 29.5).
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -52,12 +57,25 @@ module OOO_PRF
     // pick when the read address is registered (block RAM is kept for the
     // predictors and the caches: Plan/ISSUES.md 2)
     for (genvar w = 0; w < NW; w++) begin : g_bank
-        (* ram_style = "distributed" *) logic [63:0] mem [NREG];
-        always_ff @(posedge clk) begin
-            if (we[w] && wa[w] != '0) mem[wa[w]] <= wd[w];
-        end
-        for (genvar r = 0; r < NR; r++) begin : g_rd
-            assign rb[r][w] = mem[ra[r]];
+        if (NREG <= 64) begin : g_one
+            (* ram_style = "distributed" *) logic [63:0] mem [NREG];
+            always_ff @(posedge clk) begin
+                if (we[w] && wa[w] != '0) mem[wa[w]] <= wd[w];
+            end
+            for (genvar r = 0; r < NR; r++) begin : g_rd
+                assign rb[r][w] = mem[ra[r]];
+            end
+        end else begin : g_two
+            localparam int HW = $clog2(NREG - 64);
+            (* ram_style = "distributed" *) logic [63:0] lo [64];
+            (* ram_style = "distributed" *) logic [63:0] hi [NREG-64];
+            always_ff @(posedge clk) begin
+                if (we[w] && wa[w] != '0 && !wa[w][6]) lo[wa[w][5:0]] <= wd[w];
+                if (we[w] && wa[w][6]) hi[wa[w][HW-1:0]] <= wd[w];
+            end
+            for (genvar r = 0; r < NR; r++) begin : g_rd
+                assign rb[r][w] = ra[r][6] ? hi[ra[r][HW-1:0]] : lo[ra[r][5:0]];
+            end
         end
     end
 

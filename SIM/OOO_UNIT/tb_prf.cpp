@@ -33,7 +33,7 @@ int main(int argc, char** argv)
         unsigned we = 0;
         uint64_t wd[NW]; int wa[NW];
         for (int w = 0; w < NW; w++) {
-            wa[w] = 0; wd[w] = rng();
+            wa[w] = (int)(rng() % NREG); wd[w] = rng();   // (a port not writing names anything)
             if (rng() % 3) continue;
             int a;
             do a = (int)(rng() % NREG); while (used.count(a));

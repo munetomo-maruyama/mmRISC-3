@@ -119,6 +119,7 @@ int main(int argc, char** argv)
         c.p0_opx = (int)o.get("p0_opx", c.p0_opx);
         c.st_lsu0 = (int)o.get("st_lsu0", c.st_lsu0);
         c.iq_bank = (int)o.get("iq_bank", c.iq_bank);
+        c.regs = (int)o.get("regs", c.regs);
         c.cmp_lag = (int)o.get("cmp_lag", c.cmp_lag);
         c.hole_bank = (int)o.get("hole_bank", c.hole_bank);
         c.dec_block = (int)o.get("dec_block", c.dec_block);
