@@ -6963,3 +6963,60 @@ The record is section 29.4 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.
 ```text
 exu2 finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOC_EXU2` met 15 ns (WNS +0.104 ns). Loop 2 is not the timing limit. But of its 22,972 LUTs, 15,622 are the register file, about twice my estimate of 8k.** I fixed what can go at no cost in cycles and pushed it (5410e33; 0 Ref on origin/dev). Please measure again.
+
+```bash
+synth_ooo.bat exu2
+```
+
+## The result
+
+| Part | Measured LUTs | Estimate |
+|---|---|---|
+| Register file (80 registers, 6 writes, 11 reads) | **15,622** | 8k |
+| ALU ports and bypass (with `OOO_ALUR`'s 1,130) | 7,351 | 13k |
+| Total | **22,972** | 21k |
+
+- **Timing:** Vivado stops when a target is met, so 15 ns is an upper bound; about 5 ns to spare against 20 ns.
+- **The worst path:** a write address, 14.7 ns, no logic level, 97 % route. The worst `loop` is 13.8 ns, through min / max's comparison, not on a path CoreMark's operations use.
+
+## Why the register file is large
+11 reads need 4 RAM64M a bit (16 LUTs). And as 80 registers go above 64, Vivado made another 64-entry array for the 16 above. So half of the RAM was there for only 16 registers (384 bits × 30 ≒ 11.5k, as measured).
+
+## The change
+What is above 64 is now a separate array. The 16 above fit RAM32M, so 16 LUTs a bit become 8.
+
+- **Estimate:** about −2.8k LUTs, about 20.2k in all (not measured).
+- **Cycles:** no cost. Today's core with 64 registers is unchanged.
+
+## Fewer registers (not taken now)
+I added a limit on physical registers to the model.
+
+| Registers | `-O2` | Against 80 |
+|---|---|---|
+| 80 | 8.633 | |
+| 72 | 8.587 | −0.5 % |
+| 64 | 8.425 | −2.4 % |
+| 56 | 8.146 | −5.6 % |
+
+64 would save about 5.7k LUTs of RAM, but CoreMark/MHz comes first. It stays as a fallback if the LUTs do not fit.
+
+## Verification
+- **A shortfall of the bench fixed:** in bug injection on the new code, "a write without `we`" went undetected, because `tb_prf` drove only address 0 on a port not writing. It now drives any address.
+- **Bug injection:** 5 on `OOO_PRF` (M8, M9, M953 to M955), all detected. "A write to x0" is logically equivalent, as register 0 always reads as 0, and was left out.
+
+## The LUT estimate
+The chip's estimate (about 111k, 82 %) is updated after seeing this new measurement. If the split goes as estimated it hardly changes, and stays over the ceiling of 80 %.
+
+The first result stays in `output/OOC_EXU2_T15_first`. The record is section 29.5 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 172. 2026-11-05 21:23:47 JST
+
+```text
+exu2 finished
+```

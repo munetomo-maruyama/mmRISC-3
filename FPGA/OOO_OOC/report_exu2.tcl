@@ -34,10 +34,10 @@ proc exu2_classes {fh outdir} {
                   flag  [concat $res $sel $opr] {*u_exu/*fl_*_reg*} \
                   rf    {s_s_reg*} $opr \
                   tags  [concat {s_s_reg* s_us_reg*} $ctl {lt_reg* lv_reg* xv*_reg* xt*_reg*}] $sel \
-                  write [concat $res $sel $opr] {*u_prf/*mem*} \
+                  write [concat $res $sel $opr] {*u_prf/*lo_reg* *u_prf/*hi_reg*} \
                   lvt   [concat $ctl {lv_reg* lt_reg* xv*_reg* xt*_reg* fl_reg*}] {*u_prf/*lvt_reg*} \
                   ag    [concat $res $sel $opr] {o_ag_reg*} \
-                  load  {ld_reg*} [concat $res {*u_prf/*mem*}]]
+                  load  {ld_reg*} [concat $res {*u_prf/*lo_reg* *u_prf/*hi_reg*}]]
     file delete -force $outdir/timing_loop.rpt
     foreach {name from to} $cls {
         set cf [ex2_cells $from]

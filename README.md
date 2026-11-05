@@ -28,7 +28,7 @@ Measured on the board under Linux, with the same bitstream that runs Linux.
 needed to fit the smaller device were costing the performance. The 2-wide core is in `RTL/CPU/OOO`: in lock-step with
 Spike on riscv-arch-test and CoreMark (5.50 CoreMark/MHz with `-O2`), 50 MHz met out of context. **100 MHz was given up on
 2026-11-05** (the whole core reached about 18.8 ns, and a deep pipeline loses CoreMark/MHz). The proposal: **4 renamed, 6
-decoded, 4 ALUs + 2 LSUs, 6 issues, at today's pipeline depth, 50 MHz**: 8.68 in the model, about 71k LUTs for the engine,
+decoded, 4 ALUs + 2 LSUs, 6 issues, at today's pipeline depth, 50 MHz**: 8.68 in the model, about 70k LUTs for the engine,
 about 82 % of the device, over the ceiling of 80 %. The loops that decide it are measured at 20 ns before the rework. The work order is in [`Doc/STRATEGY.md`](Doc/STRATEGY.md) section 5: the core, the board (brought up with
 LiteX's own SoC and mmRISC-2 first), Linux.
 

@@ -4049,3 +4049,17 @@ The worst of all: a write address, 14.7 ns with **no logic level**, 97 % route: 
 The first run stays as `output/OOC_EXU2_T15_first`.
 
 **Next**: `synth_ooo.bat exu2` again, the same 15 ns.
+
+### 29.6 `OOC_EXU2` 20,332 LUTs: the register file in 2 arrays (2026-11-05)
+
+**Measured** (the same 15 ns): **WNS +0.163 ns, met; 20,332 LUTs (11,752 logic + 8,580 LUT RAM), 4,158 FF.** −2,640 LUTs against 29.5, as estimated (−2.8k). `u_prf` 12,839 (15,622 before), `u_exu` 7,494.
+
+Timing as before: `sel` +0.969, `loop` +1.093, `oper` +1.406; the worst is again a write address with no logic level, +0.163. The class `write` found no cells, as the arrays have new names; `report_exu2.tcl` is corrected for the next run.
+
+**Loop 2: done, alone.** Against a 20 ns target about 5 ns to spare, for the joins and for a load's late data.
+
+**The budget**: the queue 11k, the register file with ALU ports 20.3k against 21k: the engine about 70k, the chip about 110k, 82 %, 2.2k over the ceiling of 80 %. What remains estimated: the front end 14k, renaming and control 7k, ROB 8k, LSU 9k, and mmRISC-2's 39.6k, which has FPU and caches at full size.
+
+**What is in hand if it does not fit:** 64 registers −5.7k and more at −2.4 %; 3 ALUs −3.5 %; the register file double-pumped on the 100 MHz clock, not tried.
+
+**Next**: loop 3, 2 load ports at load-use 2. The D$'s block RAM has 2 ports, and 2 loads take both: **a store's drain and a fill then have to take one from a load**, which the model does not count. That has to be modelled first, as a limit of the same kind as those of 29.1.

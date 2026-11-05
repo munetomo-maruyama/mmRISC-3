@@ -1,0 +1,34 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Thu Nov  5 21:19:53 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/OOC_EXU2_T15/utilization.rpt
+| Design       : OOC_EXU2
+| Device       : xc7a200tsbg484-1
+| Speed File   : -1
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++--------------------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+|         Instance         |  Module  | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++--------------------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+| OOC_EXU2                 |    (top) |      20332 |      11752 |    8580 |    0 | 4158 |      0 |      0 |          0 |
+|   (OOC_EXU2)             |    (top) |          2 |          2 |       0 |    0 | 2014 |      0 |      0 |          0 |
+|   u_exu                  | OOO_EXU2 |       7494 |       7494 |       0 |    0 | 1907 |      0 |      0 |          0 |
+|     (u_exu)              | OOO_EXU2 |       6351 |       6351 |       0 |    0 | 1848 |      0 |      0 |          0 |
+|     g_alu[0].g_p0.u_rare | OOO_ALUR |       1149 |       1149 |       0 |    0 |   59 |      0 |      0 |          0 |
+|   u_prf                  |  OOO_PRF |      12839 |       4259 |    8580 |    0 |  237 |      0 |      0 |          0 |
++--------------------------+----------+------------+------------+---------+------+------+--------+--------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
+
+
