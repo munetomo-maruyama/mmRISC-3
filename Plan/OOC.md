@@ -4126,3 +4126,38 @@ Another mistake of mine: the first solo phase never issued stores left from befo
 | 3 | `OOC_LSU3` | 14.1 ns | 3,326 without its miss logic |
 
 **Next**: loop 4, fetch: 32 bytes, 3 stages, the override at F2: the largest unknown left, and the last with much in cycles (−2.1 % a stage).
+
+### 29.9 Loop 4: `OOO_FDEC2`, `OOC_FE3`, fetch of 32 bytes in 3 stages (2026-11-05)
+
+**What is at stake** (`Plan/model`, as built):
+
+| Fetch | -O2 | max | rv64gc | |
+|---|---|---|---|---|
+| 3 stages, the override at F2 | 8.633 | 9.445 | 7.393 | |
+| A stage more after the override | 8.611 | 9.419 | 7.377 | −0.3 % |
+| The override a stage later | 8.482 | 9.335 | 7.338 | −1.7 % |
+| Both | 8.460 | 9.310 | 7.323 | −2.0 % |
+| Both, with a uBTB of 256 | 8.492 | 9.335 | 7.335 | −1.6 % |
+| 3 stages, a uBTB of 4,096 | 8.649 | 9.458 | 7.397 | +0.2 % |
+
+So the price is the override's bubble, not the stage; and a larger uBTB gives next to nothing: **what overrides is mostly direction, not a target it did not know.**
+
+**How 3 stages can be had.** I had put way select in F2, and F3 + F4 of `OOO_FDEC` are about 9.5 ns each, so with block RAM it looked like about 23 ns. But **F2 need not have the arrays' time**: they are read at the end of F0, so all of F1 is for their data, the tags' compare and the way, into registers. `OOO_TAGE` and `OOO_BTB` already compare in F1 and hold the result. At 20 ns that is ample. So F2 starts from registers.
+
+**The block.** `OOO_FDEC2`: F3 and F4 of `OOO_FDEC` in one stage. Not 2 stages' levels end to end: the targets' compares run beside the boundaries and the choice (28.22), so I count about 16 levels on the longest: boundaries, kinds, the count of branches, a prediction, the choice's carry chain, the AND-OR of what was compared, F0's last LUT.
+
+**One behaviour changes.** A first half at parcel 15 is kept unless the block ends in a taken transfer, also when the block overrides fetch. In `OOO_FDEC` an override dropped it, so a block that overrode to "not taken" with a first half at its end lost it, and the back end recovered. With the override in the block's own stage the next block does follow it.
+
+**The bench.** `tb_fdec2`, from `tb_fdec`, in the block's own cycle: 525,126 blocks, 432,184 taken, 289,224 overrides, 110,073 first halves, 14,694 finished in the next block, 108,406 returns: 0 mismatches. **Mutations M1020 to M1057: 38 of 38 detected**, all lines read: `OOO_FDEC`'s, carried over, and 8 new ones. Not carried over: M833, M834, about F3's block dropped by F4's override: that case is gone. -Wall clean.
+
+**The harness.** `OOC_FE3`, `report_fe3.tcl`, `synth_ooo.bat fe3`, at 15 ns: `OOO_FDEC2`, `OOO_UBTB2`, `OOO_RAS`, `OOO_FBUF2` joined: the override into F0's last LUT, the starts and the cut into the buffer's table. From registers: F1. **Not there:** F1 itself (block RAM, tags, way), TAGE M, the FTQ, a fetch buffer across blocks (loop 5).
+
+**What the result will decide (my limits, before measuring):**
+
+| `ovr` reaches | Reading |
+|---|---|
+| About 17 ns or less | 3 stages stay |
+| 17 to 19 ns | Possible, as fetch has few joins; look at the paths: the boundaries by groups, in place of the chain, are in hand |
+| Above 19 ns | The override a stage later, −2.0 %, unless the paths say otherwise |
+
+And `tab`: if the starts into the buffer's table are what is long, a register in front of the table costs −0.3 % and no bubble.

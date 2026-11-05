@@ -131,8 +131,8 @@ Times are today's blocks alone at a 10 ns target (at a 20 ns target).
 | Stage | Work | Today, alone |
 |---|---|---|
 | F0 | Next pc: uBTB 96 | 8.9 ns (`OOO_UBTB2`) |
-| F1 | I$, TAGE, BTB: block RAM | |
-| F2 | Way select, predecode of 16 parcels, TAGE's decision, **override**; into the fetch buffer and FTQ | 14.3 ns (19.1), all of today's front end, 8 parcels |
+| F1 | I$, TAGE, BTB: block RAM's data; tags compared, the way chosen | |
+| F2 | From registers: predecode of 16 parcels, TAGE's decision, **override**; into the fetch buffer and FTQ | 14.3 ns (19.1), all of today's front end, 8 parcels, with its way select |
 | D1 | Fetch buffer: up to 6 instructions | 13.3 ns (16.9) |
 | D2 | Decode; decoded queue | 9.0 ns (12.1) |
 | R | RAT, dependences inside the 4, new registers, checkpoints | 8.6 ns (11.7), 2 µops; `OOO_RENAME2`, 4 µops, 2 stages of 9.1 ns |
@@ -170,7 +170,7 @@ One MMCM, for example: VCO 800 MHz, 100 MHz (/8), 400 MHz (/2), 400 MHz at 90° 
 | 1 | **Wakeup + select** | 1 cycle, unified 24, 6 selects | Distributed queues (`OOO_SCHED`) | −2.4 % | Today's 11.8 ns, 10 entries, 3 ports. `OOO_SCHED` 8.9 ns, 8 entries each. **`OOO_IQ2`, model 8.63 with its limits: about 15.6 ns asked for 15, 8,888 LUTs without the payload** (`Plan/OOC.md` 29.3). Alone |
 | 2 | **Bypass + ALU + register file** | RR and EX, 6 results, 11 reads, 6 writes | 3 ALUs; the register file double-pumped on the 100 MHz clock | −3.5 % | `OOO_EXU` with `OOO_PRF2` 9.2 ns a stage, 12,472 LUTs, 3 ALUs, 4 writes, 8 reads. **`OOO_EXU2`, one bypass: met 15 ns, 20,332 LUTs, the register file 12,839 of them** (`Plan/OOC.md` 29.6). Alone |
 | 3 | **Load** | Load-use 2, 2 ports | 1 LSU; load-use 3 | −8.0 %; −12.7 % | Today's 12.6 ns, 1 port. **`OOO_LSU3`, a copy of the D$'s arrays a port: about 14.1 ns asked for 15, 3,326 LUTs, 14 tiles, without the miss logic** (`Plan/OOC.md` 29.8). Alone |
-| 4 | **Fetch** | 32 B, 3 stages, the override at F2 | A stage more, the override with it | −2.1 % | Today's 14.3 ns, 16 B. `OOC_FE2` 9.5 ns a stage, 5 stages |
+| 4 | **Fetch** | 32 B, 3 stages, the override at F2, from registers: the arrays and the way in F1 | A stage more, the override with it | −2.0 % | Today's 14.3 ns, 16 B. `OOC_FE2` 9.5 ns a stage, 5 stages. **Built: `OOO_FDEC2`, F3 and F4 in one stage; `synth_ooo.bat fe3` to run** (`Plan/OOC.md` 29.9) |
 | 5 | **Fetch buffer** | 6 a cycle, across blocks | One block a cycle (`OOO_FBUF2` as it is) | −2.2 % | `OOO_FBUF2` 8.65 ns, one block |
 | 6 | **Rename of 4** | 1 stage | A stage more | −0.5 % | `OOO_RENAME2` 9.1 ns in 2 stages |
 
@@ -183,7 +183,7 @@ Between blocks, the 4 cuts proposed for 100 MHz (`Plan/OOC.md` 28.26) are not ne
 | RR1 in `OOO_CORE` | **Removed** (`Plan/OOC.md` 29): −1.1 % in the model, +2.20 % cycles measured |
 | `OOO_UBTB2` | **Used as it is** |
 | `OOO_RENAME2` | **Used**; its 2 stages joined if loop 6 allows |
-| `OOO_FDEC` | **Used**, F3 and F4 joined in F2 |
+| `OOO_FDEC` | **The starting point** of `OOO_FDEC2`: F3 and F4 in F2 |
 | `OOO_FBUF2` | **The starting point**: a second block added for loop 5 |
 | `OOO_ALUF` | **Used** on 3 ports |
 | `OOO_ALUR` | **Used** on port 0, in 1 cycle (`STAGE2` = 0) |

@@ -30,6 +30,7 @@
 //   OOC_IQ2     the queue of 24 with 6 selects (OOO_IQ2, Doc/STRATEGY.md 4.5 loop 1)
 //   OOC_EXU2    RR, EX of the 6 ports with the register file (OOO_EXU2, loop 2)
 //   OOC_LSU3    the 2 memory ports of the 50 MHz core (OOO_LSU3, loop 3)
+//   OOC_FE3     F2, F0 and D1 of the 50 MHz core together (OOO_FDEC2, loop 4)
 //
 // The FTQ has 16 blocks since D-18 (2026-10-29): OOC_FE has them. OOC_ROB,
 // OOC_FBUF, OOC_FTQ, OOC_CTRL and OOC_FERS keep the 8 (an index of 3 bits)
@@ -1733,6 +1734,107 @@ module OOC_LSU3
         o_dirty <= drt; o_dirty_way <= dry; o_dirty_idx <= dri; o_tm <= tm; o_tm_vpn <= tv; o_walk_id <= wi; o_tbusy <= tb;
     end
 endmodule : OOC_LSU3
+
+//---------------------------------------------------------------------------
+// OOC_FE3: F2, F0 and D1 of the 50 MHz core together (OOO_FDEC2, OOO_UBTB2, OOO_FBUF2;
+// Doc/STRATEGY.md 4.5 loop 4): the override from F2 into F0's last LUT, the starts and
+// the cut into the buffer's table. F1 (the arrays, the tags, the way) is registers from outside.
+//---------------------------------------------------------------------------
+module OOC_FE3
+    (
+        input  logic          clk,
+        input  logic          rst_n,
+        input  logic          be_redirect,
+        input  logic [38:1]   be_pc,
+        input  logic          stall,
+        input  logic          f2_valid,
+        input  logic [38:5]   f2_line,
+        input  logic [3:0]    f2_start,
+        input  logic          f2_seq,
+        input  logic [255:0]  f2_data,
+        input  logic [38:1]   f2_expect,
+        input  logic [2:0]    f2_hv,
+        input  logic [2:0]    f2_pp,
+        input  logic [15:0]   f2_base,
+        input  logic          f2_bh,
+        input  logic [3:0]    f2_boff,
+        input  logic [38:1]   f2_btgt,
+        input  logic [4:0]    f2_ftq,
+        input  logic          rs_valid,
+        input  logic [3:0]    rs_ptr,
+        input  logic [38:1]   rs_val,
+        input  logic          rs_push,
+        input  logic [38:1]   rs_addr,
+        input  logic          rs_pop,
+        input  logic          out_ready,
+        output logic [38:1]   o_pc,
+        output logic          o_taken,
+        output logic [3:0]    o_off,
+        output logic [1:0]    o_hn,
+        output logic [2:0]    o_ht,
+        output logic [3:0]    o_snp,
+        output logic [38:1]   o_snv,
+        output logic          o_ir,
+        output logic [3:0]    o_free,
+        output logic [5:0]    o_valid,
+        output logic [5:0][31:0] o_inst,
+        output logic [5:0]    o_rvc,
+        output logic [5:0][3:0] o_soff,
+        output logic [5:0][4:0] o_ftq,
+        output logic [5:0]    o_stk,
+        output logic          o_rare
+    );
+    logic         s_be, s_st, s_v, s_seq, s_bh, s_rv, s_rpu, s_rpo, s_or;
+    logic [38:1]  s_bp, s_exp, s_bt, s_rval, s_radd;
+    logic [38:5]  s_l;
+    logic [3:0]   s_s, s_bo, s_rp;
+    logic [255:0] s_d;
+    logic [2:0]   s_hv, s_pp;
+    logic [15:0]  s_b;
+    logic [4:0]   s_ftq;
+    always_ff @(posedge clk) begin
+        s_be <= be_redirect; s_bp <= be_pc; s_st <= stall; s_v <= f2_valid; s_l <= f2_line; s_s <= f2_start; s_seq <= f2_seq;
+        s_d <= f2_data; s_exp <= f2_expect; s_hv <= f2_hv; s_pp <= f2_pp; s_b <= f2_base; s_bh <= f2_bh; s_bo <= f2_boff; s_bt <= f2_btgt;
+        s_ftq <= f2_ftq; s_rv <= rs_valid; s_rp <= rs_ptr; s_rval <= rs_val; s_rpu <= rs_push; s_radd <= rs_addr; s_rpo <= rs_pop; s_or <= out_ready;
+    end
+    logic          ovr, fv, cr, uv, ut, uc, ur;
+    logic [38:1]   op, up, ug, top, snv, pc;
+    logic [15:0]   fst, ffr;
+    logic [1:0]    hn;
+    logic [2:0]    ht;
+    logic [3:0]    snp, off;
+    logic          tk;
+    OOO_FDEC2 #(.VA(39)) u_fd
+        (.clk(clk), .rst_n(rst_n), .flush(s_be), .f2_valid(s_v), .f2_line(s_l), .f2_start(s_s), .f2_seq(s_seq), .f2_data(s_d),
+         .f2_expect(s_exp), .f2_hv(s_hv), .f2_pp(s_pp), .f2_base(s_b), .f2_bh(s_bh), .f2_boff(s_bo), .f2_btgt(s_bt),
+         .out_valid(fv), .out_st(fst), .out_first(ffr), .out_cross(cr), .ovr(ovr), .ovr_pc(op), .f5_hn(hn), .f5_ht(ht),
+         .ub_valid(uv), .ub_pc(up), .ub_taken(ut), .ub_tgt(ug), .ub_cond(uc), .ub_ret(ur),
+         .rs_valid(s_rv), .rs_ptr(s_rp), .rs_val(s_rval), .rs_push(s_rpu), .rs_addr(s_radd), .rs_pop(s_rpo),
+         .ras_top(top), .snap_ptr(snp), .snap_val(snv));
+    OOO_UBTB2 #(.SETS(32), .VA(39), .TW(12)) u_ub
+        (.clk(clk), .rst_n(rst_n), .redirect(s_be || ovr), .redirect_pc(s_be ? s_bp : op), .ras_top(top), .stall(s_st),
+         .fetch_pc(pc), .pred_taken(tk), .pred_off(off), .upd_valid(uv), .upd_pc(up), .upd_taken(ut), .upd_target(ug),
+         .upd_cond(uc), .upd_ret(ur));
+    logic          ir;
+    logic [3:0]    fr;
+    logic [5:0]    v, rv, stk;
+    logic [5:0][31:0] ii;
+    logic [5:0][3:0]  so;
+    logic [5:0][4:0]  ff;
+    logic          rr;
+    OOO_FBUF2 #(.NB(8), .FTQW(5)) u_fb
+        (.clk(clk), .rst_n(rst_n), .flush(s_be), .in_ready(ir), .free_n(fr), .in_valid(fv && !s_be), .in_data(s_d), .in_st(fst),
+         .in_first(ffr), .in_ftq(s_ftq), .out_ready(s_or), .out_valid(v), .out_inst(ii), .out_rvc(rv), .out_off(so),
+         .out_ftq(ff), .out_taken(stk), .out_rare(rr));
+    /* verilator lint_off UNUSEDSIGNAL */
+    logic cr_q;
+    /* verilator lint_on UNUSEDSIGNAL */
+    always_ff @(posedge clk) begin
+        cr_q <= cr;
+        o_pc <= pc; o_taken <= tk; o_off <= off; o_hn <= hn; o_ht <= ht; o_snp <= snp; o_snv <= snv;
+        o_ir <= ir; o_free <= fr; o_valid <= v; o_inst <= ii; o_rvc <= rv; o_soff <= so; o_ftq <= ff; o_stk <= stk; o_rare <= rr;
+    end
+endmodule : OOC_FE3
 
 //---------------------------------------------------------------------------
 // OOC_UBTB2: the next-line predictor of the 4-issue core (OOO_UBTB2; Doc/STRATEGY.md

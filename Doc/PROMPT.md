@@ -7109,3 +7109,47 @@ The record is section 29.7 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.
 ```text
 lsu3 finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOC_LSU3` met 15 ns (WNS +0.914 ns, about 14.1 ns), 3,326 LUTs, 14 tiles of block RAM. Load-use 2 with 2 load ports holds.** The part that matters most to CoreMark/MHz is now secured. The record is pushed (95932cf; 0 Ref on origin/dev).
+
+## The result
+At the low end of the estimated 14 to 17 ns, and LUTs below the 4k to 5k estimated. The miss logic is not in yet, though.
+
+| Class | Slack at 15 ns | Reached |
+|---|---|---|
+| `cam` (search, forward, to the result) | +0.914 | 14.1 ns |
+| `ok` (into what came of it) | +1.703 | 13.3 ns |
+| `tlb` (DTLB, tags compared, way) | +2.436 | 12.6 ns |
+| `e_ram` (EX's mux, adder, RAM's address) | +4.813 | 10.2 ns |
+
+The worst path is the SQ's search, as expected. About 5.9 ns to spare against 20 ns, for the write into the register file and joining blocks.
+
+## The 3 loops so far
+
+| Loop | Block | Reached | LUTs |
+|---|---|---|---|
+| 1 | `OOC_IQ2` | 15.6 ns | 8,888 (no payload) |
+| 2 | `OOC_EXU2` | Met 15 ns | 20,332 |
+| 3 | `OOC_LSU3` | 14.1 ns | 3,326 (no miss logic) |
+
+All are alone. Vivado stops when a target is met, so those of loops 2 and 3 are upper bounds.
+
+## The LUT estimate
+With the LSU far below the 9k taken, the chip's estimate is **about 106k (79 %), just under the ceiling of 80 % (107.7k)**. The miss logic is taken as 1.7k. There is only about 1.7k to spare, and the front end 14k, renaming and control 7k, the ROB 8k and the queue's payload 2.1k stay estimates.
+
+As `OOO_DCH2` replaces mmRISC-2's D$ arrays and hit path, the 12.6k "outside the core" may go down, but that is not counted until confirmed.
+
+## The next step
+I recommend loop 4 next, fetch (32 bytes, 3 stages, the override at F2). It is the largest unknown left, and a stage more costs −2.1 %, a large effect on cycles. Today's 3-stage front end is 14.3 ns with 16 bytes (19.1 ns at a 20 ns target), so I expect this to be the tightest.
+
+The record is section 29.8 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 175. 2026-11-05 22:54:26 JST
+
+```text
+Yes, loop 4
+```
