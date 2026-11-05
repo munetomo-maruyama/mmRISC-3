@@ -167,7 +167,7 @@ One MMCM, for example: VCO 800 MHz, 100 MHz (/8), 400 MHz (/2), 400 MHz at 90° 
 | # | Loop | Target | If it fails | Model | Known so far |
 |---|---|---|---|---|---|
 | 1 | **Wakeup + select** | 1 cycle, unified 24, 6 selects | Distributed queues (`OOO_SCHED`) | −2.4 % | Today's 11.8 ns, 10 entries, 3 ports. `OOO_SCHED` 8.9 ns, 8 entries each. **`OOO_IQ2`, model 8.63 with its limits: about 15.6 ns asked for 15, 8,888 LUTs without the payload** (`Plan/OOC.md` 29.3). Alone |
-| 2 | **Bypass + ALU + register file** | RR and EX, 6 results, 11 reads, 6 writes | 3 ALUs; the register file double-pumped on the 100 MHz clock | −3.5 % | `OOO_EXU` with `OOO_PRF2` 9.2 ns a stage, 12,472 LUTs, 3 ALUs, 4 writes, 8 reads |
+| 2 | **Bypass + ALU + register file** | RR and EX, 6 results, 11 reads, 6 writes | 3 ALUs; the register file double-pumped on the 100 MHz clock | −3.5 % | `OOO_EXU` with `OOO_PRF2` 9.2 ns a stage, 12,472 LUTs, 3 ALUs, 4 writes, 8 reads. **Built: `OOO_EXU2`, one bypass; `synth_ooo.bat exu2` to run** (`Plan/OOC.md` 29.4) |
 | 3 | **Load** | Load-use 2, 2 ports | 1 LSU; load-use 3 | −8.0 %; −12.7 % | Today's 12.6 ns, 1 port |
 | 4 | **Fetch** | 32 B, 3 stages, the override at F2 | A stage more, the override with it | −2.1 % | Today's 14.3 ns, 16 B. `OOC_FE2` 9.5 ns a stage, 5 stages |
 | 5 | **Fetch buffer** | 6 a cycle, across blocks | One block a cycle (`OOO_FBUF2` as it is) | −2.2 % | `OOO_FBUF2` 8.65 ns, one block |
@@ -185,9 +185,9 @@ Between blocks, the 4 cuts proposed for 100 MHz (`Plan/OOC.md` 28.26) are not ne
 | `OOO_FDEC` | **Used**, F3 and F4 joined in F2 |
 | `OOO_FBUF2` | **The starting point**: a second block added for loop 5 |
 | `OOO_ALUF` | **Used** on 3 ports |
-| `OOO_ALUR` | Its functions in 1 cycle on port 0; not its stages |
+| `OOO_ALUR` | **Used** on port 0, in 1 cycle (`STAGE2` = 0) |
 | `OOO_SCHED`, `OOO_SDISP` | **The fallback** of loop 1 |
-| `OOO_EXU`, `OOO_PRF2` | Not used as they are: they split RR in 2 stages. Today's `OOO_PRF` takes the ports as parameters |
+| `OOO_EXU`, `OOO_PRF2` | Not used as they are: they split RR in 2 stages. `OOO_EXU2` starts from `OOO_EXU`, with one bypass and today's `OOO_PRF` |
 | `OOO_LSU2`, `OOO_DCH`, `OOO_DTLB2` | Not used: load-use 3, stores in 2 µops. Today's `OOO_LSU` gets the second port |
 
 All stay in the tree with their benches.

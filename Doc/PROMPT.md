@@ -6880,3 +6880,40 @@ The record is section 29.2 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.
 ```text
 iq2 finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOC_IQ2` by rank reached about 15.6 ns at a 15 ns target (WNS −0.619 ns), 8,888 LUTs (no payload).** 5.5 ns faster and 1,080 LUTs fewer than the chain. The unified queue of 24 goes on as it is. The record is pushed (0895bd5; 0 Ref on origin/dev).
+
+## The main paths (15 ns target)
+
+| Class | The chain | Now | Reached |
+|---|---|---|---|
+| `loop` | −6.097 | **−0.619** | 15.6 ns |
+| `guard` | −6.138 | −0.610 | 15.6 ns |
+| `wait` | −5.444 | −0.508 | 15.5 ns |
+| `free` | −5.776 | −0.153 | 15.2 ns |
+| `issue` | −3.480 | +0.141 | 14.9 ns |
+| `wk` | −2.836 | +2.658 | 12.3 ns |
+
+The worst path: 2.6 ns to ready, 8.8 ns from rank and grant to the issued tag, 1.7 ns for the tag of fan-out 57, 3.4 ns compare. A little above the estimate of 13 to 15 ns.
+
+## The judgement
+- **Margin:** about 4.4 ns against 20 ns, for what building into the core adds. How much that is cannot be told alone, and is measured when blocks join.
+- **A price not measured:** the port left empty when a write slot holds a µop back is not in the model.
+
+## The LUT estimate went up
+The queue itself 8.9k and the payload estimated at 2.1k (not built) make 11k, over the 9k taken. So the chip's estimate is **about 111k (82 %), over the ceiling of 80 % (107.7k)**. Only the queue is measured; the rest stays an estimate. The numbers in `Doc/STRATEGY`, `Doc/BOARD`, `README` are updated.
+
+## The next step
+Most of the LUTs still unknown are decided by loop 2 (register file of 6 writes and 11 reads, bypass, 4 ALUs). Cutting LUTs now, with no measurement of the largest part, may cut the wrong thing. So I recommend **measuring loop 2 first**.
+
+The record is section 29.3 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 170. 2026-11-05 20:40:36 JST
+
+```text
+Yes, loop 2
+```

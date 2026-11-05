@@ -28,6 +28,7 @@
 //   OOC_PMUL    the pipelined mul / mulw beside it
 //   OOC_FE      the front end put together (OOO_FRONT)
 //   OOC_IQ2     the queue of 24 with 6 selects (OOO_IQ2, Doc/STRATEGY.md 4.5 loop 1)
+//   OOC_EXU2    RR, EX of the 6 ports with the register file (OOO_EXU2, loop 2)
 //
 // The FTQ has 16 blocks since D-18 (2026-10-29): OOC_FE has them. OOC_ROB,
 // OOC_FBUF, OOC_FTQ, OOC_CTRL and OOC_FERS keep the 8 (an index of 3 bits)
@@ -1433,6 +1434,109 @@ module OOC_EXU
          .wb_v(wv), .wb_t(wt), .wb_d(wd), .wb_nv(wnv), .wb_nt(wnt), .br_v(bv), .br_take(bt), .jr_v(jv), .jr_tgt(jt), .ag_v(av), .ag(ag), .sd(sd),
          .p0_a(a0), .p0_b(b0));
 endmodule : OOC_EXU
+
+//---------------------------------------------------------------------------
+// OOC_EXU2: stages RR, EX of the 6 ports of the 50 MHz core with the register file
+// (OOO_EXU2, OOO_PRF, 80 registers, 6 writes, 11 reads; Doc/STRATEGY.md 4.5 loop 2);
+// what comes from outside registered. A load's data will come late in M in the core
+// (loop 3), and an address goes on to block RAM: both are registers here.
+//---------------------------------------------------------------------------
+module OOC_EXU2
+    (
+        input  logic              clk,
+        input  logic              rst_n,
+        input  logic              flush,
+        input  logic [5:0]        v,
+        input  logic [5:0][1:0]   us,
+        input  logic [5:0][1:0][6:0] src,
+        input  logic [5:0][1:0][63:0] cst,
+        input  logic [3:0]        wr,
+        input  logic [3:0][6:0]   dst,
+        input  logic [3:0][5:0]   op,
+        input  logic [3:0]        uw,
+        input  logic [3:0][1:0]   sh,
+        input  logic [3:0]        word,
+        input  logic [3:0]        br,
+        input  logic [3:0][2:0]   brop,
+        input  logic              slow,
+        input  logic              jalr,
+        input  logic [63:0]       link,
+        input  logic [1:0][11:0]  agi,
+        input  logic [1:0]        ld_nv,
+        input  logic [1:0][6:0]   ld_nt,
+        input  logic [1:0][63:0]  ld_d,
+        input  logic              x0_nv,
+        input  logic [6:0]        x0_nt,
+        input  logic [63:0]       x0_d,
+        input  logic              x1_nv,
+        input  logic [6:0]        x1_nt,
+        input  logic [63:0]       x1_d,
+        output logic [1:0]        o_av,
+        output logic [1:0][63:0]  o_ag,
+        output logic [63:0]       o_sd,
+        output logic [3:0]        o_bv,
+        output logic [3:0]        o_bt,
+        output logic              o_jv,
+        output logic [38:1]       o_jt,
+        output logic [63:0]       o_a,
+        output logic [63:0]       o_b
+    );
+    logic              fl, s_slow, s_jalr, xv0, xv1;
+    logic [5:0]        s_v;
+    logic [5:0][1:0]   s_us;
+    logic [5:0][1:0][6:0] s_s;
+    logic [5:0][1:0][63:0] s_cst, s_prf;
+    logic [3:0]        s_wr, s_uw, s_word, s_br;
+    logic [3:0][6:0]   s_dst;
+    logic [3:0][5:0]   s_op;
+    logic [3:0][1:0]   s_sh;
+    logic [3:0][2:0]   s_brop;
+    logic [63:0]       s_link, xd0, xd1;
+    logic [1:0][11:0]  s_agi;
+    logic [1:0]        lv;
+    logic [1:0][6:0]   lt;
+    logic [1:0][63:0]  ld;
+    logic [6:0]        xt0, xt1;
+    logic [5:0]        wv;
+    logic [5:0][6:0]   wt;
+    logic [5:0][63:0]  wd;
+    logic [3:0]        bv, bt;
+    logic              jv;
+    logic [38:1]       jt;
+    logic [1:0]        av;
+    logic [1:0][63:0]  ag;
+    logic [63:0]       sd, a0, b0;
+    logic [10:0][6:0]  ra;
+    logic [10:0][63:0] rd;
+    always_ff @(posedge clk) begin
+        fl <= flush;
+        s_v <= v; s_us <= us; s_s <= src; s_cst <= cst; s_wr <= wr; s_dst <= dst; s_op <= op; s_uw <= uw; s_sh <= sh;
+        s_word <= word; s_br <= br; s_brop <= brop; s_slow <= slow; s_jalr <= jalr; s_link <= link; s_agi <= agi;
+        lv <= ld_nv; lt <= ld_nt; ld <= ld_d;
+        xv0 <= x0_nv; xt0 <= x0_nt; xd0 <= x0_nv ? x0_d : 64'd0;
+        xv1 <= x1_nv; xt1 <= x1_nt; xd1 <= x1_nv ? x1_d : 64'd0;
+        o_av <= av; o_ag <= ag; o_sd <= sd; o_bv <= bv; o_bt <= bt; o_jv <= jv; o_jt <= jt; o_a <= a0; o_b <= b0;
+    end
+    always @(*) begin
+        for (int p = 0; p < 5; p++)
+            for (int x = 0; x < 2; x++) begin
+                ra[2*p + x]    = s_s[p][x];
+                s_prf[p][x]    = rd[2*p + x];
+            end
+        ra[10]    = s_s[5][0];
+        s_prf[5][0] = rd[10];
+        s_prf[5][1] = 64'd0;
+    end
+    OOO_PRF #(.NREG(80), .NW(6), .NR(11)) u_prf
+        (.clk(clk), .ra(ra), .rd(rd), .we(wv), .wa(wt), .wd(wd));
+    OOO_EXU2 u_exu
+        (.clk(clk), .rst_n(rst_n), .flush(fl), .rr_v(s_v), .rr_use(s_us), .rr_src(s_s), .rr_prf(s_prf), .rr_const(s_cst),
+         .rr_wr(s_wr), .rr_dst(s_dst), .rr_op(s_op), .rr_uw(s_uw), .rr_shift(s_sh), .rr_word(s_word), .rr_br(s_br),
+         .rr_brop(s_brop), .rr_slow(s_slow), .rr_jalr(s_jalr), .rr_link(s_link), .rr_agi(s_agi),
+         .ld_nv(lv), .ld_nt(lt), .ld_d(ld), .x0_nv(xv0), .x0_nt(xt0), .x0_d(xd0), .x1_nv(xv1), .x1_nt(xt1), .x1_d(xd1),
+         .wb_v(wv), .wb_t(wt), .wb_d(wd), .ag_v(av), .ag(ag), .sd(sd), .br_v(bv), .br_take(bt), .jr_v(jv), .jr_tgt(jt),
+         .p0_a(a0), .p0_b(b0));
+endmodule : OOC_EXU2
 
 //---------------------------------------------------------------------------
 // OOC_UBTB2: the next-line predictor of the 4-issue core (OOO_UBTB2; Doc/STRATEGY.md

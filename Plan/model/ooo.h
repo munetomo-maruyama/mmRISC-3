@@ -72,7 +72,7 @@ struct OooCfg {
     int hole_bank = 0;          // OOO_SDISP as a stage before: a group's queues and banks stay with it through a stall
     int cmp_lag = 0;            // cycles from a result to its done bit in the ROB (a register in between)
     int ck_max = 0;             // at most this many checkpoints taken a cycle
-    int p0_ops = 0;             // unified queue: MUL, DIV and system µops only on one ALU port, one a cycle; DIV keeps only the MDU (OOO_IQ2)
+    int p0_ops = 0;             // unified queue: MUL, DIV and system µops only on one ALU port, one a cycle; DIV keeps only the MDU (OOO_IQ2); 2: and jalr (OOO_EXU2)
     int p0_opx = 0;             // ... and the ALU µops of these classes (Rec.opx), in their usual latency
     int st_lsu0 = 0;            // unified queue: one store a cycle, on the first LSU port
     int iq_bank = 0;            // unified queue: iq entries in this many banks of LUT RAM: a cycle's µops go to different banks
@@ -524,7 +524,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         } else {
             auto& use = port == 1 ? use_lsu : port == 2 ? use_mul : use_alu;
             int cap = port == 1 ? c.lsu : port == 2 ? c.mul : c.alu;
-            bool p0 = c.p0_ops && (pr.cls == C_MUL || pr.cls == C_DIV || pr.cls == C_SYS || (pr.cls == C_ALU && (c.p0_opx & pr.opx)));
+            bool p0 = c.p0_ops && (pr.cls == C_MUL || pr.cls == C_DIV || pr.cls == C_SYS || (c.p0_ops >= 2 && pr.cls == C_JALR) || (pr.cls == C_ALU && (c.p0_opx & pr.opx)));
             bool st0 = c.st_lsu0 && pr.cls == C_STORE;
             bool md = c.p0_ops && pr.cls == C_DIV;
             while (use[is] >= cap || (c.issue_w && use_all[is] >= c.issue_w) || (p0 && use_p0[is] >= 1) ||

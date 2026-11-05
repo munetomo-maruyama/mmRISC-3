@@ -20,6 +20,7 @@ REM   synth_ooo.bat fbuf2      the fetch buffer of the new core at 9 ns, in outp
 REM   synth_ooo.bat fe2        F3, F4, F0, D1 of the new core together at 9 ns, in output\OOC_FE2_T9
 REM   synth_ooo.bat cpu10      the whole core with its D$ at a 10 ns target, in output\OOO_CPU_T10 (what the core adds: step 1.3)
 REM   synth_ooo.bat iq2        the queue of 24 with 6 selects of the 50 MHz core at 15 ns, in output\OOC_IQ2_T15 (Doc/STRATEGY.md 4.5 loop 1)
+REM   synth_ooo.bat exu2       RR, EX of the 6 ports of the 50 MHz core with the register file at 15 ns, in output\OOC_EXU2_T15 (loop 2)
 REM   synth_ooo.bat schedrpt   the classes of that finished run, without running it again: output\OOC_SCHED_T10\summary_loop.txt
 REM
 REM vivado is itself a batch file: without "call" this one would end after
@@ -39,6 +40,7 @@ if /i "%~1"=="fbuf2" goto :fbuf2
 if /i "%~1"=="fe2" goto :fe2
 if /i "%~1"=="cpu10" goto :cpu10
 if /i "%~1"=="iq2" goto :iq2
+if /i "%~1"=="exu2" goto :exu2
 if /i "%~1"=="schedrpt" goto :schedrpt
 if not "%~1"=="" (
     call vivado -mode batch -source synth_ooo.tcl -log output\vivado_%~1.log -journal output\vivado_%~1.jou -tclargs %*
@@ -100,6 +102,9 @@ call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T10_CPU.log -jo
 goto :done
 :iq2
 call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T15_IQ2.log -journal output\vivado_T15_IQ2.jou -tclargs OOC_IQ2 15.0 1
+goto :done
+:exu2
+call vivado -mode batch -source synth_ooo.tcl -log output\vivado_T15_EXU2.log -journal output\vivado_T15_EXU2.jou -tclargs OOC_EXU2 15.0 1
 goto :done
 :schedrpt
 call vivado -mode batch -source report_sched.tcl -log output\vivado_rpt_SCHED.log -journal output\vivado_rpt_SCHED.jou -tclargs output/OOC_SCHED_T10

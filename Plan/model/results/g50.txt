@@ -21,7 +21,8 @@
 | ... and the slow operations (slow2 classes 3)                  |  8.664 |  9.480 |  8.288 |  7.415 |
 | ... a multiply takes another port's write slot                 |  8.652 |  9.456 |  8.277 |  7.397 |
 | 4 banks of 6: a cycle's µops in different banks               |  8.667 |  9.476 |  8.293 |  7.397 |
-| **all of these: the queue as it is built**                     |  8.633 |  9.445 |  8.265 |  7.391 |
+| ... and a jalr only on ALU 0                                   |  8.652 |  9.456 |  8.277 |  7.397 |
+| **all of these: as it is built**                               |  8.633 |  9.445 |  8.265 |  7.391 |
 | **the front end** | | | | |
 | fetch a stage more, the override a stage later                 |  8.492 |  9.337 |  8.161 |  7.330 |
 | the 100 MHz fetch: 5 stages, the override at F4                |  8.276 |  9.131 |  7.988 |  7.220 |

@@ -3980,3 +3980,21 @@ The price: a µop that a write slot holds back keeps its rank, so its port idles
 The first run stays as `output/OOC_IQ2_T15_chain`.
 
 **Next**: loop 2, the register file of 6 writes and 11 reads with bypass and 4 ALUs. It decides the most LUTs still unknown.
+
+### 29.4 Loop 2: `OOO_EXU2`, `OOC_EXU2`, one bypass (2026-11-05)
+
+**The block.** `RTL/CPU/OOO/OOO_EXU2`, from `OOO_EXU`: stages RR and EX, 4 ALU ports and 2 memory ports, 6 results, `OOO_PRF` with 80 registers, 6 writes, 11 reads (`OOC_EXU2`).
+
+**What 20 ns allows against `OOO_EXU`:**
+- **One bypass, not two.** A result goes into the register file at the same edge as into `r_ex` (from EX itself), so a consumer in RR a cycle later reads it there. So no second mux on 6 results in RR, and no copies of each result (`r_sn`, `r_wr`). It costs nothing in cycles: the model's bypass is the same.
+- **The register file read in RR itself**, in one stage (`OOO_PRF`), not `OOO_PRF2`'s two.
+- **The slow operations on port 0 in the cycle of their operands**: `OOO_ALUR` with `STAGE2` = 0, in place of latency 3. So on rv64gc and other programs too they cost nothing beyond the port.
+- **An address out in EX**, combinational, for block RAM at the end of EX: load-use 2.
+
+**Ports.** Port 5 has loads only, so it has one source. The multiplier shares port 1's write (`x1_*`, as `OOO_IQ2`'s slot), MDU and system port 0's (`x0_*`). A jalr on port 0 alone: `results/g50.txt` shows no cost at this precision (8.633).
+
+**The bench.** `tb_exu2`, from `tb_exu`, against `ref_alu` written from the RISC-V specification: 1,000,000 cycles, 2.70 million results, sources half by EX's mux and half from the register file, 0 mismatches. **Mutations M910 to M952: 43 of 43 detected**, all lines read. `tb_exu` still passes with the `OOO_ALUR` parameter.
+
+**The harness.** `OOC_EXU2`, `report_exu2.tcl`, `synth_ooo.bat exu2`, at 15 ns as loop 1. A load's data comes from a register there; in the core it comes late in M (loop 3). An address goes to a register there; in the core it goes on to block RAM, so what `ag` leaves will matter. `-Wall` clean on its lines.
+
+**My estimates, before measuring.** Timing: I do not expect the loop to be the limit, as `OOO_EXU` reached 9.2 ns a stage with 5 sources; 11 to 14 ns. **LUTs: 20k to 25k**: the estimate in `Doc/STRATEGY.md` 3 has 21k for the register file and the ALU ports without the LSU's own logic. Above that, the register file double-pumped on the 100 MHz clock is the first thing to look at.

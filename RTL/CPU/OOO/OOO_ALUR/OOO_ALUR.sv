@@ -14,11 +14,17 @@
 // A shift is as in OOO_ALUF: a rotation, a mask of the bits that are the
 // result's, the fill in the others. Rotating a low half that is twice in the
 // operand rotates it within 32 bits.
+//
+// STAGE2 = 0, for the 50 MHz core (OOO_EXU2): no register between the stages, so the
+// result comes in the cycle of a, b, latency 1.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
 
 module OOO_ALUR
+    #(
+        parameter bit STAGE2 = 1'b1
+    )
     (
         input  logic        clk,
         input  logic [5:0]  op,           // OOO_ALU's encoding
@@ -26,7 +32,7 @@ module OOO_ALUR
         input  logic        word,
         input  logic [63:0] a,            // a cycle after op
         input  logic [63:0] b,
-        output logic [63:0] result        // a cycle after a, b
+        output logic [63:0] result        // a cycle after a, b (STAGE2)
     );
 
     localparam logic [5:0] ALU_SLL  = 6'd2;
@@ -167,16 +173,30 @@ module OOO_ALUR
     // ---- stage 2
     logic [63:0] q_rot, q_mask, q_other, q_a, q_b, res;
     logic        q_fill, q_mm, q_pa, q_word;
-    always_ff @(posedge clk) begin
-        q_rot   <= rot;
-        q_mask  <= mask;
-        q_fill  <= fill;
-        q_other <= other;
-        q_a     <= a;
-        q_b     <= b;
-        q_mm    <= d_mm;
-        q_pa    <= d_lpick ? lt : !lt;
-        q_word  <= d_word;
+    if (STAGE2) begin : g_q
+        always_ff @(posedge clk) begin
+            q_rot   <= rot;
+            q_mask  <= mask;
+            q_fill  <= fill;
+            q_other <= other;
+            q_a     <= a;
+            q_b     <= b;
+            q_mm    <= d_mm;
+            q_pa    <= d_lpick ? lt : !lt;
+            q_word  <= d_word;
+        end
+    end else begin : g_c
+        always @(*) begin
+            q_rot   = rot;
+            q_mask  = mask;
+            q_fill  = fill;
+            q_other = other;
+            q_a     = a;
+            q_b     = b;
+            q_mm    = d_mm;
+            q_pa    = d_lpick ? lt : !lt;
+            q_word  = d_word;
+        end
     end
     always @(*) begin
         res = (q_mask & q_rot) | ({64{q_fill}} & ~q_mask) | q_other |
