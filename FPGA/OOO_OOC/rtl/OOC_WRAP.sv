@@ -1736,8 +1736,8 @@ module OOC_LSU3
 endmodule : OOC_LSU3
 
 //---------------------------------------------------------------------------
-// OOC_FE3: F2, F0 and D1 of the 50 MHz core together (OOO_FDEC2, OOO_UBTB2, OOO_FBUF2;
-// Doc/STRATEGY.md 4.5 loop 4): the override from F2 into F0's last LUT, the starts and
+// OOC_FE3: F2, F0 and D1 of the 50 MHz core together (OOO_FDEC2, OOO_UBTB2, OOO_FBUF3;
+// Doc/STRATEGY.md 4.5 loops 4, 5): the override from F2 into F0's last LUT, the starts and
 // the cut into the buffer's table. F1 (the arrays, the tags, the way) is registers from outside.
 //---------------------------------------------------------------------------
 module OOC_FE3
@@ -1822,7 +1822,7 @@ module OOC_FE3
     logic [5:0][3:0]  so;
     logic [5:0][4:0]  ff;
     logic          rr;
-    OOO_FBUF2 #(.NB(8), .FTQW(5)) u_fb
+    OOO_FBUF3 #(.NB(8), .FTQW(5)) u_fb
         (.clk(clk), .rst_n(rst_n), .flush(s_be), .in_ready(ir), .free_n(fr), .in_valid(fv && !s_be), .in_data(s_d), .in_st(fst),
          .in_first(ffr), .in_ftq(s_ftq), .out_ready(s_or), .out_valid(v), .out_inst(ii), .out_rvc(rv), .out_off(so),
          .out_ftq(ff), .out_taken(stk), .out_rare(rr));

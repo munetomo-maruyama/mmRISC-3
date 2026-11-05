@@ -108,7 +108,7 @@ Vivado stops once a target is met, so the blocks' results at 20 ns are upper bou
 | Item | Today | **Proposal** | Why |
 |---|---|---|---|
 | Fetch | 16 B, 3 stages | **32 B, 3 stages** | With 6 decoded +9.5 % |
-| Decode | 4 | **6** | Across fetch blocks: one block a cycle costs −2.2 % |
+| Decode | 4 | **6** | From 2 fetch blocks: one block a cycle costs −2.1 %, 2 cost nothing |
 | Between decode and rename | group register | **decoded-instruction queue** | Takes 6, gives 4 |
 | **Rename, dispatch, commit** | 2 | **4**, 2 checkpoints a cycle (`OOO_RENAME2`) | 2 a cycle cost nothing in the model |
 | **Issue queue** | unified 10, 3 issues | **unified 24, 6 issues** | Distributed −2.4 %, the fallback (`OOO_SCHED`) |
@@ -171,7 +171,7 @@ One MMCM, for example: VCO 800 MHz, 100 MHz (/8), 400 MHz (/2), 400 MHz at 90° 
 | 2 | **Bypass + ALU + register file** | RR and EX, 6 results, 11 reads, 6 writes | 3 ALUs; the register file double-pumped on the 100 MHz clock | −3.5 % | `OOO_EXU` with `OOO_PRF2` 9.2 ns a stage, 12,472 LUTs, 3 ALUs, 4 writes, 8 reads. **`OOO_EXU2`, one bypass: met 15 ns, 20,332 LUTs, the register file 12,839 of them** (`Plan/OOC.md` 29.6). Alone |
 | 3 | **Load** | Load-use 2, 2 ports | 1 LSU; load-use 3 | −8.0 %; −12.7 % | Today's 12.6 ns, 1 port. **`OOO_LSU3`, a copy of the D$'s arrays a port: about 14.1 ns asked for 15, 3,326 LUTs, 14 tiles, without the miss logic** (`Plan/OOC.md` 29.8). Alone |
 | 4 | **Fetch** | 32 B, 3 stages, the override at F2, from registers: the arrays and the way in F1 | A stage more, the override with it | −2.0 % | Today's 14.3 ns, 16 B. `OOC_FE2` 9.5 ns a stage, 5 stages. **`OOO_FDEC2`, F3 and F4 in one stage: met 15 ns, 5,159 LUTs with `OOO_UBTB2`, `OOO_FBUF2`** (`Plan/OOC.md` 29.10). Alone, without F1 |
-| 5 | **Fetch buffer** | 6 a cycle, across blocks | One block a cycle (`OOO_FBUF2` as it is) | −2.2 % | `OOO_FBUF2` 8.65 ns, one block |
+| 5 | **Fetch buffer** | 6 a cycle, from 2 blocks | One block a cycle (`OOO_FBUF2`) | −2.1 % | `OOO_FBUF2` 8.65 ns, one block. **Built: `OOO_FBUF3`, in `OOC_FE3`; `synth_ooo.bat fe3` to run** (`Plan/OOC.md` 29.11) |
 | 6 | **Rename of 4** | 1 stage | A stage more | −0.5 % | `OOO_RENAME2` 9.1 ns in 2 stages |
 
 Between blocks, the 4 cuts proposed for 100 MHz (`Plan/OOC.md` 28.26) are not needed now, and are made only if the 20 ns run asks.
@@ -184,7 +184,7 @@ Between blocks, the 4 cuts proposed for 100 MHz (`Plan/OOC.md` 28.26) are not ne
 | `OOO_UBTB2` | **Used as it is** |
 | `OOO_RENAME2` | **Used**; its 2 stages joined if loop 6 allows |
 | `OOO_FDEC` | **The starting point** of `OOO_FDEC2`: F3 and F4 in F2 |
-| `OOO_FBUF2` | **The starting point**: a second block added for loop 5 |
+| `OOO_FBUF2` | **The starting point** of `OOO_FBUF3`: a second block beside the first |
 | `OOO_ALUF` | **Used** on 3 ports |
 | `OOO_ALUR` | **Used** on port 0, in 1 cycle (`STAGE2` = 0) |
 | `OOO_SCHED`, `OOO_SDISP` | **The fallback** of loop 1 |

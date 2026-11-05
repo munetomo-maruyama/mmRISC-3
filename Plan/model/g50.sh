@@ -66,6 +66,8 @@ txt "the front end"
 row "fetch a stage more, the override a stage later" $F fe_depth=4 override_at=3
 row "the 100 MHz fetch: 5 stages, the override at F4" $F fe_depth=5 override_at=4
 row "decode one block a cycle"                    $F dec_block=1
+row "decode 2 blocks a cycle"                     $F dec_block=2
+row "decode 3 blocks a cycle"                     $F dec_block=3
 row "decode a stage more"                         $F dec_depth=4 redirect=4
 row "the 100 MHz front end as built: all of the above" $F fe_depth=5 dec_depth=5 override_at=4 dec_block=1
 txt "the back end"

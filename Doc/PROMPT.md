@@ -7210,3 +7210,52 @@ The record is section 29.9 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.
 ```text
 fe3 finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOC_FE3` met 15 ns (WNS +0.018 ns), 5,159 LUTs. Fetch can stay at 3 stages with the override at F2, so the model holds at 8.63 and does not fall to 8.46.** The record is pushed (23b4cbb; 0 Ref on origin/dev).
+
+## The result
+
+| Class | Slack at 15 ns | Levels | Reached |
+|---|---|---|---|
+| `ovr` (the block to F0) | +0.018 | 18 | 15.0 ns |
+| `ras` | +0.357 | 16 | 14.6 ns |
+| `ubup` | +0.427 | 14 | 14.6 ns |
+| `tab` (the starts to the buffer's table) | +0.783 | 12 | 14.2 ns |
+| `cut` | +1.128 | 15 | 13.9 ns |
+
+- **Judgement:** within the limit of 17 ns, so 3 stages stay. Moving the arrays' time to F1 saved 2.0 % of CoreMark/MHz. No register before the buffer's table is needed either.
+- **Margin:** a value where the target was met and Vivado stopped; about 5 ns against 20 ns.
+- **The worst path:** about 8 ns from a parcel through boundaries, kinds and the count of branches, then the choice's carry chain, the compares' AND-OR, into F0. 18 levels against about 16 counted.
+
+## Not measured yet
+F1 itself (block RAM's output, tags' compare, way select), TAGE M and the FTQ are not in it. F1 should fit well within 20 ns, but is not measured.
+
+LUTs: `OOO_FDEC2` 2,716, `OOO_FBUF2` 1,687, `OOO_UBTB2` 765. `OOO_RAS` at 1,173 LUTs for 16 entries is more than expected, to be looked at if LUTs run short.
+
+## The 4 loops so far
+
+| Loop | Block | Reached | LUTs |
+|---|---|---|---|
+| 1 | `OOC_IQ2` | 15.6 ns | 8,888 (no payload) |
+| 2 | `OOC_EXU2` | Met 15 ns | 20,332 |
+| 3 | `OOC_LSU3` | 14.1 ns | 3,326 (no miss logic) |
+| 4 | `OOC_FE3` | 15.0 ns | 5,159 (no F1) |
+
+All alone; what joining the blocks adds is still unknown.
+
+## The next step
+I recommend loop 5 next, the fetch buffer giving 6 instructions across 2 blocks. Today's `OOO_FBUF2` is one block a cycle, a difference of −2.2 % in the model (8.49 against 8.68, compared before the rules changed).
+
+This is the last with a real price. Loop 6 (rename in 1 stage) is −0.5 %, a small difference.
+
+The record is section 29.10 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 177. 2026-11-05 23:14:54 JST
+
+```text
+Yes, loop 5
+```

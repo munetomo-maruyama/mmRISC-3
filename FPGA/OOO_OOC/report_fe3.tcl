@@ -14,6 +14,7 @@
 #   loop  F0's loop (OOO_UBTB2)
 #   slot  D1: to the slots
 #   dloop D1: the head's loop
+#   move  D1: what is taken, into the blocks being read: the move from nxt to cur
 # Full paths in timing_loop.rpt.
 #---------------------------------------------------------------------------
 proc fe3_cells {pats} {
@@ -25,8 +26,8 @@ proc fe3_classes {fh outdir} {
     set blk {s_d_reg* s_l_reg* s_s_reg* s_seq_reg* s_exp_reg* s_v_reg* *u_fd/c_v_reg* *u_fd/c_p_reg* s_bo_reg* s_bh_reg* s_bt_reg*}
     set prd {s_hv_reg* s_pp_reg* s_b_reg*}
     set pc  {*u_ub/pc_q_reg* *u_ub/pi_q_reg*}
-    set cur {*u_fb/w_reg* *u_fb/g_cw* *u_fb/p_reg* *u_fb/rp_reg* *u_fb/rb_reg* *u_fb/rem_reg* *u_fb/mem_reg*}
-    set cnt {*u_fb/rem_reg* *u_fb/hj_reg* *u_fb/rb_reg*}
+    set cur {*u_fb/w_reg* *u_fb/g_cw* *u_fb/p_reg* *u_fb/rp_reg* *u_fb/rp1_reg* *u_fb/rb_reg* *u_fb/rem_reg* *u_fb/n1_reg* *u_fb/mem_reg*}
+    set cnt {*u_fb/rem_reg* *u_fb/n1_reg* *u_fb/hj_reg* *u_fb/sn_reg* *u_fb/h_q_reg* *u_fb/rb_reg* *u_fb/bv_reg*}
     set out {o_valid_reg* o_inst_reg* o_rvc_reg* o_soff_reg* o_ftq_reg* o_stk_reg* o_rare_reg*}
     set cls [list \
         ovr   $blk $pc \
@@ -38,7 +39,8 @@ proc fe3_classes {fh outdir} {
         pred  $prd $pc \
         loop  {*u_ub/pi_q_reg* *u_ub/pc_q_reg*} $pc \
         slot  [concat $cnt {*u_fb/p_reg* *u_fb/w_reg* *u_fb/g_cw*}] $out \
-        dloop $cnt $cnt]
+        dloop $cnt $cnt \
+        move  $cnt $cur]
     file delete -force $outdir/timing_loop.rpt
     foreach {name from to} $cls {
         set cf [fe3_cells $from]

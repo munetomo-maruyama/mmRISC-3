@@ -68,7 +68,7 @@ struct OooCfg {
     bool st_data_issue = false;
     int ld_rp = 0;              // a load that fails in M2 replays at its commit: 1 its store's data is late, 2 an offset alias, 3 both
     int sd_lag = 0;             // the cycles a store's data takes into the SQ after a dependent could have issued
-    int dec_block = 0;          // decode takes one block a cycle: a block's first instruction starts a new group
+    int dec_block = 0;          // decode takes this many blocks a cycle: 1: a block's first instruction starts a new group
     int hole_bank = 0;          // OOO_SDISP as a stage before: a group's queues and banks stay with it through a stall
     int cmp_lag = 0;            // cycles from a result to its done bit in the ROB (a register in between)
     int ck_max = 0;             // at most this many checkpoints taken a cycle
@@ -242,6 +242,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     ds.reserve(n); cm.reserve(n);
     std::vector<long> ld_cm, st_cm;             // commit cycles of loads / stores, in order
     std::vector<long> wr_cm;                    // ... of the µops that take a register
+    long dg_c = -1; int dg_n = 0;               // dec_block: the decode cycle, its blocks so far
     std::priority_queue<long, std::vector<long>, std::greater<long>> iqh, ckh;
     std::unordered_map<int, long> ready;        // register -> cycle a dependent may issue
     std::unordered_map<int, long> spec;         // register -> cycle its open loads are decided (keep_spec)
@@ -297,8 +298,15 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             long d = avail;
             if (k > 0) {
                 d = std::max(d, dec[k - 1]);
-                if (c.dec_block && (nb || cross)) d = std::max(d, dec[k - 1] + 1);  // (one that crosses is the next block's first)
+                if (c.dec_block == 1 && (nb || cross)) d = std::max(d, dec[k - 1] + 1);  // (one that crosses is the next block's first)
                 if (k >= (size_t)c.dec_w) d = std::max(d, dec[k - c.dec_w] + 1);
+            }
+            if (c.dec_block >= 2) {             // OOO_FBUF3: a third block waits for the next cycle
+                if (d != dg_c) { dg_c = d; dg_n = 1; }
+                else if (nb || cross) {
+                    if (dg_n >= c.dec_block) { d++; dg_c = d; dg_n = 1; }
+                    else dg_n++;
+                }
             }
             dec[k] = d;
         }

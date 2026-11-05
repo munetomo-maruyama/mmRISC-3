@@ -4195,3 +4195,27 @@ And `tab`: if the starts into the buffer's table are what is long, a register in
 | 4 | `OOC_FE3` | 15.0 ns, met | 5,159 without F1 |
 
 **Next**: loop 5: the fetch buffer gives 6 across 2 blocks; one block a cycle costs −2.2 % (8.49 against 8.68 at the time of `results/g50.txt`'s row). It is the last with a real price; rename in one stage (loop 6) is −0.5 %.
+
+### 29.11 Loop 5: `OOO_FBUF3`, 6 instructions out of 2 blocks (2026-11-05)
+
+**What is at stake** (new in the model: `dec_block` 2, 3; as built):
+
+| Decode takes a cycle | -O2 | max | rv64gc |
+|---|---|---|---|
+| Any number of blocks | 8.633 | 9.445 | 7.393 |
+| **2 blocks** | **8.633** | **9.445** | **7.393** |
+| 1 block | 8.456 | 9.358 | 7.370 |
+
+So 2 blocks are all of the gain, +2.1 % over 1.
+
+**The block.** `OOO_FBUF3`, from `OOO_FBUF2`: a second block in flip-flops beside the first, read at once (`bv`, `w[2]`, `p[2]`). Slot j comes from nxt if j is at or above what cur has left (`sn`, kept in a register with its index, `hj`). A rare class still goes alone, and nothing goes beside a block with one.
+
+**Refilling.** One block a cycle, from the RAM or straight in, to cur or nxt. So short blocks that cur finishes each cycle leave nxt empty even with blocks waiting: one block a cycle in that state. I first took that for a fault (the bench's new check found it). It is no loss in the steady state, as fetch gives one block a cycle at most; only a backlog drains no faster. The model does not see this: it lets a backlog drain 2 blocks a cycle. A second read of the RAM would cover it, about 260 LUTs. Not done unless the RTL's cycles against the model say so.
+
+**The bench.** `tb_fbuf3`, from `tb_fbuf2`: slot by slot across 2 blocks against the program. 359,068 cycles from 2 blocks, 126,018 with both taken whole, 17,685 with a next block with a rare one, 520,120 with 6, 840,350 blocks, 992 flushes: 0 mismatches. **Mutations M1060 to M1088 but M1065: 28 of 28 detected**, all lines read:
+- M1065 "`cr` in `d1`" was undetected: the term was redundant (`over` is 0 unless `cr`, and a block has an instruction), so it is removed, and the mutation with it.
+- M1068 "nxt not refilled as it moves on" was undetected, as it costs only cycles. It takes the cycles from 2 blocks from 359,068 to 213,905, so the coverage now asks for more than 300,000.
+
+**The harness.** `OOC_FE3` now joins `OOO_FBUF3` in place of `OOO_FBUF2`; `report_fe3.tcl` has a new class `move`. `synth_ooo.bat fe3` again, 15 ns. The first run stays as `output/OOC_FE3_T15_fbuf2`. -Wall clean on its lines.
+
+**My estimates, before measuring.** Timing: `slot` was 11.7 ns; the second block's mux adds about 2 levels; `move` is short. So F2's `ovr` at about 15 ns stays the worst. LUTs: about +1k to 1.5k, as a block in flip-flops is about 400 FF, and each of 6 slots gets a 2-to-1 of 32 bits and more.
