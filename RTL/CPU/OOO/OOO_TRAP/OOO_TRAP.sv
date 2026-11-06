@@ -7,7 +7,7 @@
 // are its trap / trap_vec / replay_pc). Taken at the head, between µops:
 //
 //   interrupt   irq_pend (a pending interrupt enabled, the CSRs' choice of
-//               cause) with a µop at the head: irq empties the ROB before
+//               cause; through a register, see below) with a µop at the head: irq empties the ROB before
 //               it (nothing commits), mepc = its pc, mcause = the
 //               interrupt, mtval = 0, fetch from mtvec (+ 4 x cause when
 //               vectored). Not while the head is a non-speculative µop
@@ -108,6 +108,21 @@ module OOO_TRAP
         return (i >= h) ? ROBW'(i - h) : ROBW'(i + ROBW'(NROB) - h);
     endfunction
 
+    // irq_pend and its cause a cycle late: from the CSRs' state (the level,
+    // mstatus, mie, mip) they lay at the start of most of the 4-wide core's
+    // paths (Plan/OOC.md 29.22). The state changes only by a CSR write (a
+    // non-speculative µop: ns_busy holds off interrupts from its issue to the
+    // cycle after its commit, and it writes in EX, before), by a trap or by
+    // MRET / SRET (both empty the ROB); the core has no interrupt source
+    // outside the CSRs yet, and one would only be seen a cycle later
+    logic            irq_q;
+    logic [4:0]      irq_cause_q;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) irq_q <= 1'b0;
+        else        irq_q <= irq_pend;
+    end
+    always_ff @(posedge clk) irq_cause_q <= irq_cause;
+
     logic            tv_v;              // the oldest exception's tval
     logic [ROBW-1:0] tv_r;
     logic [63:0]     tv_d;
@@ -116,7 +131,7 @@ module OOO_TRAP
 
     logic exc, refetch;
     always @(*) begin
-        irq     = irq_pend && head_valid && !ns_busy;
+        irq     = irq_q && head_valid && !ns_busy;
         exc     = rob_trap && !irq;
         refetch = exc && head_fused;
         take    = irq || exc;
@@ -125,7 +140,7 @@ module OOO_TRAP
         csr_trap  = irq || (exc && !head_fused);
         csr_epc   = rob_pc;
         csr_int   = irq;
-        csr_cause = irq ? irq_cause : rob_cause;
+        csr_cause = irq ? irq_cause_q : rob_cause;
         csr_tval  = irq ? 64'd0 : tv_d;     // the head is the oldest, and it reported (bug injection: no check needed)
         csr_mret  = rob_replay && x_pend && !x_s;
         csr_sret  = rob_replay && x_pend && x_s;

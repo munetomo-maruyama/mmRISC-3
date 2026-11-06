@@ -1099,7 +1099,7 @@ module OOO_CORE
         tr_rd      = cmt_arch;
         tr_trap    = rob_trap || irq;
         tr_int     = irq;
-        tr_cause   = irq ? irq_cause : trap_cause;
+        tr_cause   = csr_cause;              // (OOO_TRAP's: irq_cause a cycle late)
         tr_trap_pc = trap_pc;
         ik = head_rob;
         for (int k = 0; k < ND; k++) begin

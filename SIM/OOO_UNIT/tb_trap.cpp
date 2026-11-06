@@ -15,7 +15,8 @@
 // their way are sent in the cycles of flush_all and of a restore.
 //
 // Checked every cycle against the rules (Doc/UARCH.md 3.8):
-//   - irq exactly when an interrupt is pending, a µop is at the head and it
+//   - irq exactly when an interrupt was pending the cycle before (irq_pend
+//     and its cause go through a register), a µop is at the head and it
 //     is not a non-speculative µop that has issued; it wins over the head's
 //     exception
 //   - an exception at the head of a single µop: the trap with mepc = its
@@ -54,6 +55,7 @@ int main(int argc, char** argv)
     std::deque<Uop> rob;
     int head = 0;                               // the head's index (the next µop's when empty)
     bool flush_next = false, x_pend = false, x_s = false, nf = false; int nf_cnt = 0;
+    bool pend_q = false; int cause_q = 0;       // irq_pend and its cause, a cycle late
     long ntrap = 0, nrefetch = 0, nirq = 0, nmret = 0, nstale = 0, ntval = 0, nnf_clear = 0;
     uint64_t mtvec = (rng() & AM) << 1, mepc = rng() & AM, sepc = rng() & AM;
     auto tvec_of = [&](bool in, int cause) {     // the CSRs' vector
@@ -96,7 +98,7 @@ int main(int argc, char** argv)
         bool x_mret = hv && !rob_trap && !x_pend && rng() % 80 == 0;   // the MRET / SRET at the head runs
         bool x_sret = rng() & 1;
         // commits (only when nothing traps), with a replay now and then
-        bool irq_exp = irq_pend && hv && !ns_busy;
+        bool irq_exp = pend_q && hv && !ns_busy;
         int ncm = 0, instret = 0; bool replay = false; uint64_t rpc = rng() & AM;
         if (!irq_exp && !rob_trap && !flush_all && x_pend) {
             // the MRET commits alone, marked for replay
@@ -123,7 +125,7 @@ int main(int argc, char** argv)
         bool exc = rob_trap && !irq_exp;
         bool refetch = exc && h.fused;
         bool take = irq_exp || exc;
-        uint64_t vec = refetch ? h.pc : tvec_of(irq_exp, irq_exp ? icause : h.cause);
+        uint64_t vec = refetch ? h.pc : tvec_of(irq_exp, irq_exp ? cause_q : h.cause);
         if ((bool)d.irq != irq_exp) FAIL("irq %d, expected %d", (int)d.irq, irq_exp);
         if ((bool)d.take != take) FAIL("take %d, expected %d", (int)d.take, take);
         if (take && (uint64_t)d.vec != vec) FAIL("vec %llx, expected %llx (%s)", (unsigned long long)d.vec, (unsigned long long)vec, refetch ? "refetch" : irq_exp ? "interrupt" : "exception");
@@ -131,7 +133,7 @@ int main(int argc, char** argv)
         if ((bool)d.csr_trap != ctrap) FAIL("csr_trap %d, expected %d", (int)d.csr_trap, ctrap);
         if (ctrap) {
             if ((uint64_t)d.csr_epc != h.pc) FAIL("mepc %llx, expected %llx", (unsigned long long)d.csr_epc, (unsigned long long)h.pc);
-            if ((bool)d.csr_int != irq_exp || (int)d.csr_cause != (irq_exp ? icause : h.cause)) FAIL("mcause %d/%d, expected %d/%d", (int)d.csr_int, (int)d.csr_cause, irq_exp, irq_exp ? icause : h.cause);
+            if ((bool)d.csr_int != irq_exp || (int)d.csr_cause != (irq_exp ? cause_q : h.cause)) FAIL("mcause %d/%d, expected %d/%d", (int)d.csr_int, (int)d.csr_cause, irq_exp, irq_exp ? cause_q : h.cause);
             uint64_t tv = irq_exp ? 0 : h.tval;
             if ((uint64_t)d.csr_tval != tv) FAIL("mtval %llx, expected %llx", (unsigned long long)d.csr_tval, (unsigned long long)tv);
             if (!irq_exp) ntval++;
@@ -145,6 +147,7 @@ int main(int argc, char** argv)
         if ((bool)d.no_fuse != nf) FAIL("no_fuse %d, expected %d", (int)d.no_fuse, nf);
 
         d.clk = 1; d.eval(); d.clk = 0; d.eval();
+        pend_q = irq_pend; cause_q = icause;
 
         // ---- the model after the edge
         for (auto& u : rob) for (int i : fin) if (u.idx == i) u.done = true;

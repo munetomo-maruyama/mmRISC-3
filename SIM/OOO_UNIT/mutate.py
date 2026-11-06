@@ -297,7 +297,7 @@ M = [
     ('M265', 'OOO_ROB/OOO_ROB.sv', 'rob', 'pr = pk[0];', 'pr = pk[1];', 'a trap goes back to head + 1'),
     ('M266', 'OOO_ROB/OOO_ROB.sv', 'rob', "rcv_end = ppc[3:1] + pr[FTQW+2:FTQW] - 3'd1;", 'rcv_end = ppc[3:1];', 'the point at its first parcel'),
     # 2026-10-28: exceptions and interrupts, the system µops (Plan/OOC.md 22)
-    ('M267', 'OOO_TRAP/OOO_TRAP.sv', 'trap', 'irq     = irq_pend && head_valid && !ns_busy;', 'irq     = irq_pend && head_valid;', 'an interrupt under an issued non-speculative µop'),
+    ('M267', 'OOO_TRAP/OOO_TRAP.sv', 'trap', 'irq     = irq_q && head_valid && !ns_busy;', 'irq     = irq_q && head_valid;', 'an interrupt under an issued non-speculative µop'),
     ('M268', 'OOO_TRAP/OOO_TRAP.sv', 'trap', 'exc     = rob_trap && !irq;', 'exc     = rob_trap;', 'an exception taken with the interrupt'),
     ('M269', 'OOO_TRAP/OOO_TRAP.sv', 'trap', 'refetch = exc && head_fused;', "refetch = 1'b0;", 'an exception in a pair trapped as it is'),
     ('M270', 'CORE:CORE_CSR/CORE_CSR.sv', 'csru', "? {tvec_sel[63:2], 2'b00} + {57'd0, trap_cause, 2'b00}", "? {tvec_sel[63:2], 2'b00} + {58'd0, trap_cause, 1'b0}", 'the vector at 2 x cause'),
@@ -307,6 +307,7 @@ M = [
     ('M274', 'OOO_TRAP/OOO_TRAP.sv', 'trap', 'ok[k] = tv_valid[k] && !flush_all && !(restore && dk[k] > drs);', 'ok[k] = tv_valid[k] && !flush_all;', 'a killed report kept'),
     ('M275', 'OOO_TRAP/OOO_TRAP.sv', 'trap', "else if (restore && kv && dr > drs) kv = 1'b0;", "else if (1'b0) kv = 1'b0;", "a killed µop's tval kept"),
     ('M276', 'OOO_TRAP/OOO_TRAP.sv', 'trap', 'win[k] = ok[k] && (!kv || dk[k] <= dr);', 'win[k] = ok[k];', 'a new report replaces an older one kept'),
+    ('M1111', 'OOO_TRAP/OOO_TRAP.sv', 'trap', "csr_cause = irq ? irq_cause_q : rob_cause;", "csr_cause = irq ? irq_cause : rob_cause;", "an interrupt's cause of this cycle, not of its own"),
     ('M1109', 'OOO_ROB/OOO_ROB.sv', 'rob', "c[k]   = (k == 0 ? !irq : c[k-1] && !rp[hi[k-1]]) && has[k] && done[hi[k]] && !exc[hi[k]];", "c[k]   = (k == 0 ? !irq : c[k-1] && !rp[hi[k-1]]) && done[hi[k]] && !exc[hi[k]];", 'a µop past the tail commits'),
     ('M1110', 'OOO_ROB/OOO_ROB.sv', 'rob', "trap       = has[0] && done[hi[0]] && exc[hi[0]];", "trap       = done[hi[0]] && exc[hi[0]];", 'a trap from an empty ROB'),
     ('M1108', 'OOO_TRAP/OOO_TRAP.sv', 'trap', "if (ok[j] && dk[j] < dk[k]) win[k] = 1'b0;", '', 'of one cycle\'s reports, a later port\'s younger one'),

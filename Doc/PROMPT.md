@@ -7708,3 +7708,45 @@ I leave the RTL alone while Vivado reads it, so I stop here. Please tell me when
 ```text
 OOO_CPU finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**The second `OOO_CPU` run came out at WNS −0.421 ns, 0.4 ns short of 20 ns.** I cut its worst 2 paths and pushed (d653159; 0 Ref on origin/dev). The slack after the fix is not measured yet.
+
+#### The second run
+- **LUTs:** 55,590 (+426)
+- **WNS:** −0.421 ns, 26 levels
+- The tval paths are gone. Last time I expected "about −6 ns to remain", which was too pessimistic: the placement around the tval chain had dragged the nearby logic along.
+
+#### The 2 paths cut
+1. **ROB head → the PRF's LVT (−0.421 ns):** whether the ROB is empty was judged by a subtraction modulo 48 (`used != 0`). It led on to the trap, the kill and the write-back.
+   - Now it is a compare: "is head + k not equal to the tail".
+   - The commit chain, `trap`, `head_ns` and `head_valid` use it.
+2. **ALU 1's WB → CTRL's checkpoint masks (−0.371 ns, 38 levels):** the release of the checkpoint of a branch resolved as predicted came from EX in the same cycle. The path ran through the bypassed operand, the 64-bit branch compare, the misprediction compare and the release.
+   - The release now comes from the branch result through a register (`br_valid & ~br_mispred`).
+   - A checkpoint lives a cycle longer. Before (6 checkpoints) that cost 2 %; with 12 it costs about 0.1 %.
+
+| CoreMark | C | After the cuts |
+|---|---|---|
+| g14-o2, no misses | 1,680,878 | 1,682,613 (+0.10 %) |
+| `OOO_CPU`, real D$ | 1,704,549 | 1,700,964 (−0.21 %) |
+
+#### Checks
+- **Regression:** `run_core.sh` 12 runs with 0 failures; CoreMark PASS.
+- **Lint:** no new warnings in the core's `-Wall`.
+- **Bug injection:** 42 in the ROB and control units and 101 in the core, all detected.
+  - The 3 new mutations: "a µop past the tail commits", "a trap from an empty ROB" and "a mispredicted branch's checkpoint is released too".
+  - In the first form, one was not detected. On inspection it was a logically equivalent mutation, so I removed the redundant part from the RTL. The cycles are the same before and after.
+
+#### The paths likely next
+Next come ALU 0's EX to the CSRs' `tselect` (−0.201 ns) and the wakeup into `OOO_IQ2` (−0.056 ns). Both are small enough to move with placement.
+
+The record is section 29.21 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.6.
+<!-- /answer -->
+
+## 189. 2026-11-06 21:18:51 JST
+
+```text
+OOO_CPU finished.
+```
