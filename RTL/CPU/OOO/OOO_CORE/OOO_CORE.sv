@@ -216,6 +216,7 @@ module OOO_CORE
     // ---- recovery and the front end
     logic                fe_redirect, fe_flush, flush_all, restore_port;
     logic                restore /*verilator public_flat_rd*/;     // (counted by SIM/CORE/tb_core)
+    logic                restore_k;               // the kill's: not held off by a trap or replay (the LSU's)
     logic [VA-1:1]       fe_pc;
     logic [FTQW-1:0]     restore_ftq, rcv_ftq;
     logic [2:0]          rcv_end;
@@ -501,7 +502,7 @@ module OOO_CORE
     logic [1:0][FTQW-1:0]      e_rs_ftq;
     logic                      e_bt_valid;
     logic [VA-1:1]             e_bt_pc, e_bt_tgt;
-    logic                      rob_restore, rob_trap, trap, head_ns, iss_ns, ns_ok, ns_busy, irq;
+    logic                      rob_restore, rob_restore_k, rob_trap, trap, head_ns, iss_ns, ns_ok, ns_busy, irq;
     logic                      replay /*verilator public_flat_rd*/;      // (counted by SIM/CORE/tb_core)
     logic [CW-1:0]             rob_restore_ckpt;
     logic [VA-1:1]             rob_replay_pc, replay_pc, trap_vec;
@@ -524,11 +525,11 @@ module OOO_CORE
          .lq_avail(lq_avail), .sq_avail(sq_avail), .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail), .d_go(d_go), .d_bmask(d_bmask),
          .br_valid(br_valid), .br_mispred(br_mispred), .br_ckpt(br_ckpt), .br_next(br_next),
          .cl_valid(br_valid & ~br_mispred), .cl_ckpt(br_ckpt),
-         .rob_restore(rob_restore), .rob_restore_ckpt(rob_restore_ckpt), .trap(trap), .replay(replay),
+         .rob_restore(rob_restore), .rob_restore_k(rob_restore_k), .rob_restore_ckpt(rob_restore_ckpt), .trap(trap), .replay(replay),
          .replay_pc(replay_pc), .trap_vec(trap_vec), .head_ns(head_ns),     // (trap, trap_vec, replay_pc: OOO_TRAP)
          .cmt_valid(cmt_valid), .cmt_wr(cmt_wr), .cmt_old(cmt_old), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n),
          .cmt_ftq(cmt_ftq), .iss_ns(iss_ns), .ns_ok(ns_ok), .ns_busy(ns_busy),
-         .fe_flush(fe_flush), .flush_all(flush_all), .restore(restore), .restore_id(restore_id),
+         .fe_flush(fe_flush), .flush_all(flush_all), .restore(restore), .restore_k(restore_k), .restore_id(restore_id),
          .restore_port(restore_port), .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .restore_ftq(restore_ftq),
          .kill(kill), .clr(clr), .fe_redirect(fe_redirect), .fe_pc(fe_pc), .live(),
          .free_valid(free_valid), .free_tag(free_tag), .lq_commit(lq_commit), .sq_commit(sq_commit), .ftq_pop(ftq_pop));
@@ -561,7 +562,7 @@ module OOO_CORE
          .disp_rob(disp_rob),
          .cmp_valid(cmp_valid), .cmp_rob(cmp_rob), .cmp_exc(cmp_exc), .cmp_cause(cmp_cause), .cmp_rp(cmp_rp),
          .br_valid(br_valid), .br_rob(br_rob), .br_mispred(br_mispred), .br_ckpt(br_ckpt),
-         .restore(rob_restore), .restore_rob(rob_restore_rob), .restore_ckpt(rob_restore_ckpt),
+         .restore(rob_restore), .restore_k(rob_restore_k), .restore_rob(rob_restore_rob), .restore_ckpt(rob_restore_ckpt),
          .head_rob(head_rob), .head_ns(head_ns), .head_valid(head_valid), .head_fused(head_fused), .irq(irq),
          .cmt_valid(cmt_valid), .cmt_wr(cmt_wr), .cmt_arch(cmt_arch), .cmt_new(cmt_new), .cmt_old(cmt_old),
          .cmt_pc(cmt_pc), .cmt_ftq(cmt_ftq), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_instret(cmt_instret),
@@ -980,7 +981,7 @@ module OOO_CORE
          .ld_cancel(ld_cancel), .ld_cancel_tag(ld_cancel_tag),
          .cmp_ld_valid(cmp_ld_v), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_e), .cmp_ld_rp(cmp_ld_rp),
          .cmp_st_valid(cmp_st_v), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_e),
-         .lq_commit(lq_commit), .sq_commit(sq_commit), .restore(restore), .kill(kill),
+         .lq_commit(lq_commit), .sq_commit(sq_commit), .restore(restore_k), .kill(kill),
          .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all(flush_all));
 
     // completion: port 0 (a CSR µop: illegal, replay after a write), port 1, the LSU's loads and stores

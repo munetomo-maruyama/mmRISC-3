@@ -221,7 +221,7 @@ M = [
     # M132 to M152, written for the selective replay, went with it)
     ('M195', 'OOO_ROB/OOO_ROB.sv', 'rob', 'c[k-1] && !rp[hi[k-1]])', 'c[k-1])', 'a µop younger than a replay commits with it'),
     ('M196', 'OOO_ROB/OOO_ROB.sv', 'rob', "if (crp[k]) replay_pc = pk[k][PW-1 -: VA-1] + (VA - 1)'(pk[k][FTQW+2:FTQW]);", 'if (crp[k]) replay_pc = pk[k][PW-1 -: VA-1];', 'fetched again from the load itself'),
-    ('M197', 'OOO_ROB/OOO_ROB.sv', 'rob', 'restore = (r0 || r1) && !trap && !irq && !replay;', 'restore = (r0 || r1) && !trap && !irq;', 'a restore in the cycle of a replay'),
+    ('M197', 'OOO_ROB/OOO_ROB.sv', 'rob', 'restore   = restore_k && !trap && !irq && !replay;', 'restore   = restore_k && !trap && !irq;', 'a restore in the cycle of a replay'),
     ('M198', 'OOO_ROB/OOO_ROB.sv', 'rob', "if (cmp_rp[c2])  rp[i] <= 1'b1;", "if (1'b0)  rp[i] <= 1'b1;", 'the replay mark lost'),
     ('M199', 'OOO_ROB/OOO_ROB.sv', 'rob', "rp[i]    <= 1'b0;", 'rp[i]    <= rp[i];', 'the replay mark of the last owner of an entry kept'),
     ('M200', 'OOO_ROB/OOO_ROB.sv', 'rob', 'tail_n = head_n;                   // empty after the commits', 'tail_n = tail;', 'the ROB not emptied by a replay'),
@@ -308,6 +308,10 @@ M = [
     ('M275', 'OOO_TRAP/OOO_TRAP.sv', 'trap', "else if (restore && kv && dr > drs) kv = 1'b0;", "else if (1'b0) kv = 1'b0;", "a killed µop's tval kept"),
     ('M276', 'OOO_TRAP/OOO_TRAP.sv', 'trap', 'win[k] = ok[k] && (!kv || dk[k] <= dr);', 'win[k] = ok[k];', 'a new report replaces an older one kept'),
     ('M1111', 'OOO_TRAP/OOO_TRAP.sv', 'trap', "csr_cause = irq ? irq_cause_q : rob_cause;", "csr_cause = irq ? irq_cause : rob_cause;", "an interrupt's cause of this cycle, not of its own"),
+    ('M1112', 'OOO_ROB/OOO_ROB.sv', 'rob', "return (head[ROBW] == tail[ROBW]) ? (i >= head[ROBW-1:0] && i < tail[ROBW-1:0])", "return (head[ROBW] == tail[ROBW]) ? (i >= head[ROBW-1:0] && i <= tail[ROBW-1:0])", 'live: the tail counted in (same lap)'),
+    ('M1113', 'OOO_ROB/OOO_ROB.sv', 'rob', ": (i >= head[ROBW-1:0] || i < tail[ROBW-1:0]);", ": (i >= head[ROBW-1:0] && i < tail[ROBW-1:0]);", 'live: the wrap not seen'),
+    ('M1114', 'OOO_ROB/OOO_ROB.sv', 'rob', "restore_k = r0 || r1;", "restore_k = r0;", "restore_k: port 1's misprediction not seen"),
+    ('M1116', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "killset    = restore ? kill : '0;", "killset    = kill;", 'a checkpoint freed by the kill of a cycle of trap'),
     ('M1109', 'OOO_ROB/OOO_ROB.sv', 'rob', "c[k]   = (k == 0 ? !irq : c[k-1] && !rp[hi[k-1]]) && has[k] && done[hi[k]] && !exc[hi[k]];", "c[k]   = (k == 0 ? !irq : c[k-1] && !rp[hi[k-1]]) && done[hi[k]] && !exc[hi[k]];", 'a µop past the tail commits'),
     ('M1110', 'OOO_ROB/OOO_ROB.sv', 'rob', "trap       = has[0] && done[hi[0]] && exc[hi[0]];", "trap       = done[hi[0]] && exc[hi[0]];", 'a trap from an empty ROB'),
     ('M1108', 'OOO_TRAP/OOO_TRAP.sv', 'trap', "if (ok[j] && dk[j] < dk[k]) win[k] = 1'b0;", '', 'of one cycle\'s reports, a later port\'s younger one'),
@@ -327,7 +331,7 @@ M = [
     ('M291', 'OOO_ROB/OOO_ROB.sv', 'rob', '        if (trap || irq) begin', '        if (trap) begin', 'the ROB not emptied by an interrupt'),
     ('M292', 'OOO_ROB/OOO_ROB.sv', 'rob', 'head_fused = pk[0][FTQW+4];', 'head_fused = pk[0][FTQW+3];', 'the non-speculative bit read as fused'),
     ('M293', 'OOO_LSU/OOO_LSU.sv', 'lsu', 'sq_drained  = sq_head == sq_cmt;', 'sq_drained  = sq_head == sq_tail;', 'drained only with no store at all'),
-    ('M294', 'OOO_ROB/OOO_ROB.sv', 'rob', 'restore = (r0 || r1) && !trap && !irq && !replay;', 'restore = (r0 || r1) && !trap && !replay;', 'a restore in the cycle of an interrupt'),
+    ('M294', 'OOO_ROB/OOO_ROB.sv', 'rob', 'restore   = restore_k && !trap && !irq && !replay;', 'restore   = restore_k && !trap && !replay;', 'a restore in the cycle of an interrupt'),
     ('M295', 'OOO_ROB/OOO_ROB.sv', 'rob', 'if (crp[k]) pr = pk[k];', 'if (crp[k]) pr = pk[0];', 'a replay of head + k goes back to the head'),
     # 2026-10-28: CORE_CSR and CORE_MDU behind port 0 (Plan/OOC.md 23)
     ('M296', 'OOO_CSRU/OOO_CSRU.sv', 'csru', "wants_write = ex_op[1:0] == 2'b01 || ex_rs1 != 5'd0;", "wants_write = 1'b1;", 'csrrs / csrrc with x0 write'),

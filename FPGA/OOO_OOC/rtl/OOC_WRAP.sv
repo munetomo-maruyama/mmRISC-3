@@ -325,6 +325,7 @@ module OOC_ROB
          .cmp_valid(q[137:134]), .cmp_rob(q[157:138]), .cmp_exc(q[161:158]), .cmp_cause(q[181:162]),
          .br_valid(q[183:182]), .br_rob(q[193:184]), .br_mispred(q[195:194]), .br_ckpt(q[201:196]), .disp_len(q[207:202]), .cmp_rp(q[211:208]), .disp_ftq(q[217:212]), .cmt_ftq(cmt_ftq),
          .rob_avail(rob_avail), .disp_rob(disp_rob), .restore(restore), .restore_rob(restore_rob),
+         /* verilator lint_off PINCONNECTEMPTY */ .restore_k(), /* verilator lint_on PINCONNECTEMPTY */   // (29.23: OOO_CTRL's kill, not here)
          .restore_ckpt(restore_ckpt), .head_rob(head_rob), .head_ns(head_ns), .cmt_valid(cmt_valid),
          .cmt_wr(cmt_wr), .cmt_arch(cmt_arch), .cmt_new(cmt_new), .cmt_old(cmt_old),
          .cmt_pc(cmt_pc), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_instret(cmt_instret),
@@ -742,11 +743,12 @@ module OOC_CTRL
          .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail), .d_go(d_go), .d_bmask(d_bmask),
          .br_valid(br_valid), .br_mispred(br_mispred), .br_ckpt(br_ckpt), .br_next(br_next),
          .cl_valid(cl_valid), .cl_ckpt(cl_ckpt),
-         .rob_restore(rob_restore), .rob_restore_ckpt(rob_restore_ckpt), .trap(trap), .replay(replay),
+         .rob_restore(rob_restore), .rob_restore_k(rob_restore), .rob_restore_ckpt(rob_restore_ckpt), .trap(trap), .replay(replay),
          .replay_pc(replay_pc), .trap_vec(trap_vec), .head_ns(head_ns), .cmt_valid(cmt_valid), .cmt_wr(cmt_wr),
          .cmt_old(cmt_old), .cmt_ld_n({1'b0, cmt_ld_n}), .cmt_st_n({1'b0, cmt_st_n}), .cmt_ftq(cmt_ftq), .iss_ns(iss_ns), .ns_ok(ns_ok), .ns_busy(ns_busy),
          .fe_flush(fe_flush),
-         .flush_all(flush_all), .restore(restore), .restore_id(restore_id), .restore_port(restore_port), .restore_lq_tail(restore_lq_tail),
+         .flush_all(flush_all), .restore(restore), /* verilator lint_off PINCONNECTEMPTY */ .restore_k(), /* verilator lint_on PINCONNECTEMPTY */
+         .restore_id(restore_id), .restore_port(restore_port), .restore_lq_tail(restore_lq_tail),
          .restore_sq_tail(restore_sq_tail), .restore_ftq(restore_ftq), .kill(kill), .clr(clr),
          .fe_redirect(fe_redirect), .fe_pc(fe_pc), .live(live), .free_valid(free_valid), .free_tag(free_tag),
          .lq_commit(lq_commit), .sq_commit(sq_commit), .ftq_pop(ftq_pop));

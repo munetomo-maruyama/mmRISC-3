@@ -7750,3 +7750,42 @@ The record is section 29.21 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 OOO_CPU finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**The third `OOO_CPU` run came out at WNS −2.097 ns, worse than the last.** I cut the start of the new worst path and pushed (0d8a5c3; 0 Ref on origin/dev). The slack after the fix is not measured yet.
+
+#### The third run
+- **LUTs:** 54,795
+- **WNS:** −2.097 ns, 27 levels
+- The 2 paths cut in 29.21 do not appear.
+- **The new worst path:** from the CSRs' privilege level (`priv_r`) to the ROB's exception bits; of its 21.8 ns, 18.0 ns (82 %) is routing.
+  - It runs through the interrupt request `irq_pend` (5 LUT levels in the CSRs), the trap, the kill, the LSU, the D$, the LSU's write-back and the completion into the ROB.
+  - `priv_r` was also where the worst path into most blocks started.
+- **Why it got worse:** I take it that the same long chains were placed differently after small changes: a swing from −0.42 ns to −2.10 ns.
+
+#### What I cut
+In `OOO_TRAP`, `irq_pend` and the interrupt's cause go through a register and are used a cycle late. Behavior is unchanged.
+- **CSR writes:** what changes interrupt enables and pending bits is a CSR write. It is a non-speculative µop that writes in EX, and `ns_busy` holds interrupts off from the cycle after its issue to the cycle after its commit.
+- **Traps and MRET / SRET:** both empty the ROB.
+- **External interrupts:** the core's external interrupt inputs are all 0 for now.
+
+#### Checks
+- **Unit:** `tb_trap`'s model also takes the interrupt a cycle late; PASS (9,090 interrupts).
+- **Regression:** `run_core.sh` 12 runs with 0 failures; CoreMark PASS with the same cycles.
+- **Cycle changes:** in `results/core.txt`, 11 lines changed cycles. With zero initial values, old and new give the same cycles on every test, so only the random initial values shifted.
+- **Bug injection:** 16 in the trap unit and 101 in the core, all detected.
+- **Lint:** no new warnings in the core's `-Wall`.
+
+#### What remains in one cycle
+From the trap through the kill, the LSU and the D$ to the completion is still one cycle. If the next run still falls short there, next I make the restore and dispatch not wait on the trap: there is no need to wait, since the next cycle's flush overrides them anyway.
+
+The record is section 29.22 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.6.
+<!-- /answer -->
+
+## 190. 2026-11-06 23:00:27 JST
+
+```text
+OOO_CPU finished.
+```

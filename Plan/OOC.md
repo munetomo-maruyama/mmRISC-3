@@ -4487,3 +4487,23 @@ With 12 checkpoints, the cycle more costs about 0.1 %, not 5.20's 2 %.
 **Left in one cycle**: from the trap to the kill and on (the trap gates the restore, the restore makes the kill, and the kill gates the LSU's E stage, the D$ and completions). If the next run still fails there, that is the next cut: the restore and dispatch not waiting on the trap, as the flush of the next cycle overrides them.
 
 **Next**: a fourth run of `OOO_CPU` at 20 ns (by the author).
+
+### 29.23 Step 1.2, C: the fourth run, −0.647 ns; the kill not waiting on the trap (2026-11-07)
+
+**The run** (by the author, with 29.22's registered interrupt request): 54,705 LUTs after place and route, **WNS −0.647 ns, 25 levels**. `priv_r` no longer starts any worst path. The worst paths are what 29.22 left in one cycle, from the ROB's head: the head's done and exception bits (a choice of 48, 4 LUT levels), the trap, the restore held off by it (`OOO_ROB`'s `restore`, then `OOO_CTRL`'s), the kill, the LSU's E stage, the D$ (`OOO_DCAD`, the fill buffer), the LSU's write-back, the completion into the ROB (−0.647 ns, 20.4 ns, 83 % routing); and the same trap and kill into the MDU's result and the register file's live value table (−0.613 ns). The LSU's own `restore` lay on it too: a fill is not written back in a cycle of restore.
+
+**The cut:**
+
+- **`OOO_ROB`**: `restore_k` = a mispredicted branch in the ROB (`r0 || r1`), without the trap, replay and interrupt of the cycle; `restore` stays as it was. `live()` by compares: in the same lap, head ≤ i < tail; else i ≥ head or i < tail (no distances, no `used`).
+- **`OOO_CTRL`**: `restore_k` = the ROB's `restore_k` and not `flush_q`; **the kill comes from it**, and `restore_k` goes out to the LSU in place of `restore`. In a cycle of trap or replay with a misprediction, the kill and the LSU's restore act, and `flush_all` of the next cycle overrides them (the LSU's tails go back to the committed ones; the queue, the units and the LSU drop everything in flight). The rest of the restore still waits on the trap and replay, also inside `OOO_CTRL`: the live checkpoints and the DS register change only with `restore` (unchanged; the bench found them changed by a first form, harmless as the flush clears both, but kept as they were).
+
+| CoreMark | 29.22 | Now |
+|---|---|---|
+| `g14-o2-zbsc`, no misses | 1,682,613 | 1,682,490 (−0.01 %) |
+| `g14-o2-zbsc`, `OOO_CPU`, the real D$ | 1,700,964 | 1,699,305 (−0.10 %) |
+
+The cycles move where a replay meets a misprediction: the LSU now drops the killed loads at once.
+
+`tb_rob` (checks `restore_k` too), `tb_ctrl` (the kill and `restore_k` also in a cycle of trap or replay), `tb_lsu`: PASS. `run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS. **Bug injection.** The unit campaign on the ROB, the control, the LSU and the trap: 98, all detected (M197, M294 set on the new line; new: M1112, M1113 on `live()`, M1114 `restore_k` without port 1, M1116 a checkpoint freed by the kill of a cycle of trap). A mutation of the kill back to the ROB's `restore` is the old form, not a fault, and is not kept. The core: 101, all detected ("LSU: stores never committed" set on the line that now gives the LSU `restore_k`; NOT APPLIED in the first run). `verilator -Wall` on the core: nothing new. The harnesses `OOC_ROB` and `OOC_CTRL` take the new ports (no warning on their lines).
+
+**Next**: a fifth run of `OOO_CPU` at 20 ns (by the author).

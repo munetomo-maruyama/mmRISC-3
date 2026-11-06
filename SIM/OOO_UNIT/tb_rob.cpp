@@ -197,6 +197,7 @@ int main(int argc, char** argv)
         }
         if ((int)d.cmt_ld_n != eld || (int)d.cmt_st_n != est || (int)d.cmt_instret != eir)
             FAIL("counts ld %d st %d instret %d, expected %d %d %d", (int)d.cmt_ld_n, (int)d.cmt_st_n, (int)d.cmt_instret, eld, est, eir);
+        if ((bool)d.restore_k != (rpos >= 0)) FAIL("restore_k %d, expected %d", (int)d.restore_k, rpos >= 0);
         if ((bool)d.restore != restore) FAIL("restore %d, expected %d", (int)d.restore, restore);
         else if (restore && ((int)d.restore_rob != rob[rpos].idx || (int)d.restore_ckpt != rck))
             FAIL("restore rob %d ckpt %d, expected %d %d", (int)d.restore_rob, (int)d.restore_ckpt, rob[rpos].idx, rck);

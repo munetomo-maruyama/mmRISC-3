@@ -19,7 +19,10 @@
 // mispredicted ones in a cycle the oldest wins; the ROB gives restore with
 // its index and checkpoint (for renaming, the LSU and the front end) and
 // cuts its tail back to just after it. A misprediction of an entry no
-// longer in the ROB is ignored. A completion needs no such check (bug
+// longer in the ROB is ignored. restore_k is the same without the trap,
+// replay and interrupt of the cycle (OOO_CTRL's kill and the LSU's restore:
+// the flush of the next cycle overrides what they do; through the trap they
+// lay on the 4-wide core's paths, Plan/OOC.md 29.23). A completion needs no such check (bug
 // injection showed it redundant): an entry not in the ROB is cleared when
 // it is given out again; the units drop what they have in flight for
 // flushed µops. Dispatch in a cycle of trap or restore writes only entries
@@ -97,6 +100,7 @@ module OOO_ROB
         input  logic [1:0]                  br_mispred,
         input  logic [1:0][CW-1:0]          br_ckpt,
         output logic                        restore,
+        output logic                        restore_k,   // a mispredicted branch in the ROB, a trap or not
         output logic [ROBW-1:0]             restore_rob,
         output logic [CW-1:0]               restore_ckpt,
 
@@ -223,9 +227,10 @@ module OOO_ROB
     logic [NROB-1:0] done, exc, rp;
     logic [4:0]      cause [NROB];
 
-    // in the ROB now: between head and tail
+    // in the ROB now: between head and tail (by compares, not by distances)
     function automatic logic live(input logic [ROBW-1:0] i);
-        return rdist(i, head[ROBW-1:0]) < ROBW'(used) || used == (ROBW + 1)'(NROB);
+        return (head[ROBW] == tail[ROBW]) ? (i >= head[ROBW-1:0] && i < tail[ROBW-1:0])
+                                          : (i >= head[ROBW-1:0] || i < tail[ROBW-1:0]);
     endfunction
 
     // ---- the head and commit
@@ -297,7 +302,8 @@ module OOO_ROB
         end else begin
             restore_rob = br_rob[1]; restore_ckpt = br_ckpt[1];
         end
-        restore = (r0 || r1) && !trap && !irq && !replay;
+        restore_k = r0 || r1;
+        restore   = restore_k && !trap && !irq && !replay;
     end
 
     // ---- pointers

@@ -130,7 +130,7 @@ MUT = [
     (C, "1'b0, 1'b0, cmp_ld_rp, 1'b0,", "1'b0, 1'b0, 1'b0, 1'b0,", 'ROB: no replay after a load that raised ld_cancel'),
     (C, ".restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all", ".restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_lq_tail), .flush_all",
      'LSU: the SQ restored to the LQ\'s tail'),
-    (C, ".lq_commit(lq_commit), .sq_commit(sq_commit), .restore(restore)", ".lq_commit(lq_commit), .sq_commit(2'b00), .restore(restore)", 'LSU: stores never committed'),
+    (C, ".lq_commit(lq_commit), .sq_commit(sq_commit), .restore(restore_k)", ".lq_commit(lq_commit), .sq_commit(3'b000), .restore(restore_k)", 'LSU: stores never committed'),
     # resolution
     (C, "mis   = ex[p].rec.is_jalr ? nxt != pnx : ex_tk[p] != ex[p].rec.pred_taken;", "mis   = ex[p].rec.is_jalr ? 1'b0 : ex_tk[p] != ex[p].rec.pred_taken;", 'a jalr never mispredicted'),
     (C, "mis   = ex[p].rec.is_jalr ? nxt != pnx : ex_tk[p] != ex[p].rec.pred_taken;", "mis   = ex[p].rec.is_jalr ? nxt != pnx : ex_tk[p];", 'a branch mispredicted when taken'),

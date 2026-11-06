@@ -22,8 +22,9 @@
 //     clear while the register keeps µops that do not go
 //   - d_bmask: exactly the checkpoints of the older branches not resolved
 //   - live: the checkpoints of the branches in flight not resolved
-//   - kill / clr: the restored checkpoint; the branches resolved as
-//     predicted that survive the cycle
+//   - kill / clr: the restored checkpoint (also in a cycle of trap or
+//     replay, restore_k); the branches resolved as predicted that survive
+//     the cycle
 //   - restore: the id, the LSU tails and the FTQ index given at the
 //     branch's dispatch
 //   - the redirect: trap vector, replay pc, or the restoring branch's next pc
@@ -129,9 +130,9 @@ int main(int argc, char** argv)
         d.rob_avail = ra; d.iq_avail = ia; d.lq_avail = la; d.sq_avail = sa;
         d.ck_lq_tail = lqt[0] | (lqt[1] << 4); d.ck_sq_tail = sqt[0] | (sqt[1] << 4);
         d.br_valid = bv; d.br_mispred = bm; d.br_ckpt = bck;
-        d.cl_valid = bv & ~bm; d.cl_ckpt = bck;          // (the core gives the clear a cycle before br_*: the same here)
+        d.cl_valid = bv & ~bm; d.cl_ckpt = bck;          // (the core gives the clear with br_*, from the same register)
         d.br_next[0] = (uint32_t)nxt[0]; d.br_next[1] = (uint32_t)(nxt[0] >> 32) | (uint32_t)(nxt[1] << 6); d.br_next[2] = (uint32_t)(nxt[1] >> 26);
-        d.rob_restore = rs != nullptr; d.rob_restore_ckpt = rs ? rs->id : rng() % NCK;
+        d.rob_restore = rs != nullptr; d.rob_restore_k = rs != nullptr; d.rob_restore_ckpt = rs ? rs->id : rng() % NCK;
         d.trap = trap; d.replay = replay; d.replay_pc = rpc; d.trap_vec = tvec;
         d.head_ns = head_ns; d.iss_ns = iss_ns;
         d.cmt_valid = cv; d.cmt_wr = cwr; d.cmt_old = cold; d.cmt_ld_n = cldn; d.cmt_st_n = cstn; d.cmt_ftq = cftq;
@@ -185,7 +186,8 @@ int main(int argc, char** argv)
         int tgt = cv ? ((int)((cftq >> ((cv & 2) ? QW : 0)) & (NQ - 1)) + (replay ? 1 : 0)) % NQ : ftgt;
         int nd = (tgt - fhd + NQ) % NQ, epop = nd > 1 ? 1 : nd;
         if ((int)d.ftq_pop != epop) FAIL("ftq_pop %d, expected %d (head %d, target %d)", (int)d.ftq_pop, epop, fhd, tgt);
-        unsigned kill = restore ? 1u << rs->id : 0;
+        unsigned kill = rs ? 1u << rs->id : 0;            // (not held off by a trap or replay: the flush overrides it)
+        if ((bool)d.restore_k != (rs != nullptr)) FAIL("restore_k %d, expected %d", (int)d.restore_k, rs != nullptr);
         if ((unsigned)d.kill != kill) FAIL("kill %02x, expected %02x", (unsigned)d.kill, kill);
         uint64_t fepc = (uint64_t)d.fe_pc;
         if (restore) {

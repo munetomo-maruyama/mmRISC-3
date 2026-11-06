@@ -133,6 +133,7 @@ module OOO_CTRL
 
         // OOO_ROB
         input  logic                        rob_restore,
+        input  logic                        rob_restore_k, // ... a trap or replay or not (the kill's)
         input  logic [CW-1:0]               rob_restore_ckpt,
         input  logic                        trap,
         input  logic                        replay,
@@ -155,6 +156,7 @@ module OOO_CTRL
         output logic                        fe_flush,   // trap / replay: the front end now
         output logic                        flush_all,  // the back end, a cycle later
         output logic                        restore,
+        output logic                        restore_k,  // the kill's restore: the LSU's
         output logic [CW-1:0]               restore_id,
         output logic                        restore_port, // the ALU port of the restoring branch (OOO_FERS)
         output logic [LW:0]                 restore_lq_tail,
@@ -200,8 +202,12 @@ module OOO_CTRL
         flush_all  = flush_q;
         restore    = rob_restore && !fe_flush && !flush_q;
         restore_id = rob_restore_ckpt;
-        kill       = restore ? bit_of(rob_restore_ckpt) : '0;
-        killset    = kill;
+        // the kill does not wait on a trap or replay of the cycle (the flush of
+        // the next cycle overrides it): through them it lay on the 4-wide core's
+        // paths (Plan/OOC.md 29.23). The rest of the restore does wait, here too
+        restore_k  = rob_restore_k && !flush_q;
+        kill       = restore_k ? bit_of(rob_restore_ckpt) : '0;
+        killset    = restore ? kill : '0;
         for (int j = 0; j < NCKPT; j++)
             if (restore && live[j] && (ck_bm[j] & kill) != '0) killset[j] = 1'b1;
         clr = '0;
@@ -309,7 +315,7 @@ module OOO_CTRL
             if (ds_free) begin
                 ds_v <= r_go;
             end else begin
-                for (int k = 0; k < ND; k++) if ((ds_bm[k] & kill) != '0) ds_v[k] <= 1'b0;
+                for (int k = 0; k < ND; k++) if (restore && (ds_bm[k] & kill) != '0) ds_v[k] <= 1'b0;
             end
         end
     end
