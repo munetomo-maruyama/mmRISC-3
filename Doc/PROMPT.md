@@ -7653,3 +7653,44 @@ The record is section 29.19 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 OOO_CPU finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**`OOO_CPU` at 20 ns after C came out at WNS −14.114 ns.** The cause was the circuit that chooses the trap's tval, so I rebuilt that circuit and pushed it (e1c2343; 0 Ref on origin/dev). The slack after the fix is not measured yet.
+
+#### Results (the last `OOO_CPU` run was the Rev.02 core)
+
+| After place and route | Rev.02 core | C |
+|---|---|---|
+| LUTs | 36,445 | **55,164** |
+| WNS | +0.159 ns, 25 levels | **−14.114 ns, 44 levels** |
+
+The blocks that grew include the ROB (3,717 → 8,643), the queue (1,545 → 6,154), the LSU (3,361 → 6,029) and `OOO_CTRL` (220 → 2,117).
+
+#### The worst paths
+All 100 reported paths end at `OOO_TRAP`'s tval registers.
+- **First half:** from the ROB's tail to the dispatch decision takes about 8 ns.
+- **Second half:** from there the oldest exception was chosen one port at a time. Each port costs about 6 ns, and C made the ports 6.
+
+#### The fix
+The positions of the 6 reports are found at the same time, and all are compared at once to choose the oldest. The result chosen is the same as before.
+- **Unit:** `tb_trap` PASS.
+- **Bug injection:** all 15 trap mutations detected (4 moved to the new lines, 1 added).
+- **Regression:** `run_core.sh` 12 runs with 0 failures; CoreMark PASS with the same cycles.
+- **Cycle changes:** in `results/core.txt`, 14 lines of short tests with traps or branches changed cycles. I looked into it: only the draw of the random initial values shifted. With zero initial values, old and new give the same cycles on every test.
+
+#### A slip on the way
+During the core's lint I stashed the change to `OOO_TRAP.sv` with `git stash` for a moment by mistake. I restored it at once, but the regression running then might have built in that window, so I stopped it and started again from the beginning. The regression results above are from the rerun.
+
+#### What to expect next
+By block, the run shows what is slowest after the tval: inside the ROB (−5.95 ns) and the D$ to the ROB (−5.62 ns). I expect about −6 ns (about 26 ns) to remain after the fix. Many of these start at the ROB's tail, that is, the dispatch decision. Going on to D adds more paths, so I propose measuring again and cutting these before D.
+
+The record is section 29.20 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.6.
+<!-- /answer -->
+
+## 187. 2026-11-06 19:05:05 JST
+
+```text
+Run started
+```
