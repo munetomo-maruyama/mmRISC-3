@@ -20,6 +20,9 @@
 // any-ALU µops are older than it (those go to ports 3, 2, 1), an any-ALU µop of rank 3 when
 // no such µop is older than it. A µop a write slot holds back keeps its rank: its port
 // idles for that cycle, and a younger one does not pass it to that port.
+// NA = 2, P5 = 0: today's 2-wide core with this queue (Plan/OOC.md 29.18): ports 2, 3 and 5
+// give nothing, rank 0 goes to port 1 and rank 1 to port 0, as OOO_IQ's ports 1 and 0 did.
+//
 // Port 5 selects, then port 4 from what is left, so that a load does not keep LSU0 from
 // a store: these 2 are a chain, as a load's wakeup comes a cycle later, off the loop.
 //
@@ -56,7 +59,9 @@ module OOO_IQ2
         parameter int TAGW  = 7,     // physical registers: 80
         parameter int NEXT  = 2,     // external wakeup ports
         parameter int NCK   = 12,    // checkpoints (branch-mask bits)
-        parameter int NBANK = 4      // N is a multiple of it
+        parameter int NBANK = 4,     // N is a multiple of it
+        parameter int NA    = 4,     // ALU ports in use: 4, or 2 (ports 0, 1)
+        parameter bit P5    = 1'b1   // port 5 in use
     )
     (
         input  logic                  clk,
@@ -172,13 +177,13 @@ module OOO_IQ2
         for (int i = 0; i < N; i++) begin
             automatic logic no_only0 = (only0 & older[i]) == '0;
             rank[i] = count4(anyalu & older[i]);
-            g[3][i] = anyalu[i] && rank[i] == 3'd0;
-            g[2][i] = anyalu[i] && rank[i] == 3'd1;
-            g[1][i] = anyalu[i] && rank[i] == 3'd2 && !(blk1 && wr[i]);
-            g[0][i] = no_only0 && ((anyalu[i] && rank[i] == 3'd3 && !(blk0 && wr[i])) ||
-                                   (only0[i] && rank[i] <= 3'd3));
+            g[3][i] = NA == 4 && anyalu[i] && rank[i] == 3'd0;
+            g[2][i] = NA == 4 && anyalu[i] && rank[i] == 3'd1;
+            g[1][i] = anyalu[i] && rank[i] == 3'(NA - 2) && !(blk1 && wr[i]);
+            g[0][i] = no_only0 && ((anyalu[i] && rank[i] == 3'(NA - 1) && !(blk0 && wr[i])) ||
+                                   (only0[i] && rank[i] <= 3'(NA - 1)));
         end
-        g[5] = oldest(ld);
+        g[5] = P5 ? oldest(ld) : '0;
         g[4] = oldest(mem & ~g[5]);
     end
 

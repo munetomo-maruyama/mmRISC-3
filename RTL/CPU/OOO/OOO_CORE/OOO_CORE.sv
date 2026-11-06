@@ -14,7 +14,7 @@
 //   DS         OOO_RENAME2's R2 (tags; 2 slots of its 4 so far: Plan/OOC.md 29.17), OOO_BUSY
 //              for the ready bits, and the µop's payload: the record of OOO_IQPL,
 //              pc, ...; OOO_CTRL's d_go writes OOO_ROB, OOO_IQ and OOO_IQPL
-//   IS         OOO_IQ: port 0 (ALU0, OOO_ALU2 full; OOO_CSRU, OOO_SYS,
+//   IS         OOO_IQ2 (24 entries; NA 2, P5 0 so far, Plan/OOC.md 29.18): port 0 (ALU0, OOO_ALU2 full; OOO_CSRU, OOO_SYS,
 //              OOO_PMUL, OOO_MDUP), port 1 (ALU1, FULL 0), port 2 (OOO_LSU)
 //   RR         OOO_STAGE; OOO_PRF (2 reads a port), OOO_IQPL's record, the
 //              pc array and the target array (OOO_FRONT)
@@ -140,13 +140,13 @@ module OOO_CORE
     localparam int NCKPT = 12, CW   = 4;        // step 1.2 A (Plan/OOC.md 29.16): the frozen sizes first
     localparam int TAGW  = 7;                   // 80 physical registers
     localparam int NROB  = 48, ROBW = 6;
-    localparam int NIQ   = 10, IQW  = 4;
+    localparam int NIQ   = 24, IQW  = 5;
     // the fusion kinds (OOO_FUSE's KINDS): ALU + branch (B5a, 8'h80) is off (5.21). FUSE_AB gates the pair's
     // uses after D2 as well: the record goes through OOO_IQPL's LUT RAM, where synthesis cannot see `fused` as a
     // constant, and the compare after the ALU would stay in EX (Plan/OOC.md 27.7)
     localparam logic [7:0] FUSE_KINDS = 8'h00;
     localparam bit         FUSE_AB    = FUSE_KINDS[7];
-    localparam int NWK   = 6;                   // wakeup buses (OOO_IQ: 4 + NEXT)
+    localparam int NWK   = 9;                   // wakeup buses (OOO_IQ2: 7 + NEXT)
 
     logic [1:0]          priv;                  // the privilege level (CORE_CSR): ECALL's cause at decode
 
@@ -645,17 +645,39 @@ module OOO_CORE
     logic                      iss_md, mdu_ok, p0_hold, md_ext_v;
     logic [TAGW-1:0]           md_ext_t;
     assign iq_disp = d_go & ~{ds[1].exc, ds[0].exc};
-    OOO_IQ #(.N(NIQ), .TAGW(TAGW), .NEXT(2), .NCK(NCKPT)) u_iq
+    // OOO_IQ2 with ports 0, 1 and 4: today's ports 0, 1 and 2
+    logic [2:0]                q_ready;
+    logic [3:0][IQW-1:0]       q_entry;
+    logic [5:0]                q_valid, q_wr;
+    logic [5:0][IQW-1:0]       q_ientry;
+    logic [5:0][1:0][TAGW-1:0] q_src;
+    logic [5:0][TAGW-1:0]      q_dst;
+    logic [5:0][NCKPT-1:0]     q_bm;
+    OOO_IQ2 #(.N(NIQ), .TAGW(TAGW), .NEXT(2), .NCK(NCKPT), .NA(2), .P5(1'b0)) u_iq
         (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .ns_ok(ns_ok), .mdu_ok(mdu_ok),
-         .p0_hold(p0_hold), .disp_ready(iq_ready), .disp_entry(disp_entry), .disp_valid(iq_disp),
-         .disp_port({ds[1].port, ds[0].port}), .disp_use(ds_use), .disp_src(ds_src), .disp_rdy(ds_rdy),
-         .disp_wr({ds[1].wr && !ds[1].md, ds[0].wr && !ds[0].md}), .disp_dst({ds[1].dst, ds[0].dst}),
-         .disp_lat2({ds[1].lat2, ds[0].lat2}), .disp_bm(d_bmask), .disp_ns({ds[1].ns, ds[0].ns}),
-         .disp_md({ds[1].md && ds[1].rec.kind == K_MDU, ds[0].md && ds[0].rec.kind == K_MDU}),
-         .disp_st({ds[1].st, ds[0].st}),
+         .p0_hold(p0_hold), .disp_ready(q_ready), .disp_entry(q_entry), .disp_valid({2'b00, iq_disp}),
+         .disp_port({4'd0, ds[1].port, ds[0].port}), .disp_use({4'd0, ds_use}), .disp_src({(4*TAGW)'(0), ds_src}),
+         .disp_rdy({4'd0, ds_rdy}),
+         .disp_wr({2'b00, ds[1].wr && !ds[1].md, ds[0].wr && !ds[0].md}), .disp_dst({(2*TAGW)'(0), ds[1].dst, ds[0].dst}),
+         .disp_lat2({2'b00, ds[1].lat2, ds[0].lat2}), .disp_bm({(2*NCKPT)'(0), d_bmask}), .disp_ns({2'b00, ds[1].ns, ds[0].ns}),
+         .disp_md({2'b00, ds[1].md && ds[1].rec.kind == K_MDU, ds[0].md && ds[0].rec.kind == K_MDU}),
+         .disp_st({2'b00, ds[1].st, ds[0].st}),
          .ext_valid({1'b0, md_ext_v}), .ext_tag({TAGW'(0), md_ext_t}),
-         .iss_valid(iss_valid), .iss_entry(iss_entry), .iss_src(iss_src), .iss_wr(iss_wr), .iss_dst(iss_dst),
-         .iss_bm(iss_bm), .iss_ns(iss_ns), .iss_md(iss_md), .wk_valid(wk_valid), .wk_tag(wk_tag));
+         .iss_valid(q_valid), .iss_entry(q_ientry), .iss_src(q_src), .iss_wr(q_wr), .iss_dst(q_dst),
+         .iss_bm(q_bm), .iss_ns(iss_ns), .iss_md(iss_md), .wk_valid(wk_valid), .wk_tag(wk_tag));
+    assign iq_ready   = q_ready >= 3'd2 ? 2'd2 : 2'(q_ready);
+    assign disp_entry = q_entry[1:0];
+    always @(*) begin
+        for (int p = 0; p < 3; p++) begin
+            automatic int q = p == 2 ? 4 : p;
+            iss_valid[p] = q_valid[q];
+            iss_entry[p] = q_ientry[q];
+            iss_src[p]   = q_src[q];
+            iss_wr[p]    = q_wr[q];
+            iss_dst[p]   = q_dst[q];
+            iss_bm[p]    = q_bm[q];
+        end
+    end
 
     rec_t [1:0]                wrec;
     always @(*) begin
@@ -967,7 +989,7 @@ module OOO_CORE
 
     logic            sq_drained;
     /* verilator lint_off UNUSEDSIGNAL */      // (ld_cancel: replay after commit, no selective replay)
-    logic [7:0]      lsu_st_known;
+    logic [15:0]     lsu_st_known;
     logic            ld_cancel;
     logic [TAGW-1:0] ld_cancel_tag;
     /* verilator lint_on UNUSEDSIGNAL */

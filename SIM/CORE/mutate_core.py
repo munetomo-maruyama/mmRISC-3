@@ -100,7 +100,7 @@ MUT = [
      'ROB: the new mapping as the old'),
     (C, ".ds_ftq({ds[1].rec.ftq, ds[0].rec.ftq})", ".ds_ftq({ds[0].rec.ftq, ds[1].rec.ftq})", 'CTRL: the checkpoints\' blocks swapped'),
     (C, ".disp_ftq({ds[1].rec.ftq, ds[0].rec.ftq})", ".disp_ftq({ds[1].rec.ftq, ds[1].rec.ftq})", 'ROB: µop 0 with µop 1\'s block (FTQ pops)'),
-    (C, ".disp_wr({ds[1].wr && !ds[1].md, ds[0].wr && !ds[0].md}), .disp_dst", ".disp_wr(2'b11), .disp_dst", 'IQ: every µop wakes for its destination'),
+    (C, ".disp_wr({2'b00, ds[1].wr && !ds[1].md, ds[0].wr && !ds[0].md}), .disp_dst", ".disp_wr(4'b0011), .disp_dst", 'IQ: every µop wakes for its destination'),
     # the ALU ports
     (C, "if (byp_v[q] && byp_t[q] == ex[p].t1) a = byp_d[q];", '', 'bypass: none for the first source'),
     (C, "if (byp_v[q] && byp_t[q] == ex[p].t2) b = byp_d[q];", '', 'bypass: none for the second source'),
@@ -174,7 +174,7 @@ MUT = [
     (C, "wbi_v[1] = pm_w || (ex_v[1] && ex[1].wr);", "wbi_v[1] = ex_v[1] && ex[1].wr;", 'port 1: the multiply\'s result not written'),
     (C, "assign pm_w = pm_v && pm_t != '0;", "assign pm_w = pm_v;", 'port 1: a multiply to x0 takes the write slot'),
     (C, "assign md_w = md_v && md_t != '0;", "assign md_w = md_v;", 'port 0: a divide to x0 forwarded (tag 0)'),
-    (C, ".disp_st({ds[1].st, ds[0].st}),\n         .ext_valid", ".disp_st(2'b00),\n         .ext_valid", 'IQ: loads not held for older stores (replays)'),
+    (C, ".disp_st({2'b00, ds[1].st, ds[0].st}),\n         .ext_valid", ".disp_st(4'b0000),\n         .ext_valid", 'IQ: loads not held for older stores (replays)'),
     (C, ".mret_en(csr_mret), .sret_en(csr_sret)", ".mret_en(csr_mret), .sret_en(1'b0)", 'SRET: the CSRs not restored'),
     # B4: completion and tval
     (C, "cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS &&",

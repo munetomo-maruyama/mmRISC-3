@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-> **2026-11-06**: ここのコアは`Plan/CORE_J.md` 5.22の2命令幅のもので、ROB、LQ / SQ、チェックポイントは凍結した大きさで、`OOO_RENAME`と`OOO_DSREG`の代わりに`OOO_RENAME2`と`OOO_BUSY`。XC7A200T、50 MHzの4命令幅、6発行へ1つずつ変えている(`Doc/STRATEGY_J.md` 4、5、`Plan/OOC_J.md` 29.16)。100 MHz用に作ったブロックはテストベンチとともに残す。どれを使うかは`Doc/STRATEGY_J.md` 4.6。
+> **2026-11-06**: ここのコアは`Plan/CORE_J.md` 5.22の2命令幅のもので、ROB、LQ / SQ、チェックポイントは凍結した大きさで、`OOO_RENAME`と`OOO_DSREG`の代わりに`OOO_RENAME2`と`OOO_BUSY`、`OOO_IQ`の代わりに`OOO_IQ2`。XC7A200T、50 MHzの4命令幅、6発行へ1つずつ変えている(`Doc/STRATEGY_J.md` 4、5、`Plan/OOC_J.md` 29.16)。100 MHz用に作ったブロックはテストベンチとともに残す。どれを使うかは`Doc/STRATEGY_J.md` 4.6。
 
 mmRISC-3のOoOコアを**融合構成**(`Plan/STRATEGY_A100T_J.md` 4章)で作るための最初のブロック群。50MHzで1サイクルに閉じる必要があるループと、構成を決めるコストを持つ部分。Phase 1でそのまま使える形で書き、まず単体で測る(Phase 0、`Plan/ISSUES_J.md` 5章の手順3。結果は`Plan/OOC_J.md`)。
 

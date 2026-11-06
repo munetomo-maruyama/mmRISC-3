@@ -4377,3 +4377,24 @@ So the RTL follows the model, here. `run_core.sh`: 0 failures in all its runs. `
 - **"D2: both taken when only µop 0 goes": a real fault that is no longer reached.** `r_go[1]` is false with `r_go[0]` true only if slot 1's id is live and slot 0's not: 11 checkpoints open. With 6 that happened; with 12 no test gets there. **Not fixed here:** this line goes in C, which rewrites `r_go` for 4; C needs a directed program with many branches open behind a long operation.
 
 **Next**: C, dispatch and commit of 4.
+
+### 29.18 Step 1.2, C0: `OOO_IQ2` in the core, 2 ALU ports (2026-11-06)
+
+**Why a C0.** C (dispatch and commit of 4) with `OOO_IQ`, of 2 writes a cycle, would leave the queue as the narrowest place and teach little. `OOO_IQ2` takes 4 a cycle and gaps, so it goes in first, at today's 2-wide: parameters `NA` = 2 (ALU ports 0, 1: rank 0 to port 1, rank 1 to port 0, as `OOO_IQ`'s ports 1 and 0 did) and `P5` = 0 (no port 5). Ports 0, 1, 4 are today's 0, 1, 2. 24 entries, 9 wakeup buses into `OOO_BUSY`.
+
+`tb_iq2` runs in both forms (`iq2`, `iq2n2`; `run.sh` can now share a bench, `TB[...]`): 0 mismatches each.
+
+| CoreMark, no misses | RTL cycles | Model /MHz |
+|---|---|---|
+| B (queue of 10) | 1,805,278 | 5.839 |
+| **C0 (queue of 24)** | **1,777,906, −1.52 %** | **5.980, +2.4 %** |
+
+So the RTL gains 0.9 % less than the model here. Replays went from 215 to 522 (no misses in this run): more loads are ahead, and more meet a store that covers part of them. Not looked into yet; it will be measured again at C, by function.
+
+`OOO_CPU`, the real D$: 1,795,092. `run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS.
+
+**Bug injection**: 97, 95 detected; the 2 were NOT APPLIED, as the queue's instantiation changed; carried over, both detected. "D2: both taken when only µop 0 goes" (29.17) is detected again: with a queue of 24, the case of 11 checkpoints open comes up.
+
+**Also**: `lsu_st_known` was still 8 bits wide in the core after A (16 from the LSU; unused, so no effect). Found by `verilator -Wall`, which the core's build does not run (`-Wno-WIDTH`): **the core is to be linted with `-Wall` at each piece from now on.**
+
+**Next**: C, dispatch and commit of 4.

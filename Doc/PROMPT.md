@@ -7515,3 +7515,54 @@ The record is sections 29.15, 29.16 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Pl
 ```text
 Yes, on to B
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**Step 1.2's B is done. I replaced the core's rename with `OOO_RENAME2` and `OOO_BUSY`, 80 registers, and pushed it (c273d9b; 0 Ref on origin/dev).** `OOO_DSREG`'s snoop is gone. `OOO_CTRL` needed no change.
+
+## The result
+
+| CoreMark, no misses | RTL cycles | Model /MHz |
+|---|---|---|
+| A | 1,806,314 | 5.839 |
+| **B** | **1,805,278 (−0.06 %)** | 5.839 |
+
+`run_core.sh` 0 failures in all 12 runs; `run_coremark.sh` PASS. On `OOO_CPU` (the real D$) 1,832,102 cycles.
+
+## A fault found
+CoreMark passed at once, but `ls-*` and the arch tests failed. **A load to x0 wrote a free register.** The core takes tag 0 as "no write"; the old `OOO_RENAME` gave tag 0 for no destination, `OOO_RENAME2` the top of the free list. Fixed to 0 at DS.
+
+A fault CoreMark alone did not find, so all 12 runs go at every piece from now on.
+
+## Bug injection
+`mutate_core.py` detected 96 of 98, every line read. The other 2:
+
+- **"Every µop reads 2 sources":** only more cycles, no wrong value, so left out with a note.
+- **"D2: both taken when only µop 0 goes":** a real fault the tests no longer reach. It needs 11 checkpoints open: with 6 that happened, with 12 no test gets there. That line is rewritten in C, with a directed program opening many branches behind a long operation.
+
+## The next step
+C makes dispatch and commit 4 wide. ROB, `OOO_CTRL` and the group are reworked, a larger piece than B.
+
+Today's `OOO_IQ` has 2 writes, so C alone may not reach the model's `w=4`. If building it shows little to gain, it goes with D (`OOO_IQ2`, `OOO_EXU2`). When C is done I will ask for a Vivado run of `OOO_CPU` at 20 ns.
+
+The record is section 29.17 of [Plan/OOC.md](Plan/OOC.md) (Japanese: [Plan/OOC_J.md](Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 183. 2026-11-06 13:34:52 JST
+
+```text
+Please try again
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The last work was done and pushed (c273d9b; 0 Ref on origin/dev), with nothing uncommitted but the prompt log. I summarized B again (`OOO_RENAME2`, `OOO_BUSY`, 80 registers; 12 runs pass, −0.06 % cycles; the load to x0 found; 96 of 98 detected, the 2 explained) and asked about C again.
+<!-- /answer -->
+
+## 184. 2026-11-06 13:35:57 JST
+
+```text
+Yes, on to C
+```

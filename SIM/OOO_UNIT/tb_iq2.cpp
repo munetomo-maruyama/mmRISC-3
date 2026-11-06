@@ -28,6 +28,9 @@
 // answered, so that the queue fills and the banks run out.
 //---------------------------------------------------------------------------
 #include "VOOO_IQ2.h"
+#ifndef NA
+#define NA 4                    // the ALU ports in use (-DNA=2: with -GNA=2 -GP5=0)
+#endif
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -257,17 +260,17 @@ int main(int argc, char** argv)
             auto by_age = [](const Uop* a, const Uop* b) { return a->id < b->id; };
             std::sort(ra.begin(), ra.end(), by_age);
             std::sort(r0.begin(), r0.end(), by_age);
-            if (ra.size() > 0) exp[3] = ra[0];
-            if (ra.size() > 1) exp[2] = ra[1];
-            if (ra.size() > 2 && !(blk1 && ra[2]->wr)) exp[1] = ra[2];
-            if (ra.size() > 2 && blk1 && ra[2]->wr) nblk1++;
-            const Uop* a4 = ra.size() > 3 ? ra[3] : nullptr;   // the 4th
+            if (NA == 4 && ra.size() > 0) exp[3] = ra[0];
+            if (NA == 4 && ra.size() > 1) exp[2] = ra[1];
+            if (ra.size() > NA - 2 && !(blk1 && ra[NA - 2]->wr)) exp[1] = ra[NA - 2];
+            if (ra.size() > NA - 2 && blk1 && ra[NA - 2]->wr) nblk1++;
+            const Uop* a4 = ra.size() > NA - 1 ? ra[NA - 1] : nullptr;   // the last ALU port's
             const Uop* o0 = r0.empty() ? nullptr : r0[0];
             if (o0 && (!a4 || o0->id < a4->id)) exp[0] = o0;
             else if (a4 && (!o0 || a4->id < o0->id) && !(blk0 && a4->wr)) exp[0] = a4;
             if (a4 && blk0 && a4->wr && o0 && a4->id < o0->id) nidle0++;
         }
-        exp[5] = pick([](const Uop& x) { return x.port == 2 && !x.st && !x.ns; });
+        if (NA == 4) exp[5] = pick([](const Uop& x) { return x.port == 2 && !x.st && !x.ns; });
         exp[4] = pick([](const Uop& x) { return x.port == 2; });
         const Uop* e0 = exp[0]; const Uop* e4 = exp[4]; const Uop* e5 = exp[5];
         if (!flush) {
@@ -374,8 +377,8 @@ int main(int argc, char** argv)
             }
         }
     }
-    bool cov = nsix > 100 && nfull > 1000 && nlow > 1000 && nkill > 1000 && nblk1 > 100 && nst > 1000 && nidle0 > 10 && ngap > 10000;
-    for (int p = 0; p < 6; p++) cov = cov && nport[p] > 10000;
+    bool cov = (nsix > 100 || NA == 2) && nfull > 1000 && nlow > 1000 && nkill > 1000 && nblk1 > 100 && nst > 1000 && nidle0 > 10 && ngap > 10000;
+    for (int p = 0; p < 6; p++) cov = cov && (nport[p] > 10000 || (NA == 2 && (p == 2 || p == 3 || p == 5)));
     printf("tb_iq2: %ld cycles, %ld µops issued (%ld %ld %ld %ld %ld %ld by port, %ld stores, %ld cycles with 6, %ld non-speculative), queue full %ld, banks short %ld, a multiply's slot %ld, %ld kills (%ld µops killed), %ld clears, %ld flushes, %ld wakeups, %ld mismatches: %s\n",
            cyc, issued_n, nport[0], nport[1], nport[2], nport[3], nport[4], nport[5], nst, nsix, nns, nfull, nlow, nblk1, nkill, nkilled, nclr, flushes, nwk, bad, bad == 0 && cov ? "PASS" : "FAIL");
     return bad != 0 || !cov;
