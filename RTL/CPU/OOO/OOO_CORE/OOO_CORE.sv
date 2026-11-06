@@ -523,7 +523,7 @@ module OOO_CORE
          .ds_ftq(dv_ftq), .rob_avail(rob_avail), .iq_avail(iq_ready),
          .lq_avail(lq_avail), .sq_avail(sq_avail), .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail), .d_go(d_go), .d_bmask(d_bmask),
          .br_valid(br_valid), .br_mispred(br_mispred), .br_ckpt(br_ckpt), .br_next(br_next),
-         .cl_valid(e_br_valid & ~e_br_mispred), .cl_ckpt(e_br_ckpt),
+         .cl_valid(br_valid & ~br_mispred), .cl_ckpt(br_ckpt),
          .rob_restore(rob_restore), .rob_restore_ckpt(rob_restore_ckpt), .trap(trap), .replay(replay),
          .replay_pc(replay_pc), .trap_vec(trap_vec), .head_ns(head_ns),     // (trap, trap_vec, replay_pc: OOO_TRAP)
          .cmt_valid(cmt_valid), .cmt_wr(cmt_wr), .cmt_old(cmt_old), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n),
@@ -1021,8 +1021,9 @@ module OOO_CORE
     // branch's completion), so that no block uses EX's comparison in the cycle it is made. Dropped when the
     // branch is killed or flushed as it leaves EX. In the cycle between, a mispredicted branch is not complete
     // (it cannot commit, nor anything younger), and the younger µops move a stage on, killed there by their
-    // masks. A branch resolved as predicted completes in EX as before, and its checkpoint is cleared from EX
-    // (OOO_CTRL's cl_*: a checkpoint held a cycle longer cost 2 % with 6 of them), not by its commit.
+    // masks. A branch resolved as predicted completes in EX as before, and its checkpoint is cleared from this
+    // register too (OOO_CTRL's cl_*), not by its commit: from EX, it lay on the 4-wide core's paths (Plan/OOC.md
+    // 29.21; a checkpoint held a cycle longer cost 2 % with 6 of them).
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             br_valid <= '0;

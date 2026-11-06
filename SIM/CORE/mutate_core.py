@@ -193,6 +193,7 @@ MUT = [
     (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && !flush_all;", 'a branch killed as it leaves EX resolves'),
     (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && (ex_bms[p] & kill) == '0;", 'a branch flushed as it leaves EX resolves'),
     (C, "{br_valid & br_mispred, sys_cv,", "{2'b00, sys_cv,", 'a mispredicted branch never completes'),
+    (C, ".cl_valid(br_valid & ~br_mispred), .cl_ckpt(br_ckpt),", ".cl_valid(br_valid), .cl_ckpt(br_ckpt),", "a mispredicted branch's checkpoint cleared too"),
     (CS, "tv_val   = {32'd0, ex_inst};", "tv_val   = 64'd0;", 'CSR: an illegal access\'s tval 0'),
     (CS, "(fs == 2'b00 && (ex_addr == 12'h001", "(1'b0 && (ex_addr == 12'h001", 'CSR: fcsr with mstatus.FS off not illegal'),
 ]

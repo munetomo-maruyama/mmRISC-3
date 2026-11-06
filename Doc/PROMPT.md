@@ -7694,3 +7694,17 @@ The record is section 29.20 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 Run started
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Thank you. I appended the English of the last answer and this prompt to PROMPT.md and pushed (68ac9e0; 0 Ref on origin/dev).
+
+I leave the RTL alone while Vivado reads it, so I stop here. Please tell me when the results are out. First I will look at the WNS in `output\OOO_CPU` to check that the tval paths are gone. Then I will pick the next slowest path and cut it. By the current estimate it is the dispatch decision that leaves the ROB's tail, or the path from the D$ to the ROB's exception bits.
+<!-- /answer -->
+
+## 188. 2026-11-06 19:37:09 JST
+
+```text
+OOO_CPU finished.
+```

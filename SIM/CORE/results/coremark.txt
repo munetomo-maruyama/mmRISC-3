@@ -1,32 +1,32 @@
 == OOO_CORE, no I$ miss, every D$ load a hit
-g14-o2-zbsc.elf              PASS  exit 0  3146631 insns  3146631 uops  1680878 cycles  IPC 1.872
-    5732 restores (mispredicted branches and jalr), 484 replays, I$ 0 / 1153970 missed, D$ 0 / 556412 loads missed, 147736 stores
-g14-sflto-zbsc.elf           PASS  exit 0  2846284 insns  2846284 uops  1638179 cycles  IPC 1.737
-    6055 restores (mispredicted branches and jalr), 2430 replays, I$ 0 / 1062908 missed, D$ 0 / 577808 loads missed, 145661 stores
-g13-o2-zb.elf                PASS  exit 0  3214170 insns  3214170 uops  1717784 cycles  IPC 1.871
-    6513 restores (mispredicted branches and jalr), 645 replays, I$ 0 / 1140455 missed, D$ 0 / 558613 loads missed, 147710 stores
+g14-o2-zbsc.elf              PASS  exit 0  3146615 insns  3146615 uops  1682613 cycles  IPC 1.870
+    5789 restores (mispredicted branches and jalr), 548 replays, I$ 0 / 1153659 missed, D$ 0 / 557437 loads missed, 147736 stores
+g14-sflto-zbsc.elf           PASS  exit 0  2846664 insns  2846664 uops  1642805 cycles  IPC 1.733
+    5936 restores (mispredicted branches and jalr), 2471 replays, I$ 0 / 1062274 missed, D$ 0 / 582672 loads missed, 145661 stores
+g13-o2-zb.elf                PASS  exit 0  3214158 insns  3214158 uops  1716373 cycles  IPC 1.873
+    6401 restores (mispredicted branches and jalr), 627 replays, I$ 0 / 1141231 missed, D$ 0 / 558420 loads missed, 147710 stores
 tb_core: 3 files, 0 failures: PASS
 == OOO_CPU, the real D$, no I$ miss
-g14-o2-zbsc.elf              PASS  exit 0  3147645 insns  3147645 uops  1704549 cycles  IPC 1.847
-    6461 restores (mispredicted branches and jalr), 943 replays, I$ 0 / 1166710 missed, memory 76 line reads 0 line writes, uncached 5456 reads 502 writes
-g14-sflto-zbsc.elf           PASS  exit 0  2848214 insns  2848214 uops  1661597 cycles  IPC 1.714
-    6296 restores (mispredicted branches and jalr), 1456 replays, I$ 0 / 1055235 missed, memory 76 line reads 0 line writes, uncached 16932 reads 631 writes
-g13-o2-zb.elf                PASS  exit 0  3215256 insns  3215256 uops  1737300 cycles  IPC 1.851
-    7039 restores (mispredicted branches and jalr), 1081 replays, I$ 0 / 1150306 missed, memory 75 line reads 0 line writes, uncached 6541 reads 491 writes
+g14-o2-zbsc.elf              PASS  exit 0  3147443 insns  3147443 uops  1700964 cycles  IPC 1.850
+    6418 restores (mispredicted branches and jalr), 916 replays, I$ 0 / 1164325 missed, memory 76 line reads 0 line writes, uncached 4857 reads 502 writes
+g14-sflto-zbsc.elf           PASS  exit 0  2848098 insns  2848098 uops  1658963 cycles  IPC 1.717
+    6148 restores (mispredicted branches and jalr), 1386 replays, I$ 0 / 1052877 missed, memory 76 line reads 0 line writes, uncached 16355 reads 631 writes
+g13-o2-zb.elf                PASS  exit 0  3215802 insns  3215802 uops  1741811 cycles  IPC 1.846
+    7109 restores (mispredicted branches and jalr), 1062 replays, I$ 0 / 1154222 missed, memory 77 line reads 0 line writes, uncached 7195 reads 491 writes
 tb_core: 3 files, 0 failures: PASS
 == OOO_CORE, misses at random (seed 1)
-g14-o2-zbsc.elf              PASS  exit 0  3146609 insns  3146609 uops  4713360 cycles  IPC 0.668
-    23566 restores (mispredicted branches and jalr), 107444 replays, I$ 198619 / 2483709 missed, D$ 219394 / 1095471 loads missed, 147736 stores
-g14-sflto-zbsc.elf           PASS  exit 0  2844226 insns  2844226 uops  4536712 cycles  IPC 0.627
-    25854 restores (mispredicted branches and jalr), 107150 replays, I$ 186091 / 2324513 missed, D$ 225899 / 1130301 loads missed, 145661 stores
-g13-o2-zb.elf                PASS  exit 0  3214118 insns  3214118 uops  4743694 cycles  IPC 0.678
-    26856 restores (mispredicted branches and jalr), 107436 replays, I$ 194525 / 2431403 missed, D$ 221992 / 1108796 loads missed, 147710 stores
+g14-o2-zbsc.elf              PASS  exit 0  3146633 insns  3146633 uops  4720003 cycles  IPC 0.667
+    23570 restores (mispredicted branches and jalr), 107949 replays, I$ 198788 / 2486041 missed, D$ 219935 / 1097488 loads missed, 147736 stores
+g14-sflto-zbsc.elf           PASS  exit 0  2844588 insns  2844588 uops  4528859 cycles  IPC 0.628
+    25789 restores (mispredicted branches and jalr), 106883 replays, I$ 185697 / 2319733 missed, D$ 225820 / 1129122 loads missed, 145661 stores
+g13-o2-zb.elf                PASS  exit 0  3214120 insns  3214120 uops  4750321 cycles  IPC 0.677
+    27123 restores (mispredicted branches and jalr), 107453 replays, I$ 194541 / 2431558 missed, D$ 222533 / 1111861 loads missed, 147710 stores
 tb_core: 3 files, 0 failures: PASS
 == OOO_CORE, misses at random (seed 2, 30 % D$ hits)
-g14-o2-zbsc.elf              PASS  exit 0  3146631 insns  3146631 uops  11120782 cycles  IPC 0.283
-    65220 restores (mispredicted branches and jalr), 377585 replays, I$ 457181 / 5716248 missed, D$ 1683294 / 2404337 loads missed, 147740 stores
-g14-sflto-zbsc.elf           PASS  exit 0  2844930 insns  2844930 uops  10921471 cycles  IPC 0.260
-    80941 restores (mispredicted branches and jalr), 374472 replays, I$ 439495 / 5495223 missed, D$ 1739058 / 2486097 loads missed, 145665 stores
-g13-o2-zb.elf                PASS  exit 0  3214133 insns  3214133 uops  11106752 cycles  IPC 0.289
-    72439 restores (mispredicted branches and jalr), 375321 replays, I$ 441430 / 5519431 missed, D$ 1688482 / 2413125 loads missed, 147714 stores
+g14-o2-zbsc.elf              PASS  exit 0  3146625 insns  3146625 uops  11142959 cycles  IPC 0.282
+    65322 restores (mispredicted branches and jalr), 378177 replays, I$ 457959 / 5725881 missed, D$ 1685718 / 2408129 loads missed, 147740 stores
+g14-sflto-zbsc.elf           PASS  exit 0  2844846 insns  2844846 uops  10920360 cycles  IPC 0.261
+    80685 restores (mispredicted branches and jalr), 374520 replays, I$ 439322 / 5493174 missed, D$ 1740465 / 2487429 loads missed, 145665 stores
+g13-o2-zb.elf                PASS  exit 0  3214123 insns  3214123 uops  11119216 cycles  IPC 0.289
+    72500 restores (mispredicted branches and jalr), 375903 replays, I$ 441443 / 5519537 missed, D$ 1694602 / 2419678 loads missed, 147714 stores
 tb_core: 3 files, 0 failures: PASS

@@ -13,12 +13,10 @@
 // register here, in the issue queue, in the units' pipelines): exactly the
 // µops younger than that branch. A branch resolved as predicted clears its
 // bit in every mask (clr), so the checkpoint can be given out again. The
-// clear comes from EX as the branch resolves (cl_*), the restore a cycle
-// later from the registered resolution (br_*, Plan/CORE.md 5.20): a
-// checkpoint lives no longer than before (with 6 a cycle more cost 2 %).
-// A checkpoint cleared early for a branch that the restore of the next
-// cycle kills is harmless: renaming waits in that cycle (rcv), and the
-// µops younger than the branch still carry the restoring branch's bit.
+// clear comes from the registered resolution (cl_*, br_* as predicted;
+// Plan/CORE.md 5.20), with the restore: from EX it lay on the 4-wide core's
+// paths (Plan/OOC.md 29.21). A checkpoint lives a cycle longer (with 6 that
+// cost 2 %; with 12, see 29.21).
 //
 //   D2  renaming (OOO_RENAME): r_go gives the µops that rename now. A µop
 //       that takes a checkpoint goes only if the checkpoint id renaming
@@ -130,7 +128,7 @@ module OOO_CTRL
         input  logic [1:0][CW-1:0]          br_ckpt,    // the branch's own checkpoint
         /* verilator lint_on UNUSEDSIGNAL */
         input  logic [1:0][VA-1:1]          br_next,    // its correct next pc
-        input  logic [1:0]                  cl_valid,   // EX: a branch resolved as predicted (a cycle before br_*)
+        input  logic [1:0]                  cl_valid,   // a branch resolved as predicted (with br_*)
         input  logic [1:0][CW-1:0]          cl_ckpt,
 
         // OOO_ROB

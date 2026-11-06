@@ -7921,3 +7921,23 @@ OOO_CPU完了した。
 ```text
 Run started
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+ありがとうございます。前回の回答の英語と今回のプロンプトを PROMPT.md に追記して push しました（68ac9e0、origin/dev の Ref は 0 件）。
+
+Vivado が RTL を読み込んでいる間は RTL を変えないので、ここで止めておきます。結果が出たら教えてください。まず `output\OOO_CPU` の WNS を見て、tval のパスが消えたかを確かめます。そのうえで次に遅いパスを選んで切ります。いまの見込みでは、ROB の tail から出るディスパッチの決定か、D$ から ROB の例外ビットへのパスです。
+<!-- /answer -->
+
+## 188. 2026-11-06 19:37:09 JST
+
+```text
+OOO_CPUおわった.
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+Docs are in place; waiting for the regression and the core campaign to finish.
+<!-- /answer -->

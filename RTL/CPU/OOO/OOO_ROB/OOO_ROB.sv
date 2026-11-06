@@ -230,18 +230,22 @@ module OOO_ROB
 
     // ---- the head and commit
     logic [ROBW-1:0] hi [ND];
+    logic [ND-1:0]   has;                      // head + k is not the tail: with c[k-1], more than k
+                                               // µops in the ROB (a compare, not used's subtraction:
+                                               // it lay on the paths from the head, Plan/OOC.md 29.21)
     logic [ND-1:0]   c;                        // commits now
     logic [ND-1:0]   crp;                      // ... and is marked for replay
     logic [2:0]      nc;
     always @(*) begin
         for (int k = 0; k < ND; k++) hi[k] = hk[k][ROBW-1:0];
+        for (int k = 0; k < ND; k++) has[k] = hk[k] != tail;
         for (int k = 0; k < ND; k++) begin
-            c[k]   = (k == 0 ? !irq : c[k-1] && !rp[hi[k-1]]) && used > (ROBW + 1)'(k) && done[hi[k]] && !exc[hi[k]];
+            c[k]   = (k == 0 ? !irq : c[k-1] && !rp[hi[k-1]]) && has[k] && done[hi[k]] && !exc[hi[k]];
             crp[k] = c[k] && rp[hi[k]];
         end
         nc = '0;
         for (int k = 0; k < ND; k++) nc = nc + 3'(c[k]);
-        trap       = used != '0 && done[hi[0]] && exc[hi[0]];
+        trap       = has[0] && done[hi[0]] && exc[hi[0]];
         trap_cause = cause[hi[0]];
         trap_pc    = pk[0][PW-1 -: VA-1];
         replay     = crp != '0;
@@ -249,8 +253,8 @@ module OOO_ROB
         for (int k = ND - 1; k >= 0; k--)
             if (crp[k]) replay_pc = pk[k][PW-1 -: VA-1] + (VA - 1)'(pk[k][FTQW+2:FTQW]);
         head_rob   = hi[0];
-        head_ns    = used != '0 && pk[0][FTQW+3] && !done[hi[0]];
-        head_valid = used != '0;
+        head_ns    = has[0] && pk[0][FTQW+3] && !done[hi[0]];
+        head_valid = has[0];
         head_fused = pk[0][FTQW+4];
         // the µop the front end's history and RAS go back to (OOO_FERS): the
         // head for a trap, the marked one for a replay

@@ -4447,3 +4447,31 @@ The blocks that grew: `OOO_ROB` 3,717 → 8,643; the queue 1,545 (`OOO_IQ`) → 
 **Behind the tval.** The run's lines by block show what comes next (the worst path into or out of each block's flip-flops, without the tval): into `OOO_ROB` −5.95 ns (28 levels, from its tail); the D$ to the ROB's exception bits −5.62 ns (29 levels); ALU 0's EX to the CSRs' `hpm_sel` −4.64 ns; the wakeup into `OOO_IQ2` −4.33 ns; into `OOO_PRF` −4.01 ns (from the ROB's tail). With the tval fixed, about −6 ns is to be expected: about 26 ns, not 20. Many of these start at the ROB's tail, the dispatch decision.
 
 **Next**: a second run of `OOO_CPU` at 20 ns (by the author) shows the paths behind the tval ones. Proposed: cut those before D, as each piece adds paths of its own (the loops of `Doc/STRATEGY.md` 4.5 were measured alone, without the dispatch around them).
+
+### 29.21 Step 1.2, C: the second run, −0.421 ns; two paths cut (2026-11-06)
+
+**The run** (by the author, with 29.20's `OOO_TRAP`): 55,590 LUTs after place and route (+426), **WNS −0.421 ns, 26 levels**. The tval paths are gone (`OOO_TRAP`'s output +7.6 ns). The −6 ns read from the first run's lines by block was too dark: the placement around the tval chain had stretched everything near it.
+
+**The worst paths:**
+
+1. The ROB's head to `OOO_PRF`'s live value table, −0.421 ns, 26 levels (and to `OOO_BUSY`, −0.341 ns): whether the ROB is empty (`used != 0`: `used` is a subtraction modulo 48, a carry chain), the trap, the flush and the kill, the MDU's result (a killed µop's is not written), the write-back port's enable, the table.
+2. ALU 1's WB to `OOO_CTRL`'s checkpoint masks (`ck_bm`), −0.371 ns, 38 levels (20 CARRY4): the operand bypassed from WB, ALU 0's branch compare (64 bits), the misprediction compare, the clear of a branch resolved as predicted (`cl_valid`), `clr`, the masks. The clear came from EX in the cycle the branch resolves (`Plan/CORE.md` 5.20 kept it there: with 6 checkpoints a cycle more cost 2 %).
+3. Then ALU 0's EX to the CSRs' `tselect`, −0.201 ns (25 levels), and the wakeup into `OOO_IQ2`, −0.056 ns.
+
+**The cuts:**
+
+- **`OOO_ROB`**: `has[k]` = head + k is not the tail (an equality, no subtraction). With `c[k-1]` before it, it means more than k µops; the commit chain, `trap`, `head_ns` and `head_valid` use it in place of `used`. `used` stays for `rob_avail` and `live()`.
+- **The checkpoints' clear from the registered resolution** (`OOO_CORE`): `cl_valid` = `br_valid & ~br_mispred`, `cl_ckpt` = `br_ckpt`. A checkpoint lives a cycle longer. The clear now comes in the cycle of the restore: `clr` less `killset`, as before.
+
+| CoreMark | C (29.19) | With the cuts |
+|---|---|---|
+| `g14-o2-zbsc`, no misses | 1,680,878 | 1,682,613 (+0.10 %) |
+| `g14-sflto-zbsc`, no misses | 1,638,179 | 1,642,805 (+0.28 %) |
+| `g13-o2-zb`, no misses | 1,717,784 | 1,716,373 (−0.08 %) |
+| `g14-o2-zbsc`, `OOO_CPU`, the real D$ | 1,704,549 | 1,700,964 (−0.21 %) |
+
+With 12 checkpoints, the cycle more costs about 0.1 %, not 5.20's 2 %.
+
+`run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS. `tb_rob`, `tb_ctrl` PASS. **Bug injection.** The unit campaign on the ROB and the control: 42, all detected. M64 set on the new line; new: M1109 (a µop past the tail commits) and M1110 (a trap from an empty ROB). A first form of `has` with the prefix `has[k-1]` left one mutation NOT DETECTED (only its own place checked): equivalent, as `c[k]` needs `c[k-1]`, so the prefix went from the RTL (the same cycles on every file). The core: 101, all detected (new: a mispredicted branch's checkpoint cleared too). `verilator -Wall` on the core: nothing new.
+
+**Next**: a third run of `OOO_CPU` at 20 ns (by the author).
