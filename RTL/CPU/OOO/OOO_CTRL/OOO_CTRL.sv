@@ -2,7 +2,7 @@
 // OOO_CTRL.sv
 //
 // The control of mmRISC-3's back end (Doc/UARCH.md 3.1, Plan/OOC.md 18 and
-// 19): what decides, every cycle, which µops move from renaming to
+// 19; ND slots, 2 or 4: Plan/OOC.md 29.19): what decides, every cycle, which µops move from renaming to
 // dispatch, which µops a misprediction or a trap throws away, where fetch
 // starts again, when a non-speculative µop may issue, and what commit
 // gives the rest of the core.
@@ -94,33 +94,34 @@ module OOO_CTRL
         parameter int VA    = 39,
         parameter int FTQW  = 4,
         parameter int LW    = 3,        // LQ / SQ entry bits (the tails have one more)
-        parameter int TAGW  = 6
+        parameter int TAGW  = 6,
+        parameter int ND    = 2         // renamed, dispatched, committed a cycle: 2 or 4 (Plan/OOC.md 29.19)
     )
     (
         input  logic                        clk,
         input  logic                        rst_n,
 
         // D2: renaming
-        input  logic [1:0]                  r_valid,    // µops at renaming (slot 1 only with slot 0)
-        input  logic [1:0]                  r_ckpt,     // they take a checkpoint
-        input  logic [1:0][CW-1:0]          r_ckpt_id,  // OOO_RENAME out_ckpt_id
+        input  logic [ND-1:0]                  r_valid,    // µops at renaming (slot 1 only with slot 0)
+        input  logic [ND-1:0]                  r_ckpt,     // they take a checkpoint
+        input  logic [ND-1:0][CW-1:0]          r_ckpt_id,  // OOO_RENAME out_ckpt_id
         input  logic                        r_ren_ready,// OOO_RENAME ready (free registers)
-        output logic [1:0]                  r_go,       // rename these now (OOO_RENAME in_valid)
+        output logic [ND-1:0]                  r_go,       // rename these now (OOO_RENAME in_valid)
 
         // DS: dispatch
-        output logic [1:0]                  ds_valid,   // the DS register holds these
+        output logic [ND-1:0]                  ds_valid,   // the DS register holds these
         output logic                        ds_load,    // it takes renaming's µops (OOO_DSREG load)
-        input  logic [1:0]                  ds_ld,      // the DS µops are loads / stores
-        input  logic [1:0]                  ds_st,
-        input  logic [1:0][FTQW-1:0]        ds_ftq,     // their fetch blocks
-        input  logic [1:0]                  rob_avail,  // free entries, 0 .. 2
-        input  logic [1:0]                  iq_avail,
-        input  logic [1:0]                  lq_avail,
-        input  logic [1:0]                  sq_avail,
-        input  logic [1:0][LW:0]            ck_lq_tail, // OOO_LSU: the tails after slot 0 / 1
-        input  logic [1:0][LW:0]            ck_sq_tail,
-        output logic [1:0]                  d_go,       // dispatched now
-        output logic [1:0][NCKPT-1:0]       d_bmask,    // their branch masks
+        input  logic [ND-1:0]                  ds_ld,      // the DS µops are loads / stores
+        input  logic [ND-1:0]                  ds_st,
+        input  logic [ND-1:0][FTQW-1:0]        ds_ftq,     // their fetch blocks
+        input  logic [2:0]                  rob_avail,  // free entries, 0 .. 2
+        input  logic [2:0]                  iq_avail,
+        input  logic [2:0]                  lq_avail,
+        input  logic [2:0]                  sq_avail,
+        input  logic [ND-1:0][LW:0]            ck_lq_tail, // OOO_LSU: the tails after slot 0 / 1
+        input  logic [ND-1:0][LW:0]            ck_sq_tail,
+        output logic [ND-1:0]                  d_go,       // dispatched now
+        output logic [ND-1:0][NCKPT-1:0]       d_bmask,    // their branch masks
 
         // resolution (the two ALU ports, registered after EX: Plan/CORE.md 5.20)
         /* verilator lint_off UNUSEDSIGNAL */          // (port 1's: restore_port asks port 0 alone)
@@ -140,12 +141,12 @@ module OOO_CTRL
         input  logic [VA-1:1]               replay_pc,
         input  logic [VA-1:1]               trap_vec,   // mtvec (the CSRs)
         input  logic                        head_ns,    // the head is a non-speculative µop not run yet
-        input  logic [1:0]                  cmt_valid,
-        input  logic [1:0]                  cmt_wr,
-        input  logic [1:0][TAGW-1:0]        cmt_old,
-        input  logic [1:0]                  cmt_ld_n,
-        input  logic [1:0]                  cmt_st_n,
-        input  logic [1:0][FTQW-1:0]        cmt_ftq,
+        input  logic [ND-1:0]                  cmt_valid,
+        input  logic [ND-1:0]                  cmt_wr,
+        input  logic [ND-1:0][TAGW-1:0]        cmt_old,
+        input  logic [2:0]                  cmt_ld_n,
+        input  logic [2:0]                  cmt_st_n,
+        input  logic [ND-1:0][FTQW-1:0]        cmt_ftq,
 
         // OOO_IQ
         input  logic                        iss_ns,     // a non-speculative µop issued now
@@ -168,10 +169,10 @@ module OOO_CTRL
         output logic [NCKPT-1:0]            live,       // checkpoints given out, not resolved
 
         // commit
-        output logic [1:0]                  free_valid, // OOO_RENAME: the old mappings back
-        output logic [1:0][TAGW-1:0]        free_tag,
-        output logic [1:0]                  lq_commit,  // OOO_LSU
-        output logic [1:0]                  sq_commit,
+        output logic [ND-1:0]                  free_valid, // OOO_RENAME: the old mappings back
+        output logic [ND-1:0][TAGW-1:0]        free_tag,
+        output logic [2:0]                  lq_commit,  // OOO_LSU
+        output logic [2:0]                  sq_commit,
         output logic [1:0]                  ftq_pop     // OOO_FTQ
     );
 
@@ -179,9 +180,9 @@ module OOO_CTRL
     logic [LW:0]      ck_lq  [NCKPT];          // the table
     logic [LW:0]      ck_sq  [NCKPT];
     logic [FTQW-1:0]  ck_ftq [NCKPT];
-    logic [1:0]             ds_v, ds_ck;       // the DS register's control part
-    logic [1:0][CW-1:0]     ds_id;
-    logic [1:0][NCKPT-1:0]  ds_bm;
+    logic [ND-1:0]          ds_v, ds_ck;       // the DS register's control part
+    logic [ND-1:0][CW-1:0]  ds_id;
+    logic [ND-1:0][NCKPT-1:0] ds_bm;
 
     function automatic logic [NCKPT-1:0] bit_of(input logic [CW-1:0] id);
         logic [NCKPT-1:0] b;
@@ -226,7 +227,7 @@ module OOO_CTRL
     logic [FTQW-1:0] tgt, ndone;
     always @(*) begin
         ns_busy_n = (fe_flush || flush_q || cmt_valid[0]) ? 1'b0 : (ns_busy || iss_ns);
-        for (int k = 0; k < 2; k++) begin
+        for (int k = 0; k < ND; k++) begin
             free_valid[k] = cmt_valid[k] && cmt_wr[k];
             free_tag[k]   = cmt_old[k];
         end
@@ -234,39 +235,49 @@ module OOO_CTRL
         sq_commit = cmt_st_n;
         // the FTQ: the blocks before the latest committed µop's (its own too
         // after a replay)
-        if (cmt_valid != 2'b00) tgt = (cmt_valid[1] ? cmt_ftq[1] : cmt_ftq[0]) + FTQW'(replay);
-        else                    tgt = ftq_tgt;
+        tgt = ftq_tgt;
+        for (int k = 0; k < ND; k++) if (cmt_valid[k]) tgt = cmt_ftq[k] + FTQW'(replay);
         ndone   = tgt - ftq_hd;               // blocks done, not popped
         ftq_pop = (ndone != '0) ? 2'd1 : 2'd0;
     end
 
     // ---- DS: dispatch, all of the register's µops or none
-    logic [1:0] nld, nst, nall;
+    logic [2:0] nld, nst, nall;
     logic       d_ok;
     always @(*) begin
-        nall = 2'(ds_v[0]) + 2'(ds_v[1]);
-        nld  = 2'(ds_v[0] && ds_ld[0]) + 2'(ds_v[1] && ds_ld[1]);
-        nst  = 2'(ds_v[0] && ds_st[0]) + 2'(ds_v[1] && ds_st[1]);
+        nall = '0; nld = '0; nst = '0;
+        for (int k = 0; k < ND; k++) begin
+            nall = nall + 3'(ds_v[k]);
+            nld  = nld + 3'(ds_v[k] && ds_ld[k]);
+            nst  = nst + 3'(ds_v[k] && ds_st[k]);
+        end
         d_ok = !rcv && rob_avail >= nall && iq_avail >= nall && lq_avail >= nld && sq_avail >= nst;
-        d_go = d_ok ? ds_v : 2'b00;
-        for (int k = 0; k < 2; k++) d_bmask[k] = ds_bm[k] & ~clr;
+        d_go = d_ok ? ds_v : '0;
+        for (int k = 0; k < ND; k++) d_bmask[k] = ds_bm[k] & ~clr;
         ds_valid = ds_v;
     end
 
     // ---- D2: renaming, a prefix of the µops offered
-    logic       ds_free;                       // the DS register takes new µops
-    logic [1:0] ck_ok;
+    logic [NCKPT-1:0] lv_c;                    // live less this cycle's clears
+    assign lv_c = live & ~clr;
+
+    // (at most 2 checkpoints a group: OOO_RENAME2 takes no more, up to the second)
+    logic          ds_free;                    // the DS register takes new µops
+    logic [ND-1:0][NCKPT-1:0] r_bm;            // the masks the slots take: the live ones, and those of the slots before
     always @(*) begin
-        ds_free = ds_v == 2'b00 || d_go == ds_v;
+        automatic logic [1:0] nck = 2'd0;
+        ds_free = ds_v == '0 || d_go == ds_v;
         ds_load = ds_free;
-        for (int k = 0; k < 2; k++) ck_ok[k] = !r_ckpt[k] || !live[r_ckpt_id[k]];
-        r_go[0] = r_valid[0] && ds_free && r_ren_ready && !rcv && ck_ok[0];
-        r_go[1] = r_go[0] && r_valid[1] && ck_ok[1];
+        for (int k = 0; k < ND; k++) begin
+            r_go[k] = (k == 0 ? ds_free && r_ren_ready && !rcv : r_go[k-1]) && r_valid[k] && nck != 2'd2 &&
+                      (!r_ckpt[k] || !live[r_ckpt_id[k]]);
+            r_bm[k] = lv_c;
+            for (int m = 0; m < k; m++) if (r_go[m] && r_ckpt[m]) r_bm[k] = r_bm[k] | bit_of(r_ckpt_id[m]);
+            if (r_valid[k] && r_ckpt[k] && nck != 2'd2) nck = nck + 2'd1;
+        end
     end
 
     // ---- state
-    logic [NCKPT-1:0] lv_c;                    // live less this cycle's clears
-    assign lv_c = live & ~clr;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             flush_q <= 1'b0;
@@ -293,14 +304,14 @@ module OOO_CTRL
         end else begin
             logic [NCKPT-1:0] l;
             l = lv_c & ~killset;
-            for (int k = 0; k < 2; k++) if (r_go[k] && r_ckpt[k]) l[r_ckpt_id[k]] = 1'b1;
+            for (int k = 0; k < ND; k++) if (r_go[k] && r_ckpt[k]) l[r_ckpt_id[k]] = 1'b1;
             live <= l;
             // the DS register: new µops when it is free, else it keeps what
             // did not go (minus the killed); its masks lose the cleared bits
             if (ds_free) begin
                 ds_v <= r_go;
             end else begin
-                for (int k = 0; k < 2; k++) if ((ds_bm[k] & kill) != '0) ds_v[k] <= 1'b0;
+                for (int k = 0; k < ND; k++) if ((ds_bm[k] & kill) != '0) ds_v[k] <= 1'b0;
             end
         end
     end
@@ -308,17 +319,15 @@ module OOO_CTRL
         if (ds_free) begin
             ds_ck <= r_ckpt;
             ds_id <= r_ckpt_id;
-            ds_bm[0] <= lv_c;
-            ds_bm[1] <= lv_c | ((r_go[0] && r_ckpt[0]) ? bit_of(r_ckpt_id[0]) : '0);
+            for (int k = 0; k < ND; k++) ds_bm[k] <= r_bm[k];
         end else begin
-            for (int k = 0; k < 2; k++) ds_bm[k] <= ds_bm[k] & ~clr;
+            for (int k = 0; k < ND; k++) ds_bm[k] <= ds_bm[k] & ~clr;
         end
         // the masks of the checkpoints: set when given out, cleared bits dropped
         for (int j = 0; j < NCKPT; j++) ck_bm[j] <= ck_bm[j] & ~clr;
-        if (r_go[0] && r_ckpt[0]) ck_bm[r_ckpt_id[0]] <= lv_c;
-        if (r_go[1] && r_ckpt[1]) ck_bm[r_ckpt_id[1]] <= lv_c | (r_ckpt[0] ? bit_of(r_ckpt_id[0]) : '0);
+        for (int k = 0; k < ND; k++) if (r_go[k] && r_ckpt[k]) ck_bm[r_ckpt_id[k]] <= r_bm[k];
         // the table, at dispatch
-        for (int k = 0; k < 2; k++)
+        for (int k = 0; k < ND; k++)
             if (d_go[k] && ds_ck[k]) begin
                 ck_lq[ds_id[k]]  <= ck_lq_tail[k];
                 ck_sq[ds_id[k]]  <= ck_sq_tail[k];

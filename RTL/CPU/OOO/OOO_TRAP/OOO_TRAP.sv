@@ -50,7 +50,7 @@ module OOO_TRAP
         parameter int VA   = 39,
         parameter int NROB = 24,
         parameter int ROBW = 5,
-        parameter int NTV  = 3          // tval ports (dispatch 2, the LSU)
+        parameter int NTV  = 3          // tval ports (the dispatch slots, the LSU, ...)
     )
     (
         input  logic                        clk,
@@ -65,7 +65,7 @@ module OOO_TRAP
         input  logic [ROBW-1:0]             head_rob,
         input  logic                        rob_replay,
         input  logic [VA-1:1]               rob_replay_pc,
-        input  logic [2:0]                  cmt_instret,
+        input  logic [3:0]                  cmt_instret,
         input  logic                        restore,
         input  logic [ROBW-1:0]             restore_rob,
         output logic                        irq,            // OOO_ROB irq: take the interrupt now
@@ -169,7 +169,7 @@ module OOO_TRAP
             end else if (take) begin
                 no_fuse <= 1'b0;
             end else if (no_fuse) begin
-                if (3'(nf_cnt) + cmt_instret >= 3'd2) no_fuse <= 1'b0;
+                if (4'(nf_cnt) + cmt_instret >= 4'd2) no_fuse <= 1'b0;
                 nf_cnt <= nf_cnt + 2'(cmt_instret);
             end
         end

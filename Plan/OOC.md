@@ -4398,3 +4398,32 @@ So the RTL gains 0.9 % less than the model here. Replays went from 215 to 522 (n
 **Also**: `lsu_st_known` was still 8 bits wide in the core after A (16 from the LSU; unused, so no effect). Found by `verilator -Wall`, which the core's build does not run (`-Wno-WIDTH`): **the core is to be linted with `-Wall` at each piece from now on.**
 
 **Next**: C, dispatch and commit of 4.
+
+### 29.19 Step 1.2, C: dispatch and commit of 4 (2026-11-06)
+
+**What changed.** The core renames, dispatches and commits 4 µops a cycle (`ND` = 4 in `OOO_CORE`). Still 2 ALU ports and one LSU port: those are D and E.
+
+- **D2**: up to 4 µops from the group rotated to its oldest slot, one instruction each. `OOO_FUSE` is gone from the core: it pairs 2 µops out of 4 slots, and with 4 µops a group no pairing is left (ALU + branch has been off since 27.5 / `Plan/CORE.md` 5.21). The record keeps its pair fields with `FUSE_AB` 0; `mutate_core.py`'s B5a list is kept as a record of the core before C. `g_take` is the count of `r_go`, a prefix.
+- **`OOO_CTRL`** (parameter `ND`, 2 or 4): `r_go` is a prefix with at most 2 checkpoints a group (`OOO_RENAME2` takes no more, as the model's `ck_max=2`); slot k's branch mask is the live checkpoints and those of the slots before it; the FTQ target the last committed µop's block. Avails and commit counts 3 bits.
+- **`OOO_ROB`** (`ND`): `ND` LUT RAM banks by the index modulo `ND`, one write each (the slot whose entry falls in the bank); commit of up to `ND`, each needing the ones before it, not past a replay mark; `cmt_instret` 4 bits.
+- **`OOO_LSU`** (`ND`): the entries given by a prefix sum over the slots; a load's older stores include those of the slots before it, and the age matrix makes later slots' stores younger.
+- **`OOO_IQPL2`** (new): the payload of `OOO_IQ2`. The queue gives a cycle's µops entries of different banks, so each bank is a LUT RAM written by one µop, without the live value table of `OOO_IQPL`; a bank is addressed by the whole entry number (24 ≤ 32, one RAM32M deep). `NR` reads, the last `NRL` the low `W2` bits only.
+- **`OOO_TRAP`**: tval from the 4 dispatch slots, port 2 and port 0 (`NTV` 6); `cmt_instret` 4 bits.
+- The commit trace (`tr_*`, `OOO_CPU` too) and `tb_core` take 4 slots.
+
+`OOO_ROB`, `OOO_CTRL` and `OOO_LSU` keep 2 as their default, so their benches (written for 2 slots) run as before; the 4-slot form is checked by lint at `ND` = 4 and by the core in lock-step. `tb_iqpl2` runs `NR` 6, `NRL` 2: 2.4 M reads checked, 0 mismatches.
+
+| CoreMark, no misses | RTL cycles | Model /MHz |
+|---|---|---|
+| C0 (2-wide, queue of 24) | 1,777,906 | 5.980 |
+| **C (4-wide)** | **1,680,878, −5.46 %** | **6.350, +6.2 % (cycles −5.84 %)** |
+
+Model: `g14-o2-zbsc`, the core-check base plus `rob=48 lq=16 sq=16 ckpt=12 iq=24`, and `w=4 ck_max=2` for C. The RTL gains 0.4 % less than the model; its cycles are 6.8 % above the model's (6.3 % at C0). Replays 484 (522 at C0). `g14-sflto-zbsc` 1,705,567 → 1,638,179 (−3.95 %), `g13-o2-zb` 1,837,452 → 1,717,784 (−6.51 %). `OOO_CPU`, the real D$: 1,795,092 → 1,704,549 (−5.04 %). The comparison by function, set for after C in 29.18, is not done yet: it is more telling after D, when the 4 ALU ports are in.
+
+`run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS. `verilator -Wall` on the core: what C0 had (3 UNOPTFLAT through the CSRs' trap side; the rest in mmRISC-2's blocks and empty pins of `OOO_FRONT`).
+
+**Bug injection.** The unit campaign on the changed blocks (LSU, ROB, CTRL, trap, payload): 95, all detected. 23 lines had moved with the rewrite (22 found by checking every target before the run, one, M43, NOT APPLIED in it as it named a signal that is gone) and were set on the new lines; 5 new ones for `OOO_IQPL2`. The core: 100, all detected. 19 retargeted to the 4-slot code, 3 new for slots 2 and 3 (`rob_insn` not written by them, four go but three taken, their ports from slots 0 and 1). "D2: two taken when only µop 0 goes" (29.17) is detected.
+
+**Also**: `synth_ooo.tcl` and `yosys_size.sh` read `OOO_IQPL2`. The harnesses of the 100 MHz era that hold these units (`OOC_LSU`, `OOC_ROB`, `OOC_LSUDC`, `OOC_CTRL`, `OOC_TRAP`) keep their inputs and outputs: the counts that grew a bit are padded with 0 going in and cut going out (`verilator -Wall`: no width warning left on their lines).
+
+**Next**: the Vivado run of `OOO_CPU` at 20 ns (by the author), then D: 4 ALU ports, `OOO_EXU2`, the register file of 6 writes and 11 reads.

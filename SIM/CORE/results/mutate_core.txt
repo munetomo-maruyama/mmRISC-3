@@ -1,6 +1,6 @@
  0 DETECTED      D2: the group not rotated
  1 DETECTED      D2: µop 1 from µop 0's slot
- 2 DETECTED      D2: both taken when only µop 0 goes
+ 2 DETECTED      D2: two taken when only µop 0 goes
  3 DETECTED      D2: a jalr without a checkpoint
  4 DETECTED      D2: µop 1 with µop 0's checkpoint id
  5 DETECTED      link: pc + 4 for RVC too
@@ -14,12 +14,12 @@
 13 DETECTED      busy bits never set
 14 DETECTED      renaming: µop 1 told µop 0's id
 15 DETECTED      renaming: the second commit does not count
-16 DETECTED      renaming: the old mapping of the first for both
+16 DETECTED      renaming: the old mapping of the first for the second
 17 DETECTED      the record: µop 1 with µop 0's ROB entry
 18 DETECTED      ROB: the new mapping as the old
-19 DETECTED      CTRL: the checkpoints' blocks swapped
+19 DETECTED      CTRL: the checkpoints' blocks of µops 0 and 1 swapped
 20 DETECTED      ROB: µop 0 with µop 1's block (FTQ pops)
-21 NOT APPLIED   IQ: every µop wakes for its destination
+21 DETECTED      IQ: every µop wakes for its destination
 22 DETECTED      bypass: none for the first source
 23 DETECTED      bypass: none for the second source
 24 DETECTED      bypass: port 1's result not forwarded
@@ -79,7 +79,7 @@
 78 DETECTED      port 1: the multiply's result not written
 79 DETECTED      port 1: a multiply to x0 takes the write slot
 80 DETECTED      port 0: a divide to x0 forwarded (tag 0)
-81 NOT APPLIED   IQ: loads not held for older stores (replays)
+81 DETECTED      IQ: loads not held for older stores (replays)
 82 DETECTED      SRET: the CSRs not restored
 83 DETECTED      a system µop complete at EX
 84 DETECTED      CSR: an illegal access completes
@@ -87,12 +87,15 @@
 86 DETECTED      the multiply completes the MDU's entry
 87 DETECTED      tval: a misaligned address not given
 88 DETECTED      tval: an illegal CSR access's not given
-89 DETECTED      minstret: a write counts its own commit
-90 DETECTED      mcountinhibit: setting IR, its own commit not counted (under the new bit)
-91 DETECTED      a mispredicted branch complete in EX (younger µops commit before the restore)
-92 DETECTED      a branch killed as it leaves EX resolves
-93 DETECTED      a branch flushed as it leaves EX resolves
-94 DETECTED      a mispredicted branch never completes
-95 DETECTED      CSR: an illegal access's tval 0
-96 DETECTED      CSR: fcsr with mstatus.FS off not illegal
-97 mutations, 95 detected
+89 DETECTED      4 wide: slots 2 and 3 leave rob_insn unwritten (a CSR µop reads a stale one)
+90 DETECTED      4 wide: four go, three taken (one runs twice)
+91 DETECTED      4 wide: slots 2 and 3 with the ports of slots 0 and 1
+92 DETECTED      minstret: a write counts its own commit
+93 DETECTED      mcountinhibit: setting IR, its own commit not counted (under the new bit)
+94 DETECTED      a mispredicted branch complete in EX (younger µops commit before the restore)
+95 DETECTED      a branch killed as it leaves EX resolves
+96 DETECTED      a branch flushed as it leaves EX resolves
+97 DETECTED      a mispredicted branch never completes
+98 DETECTED      CSR: an illegal access's tval 0
+99 DETECTED      CSR: fcsr with mstatus.FS off not illegal
+100 mutations, 100 detected

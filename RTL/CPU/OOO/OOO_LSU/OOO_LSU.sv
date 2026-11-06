@@ -93,24 +93,25 @@ module OOO_LSU
         parameter int TAGW = 6,         // physical register tags
         parameter int ROBW = 5,         // ROB index (24 entries)
         parameter int NCK  = 6,         // checkpoints (branch-mask bits)
+        parameter int ND   = 2,         // dispatched a cycle: 2 or 4 (Plan/OOC.md 29.19)
         parameter int DRAIN_WAIT = 8    // cycles a load holds a committed store off before it gives the store the D$ port
     )
     (
         input  logic                        clk,
         input  logic                        rst_n,
 
-        // dispatch: up to 2 µops a cycle in program order, each a load, a
+        // dispatch: up to ND µops a cycle in program order, each a load, a
         // store or neither
-        input  logic [1:0]                  disp_valid,
-        input  logic [1:0]                  disp_ld,
-        input  logic [1:0]                  disp_st,
-        input  logic [1:0][ROBW-1:0]        disp_rob,
-        output logic [1:0]                  lq_avail,   // free entries, 0 .. 2
-        output logic [1:0]                  sq_avail,
-        output logic [1:0][$clog2(NLQ)-1:0] disp_lq,    // the entries given
-        output logic [1:0][$clog2(NSQ)-1:0] disp_sq,
-        output logic [1:0][$clog2(NLQ):0]   ck_lq_tail, // the tails after slot 0 / 1, for checkpoints
-        output logic [1:0][$clog2(NSQ):0]   ck_sq_tail,
+        input  logic [ND-1:0]                  disp_valid,
+        input  logic [ND-1:0]                  disp_ld,
+        input  logic [ND-1:0]                  disp_st,
+        input  logic [ND-1:0][ROBW-1:0]        disp_rob,
+        output logic [2:0]                     lq_avail,   // free entries, 0 .. ND
+        output logic [2:0]                     sq_avail,
+        output logic [ND-1:0][$clog2(NLQ)-1:0] disp_lq,    // the entries given
+        output logic [ND-1:0][$clog2(NSQ)-1:0] disp_sq,
+        output logic [ND-1:0][$clog2(NLQ):0]   ck_lq_tail, // the tails after each slot, for checkpoints
+        output logic [ND-1:0][$clog2(NSQ):0]   ck_sq_tail,
 
         // issue port 2
         input  logic                        iss_valid,
@@ -163,8 +164,8 @@ module OOO_LSU
         output logic                        cmp_st_exc,
 
         // commit and recovery
-        input  logic [1:0]                  lq_commit,    // loads committed this cycle
-        input  logic [1:0]                  sq_commit,    // stores committed this cycle
+        input  logic [2:0]                  lq_commit,    // loads committed this cycle
+        input  logic [2:0]                  sq_commit,    // stores committed this cycle
         input  logic                        restore,
         input  logic [NCK-1:0]              kill,         // OOO_CTRL: µops with this bit die
         input  logic [$clog2(NLQ):0]        restore_lq_tail,
@@ -179,18 +180,18 @@ module OOO_LSU
     typedef logic [LW:0] lptr_t;                // {wrap, index}
     typedef logic [SW:0] sptr_t;
 
-    function automatic lptr_t lnext(input lptr_t p, input logic [1:0] n);
+    function automatic lptr_t lnext(input lptr_t p, input logic [2:0] n);
         lptr_t q;
         q = p;
-        for (int k = 0; k < 2; k++)
-            if (n > 2'(k)) q = (q[LW-1:0] == LW'(NLQ - 1)) ? {~q[LW], LW'(0)} : {q[LW], q[LW-1:0] + LW'(1)};
+        for (int k = 0; k < 4; k++)
+            if (n > 3'(k)) q = (q[LW-1:0] == LW'(NLQ - 1)) ? {~q[LW], LW'(0)} : {q[LW], q[LW-1:0] + LW'(1)};
         return q;
     endfunction
-    function automatic sptr_t snext(input sptr_t p, input logic [1:0] n);
+    function automatic sptr_t snext(input sptr_t p, input logic [2:0] n);
         sptr_t q;
         q = p;
-        for (int k = 0; k < 2; k++)
-            if (n > 2'(k)) q = (q[SW-1:0] == SW'(NSQ - 1)) ? {~q[SW], SW'(0)} : {q[SW], q[SW-1:0] + SW'(1)};
+        for (int k = 0; k < 4; k++)
+            if (n > 3'(k)) q = (q[SW-1:0] == SW'(NSQ - 1)) ? {~q[SW], SW'(0)} : {q[SW], q[SW-1:0] + SW'(1)};
         return q;
     endfunction
     // the number of entries from a to b (b at or after a, at most N)
@@ -246,30 +247,34 @@ module OOO_LSU
     logic [63:0]          sdata[NSQ];
 
     // ---- dispatch
-    logic [1:0] l_new, s_new;                  // slots that take an entry
-    lptr_t      lt1;
-    sptr_t      st1;
+    logic [ND-1:0] l_new, s_new;               // slots that take an entry
+    lptr_t         lpos [ND];                  // the entry each slot takes
+    sptr_t         spos [ND];
     logic [LW:0] l_used;
     logic [SW:0] s_used;
     always @(*) begin
+        automatic lptr_t l = lq_tail;
+        automatic sptr_t s = sq_tail;
+        automatic logic [LW:0] lf;
+        automatic logic [SW:0] sf;
         l_used = lcount(lq_head, lq_tail);
         s_used = scount(sq_head, sq_tail);
-        lq_avail = (l_used <= (LW + 1)'(NLQ - 2)) ? 2'd2 : (l_used == (LW + 1)'(NLQ - 1)) ? 2'd1 : 2'd0;
-        sq_avail = (s_used <= (SW + 1)'(NSQ - 2)) ? 2'd2 : (s_used == (SW + 1)'(NSQ - 1)) ? 2'd1 : 2'd0;
-        for (int u = 0; u < 2; u++) begin
+        lf = (LW + 1)'(NLQ) - l_used;
+        sf = (SW + 1)'(NSQ) - s_used;
+        lq_avail = lf >= (LW + 1)'(ND) ? 3'(ND) : 3'(lf);
+        sq_avail = sf >= (SW + 1)'(ND) ? 3'(ND) : 3'(sf);
+        for (int u = 0; u < ND; u++) begin
             l_new[u] = disp_valid[u] && disp_ld[u];
             s_new[u] = disp_valid[u] && disp_st[u];
+            lpos[u]  = l;
+            spos[u]  = s;
+            disp_lq[u] = l[LW-1:0];
+            disp_sq[u] = s[SW-1:0];
+            l = lnext(l, {2'b00, l_new[u]});
+            s = snext(s, {2'b00, s_new[u]});
+            ck_lq_tail[u] = l;
+            ck_sq_tail[u] = s;
         end
-        lt1 = lnext(lq_tail, {1'b0, l_new[0]});
-        st1 = snext(sq_tail, {1'b0, s_new[0]});
-        disp_lq[0] = lq_tail[LW-1:0];
-        disp_lq[1] = lt1[LW-1:0];
-        disp_sq[0] = sq_tail[SW-1:0];
-        disp_sq[1] = st1[SW-1:0];
-        ck_lq_tail[0] = lt1;
-        ck_lq_tail[1] = lnext(lt1, {1'b0, l_new[1]});
-        ck_sq_tail[0] = st1;
-        ck_sq_tail[1] = snext(st1, {1'b0, s_new[1]});
     end
 
     // ---- which older stores have addresses: per LQ entry
@@ -507,9 +512,9 @@ module OOO_LSU
     lptr_t lq_tail_n;
     sptr_t sq_tail_n, sq_head_n, sq_cmt_n;
     always @(*) begin
-        lq_tail_n = lnext(lnext(lq_tail, {1'b0, l_new[0]}), {1'b0, l_new[1]});
-        sq_tail_n = snext(snext(sq_tail, {1'b0, s_new[0]}), {1'b0, s_new[1]});
-        sq_head_n = snext(sq_head, {1'b0, s_drain});
+        lq_tail_n = ck_lq_tail[ND-1];
+        sq_tail_n = ck_sq_tail[ND-1];
+        sq_head_n = snext(sq_head, {2'b00, s_drain});
         sq_cmt_n  = snext(sq_cmt, sq_commit);
         if (flush_all) begin
             lq_tail_n = lnext(lq_head, lq_commit);
@@ -543,35 +548,47 @@ module OOO_LSU
     logic st_event;                            // a store got its address or left: waiting loads may try again
     assign st_event = e_st_w || s_drain;
 
-    logic [NSQ-1:0] s_free, s_onehot0;         // the SQ entry drained now; slot 0's new store
+    logic [NSQ-1:0] s_free;                    // the SQ entry drained now
+    logic [NSQ-1:0] s_bef [ND];                // the new stores of the slots before this one
+    logic [NSQ-1:0] s_aft [ND];                // ... and after
     always @(*) begin
-        s_free    = s_drain ? (NSQ'(1) << sq_head[SW-1:0]) : '0;
-        s_onehot0 = NSQ'(1) << sq_tail[SW-1:0];
+        s_free = s_drain ? (NSQ'(1) << sq_head[SW-1:0]) : '0;
+        for (int u = 0; u < ND; u++) begin
+            s_bef[u] = '0;
+            s_aft[u] = '0;
+            for (int v = 0; v < ND; v++) begin
+                if (v < u && s_new[v]) s_bef[u] = s_bef[u] | (NSQ'(1) << spos[v][SW-1:0]);
+                if (v > u && s_new[v]) s_aft[u] = s_aft[u] | (NSQ'(1) << spos[v][SW-1:0]);
+            end
+        end
     end
 
     // ---- LQ entries
     for (genvar e = 0; e < NLQ; e++) begin : g_lq
-        logic a0, a1, keep;
-        assign a0   = l_new[0] && lq_tail[LW-1:0] == LW'(e);
-        assign a1   = l_new[1] && lt1[LW-1:0] == LW'(e);
+        logic a, keep;
+        logic [$clog2(ND)-1:0] au;             // the slot that takes it
+        always @(*) begin
+            a = 1'b0; au = '0;
+            for (int u = 0; u < ND; u++) if (l_new[u] && lpos[u][LW-1:0] == LW'(e)) begin a = 1'b1; au = $clog2(ND)'(u); end
+        end
         assign keep = l_in(lnext(lq_head, lq_commit), lq_tail_n, LW'(e));
         assign dc_kill[e] = lv[e] && !keep;
         always_ff @(posedge clk or negedge rst_n) begin
             if (!rst_n) begin
                 lv[e]  <= 1'b0;
-            end else if ((a0 || a1) && !restore && !flush_all) begin
+            end else if (a && !restore && !flush_all) begin
                 lv[e]  <= 1'b1;
             end else begin
                 lv[e]  <= lv[e] && keep;
             end
         end
         always_ff @(posedge clk) begin
-            if ((a0 || a1) && !restore && !flush_all) begin
+            if (a && !restore && !flush_all) begin
                 lst[e]    <= L_IDLE;
-                lrob[e]   <= a1 ? disp_rob[1] : disp_rob[0];
-                // the stores there now (but the one leaving), and the store
-                // of slot 0 for a load in slot 1
-                lold[e]   <= (sv & ~s_free) | ((a1 && s_new[0]) ? s_onehot0 : '0);
+                lrob[e]   <= disp_rob[au];
+                // the stores there now (but the one leaving), and the stores
+                // of the slots before it
+                lold[e]   <= (sv & ~s_free) | s_bef[au];
                 lretry[e] <= 1'b0;
                 lcan[e]   <= 1'b0;
             end else begin
@@ -599,34 +616,40 @@ module OOO_LSU
 
     // ---- SQ entries
     for (genvar i = 0; i < NSQ; i++) begin : g_sq
-        logic a0, a1, keep;
-        assign a0   = s_new[0] && sq_tail[SW-1:0] == SW'(i);
-        assign a1   = s_new[1] && st1[SW-1:0] == SW'(i);
+        logic a, keep;
+        logic [$clog2(ND)-1:0] au;             // the slot that takes it
+        logic [NSQ-1:0]        snow;           // the entries the slots take now
+        always @(*) begin
+            a = 1'b0; au = '0; snow = '0;
+            for (int u = 0; u < ND; u++) begin
+                if (s_new[u] && spos[u][SW-1:0] == SW'(i)) begin a = 1'b1; au = $clog2(ND)'(u); end
+                if (s_new[u]) snow = snow | (NSQ'(1) << spos[u][SW-1:0]);
+            end
+        end
         assign keep = s_in(sq_head_n, sq_tail_n, SW'(i));
         always_ff @(posedge clk or negedge rst_n) begin
             if (!rst_n) begin
                 sv[i]  <= 1'b0;
-            end else if ((a0 || a1) && !restore && !flush_all) begin
+            end else if (a && !restore && !flush_all) begin
                 sv[i]  <= 1'b1;
             end else begin
                 sv[i]  <= sv[i] && keep;
             end
         end
         // the age matrix: a new entry is younger than every entry there, and
-        // the store of slot 1 younger than the one of slot 0
+        // the stores of later slots younger than it
         always_ff @(posedge clk) begin
             for (int j = 0; j < NSQ; j++) begin
-                if ((a0 || a1) && !restore && !flush_all)
-                    syoung[i][j] <= a0 && s_new[1] && st1[SW-1:0] == SW'(j);
-                else if (((s_new[0] && sq_tail[SW-1:0] == SW'(j)) || (s_new[1] && st1[SW-1:0] == SW'(j))) &&
-                         !restore && !flush_all)
+                if (a && !restore && !flush_all)
+                    syoung[i][j] <= s_aft[au][j];
+                else if (snow[j] && !restore && !flush_all)
                     syoung[i][j] <= 1'b1;
             end
         end
         always_ff @(posedge clk) begin
-            if ((a0 || a1) && !restore && !flush_all) begin
+            if (a && !restore && !flush_all) begin
                 sknown[i] <= 1'b0;
-                srob[i]   <= a1 ? disp_rob[1] : disp_rob[0];
+                srob[i]   <= disp_rob[au];
             end else if (e_st_w && iss_sq == SW'(i) && !e_mis) begin
                 sknown[i] <= 1'b1;
                 swa[i]    <= e_sum[PAW-1:3];

@@ -89,22 +89,22 @@ module OOO_CPU
 `endif
 `ifdef OOO_TRACE
         ,
-        output logic [1:0]                  tr_valid,
-        output logic [1:0][VA-1:1]          tr_pc,
-        output logic [1:0][31:0]            tr_insn,
-        output logic [1:0]                  tr_pair,
-        output logic [1:0][31:0]            tr_insn2,
-        output logic [1:0]                  tr_wr,
-        output logic [1:0][4:0]             tr_rd,
-        output logic [1:0][63:0]            tr_val,
+        output logic [3:0]                  tr_valid,
+        output logic [3:0][VA-1:1]          tr_pc,
+        output logic [3:0][31:0]            tr_insn,
+        output logic [3:0]                  tr_pair,
+        output logic [3:0][31:0]            tr_insn2,
+        output logic [3:0]                  tr_wr,
+        output logic [3:0][4:0]             tr_rd,
+        output logic [3:0][63:0]            tr_val,
         output logic                        tr_trap,
         output logic                        tr_int,
         output logic [4:0]                  tr_cause,
         output logic [VA-1:1]               tr_trap_pc,
-        output logic [1:0]                  tr_st,
-        output logic [1:0][63:0]            tr_st_addr,
-        output logic [1:0][63:0]            tr_st_data,
-        output logic [1:0][1:0]             tr_st_size
+        output logic [3:0]                  tr_st,
+        output logic [3:0][63:0]            tr_st_addr,
+        output logic [3:0][63:0]            tr_st_data,
+        output logic [3:0][1:0]             tr_st_size
 `endif
     );
 

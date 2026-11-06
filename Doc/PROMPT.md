@@ -7566,3 +7566,41 @@ The last work was done and pushed (c273d9b; 0 Ref on origin/dev), with nothing u
 ```text
 Yes, on to C
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**Before C, I put in C0: the core's `OOO_IQ` replaced by the unified queue `OOO_IQ2` (24 entries, the 2-ALU-port form), pushed (dcf5580; 0 Ref on origin/dev).**
+
+#### Why C0
+Today's `OOO_IQ` takes only 2 writes a cycle. Widening dispatch to 4 with it would make the queue the narrowest point and gain nothing. `OOO_IQ2` takes 4 writes and gaps from the start, so it went in first, still 2 wide.
+
+The number of ALU ports (`NA`) and port 5 (`P5`) are parameters. The core runs it with 2 ALU ports and no port 5, with the same port assignment as `OOO_IQ`. The bench passes both forms.
+
+#### Results
+
+| CoreMark, no misses | RTL cycles | Model /MHz |
+|---|---|---|
+| B (queue 10) | 1,805,278 | 5.839 |
+| **C0 (queue 24)** | **1,777,906 (−1.52 %)** | **5.980 (+2.4 %)** |
+
+- **Regression:** `run_core.sh` 12 runs with 0 failures, `run_coremark.sh` PASS.
+- **Bug injection:** all 97 detected. "Both taken when only µop 0 goes", out of reach at B, is detected again: with the larger queue, 11 checkpoints open.
+
+#### Against the model
+The RTL gained 0.9 % less than the model. Replays in the run without misses went from 215 to 522: more loads go ahead and meet partly overlapping stores. Not examined yet; after C I compare cycles by function.
+
+#### Found on the way
+When A widened things, the unused core signal `lsu_st_known` stayed 8 bits (no effect on behavior). The core build turns width warnings off, so it went unnoticed. From now on the core is linted with `-Wall` at each piece too.
+
+#### Next step
+C makes dispatch and commit 4: the ROB 4 writes and 4 commits, with `OOO_CTRL`, the LSU's dispatch, the trap unit and the lock-step trace widened to 4. It is the largest piece so far. When C is done I will ask for a Vivado run of `OOO_CPU` at 20 ns.
+
+The record is section 29.18 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 185. 2026-11-06 14:48:09 JST
+
+```text
+Yes, on to C
+```

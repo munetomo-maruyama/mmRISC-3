@@ -189,7 +189,7 @@ static bool run(const Opts& o, const std::string& elf)
 #endif
         d->eval();
         // the commit trace
-        TraceSlot s[2];
+        TraceSlot s[4];
         int n = 0;
         if (d->tr_trap) {
             s[0] = TraceSlot{};
@@ -199,7 +199,7 @@ static bool run(const Opts& o, const std::string& elf)
             if ((s[0].insn[0] & 3) != 3) s[0].insn[0] &= 0xffff;
             n = 1;
         } else {
-            for (int k = 0; k < 2; k++) {
+            for (int k = 0; k < 4; k++) {
                 if (!((d->tr_valid >> k) & 1)) continue;
                 TraceSlot& t = s[n++];
                 t = TraceSlot{};

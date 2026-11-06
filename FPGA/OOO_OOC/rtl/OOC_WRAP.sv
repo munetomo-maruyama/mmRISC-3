@@ -237,7 +237,8 @@ module OOC_LSU
             dc_st_ready, lq_commit, sq_commit, restore, kill, restore_lq_tail, restore_sq_tail, flush_all} = q;
 
     // out
-    logic [1:0]   lq_avail, sq_avail;
+    /* verilator lint_off UNUSEDSIGNAL */ logic [2:0]       sq_avail; /* verilator lint_on UNUSEDSIGNAL */   // (the unit's port; the harness keeps [1:0] of it)
+    /* verilator lint_off UNUSEDSIGNAL */ logic [2:0]       lq_avail; /* verilator lint_on UNUSEDSIGNAL */   // (the unit's port; the harness keeps [1:0] of it)
     logic [5:0]   disp_lq, disp_sq;
     logic [7:0]   ck_lq_tail, ck_sq_tail;
     logic [7:0]   st_known, dc_kill;
@@ -268,11 +269,11 @@ module OOC_LSU
          .ld_cancel(ld_cancel), .ld_cancel_tag(ld_cancel_tag),
          .cmp_ld_valid(cmp_ld_valid), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_exc), .cmp_ld_rp(cmp_ld_rp),
          .cmp_st_valid(cmp_st_valid), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_exc),
-         .lq_commit(lq_commit), .sq_commit(sq_commit),
+         .lq_commit({1'b0, lq_commit}), .sq_commit({1'b0, sq_commit}),
          .restore(restore), .kill(kill), .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all(flush_all));
 
     always_ff @(posedge clk)
-        out <= {sq_drained, lq_avail, sq_avail, disp_lq, disp_sq, ck_lq_tail, ck_sq_tail, st_known, dc_kill,
+        out <= {sq_drained, lq_avail[1:0], sq_avail[1:0], disp_lq, disp_sq, ck_lq_tail, ck_sq_tail, st_known, dc_kill,
                 dc_req_valid, dc_req_addr, dc_req_tag, dc_fill_ready, dc_st_valid, dc_st_addr,
                 dc_st_data, dc_st_mask, wb_valid, wb_late, wb_tag, wb_data, ld_cancel, ld_cancel_tag,
                 cmp_ld_valid, cmp_ld_rob, cmp_ld_exc, cmp_ld_rp, cmp_st_valid, cmp_st_rob, cmp_st_exc};
@@ -292,7 +293,7 @@ module OOC_ROB
     );
     logic [218:0] q;
     always_ff @(posedge clk) q <= in;
-    logic [1:0] rob_avail;
+    /* verilator lint_off UNUSEDSIGNAL */ logic [2:0]       rob_avail; /* verilator lint_on UNUSEDSIGNAL */   // (the unit's port; the harness keeps [1:0] of it)
     logic [9:0] disp_rob;
     logic restore;
     logic [4:0] restore_rob;
@@ -305,9 +306,9 @@ module OOC_ROB
     logic [11:0] cmt_new;
     logic [11:0] cmt_old;
     logic [75:0] cmt_pc;
-    logic [1:0] cmt_ld_n;
-    logic [1:0] cmt_st_n;
-    logic [2:0] cmt_instret;
+    /* verilator lint_off UNUSEDSIGNAL */ logic [2:0]       cmt_ld_n; /* verilator lint_on UNUSEDSIGNAL */   // (the unit's port; the harness keeps [1:0] of it)
+    /* verilator lint_off UNUSEDSIGNAL */ logic [2:0]       cmt_st_n; /* verilator lint_on UNUSEDSIGNAL */   // (the unit's port; the harness keeps [1:0] of it)
+    /* verilator lint_off UNUSEDSIGNAL */ logic [3:0]       cmt_instret; /* verilator lint_on UNUSEDSIGNAL */   // (the unit's port; the harness keeps [2:0] of it)
     logic trap;
     logic [4:0] trap_cause;
     logic [37:0] trap_pc;
@@ -331,7 +332,7 @@ module OOC_ROB
          .replay(replay), .replay_pc(replay_pc), .rcv_ftq(rcv_ftq), .rcv_end(rcv_end),
          .irq(q[218]), .head_valid(head_valid), .head_fused(head_fused));
     always_ff @(posedge clk)
-        out <= {rob_avail, disp_rob, restore, restore_rob, restore_ckpt, head_rob, head_ns, cmt_valid, cmt_wr, cmt_arch, cmt_new, cmt_old, cmt_pc, cmt_ld_n, cmt_st_n, cmt_instret, trap, trap_cause, trap_pc, replay, replay_pc, cmt_ftq, rcv_ftq, rcv_end, head_valid, head_fused};
+        out <= {rob_avail[1:0], disp_rob, restore, restore_rob, restore_ckpt, head_rob, head_ns, cmt_valid, cmt_wr, cmt_arch, cmt_new, cmt_old, cmt_pc, cmt_ld_n[1:0], cmt_st_n[1:0], cmt_instret[2:0], trap, trap_cause, trap_pc, replay, replay_pc, cmt_ftq, rcv_ftq, rcv_end, head_valid, head_fused};
 endmodule : OOC_ROB
 
 //---------------------------------------------------------------------------
@@ -599,7 +600,8 @@ module OOC_LSUDC
             awready, wready, bresp, bvalid, arready, rdata, rresp, rlast, rvalid} = q;
 
     // LSU core side, out
-    logic [1:0]       lq_avail, sq_avail;
+    /* verilator lint_off UNUSEDSIGNAL */ logic [2:0]       sq_avail; /* verilator lint_on UNUSEDSIGNAL */   // (the unit's port; the harness keeps [1:0] of it)
+    /* verilator lint_off UNUSEDSIGNAL */ logic [2:0]       lq_avail; /* verilator lint_on UNUSEDSIGNAL */   // (the unit's port; the harness keeps [1:0] of it)
     logic [1:0][2:0]  disp_lq, disp_sq;
     logic [1:0][3:0]  ck_lq_tail, ck_sq_tail;
     logic [7:0]       st_known;
@@ -647,7 +649,7 @@ module OOC_LSUDC
          .ld_cancel(ld_cancel), .ld_cancel_tag(ld_cancel_tag),
          .cmp_ld_valid(cmp_ld_valid), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_exc), .cmp_ld_rp(cmp_ld_rp),
          .cmp_st_valid(cmp_st_valid), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_exc),
-         .lq_commit(lq_commit), .sq_commit(sq_commit),
+         .lq_commit({1'b0, lq_commit}), .sq_commit({1'b0, sq_commit}),
          .restore(restore), .kill(kill), .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail),
          .flush_all(flush_all));
 
@@ -687,7 +689,7 @@ module OOC_LSUDC
          .ev_miss(), .ev_vic_copy());
 
     always_ff @(posedge clk)
-        out <= {sq_drained, fl_take, fl_done, lq_avail, sq_avail, disp_lq, disp_sq, ck_lq_tail, ck_sq_tail, st_known,
+        out <= {sq_drained, fl_take, fl_done, lq_avail[1:0], sq_avail[1:0], disp_lq, disp_sq, ck_lq_tail, ck_sq_tail, st_known,
                 wb_valid, wb_late, wb_tag, wb_data, ld_cancel, ld_cancel_tag,
                 cmp_ld_valid, cmp_ld_rob, cmp_ld_exc, cmp_ld_rp, cmp_st_valid, cmp_st_rob, cmp_st_exc,
                 awid, awaddr, awlen, awsize, awburst, awvalid, wdata, wstrb, wlast, wvalid, bready,
@@ -724,7 +726,9 @@ module OOC_CTRL
     logic [1:0]       r_go, ds_valid, d_go;
     logic [1:0][5:0]  d_bmask;
     logic             flush_all, restore, restore_port, ns_busy, fe_redirect, fe_flush, ns_ok, ds_load;
-    logic [1:0]       free_valid, lq_commit, sq_commit, ftq_pop;
+    logic [1:0]       free_valid, ftq_pop;
+    /* verilator lint_off UNUSEDSIGNAL */ logic [2:0]       sq_commit; /* verilator lint_on UNUSEDSIGNAL */   // (the unit's port; the harness keeps [1:0] of it)
+    /* verilator lint_off UNUSEDSIGNAL */ logic [2:0]       lq_commit; /* verilator lint_on UNUSEDSIGNAL */   // (the unit's port; the harness keeps [1:0] of it)
     logic [1:0][5:0]  free_tag;
     logic [2:0]       restore_id, restore_ftq;
     logic [3:0]       restore_lq_tail, restore_sq_tail;
@@ -734,13 +738,13 @@ module OOC_CTRL
         (.clk(clk), .rst_n(rst_n),
          .r_valid(r_valid), .r_ckpt(r_ckpt), .r_ckpt_id(r_ckpt_id), .r_ren_ready(r_ren_ready), .r_go(r_go),
          .ds_valid(ds_valid), .ds_load(ds_load), .ds_ld(ds_ld), .ds_st(ds_st), .ds_ftq(ds_ftq),
-         .rob_avail(rob_avail), .iq_avail(iq_avail), .lq_avail(lq_avail), .sq_avail(sq_avail),
+         .rob_avail({1'b0, rob_avail}), .iq_avail({1'b0, iq_avail}), .lq_avail({1'b0, lq_avail}), .sq_avail({1'b0, sq_avail}),
          .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail), .d_go(d_go), .d_bmask(d_bmask),
          .br_valid(br_valid), .br_mispred(br_mispred), .br_ckpt(br_ckpt), .br_next(br_next),
          .cl_valid(cl_valid), .cl_ckpt(cl_ckpt),
          .rob_restore(rob_restore), .rob_restore_ckpt(rob_restore_ckpt), .trap(trap), .replay(replay),
          .replay_pc(replay_pc), .trap_vec(trap_vec), .head_ns(head_ns), .cmt_valid(cmt_valid), .cmt_wr(cmt_wr),
-         .cmt_old(cmt_old), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_ftq(cmt_ftq), .iss_ns(iss_ns), .ns_ok(ns_ok), .ns_busy(ns_busy),
+         .cmt_old(cmt_old), .cmt_ld_n({1'b0, cmt_ld_n}), .cmt_st_n({1'b0, cmt_st_n}), .cmt_ftq(cmt_ftq), .iss_ns(iss_ns), .ns_ok(ns_ok), .ns_busy(ns_busy),
          .fe_flush(fe_flush),
          .flush_all(flush_all), .restore(restore), .restore_id(restore_id), .restore_port(restore_port), .restore_lq_tail(restore_lq_tail),
          .restore_sq_tail(restore_sq_tail), .restore_ftq(restore_ftq), .kill(kill), .clr(clr),
@@ -748,8 +752,8 @@ module OOC_CTRL
          .lq_commit(lq_commit), .sq_commit(sq_commit), .ftq_pop(ftq_pop));
     always_ff @(posedge clk)
         out <= {ns_busy, r_go, ds_valid, ds_load, d_go, d_bmask, flush_all, restore, restore_port, restore_id, restore_lq_tail, restore_sq_tail,
-                restore_ftq, kill, clr, fe_redirect, fe_pc, live, ns_ok, fe_flush, free_valid, free_tag, lq_commit,
-                sq_commit, ftq_pop};
+                restore_ftq, kill, clr, fe_redirect, fe_pc, live, ns_ok, fe_flush, free_valid, free_tag, lq_commit[1:0],
+                sq_commit[1:0], ftq_pop};
 endmodule : OOC_CTRL
 
 //---------------------------------------------------------------------------
@@ -896,7 +900,7 @@ module OOC_TRAP
     logic no_fuse;
     assign {rob_trap, rob_cause, rob_pc, head_valid, head_fused, head_rob, rob_replay, rob_replay_pc, cmt_instret, restore, restore_rob, ns_busy, flush_all, x_ret, x_sret, tv_valid, tv_rob, tv_val, irq_pend, irq_cause, tvec, mepc, sepc} = q;
     OOO_TRAP #(.VA(39), .NROB(24), .ROBW(5), .NTV(3)) u_trap
-        (.rob_trap(rob_trap), .rob_cause(rob_cause), .rob_pc(rob_pc), .head_valid(head_valid), .head_fused(head_fused), .head_rob(head_rob), .rob_replay(rob_replay), .rob_replay_pc(rob_replay_pc), .cmt_instret(cmt_instret), .restore(restore), .restore_rob(restore_rob), .ns_busy(ns_busy), .flush_all(flush_all), .x_ret(x_ret), .x_sret(x_sret), .tv_valid(tv_valid), .tv_rob(tv_rob), .tv_val(tv_val), .irq_pend(irq_pend), .irq_cause(irq_cause), .tvec(tvec), .mepc(mepc), .sepc(sepc), .irq(irq), .take(take), .vec(vec), .rp_pc(rp_pc), .csr_trap(csr_trap), .csr_epc(csr_epc), .csr_int(csr_int), .csr_cause(csr_cause), .csr_tval(csr_tval), .csr_mret(csr_mret), .csr_sret(csr_sret), .no_fuse(no_fuse), .clk(clk), .rst_n(rst_n));
+        (.rob_trap(rob_trap), .rob_cause(rob_cause), .rob_pc(rob_pc), .head_valid(head_valid), .head_fused(head_fused), .head_rob(head_rob), .rob_replay(rob_replay), .rob_replay_pc(rob_replay_pc), .cmt_instret({1'b0, cmt_instret}), .restore(restore), .restore_rob(restore_rob), .ns_busy(ns_busy), .flush_all(flush_all), .x_ret(x_ret), .x_sret(x_sret), .tv_valid(tv_valid), .tv_rob(tv_rob), .tv_val(tv_val), .irq_pend(irq_pend), .irq_cause(irq_cause), .tvec(tvec), .mepc(mepc), .sepc(sepc), .irq(irq), .take(take), .vec(vec), .rp_pc(rp_pc), .csr_trap(csr_trap), .csr_epc(csr_epc), .csr_int(csr_int), .csr_cause(csr_cause), .csr_tval(csr_tval), .csr_mret(csr_mret), .csr_sret(csr_sret), .no_fuse(no_fuse), .clk(clk), .rst_n(rst_n));
     always_ff @(posedge clk) out <= {irq, take, vec, rp_pc, csr_trap, csr_epc, csr_int, csr_cause, csr_tval, csr_mret, csr_sret, no_fuse};
 endmodule : OOC_TRAP
 
