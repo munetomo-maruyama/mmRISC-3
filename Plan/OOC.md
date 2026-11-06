@@ -4427,3 +4427,23 @@ Model: `g14-o2-zbsc`, the core-check base plus `rob=48 lq=16 sq=16 ckpt=12 iq=24
 **Also**: `synth_ooo.tcl` and `yosys_size.sh` read `OOO_IQPL2`. The harnesses of the 100 MHz era that hold these units (`OOC_LSU`, `OOC_ROB`, `OOC_LSUDC`, `OOC_CTRL`, `OOC_TRAP`) keep their inputs and outputs: the counts that grew a bit are padded with 0 going in and cut going out (`verilator -Wall`: no width warning left on their lines).
 
 **Next**: the Vivado run of `OOO_CPU` at 20 ns (by the author), then D: 4 ALU ports, `OOO_EXU2`, the register file of 6 writes and 11 reads.
+
+### 29.20 Step 1.2, C: `OOO_CPU` at 20 ns, and the tval chain (2026-11-06)
+
+**The run** (by the author, Vivado 2025.1, `synth_ooo.bat OOO_CPU`, 20 ns; `FPGA/OOO_OOC/output/OOO_CPU`). The last run of `OOO_CPU` was the core of Rev.02 (27.9); A to C lie between.
+
+| `OOO_CPU`, after place and route | Rev.02 core (27.9) | C |
+|---|---|---|
+| LUTs | 36,445 | **55,164** (50,252 logic + 4,912 LUT RAM) |
+| FF (after synthesis) | 18,013 | 21,652 |
+| WNS, register to register | +0.159 ns, 25 levels | **−14.114 ns, 44 levels** |
+
+The blocks that grew: `OOO_ROB` 3,717 → 8,643; the queue 1,545 (`OOO_IQ`) → 6,154 (`OOO_IQ2`); `OOO_LSU` 3,361 → 6,029; `OOO_CTRL` 220 → 2,117; rename 2,148 (`OOO_RENAME` + `OOO_DSREG`) → 3,527 (`OOO_RENAME2` + `OOO_BUSY`); `OOO_PRF` 2,220 → 3,616; the payload 453 → 909.
+
+**The worst paths.** All 100 reported end at `OOO_TRAP`'s tval registers (`tv_d`, `tv_r`, `tv_v`). From the ROB's tail, about 8 ns and 10 levels reach the dispatch decision (`disp_go`, which makes a dispatch slot's report valid). Then the oldest report was chosen one port after another: each step a distance from the head (modulo 48: a compare, a subtraction) against the winner so far, about 6 ns a port. C made the ports 6 (4 dispatch slots, port 2, port 0) and the dispatch decision later.
+
+**The fix** (`OOO_TRAP`): every report's distance from the head at once; each report compared with every other in pairs and with the one kept; the winner written by a one-hot choice. The choice is the same as before: the oldest; at the same place, the later port; a report at the place of the one kept replaces it. `tb_trap`: 400,000 cycles, 7,635 traps with mtval checked, PASS. The trap campaign: 15, all detected (M273 to M276 set on the new lines; M1108 new: of one cycle's reports, a later port's younger one). `run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS, its cycles unchanged. 14 lines of `results/core.txt` changed cycles, all short tests with traps or branches: the runs start from random values (`+verilator+rand+reset+2`), and the flip-flops changed shift the values drawn. From zeros (`+rand+reset+0`), the old and the new `OOO_TRAP` give the same cycles on every file of `b2`, `b3`, `b4`. `verilator -Wall` on the core: nothing new.
+
+**Behind the tval.** The run's lines by block show what comes next (the worst path into or out of each block's flip-flops, without the tval): into `OOO_ROB` −5.95 ns (28 levels, from its tail); the D$ to the ROB's exception bits −5.62 ns (29 levels); ALU 0's EX to the CSRs' `hpm_sel` −4.64 ns; the wakeup into `OOO_IQ2` −4.33 ns; into `OOO_PRF` −4.01 ns (from the ROB's tail). With the tval fixed, about −6 ns is to be expected: about 26 ns, not 20. Many of these start at the ROB's tail, the dispatch decision.
+
+**Next**: a second run of `OOO_CPU` at 20 ns (by the author) shows the paths behind the tval ones. Proposed: cut those before D, as each piece adds paths of its own (the loops of `Doc/STRATEGY.md` 4.5 were measured alone, without the dispatch around them).

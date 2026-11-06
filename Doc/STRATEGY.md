@@ -210,7 +210,7 @@ All stay in the tree with their benches.
 | 1.3 | **D**: `OOO_IQ2`, its payload, `OOO_EXU2`, 4 ALUs, the register file: they go together, as the queue's ports are the units' | Tests; cycles against the model |
 | 1.4 | **E**: `OOO_LSU3`, `OOO_DCH2`, the miss logic: the second LSU port | Tests; cycles against the model |
 | 1.5 | **F**: `OOO_FDEC2`, `OOO_FBUF3`, `OOO_UBTB2`, the I$ of 32 bytes, 6 decoded, the decoded queue, TAGE M | Tests; cycles against the model |
-| 1.6 | Timing at every step at 20 ns: `OOO_CPU` out of context | Slack and LUTs reported |
+| 1.6 | Timing at every step at 20 ns: `OOO_CPU` out of context. **C (2026-11-06)**: −14.114 ns, 55,164 LUTs; the worst, the tval choice, made parallel (`Plan/OOC.md` 29.20) | Slack and LUTs reported |
 | 1.7 | The real I$, L2; CoreMark on `OOO_CPU` | **Gate S1-B**: RTL `-O2` ≥ 8.0 with real caches, 50 MHz, tests and bug injection clean |
 | 1.8 | Interrupts, MMU (Sv39), FPU, debug, PMU; arch tests for F / D / S; Linux on the simulator | **Gate S1-C**: Linux prompt in simulation |
 

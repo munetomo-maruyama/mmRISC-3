@@ -131,27 +131,43 @@ module OOO_TRAP
         csr_sret  = rob_replay && x_pend && x_s;
     end
 
-    // the oldest tval: a report older than (or at) the one kept replaces it
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            tv_v <= 1'b0;
-        end else begin
-            logic            v;
-            logic [ROBW-1:0] r;
-            logic [63:0]     dv;
-            v = tv_v; r = tv_r; dv = tv_d;
-            if (flush_all || take) v = 1'b0;
-            else if (restore && v && rdist(r, head_rob) > rdist(restore_rob, head_rob)) v = 1'b0;
-            for (int k = 0; k < NTV; k++)
-                if (tv_valid[k] && !flush_all &&
-                    !(restore && rdist(tv_rob[k], head_rob) > rdist(restore_rob, head_rob)) &&
-                    (!v || rdist(tv_rob[k], head_rob) <= rdist(r, head_rob))) begin
-                    v = 1'b1; r = tv_rob[k]; dv = tv_val[k];
-                end
-            tv_v <= v;
-            tv_r <= r;
-            tv_d <= dv;
+    // the oldest tval: a report older than (or at) the one kept replaces it;
+    // of one cycle's reports, the oldest (the later port at the same place).
+    // All distances from the head at once and the reports compared in pairs:
+    // taken one port after another, the 6 ports of C made a chain of 44 logic
+    // levels (Plan/OOC.md 29.20)
+    logic [ROBW-1:0] dk [NTV];          // each report's distance from the head
+    logic [NTV-1:0]  ok;                // a report that counts
+    logic [NTV-1:0]  win;               // ... and is the one kept next
+    logic            kv;                // the one kept stays
+    always @(*) begin
+        automatic logic [ROBW-1:0] dr  = rdist(tv_r, head_rob);
+        automatic logic [ROBW-1:0] drs = rdist(restore_rob, head_rob);
+        kv = tv_v;
+        if (flush_all || take) kv = 1'b0;
+        else if (restore && kv && dr > drs) kv = 1'b0;
+        for (int k = 0; k < NTV; k++) begin
+            dk[k] = rdist(tv_rob[k], head_rob);
+            ok[k] = tv_valid[k] && !flush_all && !(restore && dk[k] > drs);
         end
+        for (int k = 0; k < NTV; k++) begin
+            win[k] = ok[k] && (!kv || dk[k] <= dr);
+            for (int j = 0; j < k; j++)
+                if (ok[j] && dk[j] < dk[k]) win[k] = 1'b0;
+            for (int j = k + 1; j < NTV; j++)
+                if (ok[j] && dk[j] <= dk[k]) win[k] = 1'b0;
+        end
+    end
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) tv_v <= 1'b0;
+        else        tv_v <= kv || ok != '0;
+    end
+    always_ff @(posedge clk) begin
+        for (int k = 0; k < NTV; k++)
+            if (win[k]) begin
+                tv_r <= tv_rob[k];
+                tv_d <= tv_val[k];
+            end
     end
 
     always_ff @(posedge clk or negedge rst_n) begin

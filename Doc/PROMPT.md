@@ -7604,3 +7604,52 @@ The record is section 29.18 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 Yes, on to C
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**Step 1.2's C (dispatch and commit of 4) is done and pushed (e77e09d; 0 Ref on origin/dev).** The core renames, dispatches and commits 4 µops a cycle. The 2 ALU ports and the 1 LSU port stay as they are; D and E widen them.
+
+#### What changed
+- **D2:** it takes up to 4 µops, one instruction each, from the rotated group. `OOO_FUSE` is out of the core: it makes 2 µops out of 4 slots, so with 4 µops a group there is nothing left for it to pair (ALU + branch pairing has been off since 5.21).
+- **`OOO_ROB`, `OOO_CTRL`, `OOO_LSU`:** their width is the parameter `ND` (2 or 4).
+  - The ROB has `ND` banks; it writes 4 and commits 4.
+  - Control stops a group where its checkpoints would exceed 2 (`OOO_RENAME2` takes no more).
+  - The LSU treats stores in earlier slots as older than a load.
+- **`OOO_IQPL2` (new):** the payload of `OOO_IQ2`. The queue puts one cycle's µops in different banks, so each bank is a LUT RAM with one write, and no live-value table is needed.
+- **Trap and trace:** 6 tval inputs; the commit trace and `tb_core` have 4 slots.
+
+#### Results
+
+| CoreMark, no misses | RTL cycles | Model /MHz |
+|---|---|---|
+| C0 (2 wide) | 1,777,906 | 5.980 |
+| **C (4 wide)** | **1,680,878 (−5.46 %)** | **6.350 (cycles −5.84 %)** |
+
+- **Against the model:** the RTL gains only 0.4 % less than the model, down from 0.9 % at C0.
+- **Real D$:** `OOO_CPU` too gains −5.04 %.
+- **Regression:** `run_core.sh` 12 runs with 0 failures, `run_coremark.sh` PASS.
+- **Lint:** the core passes `-Wall` with only the warnings already there at C0.
+- **Bug injection:** 95 in the changed units and 100 in the core, all detected.
+  - The rewrite had moved the targets of 23 and 19 mutations; I checked all of them before the run and put them on the new lines.
+  - New mutations cover slots 2 and 3.
+  - "Both taken when only µop 0 goes", out of reach at B, is detected too.
+
+#### Not done yet
+At C0 I said I would compare cycles by function after C. Not done: after D, with 4 ALU ports, it tells more, so I do it then.
+
+#### Request
+Before D, please run this on the Windows side (20 ns by default; results in `output\OOO_CPU`):
+```bash
+synth_ooo.bat OOO_CPU
+```
+`synth_ooo.tcl` now includes the new `OOO_IQPL2`.
+
+The record is section 29.19 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 186. 2026-11-06 17:24:57 JST
+
+```text
+OOO_CPU finished.
+```
