@@ -294,6 +294,7 @@ int main(int argc, char** argv)
         // the completion comes in M with the register-file write (Plan/CORE.md 5.14); the checks below
         // take last cycle's, which goes with the result register now
         if (d.cmp_ld_valid && !d.cmp_ld_exc && !d.rf_valid) FAIL("a load completion without the register-file write");
+        if (d.rf_valid && !d.rf_we) FAIL("a register-file write without its enable");
         if (d.cmp_ld_valid && d.cmp_ld_exc && d.rf_valid) FAIL("a load exception with a register-file write");
         Cmp cq = cmp_q; cmp_q = Cmp{(bool)d.cmp_ld_valid, (int)d.cmp_ld_rob, (bool)d.cmp_ld_exc, (bool)d.cmp_ld_rp};
         if (cq.v) {

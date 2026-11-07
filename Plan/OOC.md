@@ -4595,3 +4595,33 @@ Issues per port in that run: ALU0 847,607, ALU1 162,472, ALU2 486,962, ALU3 997,
 `run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS. `tb_alu2`, `tb_alu1`, `tb_alum`, `tb_dec` (its reference: the new classes): PASS. **Bug injection.** The unit campaign on the ALUs and the decoder: 50, all detected (3 set on the new lines: sh*add without the shift, min sent to ALU1..3, czero.nez kept off them; new: auipc or a branch sent to ALU1..3, and `MID` without sll, czero or .uw). The core: 105, all detected (7 set on the lines D rewrote; new: ALU3's result not forwarded, ALU3's results not written). `verilator -Wall` on the core: nothing new (`OOO_DEC`'s operation names left unused by its new set are gone).
 
 **Next**: the comparison by function against the model (the 2.9 %, the replays); `OOO_CPU` at 20 ns.
+
+### 29.28 Step 1.2, D: `OOO_CPU` at 20 ns, −0.640 ns; three writes and reports not waiting (2026-11-07)
+
+**The run** (by the author, D of 29.27): **66,949 LUTs** after place and route (57,461 logic + 9,488 LUT RAM; +12.2k against 29.26), 22,539 FF after synthesis; **WNS −0.640 ns, 22 levels**. Of the growth, `OOO_PRF` 3.6k → 9.6k (5 writes and 10 reads at 80 registers), `OOO_IQPL2` 0.9k → 1.4k.
+
+**What is below 0:**
+
+1. The ROB's head to `OOO_PRF`'s live value table, −0.640 ns, 22 levels, 83 % routing: `live()` and `restore_k`, the kill, the MDU's `h_kill`, its result's acknowledge (`res_valid`), port 0's write (`md_w`), the write enable, the table's choice among 5 writes (MUXF7, MUXF8).
+2. ALU 0's EX to `OOO_TRAP`'s tval, −0.377 ns, 20 levels: the CSRs' illegal check to the CSR unit's tval report (29.25's third, left then at −0.043 ns).
+3. The D$ to `OOO_PRF`'s write enable of the LSU's bank, −0.213 ns, 25 levels: the hit, the LSU's `m_ok`, `rf_valid`.
+4. Within 0.13 ns of 0: the fetch buffer (−0.127 ns), renaming (−0.102 ns), the payload (−0.009 ns).
+
+**The cuts:**
+
+- **The register file's write of port 0 does not wait on the kill** (`OOO_MDUP`'s new `res_we`: a result done and the slot free, killed or not; `OOO_CORE`'s `wbw0`). A killed µop's register is written with its value: harmless, as its tag is not given out again in that cycle and no consumer of it lives. The WB register, the completion and the wakeup still take `res_valid`.
+- **The LSU's write of the register file does not wait on the hit** (`OOO_LSU`'s new `rf_we`: any load in M, or a fill). A wrong value goes to the load's own register; what read it on the guess replays (`ld_cancel`, D-12), and the right value comes with the fill. The result register (the bypass) still takes `rf_valid`.
+- **A CSR µop completes, and reports its tval, a cycle after EX**, through a register and a completion port of its own (`NCMP` 11). It runs at the ROB head alone (`ns_busy`), so a cycle a CSR instruction; its report never meets the system unit's on their shared port.
+
+| CoreMark | 29.27 | Now |
+|---|---|---|
+| `g14-o2-zbsc`, no misses | 1,572,276 | 1,570,475 (−0.11 %) |
+| `g14-sflto-zbsc`, no misses | 1,534,443 | 1,534,517 (+0.00 %) |
+| `g13-o2-zb`, no misses | 1,647,883 | 1,644,240 (−0.22 %) |
+| `g14-o2-zbsc`, `OOO_CPU`, the real D$ | 1,580,884 | 1,572,482 (−0.53 %) |
+
+The CSR's late completion costs nothing measurable here; the rest moves where a kill or a miss meets a write.
+
+`tb_mdup` (`res_we`: never without `res_valid`, never while the slot is taken), `tb_lsu` (`rf_we` with every `rf_valid`): PASS. `run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS. **Bug injection.** The unit campaign on the MDU and the LSU: 46, all detected (new: M1124 the MDU's write while the slot is taken, M1125 none with a result, M1126 a fill without the enable). The core: 109, all detected (8 set on the lines this rewrote; new: a CSR µop never completes, an illegal CSR access without its exception, the MDU's results not written, a CSR µop completing in EX too). `verilator -Wall` on the core: nothing new.
+
+**Next**: `OOO_CPU` at 20 ns again (by the author).

@@ -147,6 +147,8 @@ module OOO_LSU
 
         // results
         output logic                        rf_valid,     // the register-file write: what WB takes now (Plan/CORE.md 4.2)
+        output logic                        rf_we,        // ... its enable: any load in M, right or not (a wrong value goes
+                                                          // to its own register, and what read it replays: Plan/OOC.md 29.28)
         output logic [TAGW-1:0]             rf_tag,
         output logic [63:0]                 rf_data,
         output logic                        wb_valid,     // the result register (the bypass of the cycle after)
@@ -454,6 +456,7 @@ module OOO_LSU
 
     // ---- WB: one write a cycle, M first, then a fill; the completion with it
     assign rf_valid = m_ok || f_v;
+    assign rf_we    = m_v || f_v;
     assign cmp_ld_valid = m_ok || m_exc || f_v;
     assign cmp_ld_rob   = m_v ? lrob[m_lq] : lrob[f_e];
     assign cmp_ld_exc   = m_v && m_exc;

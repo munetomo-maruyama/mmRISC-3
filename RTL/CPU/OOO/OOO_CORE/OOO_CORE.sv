@@ -538,7 +538,7 @@ module OOO_CORE
     // the ROB
     // completion: 0 port 0's EX, 1 port 1's EX, 2 the LSU's loads, 3 its stores, 4 port 0's multiplier and
     // MDU (their results), 5 the system unit, 6 / 7 the mispredicted branches of ports 0 / 1 with their restore
-    localparam int NCMP = NAP + 6;
+    localparam int NCMP = NAP + 7;
     logic [NCMP-1:0]           cmp_valid, cmp_exc, cmp_rp;
     logic [NCMP-1:0][ROBW-1:0] cmp_rob;
     logic [NCMP-1:0][4:0]      cmp_cause;
@@ -705,6 +705,7 @@ module OOO_CORE
     end
     logic [NAP-1:0]            ex_v;
     logic                      pm_w, md_w;     // port 0's multiplier / MDU result written (below)
+    logic                      md_wr, wbw0;    // the MDU's register-file write (also when killed now), port 0's
     ex_t  [NAP-1:0]            ex;
     logic [NAP-1:0][63:0]      ex_res;
     /* verilator lint_off UNUSEDSIGNAL */      // (ALU1..3: no branch; port 0's units read port 0's operands)
@@ -830,10 +831,10 @@ module OOO_CORE
             // multiplier's and the MDU's results, below); completion in EX, but of what an MDU or the system
             // unit completes later, and of a branch or jalr: through the resolution's register, a cycle later
             // (below, Plan/OOC.md 29.25)
-            prf_we[p]     = wbi_v[p];
+            prf_we[p]     = p == 0 ? wbw0 : wbi_v[p];
             prf_wa[p]     = wbi_t[p];
             prf_wd[p]     = wbi_d[p];
-            cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS && !isbr;
+            cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS && ex[p].rec.kind != K_CSR && !isbr;
             cmp_rob[p]    = ex[p].rec.rob;
         end
         assign ex_bms[p] = ex_bm;
@@ -906,7 +907,7 @@ module OOO_CORE
          .x_sret(x_sret), .wfi_wake(wfi_wake), .cmp_valid(sys_cv), .cmp_rob(sys_rob), .cmp_rp(sys_rp),
          .cmp_exc(sys_exc), .tv_valid(sys_tv_v), .tv_rob(sys_tv_rob), .tv_val(sys_tv));
 
-    logic            pm_v, md_v;
+    logic            pm_v, md_v, md_we;
     logic [TAGW-1:0] pm_t, md_t;
     logic [63:0]     pm_d, md_d;
     logic [ROBW-1:0] pm_rob, md_rob;
@@ -917,7 +918,7 @@ module OOO_CORE
          .res_valid(pm_v), .res_tag(pm_t), .res_data(pm_d), .res_rob(pm_rob));
     OOO_MDUP #(.ROBW(ROBW), .TAGW(TAGW), .NCK(NCKPT)) u_mdup
         (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr),
-         .iss_md(iss_md), .iss_bm(iss_bm[0]), .mdu_ok(mdu_ok), .p0_hold(p0_hold),
+         .iss_md(iss_md), .iss_bm(iss_bm[0]), .mdu_ok(mdu_ok), .p0_hold(p0_hold), .res_we(md_we),
          .ex_valid(x_mdu), .ex_op(ex[0].rec.xop), .ex_word(ex[0].rec.word_op), .ex_a(ex_a[0]), .ex_b(ex_b[0]),
          .ex_rob(ex[0].rec.rob), .ex_dst(ex[0].dst), .ex_bm(ex_bms[0]), .slot_busy(x_wv || pm_v),   // (pm: the completion port they share)
          .res_valid(md_v), .res_tag(md_t), .res_data(md_d), .res_rob(md_rob), .ext_valid(md_ext_v), .ext_tag(md_ext_t));
@@ -928,10 +929,14 @@ module OOO_CORE
     // forwarded
     assign pm_w = pm_v && pm_t != '0;
     assign md_w = md_v && md_t != '0;
+    // the register file's write from port 0 does not wait on the kill (Plan/OOC.md 29.28): the MDU's raw
+    // write, which implies no latency-1 writer (slot_busy), so the choice below can take it too
+    assign md_wr = md_we && md_t != '0;
+    assign wbw0  = md_wr || x_wv;
     always @(*) begin
         wbi_v[0] = md_w || x_wv;
-        wbi_t[0] = md_w ? md_t : ex[0].dst;
-        wbi_d[0] = md_w ? md_d : (ex[0].rec.kind == K_CSR ? csr_res : ex_res[0]);
+        wbi_t[0] = md_wr ? md_t : ex[0].dst;
+        wbi_d[0] = md_wr ? md_d : (ex[0].rec.kind == K_CSR ? csr_res : ex_res[0]);
         wbi_v[1] = pm_w || (ex_v[1] && ex[1].wr);
         wbi_t[1] = pm_w ? pm_t : ex[1].dst;
         wbi_d[1] = pm_w ? pm_d : ex_res[1];
@@ -988,6 +993,9 @@ module OOO_CORE
     logic [TAGW-1:0] ld_cancel_tag;
     /* verilator lint_on UNUSEDSIGNAL */
     logic            cmp_ld_v, cmp_ld_e, cmp_ld_rp, cmp_st_v, cmp_st_e;
+    /* verilator lint_off UNUSEDSIGNAL */      // (the trace's: the PRF takes rf_we)
+    logic            lsu_rf_v;
+    /* verilator lint_on UNUSEDSIGNAL */
     logic [ROBW-1:0] cmp_ld_rob, cmp_st_rob;
     OOO_LSU #(.NLQ(16), .NSQ(16), .PAW(PAW), .TAGW(TAGW), .ROBW(ROBW), .NCK(NCKPT), .ND(ND)) u_lsu
         (.clk(clk), .rst_n(rst_n),
@@ -1001,7 +1009,7 @@ module OOO_CORE
          .dc_rdata(dc_rdata), .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),
          .dc_fill_ready(dc_fill_ready), .dc_kill(dc_kill), .sq_drained(sq_drained), .dc_st_valid(dc_st_valid),
          .dc_st_addr(dc_st_addr), .dc_st_data(dc_st_data), .dc_st_mask(dc_st_mask), .dc_st_ready(dc_st_ready),
-         .rf_valid(prf_we[NAP]), .rf_tag(prf_wa[NAP]), .rf_data(prf_wd[NAP]),
+         .rf_valid(lsu_rf_v), .rf_we(prf_we[NAP]), .rf_tag(prf_wa[NAP]), .rf_data(prf_wd[NAP]),
          .wb_valid(lsu_wb_v), .wb_late(lsu_wb_late), .wb_tag(lsu_wb_t), .wb_data(lsu_wb_d),
          .ld_cancel(ld_cancel), .ld_cancel_tag(ld_cancel_tag),
          .cmp_ld_valid(cmp_ld_v), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_e), .cmp_ld_rp(cmp_ld_rp),
@@ -1027,13 +1035,34 @@ module OOO_CORE
         ld_ce   <= cmp_ld_e;
         ld_crp  <= cmp_ld_rp;
     end
-    always @(*) begin
-        cmp_exc   = {2'b00, sys_exc, 1'b0, cmp_st_e, ld_ce, (NAP - 1)'(0), x_csr && csr_exc};
-        cmp_rp    = {2'b00, sys_rp, 1'b0, 1'b0, ld_crp, (NAP - 1)'(0), x_csr && csr_rp};
-        cmp_cause = {5'd0, 5'd0, 5'd2, 5'd0, 5'd6, 5'd4, (5 * (NAP - 1))'(0), 5'd2};
+    // A CSR µop completes, and reports its tval, a cycle after EX too: its illegal check lay on the 4-wide core's
+    // paths (Plan/OOC.md 29.28). It runs at the ROB head alone, so this costs a cycle a CSR instruction
+    logic            csr_cv, csr_ce, csr_crp, csr_tvq;
+    logic [ROBW-1:0] csr_crob, csr_tvq_rob;
+    logic [63:0]     csr_tvq_val;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            csr_cv  <= 1'b0;
+            csr_tvq <= 1'b0;
+        end else begin
+            csr_cv  <= x_csr;
+            csr_tvq <= csr_tv_v;
+        end
     end
-    assign cmp_valid[NCMP-1:NAP] = {br_valid, sys_cv, pm_v || md_v, cmp_st_v, ld_cv};
-    assign cmp_rob[NCMP-1:NAP]   = {br_rob, sys_rob, pm_v ? pm_rob : md_rob, cmp_st_rob, ld_crob};
+    always_ff @(posedge clk) begin
+        csr_crob    <= ex[0].rec.rob;
+        csr_ce      <= csr_exc;
+        csr_crp     <= csr_rp;
+        csr_tvq_rob <= csr_tv_rob;
+        csr_tvq_val <= csr_tv;
+    end
+    always @(*) begin
+        cmp_exc   = {csr_ce, 2'b00, sys_exc, 1'b0, cmp_st_e, ld_ce, (NAP)'(0)};
+        cmp_rp    = {csr_crp, 2'b00, sys_rp, 1'b0, 1'b0, ld_crp, (NAP)'(0)};
+        cmp_cause = {5'd2, 5'd0, 5'd0, 5'd2, 5'd0, 5'd6, 5'd4, (5 * NAP)'(0)};
+    end
+    assign cmp_valid[NCMP-1:NAP] = {csr_cv, br_valid, sys_cv, pm_v || md_v, cmp_st_v, ld_cv};
+    assign cmp_rob[NCMP-1:NAP]   = {csr_crob, br_rob, sys_rob, pm_v ? pm_rob : md_rob, cmp_st_rob, ld_crob};
 
     // tval: a misaligned access of port 2 (its address), the CSR unit or the system unit (one at a time at the head)
     always @(*) begin
@@ -1044,9 +1073,9 @@ module OOO_CORE
         tv_valid[ND]     = p2_ex_v && mis;
         tv_rob[ND]       = p2.rec.rob;
         tv_val[ND]       = ea;
-        tv_valid[ND + 1] = csr_tv_v || sys_tv_v;
-        tv_rob[ND + 1]   = sys_tv_v ? sys_tv_rob : csr_tv_rob;
-        tv_val[ND + 1]   = sys_tv_v ? sys_tv : csr_tv;
+        tv_valid[ND + 1] = csr_tvq || sys_tv_v;                // (the CSR's a cycle late: never with the system unit's,
+        tv_rob[ND + 1]   = sys_tv_v ? sys_tv_rob : csr_tvq_rob;  //  as both run at the ROB head and complete first)
+        tv_val[ND + 1]   = sys_tv_v ? sys_tv : csr_tvq_val;
     end
 
     // an indirect jump (a jalr not a return) writes the BTB: port 0's first
@@ -1123,7 +1152,7 @@ module OOO_CORE
             sh_st[disp_rob[j]]    <= 1'b0;
         end
         for (int p = 0; p < NAP; p++) if (ex_v[p] && ex[p].wr) sh_val[ex[p].rec.rob] <= ex_res[p];
-        if (cmp_ld_v && prf_we[NAP]) sh_val[cmp_ld_rob] <= prf_wd[NAP];               // a load's value with its completion (M)
+        if (cmp_ld_v && lsu_rf_v) sh_val[cmp_ld_rob] <= prf_wd[NAP];               // a load's value with its completion (M)
         if (pm_v) sh_val[pm_rob] <= pm_d;                                         // the multiplier's and the MDU's
         if (md_v) sh_val[md_rob] <= md_d;
         if (x_csr) sh_val[ex[0].rec.rob] <= csr_res;                              // a CSR µop's old value

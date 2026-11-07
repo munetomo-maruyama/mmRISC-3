@@ -144,7 +144,10 @@ int main(int argc, char** argv)
         d.ex_op = ex.o.op; d.ex_word = ex.o.w; d.ex_a = ex.o.a; d.ex_b = ex.o.b; d.ex_rob = ex.o.rob; d.ex_dst = ex.o.tag; d.ex_bm = ex.o.bm;
         d.eval();
 
-        // ---- what is written now
+        // ---- what is written now (res_we: the register file's write, also of a µop killed now; never without res_valid
+        // unless it was killed or flushed, never while the slot is taken)
+        if (d.res_valid && !d.res_we) FAIL("a result without the register file's write");
+        if (d.res_we && slot) FAIL("the register file's write while the slot is taken");
         if (d.res_valid) {
             Op* f = nullptr; for (auto& o : ops) if (!o.done && !o.dead && o.tag == (int)d.res_tag) { f = &o; break; }
             if (!f) FAIL("a write of tag %d with no MDU µop waiting for it", (int)d.res_tag);

@@ -7941,3 +7941,50 @@ D is 4 ALU ports, `OOO_EXU2`, a register file of 6 writes and 11 reads, `OOO_IQ2
 ```text
 Yes, start D
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**Step 1.2's D (4 ALU ports) is done and pushed (e00808d; 0 Ref on origin/dev).** CoreMark cycles fell 6.70 %. The model, though, predicts 9.6 %, so 2.9 % is still missing. Timing at 20 ns is not measured yet either.
+
+#### Where I departed from the plan (2)
+- **µops that branch, jump or use the pc go to ALU0 only.** They are branches, jal, jalr and auipc.
+  - So branch resolution (ROB, CTRL, FERS, predictor training) and the pc array's reads all stay 2 ports wide.
+  - Measured with a new model option `br_p`, the cost is at most 0.1 % (7.034 → 7.026).
+- **`OOO_EXU2` is not used as it is.** I widened to 4 the core's own port circuits, checked through A to C and meeting 20 ns. EXU2's approach (choosing the bypass in RR) is kept for when timing falls short.
+
+#### ALU1..3's operations
+In the first form, ALU1..3 were the old ALU1 (add/sub, slt and logic only). Shifts and the rest then piled onto ALU0, and cycles went **up 1.8 %** (ALU0 issued in 75 % of all cycles). So OOO_ALU got a middle configuration `MID`.
+- **ALU1..3 (`MID`):** adds shifts, Zba, andn/orn/xnor, sext/zext and czero.
+- **ALU0 only:** counts, rotates, min/max, Zbs, bext, orc.b, rev8.
+
+| CoreMark, no misses | RTL cycles | Model |
+|---|---|---|
+| C (meeting 20 ns) | 1,685,110 | 6.350 |
+| **D** | **1,572,276 (−6.70 %)** | **7.026 (cycles −9.6 %)** |
+
+- **Issues per port:** ALU0 848k, ALU1 162k, ALU2 487k, ALU3 998k, LSU 714k.
+- **Replays:** 922, up from C's 484.
+- **Real D$ (`OOO_CPU`):** −7.2 %.
+
+#### A fault found on the way
+With 2 ALU ports as a check, the core hung on its first store. It read the LSU's issue from the queue's port `NAP` instead of port 4. At NAP=4 the two coincided, so D's behavior is not affected. Now it reads port 4 whatever NAP is.
+
+#### Checks
+- **Unit:** the ALU benches (including the new `tb_alum`) and the decoder bench PASS.
+- **Regression:** `run_core.sh` 12 runs with 0 failures; CoreMark PASS.
+- **Bug injection:** 50 in the units and 105 in the core, all detected.
+- **Lint:** no new warnings in the core's `-Wall`.
+
+#### Next options
+1. **A Vivado run:** `OOO_CPU` at 20 ns. D added read ports and bypass inputs, so I would check this first.
+2. **Comparison by function:** look into the 2.9 % gap to the model and the rise in replays by comparing with the model function by function. It has been "after D" since C, and it can run alongside the Windows-side run.
+
+The record is section 29.27 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.3.
+<!-- /answer -->
+
+## 195. 2026-11-07 15:25:58 JST
+
+```text
+CPU_OOO finished.
+```

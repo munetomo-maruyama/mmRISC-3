@@ -59,6 +59,8 @@ module OOO_MDUP
 
         // into port 0's write-back register at the end of this cycle
         output logic                res_valid,
+        output logic                res_we,     // ... the register file's write: also of a µop killed now (harmless:
+                                                // its tag is not given out again in the cycle; Plan/OOC.md 29.28)
         output logic [TAGW-1:0]     res_tag,
         output logic [63:0]         res_data,
         output logic [ROBW-1:0]     res_rob,    // its completion
@@ -82,6 +84,7 @@ module OOO_MDUP
         h_kill    = h_v && (flush || (h_bm & kill) != '0);
         ack       = h_v && done && !h_kill && !slot_busy;
         res_valid = ack;
+        res_we    = h_v && done && !slot_busy;
         res_tag   = h_dst;
         res_data  = result;
         res_rob   = h_rob;
