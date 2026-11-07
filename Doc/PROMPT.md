@@ -8191,3 +8191,44 @@ The record is section 29.32 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 Go to E1b
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**E1b (what is not cacheable) is done and pushed (52c9374; 0 Ref on origin/dev).** AMO/LR/SC are not done yet; I propose splitting them off as E1c.
+
+#### What changed (`OOO_LSU3`, `OOO_CORE`, `tb_core`)
+- **The check:** outside the cacheable range `[CBASE, CTOP)` (today 0x8000_0000 to 0xFFFF_FFFF), and the one line `uc_line` names (the simulation's tohost), is not cacheable.
+- **Loads:** once a load is known to be for what is not cacheable, it does not use the D$'s or the SQ's value and waits. When it is the ROB head and the SQ is empty, it goes to read the device through a port of its own. The answer's value goes through M once more to become its result.
+- **Stores:** at the end of the drain, written to the device instead of the D$.
+- **Device accesses:** one at a time (port `dc_uc_*`).
+- **Test bench:** a new `UcModel`. tohost is not cacheable now, and E1's fix of "take out the line once the SQ is empty" is gone.
+
+| CoreMark | E1 | E1b |
+|---|---|---|
+| g14-o2 | 1,537,421 | 1,536,572 |
+| g14-sflto | 1,449,754 | 1,447,730 |
+
+The console's 502 characters became 502 device writes and 502 device reads. D$ line fills also fell from 578 to 75, as E1's fix filled tohost's line again at every character.
+
+#### Checks
+- **Unit:** `tb_lsu3` passes as before with the whole space cacheable (its pages include 0x80_8000_0000). The path for what is not cacheable is checked by the core's lock-step.
+- **Regression:** `OOO_CORE`'s 8 runs all with 0 failures; CoreMark PASS.
+- **Lint:** no new warnings.
+- **Bug injection:** 114 of 119 detected in the core. Of the 7 added on the path for what is not cacheable, 3 went undetected (the value taken from the D$/SQ, reading before older stores, reading before being the head).
+  - The bench has no device but tohost (plain memory), so reading early gives the same value.
+  - Catching them needs a device whose value changes when read (a counter, say) and tests that read it.
+  - The 2 left from E1 (a divide result to x0 forwarded, `rob_insn` of slots 2 and 3) are still not reached by the tests either.
+
+#### Not yet done
+- **AMO/LR/SC:** the decoder classes them as non-speculative µops of the LSU, but nothing executes them. A-extension tests (rv64ua) are not in the regression either. CoreMark does not need them and Linux (step 1.8) does, so I propose adding them as E1c, before or after E2, or together with the MMU.
+- **`OOO_CPU`:** stays out until E2 (the miss handling) is built.
+
+The record is section 29.33 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.4.
+<!-- /answer -->
+
+## 201. 2026-11-08 03:05:18 JST
+
+```text
+Go to E2
+```

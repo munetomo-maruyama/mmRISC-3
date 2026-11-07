@@ -4740,3 +4740,36 @@ The console's 502 characters: 502 device writes and 502 device reads (the poll o
 - 29.32's two (a divide to x0 forwarded, `rob_insn` of slots 2 and 3): still not reached.
 
 **Next**: E1c (AMO, LR, SC) or E2 (`OOO_CPU`'s miss handler); and the directed programs (29.32's two faults no longer reached, and a device whose reads change it).
+
+### 29.34 Step 1.3, E2: `OOO_DMISS`, the D$ written through; `OOO_CPU` back (2026-11-08)
+
+**A choice first: the D$ is written through.** `OOO_LSU3`'s arrays have no read for a victim's words (each copy's read port is a load port's), so a line evicted dirty could not be written back without a third read. So every store the D$ takes goes on to memory too: `OOO_LSU3`'s new `wt_*` (the 8-byte word, its data and strobes, as the drain writes the D$; `wt_ready` holds the store in the drain). A line evicted has nothing to write back, FENCE.I has nothing to flush, and a fill only waits for the writes before it to reach memory. (29.31 called the D$ write-back; it is not, for now. Write-back stays possible, with a read of the victim and a dirty bit per line, if the bus's traffic asks for it.)
+
+**`OOO_DMISS`** (new, `RTL/CPU/OOO/OOO_DMISS`), `OOO_LSU3`'s miss handler on the D$'s AXI4 and AXI4-Lite:
+
+- **A line** asked for (a load's, with its id; a store's): a queue of 4, a line asked twice once, an ask into a full queue dropped (the asker asks again at the next event, a fill's end among them). When every write before it has its answer: a free way, else one at random but the set's last written (`dirty_set`); its tag invalid; a burst of 8 beats, each word into the arrays (`rf_*`); the tag valid; `fill_done` (and `done_v` for a load). A line there already (asked again meanwhile) is answered at once. The tags are kept here as written.
+- **The writes**: a queue of 8; one beat each; the address, the data and the answers go on apart, so several are out at once (the answers in order). With them one at a time (AW, W, B), CoreMark took 1,731,329 cycles on `OOO_CPU`, 12.6 % above `OOO_CORE` with the bench's model: the queue filled and held the drain. Apart: 1,539,579.
+- **A device** (`uc_*`): one beat on AXI4-Lite when the writes are out.
+- **FENCE.I** (`fl_*`): taken at once, done when the writes are out.
+
+**`OOO_CPU`**: `OOO_CORE` and `OOO_DMISS`, in place of `OOO_DCAD` and mmRISC-2's `DCACHE`; `sim_uc_line` is `OOO_LSU3`'s `uc_line`. Its 4 runs in `run_core.sh` and its run in `run_coremark.sh` are back (`CPU=0` leaves them out). `tb_core` on `OOO_CORE`: Memory takes each store from `dc_wt_*` (ready 80 % of the cycles), not at commit. `tb_lsu3`: `wt_ready` 80 %. `synth_ooo.tcl` reads `OOO_DMISS`.
+
+| CoreMark, no misses | D (29.28) | `OOO_CORE`, E2 | `OOO_CPU`, E2 |
+|---|---|---|---|
+| `g14-o2-zbsc` | 1,570,475 (`OOO_CPU` 1,572,482) | 1,537,367 | 1,539,579 (−2.1 %) |
+| `g14-sflto-zbsc` | 1,534,517 | 1,448,830 | 1,454,803 |
+| `g13-o2-zb` | 1,644,240 | 1,604,291 | 1,605,602 |
+
+On `OOO_CPU`: 75 line reads, 147,234 one-beat writes, 502 device reads and writes.
+
+`run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS (4). `tb_lsu3` PASS. `verilator -Wall` on `OOO_DMISS`, `OOO_LSU3`, the core and `OOO_CPU`: nothing new.
+
+**The bench, made harder by the campaign**: `Axi4Mem` holds the writes off for 20 to 50 cycles now and then ("FENCE.I done before the writes are in memory" was not detected before it), and after the exit `tb_core` runs 3,000 cycles more and compares the memory the D$ wrote through with the program's (`Bench::arch`, the committed stores; HTIF's lines aside): a write lost now shows ("a write taken into a full queue" was not detected before it). The first form of that check found nothing to drain: the loop ended at the exit; fixed. With the stalls, `OOO_CPU`'s CoreMark is 1,541,084 / 1,458,490 / 1,607,994.
+
+**Bug injection, the core** (`mutate_core.py` runs `OOO_DMISS`'s on `OOO_CPU`): 126, 120 detected. `OOO_DMISS`: 7, 6 detected (a load's miss never filled, the victim's tag valid while replaced, all strobes on, FENCE.I early, every word to the line's first, a write into a full queue). Not detected, each read:
+- "`OOO_DMISS`: a fill before the writes are in memory": a line written, evicted and filled again while its writes wait: not reached; with the directed programs.
+- 29.32's two and 29.33's three: as there.
+
+`run_core.sh` (with the check): 0 failures in all 12 runs; `run_coremark.sh` PASS.
+
+**Next**: `OOO_CPU` at 20 ns (by the author): E1 to E2 put the D$'s arrays and its search in the core. Then E1c (AMO, LR, SC) and the directed programs.

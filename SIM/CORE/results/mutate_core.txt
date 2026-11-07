@@ -104,17 +104,24 @@
 103 DETECTED      uncached: a store for a device lost while another access is out
 104 DETECTED      uncached: two accesses to devices at once
 105 DETECTED      uncached: the device's word never taken
-106 DETECTED      LSU0: a try takes the address left in EX
-107 DETECTED      LSU: a load takes the store after it as older
-108 DETECTED      LSU: a restore takes the LQ's tail of the group's start
-109 DETECTED      a CSR µop never completes
-110 DETECTED      an illegal CSR access completes without its exception
-111 DETECTED      register file: the MDU's results not written
-112 DETECTED      a CSR µop completes in EX too (twice: the late one may hit the next µop)
-113 DETECTED      bypass: ALU3's result not forwarded
-114 DETECTED      register file: ALU3's results not written
-115 DETECTED      a branch resolved as predicted never completes
-116 DETECTED      a load's exception a cycle before its completion
-117 DETECTED      CSR: an illegal access's tval 0
-118 DETECTED      CSR: fcsr with mstatus.FS off not illegal
-119 mutations, 114 detected
+106 DETECTED      OOO_DMISS: a load's miss never filled
+107 DETECTED      OOO_DMISS: the victim's tag valid while its words are replaced
+108 NOT DETECTED  OOO_DMISS: a fill before the writes are in memory
+109 DETECTED      OOO_DMISS: a write's strobes all on
+110 DETECTED      OOO_DMISS: FENCE.I done before the writes are in memory
+111 DETECTED      OOO_DMISS: every word of a fill to the line's first
+112 DETECTED      OOO_DMISS: a write taken into a full queue
+113 DETECTED      LSU0: a try takes the address left in EX
+114 DETECTED      LSU: a load takes the store after it as older
+115 DETECTED      LSU: a restore takes the LQ's tail of the group's start
+116 DETECTED      a CSR µop never completes
+117 DETECTED      an illegal CSR access completes without its exception
+118 DETECTED      register file: the MDU's results not written
+119 DETECTED      a CSR µop completes in EX too (twice: the late one may hit the next µop)
+120 DETECTED      bypass: ALU3's result not forwarded
+121 DETECTED      register file: ALU3's results not written
+122 DETECTED      a branch resolved as predicted never completes
+123 DETECTED      a load's exception a cycle before its completion
+124 DETECTED      CSR: an illegal access's tval 0
+125 DETECTED      CSR: fcsr with mstatus.FS off not illegal
+126 mutations, 120 detected

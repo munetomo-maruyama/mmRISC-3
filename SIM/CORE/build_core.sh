@@ -19,7 +19,7 @@ S=${SPIKE:-$HOME/RISCV/toolchain/spike-install}
 CA=$(cd ../../RTL/CPU/CACHE && pwd)
 if [ "$1" = cpu ]; then
     TOP=OOO_CPU; O=${OBJ:-$HERE/obj/cpu}; DEF="+define+DCACHE_SIM_UC"; CDEF="-DCPU_TOP"
-    XSRC="$R/OOO_DCAD/OOO_DCAD.sv $CA/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv $CA/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv $CA/DCACHE/DCACHE.sv $R/OOO_CPU/OOO_CPU.sv"
+    XSRC="$R/OOO_DMISS/OOO_DMISS.sv $R/OOO_CPU/OOO_CPU.sv"
 else
     TOP=OOO_CORE; O=${OBJ:-$HERE/obj/core}; DEF=""; CDEF=""; XSRC=""
 fi

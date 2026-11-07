@@ -24,8 +24,8 @@
 #---------------------------------------------------------------------------
 cd "$(dirname "$0")"
 ./build_core.sh || exit 1
-# OOO_CPU waits for its D$ miss handler (step 1.3 E2, Plan/OOC.md 29.32): its 4 runs are off until then
-CPU=${CPU:-0}
+# OOO_CPU with OOO_DMISS (step 1.3 E2, Plan/OOC.md 29.34); CPU=0 leaves its 4 runs out
+CPU=${CPU:-1}
 [ "$CPU" = 1 ] && { ./build_core.sh cpu || exit 1; }
 b2/build.sh 20 || exit 1
 b3/build.sh || exit 1

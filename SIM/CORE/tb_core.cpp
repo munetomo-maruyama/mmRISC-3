@@ -46,6 +46,7 @@ typedef VOOO_CORE___024root TopRoot;
 #include "bench.h"
 #include "ports.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <map>
@@ -142,6 +143,8 @@ static bool run(const Opts& o, const std::string& elf)
     DMissModel dm(b.mem(), o.seed * 13 + 5, o.dhit >= 100 ? 0 : 12);     // (-dhit 100: fills at once, else up to 12 cycles late)
     uint64_t tohost_line = b.symbol("tohost") >> 6;
     UcModel uc(b.mem(), o.seed * 19 + 7);                                   // (HTIF's tohost: not cached, step 1.3 E1b)
+    std::mt19937_64 wt_rng(o.seed * 23 + 11);
+    bool wt_rdy = true;
 #endif
     std::unique_ptr<Top> d(new Top);
 #ifdef CPU_TOP
@@ -169,11 +172,15 @@ static bool run(const Opts& o, const std::string& elf)
     for (int i = 0; i < 80; i++) d->rootp->CORE(u_prf__DOT__lvt)[i] = 0;
     long restores = 0, replays = 0;
     bool res_bad = false;
+    // after the exit: 3,000 cycles more for the SQ and the writes to drain, then the memory the D$ wrote through must be
+    // the program's (Bench::arch: the committed stores) but for HTIF's lines (step 1.3 E2, Plan/OOC.md 29.34)
+    long drain_left = -1;
+    bool continue_clock = false;
     // CORE_BYPC=<file>: the cycles between commits by the pc of the last instruction committed (Plan/model's
     // OOO_BYPC, for the comparison by function, Plan/OOC.md 29.30); one program a run
     std::map<uint64_t, long> bypc;
     long bypc_last = -1;
-    for (uint64_t cyc = 0; !b.done(); cyc++) {
+    for (uint64_t cyc = 0; !b.done() || drain_left > 0; cyc++) {
         d->boot = cyc == 2;
         d->boot_pc = b.entry() >> 1;
         d->ic_req_ready = ic.ready();
@@ -197,6 +204,7 @@ static bool run(const Opts& o, const std::string& elf)
             d->dc_rf_en = q.rf_en; d->dc_rf_way = q.rf_way; d->dc_rf_addr = q.rf_addr; d->dc_rf_data = q.rf_data;
             d->dc_uc_line_v = 1; d->dc_uc_line = tohost_line;
             d->dc_uc_done = uc.done(); d->dc_uc_rdata = uc.rdata();
+            d->dc_wt_ready = wt_rdy;
         }
         d->fl_take = 1; d->fl_done = flq_q;
 #endif
@@ -261,18 +269,14 @@ static bool run(const Opts& o, const std::string& elf)
         int mid = d->dc_miss_id, dway = d->dc_dirty_way, didx = d->dc_dirty_idx;
         bool ucr = d->dc_uc_req, ucw = d->dc_uc_we;
         uint64_t uca = d->dc_uc_addr, ucd = d->dc_uc_wdata; uint8_t ucm = d->dc_uc_wmask;
-        // Memory takes the stores as they commit (the D$ writes back: Memory is what is written through, DMissModel);
-        // a store for a device reaches Memory through UcModel instead
-        for (int k = 0; k < n; k++)
-            if (!s[k].trap && s[k].st[0].v && (s[k].st[0].addr >> 6) != tohost_line) {
-                const TraceStore& t = s[k].st[0];
-                unsigned off = (unsigned)(t.addr & 7);
-                uint8_t mask = (uint8_t)(((1u << t.size) - 1) << off);
-                b.mem().write64(t.addr & ~7ull, t.data << (8 * off), mask);
-            }
+        // Memory takes each store as the D$ takes it (written through, step 1.3 E2: dc_wt_*, ready 80 % of the
+        // cycles); a store for a device reaches Memory through UcModel
+        if (d->dc_wt_valid) b.mem().write64(d->dc_wt_addr, d->dc_wt_data, d->dc_wt_mask);
 #endif
-        if (!b.commit(s, n)) break;
-        if (!b.tick()) break;
+        if (drain_left < 0) {
+            if (!b.commit(s, n)) { if (b.passed()) { drain_left = 3000; continue_clock = true; } else break; }
+            else if (!b.tick()) break;
+        } else if (--drain_left == 0) break;
         d->clk = 1; d->eval(); d->clk = 0; d->eval();
         icf_q = icf && !icf_q;
 #ifndef CPU_TOP
@@ -285,7 +289,28 @@ static bool run(const Opts& o, const std::string& elf)
 #else
         dm.clock(mv, ml, mid, smv, sml, dset, dway, didx, sqd);
         uc.clock(ucr, ucw, uca, ucd, ucm);
+        wt_rdy = wt_rng() % 5 != 0;
 #endif
+    }
+    if (continue_clock && b.passed()) {
+        uint64_t th = b.symbol("tohost") >> 6, fh = b.symbol("fromhost") >> 6;
+        std::vector<uint64_t> pgs = b.mem().pages(), pa = b.arch().pages();
+        pgs.insert(pgs.end(), pa.begin(), pa.end());
+        std::sort(pgs.begin(), pgs.end());
+        pgs.erase(std::unique(pgs.begin(), pgs.end()), pgs.end());
+        for (uint64_t pg : pgs) {
+            for (uint64_t w = pg; w < pg + Memory::PAGE; w += 8) {
+                if ((w >> 6) == th || (w >> 6) == fh) continue;
+                uint64_t x = b.mem().read64(w), y = b.arch().read64(w);
+                if (x != y) {
+                    std::printf("the memory written through: %llx is %016llx, the program's %016llx\n",
+                                (unsigned long long)w, (unsigned long long)x, (unsigned long long)y);
+                    res_bad = true;
+                    break;
+                }
+            }
+            if (res_bad) break;
+        }
     }
     std::string name = elf.substr(elf.rfind('/') + 1);
     std::printf("%s\n", b.summary(name).c_str());

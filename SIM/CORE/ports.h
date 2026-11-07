@@ -25,7 +25,8 @@
 //   Axi4Mem      the D$'s memory bus (AXI4, OOO_CPU, B3b) on Memory: read and
 //                write bursts (INCR, 8-byte beats), the readies, the read
 //                data's first beat and the write responses after random
-//                delays; reads in order, writes in order. Writes go into
+//                delays, and now and then the writes held off for 20 to 50
+//                cycles; reads in order, writes in order. Writes go into
 //                Memory beat by beat (write64: HTIF sees them).
 //   AxiLite      the D$'s peripheral bus (AXI4-Lite) on Memory: single
 //                8-byte accesses, for what the D$ does not cache (the
@@ -199,8 +200,11 @@ public:
     Axi4Mem(Memory& m, uint64_t seed) : m(m), rng(seed) {}
     // the inputs of this cycle (call once, before the core's evaluation)
     void drive() {
-        arready = rng() % 4 != 0; awready = rng() % 4 != 0;
-        wready  = !wq.empty() && rng() % 4 != 0;
+        // now and then the writes stall for 20 to 50 cycles (step 1.3 E2: the write queue fills, and what must wait
+        // for the writes to reach Memory is seen to)
+        if (stall == 0 && rng() % 300 == 0) stall = 20 + (int)(rng() % 31);
+        arready = rng() % 4 != 0; awready = stall == 0 && rng() % 4 != 0;
+        wready  = stall == 0 && !wq.empty() && rng() % 4 != 0;
         rvalid  = !rq.empty() && rq.front().at <= cyc && rng() % 5 != 0;
         bvalid  = !bq.empty() && bq.front().at <= cyc && rng() % 3 != 0;
         rdata   = rvalid ? m.read64(rq.front().addr + 8 * rq.front().beat) : 0;
@@ -221,6 +225,7 @@ public:
         if (bvalid && bready) bq.pop_front();
         if (arvalid && arready) { rq.push_back(Burst{araddr, arlen, 0, cyc + 3 + (long)(rng() % 14)}); reads++; }
         if (awvalid && awready) { wq.push_back(Burst{awaddr, awlen, 0, 0}); writes++; }
+        if (stall > 0) stall--;
         cyc++;
     }
     long reads = 0, writes = 0;
@@ -230,6 +235,7 @@ private:
     std::mt19937_64 rng;
     std::deque<Burst> rq, wq, bq;
     long cyc = 0;
+    int stall = 0;
 };
 
 class AxiLite {

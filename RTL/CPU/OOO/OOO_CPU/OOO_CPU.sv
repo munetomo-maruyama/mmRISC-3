@@ -1,20 +1,16 @@
 //---------------------------------------------------------------------------
 // OOO_CPU.sv
 //
-// The core with its D$ (Plan/CORE.md 1, B3): OOO_CORE, OOO_DCAD (the
-// adapter from the LSU's abstract port to mmRISC-2's D$) and DCACHE, with
-// the D$'s memory bus (AXI4) and its peripheral bus (AXI4-Lite: below
-// MEM_BASE, nothing cached) as ports. The I$ is still a port (a model in
-// the test bench, Plan/CORE.md 4.6), with FENCE.I's invalidate; FENCE.I's
-// FLUSH of the D$ (OOO_SYS, B4) goes to OOO_DCAD.
+// The core with its D$ (Plan/CORE.md 1, B3; step 1.3 E2, Plan/OOC.md 29.34): OOO_CORE,
+// whose OOO_LSU3 has the D$'s arrays, and OOO_DMISS, its miss handler, with the D$'s
+// memory bus (AXI4) and its peripheral bus (AXI4-Lite: what is not cacheable) as
+// ports. The D$ is written through. The I$ is still a port (a model in the test bench,
+// Plan/CORE.md 4.6), with FENCE.I's invalidate; FENCE.I's FLUSH of the D$ (OOO_SYS)
+// goes to OOO_DMISS, which waits for its writes.
 //
-// The LSU's dc_kill is not used: OOO_DCAD drops the older answers of an LQ
-// entry when the entry sends a new request (OOO_LSU's header).
-//
-// Simulation (DCACHE_SIM_UC): sim_uc_line names one line the D$ does not
-// cache, passed to the peripheral bus like an access below MEM_BASE: the
-// test bench's tohost, which HTIF must see in the memory and set back to 0
-// there (Plan/CORE.md 5.1 rule 2).
+// Simulation (DCACHE_SIM_UC): sim_uc_line names one line not cached (OOO_LSU3's
+// uc_line): the test bench's tohost, which HTIF must see in the memory and set back to
+// 0 there (Plan/CORE.md 5.1 rule 2).
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -108,24 +104,41 @@ module OOO_CPU
 `endif
     );
 
-    logic             dc_req_valid, dc_hit, dc_fill_valid, dc_fill_ready, dc_st_valid, dc_st_ready;
-    logic [PAW-1:0]   dc_req_addr, dc_st_addr;
-    logic [3:0]       dc_req_tag, dc_fill_tag;
-    logic [63:0]      dc_rdata, dc_fill_data, dc_st_data;
-    logic [7:0]       dc_st_mask;
-    /* verilator lint_off UNUSEDSIGNAL */      // (OOO_DCAD drops old answers itself)
-    logic [15:0]      dc_kill;
+    logic             dc_miss_valid, dc_st_miss_valid, dc_fill_done, dc_done_v, dc_tw_en, dc_rf_en, dc_dirty_set;
+    logic [PAW-1:6]   dc_miss_line, dc_st_miss_line;
+    logic [4:0]       dc_miss_id, dc_done_id;
+    logic [1:0]       dc_tw_way, dc_rf_way, dc_dirty_way;
+    logic [5:0]       dc_tw_set, dc_dirty_idx;
+    logic [PAW-12:0]  dc_tw_tag;
+    logic [8:0]       dc_rf_addr;
+    logic [63:0]      dc_rf_data;
+    logic             dc_uc_req, dc_uc_we, dc_uc_done, dc_wt_valid, dc_wt_ready;
+    logic [PAW-1:0]   dc_uc_addr, dc_wt_addr;
+    /* verilator lint_off UNUSEDSIGNAL */      // (the bus takes the strobes; the SQ's state is OOO_SYS's)
+    logic [1:0]       dc_uc_size;
+    logic             dc_sq_drained;
     /* verilator lint_on UNUSEDSIGNAL */
-
+    logic [63:0]      dc_uc_wdata, dc_uc_rdata, dc_wt_data;
+    logic [7:0]       dc_uc_wmask, dc_wt_mask;
     logic             fl_req, fl_take, fl_done;
     OOO_CORE #(.VA(VA), .PAW(PAW)) u_core
         (.clk(clk), .rst_n(rst_n), .boot(boot), .boot_pc(boot_pc),
          .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ready(ic_req_ready),
          .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data),
-         .dc_req_valid(dc_req_valid), .dc_req_addr(dc_req_addr), .dc_req_tag(dc_req_tag), .dc_hit(dc_hit),
-         .dc_rdata(dc_rdata), .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),
-         .dc_fill_ready(dc_fill_ready), .dc_kill(dc_kill), .dc_st_valid(dc_st_valid), .dc_st_addr(dc_st_addr),
-         .dc_st_data(dc_st_data), .dc_st_mask(dc_st_mask), .dc_st_ready(dc_st_ready),
+         .dc_miss_valid(dc_miss_valid), .dc_miss_line(dc_miss_line), .dc_miss_id(dc_miss_id),
+         .dc_st_miss_valid(dc_st_miss_valid), .dc_st_miss_line(dc_st_miss_line), .dc_fill_done(dc_fill_done),
+         .dc_done_v(dc_done_v), .dc_done_id(dc_done_id), .dc_tw_en(dc_tw_en), .dc_tw_way(dc_tw_way), .dc_tw_set(dc_tw_set),
+         .dc_tw_tag(dc_tw_tag), .dc_rf_en(dc_rf_en), .dc_rf_way(dc_rf_way), .dc_rf_addr(dc_rf_addr), .dc_rf_data(dc_rf_data),
+         .dc_dirty_set(dc_dirty_set), .dc_dirty_way(dc_dirty_way), .dc_dirty_idx(dc_dirty_idx), .dc_sq_drained(dc_sq_drained),
+`ifdef DCACHE_SIM_UC
+         .dc_uc_line_v(1'b1), .dc_uc_line(sim_uc_line),
+`else
+         .dc_uc_line_v(1'b0), .dc_uc_line('0),
+`endif
+         .dc_uc_req(dc_uc_req), .dc_uc_we(dc_uc_we), .dc_uc_addr(dc_uc_addr), .dc_uc_size(dc_uc_size),
+         .dc_uc_wdata(dc_uc_wdata), .dc_uc_wmask(dc_uc_wmask), .dc_uc_done(dc_uc_done), .dc_uc_rdata(dc_uc_rdata),
+         .dc_wt_valid(dc_wt_valid), .dc_wt_addr(dc_wt_addr), .dc_wt_data(dc_wt_data), .dc_wt_mask(dc_wt_mask),
+         .dc_wt_ready(dc_wt_ready),
          .fl_req(fl_req), .fl_take(fl_take), .fl_done(fl_done), .ic_flush(ic_flush), .ic_done(ic_done)
 `ifdef OOO_TRACE
          ,
@@ -135,28 +148,17 @@ module OOO_CPU
 `endif
         );
 
-    logic             d_req_valid, d_req_ready, d_req_cancel, d_resp_valid, d_hit_now;
-    logic [PAW-1:0]   d_req_addr, d_req_paddr;
-    logic [1:0]       d_req_size;
-    logic [4:0]       d_req_cmd;
-    logic [63:0]      d_req_wdata, d_resp_data, d_hit_now_data;
-    /* verilator lint_off PINCONNECTEMPTY */
-    OOO_DCAD #(.NLQ(16), .PAW(PAW), .DEPTH(8)) u_dcad
+    OOO_DMISS #(.PAW(PAW), .IW(5)) u_dmiss
         (.clk(clk), .rst_n(rst_n),
-         .dc_req_valid(dc_req_valid), .dc_req_addr(dc_req_addr), .dc_req_tag(dc_req_tag), .dc_hit(dc_hit),
-         .dc_rdata(dc_rdata), .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),
-         .dc_fill_ready(dc_fill_ready), .dc_st_valid(dc_st_valid), .dc_st_addr(dc_st_addr), .dc_st_data(dc_st_data),
-         .dc_st_mask(dc_st_mask), .dc_st_ready(dc_st_ready),
+         .miss_valid(dc_miss_valid), .miss_line(dc_miss_line), .miss_id(dc_miss_id),
+         .st_miss_valid(dc_st_miss_valid), .st_miss_line(dc_st_miss_line), .fill_done(dc_fill_done),
+         .done_v(dc_done_v), .done_id(dc_done_id), .tw_en(dc_tw_en), .tw_way(dc_tw_way), .tw_set(dc_tw_set),
+         .tw_tag(dc_tw_tag), .rf_en(dc_rf_en), .rf_way(dc_rf_way), .rf_addr(dc_rf_addr), .rf_data(dc_rf_data),
+         .dirty_set(dc_dirty_set), .dirty_way(dc_dirty_way), .dirty_idx(dc_dirty_idx),
+         .wt_valid(dc_wt_valid), .wt_addr(dc_wt_addr), .wt_data(dc_wt_data), .wt_mask(dc_wt_mask), .wt_ready(dc_wt_ready),
+         .uc_req(dc_uc_req), .uc_we(dc_uc_we), .uc_addr(dc_uc_addr), .uc_wdata(dc_uc_wdata), .uc_wmask(dc_uc_wmask),
+         .uc_done(dc_uc_done), .uc_rdata(dc_uc_rdata),
          .fl_req(fl_req), .fl_take(fl_take), .fl_done(fl_done),
-         .d_req_valid(d_req_valid), .d_req_ready(d_req_ready), .d_req_addr(d_req_addr), .d_req_size(d_req_size),
-         .d_req_cmd(d_req_cmd), .d_req_wdata(d_req_wdata), .d_req_paddr(d_req_paddr), .d_req_cancel(d_req_cancel),
-         .d_resp_valid(d_resp_valid), .d_resp_data(d_resp_data), .d_hit_now(d_hit_now), .d_hit_now_data(d_hit_now_data));
-    DCACHE #(.PADDR_WIDTH(PAW), .ROB_DEPTH(8)) u_dc
-        (.clk(clk), .rst_n(rst_n),
-         .d_req_valid(d_req_valid), .d_req_ready(d_req_ready), .d_req_addr(d_req_addr), .d_req_size(d_req_size),
-         .d_req_cmd(d_req_cmd), .d_req_wdata(d_req_wdata), .d_req_paddr(d_req_paddr), .d_req_cancel(d_req_cancel),
-         .d_resp_valid(d_resp_valid), .d_resp_drop(), .d_resp_data(d_resp_data), .d_resp_error(),
-         .d_hit_now(d_hit_now), .d_hit_now_data(d_hit_now_data),
          .m_axi4_awid(m_axi4_awid), .m_axi4_awaddr(m_axi4_awaddr), .m_axi4_awlen(m_axi4_awlen),
          .m_axi4_awsize(m_axi4_awsize), .m_axi4_awburst(m_axi4_awburst), .m_axi4_awvalid(m_axi4_awvalid),
          .m_axi4_awready(m_axi4_awready), .m_axi4_wdata(m_axi4_wdata), .m_axi4_wstrb(m_axi4_wstrb),
@@ -171,13 +173,6 @@ module OOO_CPU
          .m_axil_wready(m_axil_wready), .m_axil_bresp(m_axil_bresp), .m_axil_bvalid(m_axil_bvalid),
          .m_axil_bready(m_axil_bready), .m_axil_araddr(m_axil_araddr), .m_axil_arvalid(m_axil_arvalid),
          .m_axil_arready(m_axil_arready), .m_axil_rdata(m_axil_rdata), .m_axil_rresp(m_axil_rresp),
-         .m_axil_rvalid(m_axil_rvalid), .m_axil_rready(m_axil_rready),
-         .ev_miss(), .ev_vic_copy()
-`ifdef DCACHE_SIM_UC
-         ,
-         .sim_uc_line(sim_uc_line)
-`endif
-        );
-    /* verilator lint_on PINCONNECTEMPTY */
+         .m_axil_rvalid(m_axil_rvalid), .m_axil_rready(m_axil_rready));
 
 endmodule : OOO_CPU
