@@ -87,6 +87,8 @@ int main(int argc, char** argv)
         c.ckpt = (int)o.get("ckpt", c.ckpt);
         c.alu = (int)o.get("alu", c.alu);
         c.br_p = (int)o.get("br_p", c.br_p);
+        c.ld_cmt = (int)o.get("ld_cmt", c.ld_cmt);
+        c.br_cmt = (int)o.get("br_cmt", c.br_cmt);
         c.lsu = (int)o.get("lsu", c.lsu);
         c.mul = (int)o.get("mul", c.mul);
         c.issue_w = (int)o.get("issue_w", c.issue_w);

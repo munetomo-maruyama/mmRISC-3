@@ -86,6 +86,7 @@ struct OooCfg {
     long ld_wt_clr = 0;         // ... cleared every so many cycles
     int sd_alu = 0;             // a store's data takes an issue slot of an ALU queue when it is ready; 2: and a dispatch slot and an entry of that queue
     int lsu_cmt = 0;
+    int ld_cmt = 0, br_cmt = 0;  // loads only / branches and jalrs: completion so many cycles later
     int mul_wb = 0;             // a multiply on ALU0 takes a write slot a cycle after its issue: 1 ALU0's (OOO_IQ blk0), 2 ALU1's            // cycles more before a load's or a store's commit (OOO_LSU: its completion through a register) // a store issues with its data too (one µop, as OOO_LSU): its address is known then
     int keep_spec = 0;          // a µop issued on an open load keeps its issue-queue entry until the load
                                 // is decided, keep_spec cycles after its issue (OOO_IQ: 4, Plan/OOC.md 15)
@@ -655,6 +656,11 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         }
         long cmt = done + 1 + c.cmp_lag;
         if (c.lsu_cmt) for (size_t k = i; k <= last; k++) if (t[k].cls == C_LOAD || t[k].cls == C_STORE) { cmt = done + 1 + c.lsu_cmt; break; }
+        // ld_cmt / br_cmt: a load's, a branch's or jalr's done bit so many cycles later (the core's registers, Plan/OOC.md 29.25)
+        for (size_t k = i; k <= last; k++) {
+            if (c.ld_cmt && t[k].cls == C_LOAD) cmt = std::max(cmt, done + 1 + c.ld_cmt);
+            if (c.br_cmt && (t[k].cls == C_BR || t[k].cls == C_JALR)) cmt = std::max(cmt, done + 1 + c.br_cmt);
+        }
         if (u >= 1) cmt = std::max(cmt, cm[u - 1]);
         if (u >= (size_t)c.w) cmt = std::max(cmt, cm[u - c.w] + 1);
         cm.push_back(cmt);

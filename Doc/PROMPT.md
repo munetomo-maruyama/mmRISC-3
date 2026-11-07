@@ -8026,3 +8026,38 @@ Comparing the 2.9 % gap to the model function by function is not started yet. Th
 ```text
 CPU_OOO finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**D's second `OOO_CPU` run meets 20 ns between registers.** I recorded it and pushed (e23a6f3; 0 Ref on origin/dev).
+
+#### Results
+- **Between registers:** +0.144 ns, 21 levels (from the ROB head to the decoded group register's reset). None of the 3 paths cut in 29.28 is below 0 any more.
+- **Hold and pulse width:** both met.
+- **LUTs:** 67,196.
+- **Overall WNS:** −0.217 ns (4 failing endpoints).
+
+#### Why the overall WNS is negative
+All 4 failing paths run from the I$'s response port `ic_resp_data` to the micro-BTB's pc register. They come from the harness assuming 6 ns of delay on the input ports.
+- The same path was the worst at 29.26 too, when C met timing (+0.026 ns then).
+- In the real chip, what drives it is the I$'s block RAM (step 1.7).
+- F rebuilds the fetch (`OOO_UBTB2`, `OOO_FDEC2`), so I look at it again there.
+
+So as a core, I think D can be taken to meet 20 ns.
+
+#### LUT outlook
+`OOO_CPU` is 67.2k. E (the second LSU port) and F (32-byte fetch, 6 decoded) come next. mmRISC-2's blocks (FPU, MMU, full-size caches) are separate, outside this. The whole-chip budget was set at gate S1-A at about 106.5k.
+
+#### Candidates for next
+1. **Comparison with the model by function:** D's gain is −6.7 % in RTL against −9.6 % in the model, a gap of about 3 %. Replays also doubled, from 484 to 922. Going on to E without finding the cause would make the reasons for the gap hard to see.
+2. **Go on to E:** put in the second LSU port (`OOO_LSU3`, `OOO_DCH2`).
+
+The record is section 29.29 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.6.
+<!-- /answer -->
+
+## 197. 2026-11-07 20:36:31 JST
+
+```text
+Compare first
+```

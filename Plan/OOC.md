@@ -4635,3 +4635,29 @@ The CSR's late completion costs nothing measurable here; the rest moves where a 
 LUTs against the budget of gate S1-A (about 106.5k for the chip): `OOO_CPU` 67.2k at D, with E (the second LSU port, `OOO_LSU3`, `OOO_DCH2`) and F (the 32-byte fetch, 6 decoded) still to come, and mmRISC-2's blocks (FPU, MMU, the caches at full size) outside it.
 
 **Next**: the comparison by function against the model (RTL −6.7 % against the model's −9.6 % at D), then E.
+
+### 29.30 Step 1.2, D against the model, by function: the 2.9 % is the front end (2026-11-07)
+
+**How.** `tb_core` takes `CORE_BYPC=<file>`: the cycles between commits by the pc of the last instruction committed, as the model's `OOO_BYPC` (`Plan/CORE.md` 5.12); summed by function from the ELF's symbols. CoreMark `g14-o2-zbsc`, no misses; the RTL of C (dd0013b) and of D (3953f34); the model's C and D rows of 29.27.
+
+**The first comparison: one function holds most of it.** From C to D the RTL loses 36.8k cycles less than the model. `matrix_mul_matrix` alone is 28.6k of it: the model −31.0k, the RTL −2.4k. Its inner loop (9 instructions, 2 `lh`, `mulw` and `bne` on ALU0) runs 4.15 cycles an iteration in the RTL, 3.43 in the model. Counted while the ROB's head is in it, nothing waits in the back end: ALU0 and LSU0 issue every µop as soon as it is ready, no dispatch is held, the LQ, the queue and the ROB are never full. **Renaming takes all it is offered, and the front end offers 1 µop in 39,588 of its 128,047 cycles**: the loop's 28 bytes lie in 3 blocks of 16 bytes (1, 5 and 3 instructions), and decode takes one block a cycle (`OOO_FBUF`, at most 4), so 4 cycles an iteration. The model's base takes 2 blocks a cycle (`dec_block` unset), as `OOO_FBUF3` of F will.
+
+**With the model's front end as the RTL's** (`dec_block=1`):
+
+| `g14-o2-zbsc` | C | D | C → D |
+|---|---|---|---|
+| RTL | 1,685,110 | 1,570,475 | **−6.80 %** |
+| model, `dec_block=1` | 1,579,152 | 1,475,215 | **−6.58 %** |
+| model, as before | 1,574,685 | 1,423,245 | −9.62 % |
+
+(`g14-sflto` 1,461,646 → 1,320,718, `g13-o2-zb` 1,608,936 → 1,504,284 with `dec_block=1`.) **So D gains what the model says it gains; the 2.9 % was the model's front end, and F is where it comes.** The RTL stays 6.5 % above that model, as at C (6.7 %).
+
+**What is left, by function** (against the model with `dec_block=1`): the RTL gains 10.7k more in all; one function goes the other way:
+
+- `core_bench_state`: the model −9.9k from C to D, the RTL +2.7k; and the RTL 52 % above the model in it (76,606 against 50,239). With the head in it: no wait in the LSU (20 cycles), no queue or ROB full, restores 251 → 261, but **the front end offers nothing in 19,613 of 67,737 cycles (17,813 at C)**. Not understood yet; its loops call `core_state_transition` every character (a call, a return, the RAS) and store bytes behind loads.
+- **The replays** (C 669, D 922 in this run; none in the model) are almost all in `core_bench_list`'s two search loops (`ld`, `lh` / `lbu`, `bne`, `ld`: pc 80000efe..80000f8c), right after the loop that reverses the list and stores every node's pointer: a load that meets an older store without its address waits in M and cancels (`ld_cancel`), and its dependents' guess makes it replay at commit. D, running further ahead, meets more of them. `core_bench_list` is 21k above the model.
+- Before the core's timed part: start-up and `ee_printf`, about 15k, which the model's trace does not hold.
+
+**Also**: the model takes `ld_cmt`, `br_cmt` (a load's, a branch's completion later: the core's registers of 29.25): +0 cycles at this ROB, so they explain nothing. `Plan/model` keeps `br_p` (29.27) and these.
+
+**Proposed**: (1) the comparisons with the model from now on with `dec_block=1` until F; (2) the replays of the search loops: a load not issued while an older store has no address and such loads have cancelled before (the model's `ld_wt`, a wait table), in E with `OOO_LSU3`; (3) `core_bench_state`'s front end, in F.

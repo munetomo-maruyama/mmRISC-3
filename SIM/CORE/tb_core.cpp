@@ -47,6 +47,7 @@ typedef VOOO_CORE___024root TopRoot;
 
 #include <cstdio>
 #include <cstdlib>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -165,6 +166,10 @@ static bool run(const Opts& o, const std::string& elf)
     for (int i = 0; i < 80; i++) d->rootp->CORE(u_prf__DOT__lvt)[i] = 0;
     long restores = 0, replays = 0;
     bool res_bad = false;
+    // CORE_BYPC=<file>: the cycles between commits by the pc of the last instruction committed (Plan/model's
+    // OOO_BYPC, for the comparison by function, Plan/OOC.md 29.30); one program a run
+    std::map<uint64_t, long> bypc;
+    long bypc_last = -1;
     for (uint64_t cyc = 0; !b.done(); cyc++) {
         d->boot = cyc == 2;
         d->boot_pc = b.entry() >> 1;
@@ -222,6 +227,10 @@ static bool run(const Opts& o, const std::string& elf)
         }
         restores += d->rootp->CORE(restore);
         replays += d->rootp->CORE(replay);
+        if (n > 0 && !s[0].trap) {
+            if (bypc_last >= 0) bypc[s[n-1].pc] += (long)cyc - bypc_last;
+            bypc_last = (long)cyc;
+        }
         {
             std::string why = check_resolution(d->rootp);
             if (!why.empty()) { std::printf("cycle %llu: %s\n", (unsigned long long)cyc, why.c_str()); res_bad = true; break; }
@@ -269,6 +278,12 @@ static bool run(const Opts& o, const std::string& elf)
                     restores, replays, ic.misses, ic.reqs, dc.misses, dc.reqs, dc.stores);
 #endif
     if (rs_out_f) std::fprintf(rs_out_f, "%s %ld\n", name.c_str(), restores);
+    if (const char* bp = std::getenv("CORE_BYPC")) {
+        if (FILE* f = std::fopen(bp, "w")) {
+            for (auto& x : bypc) std::fprintf(f, "%llx %ld\n", (unsigned long long)x.first, x.second);
+            std::fclose(f);
+        }
+    }
     d->final();                                         // (final blocks: a build with counters prints them)
     bool ok = b.passed() && !res_bad;
     if (ok && o.rp_max >= 0 && replays > o.rp_max) {
