@@ -46,6 +46,7 @@ struct OooCfg {
     int taken_gap = 1;     // F0 to the next F0 on a taken branch the uBTB gets right (1: no bubble)
     int rob = 64, iq = 24, lq = 16, sq = 16, ckpt = 0;
     int alu = 2, lsu = 1, mul = 1;
+    int br_p = 0;               // ALU ports that take branches and jalrs (0: all of them; -1: ALU 0 only, with p0_ops; -2: and jal, auipc)
     int issue_w = 3;            // µops issued a cycle over all ports (0: no limit)
     bool mul_shared = true;     // MUL / DIV issue through an ALU port
     int lat_alu = 1, lat_load = 2, lat_mul = 2, lat_div = 20, lat_fp = 4;
@@ -246,7 +247,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     std::priority_queue<long, std::vector<long>, std::greater<long>> iqh, ckh;
     std::unordered_map<int, long> ready;        // register -> cycle a dependent may issue
     std::unordered_map<int, long> spec;         // register -> cycle its open loads are decided (keep_spec)
-    std::unordered_map<long, int> use_alu, use_lsu, use_mul, use_all, use_a0, use_a1, use_mdu, use_p0, use_st;
+    std::unordered_map<long, int> use_alu, use_lsu, use_mul, use_all, use_a0, use_a1, use_mdu, use_p0, use_st, use_br;
     std::priority_queue<long, std::vector<long>, std::greater<long>> qb[8];   // iq_bank: the banks
     long bk_d = -1; int bk_m = 0;                   // ... those taken in that dispatch cycle
     std::priority_queue<long, std::vector<long>, std::greater<long>> qh[9];   // iqd: the queues
@@ -540,12 +541,16 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         } else {
             auto& use = port == 1 ? use_lsu : port == 2 ? use_mul : use_alu;
             int cap = port == 1 ? c.lsu : port == 2 ? c.mul : c.alu;
-            bool p0 = c.p0_ops && (pr.cls == C_MUL || pr.cls == C_DIV || pr.cls == C_SYS || (c.p0_ops >= 2 && pr.cls == C_JALR) || (pr.cls == C_ALU && (c.p0_opx & pr.opx)));
+            bool p0 = c.p0_ops && (pr.cls == C_MUL || pr.cls == C_DIV || pr.cls == C_SYS || (c.p0_ops >= 2 && pr.cls == C_JALR) || (pr.cls == C_ALU && (c.p0_opx & pr.opx)) ||
+                                   (c.br_p < 0 && pr.cls == C_BR) ||   // br_p -1: branches only on ALU 0 too; -2: and jal, auipc (the pc)
+                                   (c.br_p < -1 && (pr.cls == C_JAL || pr.op == OP_AUIPC)));
             bool st0 = c.st_lsu0 && pr.cls == C_STORE;
             bool md = c.p0_ops && pr.cls == C_DIV;
+            bool brl = c.br_p > 0 && (pr.cls == C_BR || pr.cls == C_JALR);   // br_p: branches and jalrs on so many ALU ports
             while (use[is] >= cap || (c.issue_w && use_all[is] >= c.issue_w) || (p0 && use_p0[is] >= 1) ||
-                   (st0 && use_st[is] >= 1) || (md && use_mdu[is])) is++;
+                   (st0 && use_st[is] >= 1) || (md && use_mdu[is]) || (brl && use_br[is] >= c.br_p)) is++;
             use[is]++;
+            if (brl) use_br[is]++;
             use_all[is]++;
             if (p0) use_p0[is]++;
             if (st0) use_st[is]++;
@@ -746,7 +751,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         // the cycles of the port use behind every issue are no longer needed
         if ((u & 0xffff) == 0) {
             long lim = is - 4096;
-            for (auto* mp : {&use_alu, &use_lsu, &use_mul, &use_all, &use_a0, &use_a1, &use_mdu, &use_p0, &use_st})
+            for (auto* mp : {&use_alu, &use_lsu, &use_mul, &use_all, &use_a0, &use_a1, &use_mdu, &use_p0, &use_st, &use_br})
                 for (auto it = mp->begin(); it != mp->end();) it = it->first < lim ? mp->erase(it) : std::next(it);
         }
         i = last + 1;

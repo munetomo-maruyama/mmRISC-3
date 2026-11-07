@@ -4562,3 +4562,36 @@ The way there, from C as it was (29.20): six cuts, all on chains that one 4-wide
 | **7 (29.26)** | **+0.026 ns** (between flip-flops +0.698 ns) | — |
 
 **Next**: D: 4 ALU ports, `OOO_EXU2`, the register file of 6 writes and 11 reads, `OOO_IQ2` with `NA` = 4 and its payload with 6 reads; then `OOO_CPU` at 20 ns again.
+
+### 29.27 Step 1.2, D: 4 ALU ports (2026-11-07)
+
+**What changed.** `OOO_CORE` issues to 4 ALU ports and LSU0: `OOO_IQ2` with `NA` = 4, `OOO_IQPL2` with 5 reads, `OOO_PRF` with 80 registers, 5 writes and 10 reads, a bypass of 5 results (the 4 WB registers and the LSU's), 10 completion ports.
+
+**Two choices that are not the plan of 29.16.**
+
+- **Branches, jumps and what needs the pc on ALU0 only** (`OOO_DEC`: branch, jal, jalr, auipc go to "ALU0 only"). So the resolution stays 2 ports wide (`OOO_ROB`, `OOO_CTRL`, `OOO_FERS`, the predictors' training) and the pc and target arrays keep their 2 reads; ALU1..3 have no branch logic and no pc. The model, with a new `br_p` (`Plan/model`: −1 branches on ALU0 only, −2 and jal, auipc), says what it costs against branches on any port:
+
+| D, as built (`p0_ops=2 p0_opx=3 iq_bank=4 st_lsu0=1`) | `g14-o2` | `g14-sflto` | `g13-o2-zb` | `g13-gc` |
+|---|---|---|---|---|
+| branches on any of 4 ports | 7.034 | 7.602 | 6.894 | 6.251 |
+| on 2 ports | 7.032 | | | 6.244 |
+| **on ALU0 only, with jal and auipc** | **7.026** | **7.592** | **6.892** | **6.272** |
+
+−0.1 % at most.
+- **`OOO_EXU2` is not instantiated.** The core's own ports (OOO_STAGE RR / EX / WB, the register file read in RR, the bypass from the WB registers in EX), verified through A to C and met at 20 ns in 29.26, are made 4. `OOO_EXU2`'s way (the bypass's choice made in RR, one bypass; the register file in 2 arrays above 64, which `OOO_PRF` has) is kept for when timing asks for it.
+
+**ALU1..3: the middle set.** The first form gave ALU1..3 the ALU1 of G0b (`OOO_ALU` `FULL` = 0: add / sub, slt / sltu, and, or, xor): **+1.8 % cycles**, 1,715,709. ALU0 issued 1,284,763 µops in those cycles (75 %): the shifts, Zba, and the rest went there alone. The model's "any ALU" (`p0_opx=3`, as `OOO_ALUF` of `OOO_EXU2`) has them on every port. So `OOO_ALU` takes `MID`: `FULL` = 0's operations, the shifts (with the word forms and slli.uw), Zba, andn / orn / xnor, sext.b / sext.h / zext.h, czero; ALU0 alone keeps the counts, rotates, min / max, Zbs, bext, orc.b, rev8. (A shift by a register goes to ALU1..3 too, where the model keeps it on ALU0: here it is the same shifter; bexti stays on ALU0.) `tb_alum` (new) checks `MID`'s set.
+
+| CoreMark, no misses | RTL cycles | Model /MHz |
+|---|---|---|
+| C, met at 20 ns (29.26) | 1,685,110 | 6.350 |
+| D with ALU1..3 `FULL` = 0 | 1,715,709 (+1.8 %) | |
+| **D** | **1,572,276 (−6.70 %)** | **7.026 (cycles −9.6 %)** |
+
+Issues per port in that run: ALU0 847,607, ALU1 162,472, ALU2 486,962, ALU3 997,839, LSU0 714,399. Replays 922 (484 at C). `g14-sflto-zbsc` 1,634,219 → 1,534,443 (−6.1 %), `g13-o2-zb` 1,717,965 → 1,647,883 (−4.1 %). `OOO_CPU`, the real D$: 1,702,880 → 1,580,884 (−7.2 %). **The RTL gains 2.9 % less than the model here**: the comparison by function, set for after D (29.19), is next.
+
+**A fault, found on the way.** With `NAP` = 2 (a check of the new classes at 2 ALU ports) the core hung on its first store: the LSU's issue was read from the queue's port `NAP`, which is its port 4 only when `NAP` is 4. Mapped to port 4 whatever `NAP` is; at `NAP` = 2 the core runs (1,700,600 cycles: the new classes cost 0.9 % at 2 ALU ports, against C).
+
+`run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS. `tb_alu2`, `tb_alu1`, `tb_alum`, `tb_dec` (its reference: the new classes): PASS. **Bug injection.** The unit campaign on the ALUs and the decoder: 50, all detected (3 set on the new lines: sh*add without the shift, min sent to ALU1..3, czero.nez kept off them; new: auipc or a branch sent to ALU1..3, and `MID` without sll, czero or .uw). The core: 105, all detected (7 set on the lines D rewrote; new: ALU3's result not forwarded, ALU3's results not written). `verilator -Wall` on the core: nothing new (`OOO_DEC`'s operation names left unused by its new set are gone).
+
+**Next**: the comparison by function against the model (the 2.9 %, the replays); `OOO_CPU` at 20 ns.

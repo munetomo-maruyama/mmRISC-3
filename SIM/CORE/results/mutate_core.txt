@@ -96,9 +96,11 @@
 95 DETECTED      a branch killed as it leaves EX resolves
 96 DETECTED      a branch flushed as it leaves EX resolves
 97 DETECTED      a mispredicted branch never completes
-98 DETECTED      a branch resolved as predicted never completes
-99 DETECTED      a load's exception a cycle before its completion
-100 DETECTED      a mispredicted branch's checkpoint cleared too
-101 DETECTED      CSR: an illegal access's tval 0
-102 DETECTED      CSR: fcsr with mstatus.FS off not illegal
-103 mutations, 103 detected
+98 DETECTED      bypass: ALU3's result not forwarded
+99 DETECTED      register file: ALU3's results not written
+100 DETECTED      a branch resolved as predicted never completes
+101 DETECTED      a load's exception a cycle before its completion
+102 DETECTED      a mispredicted branch's checkpoint cleared too
+103 DETECTED      CSR: an illegal access's tval 0
+104 DETECTED      CSR: fcsr with mstatus.FS off not illegal
+105 mutations, 105 detected

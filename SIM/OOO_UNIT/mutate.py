@@ -26,7 +26,7 @@ CACHE = os.path.abspath(os.path.join(HERE, '..', '..', 'RTL', 'CPU', 'CACHE'))  
 M = [
     # id, file, test, old, new, what it breaks
     ('M1', 'OOO_ALU/OOO_ALU.sv', 'alu2', "ALU_BEXT:  r_ext = {63'd0, shr[0]};", "ALU_BEXT:  r_ext = {63'd0, shr[1]};", 'bext takes the wrong bit'),
-    ('M2', 'OOO_ALU/OOO_ALU.sv', 'alu2', "sum   = {1'b0, FULL ? a_zx << a_shift : a_zx}", "sum   = {1'b0, a_zx}", 'sh*add without the shift'),
+    ('M2', 'OOO_ALU/OOO_ALU.sv', 'alu2', "sum   = {1'b0, M ? a_zx << a_shift : a_zx}", "sum   = {1'b0, a_zx}", 'sh*add without the shift'),
     ('M4', 'OOO_ALU2/OOO_ALU2.sv', 'alu2', "3'b101:  take_branch = is_br & ~lt;", "3'b101:  take_branch = is_br & lt;", 'BGE taken as BLT'),
     ('M5', 'OOO_FUSE/OOO_FUSE.sv', 'fuse', "cls[k+1] == C_LOAD && d != 5'd0 && rs1[k+1] == d", "cls[k+1] == C_STORE && d != 5'd0 && rs1[k+1] == d", 'ALU + load fused as ALU + store'),
     ('M7', 'OOO_FUSE/OOO_FUSE.sv', 'fuse', "s1       = (pk[0] != K_NONE) ? 3'd2 : 3'd1;", "s1       = (pk[0] != K_NONE) ? 3'd1 : 3'd1;", 'the second µop starts inside the first pair'),
@@ -232,8 +232,8 @@ M = [
     ('M204', 'OOO_ALU2/OOO_ALU2.sv', 'alu2', "            2'd2:    o = 64'd0;", "            2'd2:    o = s2;", 'beqz after an operation compares with s2'),
     ('M205', 'OOO_FUSE/OOO_FUSE.sv', 'fuse', 'parameter int LEVEL = 2,', 'parameter int LEVEL = 1,', 'ALU + branch not fused'),
     # 2026-10-27: L7, asymmetric ALUs (Doc/UARCH.md 6.12)
-    ('M206', 'OOO_DEC/OOO_DEC.sv', 'dec', "simple = (alu_op[k] == ALU_ADD && !a_uw[k] && a_shift[k] == 2'd0) || alu_op[k] == ALU_SUB ||", "simple = (alu_op[k] == ALU_ADD) || alu_op[k] == ALU_SUB ||", 'sh*add / add.uw sent to ALU1'),
-    ('M207', 'OOO_DEC/OOO_DEC.sv', 'dec', 'alu_op[k] == ALU_SLT || alu_op[k] == ALU_SLTU || alu_op[k] == ALU_XOR ||', 'alu_op[k] == ALU_SLTU || alu_op[k] == ALU_XOR ||', 'slt kept off ALU1'),
+    ('M206', 'OOO_DEC/OOO_DEC.sv', 'dec', "simple = alu_op[k] <= ALU_XNOR ||", "simple = alu_op[k] <= 6'd13 ||", 'min sent to ALU1..3'),
+    ('M207', 'OOO_DEC/OOO_DEC.sv', 'dec', "alu_op[k] == ALU_CZEQZ || alu_op[k] == ALU_CZNEZ;", "alu_op[k] == ALU_CZEQZ;", 'czero.nez kept off ALU1..3'),
     ('M208', 'OOO_FUSE/OOO_FUSE.sv', 'fuse', "else if (a == 2'd1 || b == 2'd1) return 2'd1;", "else if (a == 2'd1) return 2'd1;", 'a pair with an ALU0-only second half on any ALU'),
     ('M209', 'OOO_IQ/OOO_IQ.sv', 'iq', "g0[i] = req0[i] && !g1[i] && (((req0 & ~g1) & older[i]) == '0);", "g0[i] = req0[i] && !g1[i] && ((req0 & older[i]) == '0);", "port 0 held by an older µop port 1 took"),
     ('M210', 'OOO_IQ/OOO_IQ.sv', 'iq', "g0[i] = req0[i] && !g1[i] && (((req0 & ~g1) & older[i]) == '0);", "g0[i] = req0[i] && (((req0 & ~g1) & older[i]) == '0);", 'port 0 issues what port 1 took'),
@@ -313,6 +313,11 @@ M = [
     ('M1114', 'OOO_ROB/OOO_ROB.sv', 'rob', "restore_k = r0 || r1;", "restore_k = r0;", "restore_k: port 1's misprediction not seen"),
     ('M1117', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', 'd_ok = !flush_q && !restore_k && rob_avail', 'd_ok = !flush_q && rob_avail', 'dispatch in a cycle of restore'),
     ('M1118', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', 'd_ok = !flush_q && !restore_k && rob_avail', 'd_ok = !restore_k && rob_avail', 'dispatch in a cycle of flush_all'),
+    ('M1119', 'OOO_DEC/OOO_DEC.sv', 'dec', "else if (is_branch[k] || is_jal[k] || is_jalr[k] || (alu && a_sel[k] == 2'd1))", "else if (is_branch[k] || is_jal[k] || is_jalr[k])", 'auipc sent to ALU1..3 (no pc there)'),
+    ('M1120', 'OOO_DEC/OOO_DEC.sv', 'dec', "else if (is_branch[k] || is_jal[k] || is_jalr[k] || (alu && a_sel[k] == 2'd1))", "else if (is_jal[k] || is_jalr[k] || (alu && a_sel[k] == 2'd1))", 'a branch sent to ALU1..3'),
+    ('M1121', 'OOO_ALU/OOO_ALU.sv', 'alum', "left  = (M && alu_op == ALU_SLL) || (FULL && alu_op == ALU_ROL);", "left  = FULL && (alu_op == ALU_SLL || alu_op == ALU_ROL);", 'MID: sll shifts right'),
+    ('M1122', 'OOO_ALU/OOO_ALU.sv', 'alum', "g_cz  = !M                   ? 1'b0 :", "g_cz  = !FULL                ? 1'b0 :", 'MID: czero gives 0'),
+    ('M1123', 'OOO_ALU/OOO_ALU.sv', 'alum', "        a_zx = (M && a_uw) ? {32'd0, a32} : op_a;", "        a_zx = (FULL && a_uw) ? {32'd0, a32} : op_a;", 'MID: .uw not zero extended'),
     ('M1116', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "killset    = restore ? kill : '0;", "killset    = kill;", 'a checkpoint freed by the kill of a cycle of trap'),
     ('M1109', 'OOO_ROB/OOO_ROB.sv', 'rob', "c[k]   = (k == 0 ? !irq : c[k-1] && !rp[hi[k-1]]) && has[k] && done[hi[k]] && !exc[hi[k]];", "c[k]   = (k == 0 ? !irq : c[k-1] && !rp[hi[k-1]]) && done[hi[k]] && !exc[hi[k]];", 'a µop past the tail commits'),
     ('M1110', 'OOO_ROB/OOO_ROB.sv', 'rob', "trap       = has[0] && done[hi[0]] && exc[hi[0]];", "trap       = done[hi[0]] && exc[hi[0]];", 'a trap from an empty ROB'),

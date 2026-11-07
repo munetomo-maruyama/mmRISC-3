@@ -30,13 +30,19 @@
 // Zicond: their results are 0 there, and the decoder sends those operations
 // to ALU0 only (OOO_DEC port 1). Until D-14 FULL = 0 was the narrowed
 // second stage of a fused ALU + ALU pair, a different set.
+// MID = 1 (with FULL = 0) is the ALU of ALU1..3 of the 4-wide core (step 1.2 D,
+// Plan/OOC.md 29.27; the "any ALU" set of the model and of OOO_ALUF): FULL = 0's
+// and the shifts (sll / srl / sra, the word forms, slli.uw), Zba, andn / orn /
+// xnor, sext.b / sext.h / zext.h, czero. Not the counts, rotates, min / max,
+// Zbs, orc.b, rev8: ALU0 only.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
 
 module OOO_ALU
     #(
-        parameter bit FULL = 1'b1
+        parameter bit FULL = 1'b1,
+        parameter bit MID  = 1'b0     // with FULL = 0: the middle set (above)
     )
     (
         input  logic [63:0] op_a,
@@ -118,6 +124,8 @@ module OOO_ALU
         return 7'(p32[0]) + 7'(p32[1]);
     endfunction
 
+    localparam bit M = FULL || MID;  // the middle set's units
+
     logic [63:0] res;
     logic [31:0] a32;
     logic [63:0] a_zx;            // op_a with the .uw change
@@ -147,13 +155,13 @@ module OOO_ALU
 
     always @(*) begin
         a32  = op_a[31:0];
-        a_zx = (FULL && a_uw) ? {32'd0, a32} : op_a;
+        a_zx = (M && a_uw) ? {32'd0, a32} : op_a;
 
         // adder: the first operand shifted for sh*add, the second inverted for
         // a subtraction; the carry out is "a >= b" unsigned
         inv_b = (alu_op == ALU_SUB) || (alu_op == ALU_SLT) || (alu_op == ALU_SLTU) ||
                 (FULL && alu_op >= ALU_MIN && alu_op <= ALU_MAXU);
-        sum   = {1'b0, FULL ? a_zx << a_shift : a_zx} + {1'b0, inv_b ? ~op_b : op_b} + {64'd0, inv_b};
+        sum   = {1'b0, M ? a_zx << a_shift : a_zx} + {1'b0, inv_b ? ~op_b : op_b} + {64'd0, inv_b};
         lt_u  = !sum[64];
         lt_s  = lt_u ^ op_a[63] ^ op_b[63];
 
@@ -162,18 +170,18 @@ module OOO_ALU
         // extended low half (a 32 bit rotate the low half twice, which is the
         // 32 bit rotation in the low half for amounts below 32)
         shamt = word_op ? {1'b0, op_b[4:0]} : op_b[5:0];
-        left  = FULL && (alu_op == ALU_SLL || alu_op == ALU_ROL);
+        left  = (M && alu_op == ALU_SLL) || (FULL && alu_op == ALU_ROL);
         rot   = FULL && (alu_op == ALU_ROL || alu_op == ALU_ROR);
         if (!word_op)               sx = a_zx;
         else if (rot)               sx = {a32, a32};
-        else if (FULL && alu_op == ALU_SRA) sx = {{32{a32[31]}}, a32};
+        else if (M && alu_op == ALU_SRA) sx = {{32{a32[31]}}, a32};
         else                        sx = {32'd0, a32};
         lo  = left ? rev64(sx) : sx;
         if (rot)                    hi = lo;
-        else if (FULL && alu_op == ALU_SRA) hi = {64{sx[63]}};
+        else if (M && alu_op == ALU_SRA) hi = {64{sx[63]}};
         else                        hi = 64'd0;
         fun = {hi, lo} >> shamt;
-        shr = FULL ? fun[63:0] : 64'd0;
+        shr = M ? fun[63:0] : 64'd0;
         shl = rev64(shr);
 
         // counts: clz is ctz of the reversed operand (a 32 bit form puts its
@@ -195,20 +203,20 @@ module OOO_ALU
             ALU_XOR, ALU_BINV:  r_log = op_a ^ lb;
             ALU_OR,  ALU_BSET:  r_log = op_a | lb;
             ALU_AND:            r_log = op_a & lb;
-            ALU_ANDN, ALU_BCLR: r_log = FULL ? op_a & ~lb : 64'd0;
-            ALU_ORN:            r_log = FULL ? op_a | ~lb : 64'd0;
-            default:            r_log = FULL ? ~(op_a ^ lb) : 64'd0;   // ALU_XNOR
+            ALU_ANDN, ALU_BCLR: r_log = M ? op_a & ~lb : 64'd0;
+            ALU_ORN:            r_log = M ? op_a | ~lb : 64'd0;
+            default:            r_log = M ? ~(op_a ^ lb) : 64'd0;      // ALU_XNOR
         endcase
 
         // the result: an AND-OR of the units, each enabled by its operations
         // (the full ALU's units are constant 0 in the narrowed one)
         g_add = (alu_op == ALU_ADD) || (alu_op == ALU_SUB);
         g_log = (alu_op == ALU_XOR) || (alu_op == ALU_OR) || (alu_op == ALU_AND) ||
-                (FULL && alu_op >= ALU_ANDN && alu_op <= ALU_XNOR) ||
+                (M && alu_op >= ALU_ANDN && alu_op <= ALU_XNOR) ||
                 (FULL && alu_op >= ALU_BSET && alu_op <= ALU_BINV);
-        g_shr = FULL && (alu_op == ALU_SRL || alu_op == ALU_SRA || alu_op == ALU_ROR);
-        g_shl = FULL && (alu_op == ALU_SLL || alu_op == ALU_ROL);
-        g_cz  = !FULL                ? 1'b0 :
+        g_shr = (M && (alu_op == ALU_SRL || alu_op == ALU_SRA)) || (FULL && alu_op == ALU_ROR);
+        g_shl = (M && alu_op == ALU_SLL) || (FULL && alu_op == ALU_ROL);
+        g_cz  = !M                   ? 1'b0 :
                 (alu_op == ALU_CZEQZ) ? (op_b != 64'd0) :
                 (alu_op == ALU_CZNEZ) ? (op_b == 64'd0) : 1'b0;
         g_mna = FULL && ((alu_op == ALU_MIN && lt_s) || (alu_op == ALU_MINU && lt_u) ||
@@ -217,9 +225,9 @@ module OOO_ALU
                          (alu_op == ALU_MAX && lt_s) || (alu_op == ALU_MAXU && lt_u));
         r_ext = 64'd0;
         case (alu_op)
-            ALU_SEXTB: if (FULL) r_ext = {{56{op_a[7]}},  op_a[7:0]};
-            ALU_SEXTH: if (FULL) r_ext = {{48{op_a[15]}}, op_a[15:0]};
-            ALU_ZEXTH: if (FULL) r_ext = {48'd0, op_a[15:0]};
+            ALU_SEXTB: if (M) r_ext = {{56{op_a[7]}},  op_a[7:0]};
+            ALU_SEXTH: if (M) r_ext = {{48{op_a[15]}}, op_a[15:0]};
+            ALU_ZEXTH: if (M) r_ext = {48'd0, op_a[15:0]};
             ALU_BEXT:  r_ext = {63'd0, shr[0]};
             ALU_SLT:   r_ext = {63'd0, lt_s};
             ALU_SLTU:  r_ext = {63'd0, lt_u};

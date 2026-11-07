@@ -32,7 +32,8 @@
 
 module OOO_ALU2
     #(
-        parameter bit FULL = 1'b1       // 0: ALU1, the limited ALU
+        parameter bit FULL = 1'b1,      // 0: ALU1, the limited ALU
+        parameter bit MID  = 1'b0       // with FULL = 0: ALU1..3 of the 4-wide core (OOO_ALU)
     )
     (
         input  logic [63:0] s1,
@@ -70,7 +71,7 @@ module OOO_ALU2
         b1 = b1_imm ? imm1 : s2;
     end
 
-    OOO_ALU #(.FULL(FULL)) u_alu1
+    OOO_ALU #(.FULL(FULL), .MID(MID)) u_alu1
         (.op_a(a1), .op_b(b1), .alu_op(op1), .a_uw(uw1), .a_shift(shift1), .word_op(word1),
          .result(res1));
 

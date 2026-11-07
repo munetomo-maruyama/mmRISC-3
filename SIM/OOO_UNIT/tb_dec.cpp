@@ -84,10 +84,10 @@ static R decode32(uint32_t x)
     };
     switch (opc) {
     case 0x37: alu(A_ADD, 1, 0, iu, 0); r.use1 = 0; r.asel = 2; r.op = 1; break;     // lui
-    case 0x17: alu(A_ADD, 1, 0, iu, 0); r.use1 = 0; r.asel = 1; r.op = 2; break;     // auipc
-    case 0x6f: r.legal = true; r.cls = 2; r.port = 0; r.jal = 1; we = 1; r.imm_v = true; r.imm = ij; break;
-    case 0x67: if (f3 == 0) { r.legal = true; r.cls = 3; r.port = 0; r.jalr = 1; we = 1; r.use1 = 1; r.imm_v = true; r.imm = ii; } break;
-    case 0x63: if (f3 != 2 && f3 != 3) { r.legal = true; r.cls = 1; r.port = 0; r.br = 1; r.br_op = f3; r.use1 = r.use2 = 1; r.imm_v = true; r.imm = ib; } break;
+    case 0x17: alu(A_ADD, 1, 0, iu, 0); r.use1 = 0; r.asel = 1; r.op = 2; r.port = 1; break;     // auipc (the pc: ALU0 only)
+    case 0x6f: r.legal = true; r.cls = 2; r.port = 1; r.jal = 1; we = 1; r.imm_v = true; r.imm = ij; break;
+    case 0x67: if (f3 == 0) { r.legal = true; r.cls = 3; r.port = 1; r.jalr = 1; we = 1; r.use1 = 1; r.imm_v = true; r.imm = ii; } break;
+    case 0x63: if (f3 != 2 && f3 != 3) { r.legal = true; r.cls = 1; r.port = 1; r.br = 1; r.br_op = f3; r.use1 = r.use2 = 1; r.imm_v = true; r.imm = ib; } break;
     case 0x03: if (f3 != 7) { r.legal = true; r.cls = 4; r.port = 2; r.lat2 = 1; r.mem = true; r.cmd = 0; r.size = f3 & 3; r.sgn = !(f3 & 4); we = 1; r.use1 = 1; r.imm_v = true; r.imm = ii; } break;
     case 0x23: if (f3 < 4) { r.legal = true; r.cls = 5; r.port = 2; r.mem = true; r.cmd = 1; r.size = f3; r.use1 = r.use2 = 1; r.imm_v = true; r.imm = is; } break;
     case 0x13: {
@@ -237,11 +237,13 @@ static R decode32(uint32_t x)
         break;
     }
     if (!r.legal) return R();
-    // ALU1 (G0b L7) has add / sub (no .uw, no sh*add), slt / sltu, xor / or / and: the rest is ALU0 only
+    // ALU1..3 (OOO_ALU MID, Plan/OOC.md 29.27) have add / sub with Zba, the shifts, slt / sltu, the
+    // logic operations with andn / orn / xnor, sext / zext.h, czero: the rest is ALU0 only
     if (r.alu_v) {
         int a = r.alu_op;
-        bool simple = (a == A_ADD && !r.uw && !r.shift) || a == A_SUB || a == A_SLT || a == A_SLTU ||
-                      a == A_XOR || a == A_OR || a == A_AND;
+        bool simple = a == A_ADD || a == A_SUB || a == A_SLL || a == A_SLT || a == A_SLTU || a == A_XOR ||
+                      a == A_SRL || a == A_SRA || a == A_OR || a == A_AND || a == A_ANDN || a == A_ORN ||
+                      a == A_XNOR || a == A_SEXTB || a == A_SEXTH || a == A_ZEXTH || a == A_CZEQZ || a == A_CZNEZ;
         if (!simple) r.port = 1;
     }
     r.rd = we ? (int)rd : 0;

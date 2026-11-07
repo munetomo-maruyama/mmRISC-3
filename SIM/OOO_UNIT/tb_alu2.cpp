@@ -86,7 +86,12 @@ static void rand_op(int& op, bool& uw, int& shift, bool& word)
     uw = false; shift = 0; word = (op == 0 || op == 1) && (rng() & 1);
     return;
 #endif
+#ifdef ALUM
+    static const int MIDS[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 22, 23, 24, 27, 28};
+    op = MIDS[rng() % 18];
+#else
     op = (int)(rng() % 33);
+#endif
     uw = false; shift = 0; word = false;
     if (op == 0) { int k = rng() % 6; if (k == 1) word = true; else if (k == 2) uw = true;
                    else if (k >= 3) { shift = (int)(rng() % 3) + 1; uw = rng() & 1; } }
@@ -135,7 +140,9 @@ int main(int argc, char** argv)
                        d.take_branch, brf, bos, t);
         }
     }
-#ifdef ALU1
+#ifdef ALUM
+    printf("tb_alum: %ld vectors (ALU1..3: the middle set), %ld mismatches: %s\n", n, bad, bad ? "FAIL" : "PASS");
+#elif defined(ALU1)
     printf("tb_alu1: %ld vectors (ALU1: add / sub, slt / sltu, logic), %ld mismatches: %s\n", n, bad, bad ? "FAIL" : "PASS");
 #else
     printf("tb_alu2: %ld vectors, %ld mismatches: %s\n", n, bad, bad ? "FAIL" : "PASS");

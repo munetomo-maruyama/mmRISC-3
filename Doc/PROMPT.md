@@ -7904,3 +7904,40 @@ The record is section 29.25 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 CPU_OOO finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**The seventh `OOO_CPU` run meets 20 ns (50 MHz).** I recorded it and pushed (dd0013b; 0 Ref on origin/dev). D is not started yet.
+
+#### The seventh run
+- **WNS:** +0.026 ns, TNS 0, no failing endpoint. Hold (+0.028 ns) and pulse width are met too.
+- **Between registers:** +0.698 ns, 19 levels.
+- **The overall worst:** from the I$'s response port `ic_resp_data` (6 ns of input delay) to the micro-BTB; it comes from the input-port constraint of measuring out of context.
+- **LUTs:** 54,730 (49,850 logic + 4,880 LUT RAM). FFs: 21,721 after synthesis.
+- None of the path kinds that were the problem in 29.20 to 29.25 comes near 0.
+
+#### The way there (from C as it was)
+
+| Run | WNS | Cut after it |
+|---|---|---|
+| 1 | −14.114 ns | the oldest tval chosen in parallel |
+| 2 | −0.421 ns | the ROB's emptiness by compares; checkpoint release through a register |
+| 3 | −2.097 ns | the interrupt request through a register |
+| 4 | −0.647 ns | the kill and the LSU's restore do not wait on the trap |
+| 5 | −0.068 ns | dispatch does not wait on the trap |
+| 6 | −0.226 ns | branches and loads complete a cycle later |
+| **7** | **+0.026 ns** | — |
+
+- Every cut was a chain that going 4 wide had made long within one cycle. Nothing was taken from the configuration.
+- The total effect on CoreMark cycles was +0.25 % (1,680,878 → 1,685,110).
+- Every time, routing was about 80 % of the delay, and even small changes swapped the worst path. From D on, each step will likely need several Vivado runs.
+
+D is 4 ALU ports, `OOO_EXU2`, a register file of 6 writes and 11 reads, `OOO_IQ2` with `NA` = 4 and a payload with 6 reads. The record is section 29.26 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.6.
+<!-- /answer -->
+
+## 194. 2026-11-07 12:11:35 JST
+
+```text
+Yes, start D
+```
