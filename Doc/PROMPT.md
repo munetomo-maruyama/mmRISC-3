@@ -7833,3 +7833,37 @@ The record is section 29.23 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 CPU_OOO finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**The fifth `OOO_CPU` run came out at WNS −0.068 ns, 0.07 ns short of 20 ns.** I cut the paths that remained and pushed (66078be; 0 Ref on origin/dev). The slack after the fix is not measured yet.
+
+#### The fifth run
+- **LUTs:** 54,764
+- **WNS:** −0.068 ns, 21 levels
+- Only 16 paths are below 0, all to the write address of one bank of the IQ's payload (`OOO_IQPL2`).
+- **The path:** the ROB head's done/exception bits, the trap, CTRL's recovery judgment (`rcv`), whether to dispatch (`d_go`), the IQ's entry assignment, the payload's write address.
+- Everything else has slack. The next tightest is from the LSU to the ROB's completion, +0.131 ns.
+
+#### What I cut
+Dispatch no longer waits on the trap or replay of the same cycle. Its conditions are just three: not `flush_q`, not in a restore (`restore_k`), and room.
+- **ROB:** dispatching in a trap cycle is fine; the ROB's tail goes back to the head.
+- **Elsewhere:** the next cycle's flush clears the queue, the LSU and the DS register.
+- **Renaming:** still waits on the trap as before.
+- **Cycles:** not changed at all on any test (no diff in the result files): what a trap cycle dispatches is cleared in the next cycle.
+
+#### Checks
+- **Unit:** `tb_ctrl` PASS. Its model now allows dispatch in a cycle of trap or replay and not in a cycle of `flush_q` or restore.
+- **Regression:** `run_core.sh` 12 runs with 0 failures; CoreMark PASS.
+- **Bug injection:** 21 in the control unit and 101 in the core, all detected. The new unit mutations are "dispatch in a cycle of restore" and "dispatch in a cycle of `flush_all`".
+- **Lint:** no new warnings in the core's `-Wall`.
+
+If the next run meets 20 ns, I go on to D (4 ALU ports). The record is section 29.24 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.6.
+<!-- /answer -->
+
+## 192. 2026-11-07 10:31:34 JST
+
+```text
+CPU_OOO finished.
+```

@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Sat Nov  7 08:40:50 2026
+| Date         : Sat Nov  7 10:10:01 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOO_CPU/utilization_synth.rpt
 | Design       : OOO_CPU
@@ -22,9 +22,9 @@ Table of Contents
 +-------------------+-----------------------------+------------+------------+---------+------+-------+--------+--------+------------+
 |      Instance     |            Module           | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs  | RAMB36 | RAMB18 | DSP Blocks |
 +-------------------+-----------------------------+------------+------------+---------+------+-------+--------+--------+------------+
-| OOO_CPU           |                       (top) |      55204 |      50282 |    4922 |    0 | 21673 |      9 |      5 |         26 |
+| OOO_CPU           |                       (top) |      55212 |      50290 |    4922 |    0 | 21674 |      9 |      5 |         26 |
 |   (OOO_CPU)       |                       (top) |          0 |          0 |       0 |    0 |     4 |      0 |      0 |          0 |
-|   u_core          |                    OOO_CORE |      48661 |      43809 |    4852 |    0 | 16237 |      5 |      1 |         26 |
+|   u_core          |                    OOO_CORE |      48669 |      43817 |    4852 |    0 | 16238 |      5 |      1 |         26 |
 |     (u_core)      |                    OOO_CORE |          0 |          0 |       0 |    0 |  2568 |      0 |      0 |          0 |
 |     g_alu[0].u_ex |   OOO_STAGE__parameterized0 |       4099 |       4099 |       0 |    0 |   338 |      0 |      0 |          0 |
 |     g_alu[0].u_rr |                   OOO_STAGE |        293 |        293 |       0 |    0 |    63 |      0 |      0 |          0 |
@@ -35,10 +35,10 @@ Table of Contents
 |     u_busy        |                    OOO_BUSY |        209 |        209 |       0 |    0 |    80 |      0 |      0 |          0 |
 |     u_csr         |                    OOO_CSRU |        579 |        579 |       0 |    0 |  1823 |      0 |      0 |          0 |
 |       u_csr       |                    CORE_CSR |        579 |        579 |       0 |    0 |  1821 |      0 |      0 |          0 |
-|     u_ctrl        |                    OOO_CTRL |       2398 |       2398 |       0 |    0 |   405 |      0 |      0 |          0 |
+|     u_ctrl        |                    OOO_CTRL |       2405 |       2405 |       0 |    0 |   405 |      0 |      0 |          0 |
 |     u_ex2         | OOO_STAGE__parameterized0_3 |         89 |         89 |       0 |    0 |   192 |      0 |      0 |          0 |
-|     u_front       |                   OOO_FRONT |       8565 |       7869 |     696 |    0 |  2478 |      5 |      1 |          0 |
-|       (u_front)   |                   OOO_FRONT |       3940 |       3836 |     104 |    0 |  1364 |      0 |      0 |          0 |
+|     u_front       |                   OOO_FRONT |       8563 |       7867 |     696 |    0 |  2478 |      5 |      1 |          0 |
+|       (u_front)   |                   OOO_FRONT |       3938 |       3834 |     104 |    0 |  1364 |      0 |      0 |          0 |
 |       u_fbuf      |                    OOO_FBUF |       1072 |        880 |     192 |    0 |    14 |      0 |      0 |          0 |
 |       u_fers      |                    OOO_FERS |         14 |         14 |       0 |    0 |    50 |      0 |      0 |          0 |
 |       u_fetch     |                   OOO_FETCH |       2858 |       2770 |      88 |    0 |  1040 |      5 |      1 |          0 |
@@ -50,14 +50,14 @@ Table of Contents
 |       u_ftq       |                     OOO_FTQ |        681 |        369 |     312 |    0 |    10 |      0 |      0 |          0 |
 |     u_iq          |                     OOO_IQ2 |       5768 |       5768 |       0 |    0 |  1682 |      0 |      0 |          0 |
 |     u_iqpl        |                   OOO_IQPL2 |        904 |        232 |     672 |    0 |    18 |      0 |      0 |          0 |
-|     u_lsu         |                     OOO_LSU |       5811 |       5811 |       0 |    0 |  3616 |      0 |      0 |          0 |
+|     u_lsu         |                     OOO_LSU |       5812 |       5812 |       0 |    0 |  3616 |      0 |      0 |          0 |
 |     u_mdup        |                    OOO_MDUP |       3089 |       3089 |       0 |    0 |   966 |      0 |      0 |         16 |
 |       (u_mdup)    |                    OOO_MDUP |        141 |        141 |       0 |    0 |    41 |      0 |      0 |          0 |
 |       u_mdu       |                    CORE_MDU |       2948 |       2948 |       0 |    0 |   925 |      0 |      0 |         16 |
 |     u_pmul        |                    OOO_PMUL |        320 |        320 |       0 |    0 |    89 |      0 |      0 |         10 |
 |     u_prf         |                     OOO_PRF |       3616 |       1276 |    2340 |    0 |   158 |      0 |      0 |          0 |
-|     u_rename      |                 OOO_RENAME2 |       2803 |       2427 |     376 |    0 |   679 |      0 |      0 |          0 |
-|     u_rob         |                     OOO_ROB |       8762 |       7994 |     768 |    0 |   394 |      0 |      0 |          0 |
+|     u_rename      |                 OOO_RENAME2 |       2805 |       2429 |     376 |    0 |   679 |      0 |      0 |          0 |
+|     u_rob         |                     OOO_ROB |       8762 |       7994 |     768 |    0 |   395 |      0 |      0 |          0 |
 |     u_rr2         |                 OOO_STAGE_4 |        220 |        220 |       0 |    0 |    65 |      0 |      0 |          0 |
 |     u_sys         |                     OOO_SYS |        155 |        155 |       0 |    0 |    19 |      0 |      0 |          0 |
 |     u_trap        |                    OOO_TRAP |        103 |        103 |       0 |    0 |    76 |      0 |      0 |          0 |

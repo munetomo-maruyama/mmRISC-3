@@ -807,13 +807,12 @@ module OOO_CORE
             e_rs_taken[p]   = ex_tk[p];
             // the register file at the edge the result enters the write-back register (port 0: also the
             // multiplier's and the MDU's results, below); completion in EX, but of what an MDU or the system
-            // unit completes later, and of a mispredicted branch or jalr: with its restore, a cycle later (below;
-            // the misprediction only gates the done bit's write)
+            // unit completes later, and of a branch or jalr: through the resolution's register, a cycle later
+            // (below, Plan/OOC.md 29.25)
             prf_we[p]     = wbi_v[p];
             prf_wa[p]     = wbi_t[p];
             prf_wd[p]     = wbi_d[p];
-            cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS &&
-                            !(e_br_valid[p] && e_br_mispred[p]);
+            cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS && !e_br_valid[p];
             cmp_rob[p]    = ex[p].rec.rob;
         end
         assign ex_bms[p] = ex_bm;
@@ -985,14 +984,30 @@ module OOO_CORE
          .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all(flush_all));
 
     // completion: port 0 (a CSR µop: illegal, replay after a write), port 1, the LSU's loads and stores
-    // (misaligned), port 0's multiplier and MDU, the system unit (illegal, replay)
+    // (misaligned), port 0's multiplier and MDU, the system unit (illegal, replay), the branches and jalrs
+    // of ports 0 and 1 (all of them through the resolution's register: completed in EX, as predicted, the
+    // misprediction's compare lay on the 4-wide core's paths, Plan/OOC.md 29.25). A load completes into
+    // the ROB a cycle after M, through a register for the same reason (the D$'s hit and fill). A late
+    // completion of a µop killed or flushed meanwhile is harmless: its entry is out of the ROB, and an
+    // entry given out again in that cycle takes its new state first (OOO_ROB's status writes)
+    logic            ld_cv, ld_ce, ld_crp;
+    logic [ROBW-1:0] ld_crob;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) ld_cv <= 1'b0;
+        else        ld_cv <= cmp_ld_v;
+    end
+    always_ff @(posedge clk) begin
+        ld_crob <= cmp_ld_rob;
+        ld_ce   <= cmp_ld_e;
+        ld_crp  <= cmp_ld_rp;
+    end
     always @(*) begin
-        cmp_exc   = {2'b00, sys_exc, 1'b0, cmp_st_e, cmp_ld_e, 1'b0, x_csr && csr_exc};
-        cmp_rp    = {2'b00, sys_rp, 1'b0, 1'b0, cmp_ld_rp, 1'b0, x_csr && csr_rp};
+        cmp_exc   = {2'b00, sys_exc, 1'b0, cmp_st_e, ld_ce, 1'b0, x_csr && csr_exc};
+        cmp_rp    = {2'b00, sys_rp, 1'b0, 1'b0, ld_crp, 1'b0, x_csr && csr_rp};
         cmp_cause = {5'd0, 5'd0, 5'd2, 5'd0, 5'd6, 5'd4, 5'd0, 5'd2};
     end
-    assign cmp_valid[7:2] = {br_valid & br_mispred, sys_cv, pm_v || md_v, cmp_st_v, cmp_ld_v};
-    assign cmp_rob[7:2]   = {br_rob, sys_rob, pm_v ? pm_rob : md_rob, cmp_st_rob, cmp_ld_rob};
+    assign cmp_valid[7:2] = {br_valid, sys_cv, pm_v || md_v, cmp_st_v, ld_cv};
+    assign cmp_rob[7:2]   = {br_rob, sys_rob, pm_v ? pm_rob : md_rob, cmp_st_rob, ld_crob};
 
     // tval: a misaligned access of port 2 (its address), the CSR unit or the system unit (one at a time at the head)
     always @(*) begin
@@ -1018,13 +1033,14 @@ module OOO_CORE
     end
 
     // ---- the resolution through a register (Plan/CORE.md 5.20, Plan/OOC.md 27.3): what EX resolves acts a
-    // cycle later (the restore, the kill, the redirect, the predictors' training, the BTB, a mispredicted
-    // branch's completion), so that no block uses EX's comparison in the cycle it is made. Dropped when the
-    // branch is killed or flushed as it leaves EX. In the cycle between, a mispredicted branch is not complete
-    // (it cannot commit, nor anything younger), and the younger µops move a stage on, killed there by their
-    // masks. A branch resolved as predicted completes in EX as before, and its checkpoint is cleared from this
-    // register too (OOO_CTRL's cl_*), not by its commit: from EX, it lay on the 4-wide core's paths (Plan/OOC.md
-    // 29.21; a checkpoint held a cycle longer cost 2 % with 6 of them).
+    // cycle later (the restore, the kill, the redirect, the predictors' training, the BTB, every branch's
+    // completion), so that no block uses EX's comparison in the cycle it is made. Dropped when the branch is
+    // killed or flushed as it leaves EX. In the cycle between, the branch is not complete (it cannot commit,
+    // nor anything younger), and the younger µops move a stage on, killed there by their masks if it was
+    // mispredicted. A branch resolved as predicted completed in EX until Plan/OOC.md 29.25 (the misprediction's
+    // compare gated it). Its checkpoint is cleared from this register too (OOO_CTRL's cl_*), not by its
+    // commit: from EX, it lay on the 4-wide core's paths (29.21; a checkpoint held a cycle longer cost 2 % with
+    // 6 of them).
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             br_valid <= '0;

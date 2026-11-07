@@ -92,11 +92,13 @@
 91 DETECTED      4 wide: slots 2 and 3 with the ports of slots 0 and 1
 92 DETECTED      minstret: a write counts its own commit
 93 DETECTED      mcountinhibit: setting IR, its own commit not counted (under the new bit)
-94 DETECTED      a mispredicted branch complete in EX (younger µops commit before the restore)
+94 DETECTED      a branch complete in EX, mispredicted or not (younger µops commit before the restore)
 95 DETECTED      a branch killed as it leaves EX resolves
 96 DETECTED      a branch flushed as it leaves EX resolves
 97 DETECTED      a mispredicted branch never completes
-98 DETECTED      a mispredicted branch's checkpoint cleared too
-99 DETECTED      CSR: an illegal access's tval 0
-100 DETECTED      CSR: fcsr with mstatus.FS off not illegal
-101 mutations, 101 detected
+98 DETECTED      a branch resolved as predicted never completes
+99 DETECTED      a load's exception a cycle before its completion
+100 DETECTED      a mispredicted branch's checkpoint cleared too
+101 DETECTED      CSR: an illegal access's tval 0
+102 DETECTED      CSR: fcsr with mstatus.FS off not illegal
+103 mutations, 103 detected

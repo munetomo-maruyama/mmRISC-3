@@ -4519,3 +4519,28 @@ The cycles: **unchanged on every file** (`results/*` the same): what a trap cycl
 `tb_ctrl` (dispatch allowed in a cycle of trap or replay, not with `flush_q` or a restore): PASS. `run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS. **Bug injection**: the control's campaign 21, all detected (M218 set on the new line; new: M1117 dispatch in a cycle of restore, M1118 in a cycle of `flush_all`); the core 101, all detected. `verilator -Wall` on the core: nothing new.
 
 **Next**: a sixth run of `OOO_CPU` at 20 ns (by the author). If it meets 20 ns, D.
+
+### 29.25 Step 1.2, C: the sixth run, −0.226 ns; branches and loads complete a cycle later (2026-11-07)
+
+**The run** (by the author, with 29.24's dispatch): 54,463 LUTs after place and route, **WNS −0.226 ns, 33 levels**. Nothing starts at the ROB's head any more. Three kinds of path are below 0:
+
+1. ALU 1's WB to the ROB's done bits, −0.226 ns, 33 levels (16 CARRY4): the operand bypassed from WB, ALU 0's branch compare (64 bits), the taken bit, the next pc, the misprediction compare, the completion in EX (`cmp_valid[p]`: a branch resolved as predicted completed in EX, a mispredicted one did not), the ROB's status.
+2. The D$'s tag RAM to the ROB's exception bits, −0.149 ns, 24 levels: the tag compare, the miss logic and the fill forwarded (`DCACHE`), `OOO_DCAD`'s fill buffer, the LSU's write-back (`f_v`), the load's completion, the ROB's status.
+3. ALU 0's EX to `OOO_TRAP`'s tval, −0.043 ns, 25 levels: the CSRs' illegal check (two carry chains) to the CSR unit's tval report. Left as it is: the check itself is the long part, and the choice of the oldest report adds little after it.
+
+**The cuts** (`OOO_CORE`):
+
+- **Every branch and jalr completes through the resolution's register** (`br_valid`, a cycle after EX), not in EX: `cmp_valid[p]` is no longer gated by the misprediction, it leaves branches out.
+- **A load completes into the ROB a cycle after M**: the LSU's completion (valid, index, exception, replay mark) goes through a register before the ROB. The register file and the wakeup are not delayed, only the done bit (commit).
+- A late completion of a µop killed or flushed meanwhile is harmless: its entry is out of the ROB, and an entry given out again in that cycle takes its new state first (`OOO_ROB`: the status write of a new entry wins over a completion); dispatch waits a cycle after a restore (`restore_k`) and after a flush (`flush_q`), so no entry freed by them is given out again before the late completion has landed.
+
+| CoreMark | 29.24 | Now |
+|---|---|---|
+| `g14-o2-zbsc`, no misses | 1,682,490 | 1,685,110 (+0.16 %) |
+| `g14-sflto-zbsc`, no misses | 1,642,805 | 1,634,219 (−0.52 %) |
+| `g13-o2-zb`, no misses | 1,716,373 | 1,717,965 (+0.09 %) |
+| `g14-o2-zbsc`, `OOO_CPU`, the real D$ | 1,699,305 | 1,702,880 (+0.21 %) |
+
+`run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS. **Bug injection**: the core 103, all detected (retargeted: no replay after a load that raised `ld_cancel`, a branch complete in EX whether mispredicted or not; new: a mispredicted branch never completes, a branch resolved as predicted never completes, a load's exception a cycle before its completion). `verilator -Wall` on the core: nothing new.
+
+**Next**: a seventh run of `OOO_CPU` at 20 ns (by the author). If it meets 20 ns, D.
