@@ -7867,3 +7867,40 @@ If the next run meets 20 ns, I go on to D (4 ALU ports). The record is section 2
 ```text
 CPU_OOO finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**The sixth `OOO_CPU` run came out at WNS −0.226 ns.** The paths starting at the ROB's head are gone, and only 3 kinds remain below 0. I cut 2 of them and pushed (b9d4bdd; 0 Ref on origin/dev). The slack after the fix is not measured yet.
+
+#### The sixth run (54,463 LUTs)
+1. **ALU 1's WB → the ROB's done bits (−0.226 ns, 33 levels):** the path runs through the bypassed operand, the 64-bit branch compare, the misprediction compare and the completion in EX. The rule "a branch resolved as predicted completes in EX, a mispredicted one does not" rode on that compare.
+2. **The D$'s tag RAM → the ROB's exception bits (−0.149 ns, 24 levels):** through the hit check and the fill, the LSU's write-back and the load's completion.
+3. **ALU 0's EX → tval (−0.043 ns):** the CSRs' illegal-access check itself is the long part. The tval choice has hardly any levels to take out, so I left it this time.
+
+#### What I cut (`OOO_CORE`)
+- **Branch completion:** every branch and jalr completes through the registered resolution (a cycle after EX). Branches resolved as predicted are a cycle later too.
+- **Load completion:** reported to the ROB a cycle after M. Only the ROB's done bit (commit) is delayed; the register file write and the wakeup are not.
+- **Safety:** a late completion does no harm even if its µop was killed or flushed in between.
+  - In the ROB, writing a new entry wins over a completion.
+  - After a restore or flush, dispatch waits a cycle, so a freed entry is given out again only after the late completion has been written.
+
+| CoreMark | 29.24 | Now |
+|---|---|---|
+| g14-o2, no misses | 1,682,490 | 1,685,110 (+0.16 %) |
+| g14-sflto, no misses | 1,642,805 | 1,634,219 (−0.52 %) |
+| `OOO_CPU`, real D$ | 1,699,305 | 1,702,880 (+0.21 %) |
+
+#### Checks
+- **Regression:** `run_core.sh` 12 runs with 0 failures; CoreMark PASS.
+- **Bug injection:** 103 in the core, all detected. I moved the 2 that pointed at changed lines and added 3 new ones (a mispredicted branch never completes, a branch resolved as predicted never completes, a load's exception a cycle before its completion).
+- **Lint:** no new warnings in the core's `-Wall`.
+
+The record is section 29.25 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.6.
+<!-- /answer -->
+
+## 193. 2026-11-07 12:06:00 JST
+
+```text
+CPU_OOO finished.
+```

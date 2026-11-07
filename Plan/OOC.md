@@ -4544,3 +4544,21 @@ The cycles: **unchanged on every file** (`results/*` the same): what a trap cycl
 `run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS. **Bug injection**: the core 103, all detected (retargeted: no replay after a load that raised `ld_cancel`, a branch complete in EX whether mispredicted or not; new: a mispredicted branch never completes, a branch resolved as predicted never completes, a load's exception a cycle before its completion). `verilator -Wall` on the core: nothing new.
 
 **Next**: a seventh run of `OOO_CPU` at 20 ns (by the author). If it meets 20 ns, D.
+
+### 29.26 Step 1.2, C: the seventh run meets 20 ns (2026-11-07)
+
+**The run** (by the author, with 29.25's late completions): 54,730 LUTs after place and route (49,850 logic + 4,880 LUT RAM), 21,721 FF after synthesis. **WNS +0.026 ns, TNS 0, no failing endpoint; hold +0.028 ns, pulse width met.** The worst setup path is from an input port (`ic_resp_data`, 6 ns of input delay) into the micro-BTB's pc register; **between flip-flops +0.698 ns, 19 levels** (the ROB's head to the front end's decoded instruction registers' reset, and to the payload's write data). No path kind of 29.20 to 29.25 is near 0.
+
+The way there, from C as it was (29.20): six cuts, all on chains that one 4-wide cycle had made long, and nothing taken from the configuration. CoreMark without misses, `g14-o2-zbsc`: 1,680,878 at C, 1,685,110 now (+0.25 %).
+
+| Run | WNS | Cut after it |
+|---|---|---|
+| 1 (29.20) | −14.114 ns | the oldest tval chosen in parallel |
+| 2 (29.21) | −0.421 ns | the ROB's emptiness by compares; checkpoints cleared from the registered resolution |
+| 3 (29.22) | −2.097 ns | the interrupt request through a register |
+| 4 (29.23) | −0.647 ns | the kill and the LSU's restore not waiting on the trap; `live()` by compares |
+| 5 (29.24) | −0.068 ns | dispatch not waiting on the trap |
+| 6 (29.25) | −0.226 ns | branches and loads complete a cycle later |
+| **7 (29.26)** | **+0.026 ns** (between flip-flops +0.698 ns) | — |
+
+**Next**: D: 4 ALU ports, `OOO_EXU2`, the register file of 6 writes and 11 reads, `OOO_IQ2` with `NA` = 4 and its payload with 6 reads; then `OOO_CPU` at 20 ns again.
