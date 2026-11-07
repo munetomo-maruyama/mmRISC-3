@@ -97,18 +97,24 @@
 96 DETECTED      a branch flushed as it leaves EX resolves
 97 DETECTED      a mispredicted branch never completes
 98 DETECTED      tval: LSU1's misaligned address not given
-99 DETECTED      LSU0: a try takes the address left in EX
-100 DETECTED      LSU: a load takes the store after it as older
-101 DETECTED      LSU: a restore takes the LQ's tail of the group's start
-102 DETECTED      a CSR µop never completes
-103 DETECTED      an illegal CSR access completes without its exception
-104 DETECTED      register file: the MDU's results not written
-105 DETECTED      a CSR µop completes in EX too (twice: the late one may hit the next µop)
-106 DETECTED      bypass: ALU3's result not forwarded
-107 DETECTED      register file: ALU3's results not written
-108 DETECTED      a branch resolved as predicted never completes
-109 DETECTED      a load's exception a cycle before its completion
-110 NOT DETECTED  a mispredicted branch's checkpoint cleared too
-111 DETECTED      CSR: an illegal access's tval 0
-112 DETECTED      CSR: fcsr with mstatus.FS off not illegal
-113 mutations, 110 detected
+99 DETECTED      uncached: the bench's line cached
+100 NOT DETECTED  uncached: a load for a device takes the D$ or the SQ
+101 NOT DETECTED  uncached: a load goes before older stores reach the devices
+102 NOT DETECTED  uncached: a load goes before it is the head
+103 DETECTED      uncached: a store for a device lost while another access is out
+104 DETECTED      uncached: two accesses to devices at once
+105 DETECTED      uncached: the device's word never taken
+106 DETECTED      LSU0: a try takes the address left in EX
+107 DETECTED      LSU: a load takes the store after it as older
+108 DETECTED      LSU: a restore takes the LQ's tail of the group's start
+109 DETECTED      a CSR µop never completes
+110 DETECTED      an illegal CSR access completes without its exception
+111 DETECTED      register file: the MDU's results not written
+112 DETECTED      a CSR µop completes in EX too (twice: the late one may hit the next µop)
+113 DETECTED      bypass: ALU3's result not forwarded
+114 DETECTED      register file: ALU3's results not written
+115 DETECTED      a branch resolved as predicted never completes
+116 DETECTED      a load's exception a cycle before its completion
+117 DETECTED      CSR: an illegal access's tval 0
+118 DETECTED      CSR: fcsr with mstatus.FS off not illegal
+119 mutations, 114 detected

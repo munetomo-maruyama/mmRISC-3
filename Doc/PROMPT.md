@@ -8145,3 +8145,49 @@ The record is section 29.31 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 Start E1
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**E1 is done and pushed (d32bb71; 0 Ref on origin/dev).** The core runs on `OOO_LSU3` (with a D$ of its own and 2 load ports). CoreMark got 2.1 % faster than at D.
+
+#### What changed (`OOO_CORE`)
+- **LSU:** `OOO_LSU` replaced by `OOO_LSU3` (with the D$ arrays `OOO_DCH2` and the DTLB).
+- **Queue:** port 5 (LSU1, loads only) on. The PRF has 6 writes and 11 reads; the bypass has 6 inputs.
+- **The LSU's 2 ports:** RR and EX are in the core, and the address is computed in EX. `OOO_LSU3`'s tries go in when the queue leaves LSU0's RR free.
+- **Dispatch numbering:** each slot's LQ/SQ number, the boundary of the stores older than a load, and the tails for the checkpoints are now counted in the core.
+- **Completion:** completion ports for 2 loads and 1 store; tval for a misaligned access on either LSU port. Translation (page walks) stays off.
+- **Miss handling:** moved out of the core (`dc_miss_*`, `dc_tw_*`, `dc_rf_*` and so on).
+
+#### Test bench
+- **Miss handling model:** a new `DMissModel` handles line fills and way choice.
+- **Memory:** updated by committed stores, so evicting a dirty line needs no write-back.
+- **tohost:** the `tohost` that HTIF sets back to 0 leaves a stale value in the D$, so the D$'s line is taken out once the SQ is empty.
+  - At first it was taken out too early, before the store had reached the D$, so CoreMark kept reading tohost and hung.
+  - Fixed by looking at `sq_drained` 2 cycles after the store's commit.
+- **The real path:** this is a bench-side fix; the real path for what is not cacheable is built in E1b.
+
+| CoreMark | D | E1 | model (D → E) |
+|---|---|---|---|
+| g14-o2 | 1,570,475 | 1,537,421 (−2.1 %) | −3.8 % |
+| g14-sflto | 1,534,517 | 1,449,754 (−5.5 %) | −6.2 % |
+| g13-o2-zb | 1,644,240 | 1,603,602 (−2.5 %) | −3.8 % |
+
+D was measured with an ideal D$ on which every load hits. E1's numbers are with the real 16 KB one, including the first 578 line fills (cold misses).
+
+#### Checks
+- **Regression:** `OOO_CORE`'s 8 runs all with 0 failures; CoreMark's 3 PASS.
+- **Runs left out:** `OOO_CPU` is not built until the miss handling (E2) exists. The 4 runs of `run_core.sh` and 1 of `run_coremark.sh` are off; `CPU=1` brings them back.
+- **Lint:** no new warnings.
+- **Bug injection:** 110 of 113 detected in the core. I moved the 12 that pointed at lines E1 rewrote and added 4 new ones. The 3 not detected:
+  - "A mispredicted branch's checkpoint is released too" has been equivalent since 29.21/29.23, so I took it out.
+  - "A divide result to x0 is forwarded" and "slots 2 and 3 leave `rob_insn` unwritten" are real faults. E1 changed the timing and today's tests no longer reach those situations. Tests that aim at them are needed.
+
+The record is section 29.32 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.4.
+<!-- /answer -->
+
+## 200. 2026-11-07 23:48:59 JST
+
+```text
+Go to E1b
+```

@@ -77,6 +77,7 @@ RPROGS = sorted(os.path.join(RV, t) for t in os.listdir(RV)
 CS = 'OOO_CSRU/OOO_CSRU.sv'
 
 C = 'OOO_CORE/OOO_CORE.sv'
+L3 = 'OOO_LSU3/OOO_LSU3.sv'
 MUT = [
     # D2
     (C, "hd = g_valid[0] ? 2'd0 : g_valid[1] ? 2'd1 : g_valid[2] ? 2'd2 : 2'd3;", "hd = 2'd0;", 'D2: the group not rotated'),
@@ -197,6 +198,13 @@ MUT = [
     (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && (ex_bms[p] & kill) == '0;", 'a branch flushed as it leaves EX resolves'),
     (C, "{csr_cv, br_valid, sys_cv,", "{csr_cv, br_valid & ~br_mispred, sys_cv,", 'a mispredicted branch never completes'),
     (C, "tv_valid[ND + 2] = m_ex_v[1] && mis[1];", "tv_valid[ND + 2] = 1'b0;", 'tval: LSU1\'s misaligned address not given'),
+    (L3, "return pa < CBASE || pa >= CTOP || (uc_line_v && pa[PAW-1:6] == uc_line);", "return pa < CBASE || pa >= CTOP;", 'uncached: the bench\'s line cached'),
+    (L3, "(!m_ld || (!m_uc && (f_any ? f_ok : m_hit))));", "(!m_ld || (f_any ? f_ok : m_hit)));", 'uncached: a load for a device takes the D$ or the SQ'),
+    (L3, "ugo[e] = luc[e] && !lucd[e] && lrob[e] == head_rob && sq_drained && !uc_busy;", "ugo[e] = luc[e] && !lucd[e] && lrob[e] == head_rob && !uc_busy;", 'uncached: a load goes before older stores reach the devices'),
+    (L3, "ugo[e] = luc[e] && !lucd[e] && lrob[e] == head_rob && sq_drained && !uc_busy;", "ugo[e] = luc[e] && !lucd[e] && sq_drained && !uc_busy;", 'uncached: a load goes before it is the head'),
+    (L3, "d_back  = d2_v && (d2_uc ? uc_busy : ", "d_back  = d2_v && (d2_uc ? 1'b0 : ", 'uncached: a store for a device lost while another access is out'),
+    (L3, "st_uc_go = d2_v && d2_uc && !uc_busy;", "st_uc_go = d2_v && d2_uc;", 'uncached: two accesses to devices at once'),
+    (L3, "m_ucd  = p == 0 && m_ld && m_try && !m_id[LW] && lucd[m_id[LW-1:0]];", "m_ucd  = 1'b0;", 'uncached: the device\'s word never taken'),
     (C, ".e_addr({m_ea[1], rt_q ? 64'(rt_bq) : m_ea[0]})", ".e_addr({m_ea[1], m_ea[0]})", 'LSU0: a try takes the address left in EX'),
     (C, "            disp_st[k] = st;", "            disp_st[k] = st + 5'd1;", 'LSU: a load takes the store after it as older'),
     (C, "            ck_lq_tail[k] = lt;", "            ck_lq_tail[k] = l3_lq_tail;", 'LSU: a restore takes the LQ\'s tail of the group\'s start'),

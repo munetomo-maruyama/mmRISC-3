@@ -4713,3 +4713,30 @@ D's runs had an ideal D$ (`-dhit 100`: every load hit); E1's have a real one, 16
 The unit benches of `OOO_LSU3` (`tb_lsu3`), `OOO_IQ2` (`tb_iq2`, `P5` both ways) are unchanged and pass as before; `OOO_LSU3` itself is not changed.
 
 **Next**: E1b, what is not cacheable and AMO / LR / SC; then E2.
+
+### 29.33 Step 1.3, E1b: what is not cacheable (2026-11-08)
+
+**What changed** (`OOO_LSU3`, `OOO_CORE`, `tb_core`): an address outside `[CBASE, CTOP)` (parameters, today 0x8000_0000 to 0x1_0000_0000) or in the line `uc_line` names (simulation: the bench's `tohost`) is not cacheable.
+
+- **A load** for a device: its W makes it wait whatever the D$ or the SQ has (a device's register is read, not forwarded; `luc`). It may go when it is the ROB's head (`head_rob`, its ROB entry kept at W), the SQ is drained and no device access is out (`ugo`): a try of it goes, and that try's W asks the device (`uc_*`). The answer's 8-byte word goes into a register (`uc_q`, `lucd`), and a last try takes it in M, aligned, as its result; it completes as a try (replay after its commit, as any load that waited).
+- **A store** for a device: in the drain's last stage it goes to the device, not to the D$ (no fill, no dirty bit), when no device access is out; else it goes back and tries again.
+- One device access at a time (`uc_busy` until `uc_done`): a store's from the drain, a load's from port 0's W, never both (a load goes only with the SQ drained).
+- `OOO_CORE`: the device port (`dc_uc_*`) and `dc_uc_line*`. `tb_core`: `UcModel` (one access at a time, answered after 2 to 9 cycles on Memory; a store written into Memory then, so HTIF sees it there); the bench's `tohost` line is not cached (`dc_uc_line`), and the stores to it no longer go into Memory at commit. **E1's way of taking the `tohost` line out of the D$ once the SQ drains is gone.**
+
+**Not here**: AMO, LR, SC (decoded as non-speculative µops of the LSU, run nowhere yet, and not in the tests: `rv64ua` is not in the regression). Proposed as E1c, before E2 or with the MMU in step 1.8: they are what Linux needs, not CoreMark.
+
+| CoreMark, no misses | E1 | E1b |
+|---|---|---|
+| `g14-o2-zbsc` | 1,537,421 | 1,536,572 |
+| `g14-sflto-zbsc` | 1,449,754 | 1,447,730 |
+| `g13-o2-zb` | 1,603,602 | 1,602,826 |
+
+The console's 502 characters: 502 device writes and 502 device reads (the poll of `tohost`, which reads 0 at once as the store has reached the device first); D$ lines filled 75 (578 at E1: E1's removal of the `tohost` line made it filled again at every character).
+
+`tb_lsu3` runs with the whole space cacheable (`-GCBASE=0 -GCTOP=2^40-1`: its pages are at 0x8000_0000 and 0x80_8000_0000) and passes as before; the device path is checked by the core in lock-step. `run_core.sh`: 0 failures in all 8 runs; `run_coremark.sh` PASS. `verilator -Wall` on `OOO_LSU3` and the core: nothing new.
+
+**Bug injection, the core**: 119, 114 detected; 7 new on `OOO_LSU3`'s device path, 4 of them detected (the bench's line cached, a store lost while another access is out, two accesses at once, the device's word never taken). Not detected, each read:
+- "A load for a device takes the D$ or the SQ", "... goes before older stores reach the devices", "... goes before it is the head": the bench's only device is `tohost`, which is memory: read early, read from the SQ or read twice, it gives what a device would. **A device whose reads change it** (a counter), and programs that read it, are needed to catch these (with the directed programs of 29.32).
+- 29.32's two (a divide to x0 forwarded, `rob_insn` of slots 2 and 3): still not reached.
+
+**Next**: E1c (AMO, LR, SC) or E2 (`OOO_CPU`'s miss handler); and the directed programs (29.32's two faults no longer reached, and a device whose reads change it).

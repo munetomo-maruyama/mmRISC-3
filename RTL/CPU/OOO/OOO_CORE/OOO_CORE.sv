@@ -117,6 +117,17 @@ module OOO_CORE
         output logic [1:0]                  dc_dirty_way,
         output logic [5:0]                  dc_dirty_idx,
         output logic                        dc_sq_drained,
+        // what is not cacheable (step 1.3 E1b, Plan/OOC.md 29.33): one access to a device at a time
+        input  logic                        dc_uc_line_v,   // a line not cached (simulation: the bench's tohost)
+        input  logic [PAW-1:6]              dc_uc_line,
+        output logic                        dc_uc_req,
+        output logic                        dc_uc_we,
+        output logic [PAW-1:0]              dc_uc_addr,
+        output logic [1:0]                  dc_uc_size,
+        output logic [63:0]                 dc_uc_wdata,
+        output logic [7:0]                  dc_uc_wmask,
+        input  logic                        dc_uc_done,
+        input  logic [63:0]                 dc_uc_rdata,
         output logic                        fl_req,     // FENCE.I: FLUSH of the D$ (OOO_DCAD)
         input  logic                        fl_take,
         input  logic                        fl_done,
@@ -1073,7 +1084,10 @@ module OOO_CORE
          .tw_tag(dc_tw_tag), .rf_en(dc_rf_en), .rf_way(dc_rf_way), .rf_addr(dc_rf_addr), .rf_data(dc_rf_data),
          .dirty_set(dc_dirty_set), .dirty_way(dc_dirty_way), .dirty_idx(dc_dirty_idx),
          .tlb_miss(), .tlb_miss_vpn(), .walk_id(), .tlb_done(1'b0), .tlb_we(1'b0), .tlb_vpn('0), .tlb_ptag('0),
-         .tlb_r(1'b0), .tlb_w(1'b0), .tlb_flush(tlb_flush), .tlb_busy());
+         .tlb_r(1'b0), .tlb_w(1'b0), .tlb_flush(tlb_flush), .tlb_busy(),
+         .uc_line_v(dc_uc_line_v), .uc_line(dc_uc_line), .head_rob(head_rob),
+         .uc_req(dc_uc_req), .uc_we(dc_uc_we), .uc_addr(dc_uc_addr), .uc_size(dc_uc_size), .uc_wdata(dc_uc_wdata),
+         .uc_wmask(dc_uc_wmask), .uc_done(dc_uc_done), .uc_rdata(dc_uc_rdata));
     /* verilator lint_on PINCONNECTEMPTY */
     assign dc_sq_drained = sq_drained;
     // the loads' results: the register file at the end of M (whatever the value: a miss's is replaced by its fill, and

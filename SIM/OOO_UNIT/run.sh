@@ -57,7 +57,7 @@ TOP[ubtb]=OOO_UBTB;     SRC[ubtb]="$R/OOO_UBTB/OOO_UBTB.sv"
 TOP[ubtb2]=OOO_UBTB2;   SRC[ubtb2]="$R/OOO_UBTB2/OOO_UBTB2.sv"
 TOP[lsu]=OOO_LSU;       SRC[lsu]="$R/OOO_LSU/OOO_LSU.sv"
 TOP[lsu2]=OOO_LSU2;     SRC[lsu2]="$R/OOO_DCH/OOO_DCH.sv $R/OOO_DTLB2/OOO_DTLB2.sv $R/OOO_LSU2/OOO_LSU2.sv"; GV[lsu2]="--public-flat-rw"
-TOP[lsu3]=OOO_LSU3;     SRC[lsu3]="$R/OOO_DCH2/OOO_DCH2.sv $R/OOO_DTLB2/OOO_DTLB2.sv $R/OOO_LSU3/OOO_LSU3.sv"; GV[lsu3]="--public-flat-rw"
+TOP[lsu3]=OOO_LSU3;     SRC[lsu3]="$R/OOO_DCH2/OOO_DCH2.sv $R/OOO_DTLB2/OOO_DTLB2.sv $R/OOO_LSU3/OOO_LSU3.sv"; GV[lsu3]="--public-flat-rw -GCBASE=0 -GCTOP=1099511627775"   # (its pages all cacheable: what is not, the core runs)
 TOP[dcad]=LSU_DC;       SRC[dcad]="$R/OOO_LSU/OOO_LSU.sv $R/OOO_DCAD/OOO_DCAD.sv $CA/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv $CA/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv $CA/DCACHE/DCACHE.sv $HERE/LSU_DC.sv"
 TOP[rob]=OOO_ROB;       SRC[rob]="$R/OOO_ROB/OOO_ROB.sv"
 TOP[fbuf]=OOO_FBUF;     SRC[fbuf]="$R/OOO_RARE/OOO_RARE.sv $R/OOO_FBUF/OOO_FBUF.sv"

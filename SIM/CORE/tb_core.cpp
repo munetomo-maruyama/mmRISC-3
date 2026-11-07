@@ -141,6 +141,7 @@ static bool run(const Opts& o, const std::string& elf)
 #else
     DMissModel dm(b.mem(), o.seed * 13 + 5, o.dhit >= 100 ? 0 : 12);     // (-dhit 100: fills at once, else up to 12 cycles late)
     uint64_t tohost_line = b.symbol("tohost") >> 6;
+    UcModel uc(b.mem(), o.seed * 19 + 7);                                   // (HTIF's tohost: not cached, step 1.3 E1b)
 #endif
     std::unique_ptr<Top> d(new Top);
 #ifdef CPU_TOP
@@ -194,6 +195,8 @@ static bool run(const Opts& o, const std::string& elf)
             d->dc_fill_done = q.fill_done; d->dc_done_v = q.done_v; d->dc_done_id = q.done_id;
             d->dc_tw_en = q.tw_en; d->dc_tw_way = q.tw_way; d->dc_tw_set = q.tw_set; d->dc_tw_tag = (uint32_t)q.tw_tag;
             d->dc_rf_en = q.rf_en; d->dc_rf_way = q.rf_way; d->dc_rf_addr = q.rf_addr; d->dc_rf_data = q.rf_data;
+            d->dc_uc_line_v = 1; d->dc_uc_line = tohost_line;
+            d->dc_uc_done = uc.done(); d->dc_uc_rdata = uc.rdata();
         }
         d->fl_take = 1; d->fl_done = flq_q;
 #endif
@@ -256,14 +259,16 @@ static bool run(const Opts& o, const std::string& elf)
         bool mv = d->dc_miss_valid, smv = d->dc_st_miss_valid, dset = d->dc_dirty_set, sqd = d->dc_sq_drained;
         uint64_t ml = d->dc_miss_line, sml = d->dc_st_miss_line;
         int mid = d->dc_miss_id, dway = d->dc_dirty_way, didx = d->dc_dirty_idx;
-        // Memory takes the stores as they commit (the D$ writes back: Memory is what is written through, DMissModel)
+        bool ucr = d->dc_uc_req, ucw = d->dc_uc_we;
+        uint64_t uca = d->dc_uc_addr, ucd = d->dc_uc_wdata; uint8_t ucm = d->dc_uc_wmask;
+        // Memory takes the stores as they commit (the D$ writes back: Memory is what is written through, DMissModel);
+        // a store for a device reaches Memory through UcModel instead
         for (int k = 0; k < n; k++)
-            if (!s[k].trap && s[k].st[0].v) {
+            if (!s[k].trap && s[k].st[0].v && (s[k].st[0].addr >> 6) != tohost_line) {
                 const TraceStore& t = s[k].st[0];
                 unsigned off = (unsigned)(t.addr & 7);
                 uint8_t mask = (uint8_t)(((1u << t.size) - 1) << off);
                 b.mem().write64(t.addr & ~7ull, t.data << (8 * off), mask);
-                if ((t.addr >> 6) == tohost_line) dm.host_wrote(tohost_line);
             }
 #endif
         if (!b.commit(s, n)) break;
@@ -279,6 +284,7 @@ static bool run(const Opts& o, const std::string& elf)
         al.clock(larv, lara, lrr, lawv, lawa, lwv, lwd, lws, lbr);
 #else
         dm.clock(mv, ml, mid, smv, sml, dset, dway, didx, sqd);
+        uc.clock(ucr, ucw, uca, ucd, ucm);
 #endif
     }
     std::string name = elf.substr(elf.rfind('/') + 1);
@@ -288,8 +294,8 @@ static bool run(const Opts& o, const std::string& elf)
         std::printf("    %ld restores (mispredicted branches and jalr), %ld replays, I$ %ld / %ld missed, memory %ld line reads %ld line writes, uncached %ld reads %ld writes\n",
                     restores, replays, ic.misses, ic.reqs, ax.reads, ax.writes, al.reads, al.writes);
 #else
-        std::printf("    %ld restores (mispredicted branches and jalr), %ld replays, I$ %ld / %ld missed, D$ %ld lines filled (%ld asked by loads, %ld by stores), %ld evicted\n",
-                    restores, replays, ic.misses, ic.reqs, dm.fills, dm.asks, dm.st_asks, dm.evicts);
+        std::printf("    %ld restores (mispredicted branches and jalr), %ld replays, I$ %ld / %ld missed, D$ %ld lines filled (%ld asked by loads, %ld by stores), %ld evicted, uncached %ld reads %ld writes\n",
+                    restores, replays, ic.misses, ic.reqs, dm.fills, dm.asks, dm.st_asks, dm.evicts, uc.reads, uc.writes);
 #endif
     if (rs_out_f) std::fprintf(rs_out_f, "%s %ld\n", name.c_str(), restores);
     if (const char* bp = std::getenv("CORE_BYPC")) {

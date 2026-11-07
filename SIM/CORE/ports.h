@@ -19,8 +19,9 @@
 //                the way a free one, else one at random but the set's last
 //                written. Memory has every committed store (tb_core writes
 //                them at commit), so a dirty line evicted needs no writing
-//                back. A line HTIF writes (tohost set back to 0) is taken
-//                out of the D$ once the SQ is drained.
+//                back. HTIF's tohost is not cached (dc_uc_line: UcModel).
+//   UcModel      a device's access (OOO_LSU3's uc_*, step 1.3 E1b): one at a
+//                time, answered after a random delay on Memory.
 //   Axi4Mem      the D$'s memory bus (AXI4, OOO_CPU, B3b) on Memory: read and
 //                write bursts (INCR, 8-byte beats), the readies, the read
 //                data's first beat and the write responses after random
@@ -84,8 +85,6 @@ public:
     struct Out { bool fill_done = false, done_v = false, tw_en = false, rf_en = false;
                  int done_id = 0, tw_way = 0, tw_set = 0, rf_way = 0, rf_addr = 0; uint64_t tw_tag = 0, rf_data = 0; };
     const Out& out() const { return o; }
-    // HTIF wrote this line in Memory: the D$'s copy goes once every committed store is in the D$
-    void host_wrote(uint64_t line) { inval.push_back({line, cyc + 2}); }   // (sq_drained counts the store from the cycle after its commit)
     // the clock edge, with what the core gave this cycle
     void clock(bool miss_v, uint64_t miss_line, int miss_id, bool st_miss_v, uint64_t st_miss_line,
                bool dirty_set, int dirty_way, int dirty_idx, bool sq_drained)
@@ -105,7 +104,6 @@ private:
     Out o;
     long cyc = 0;
     std::deque<uint64_t> mq;
-    std::deque<std::pair<uint64_t, long>> inval;
     std::map<uint64_t, int> who;
     int state = 0, way = 0, word = 0, delay = 0;
     uint64_t line = 0;
@@ -129,17 +127,6 @@ private:
         if (delay > 0) { delay--; return; }
         switch (state) {
         case 0:
-            if (!inval.empty() && cyc >= inval.front().second && sq_drained) {   // HTIF's write: the D$'s copy goes (Memory has it)
-                uint64_t l = inval.front().first; inval.pop_front();
-                int set = (int)(l & 63);
-                for (int w = 0; w < 4; w++)
-                    if (v_ref[set][w] && tag_ref[set][w] == (l >> 6)) {
-                        o.tw_en = true; o.tw_way = w; o.tw_set = set; o.tw_tag = tag_ref[set][w];
-                        v_ref[set][w] = false; invals++;
-                        break;
-                    }
-                break;
-            }
             if (!mq.empty()) {
                 line = mq.front(); mq.pop_front();
                 int set = (int)(line & 63);
@@ -176,6 +163,35 @@ private:
             break;
         }
     }
+};
+
+class UcModel {
+public:
+    // a device's access (OOO_LSU3's uc_*, one at a time): answered 2 + 0..lat - 1 cycles later; a store is written into
+    // Memory then (write64: HTIF sees it), a load reads the 8-byte word then
+    UcModel(Memory& m, uint64_t seed, int lat = 8) : m(m), rng(seed), lat(lat) {}
+    bool done() const { return busy && left == 0; }
+    uint64_t rdata() const { return rd; }
+    void clock(bool req, bool we, uint64_t addr, uint64_t wdata, uint8_t wmask)
+    {
+        if (done()) busy = false;
+        else if (busy) { if (--left == 0) answer(); }
+        if (req) {
+            busy = true; a = addr & ~7ull; w = we; wd = wdata; wm = wmask;
+            left = 2 + (int)(rng() % lat);
+            (w ? writes : reads)++;
+        }
+    }
+    long reads = 0, writes = 0;
+private:
+    Memory& m;
+    std::mt19937_64 rng;
+    int lat;
+    bool busy = false, w = false;
+    int left = 0;
+    uint64_t a = 0, wd = 0, rd = 0;
+    uint8_t wm = 0;
+    void answer() { if (w) m.write64(a, wd, wm); else rd = m.read64(a); }
 };
 
 class Axi4Mem {

@@ -39,8 +39,13 @@
 // cycles more that way, and the mux is not on M's latest signals. What stays of a µop for a
 // try is kept in a RAM per port, and a bit per LQ entry says which.
 //
-// Not here yet: what is not cacheable, AMO, LR, SC (non-speculative, at the ROB's head). The
-// miss handler is outside, by miss_*, st_miss_*, tw_*, rf_*, fill_done.
+// What is not cacheable (step 1.3 E1b, Plan/OOC.md 29.33): an address outside [CBASE, CTOP), or in
+// the line uc_line names (the bench's tohost). A load that finds one in W waits, whatever the D$ or
+// the SQ has (a device's register is read, not forwarded); when it is the ROB's head (head_rob) and
+// the SQ is drained, a try of it goes, and that try's W asks the device (uc_*); the answer's word
+// goes into a register, and a last try takes it in M as its result. A store that finds one as it
+// drains goes to the device, not to the D$. One access to a device at a time. Not here yet: AMO,
+// LR, SC. The miss handler is outside, by miss_*, st_miss_*, tw_*, rf_*, fill_done.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -53,7 +58,9 @@ module OOO_LSU3
         parameter int VA   = 39,
         parameter int TAGW = 7,
         parameter int ROBW = 6,
-        parameter int NCK  = 12
+        parameter int NCK  = 12,
+        parameter logic [PAW-1:0] CBASE = 40'h00_8000_0000,  // the cacheable memory: [CBASE, CTOP)
+        parameter logic [PAW-1:0] CTOP  = 40'h01_0000_0000
     )
     (
         input  logic                     clk,
@@ -142,7 +149,20 @@ module OOO_LSU3
         input  logic                     tlb_r,
         input  logic                     tlb_w,
         input  logic                     tlb_flush,
-        output logic                     tlb_busy
+        output logic                     tlb_busy,
+
+        // ---- what is not cacheable (step 1.3 E1b)
+        input  logic                     uc_line_v,  // a line not cached (simulation: tohost)
+        input  logic [PAW-1:6]           uc_line,
+        input  logic [ROBW-1:0]          head_rob,   // the ROB's head
+        output logic                     uc_req,     // an access to a device, one at a time
+        output logic                     uc_we,
+        output logic [PAW-1:0]           uc_addr,    // the byte's address
+        output logic [1:0]               uc_size,
+        output logic [63:0]              uc_wdata,   // a store's: its bytes in their places in the 8-byte word
+        output logic [7:0]               uc_wmask,
+        input  logic                     uc_done,    // the answer (a load's: uc_rdata, the 8-byte word)
+        input  logic [63:0]              uc_rdata
     );
 
     localparam int LW = $clog2(NLQ);
@@ -153,6 +173,9 @@ module OOO_LSU3
     typedef logic [SW:0] sptr_t;
     typedef logic [LW:0] lptr_t;
 
+    function automatic logic uncached(input logic [PAW-1:0] pa);
+        return pa < CBASE || pa >= CTOP || (uc_line_v && pa[PAW-1:6] == uc_line);
+    endfunction
     function automatic logic misal(input logic [1:0] size, input logic [2:0] a);
         case (size)
             2'd1:    return a[0];
@@ -254,6 +277,13 @@ module OOO_LSU3
 
     // ---- the queues' state
     logic [NLQ-1:0] lv, lwait, lretry, lkp1;
+    logic [NLQ-1:0] luc, lucd;               // a load for a device; its word is in uc_q
+    logic [ROBW-1:0] lrob [NLQ];             // (a load for a device: its ROB entry)
+    logic           uc_busy;                 // an access to a device is out
+    logic [63:0]    uc_q;
+    logic [NLQ-1:0] ugo;                     // a load for a device that may go now
+    always @(*)
+        for (int e = 0; e < NLQ; e++) ugo[e] = luc[e] && !lucd[e] && lrob[e] == head_rob && sq_drained && !uc_busy;
     logic [NSQ-1:0] sv, sp, swait, sretry;
     logic [8:0]     swa   [NSQ];         // the word's address in the page
     logic [7:0]     smask [NSQ];
@@ -270,7 +300,7 @@ module OOO_LSU3
     logic [IW-1:0]      p_id;
     logic [KW-1:0]      r_d;
     always @(*) begin
-        cand   = {sv & swait & sretry, lv & lwait & lretry};
+        cand   = {sv & swait & sretry, lv & lwait & lretry & (~luc | lucd | ugo)};
         r_any  = cand != '0;
         // in turn: the first after the last one tried; but first who has just been answered
         r_next = '0;
@@ -356,6 +386,12 @@ module OOO_LSU3
     logic                 w_ask1;     // port 1 needs a line or a walk
     logic                 w_try0, m_st0;
     logic [1:0][LW-1:0]   w_lqs;
+    logic [1:0]           w_ucs;      // a load for a device, waiting for its turn
+    logic [1:0][ROBW-1:0] w_robs;
+    logic                 uc_ld_go;   // port 0's W asks a device for a load
+    logic [LW-1:0]        uc_ld_lq;
+    logic [PAW-1:0]       uc_ld_a;
+    logic [1:0]           uc_ld_size;
     logic [1:0][IW-1:0]   m_ids;
     logic [1:0][KW-1:0]   m_kp;
     logic [1:0]           m_kpw;
@@ -506,6 +542,8 @@ module OOO_LSU3
         logic [63:0] m_f, m_w [4];
         logic        f_ok, m_hit;
         logic        m_bad, m_perm;
+        logic        m_uc, m_ucd;           // for a device; the last try of one, with its word in uc_q
+        logic [63:0] m_u;
         always @(*) begin
             for (int w = 0; w < 4; w++) begin
                 m_w[w] = align(a_d[p][w], m_off, m_spos, m_s0, m_s01, m_s3, m_sen);
@@ -517,10 +555,14 @@ module OOO_LSU3
             f_ok   = (sm_f[f_idx] & m_lmask) == m_lmask && sp[f_idx] && st_r[f_idx] == t_ptag;
             m_bad  = m_mis || (tr_on && !(&m_hi || !(|m_hi)));
             m_perm = m_ld ? t_r : t_w;
+            m_uc   = uncached({t_ptag, m_a[11:0]});
+            m_ucd  = p == 0 && m_ld && m_try && !m_id[LW] && lucd[m_id[LW-1:0]];
+            m_u    = align(uc_q, m_off, m_spos, m_s0, m_s01, m_s3, m_sen);
         end
         assign ld_nv[p] = m_v && m_ld;
         assign ld_nt[p] = m_dst;
-        assign ld_d[p]  = ({64{sel[0]}} & m_w[0]) | ({64{sel[1]}} & m_w[1]) | ({64{sel[2]}} & m_w[2]) |
+        assign ld_d[p]  = m_ucd ? m_u :
+                          ({64{sel[0]}} & m_w[0]) | ({64{sel[1]}} & m_w[1]) | ({64{sel[2]}} & m_w[2]) |
                           ({64{sel[3]}} & m_w[3]) | ({64{f_any}} & m_f);
 
         // a store, port 0 alone
@@ -560,7 +602,11 @@ module OOO_LSU3
         end
 
         // ---- W
-        logic            w_v, w_ld, w_try, w_ok, w_exc, w_miss, w_walk, w_live;
+        logic            w_v, w_ld, w_try, w_ok, w_exc, w_miss, w_walk, w_live, w_uc;
+        /* verilator lint_off UNUSEDSIGNAL */      // (port 0's: the device's address and size)
+        logic [PAW-1:0]  w_a;
+        logic [1:0]      w_size;
+        /* verilator lint_on UNUSEDSIGNAL */
         logic [ROBW-1:0] w_rob;
         logic [NCK-1:0]  w_bm;
         logic [LW-1:0]   w_lq;
@@ -576,15 +622,20 @@ module OOO_LSU3
             w_lq   <= m_lq;
             w_exc  <= m_bad || (t_hit && !m_perm);
             w_walk <= !m_bad && !t_hit;
-            // a store is done with its translation
-            w_ok   <= t_hit && m_perm && !m_bad && (!m_ld || (f_any ? f_ok : m_hit));
-            w_miss <= m_ld && t_hit && m_perm && !m_bad && !f_any && !m_hit;
+            // a store is done with its translation; a load for a device waits for its turn, then takes uc_q
+            w_ok   <= m_ucd || (t_hit && m_perm && !m_bad && (!m_ld || (!m_uc && (f_any ? f_ok : m_hit))));
+            w_miss <= m_ld && t_hit && m_perm && !m_bad && !f_any && !m_hit && !m_uc;
+            w_uc   <= m_ld && t_hit && m_perm && !m_bad && m_uc && !m_ucd;
+            w_a    <= {t_ptag, m_a[11:0]};
+            w_size <= m_size;
         end
         assign w_live = w_v && !drop(w_try, w_bm);
         assign w_lives[p] = w_live && w_ld;
         assign w_oks[p]   = w_ok;
         assign w_excs[p]  = w_exc;
         assign w_lqs[p]   = w_lq;
+        assign w_ucs[p]   = w_live && w_ld && w_uc;
+        assign w_robs[p]  = w_rob;
         assign cmp_ld_valid[p] = w_live && w_ld && (w_ok || w_exc);
         assign cmp_ld_rob[p]   = w_rob;
         assign cmp_ld_exc[p]   = w_exc;
@@ -604,6 +655,11 @@ module OOO_LSU3
                 tlb_miss_vpn <= m_a[VA-1:12];
             end
             assign miss_valid = w_live && w_miss;
+            // a try of a load for a device whose turn it is: ask the device
+            assign uc_ld_go   = w_live && w_ld && w_uc && w_try && ugo[w_lq];
+            assign uc_ld_lq   = w_lq;
+            assign uc_ld_a    = w_a;
+            assign uc_ld_size = w_size;
             assign miss_id    = w_id;
             assign tlb_miss   = w_live && w_walk;
             assign walk_id    = w_id;
@@ -636,7 +692,7 @@ module OOO_LSU3
 
     // ---- what may let a waiting µop go. A try that a recovery dropped goes again
     logic ev;
-    assign ev = m_st0 || w_ask1 || d3_v || fill_done || tlb_done || rec;
+    assign ev = m_st0 || w_ask1 || d3_v || fill_done || tlb_done || rec || uc_done;
     logic launch_l, launch_s;
     assign launch_l = rt_v && !r_id[LW];
     assign launch_s = rt_v &&  r_id[LW];
@@ -647,7 +703,7 @@ module OOO_LSU3
     assign sv_n = sring(sq_head_n, sq_tail_n);
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            lv <= '0; lwait <= '0; lretry <= '0;
+            lv <= '0; lwait <= '0; lretry <= '0; luc <= '0; lucd <= '0;
             sv <= '0; sretry <= '0;
         end else begin
             lv <= lv_n;
@@ -656,7 +712,12 @@ module OOO_LSU3
                 if (!lv[e]) begin
                     lwait[e]  <= 1'b0;
                     lretry[e] <= 1'b0;
+                    luc[e]    <= 1'b0;
+                    lucd[e]   <= 1'b0;
                 end else begin
+                    for (int p = 0; p < 2; p++)
+                        if (w_ucs[p] && w_lqs[p] == LW'(e)) luc[e] <= 1'b1;
+                    if (uc_done && uc_is_ld && uc_lq == LW'(e) && luc[e]) lucd[e] <= 1'b1;
                     for (int p = 0; p < 2; p++)
                         if (w_lives[p] && w_lqs[p] == LW'(e)) lwait[e] <= !(w_oks[p] || w_excs[p]);
                     if (ev) lretry[e] <= 1'b1;
@@ -671,6 +732,35 @@ module OOO_LSU3
         end
     end
 
+    // ---- what is not cacheable: the access to a device, one at a time (a load's from port 0's W, a store's
+    // from the drain; never both, as a load goes only with the SQ drained)
+    logic           uc_is_ld, st_uc_go;
+    logic [LW-1:0]  uc_lq;
+    logic [PAW-1:0] st_uc_a;
+    logic [63:0]    st_uc_d;
+    logic [7:0]     st_uc_m;
+    always_ff @(posedge clk) begin
+        for (int p = 0; p < 2; p++)
+            if (w_ucs[p]) lrob[w_lqs[p]] <= w_robs[p];
+        if (uc_ld_go) uc_lq <= uc_ld_lq;
+        if (uc_req) uc_is_ld <= !uc_we;
+        if (uc_done) uc_q <= uc_rdata;
+    end
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)       uc_busy <= 1'b0;
+        else if (uc_req)  uc_busy <= 1'b1;
+        else if (uc_done) uc_busy <= 1'b0;
+    end
+    always @(*) begin
+        uc_req   = st_uc_go || uc_ld_go;
+        uc_we    = st_uc_go;
+        uc_addr  = st_uc_go ? st_uc_a : uc_ld_a;
+        uc_size  = st_uc_go ? (st_uc_m == 8'hff ? 2'd3 : (st_uc_m & 8'h0f) == 8'h0f || (st_uc_m & 8'hf0) == 8'hf0 ? 2'd2 :
+                              (st_uc_m & 8'h55) == 8'd0 || (st_uc_m & 8'haa) == 8'd0 ? 2'd0 : 2'd1) : uc_ld_size;
+        uc_wdata = st_uc_d;
+        uc_wmask = st_uc_m;
+    end
+
     // ---- the drain
     sptr_t         dp;                         // the next store to start
     logic          d_wait;                     // after a miss, for a fill
@@ -681,7 +771,7 @@ module OOO_LSU3
     logic [7:0]    d1_m, d2_m;
     logic [3:0]    d_hit;
     logic [1:0]    d2_way;
-    logic          d2_hit;
+    logic          d2_hit, d2_uc;              // (a store for a device: to it, not to the D$)
     logic [63:0]   d2_d;
     logic [TW-1:0] d1_tag;
     logic [PAW-1:6] d2_line;
@@ -690,16 +780,21 @@ module OOO_LSU3
     always @(*) begin
         d1_tag = st_r[d1_p[SW-1:0]];
         for (int w = 0; w < 4; w++) d_hit[w] = s_t[w][TW] && s_t[w][TW-1:0] == d1_tag;
-        // a fill's word first; a tag written since the lookup began sends the store back
-        d_back  = d2_v && (!d2_hit || rf_en || tw_en || d2_st);
-        dw_en   = rf_en || (d2_v && d2_hit && !tw_en && !d2_st);
+        // a fill's word first; a tag written since the lookup began sends the store back; a store for a
+        // device goes to it when no access to a device is out, else it goes back
+        st_uc_go = d2_v && d2_uc && !uc_busy;
+        d_back  = d2_v && (d2_uc ? uc_busy : (!d2_hit || rf_en || tw_en || d2_st));
+        dw_en   = rf_en || (d2_v && !d2_uc && d2_hit && !tw_en && !d2_st);
         dw_way  = rf_en ? rf_way : d2_way;
         dw_addr = rf_en ? rf_addr : d2_a;
         dw_data = rf_en ? rf_data : d2_d;
         dw_strb = rf_en ? 8'hff : d2_m;
-        st_miss_valid = d2_v && !d2_hit && !tw_en && !d2_st;
+        st_miss_valid = d2_v && !d2_uc && !d2_hit && !tw_en && !d2_st;
         st_miss_line  = d2_line;
-        dirty_set = d2_v && d2_hit && !rf_en && !tw_en && !d2_st;
+        dirty_set = d2_v && !d2_uc && d2_hit && !rf_en && !tw_en && !d2_st;
+        st_uc_a   = {d2_line, d2_a[2:0], 3'b000};
+        st_uc_d   = d2_d;
+        st_uc_m   = d2_m;
         dirty_way = d2_way;
         dirty_idx = d2_a[8:3];
     end
@@ -707,7 +802,7 @@ module OOO_LSU3
         if (!rst_n) begin
             dp <= '0; d_wait <= 1'b0; d1_v <= 1'b0; d2_v <= 1'b0; d3_v <= 1'b0;
         end else begin
-            d3_v <= dirty_set;
+            d3_v <= dirty_set || st_uc_go;
             if (d_back) begin
                 dp   <= d2_p;
                 d1_v <= 1'b0;
@@ -734,6 +829,7 @@ module OOO_LSU3
         d2_way  <= d_hit[3] ? 2'd3 : d_hit[2] ? 2'd2 : d_hit[1] ? 2'd1 : 2'd0;
         d2_d    <= sd_f[d1_p[SW-1:0]];
         d2_line <= {d1_tag, d1_a[8:3]};
+        d2_uc   <= uncached({d1_tag, d1_a, 3'b000});
     end
 
 endmodule : OOO_LSU3
