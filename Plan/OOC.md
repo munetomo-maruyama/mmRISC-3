@@ -4661,3 +4661,23 @@ LUTs against the budget of gate S1-A (about 106.5k for the chip): `OOO_CPU` 67.2
 **Also**: the model takes `ld_cmt`, `br_cmt` (a load's, a branch's completion later: the core's registers of 29.25): +0 cycles at this ROB, so they explain nothing. `Plan/model` keeps `br_p` (29.27) and these.
 
 **Proposed**: (1) the comparisons with the model from now on with `dec_block=1` until F; (2) the replays of the search loops: a load not issued while an older store has no address and such loads have cancelled before (the model's `ld_wt`, a wait table), in E with `OOO_LSU3`; (3) `core_bench_state`'s front end, in F.
+
+### 29.31 Step 1.3, E: the plan (2026-11-07)
+
+**What E is** (29.16, `Doc/STRATEGY.md` 1.4): `OOO_LSU3` with its arrays (`OOO_DCH2`) in place of `OOO_LSU` and mmRISC-2's D$ (`DCACHE` through `OOO_DCAD`), the second load port, and the miss logic, which does not exist yet. `OOO_LSU3` (29.7, 29.8: about 14.1 ns, 3,326 LUTs alone) has 2 load ports at load-use 2, a write-back D$ of 64 sets × 4 ways × 64 bytes in block RAM with a copy per port, a DTLB, tries of what had to wait, and the miss handler outside it (`miss_*`, `st_miss_*`, `fill_done`, `done_*`, `tw_*`, `rf_*`, `dirty_*`). It has nothing yet for what is not cacheable, nor for AMO, LR, SC.
+
+**The model** (29.27's D row, LSU0 + LSU1, `issue_w=6`):
+
+| | `g14-o2` | `g14-sflto` | `g13-o2-zb` |
+|---|---|---|---|
+| D → E, the front end as the RTL's (`dec_block=1`) | −3.8 % | −6.2 % | −3.8 % |
+| D → E, the front end of F | −6.5 % | −7.3 % | −5.8 % |
+
+**The pieces, each in lock-step before the next:**
+
+- **E1, `OOO_CORE`**: `OOO_LSU3` in place of `OOO_LSU`; `OOO_IQ2` with `P5` = 1; port 5's RR and EX (one source); both addresses from EX (base + offset), the store's data from port 4's second source; a try (`rt_*`) into port 4's RR when the queue leaves it; the loads' results in M into the bypass (6 sources) and the register file (6 writes, 11 reads); completion of 2 loads and a store; translation off (`tr_on` 0; the walk's ports tied). The miss interface leaves the core, and `tb_core` gets a model of the miss handler behind it (lines in its memory, latencies at random, dirty lines written back), in place of today's model of mmRISC-2's D$ port.
+- **E1b**: what is not cacheable (HTIF's `tohost`, MMIO) and AMO / LR / SC: non-speculative, at the ROB's head, past the D$, through a port of their own beside the miss interface. Today's core sends them through `OOO_LSU` and `OOO_DCAD`; `OOO_LSU3` needs it added.
+- **E2, `OOO_CPU`**: the miss handler (new): a line's fill by AXI4 bursts, a dirty victim written back, the uncached path on AXI4-Lite, FENCE.I's write-back of the dirty lines (`OOO_SYS`'s `fl_*`); `DCACHE` and `OOO_DCAD` go.
+- **E3**: `OOO_CPU` at 20 ns; then the wait table of 29.30 for the search loops' replays, if the replays stay.
+
+**Not in E**: translation (the DTLB is there, the walk is step 1.8 with the MMU), the I$ (1.7).

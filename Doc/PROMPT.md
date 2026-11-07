@@ -8061,3 +8061,46 @@ The record is section 29.29 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 Compare first
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**The 2.9 % gap to the model came from a difference in the front-end assumption.** D itself got faster just as the model predicts. I recorded it and pushed (cb16579; 0 Ref on origin/dev).
+
+#### How I looked
+I added `CORE_BYPC` to `tb_core`. It counts the cycles between commits by the pc of the instruction that ends the interval, the same way as the model's `OOO_BYPC`. Summing these by function from the ELF's symbols, I compared C and D in both RTL and model.
+
+#### What I found
+- **Most of the gap was in one function.** Of the 36.8k cycles lost, 28.6k were in `matrix_mul_matrix`.
+  - In its inner loop the back end (ALU0, LSU, queue, ROB) waits for nothing.
+  - Renaming takes all it is given. Yet in nearly 4 cycles of 10 the front end gives only 1 µop.
+- **The cause is the decode width.** The loop's 28 bytes span 3 blocks of 16 bytes. Today's RTL decodes one block a cycle, so an iteration takes 4 cycles. The model's base assumes 2 blocks a cycle: the form OOO_FBUF3 brings in F.
+- **With the model at 1 block like the RTL, the gains agree.**
+
+| g14-o2 | C | D | C → D |
+|---|---|---|---|
+| RTL | 1,685,110 | 1,570,475 | **−6.80 %** |
+| model (1 block a cycle) | 1,579,152 | 1,475,215 | **−6.58 %** |
+| model (base so far) | 1,574,685 | 1,423,245 | −9.62 % |
+
+The RTL being about 6.5 % slower than the model has been the same since C; D did not add to it.
+
+#### What remains
+- **Replays (C 669 → D 922):** almost all in `core_bench_list`'s search loops. Right after the stores that rewrote the list's pointers, loads that meet a store with no address yet are cancelled and replayed at commit. D runs further ahead and meets more of these.
+- **`core_bench_state`:** the model shrinks from C to D, but the RTL grows slightly, and the RTL stays 52 % slower than the model in this function. The back end does not wait, and in about 30 % of cycles the front end gives nothing. The cause is not known yet.
+- **Start-up and `ee_printf`:** about 15k cycles, not in the model's trace.
+- **Added to the model:** `ld_cmt` and `br_cmt` (the completion delays put in at 29.25); their effect is about 0.
+
+#### Proposals
+1. Until F, compare with the model at `dec_block=1`.
+2. Handle the replays in E (`OOO_LSU3`) as a mechanism that holds a load that was cancelled before until the older store's address is known (a wait table, the model's `ld_wt`).
+3. Look at `core_bench_state`'s front end in F.
+
+The record is section 29.30 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.3.
+<!-- /answer -->
+
+## 198. 2026-11-07 21:10:49 JST
+
+```text
+Go to E
+```
