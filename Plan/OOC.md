@@ -4625,3 +4625,13 @@ The CSR's late completion costs nothing measurable here; the rest moves where a 
 `tb_mdup` (`res_we`: never without `res_valid`, never while the slot is taken), `tb_lsu` (`rf_we` with every `rf_valid`): PASS. `run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS. **Bug injection.** The unit campaign on the MDU and the LSU: 46, all detected (new: M1124 the MDU's write while the slot is taken, M1125 none with a result, M1126 a fill without the enable). The core: 109, all detected (8 set on the lines this rewrote; new: a CSR µop never completes, an illegal CSR access without its exception, the MDU's results not written, a CSR µop completing in EX too). `verilator -Wall` on the core: nothing new.
 
 **Next**: `OOO_CPU` at 20 ns again (by the author).
+
+### 29.29 Step 1.2, D: the second run meets 20 ns between flip-flops (2026-11-07)
+
+**The run** (by the author, with 29.28's cuts): 67,196 LUTs after place and route (57,772 logic + 9,424 LUT RAM), 22,640 FF after synthesis. **Between flip-flops +0.144 ns, 21 levels** (the ROB's head to the front end's decoded group register's reset, and to the live value table, +0.173 ns); hold +0.028 ns, pulse width met. None of 29.28's paths is below 0.
+
+**WNS −0.217 ns, TNS −0.465 ns, 4 endpoints**: all from the input port `ic_resp_data` to the micro-BTB's pc register (23 levels, 11 CARRY4), the harness's 6 ns of input delay on it. The same path was the worst at 29.26 (+0.026 ns). It is not a path of the core: in the chip the I$'s block RAM drives it (step 1.7), and F rewrites the fetch (`OOO_UBTB2`, `OOO_FDEC2`). So **D meets 20 ns as far as the core goes**; that path is to be looked at again with F.
+
+LUTs against the budget of gate S1-A (about 106.5k for the chip): `OOO_CPU` 67.2k at D, with E (the second LSU port, `OOO_LSU3`, `OOO_DCH2`) and F (the 32-byte fetch, 6 decoded) still to come, and mmRISC-2's blocks (FPU, MMU, the caches at full size) outside it.
+
+**Next**: the comparison by function against the model (RTL −6.7 % against the model's −9.6 % at D), then E.

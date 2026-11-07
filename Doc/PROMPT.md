@@ -7988,3 +7988,41 @@ The record is section 29.27 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 CPU_OOO finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**D's `OOO_CPU` came out at WNS −0.640 ns at 20 ns, with 66,949 LUTs.** I cut the 3 largest of the negative paths and pushed (3953f34; 0 Ref on origin/dev). The slack after the fix is not measured yet.
+
+#### Results
+- **LUTs:** 66,949, +12.2k from C. Most of the growth is the PRF (3.6k → 9.6k, 5 writes and 10 reads); the payload went from 0.9k to 1.4k.
+- **Negative paths:**
+  1. **ROB head → the PRF's LVT (−0.640 ns):** through `restore_k`, the kill, the MDU's result acknowledge, port 0's write and the LVT's choice (5 writes).
+  2. **ALU0's EX → tval (−0.377 ns):** the CSRs' illegal check left in 29.25, now worse.
+  3. **D$ → the write enable of the PRF's LSU bank (−0.213 ns):** from the hit check through `m_ok` to `rf_valid`.
+  4. **Within 0.13 ns of 0:** the fetch buffer, renaming, the payload.
+
+#### What I cut
+- **Port 0's PRF write does not wait on the kill:** the MDU has a new output `res_we`. Writing a value into a killed µop's register is harmless, since its tag is not given out again in that cycle. The WB register, completion and wakeup still use `res_valid`.
+- **The LSU's PRF write does not wait on the hit:** with a new output `rf_we`, every load in M writes. On a miss the value is wrong, but it goes into that load's own register. The dependents are saved by the replay, and the fill writes the right value later. The bypass keeps `rf_valid`.
+- **A CSR µop completes and reports its tval a cycle later:** through a register and a completion port of its own. CSR runs one at a time at the ROB head, so the cost is just one cycle per CSR instruction.
+
+| CoreMark | 29.27 | Now |
+|---|---|---|
+| g14-o2, no misses | 1,572,276 | 1,570,475 (−0.11 %) |
+| `OOO_CPU`, real D$ | 1,580,884 | 1,572,482 (−0.53 %) |
+
+#### Checks
+- **Unit:** `tb_mdup` and `tb_lsu` PASS. They now check the relations the new write enables must keep (with `res_valid` there is always `res_we`, and so on).
+- **Regression:** `run_core.sh` 12 runs with 0 failures; CoreMark PASS.
+- **Bug injection:** 46 in the MDU and LSU units and 109 in the core, all detected. I moved the 8 that pointed at lines rewritten this time and added 7 new ones.
+- **Lint:** no new warnings in the core's `-Wall`.
+
+Comparing the 2.9 % gap to the model function by function is not started yet. The record is section 29.28 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.6.
+<!-- /answer -->
+
+## 196. 2026-11-07 20:31:59 JST
+
+```text
+CPU_OOO finished.
+```
