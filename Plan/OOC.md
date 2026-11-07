@@ -4681,3 +4681,35 @@ LUTs against the budget of gate S1-A (about 106.5k for the chip): `OOO_CPU` 67.2
 - **E3**: `OOO_CPU` at 20 ns; then the wait table of 29.30 for the search loops' replays, if the replays stay.
 
 **Not in E**: translation (the DTLB is there, the walk is step 1.8 with the MMU), the I$ (1.7).
+
+### 29.32 Step 1.3, E1: `OOO_LSU3` in the core, 2 load ports (2026-11-07)
+
+**What changed** (`OOO_CORE`): `OOO_LSU3` (with `OOO_DCH2` and `OOO_DTLB2`) in place of `OOO_LSU`, and with it:
+
+- `OOO_IQ2` with `P5` = 1: LSU0 (port 4: loads, stores) and LSU1 (port 5: loads); the payload with 6 reads.
+- The two ports' RR and EX in the core (OOO_STAGE), the register file read in RR, the bypass in EX, the address (base + offset) at the end of EX into `OOO_LSU3`'s E; LSU0's second source is a store's data. A try of `OOO_LSU3` (`rt_*`) takes LSU0's RR when the queue leaves it, and its address in EX is `rt_base`.
+- Dispatch: `OOO_LSU3` takes counts and gives its tails; each slot's LQ / SQ entry, a load's older stores (`rr_st`, a new field of the record) and the tails after each slot (the checkpoint table's) are counted in the core.
+- The loads' results in M (`ld_n*`): the register file's writes 5 and 6 (11 reads: LSU1 has one source), and the bypass from a register a cycle later (6 sources).
+- Completion: 2 loads (each a cycle late, as in 29.25) and a store; tval for a misaligned access of either port (`NTV` 7).
+- Translation off (`tr_on` 0; the walk's ports tied, `tlb_flush` from `OOO_SYS`).
+- **The D$'s miss handler is outside the core** (`dc_miss_*`, `dc_st_miss_*`, `dc_fill_done`, `dc_done_*`, `dc_tw_*`, `dc_rf_*`, `dc_dirty_*`, `dc_sq_drained`), in place of the abstract port of mmRISC-2's D$.
+
+**`tb_core`**: `DMissModel` (`ports.h`) in place of `DCacheModel`: the miss handler of `tb_lsu3` (a line asked for is filled in turn: its way's tag invalid, 8 words, its tag valid, `fill_done` with the asker's id; a free way, else one at random but the set's last written). Memory takes the stores as they commit, so it is the memory written through, and a dirty line evicted needs no writing back. `-dhit 100`: fills at once; else up to 12 cycles late. **HTIF**: `tohost` set back to 0 in Memory would stay stale in the D$ (the program polls it): the model takes the line out of the D$ once the SQ is drained, 2 cycles after the store's commit at the earliest. (At first it did so in the cycle of the commit, before the store had drained: the drain filled the line again and wrote the old value, and CoreMark polled `tohost` for ever.) This is the bench's: the real path for what is not cacheable is E1b.
+
+**`OOO_CPU`** keeps mmRISC-2's D$ ports: it waits for its miss handler (E2), and its 4 runs in `run_core.sh` and its run in `run_coremark.sh` are off until then (`CPU=1` turns them on).
+
+| CoreMark | D (29.28) | E1 | model (`dec_block=1`) D → E |
+|---|---|---|---|
+| `g14-o2-zbsc` | 1,570,475 | 1,537,421 (−2.1 %) | −3.8 % |
+| `g14-sflto-zbsc` | 1,534,517 | 1,449,754 (−5.5 %) | −6.2 % |
+| `g13-o2-zb` | 1,644,240 | 1,603,602 (−2.5 %) | −3.8 % |
+
+D's runs had an ideal D$ (`-dhit 100`: every load hit); E1's have a real one, 16 KB, filled at once on a miss: 578 lines filled in `g14-o2-zbsc` (the cold misses; nothing evicted). Restores 6,374 (5,631 at D), replays 531 (922).
+
+`run_core.sh`: 0 failures in all 8 runs on `OOO_CORE`; `run_coremark.sh` PASS on its 3 (`OOO_CPU` off). Core lint: nothing new. **Bug injection, the core**: 113, 110 detected at first. 12 were set on the lines E1 rewrote (`OOO_LSU`'s ports gone), 4 new (LSU1's tval, a try's address, a load taking the store after it as older, a restore's LQ tail): all detected. The 3 not detected, each read:
+- "A mispredicted branch's checkpoint cleared too": **equivalent** since 29.21 / 29.23 (its clear is masked by `killset` or by `fe_flush`); left out, with a note in the script.
+- "Port 0: a divide to x0 forwarded (tag 0)" and "4 wide: slots 2 and 3 leave `rob_insn` unwritten": real faults, detected before E1, **no longer reached**: the first needs a divide to x0 and an x0 reader in EX the cycle after, the second a CSR µop rotated into slot 2 or 3; E1's timing moved both out of the programs' reach. To be caught by directed programs (to do).
+
+The unit benches of `OOO_LSU3` (`tb_lsu3`), `OOO_IQ2` (`tb_iq2`, `P5` both ways) are unchanged and pass as before; `OOO_LSU3` itself is not changed.
+
+**Next**: E1b, what is not cacheable and AMO / LR / SC; then E2.

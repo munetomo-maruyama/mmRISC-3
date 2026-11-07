@@ -8104,3 +8104,44 @@ The record is section 29.30 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 Go to E
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**I planned E and recorded it (af0fde8; 0 Ref on origin/dev).** No RTL is touched yet.
+
+#### What E is
+E replaces `OOO_LSU` (which uses mmRISC-2's DCACHE through OOO_DCAD) with `OOO_LSU3`.
+- **What `OOO_LSU3` has:** 2 load ports at load-use 2, a write-back D$ in block RAM (16 KB, a copy of the arrays per port), a DTLB, and tries of loads that had to wait.
+- **What it does not have yet:**
+  - the miss handling (filling a line, writing back a dirty line)
+  - the path for what is not cacheable (tohost, MMIO)
+  - AMO, LR, SC
+
+#### The model's estimate (D → E)
+
+| | g14-o2 | g14-sflto | g13-o2-zb |
+|---|---|---|---|
+| today's front end (1 block a cycle) | −3.8 % | −6.2 % | −3.8 % |
+| F's front end | −6.5 % | −7.3 % | −5.8 % |
+
+#### How it goes (each step through lock-step before the next)
+- **E1 (OOO_CORE):** replace with `OOO_LSU3`.
+  - Turn on the queue's port 5 (the second load).
+  - Compute addresses in EX, and put tries in when port 4 is free.
+  - Put load results into the bypass and the PRF (6 writes, 11 reads); translation stays off.
+  - Take the miss handling's interface out of the core, and build a model of the miss handling (line fills, random latencies, write-backs) on `tb_core`'s side.
+- **E1b:** add what is not cacheable and AMO/LR/SC, both at the ROB head, non-speculative, through a port of their own that does not go through the D$.
+- **E2 (OOO_CPU):** build the miss handling anew (fills by AXI4 bursts, write-backs of victims, the uncached path on AXI4-Lite, write-backs for FENCE.I). mmRISC-2's DCACHE and OOO_DCAD go.
+- **E3:** measure `OOO_CPU` at 20 ns. Then, if the replays seen in 29.30 remain, add the wait table.
+
+Translation (page walks) goes with the MMU in step 1.8, the I$ in 1.7; neither is in E. E1 alone means rewriting both the core's LSU side and `tb_core`'s D$ model.
+
+The record is section 29.31 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)).
+<!-- /answer -->
+
+## 199. 2026-11-07 21:17:14 JST
+
+```text
+Start E1
+```

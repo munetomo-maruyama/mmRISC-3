@@ -12,17 +12,15 @@
 //                Memory when it is given (no cache state: FENCE.I has
 //                nothing to invalidate). Misses are drawn at random.
 //
-//   DCacheModel  the D$ as OOO_LSU's abstract port sees it (B3; OOO_DCAD and
-//                mmRISC-2's D$ later): a load request in E (dc_req_*) is
-//                answered in M, the cycle after: a hit (at random) gives the
-//                8-byte word from Memory then; a miss gives it later as a
-//                fill (dc_fill_*, tagged by the LQ entry, held until
-//                dc_fill_ready), dropped if the LSU kills the entry
-//                (dc_kill) first. Several misses may be outstanding; their
-//                fills come in any order. A store (dc_st_*) is taken when
-//                dc_st_ready (at random) and written into Memory at once:
-//                Memory is the D$, and every load reads it, so nothing is
-//                incoherent (the real D$'s lines come with B3b).
+//   DMissModel   the miss handler behind OOO_LSU3 (step 1.3 E1, Plan/OOC.md 29.32), as
+//                tb_lsu3 has it: a line asked for (miss_*, st_miss_*) is
+//                filled in turn (its way's tag invalid, its 8 words from
+//                Memory, its tag valid, fill_done with the asker's id);
+//                the way a free one, else one at random but the set's last
+//                written. Memory has every committed store (tb_core writes
+//                them at commit), so a dirty line evicted needs no writing
+//                back. A line HTIF writes (tohost set back to 0) is taken
+//                out of the D$ once the SQ is drained.
 //   Axi4Mem      the D$'s memory bus (AXI4, OOO_CPU, B3b) on Memory: read and
 //                write bursts (INCR, 8-byte beats), the readies, the read
 //                data's first beat and the write responses after random
@@ -39,6 +37,7 @@
 #pragma once
 #include <cstdint>
 #include <deque>
+#include <map>
 #include <random>
 
 #include "bench.h"
@@ -73,49 +72,110 @@ private:
     int miss_cnt = 0;
 };
 
-class DCacheModel {
+class DMissModel {
 public:
-    // hit_pct: % of the load requests that hit; a miss's fill comes 2 + 0..(miss_lat - 1) cycles after its M
-    DCacheModel(Memory& m, uint64_t seed, int hit_pct = 80, int miss_lat = 12, int st_ready_pct = 80)
-        : m(m), rng(seed), hit_pct(hit_pct), miss_lat(miss_lat), st_ready_pct(st_ready_pct) {}
-    // the core's inputs this cycle
-    bool hit() const { return m_v && m_hit; }
-    uint64_t rdata() { return m_v ? m.read64(m_addr & ~7ull) : 0; }
-    bool fill_valid() const { return !fq.empty() && fq.front().due <= cyc; }
-    int fill_tag() const { return fill_valid() ? fq.front().tag : 0; }
-    uint64_t fill_data() { return fill_valid() ? m.read64(fq.front().addr & ~7ull) : 0; }
-    bool st_ready() const { return st_rdy; }
-    // the clock edge, with what the core gave this cycle
-    void clock(bool req, uint64_t addr, int tag, unsigned kill, bool fill_ready,
-               bool st_valid, uint64_t st_addr, uint64_t st_data, uint8_t st_mask)
+    // fill_lat: a fill's start comes 0..fill_lat - 1 cycles after the ask (0: at once), its words with gaps at random
+    DMissModel(Memory& m, uint64_t seed, int fill_lat = 0) : m(m), rng(seed), fill_lat(fill_lat)
     {
-        if (fill_valid() && fill_ready) { fq.pop_front(); fills++; }
-        if (m_v && !m_hit) {                       // the miss of this M: its fill later, in order of arrival
-            Fill f{m_tag, m_addr, cyc + 2 + (long)(rng() % miss_lat)};
-            size_t i = fq.size();
-            while (i > 0 && fq[i - 1].due > f.due) i--;
-            fq.insert(fq.begin() + i, f);
-            misses++;
-        }
-        // (after the miss of this M: its entry can be freed in the cycle it is in M)
-        for (size_t i = 0; i < fq.size();) if ((kill >> fq[i].tag) & 1) { fq.erase(fq.begin() + i); kills++; } else i++;
-        if (st_valid && st_rdy) { m.write64(st_addr, st_data, st_mask); stores++; }
-        m_v = req; m_addr = addr; m_tag = tag; m_hit = req && (int)(rng() % 100) < hit_pct;
-        reqs += req;
-        st_rdy = (int)(rng() % 100) < st_ready_pct;
+        for (auto& a : tag_ref) for (auto& b : a) b = 0;
+        for (auto& a : v_ref) for (auto& b : a) b = false;
+    }
+    // the core's inputs this cycle (set them before its evaluation)
+    struct Out { bool fill_done = false, done_v = false, tw_en = false, rf_en = false;
+                 int done_id = 0, tw_way = 0, tw_set = 0, rf_way = 0, rf_addr = 0; uint64_t tw_tag = 0, rf_data = 0; };
+    const Out& out() const { return o; }
+    // HTIF wrote this line in Memory: the D$'s copy goes once every committed store is in the D$
+    void host_wrote(uint64_t line) { inval.push_back({line, cyc + 2}); }   // (sq_drained counts the store from the cycle after its commit)
+    // the clock edge, with what the core gave this cycle
+    void clock(bool miss_v, uint64_t miss_line, int miss_id, bool st_miss_v, uint64_t st_miss_line,
+               bool dirty_set, int dirty_way, int dirty_idx, bool sq_drained)
+    {
+        if (dirty_set) last_way[dirty_idx & 63] = dirty_way;
+        if (miss_v) { asks++; ask(miss_line, miss_id); }
+        if (st_miss_v) { st_asks++; ask(st_miss_line, -1); }
+        o = Out{};
+        step(sq_drained);
         cyc++;
     }
-    long reqs = 0, misses = 0, fills = 0, kills = 0, stores = 0;
+    long asks = 0, st_asks = 0, fills = 0, evicts = 0, invals = 0;
 private:
-    struct Fill { int tag; uint64_t addr; long due; };
     Memory& m;
     std::mt19937_64 rng;
-    int hit_pct, miss_lat, st_ready_pct;
-    bool m_v = false, m_hit = false, st_rdy = true;
-    uint64_t m_addr = 0;
-    int m_tag = 0;
+    int fill_lat;
+    Out o;
     long cyc = 0;
-    std::deque<Fill> fq;
+    std::deque<uint64_t> mq;
+    std::deque<std::pair<uint64_t, long>> inval;
+    std::map<uint64_t, int> who;
+    int state = 0, way = 0, word = 0, delay = 0;
+    uint64_t line = 0;
+    uint64_t tag_ref[64][4]; bool v_ref[64][4]; int last_way[64] = {0};
+    void ask(uint64_t l, int id)
+    {
+        for (auto x : mq) if (x == l) return;
+        if (state != 0 && line == l) return;
+        mq.push_back(l);
+        who[l] = id;
+    }
+    void done()
+    {
+        o.fill_done = true;
+        if (who[line] >= 0) { o.done_v = true; o.done_id = who[line]; }
+    }
+    // OOO_LSU3's miss handler as tb_lsu3 has it (the tag invalid, 8 words, the tag valid, fill_done), on Memory: Memory
+    // has every committed store (tb_core writes them at commit), so a line evicted dirty needs no writing back
+    void step(bool sq_drained)
+    {
+        if (delay > 0) { delay--; return; }
+        switch (state) {
+        case 0:
+            if (!inval.empty() && cyc >= inval.front().second && sq_drained) {   // HTIF's write: the D$'s copy goes (Memory has it)
+                uint64_t l = inval.front().first; inval.pop_front();
+                int set = (int)(l & 63);
+                for (int w = 0; w < 4; w++)
+                    if (v_ref[set][w] && tag_ref[set][w] == (l >> 6)) {
+                        o.tw_en = true; o.tw_way = w; o.tw_set = set; o.tw_tag = tag_ref[set][w];
+                        v_ref[set][w] = false; invals++;
+                        break;
+                    }
+                break;
+            }
+            if (!mq.empty()) {
+                line = mq.front(); mq.pop_front();
+                int set = (int)(line & 63);
+                uint64_t tag = line >> 6;
+                bool have = false;
+                for (int w = 0; w < 4; w++) if (v_ref[set][w] && tag_ref[set][w] == tag) have = true;
+                if (have) { done(); break; }
+                way = -1;
+                for (int w = 0; w < 4 && way < 0; w++) if (!v_ref[set][w]) way = w;
+                if (way < 0) { way = (int)(rng() % 4); if (way == last_way[set]) way = (way + 1) % 4; evicts++; }
+                o.tw_en = true; o.tw_way = way; o.tw_set = set; o.tw_tag = tag_ref[set][way];   // (the valid bit goes)
+                v_ref[set][way] = false;
+                state = 1; word = 0; delay = fill_lat ? (int)(rng() % fill_lat) : 0;
+            }
+            break;
+        case 1: {
+            int set = (int)(line & 63);
+            if (fill_lat && rng() % 3 == 0) break;
+            o.rf_en = true; o.rf_way = way; o.rf_addr = set * 8 + word; o.rf_data = m.read64((line << 6) + 8 * word);
+            if (++word == 8) state = 2;
+            break;
+        }
+        case 2: {
+            int set = (int)(line & 63);
+            uint64_t tag = line >> 6;
+            o.tw_en = true; o.tw_way = way; o.tw_set = set; o.tw_tag = (1ull << 28) | tag;
+            tag_ref[set][way] = tag; v_ref[set][way] = true;
+            state = 3;
+            break;
+        }
+        case 3:
+            done(); fills++;
+            state = 0;
+            break;
+        }
+    }
 };
 
 class Axi4Mem {

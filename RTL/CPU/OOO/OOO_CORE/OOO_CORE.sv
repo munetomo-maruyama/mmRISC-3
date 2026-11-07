@@ -96,21 +96,27 @@ module OOO_CORE
         input  logic                        ic_resp_valid,
         input  logic [127:0]                ic_resp_data,
         // the D$ (OOO_LSU's abstract port: OOO_DCAD and the D$, or a model)
-        output logic                        dc_req_valid,
-        output logic [PAW-1:0]              dc_req_addr,
-        output logic [3:0]                  dc_req_tag,
-        input  logic                        dc_hit,
-        input  logic [63:0]                 dc_rdata,
-        input  logic                        dc_fill_valid,
-        input  logic [3:0]                  dc_fill_tag,
-        input  logic [63:0]                 dc_fill_data,
-        output logic                        dc_fill_ready,
-        output logic [15:0]                 dc_kill,
-        output logic                        dc_st_valid,
-        output logic [PAW-1:0]              dc_st_addr,
-        output logic [63:0]                 dc_st_data,
-        output logic [7:0]                  dc_st_mask,
-        input  logic                        dc_st_ready,
+        // the D$'s miss handler (OOO_LSU3's arrays are inside; step 1.3 E1, Plan/OOC.md 29.32)
+        output logic                        dc_miss_valid,
+        output logic [PAW-1:6]              dc_miss_line,
+        output logic [4:0]                  dc_miss_id,
+        output logic                        dc_st_miss_valid,
+        output logic [PAW-1:6]              dc_st_miss_line,
+        input  logic                        dc_fill_done,
+        input  logic                        dc_done_v,
+        input  logic [4:0]                  dc_done_id,
+        input  logic                        dc_tw_en,
+        input  logic [1:0]                  dc_tw_way,
+        input  logic [5:0]                  dc_tw_set,
+        input  logic [PAW-12:0]             dc_tw_tag,
+        input  logic                        dc_rf_en,
+        input  logic [1:0]                  dc_rf_way,
+        input  logic [8:0]                  dc_rf_addr,
+        input  logic [63:0]                 dc_rf_data,
+        output logic                        dc_dirty_set,
+        output logic [1:0]                  dc_dirty_way,
+        output logic [5:0]                  dc_dirty_idx,
+        output logic                        dc_sq_drained,
         output logic                        fl_req,     // FENCE.I: FLUSH of the D$ (OOO_DCAD)
         input  logic                        fl_take,
         input  logic                        fl_done,
@@ -161,6 +167,7 @@ module OOO_CORE
         logic [3:0]      xop;                   // an MDU µop's CORE_MDU op (0: mul / mulw, OOO_PMUL); a system µop's OOO_SYS op
         logic [3:0]      lq;                    // a load's LQ entry, a store's SQ entry (OOO_LSU)
         logic [3:0]      sq;
+        logic [4:0]      st;                    // a load's: the SQ's tail at its dispatch (OOO_LSU3 rr_st)
         logic [1:0]      msize;                 // 0 byte .. 3 double
         logic            uns;                   // a load zero extended
         logic            is_ld;                 // (a µop of port 2: a load, else a store)
@@ -516,6 +523,7 @@ module OOO_CORE
     logic [ND-1:0][4:0]        ck_lq_tail, ck_sq_tail;
     logic [4:0]                restore_lq_tail, restore_sq_tail;
     logic [ND-1:0][3:0]        disp_lq, disp_sq;
+    logic [ND-1:0][4:0]        disp_st;
 
     /* verilator lint_off PINCONNECTEMPTY */   // (what OOO_TRAP and interrupts take: not yet)
     OOO_CTRL #(.NCKPT(NCKPT), .CW(CW), .VA(VA), .FTQW(FTQW), .LW(4), .TAGW(TAGW), .ND(ND)) u_ctrl
@@ -538,7 +546,7 @@ module OOO_CORE
     // the ROB
     // completion: 0 port 0's EX, 1 port 1's EX, 2 the LSU's loads, 3 its stores, 4 port 0's multiplier and
     // MDU (their results), 5 the system unit, 6 / 7 the mispredicted branches of ports 0 / 1 with their restore
-    localparam int NCMP = NAP + 7;
+    localparam int NCMP = NAP + 8;
     logic [NCMP-1:0]           cmp_valid, cmp_exc, cmp_rp;
     logic [NCMP-1:0][ROBW-1:0] cmp_rob;
     logic [NCMP-1:0][4:0]      cmp_cause;
@@ -576,7 +584,7 @@ module OOO_CORE
         for (int j = 0; j < ND; j++) if (disp_go[j]) rob_insn[disp_rob[j]] <= ds[j].insn;
 
     // ---- OOO_TRAP: exceptions and interrupts at the head; the CSRs' trap side
-    localparam int NTV = ND + 2;                // tval: the dispatch slots, port 2 (misaligned), port 0 (CSR / system)
+    localparam int NTV = ND + 3;                // tval: the dispatch slots, LSU0 (misaligned), port 0 (CSR / system), LSU1
     logic [NTV-1:0]            tv_valid;
     logic [NTV-1:0][ROBW-1:0]  tv_rob;
     logic [NTV-1:0][63:0]      tv_val;
@@ -607,18 +615,18 @@ module OOO_CORE
     // the issue queue and its payload (an exception at decode is never issued)
     /* verilator lint_off UNUSEDSIGNAL */      // (port NAP, the LSU's: not in B2)
     logic [ND-1:0]             iq_disp;
-    logic [NAP:0]              iss_valid, iss_wr;
-    logic [NAP:0][IQW-1:0]     iss_entry;
-    logic [NAP:0][1:0][TAGW-1:0] iss_src;
-    logic [NAP:0][TAGW-1:0]    iss_dst;
-    logic [NAP:0][NCKPT-1:0]   iss_bm;
+    logic [NAP+1:0]            iss_valid, iss_wr;
+    logic [NAP+1:0][IQW-1:0]   iss_entry;
+    logic [NAP+1:0][1:0][TAGW-1:0] iss_src;
+    logic [NAP+1:0][TAGW-1:0]  iss_dst;
+    logic [NAP+1:0][NCKPT-1:0] iss_bm;
     /* verilator lint_off UNUSEDSIGNAL */
-    rec_t [NAP:0]              rr_rec;
+    rec_t [NAP+1:0]            rr_rec;
     /* verilator lint_on UNUSEDSIGNAL */
     logic                      iss_md, mdu_ok, p0_hold, md_ext_v;
     logic [TAGW-1:0]           md_ext_t;
     assign iq_disp = d_go & ~dv_exc;
-    // OOO_IQ2: ALU ports 0..3 and LSU0 (port 4); no LSU1 yet (step 1.2 E)
+    // OOO_IQ2: ALU ports 0..3, LSU0 (port 4) and LSU1 (port 5, step 1.3 E1)
     logic [2:0]                q_ready;
     logic [3:0][IQW-1:0]       q_entry;
     logic [5:0]                q_valid, q_wr;
@@ -626,7 +634,7 @@ module OOO_CORE
     logic [5:0][1:0][TAGW-1:0] q_src;
     logic [5:0][TAGW-1:0]      q_dst;
     logic [5:0][NCKPT-1:0]     q_bm;
-    OOO_IQ2 #(.N(NIQ), .TAGW(TAGW), .NEXT(2), .NCK(NCKPT), .NA(NAP), .P5(1'b0)) u_iq
+    OOO_IQ2 #(.N(NIQ), .TAGW(TAGW), .NEXT(2), .NCK(NCKPT), .NA(NAP), .P5(1'b1)) u_iq
         (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .ns_ok(ns_ok), .mdu_ok(mdu_ok),
          .p0_hold(p0_hold), .disp_ready(q_ready), .disp_entry(q_entry), .disp_valid(iq_disp),
          .disp_port(dv_port), .disp_use(ds_use), .disp_src(ds_src), .disp_rdy(ds_rdy),
@@ -638,8 +646,8 @@ module OOO_CORE
     assign iq_ready   = q_ready;
     assign disp_entry = q_entry;
     always @(*) begin
-        for (int p = 0; p <= NAP; p++) begin
-            automatic int q = p == NAP ? 4 : p;                 // (the queue's LSU0 is its port 4 whatever NA is)
+        for (int p = 0; p <= NAP + 1; p++) begin
+            automatic int q = p >= NAP ? 4 + p - NAP : p;       // (the queue's LSU0, LSU1 are its ports 4, 5 whatever NA is)
             iss_valid[p] = q_valid[q];
             iss_entry[p] = q_ientry[q];
             iss_src[p]   = q_src[q];
@@ -656,9 +664,10 @@ module OOO_CORE
             wrec[j].rob = disp_rob[j];
             wrec[j].lq  = disp_lq[j];
             wrec[j].sq  = disp_sq[j];
+            wrec[j].st  = disp_st[j];
         end
     end
-    OOO_IQPL2 #(.N(NIQ), .NBANK(4), .W($bits(rec_t)), .NR(NAP + 1)) u_iqpl
+    OOO_IQPL2 #(.N(NIQ), .NBANK(4), .W($bits(rec_t)), .NR(NAP + 2)) u_iqpl
         (.clk(clk), .wr_valid(iq_disp), .wr_entry(disp_entry), .wr_data(wrec),
          .iss_entry(iss_entry), .rr_data(rr_rec));
     /* verilator lint_on PINCONNECTEMPTY */
@@ -676,32 +685,32 @@ module OOO_CORE
     } ex_t;
     localparam int WBW = TAGW + 64;
 
-    logic [2*NAP+1:0][TAGW-1:0] prf_ra;
-    logic [2*NAP+1:0][63:0]    prf_rd;
-    logic [NAP:0]              prf_we;
-    logic [NAP:0][TAGW-1:0]    prf_wa;
-    logic [NAP:0][63:0]        prf_wd;
+    logic [2*NAP+2:0][TAGW-1:0] prf_ra;                // (LSU1's one source: 2 * NAP + 2)
+    logic [2*NAP+2:0][63:0]    prf_rd;
+    logic [NAP+1:0]            prf_we;
+    logic [NAP+1:0][TAGW-1:0]  prf_wa;
+    logic [NAP+1:0][63:0]      prf_wd;
     logic [NAP-1:0]            wb_v;
     logic [NAP-1:0][WBW-1:0]   wb_d;
-    // the bypass sources: the ALU ports' WB registers and the LSU's
-    logic                      lsu_wb_v;
-    /* verilator lint_off UNUSEDSIGNAL */      // (a late load needs no wakeup: its dependents were woken two cycles after
-    logic                      lsu_wb_late;    //  its issue, and what ran on that guess is replayed after commit, D-12)
-    /* verilator lint_on UNUSEDSIGNAL */
-    logic [TAGW-1:0]           lsu_wb_t;
-    logic [63:0]               lsu_wb_d;
-    logic [NAP:0]              byp_v;
-    logic [NAP:0][TAGW-1:0]    byp_t;
-    logic [NAP:0][63:0]        byp_d;
+    // the bypass sources: the ALU ports' WB registers and the loads' (OOO_LSU3's results in M, through a
+    // register here: a wrong value of a miss replays what used it at the load's commit, D-12)
+    logic [1:0]                lw_v;
+    logic [1:0][TAGW-1:0]      lw_t;
+    logic [1:0][63:0]          lw_d;
+    logic [NAP+1:0]            byp_v;
+    logic [NAP+1:0][TAGW-1:0]  byp_t;
+    logic [NAP+1:0][63:0]      byp_d;
     always @(*) begin
         for (int q = 0; q < NAP; q++) begin
             byp_v[q] = wb_v[q];
             byp_t[q] = wb_d[q][WBW-1 -: TAGW];
             byp_d[q] = wb_d[q][63:0];
         end
-        byp_v[NAP] = lsu_wb_v && lsu_wb_t != '0;    // a load to x0 has tag 0 (never written: the PRF reads it as 0)
-        byp_t[NAP] = lsu_wb_t;
-        byp_d[NAP] = lsu_wb_d;
+        for (int m = 0; m < 2; m++) begin
+            byp_v[NAP + m] = lw_v[m];                   // (a load to x0 has tag 0: never forwarded, the PRF reads it as 0)
+            byp_t[NAP + m] = lw_t[m];
+            byp_d[NAP + m] = lw_d[m];
+        end
     end
     logic [NAP-1:0]            ex_v;
     logic                      pm_w, md_w;     // port 0's multiplier / MDU result written (below)
@@ -770,7 +779,7 @@ module OOO_CORE
             // the bypass: the write-back registers (the results of the cycle before), else the RR read
             a = ex[p].v1;
             b = ex[p].v2;
-            for (int q = 0; q < NAP + 1; q++) begin
+            for (int q = 0; q < NAP + 2; q++) begin
                 if (byp_v[q] && byp_t[q] == ex[p].t1) a = byp_d[q];
                 if (byp_v[q] && byp_t[q] == ex[p].t2) b = byp_d[q];
             end
@@ -947,87 +956,155 @@ module OOO_CORE
         end
     end
 
-    // ---- port 2: RR, EX (the LSU's E), the LSU
-    logic            p2_rr_v, p2_ex_v, p2_rr_wr;
-    logic [NCKPT-1:0] p2_rr_bm, p2_ex_bm;
-    logic [RRW-1:0]  p2_rr_d;
-    logic [TAGW-1:0] p2_rr_t1, p2_rr_t2, p2_rr_dst;
-    ex_t             p2_rx;
-    /* verilator lint_off UNUSEDSIGNAL */      // (port 2 uses the record's memory fields only)
-    ex_t             p2;
+    // ---- the LSU's ports (step 1.3 E1, Plan/OOC.md 29.32): LSU0 (issue port NAP: loads, stores, and OOO_LSU3's
+    // tries of what had to wait) and LSU1 (NAP + 1: loads, one source). RR and EX here; OOO_LSU3 follows them with
+    // its E (the address of EX), M (the D$'s arrays inside it) and W
+    logic [1:0]              m_rr_v, m_ex_v;
+    logic [1:0][NCKPT-1:0]   m_rr_bm;
+    /* verilator lint_off UNUSEDSIGNAL */      // (the address and the store's data only, and the trace)
+    logic [1:0][NCKPT-1:0]   m_ex_bm;
+    ex_t  [1:0]              m_ex;
     /* verilator lint_on UNUSEDSIGNAL */
-    logic [63:0]     p2_a, p2_b;
-    OOO_STAGE #(.W(RRW), .NCK(NCKPT)) u_rr2
-        (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
-         .in_valid(iss_valid[NAP]), .in_bm(iss_bm[NAP]), .in_data({iss_src[NAP][1], iss_src[NAP][0], iss_dst[NAP], iss_wr[NAP]}),
-         .out_valid(p2_rr_v), .out_bm(p2_rr_bm), .out_data(p2_rr_d));
-    assign {p2_rr_t2, p2_rr_t1, p2_rr_dst, p2_rr_wr} = p2_rr_d;
-    assign prf_ra[2*NAP]   = p2_rr_t1;                          // the base
-    assign prf_ra[2*NAP+1] = p2_rr_t2;                          // a store's data
-    always @(*) begin
-        p2_rx     = '0;
-        p2_rx.v1  = prf_rd[2*NAP];
-        p2_rx.v2  = prf_rd[2*NAP+1];
-        p2_rx.t1  = p2_rr_t1;
-        p2_rx.t2  = p2_rr_t2;
-        p2_rx.dst = p2_rr_dst;
-        p2_rx.wr  = p2_rr_wr;
-        p2_rx.rec = rr_rec[NAP];
-    end
-    OOO_STAGE #(.W($bits(ex_t)), .NCK(NCKPT)) u_ex2
-        (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
-         .in_valid(p2_rr_v), .in_bm(p2_rr_bm), .in_data(p2_rx), .out_valid(p2_ex_v), .out_bm(p2_ex_bm), .out_data(p2));
-    always @(*) begin
-        p2_a = p2.v1;
-        p2_b = p2.v2;
-        for (int q = 0; q < NAP + 1; q++) begin
-            if (byp_v[q] && byp_t[q] == p2.t1) p2_a = byp_d[q];
-            if (byp_v[q] && byp_t[q] == p2.t2) p2_b = byp_d[q];
+    logic [1:0][TAGW-1:0]    m_rr_dst;
+    logic [1:0][63:0]        m_a, m_ea;
+    logic [63:0]             m_b;                               // LSU0's second source: a store's data
+    for (genvar m = 0; m < 2; m++) begin : g_mem
+        logic [RRW-1:0]  rr_d;
+        logic [TAGW-1:0] t1, t2;
+        /* verilator lint_off UNUSEDSIGNAL */
+        logic            wr;
+        /* verilator lint_on UNUSEDSIGNAL */
+        ex_t             rx;
+        OOO_STAGE #(.W(RRW), .NCK(NCKPT)) u_rr
+            (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
+             .in_valid(iss_valid[NAP+m]), .in_bm(iss_bm[NAP+m]),
+             .in_data({iss_src[NAP+m][1], iss_src[NAP+m][0], iss_dst[NAP+m], iss_wr[NAP+m]}),
+             .out_valid(m_rr_v[m]), .out_bm(m_rr_bm[m]), .out_data(rr_d));
+        assign {t2, t1, m_rr_dst[m], wr} = rr_d;
+        assign prf_ra[2*NAP + 2*m] = t1;                        // the base (LSU1: 2 * NAP + 2)
+        if (m == 0) begin : g_d
+            assign prf_ra[2*NAP + 1] = t2;                      // a store's data
+        end
+        always @(*) begin
+            rx     = '0;
+            rx.v1  = prf_rd[2*NAP + 2*m];
+            rx.v2  = m == 0 ? prf_rd[2*NAP + 1] : 64'd0;
+            rx.t1  = t1;
+            rx.t2  = m == 0 ? t2 : '0;
+            rx.dst = m_rr_dst[m];
+            rx.rec = rr_rec[NAP+m];
+        end
+        OOO_STAGE #(.W($bits(ex_t)), .NCK(NCKPT)) u_ex
+            (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
+             .in_valid(m_rr_v[m]), .in_bm(m_rr_bm[m]), .in_data(rx), .out_valid(m_ex_v[m]), .out_bm(m_ex_bm[m]),
+             .out_data(m_ex[m]));
+        always @(*) begin
+            logic [63:0] b;
+            m_a[m] = m_ex[m].v1;
+            b      = m_ex[m].v2;
+            for (int q = 0; q < NAP + 2; q++) begin
+                if (byp_v[q] && byp_t[q] == m_ex[m].t1) m_a[m] = byp_d[q];
+                if (m == 0 && byp_v[q] && byp_t[q] == m_ex[m].t2) b = byp_d[q];
+            end
+            m_ea[m] = m_a[m] + {{52{m_ex[m].rec.imm[11]}}, m_ex[m].rec.imm[11:0]};
+            if (m == 0) m_b = b;
         end
     end
 
+    // a try of OOO_LSU3 takes LSU0's RR when the queue leaves it: in EX its address is rt_base, offset 0
+    logic            rt_v, rt_q;
+    logic [PAW-1:0]  rt_base, rt_bq;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) rt_q <= 1'b0;
+        else        rt_q <= rt_v;
+    end
+    always_ff @(posedge clk) rt_bq <= rt_base;
+
+    // dispatch: OOO_LSU3 takes counts and gives its tails; the slots' entries, a load's older stores (rr_st),
+    // and the tails after each slot (the checkpoint table's) are counted here
+    logic [4:0]      l3_lq_tail, l3_sq_tail, l3_lq_free, l3_sq_free;
+    logic [2:0]      lq_alloc, sq_alloc;
+    always @(*) begin
+        automatic logic [4:0] lt = l3_lq_tail, st = l3_sq_tail;
+        lq_alloc = '0;
+        sq_alloc = '0;
+        for (int k = 0; k < ND; k++) begin
+            disp_lq[k] = lt[3:0];
+            disp_sq[k] = st[3:0];
+            disp_st[k] = st;
+            if (ds_valid[k] && dv_ld[k]) lt = lt + 5'd1;
+            if (ds_valid[k] && dv_st[k]) st = st + 5'd1;
+            ck_lq_tail[k] = lt;
+            ck_sq_tail[k] = st;
+            lq_alloc = lq_alloc + 3'(d_go[k] && dv_ld[k]);
+            sq_alloc = sq_alloc + 3'(d_go[k] && dv_st[k]);
+        end
+        lq_avail = l3_lq_free >= 5'd4 ? 3'd4 : l3_lq_free[2:0];
+        sq_avail = l3_sq_free >= 5'd4 ? 3'd4 : l3_sq_free[2:0];
+    end
+
     logic            sq_drained;
-    /* verilator lint_off UNUSEDSIGNAL */      // (ld_cancel: replay after commit, no selective replay)
-    logic [15:0]     lsu_st_known;
-    logic            ld_cancel;
-    logic [TAGW-1:0] ld_cancel_tag;
-    /* verilator lint_on UNUSEDSIGNAL */
-    logic            cmp_ld_v, cmp_ld_e, cmp_ld_rp, cmp_st_v, cmp_st_e;
-    /* verilator lint_off UNUSEDSIGNAL */      // (the trace's: the PRF takes rf_we)
-    logic            lsu_rf_v;
-    /* verilator lint_on UNUSEDSIGNAL */
-    logic [ROBW-1:0] cmp_ld_rob, cmp_st_rob;
-    OOO_LSU #(.NLQ(16), .NSQ(16), .PAW(PAW), .TAGW(TAGW), .ROBW(ROBW), .NCK(NCKPT), .ND(ND)) u_lsu
-        (.clk(clk), .rst_n(rst_n),
-         .disp_valid(d_go), .disp_ld(dv_ld), .disp_st(dv_st), .disp_rob(disp_rob),
-         .lq_avail(lq_avail), .sq_avail(sq_avail), .disp_lq(disp_lq), .disp_sq(disp_sq),
-         .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail),
-         .iss_valid(p2_ex_v), .iss_ld(p2.rec.is_ld), .iss_lq(p2.rec.lq), .iss_sq(p2.rec.sq), .iss_base(p2_a),
-         .iss_imm(p2.rec.imm[11:0]), .iss_data(p2_b), .iss_size(p2.rec.msize), .iss_uns(p2.rec.uns),
-         .iss_dst(p2.dst), .iss_bm(p2_ex_bm), .lsu_st_known(lsu_st_known),
-         .dc_req_valid(dc_req_valid), .dc_req_addr(dc_req_addr), .dc_req_tag(dc_req_tag), .dc_hit(dc_hit),
-         .dc_rdata(dc_rdata), .dc_fill_valid(dc_fill_valid), .dc_fill_tag(dc_fill_tag), .dc_fill_data(dc_fill_data),
-         .dc_fill_ready(dc_fill_ready), .dc_kill(dc_kill), .sq_drained(sq_drained), .dc_st_valid(dc_st_valid),
-         .dc_st_addr(dc_st_addr), .dc_st_data(dc_st_data), .dc_st_mask(dc_st_mask), .dc_st_ready(dc_st_ready),
-         .rf_valid(lsu_rf_v), .rf_we(prf_we[NAP]), .rf_tag(prf_wa[NAP]), .rf_data(prf_wd[NAP]),
-         .wb_valid(lsu_wb_v), .wb_late(lsu_wb_late), .wb_tag(lsu_wb_t), .wb_data(lsu_wb_d),
-         .ld_cancel(ld_cancel), .ld_cancel_tag(ld_cancel_tag),
+    logic [1:0]      ld_nv;
+    logic [1:0][TAGW-1:0] ld_nt;
+    logic [1:0][63:0] ld_d;
+    logic [1:0]      cmp_ld_v, cmp_ld_e, cmp_ld_rp;
+    logic [1:0][ROBW-1:0] cmp_ld_rob;
+    logic            cmp_st_v, cmp_st_e;
+    logic [ROBW-1:0] cmp_st_rob;
+    /* verilator lint_off PINCONNECTEMPTY */   // (translation: step 1.8)
+    OOO_LSU3 #(.NLQ(16), .NSQ(16), .PAW(PAW), .VA(VA), .TAGW(TAGW), .ROBW(ROBW), .NCK(NCKPT)) u_lsu
+        (.clk(clk), .rst_n(rst_n), .tr_on(1'b0),
+         .lq_alloc(lq_alloc), .sq_alloc(sq_alloc), .lq_tail(l3_lq_tail), .sq_tail(l3_sq_tail),
+         .lq_free(l3_lq_free), .sq_free(l3_sq_free),
+         .rr_valid(m_rr_v), .rr_ld(rr_rec[NAP].is_ld), .rr_lq({rr_rec[NAP+1].lq, rr_rec[NAP].lq}), .rr_sq(rr_rec[NAP].sq),
+         .rr_st({rr_rec[NAP+1].st, rr_rec[NAP].st}), .rr_size({rr_rec[NAP+1].msize, rr_rec[NAP].msize}),
+         .rr_uns({rr_rec[NAP+1].uns, rr_rec[NAP].uns}), .rr_dst(m_rr_dst), .rr_rob({rr_rec[NAP+1].rob, rr_rec[NAP].rob}),
+         .rr_bm(m_rr_bm), .rt_v(rt_v), .rt_base(rt_base),
+         .e_addr({m_ea[1], rt_q ? 64'(rt_bq) : m_ea[0]}), .e_sd(m_b),
+         .ld_nv(ld_nv), .ld_nt(ld_nt), .ld_d(ld_d),
          .cmp_ld_valid(cmp_ld_v), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_e), .cmp_ld_rp(cmp_ld_rp),
          .cmp_st_valid(cmp_st_v), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_e),
          .lq_commit(lq_commit), .sq_commit(sq_commit), .restore(restore_k), .kill(kill),
-         .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all(flush_all));
+         .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all(flush_all),
+         .sq_drained(sq_drained),
+         .miss_valid(dc_miss_valid), .miss_line(dc_miss_line), .miss_id(dc_miss_id),
+         .st_miss_valid(dc_st_miss_valid), .st_miss_line(dc_st_miss_line), .fill_done(dc_fill_done),
+         .done_v(dc_done_v), .done_id(dc_done_id), .tw_en(dc_tw_en), .tw_way(dc_tw_way), .tw_set(dc_tw_set),
+         .tw_tag(dc_tw_tag), .rf_en(dc_rf_en), .rf_way(dc_rf_way), .rf_addr(dc_rf_addr), .rf_data(dc_rf_data),
+         .dirty_set(dc_dirty_set), .dirty_way(dc_dirty_way), .dirty_idx(dc_dirty_idx),
+         .tlb_miss(), .tlb_miss_vpn(), .walk_id(), .tlb_done(1'b0), .tlb_we(1'b0), .tlb_vpn('0), .tlb_ptag('0),
+         .tlb_r(1'b0), .tlb_w(1'b0), .tlb_flush(tlb_flush), .tlb_busy());
+    /* verilator lint_on PINCONNECTEMPTY */
+    assign dc_sq_drained = sq_drained;
+    // the loads' results: the register file at the end of M (whatever the value: a miss's is replaced by its fill, and
+    // what read it replays), the bypass from a register a cycle later
+    always @(*) begin
+        for (int m = 0; m < 2; m++) begin
+            prf_we[NAP + m] = ld_nv[m];
+            prf_wa[NAP + m] = ld_nt[m];
+            prf_wd[NAP + m] = ld_d[m];
+        end
+    end
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) lw_v <= '0;
+        else for (int m = 0; m < 2; m++) lw_v[m] <= ld_nv[m] && ld_nt[m] != '0 && !flush_all;
+    end
+    always_ff @(posedge clk) begin
+        lw_t <= ld_nt;
+        lw_d <= ld_d;
+    end
 
     // completion: port 0 (a CSR µop: illegal, replay after a write), port 1, the LSU's loads and stores
     // (misaligned), port 0's multiplier and MDU, the system unit (illegal, replay), the branches and jalrs
     // of ports 0 and 1 (all of them through the resolution's register: completed in EX, as predicted, the
     // misprediction's compare lay on the 4-wide core's paths, Plan/OOC.md 29.25). A load completes into
-    // the ROB a cycle after M, through a register for the same reason (the D$'s hit and fill). A late
+    // the ROB a cycle after its W, through a register for the same reason (the D$'s hit and fill). A late
     // completion of a µop killed or flushed meanwhile is harmless: its entry is out of the ROB, and an
     // entry given out again in that cycle takes its new state first (OOO_ROB's status writes)
-    logic            ld_cv, ld_ce, ld_crp;
-    logic [ROBW-1:0] ld_crob;
+    logic [1:0]      ld_cv, ld_ce, ld_crp;
+    logic [1:0][ROBW-1:0] ld_crob;
     always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) ld_cv <= 1'b0;
+        if (!rst_n) ld_cv <= '0;
         else        ld_cv <= cmp_ld_v;
     end
     always_ff @(posedge clk) begin
@@ -1059,23 +1136,26 @@ module OOO_CORE
     always @(*) begin
         cmp_exc   = {csr_ce, 2'b00, sys_exc, 1'b0, cmp_st_e, ld_ce, (NAP)'(0)};
         cmp_rp    = {csr_crp, 2'b00, sys_rp, 1'b0, 1'b0, ld_crp, (NAP)'(0)};
-        cmp_cause = {5'd2, 5'd0, 5'd0, 5'd2, 5'd0, 5'd6, 5'd4, (5 * NAP)'(0)};
+        cmp_cause = {5'd2, 5'd0, 5'd0, 5'd2, 5'd0, 5'd6, 5'd4, 5'd4, (5 * NAP)'(0)};
     end
     assign cmp_valid[NCMP-1:NAP] = {csr_cv, br_valid, sys_cv, pm_v || md_v, cmp_st_v, ld_cv};
     assign cmp_rob[NCMP-1:NAP]   = {csr_crob, br_rob, sys_rob, pm_v ? pm_rob : md_rob, cmp_st_rob, ld_crob};
 
-    // tval: a misaligned access of port 2 (its address), the CSR unit or the system unit (one at a time at the head)
+    // tval: a misaligned access of LSU0 or LSU1 (its address), the CSR unit or the system unit (one at a time at the head)
     always @(*) begin
-        logic [63:0] ea;
-        logic        mis;
-        ea  = p2_a + {{52{p2.rec.imm[11]}}, p2.rec.imm[11:0]};
-        mis = (p2.rec.msize == 2'd1 && ea[0]) || (p2.rec.msize == 2'd2 && ea[1:0] != 2'd0) || (p2.rec.msize == 2'd3 && ea[2:0] != 3'd0);
-        tv_valid[ND]     = p2_ex_v && mis;
-        tv_rob[ND]       = p2.rec.rob;
-        tv_val[ND]       = ea;
+        logic [1:0] mis;
+        for (int m = 0; m < 2; m++)
+            mis[m] = (m_ex[m].rec.msize == 2'd1 && m_ea[m][0]) || (m_ex[m].rec.msize == 2'd2 && m_ea[m][1:0] != 2'd0) ||
+                     (m_ex[m].rec.msize == 2'd3 && m_ea[m][2:0] != 3'd0);
+        tv_valid[ND]     = m_ex_v[0] && mis[0];
+        tv_rob[ND]       = m_ex[0].rec.rob;
+        tv_val[ND]       = m_ea[0];
         tv_valid[ND + 1] = csr_tvq || sys_tv_v;                // (the CSR's a cycle late: never with the system unit's,
         tv_rob[ND + 1]   = sys_tv_v ? sys_tv_rob : csr_tvq_rob;  //  as both run at the ROB head and complete first)
         tv_val[ND + 1]   = sys_tv_v ? sys_tv : csr_tvq_val;
+        tv_valid[ND + 2] = m_ex_v[1] && mis[1];
+        tv_rob[ND + 2]   = m_ex[1].rec.rob;
+        tv_val[ND + 2]   = m_ea[1];
     end
 
     // an indirect jump (a jalr not a return) writes the BTB: port 0's first
@@ -1128,7 +1208,7 @@ module OOO_CORE
     end
 
     /* verilator lint_off PINCONNECTEMPTY */
-    OOO_PRF #(.NREG(80), .NW(NAP + 1), .NR(2 * NAP + 2)) u_prf
+    OOO_PRF #(.NREG(80), .NW(NAP + 2), .NR(2 * NAP + 3)) u_prf
         (.clk(clk), .ra(prf_ra), .rd(prf_rd), .we(prf_we), .wa(prf_wa), .wd(prf_wd));
     /* verilator lint_on PINCONNECTEMPTY */
 
@@ -1152,15 +1232,16 @@ module OOO_CORE
             sh_st[disp_rob[j]]    <= 1'b0;
         end
         for (int p = 0; p < NAP; p++) if (ex_v[p] && ex[p].wr) sh_val[ex[p].rec.rob] <= ex_res[p];
-        if (cmp_ld_v && lsu_rf_v) sh_val[cmp_ld_rob] <= prf_wd[NAP];               // a load's value with its completion (M)
+        for (int m = 0; m < 2; m++)                                               // a load's value of its last M, with its W
+            if (cmp_ld_v[m] && !cmp_ld_e[m]) sh_val[cmp_ld_rob[m]] <= lw_d[m];
         if (pm_v) sh_val[pm_rob] <= pm_d;                                         // the multiplier's and the MDU's
         if (md_v) sh_val[md_rob] <= md_d;
         if (x_csr) sh_val[ex[0].rec.rob] <= csr_res;                              // a CSR µop's old value
-        if (p2_ex_v && !p2.rec.is_ld) begin                                       // a store in E
-            sh_st[p2.rec.rob] <= 1'b1;
-            sh_sa[p2.rec.rob] <= p2_a + {{52{p2.rec.imm[11]}}, p2.rec.imm[11:0]};
-            sh_sd[p2.rec.rob] <= p2_b;
-            sh_ss[p2.rec.rob] <= p2.rec.msize;
+        if (m_ex_v[0] && !m_ex[0].rec.is_ld) begin                                // a store in EX (OOO_LSU3's E)
+            sh_st[m_ex[0].rec.rob] <= 1'b1;
+            sh_sa[m_ex[0].rec.rob] <= m_ea[0];
+            sh_sd[m_ex[0].rec.rob] <= m_b;
+            sh_ss[m_ex[0].rec.rob] <= m_ex[0].rec.msize;
         end
     end
     always @(*) begin

@@ -21,6 +21,9 @@
 # Every line of the result is to be read: grep NOT.
 #
 # Left out, as found by the first campaign:
+#   - a mispredicted branch's checkpoint cleared too (cl_valid without ~br_mispred): equivalent since
+#     Plan/OOC.md 29.21 / 29.23, its clear is always masked by killset (its own restore or an older one's)
+#     or by fe_flush (Plan/OOC.md 29.32);
 #   - every µop reading 2 sources (ds_use): only later, as what it waits for needlessly is
 #     woken in time: cycles, no value (Plan/OOC.md 29.17);
 #   - the wrap of the rotated slots past slot 3 masked: they are below the
@@ -116,17 +119,17 @@ MUT = [
     (C, "wrec[j].sq  = disp_sq[j];", "wrec[j].sq  = disp_sq[0];", 'the record: µop 1 with µop 0\'s SQ entry'),
     (C, ".ds_ld(dv_ld)", ".ds_ld(4'b0000)", 'CTRL: loads not counted against the LQ'),
     (C, ".disp_ld(dv_ld), .disp_st(dv_st),\n         .disp_fused", ".disp_ld(4'b0000), .disp_st(dv_st),\n         .disp_fused", 'ROB: loads not marked (the LQ never freed)'),
-    (C, ".disp_st(dv_st), .disp_rob(disp_rob)", ".disp_st(4'b0000), .disp_rob(disp_rob)", 'LSU: stores not given SQ entries'),
-    (C, ".iss_ld(p2.rec.is_ld)", ".iss_ld(1'b1)", 'LSU: stores issued as loads'),
-    (C, ".iss_lq(p2.rec.lq), .iss_sq(p2.rec.sq)", ".iss_lq(p2.rec.sq), .iss_sq(p2.rec.sq)", 'LSU: a load\'s LQ entry from the SQ field'),
-    (C, ".iss_imm(p2.rec.imm[11:0])", ".iss_imm(12'd0)", 'LSU: the offset left out'),
-    (C, ".iss_size(p2.rec.msize)", ".iss_size(2'd3)", 'LSU: every access a double word'),
-    (C, ".iss_uns(p2.rec.uns)", ".iss_uns(1'b0)", 'LSU: lbu / lhu / lwu sign-extended'),
-    (C, "if (byp_v[q] && byp_t[q] == p2.t1) p2_a = byp_d[q];", "", 'port 2: no bypass for the base'),
-    (C, "if (byp_v[q] && byp_t[q] == p2.t2) p2_b = byp_d[q];", "", 'port 2: no bypass for a store\'s data'),
-    (C, "byp_v[NAP] = lsu_wb_v && lsu_wb_t != '0;", "byp_v[NAP] = 1'b0;", 'bypass: the LSU\'s result not forwarded'),
-    (C, "byp_v[NAP] = lsu_wb_v && lsu_wb_t != '0;", "byp_v[NAP] = lsu_wb_v;", 'bypass: a load to x0 forwarded (tag 0)'),
-    (C, ".rf_we(prf_we[NAP]), .rf_tag(prf_wa[NAP])", ".rf_we(), .rf_tag(prf_wa[NAP])", 'register file: loads not written'),
+    (C, "sq_alloc = sq_alloc + 3'(d_go[k] && dv_st[k]);", "sq_alloc = sq_alloc + 3'(1'b0);", 'LSU: stores not given SQ entries'),
+    (C, '.rr_ld(rr_rec[NAP].is_ld)', ".rr_ld(1'b1)", 'LSU: stores issued as loads'),
+    (C, '.rr_lq({rr_rec[NAP+1].lq, rr_rec[NAP].lq})', '.rr_lq({rr_rec[NAP+1].lq, rr_rec[NAP].sq})', "LSU: a load's LQ entry from the SQ field"),
+    (C, 'm_ea[m] = m_a[m] + {{52{m_ex[m].rec.imm[11]}}, m_ex[m].rec.imm[11:0]};', 'm_ea[m] = m_a[m];', 'LSU: the offset left out'),
+    (C, '.rr_size({rr_rec[NAP+1].msize, rr_rec[NAP].msize})', ".rr_size({2'd3, 2'd3})", 'LSU: every access a double word'),
+    (C, '.rr_uns({rr_rec[NAP+1].uns, rr_rec[NAP].uns})', ".rr_uns(2'b00)", 'LSU: lbu / lhu / lwu sign-extended'),
+    (C, 'if (byp_v[q] && byp_t[q] == m_ex[m].t1) m_a[m] = byp_d[q];', '', 'port 2: no bypass for the base'),
+    (C, 'if (m == 0 && byp_v[q] && byp_t[q] == m_ex[m].t2) b = byp_d[q];', '', "port 2: no bypass for a store's data"),
+    (C, 'byp_v[NAP + m] = lw_v[m];', "byp_v[NAP + m] = 1'b0;", "bypass: the LSU's result not forwarded"),
+    (C, "lw_v[m] <= ld_nv[m] && ld_nt[m] != '0 && !flush_all;", 'lw_v[m] <= ld_nv[m] && !flush_all;', 'bypass: a load to x0 forwarded (tag 0)'),
+    (C, 'prf_we[NAP + m] = ld_nv[m];', "prf_we[NAP + m] = 1'b0;", 'register file: loads not written'),
     (C, "1'b0, 1'b0, ld_crp, (NAP)'(0)}", "1'b0, 1'b0, 1'b0, (NAP)'(0)}", 'ROB: no replay after a load that raised ld_cancel'),
     (C, ".restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all", ".restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_lq_tail), .flush_all",
      'LSU: the SQ restored to the LQ\'s tail'),
@@ -179,7 +182,7 @@ MUT = [
     (C, "cmp_exc   = {csr_ce, 2'b00,", "cmp_exc   = {1'b0, 2'b00,", 'CSR: an illegal access completes'),
     (C, "cmp_rp    = {csr_crp, 2'b00,", "cmp_rp    = {1'b0, 2'b00,", 'CSR: no replay after a write'),
     (C, "sys_rob, pm_v ? pm_rob : md_rob,", "sys_rob, md_rob,", 'the multiply completes the MDU\'s entry'),
-    (C, "tv_valid[ND]     = p2_ex_v && mis;", "tv_valid[ND]     = 1'b0;", 'tval: a misaligned address not given'),
+    (C, 'tv_valid[ND]     = m_ex_v[0] && mis[0];', "tv_valid[ND]     = 1'b0;", 'tval: a misaligned address not given'),
     (C, "tv_valid[ND + 1] = csr_tvq || sys_tv_v;", "tv_valid[ND + 1] = sys_tv_v;", "tval: an illegal CSR access's not given"),
     (C, "for (int j = 0; j < ND; j++) if (disp_go[j]) rob_insn[disp_rob[j]] <= ds[j].insn;", "for (int j = 0; j < 2; j++) if (disp_go[j]) rob_insn[disp_rob[j]] <= ds[j].insn;", '4 wide: slots 2 and 3 leave rob_insn unwritten (a CSR µop reads a stale one)'),
     (C, "assign g_take = r_go[3] ? 3'd4 :", "assign g_take = r_go[3] ? 3'd3 :", '4 wide: four go, three taken (one runs twice)'),
@@ -193,6 +196,10 @@ MUT = [
     (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && !flush_all;", 'a branch killed as it leaves EX resolves'),
     (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && (ex_bms[p] & kill) == '0;", 'a branch flushed as it leaves EX resolves'),
     (C, "{csr_cv, br_valid, sys_cv,", "{csr_cv, br_valid & ~br_mispred, sys_cv,", 'a mispredicted branch never completes'),
+    (C, "tv_valid[ND + 2] = m_ex_v[1] && mis[1];", "tv_valid[ND + 2] = 1'b0;", 'tval: LSU1\'s misaligned address not given'),
+    (C, ".e_addr({m_ea[1], rt_q ? 64'(rt_bq) : m_ea[0]})", ".e_addr({m_ea[1], m_ea[0]})", 'LSU0: a try takes the address left in EX'),
+    (C, "            disp_st[k] = st;", "            disp_st[k] = st + 5'd1;", 'LSU: a load takes the store after it as older'),
+    (C, "            ck_lq_tail[k] = lt;", "            ck_lq_tail[k] = l3_lq_tail;", 'LSU: a restore takes the LQ\'s tail of the group\'s start'),
     (C, "            csr_cv  <= x_csr;", "            csr_cv  <= 1'b0;", 'a CSR µop never completes'),
     (C, "        csr_ce      <= csr_exc;", "        csr_ce      <= 1'b0;", 'an illegal CSR access completes without its exception'),
     (C, "    assign wbw0  = md_wr || x_wv;", "    assign wbw0  = x_wv;", 'register file: the MDU\'s results not written'),
@@ -201,7 +208,6 @@ MUT = [
     (C, "            wbi_v[p] = ex_v[p] && ex[p].wr;\n            wbi_t[p] = ex[p].dst;", "            wbi_v[p] = ex_v[p] && ex[p].wr && p != 3;\n            wbi_t[p] = ex[p].dst;", 'register file: ALU3\'s results not written'),
     (C, "{csr_cv, br_valid, sys_cv,", "{csr_cv, br_valid & br_mispred, sys_cv,", 'a branch resolved as predicted never completes'),
     (C, "cmp_exc   = {csr_ce, 2'b00, sys_exc, 1'b0, cmp_st_e, ld_ce,", "cmp_exc   = {csr_ce, 2'b00, sys_exc, 1'b0, cmp_st_e, cmp_ld_e,", "a load's exception a cycle before its completion"),
-    (C, ".cl_valid(br_valid & ~br_mispred), .cl_ckpt(br_ckpt),", ".cl_valid(br_valid), .cl_ckpt(br_ckpt),", "a mispredicted branch's checkpoint cleared too"),
     (CS, "tv_val   = {32'd0, ex_inst};", "tv_val   = 64'd0;", 'CSR: an illegal access\'s tval 0'),
     (CS, "(fs == 2'b00 && (ex_addr == 12'h001", "(1'b0 && (ex_addr == 12'h001", 'CSR: fcsr with mstatus.FS off not illegal'),
 ]

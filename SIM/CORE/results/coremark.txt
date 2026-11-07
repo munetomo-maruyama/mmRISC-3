@@ -1,32 +1,26 @@
 == OOO_CORE, no I$ miss, every D$ load a hit
-g14-o2-zbsc.elf              PASS  exit 0  3146675 insns  3146675 uops  1570475 cycles  IPC 2.004
-    5891 restores (mispredicted branches and jalr), 902 replays, I$ 0 / 1156740 missed, D$ 0 / 557729 loads missed, 147736 stores
-g14-sflto-zbsc.elf           PASS  exit 0  2843472 insns  2843472 uops  1534517 cycles  IPC 1.853
-    5701 restores (mispredicted branches and jalr), 2493 replays, I$ 0 / 1071804 missed, D$ 0 / 578933 loads missed, 145661 stores
-g13-o2-zb.elf                PASS  exit 0  3214334 insns  3214334 uops  1644240 cycles  IPC 1.955
-    6735 restores (mispredicted branches and jalr), 931 replays, I$ 0 / 1138124 missed, D$ 0 / 559719 loads missed, 147710 stores
+g14-o2-zbsc.elf              PASS  exit 0  3150059 insns  3150059 uops  1537421 cycles  IPC 2.049
+    6374 restores (mispredicted branches and jalr), 531 replays, I$ 0 / 1164316 missed, D$ 578 lines filled (563 asked by loads, 48 by stores), 0 evicted
+g14-sflto-zbsc.elf           PASS  exit 0  2853682 insns  2853682 uops  1449754 cycles  IPC 1.968
+    5036 restores (mispredicted branches and jalr), 658 replays, I$ 0 / 1038416 missed, D$ 707 lines filled (1290 asked by loads, 49 by stores), 0 evicted
+g13-o2-zb.elf                PASS  exit 0  3217436 insns  3217436 uops  1603602 cycles  IPC 2.006
+    6961 restores (mispredicted branches and jalr), 549 replays, I$ 0 / 1144276 missed, D$ 566 lines filled (545 asked by loads, 48 by stores), 0 evicted
 tb_core: 3 files, 0 failures: PASS
 == OOO_CPU, the real D$, no I$ miss
-g14-o2-zbsc.elf              PASS  exit 0  3146993 insns  3146993 uops  1572482 cycles  IPC 2.001
-    6156 restores (mispredicted branches and jalr), 797 replays, I$ 0 / 1158473 missed, memory 77 line reads 0 line writes, uncached 2215 reads 502 writes
-g14-sflto-zbsc.elf           PASS  exit 0  2847708 insns  2847708 uops  1585645 cycles  IPC 1.796
-    6753 restores (mispredicted branches and jalr), 3415 replays, I$ 0 / 1093054 missed, memory 77 line reads 0 line writes, uncached 11816 reads 631 writes
-g13-o2-zb.elf                PASS  exit 0  3215356 insns  3215356 uops  1649865 cycles  IPC 1.949
-    7013 restores (mispredicted branches and jalr), 978 replays, I$ 0 / 1143629 missed, memory 77 line reads 0 line writes, uncached 4539 reads 491 writes
-tb_core: 3 files, 0 failures: PASS
+(OOO_CPU: off until step 1.3 E2)
 == OOO_CORE, misses at random (seed 1)
-g14-o2-zbsc.elf              PASS  exit 0  3146629 insns  3146629 uops  4753439 cycles  IPC 0.662
-    20804 restores (mispredicted branches and jalr), 107566 replays, I$ 200567 / 2509060 missed, D$ 228278 / 1140108 loads missed, 147736 stores
-g14-sflto-zbsc.elf           PASS  exit 0  2844894 insns  2844894 uops  4590292 cycles  IPC 0.620
-    25709 restores (mispredicted branches and jalr), 106898 replays, I$ 188310 / 2353954 missed, D$ 231867 / 1161222 loads missed, 145661 stores
-g13-o2-zb.elf                PASS  exit 0  3214188 insns  3214188 uops  4777690 cycles  IPC 0.673
-    26291 restores (mispredicted branches and jalr), 106644 replays, I$ 195591 / 2444706 missed, D$ 227112 / 1136846 loads missed, 147710 stores
+g14-o2-zbsc.elf              PASS  exit 0  3148191 insns  3148191 uops  2052386 cycles  IPC 1.534
+    6606 restores (mispredicted branches and jalr), 527 replays, I$ 91688 / 1148989 missed, D$ 578 lines filled (1093 asked by loads, 48 by stores), 0 evicted
+g14-sflto-zbsc.elf           PASS  exit 0  2848542 insns  2848542 uops  1908663 cycles  IPC 1.492
+    5521 restores (mispredicted branches and jalr), 656 replays, I$ 82243 / 1029677 missed, D$ 707 lines filled (1397 asked by loads, 49 by stores), 0 evicted
+g13-o2-zb.elf                PASS  exit 0  3215912 insns  3215912 uops  2071626 cycles  IPC 1.552
+    6541 restores (mispredicted branches and jalr), 539 replays, I$ 89972 / 1127084 missed, D$ 566 lines filled (1021 asked by loads, 49 by stores), 0 evicted
 tb_core: 3 files, 0 failures: PASS
 == OOO_CORE, misses at random (seed 2, 30 % D$ hits)
-g14-o2-zbsc.elf              PASS  exit 0  3146629 insns  3146629 uops  11458601 cycles  IPC 0.275
-    52270 restores (mispredicted branches and jalr), 377440 replays, I$ 470266 / 5879427 missed, D$ 1800544 / 2573236 loads missed, 147740 stores
-g14-sflto-zbsc.elf           PASS  exit 0  2845200 insns  2845200 uops  11269232 cycles  IPC 0.252
-    77887 restores (mispredicted branches and jalr), 375476 replays, I$ 451626 / 5645655 missed, D$ 1846057 / 2638314 loads missed, 145665 stores
-g13-o2-zb.elf                PASS  exit 0  3214127 insns  3214127 uops  11439178 cycles  IPC 0.281
-    71423 restores (mispredicted branches and jalr), 374648 replays, I$ 453408 / 5668571 missed, D$ 1800148 / 2573340 loads missed, 147714 stores
+g14-o2-zbsc.elf              PASS  exit 0  3148127 insns  3148127 uops  2054627 cycles  IPC 1.532
+    6648 restores (mispredicted branches and jalr), 530 replays, I$ 91890 / 1149563 missed, D$ 578 lines filled (1076 asked by loads, 49 by stores), 0 evicted
+g14-sflto-zbsc.elf           PASS  exit 0  2848896 insns  2848896 uops  1910708 cycles  IPC 1.491
+    5458 restores (mispredicted branches and jalr), 655 replays, I$ 82352 / 1030045 missed, D$ 707 lines filled (1412 asked by loads, 49 by stores), 0 evicted
+g13-o2-zb.elf                PASS  exit 0  3215298 insns  3215298 uops  2072042 cycles  IPC 1.552
+    6805 restores (mispredicted branches and jalr), 532 replays, I$ 90226 / 1128516 missed, D$ 566 lines filled (1014 asked by loads, 48 by stores), 0 evicted
 tb_core: 3 files, 0 failures: PASS

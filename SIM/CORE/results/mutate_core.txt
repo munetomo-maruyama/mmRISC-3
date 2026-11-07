@@ -78,7 +78,7 @@
 77 DETECTED      the MDU's result over an ALU0 µop's
 78 DETECTED      port 1: the multiply's result not written
 79 DETECTED      port 1: a multiply to x0 takes the write slot
-80 DETECTED      port 0: a divide to x0 forwarded (tag 0)
+80 NOT DETECTED  port 0: a divide to x0 forwarded (tag 0)
 81 DETECTED      IQ: loads not held for older stores (replays)
 82 DETECTED      SRET: the CSRs not restored
 83 DETECTED      a system µop complete at EX
@@ -87,7 +87,7 @@
 86 DETECTED      the multiply completes the MDU's entry
 87 DETECTED      tval: a misaligned address not given
 88 DETECTED      tval: an illegal CSR access's not given
-89 DETECTED      4 wide: slots 2 and 3 leave rob_insn unwritten (a CSR µop reads a stale one)
+89 NOT DETECTED  4 wide: slots 2 and 3 leave rob_insn unwritten (a CSR µop reads a stale one)
 90 DETECTED      4 wide: four go, three taken (one runs twice)
 91 DETECTED      4 wide: slots 2 and 3 with the ports of slots 0 and 1
 92 DETECTED      minstret: a write counts its own commit
@@ -96,15 +96,19 @@
 95 DETECTED      a branch killed as it leaves EX resolves
 96 DETECTED      a branch flushed as it leaves EX resolves
 97 DETECTED      a mispredicted branch never completes
-98 DETECTED      a CSR µop never completes
-99 DETECTED      an illegal CSR access completes without its exception
-100 DETECTED      register file: the MDU's results not written
-101 DETECTED      a CSR µop completes in EX too (twice: the late one may hit the next µop)
-102 DETECTED      bypass: ALU3's result not forwarded
-103 DETECTED      register file: ALU3's results not written
-104 DETECTED      a branch resolved as predicted never completes
-105 DETECTED      a load's exception a cycle before its completion
-106 DETECTED      a mispredicted branch's checkpoint cleared too
-107 DETECTED      CSR: an illegal access's tval 0
-108 DETECTED      CSR: fcsr with mstatus.FS off not illegal
-109 mutations, 109 detected
+98 DETECTED      tval: LSU1's misaligned address not given
+99 DETECTED      LSU0: a try takes the address left in EX
+100 DETECTED      LSU: a load takes the store after it as older
+101 DETECTED      LSU: a restore takes the LQ's tail of the group's start
+102 DETECTED      a CSR µop never completes
+103 DETECTED      an illegal CSR access completes without its exception
+104 DETECTED      register file: the MDU's results not written
+105 DETECTED      a CSR µop completes in EX too (twice: the late one may hit the next µop)
+106 DETECTED      bypass: ALU3's result not forwarded
+107 DETECTED      register file: ALU3's results not written
+108 DETECTED      a branch resolved as predicted never completes
+109 DETECTED      a load's exception a cycle before its completion
+110 NOT DETECTED  a mispredicted branch's checkpoint cleared too
+111 DETECTED      CSR: an illegal access's tval 0
+112 DETECTED      CSR: fcsr with mstatus.FS off not illegal
+113 mutations, 110 detected

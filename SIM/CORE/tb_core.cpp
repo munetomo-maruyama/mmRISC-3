@@ -6,8 +6,9 @@
 //   tb_core [-seed <n>] [-miss <%>] [-dhit <%>] [-exit <symbol>] [-max <cycles>] [-v]
 //           [-restores-out <file>] [-restores-ref <file> -restores-max <x>] [-replays-max <n>] <elf> ...
 //
-// The D$: DCacheModel (ports.h) on OOO_LSU's abstract port (-dhit: % of the
-// loads that hit, default 80). B3: loads and stores; the commit trace gives
+// The D$: OOO_LSU3's, with DMissModel (ports.h) as its miss handler (step 1.3
+// E1; -dhit 100: fills at once, else up to 12 cycles late); Memory takes
+// the stores as they commit. B3: loads and stores; the commit trace gives
 // each store's address and data, and the exit and the console come from
 // HTIF (tohost) as in B0.
 // B2 (ALU µops only, no memory): the programs of b2/gen_b2.py end at the
@@ -33,7 +34,7 @@
 typedef VOOO_CPU Top;
 typedef VOOO_CPU___024root TopRoot;
 #define CORE(x) OOO_CPU__DOT__u_core__DOT__##x
-#else                           // OOO_CORE: the D$ is DCacheModel on the LSU's abstract port
+#else                           // OOO_CORE: OOO_LSU3's D$ with DMissModel behind it (step 1.3 E1)
 #include "VOOO_CORE.h"
 #include "VOOO_CORE___024root.h"
 typedef VOOO_CORE Top;
@@ -138,7 +139,8 @@ static bool run(const Opts& o, const std::string& elf)
     Axi4Mem ax(b.mem(), o.seed * 13 + 5);
     AxiLite al(b.mem(), o.seed * 17 + 3);
 #else
-    DCacheModel dc(b.mem(), o.seed * 13 + 5, o.dhit);
+    DMissModel dm(b.mem(), o.seed * 13 + 5, o.dhit >= 100 ? 0 : 12);     // (-dhit 100: fills at once, else up to 12 cycles late)
+    uint64_t tohost_line = b.symbol("tohost") >> 6;
 #endif
     std::unique_ptr<Top> d(new Top);
 #ifdef CPU_TOP
@@ -147,7 +149,7 @@ static bool run(const Opts& o, const std::string& elf)
     d->clk = 0; d->boot = 0; d->boot_pc = 0;
     bool icf_q = false;                                 // FENCE.I: the I$ model holds nothing, its invalidate is done a cycle later
 #ifndef CPU_TOP
-    bool flq_q = false;                                 // FENCE.I: the D$ model (Memory) has nothing to write back
+    bool flq_q = false;                                 // FENCE.I: Memory has every committed store, nothing to write back
 #endif
     d->ic_req_ready = 0; d->ic_resp_valid = 0;
     d->rst_n = 1; d->eval(); d->rst_n = 0; d->eval(); d->rst_n = 1; d->eval();
@@ -187,9 +189,12 @@ static bool run(const Opts& o, const std::string& elf)
         d->m_axil_rvalid = al.rvalid; d->m_axil_rdata = al.rdata; d->m_axil_rresp = 0;
         d->m_axil_bvalid = al.bvalid; d->m_axil_bresp = 0;
 #else
-        d->dc_hit = dc.hit(); d->dc_rdata = dc.rdata();
-        d->dc_fill_valid = dc.fill_valid(); d->dc_fill_tag = dc.fill_tag(); d->dc_fill_data = dc.fill_data();
-        d->dc_st_ready = dc.st_ready();
+        {
+            const DMissModel::Out& q = dm.out();
+            d->dc_fill_done = q.fill_done; d->dc_done_v = q.done_v; d->dc_done_id = q.done_id;
+            d->dc_tw_en = q.tw_en; d->dc_tw_way = q.tw_way; d->dc_tw_set = q.tw_set; d->dc_tw_tag = (uint32_t)q.tw_tag;
+            d->dc_rf_en = q.rf_en; d->dc_rf_way = q.rf_way; d->dc_rf_addr = q.rf_addr; d->dc_rf_data = q.rf_data;
+        }
         d->fl_take = 1; d->fl_done = flq_q;
 #endif
         d->eval();
@@ -248,9 +253,18 @@ static bool run(const Opts& o, const std::string& elf)
         bool larv = d->m_axil_arvalid, lrr = d->m_axil_rready, lawv = d->m_axil_awvalid, lwv = d->m_axil_wvalid, lbr = d->m_axil_bready;
         uint64_t lara = d->m_axil_araddr, lawa = d->m_axil_awaddr, lwd = d->m_axil_wdata; uint8_t lws = d->m_axil_wstrb;
 #else
-        bool dreq = d->dc_req_valid, dfr = d->dc_fill_ready, dst = d->dc_st_valid;
-        uint64_t dad = d->dc_req_addr, dsa = d->dc_st_addr, dsd = d->dc_st_data;
-        int dtg = d->dc_req_tag; unsigned dkill = d->dc_kill; uint8_t dsm = d->dc_st_mask;
+        bool mv = d->dc_miss_valid, smv = d->dc_st_miss_valid, dset = d->dc_dirty_set, sqd = d->dc_sq_drained;
+        uint64_t ml = d->dc_miss_line, sml = d->dc_st_miss_line;
+        int mid = d->dc_miss_id, dway = d->dc_dirty_way, didx = d->dc_dirty_idx;
+        // Memory takes the stores as they commit (the D$ writes back: Memory is what is written through, DMissModel)
+        for (int k = 0; k < n; k++)
+            if (!s[k].trap && s[k].st[0].v) {
+                const TraceStore& t = s[k].st[0];
+                unsigned off = (unsigned)(t.addr & 7);
+                uint8_t mask = (uint8_t)(((1u << t.size) - 1) << off);
+                b.mem().write64(t.addr & ~7ull, t.data << (8 * off), mask);
+                if ((t.addr >> 6) == tohost_line) dm.host_wrote(tohost_line);
+            }
 #endif
         if (!b.commit(s, n)) break;
         if (!b.tick()) break;
@@ -264,7 +278,7 @@ static bool run(const Opts& o, const std::string& elf)
         ax.clock(arv, ara, arl, rr, awv, awa, awl, wv, wd, ws, br);
         al.clock(larv, lara, lrr, lawv, lawa, lwv, lwd, lws, lbr);
 #else
-        dc.clock(dreq, dad, dtg, dkill, dfr, dst, dsa, dsd, dsm);
+        dm.clock(mv, ml, mid, smv, sml, dset, dway, didx, sqd);
 #endif
     }
     std::string name = elf.substr(elf.rfind('/') + 1);
@@ -274,8 +288,8 @@ static bool run(const Opts& o, const std::string& elf)
         std::printf("    %ld restores (mispredicted branches and jalr), %ld replays, I$ %ld / %ld missed, memory %ld line reads %ld line writes, uncached %ld reads %ld writes\n",
                     restores, replays, ic.misses, ic.reqs, ax.reads, ax.writes, al.reads, al.writes);
 #else
-        std::printf("    %ld restores (mispredicted branches and jalr), %ld replays, I$ %ld / %ld missed, D$ %ld / %ld loads missed, %ld stores\n",
-                    restores, replays, ic.misses, ic.reqs, dc.misses, dc.reqs, dc.stores);
+        std::printf("    %ld restores (mispredicted branches and jalr), %ld replays, I$ %ld / %ld missed, D$ %ld lines filled (%ld asked by loads, %ld by stores), %ld evicted\n",
+                    restores, replays, ic.misses, ic.reqs, dm.fills, dm.asks, dm.st_asks, dm.evicts);
 #endif
     if (rs_out_f) std::fprintf(rs_out_f, "%s %ld\n", name.c_str(), restores);
     if (const char* bp = std::getenv("CORE_BYPC")) {
