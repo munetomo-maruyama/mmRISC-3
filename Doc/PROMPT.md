@@ -7789,3 +7789,47 @@ The record is section 29.22 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 OOO_CPU finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**The fourth `OOO_CPU` run came out at WNS −0.647 ns.** The worst path was exactly the chain that 29.22 described as "still in one cycle", so I cut it and pushed (9fb61fe; 0 Ref on origin/dev). The slack after the fix is not measured yet.
+
+#### The fourth run
+- **LUTs:** 54,705
+- **WNS:** −0.647 ns, 25 levels
+- The paths starting at the CSRs' `priv_r` are gone.
+- **The worst path:** it starts at the ROB's head.
+  - It runs through the read of the head's done and exception bits (a choice of 48), the trap, the restore held off by the trap, the kill, the LSU, the D$, the write-back and the completion into the ROB (83 % routing).
+  - From the same kill there is also a path through the MDU's result to the PRF's LVT (−0.613 ns).
+  - The LSU's own `restore` was on this chain too.
+
+#### What I cut
+The kill and the LSU's restore no longer wait on the trap or replay of the same cycle.
+- **ROB:** a new output `restore_k` (a mispredicted branch is in the ROB): a restore that does not look at the trap.
+- **CTRL:** the kill is made from this `restore_k`, which also goes to the LSU. In a cycle where a trap meets a misprediction the kill acts, but the next cycle's flush overrides everything, so it does no harm.
+- **Inside CTRL:** the rest of the restore (renaming, the live checkpoints, the DS register) still waits on the trap as before. A first form changed that internal state too and the bench found the difference, so it stays as it was.
+- **The ROB's `live()`:** no more subtraction; two compares.
+
+| CoreMark | 29.22 | Now |
+|---|---|---|
+| g14-o2, no misses | 1,682,613 | 1,682,490 (−0.01 %) |
+| `OOO_CPU`, real D$ | 1,700,964 | 1,699,305 (−0.10 %) |
+
+#### Checks
+- **Unit:** `tb_rob`, `tb_ctrl` and `tb_lsu` PASS. The benches now check `restore_k` and the kill in a cycle that meets a trap.
+- **Regression:** `run_core.sh` 12 runs with 0 failures; CoreMark PASS.
+- **Bug injection:** 98 in the ROB, control, LSU and trap units and 101 in the core, all detected.
+  - 4 new mutations in the units.
+  - "The kill back on the old `restore`" went undetected, but it is the earlier, correct form, so I took it off the list.
+  - In the core, one ("LSU: stores never committed") pointed at a line I had changed; I moved it and reran the whole campaign.
+- **Lint:** no new warnings in the core's or the harnesses' `-Wall`.
+
+The record is section 29.23 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.6.
+<!-- /answer -->
+
+## 191. 2026-11-07 09:02:59 JST
+
+```text
+CPU_OOO finished.
+```

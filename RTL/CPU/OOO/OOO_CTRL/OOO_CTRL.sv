@@ -30,7 +30,11 @@
 //   DS  dispatch: the µops of the DS register go together (both or none:
 //       ds_valid / d_go; their payload is the assembly's DS register)
 //       when the ROB, the issue queue, the LQ and the SQ have room for all
-//       of them, with their masks (d_bmask, less this cycle's clears).
+//       of them, with their masks (d_bmask, less this cycle's clears),
+//       not in a cycle of restore (restore_k) or of flush_all. In a cycle of
+//       trap or replay they may go: the ROB's tail goes back and flush_all
+//       of the next cycle clears the rest (waiting on the trap lay on the
+//       4-wide core's paths, Plan/OOC.md 29.24).
 //       ds_load: the register takes renaming's µops (it is empty or its
 //       µops go now; the enable of the payload, OOO_DSREG).
 //       A µop with a checkpoint writes the checkpoint table: the LSU's
@@ -255,7 +259,7 @@ module OOO_CTRL
             nld  = nld + 3'(ds_v[k] && ds_ld[k]);
             nst  = nst + 3'(ds_v[k] && ds_st[k]);
         end
-        d_ok = !rcv && rob_avail >= nall && iq_avail >= nall && lq_avail >= nld && sq_avail >= nst;
+        d_ok = !flush_q && !restore_k && rob_avail >= nall && iq_avail >= nall && lq_avail >= nld && sq_avail >= nst;
         d_go = d_ok ? ds_v : '0;
         for (int k = 0; k < ND; k++) d_bmask[k] = ds_bm[k] & ~clr;
         ds_valid = ds_v;

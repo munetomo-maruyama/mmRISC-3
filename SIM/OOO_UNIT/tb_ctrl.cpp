@@ -30,7 +30,8 @@
 //   - the redirect: trap vector, replay pc, or the restoring branch's next pc
 //     and its port (restore_port, for OOO_FERS)
 //   - trap / replay: fe_flush at once, flush_all a cycle later, and nothing
-//     renamed, dispatched or cleared in either cycle
+//     renamed or cleared in either cycle, nothing dispatched in the second
+//     (in the first it may: the flush clears it)
 //   - ns_busy (OOO_TRAP: no interrupt then): the head's non-speculative µop
 //     has issued and not committed
 //   - ns_ok: registered: the head non-speculative and not run yet in the
@@ -147,7 +148,7 @@ int main(int argc, char** argv)
         if ((unsigned)d.ds_valid != dsv) FAIL("ds_valid %u, expected %u", (unsigned)d.ds_valid, dsv);
         int nall = (int)std::min<size_t>(ds.size(), 2), nld = 0, nst = 0;
         for (int k = 0; k < nall; k++) { nld += ds[k]->ld; nst += ds[k]->st; }
-        bool dok = !rcv && ra >= nall && ia >= nall && la >= nld && sa >= nst;
+        bool dok = !flushq && !rs && ra >= nall && ia >= nall && la >= nld && sa >= nst;   // (a trap or replay does not stop it: 29.24)
         unsigned dgo = dok ? dsv : 0;
         if ((unsigned)d.d_go != dgo) FAIL("d_go %u, expected %u (ds %d, rob %d iq %d lq %d sq %d, ld %d st %d, rcv %d)", (unsigned)d.d_go, dgo, nall, ra, ia, la, sa, nld, nst, rcv);
         // clears: the branches resolved as predicted that this cycle's restore does not kill

@@ -4507,3 +4507,15 @@ The cycles move where a replay meets a misprediction: the LSU now drops the kill
 `tb_rob` (checks `restore_k` too), `tb_ctrl` (the kill and `restore_k` also in a cycle of trap or replay), `tb_lsu`: PASS. `run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS. **Bug injection.** The unit campaign on the ROB, the control, the LSU and the trap: 98, all detected (M197, M294 set on the new line; new: M1112, M1113 on `live()`, M1114 `restore_k` without port 1, M1116 a checkpoint freed by the kill of a cycle of trap). A mutation of the kill back to the ROB's `restore` is the old form, not a fault, and is not kept. The core: 101, all detected ("LSU: stores never committed" set on the line that now gives the LSU `restore_k`; NOT APPLIED in the first run). `verilator -Wall` on the core: nothing new. The harnesses `OOC_ROB` and `OOC_CTRL` take the new ports (no warning on their lines).
 
 **Next**: a fifth run of `OOO_CPU` at 20 ns (by the author).
+
+### 29.24 Step 1.2, C: the fifth run, −0.068 ns; dispatch not waiting on the trap (2026-11-07)
+
+**The run** (by the author, with 29.23's `restore_k`): 54,764 LUTs after place and route, **WNS −0.068 ns, 21 levels**; 16 endpoints below 0, all write addresses of one bank of `OOO_IQPL2`. The path: the ROB's head, the head's done and exception bits (a choice of 48), the trap, `OOO_CTRL`'s recovery (`rcv`: trap, replay, restore, `flush_q`), dispatch (`d_ok`, `d_go`), the queue's entries for the dispatched µops (the k-th to the k-th free bank), the payload's write address (20.0 ns, 81 % routing). Everything else has slack (the next worst into a block: +0.131 ns, the LSU to the ROB's completion).
+
+**The cut** (`OOO_CTRL`): `d_ok` = not `flush_q`, not `restore_k`, and room for all; no longer the trap or replay of the cycle. µops dispatched in a cycle of trap or replay are harmless: the ROB's tail goes back to the head (or after the commits), the entries written beyond it are cleared when given out again (as 29.19's `OOO_ROB` says for dispatch in a cycle of restore), and `flush_all` of the next cycle clears the queue, the LSU's tails and the DS register; renaming still waits on the trap (`rcv`). A dispatched µop's tval report in such a cycle is kept for one cycle and dropped by `flush_all` (no trap can come in between: the ROB is empty).
+
+The cycles: **unchanged on every file** (`results/*` the same): what a trap cycle dispatches is flushed in the next one.
+
+`tb_ctrl` (dispatch allowed in a cycle of trap or replay, not with `flush_q` or a restore): PASS. `run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS. **Bug injection**: the control's campaign 21, all detected (M218 set on the new line; new: M1117 dispatch in a cycle of restore, M1118 in a cycle of `flush_all`); the core 101, all detected. `verilator -Wall` on the core: nothing new.
+
+**Next**: a sixth run of `OOO_CPU` at 20 ns (by the author). If it meets 20 ns, D.
