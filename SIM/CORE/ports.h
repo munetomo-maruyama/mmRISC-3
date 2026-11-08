@@ -2,13 +2,14 @@
 // ports.h : models of the core's memory ports on the bench's Memory
 // (Plan/CORE.md section 5)
 //
-//   ICacheModel  the I$ as OOO_FETCH expects it (mmRISC-2's ICACHE, 16
-//                bytes wide; Plan/OOC.md 14.2, decision 4.6): a request
+//   ICacheModel  the I$ as OOO_FETCH2 expects it (mmRISC-2's ICACHE's timing,
+//                32 bytes wide since step 1.5, F1b, Plan/OOC.md 29.39;
+//                Plan/OOC.md 14.2, decision 4.6): a request
 //                accepted at F0 is answered 2 cycles later on a hit, later
 //                on a miss, in order; while a miss is served no request is
 //                accepted (a request is accepted the cycle after another
 //                only if that one hits). Every accepted request is answered.
-//                The answer is the 16-byte line of the request, read from
+//                The answer is the 32-byte line of the request, read from
 //                Memory when it is given (no cache state: FENCE.I has
 //                nothing to invalidate). Misses are drawn at random.
 //
@@ -51,8 +52,8 @@ public:
         : m(m), rng(seed), miss_pct(miss_pct), miss_lat(miss_lat) {}
     bool ready() const { return miss_cnt == 0 && !(s1_v && s1_miss); }
     bool resp_valid() const { return rq_v; }
-    // the answer: 4 words, parcel 2k in the low half of word k
-    void resp_data(uint32_t w[4]) const { m.read((rq_pc << 1) & ~15ull, w, 16); }
+    // the answer: 8 words, parcel 2k in the low half of word k
+    void resp_data(uint32_t w[8]) const { m.read((rq_pc << 1) & ~31ull, w, 32); }
     // the clock edge: acc = a request accepted in this cycle at the halfword address pc
     void clock(bool acc, uint64_t pc)
     {

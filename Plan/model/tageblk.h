@@ -11,7 +11,9 @@
 //     address and the history; a row has one tag, one useful counter and
 //     `slots` direction counters, for the first, second, ... conditional
 //     branch of the block (in program order from the fetch address)
-//   - branches past the slots use the base table only
+//   - branches past the slots use the base table only (`past` 0), or are
+//     predicted not taken and train nothing (`past` 1: OOO_TAGE, OOO_TAGE2)
+//   - `bytes`: the block's line, 16 (OOO_TAGE) or 32 (OOO_TAGE2, step 1.5)
 //   - the base table is bimodal per parcel (the parcel of the branch's
 //     last half), so a block reads one row of 8 counters
 //   - the folded histories are computed directly from the last L history
@@ -38,6 +40,7 @@
 
 struct TageBlk {
     int blog = 12, nlog = 10, n = 4, slots = 2, hist = 0, lag = 0;
+    int bytes = 16, past = 0;
     bool halve = true;          // halve the useful counters every 256K branches
     std::vector<int> tags{8, 8, 9, 9}, hists{5, 12, 30, 70};
     std::vector<uint8_t> base;
@@ -222,8 +225,8 @@ struct TageBlk {
             stat_br++;
             if ((int)s >= slots) {
                 stat_past++;
-                pred = base_p;
-                upd(base[bi], 3);
+                if (past == 1) pred = false;
+                else { pred = base_p; upd(base[bi], 3); }
             } else {
                 bool alt_p = alt >= 0 ? ctr[alt][idx[alt]][s] >= 4 : base_p;
                 bool prov_p;
@@ -293,10 +296,11 @@ struct TageBlk {
         };
         for (size_t i = 0; i < t.size();) {
             const Rec& r = t[i];
-            uint64_t line = r.pc >> 4, line_end = (r.pc + r.size - 2) >> 4;
+            int lsh = bytes == 32 ? 5 : 4;
+            uint64_t line = r.pc >> lsh, line_end = (r.pc + r.size - 2) >> lsh;
             if (!open) { start = r.pc; open = true; }
-            else if (line != (start >> 4) && line_end != (start >> 4)) { i = close(i); continue; }
-            if (line_end != (start >> 4) && line == (start >> 4)) {   // across: it goes with the next block
+            else if (line != (start >> lsh) && line_end != (start >> lsh)) { i = close(i); continue; }
+            if (line_end != (start >> lsh) && line == (start >> lsh)) {   // across: it goes with the next block
                 size_t nx = close(i);
                 if (nx == i) { start = r.pc + 2; open = true; }
                 i = nx;
@@ -304,7 +308,7 @@ struct TageBlk {
             }
             if (r.cls == C_BR) { br.push_back(Br{r.pc + r.size - 2, (bool)(r.flags & F_TAKEN)}); bri.push_back(i); }
             bool taken = is_cti(r) && (r.flags & F_TAKEN);
-            bool last = ((r.pc + r.size - 2) & 15) == 14;
+            bool last = ((r.pc + r.size - 2) & (uint64_t)(bytes - 1)) == (uint64_t)(bytes - 2);
             i++;
             if (taken || last) i = close(i);
         }

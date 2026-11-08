@@ -172,14 +172,16 @@ int main(int argc, char** argv)
         bool halve = o.get("halve", 1);
         int delay = (int)o.get("delay", 0);
         bool stale = o.get("stale", 1);
+        int bytes = (int)o.get("bytes", 16), past = (int)o.get("past", 0);
         o.check();
         TageBlk tb(slots, hist, lag);
+        tb.bytes = bytes; tb.past = past;
         tb.halve = halve;
         tb.delay = delay;
         tb.stale = stale;
         tb.run(t);
-        printf("TAGE-S per block (slots %d, hist %d, lag %d, halve %d, delay %d%s): blocks %ld  conditional branches %ld  mispredicted %ld (%.3f %%)  past the slots %ld\n",
-               slots, hist, lag, (int)halve, delay, delay ? (stale ? " stale" : " fresh") : "", tb.stat_blocks, tb.stat_br, tb.stat_miss, 100.0 * tb.stat_miss / tb.stat_br, tb.stat_past);
+        printf("TAGE-S per block (%d bytes, slots %d, past %d, hist %d, lag %d, halve %d, delay %d%s): blocks %ld  conditional branches %ld  mispredicted %ld (%.3f %%)  past the slots %ld\n",
+               bytes, slots, past, hist, lag, (int)halve, delay, delay ? (stale ? " stale" : " fresh") : "", tb.stat_blocks, tb.stat_br, tb.stat_miss, 100.0 * tb.stat_miss / tb.stat_br, tb.stat_past);
         printf("blocks by branches used: 0 %ld  1 %ld  2 %ld  3 %ld  4+ %ld\n", tb.stat_nbr[0], tb.stat_nbr[1],
                tb.stat_nbr[2], tb.stat_nbr[3], tb.stat_nbr[4] + tb.stat_nbr[5] + tb.stat_nbr[6] + tb.stat_nbr[7]);
     } else if (mode == "tageref") {

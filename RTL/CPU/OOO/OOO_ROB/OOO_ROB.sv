@@ -63,7 +63,8 @@ module OOO_ROB
         parameter int TAGW = 6,
         parameter int CW   = 3,        // checkpoint index
         parameter int NCMP = 4,        // completion ports
-        parameter int FTQW = 4         // FTQ index
+        parameter int FTQW = 4,        // FTQ index
+        parameter int PB   = 3         // a parcel's bits (3: 16-byte blocks; 4: 32 bytes)
     )
     (
         input  logic                        clk,
@@ -128,7 +129,7 @@ module OOO_ROB
         output logic                        replay,      // a marked µop commits now: flush_all after it
         output logic [VA-1:1]               replay_pc,   // the next instruction, fetched again
         output logic [FTQW-1:0]             rcv_ftq,     // the trapping / replayed µop's block (OOO_FERS)
-        output logic [2:0]                  rcv_end      // and the parcel of its last half
+        output logic [PB-1:0]               rcv_end      // and the parcel of its last half
     );
 
     localparam int H  = NROB / ND;             // entries in a bank
@@ -273,7 +274,7 @@ module OOO_ROB
                 for (int k = ND - 1; k >= 0; k--) if (crp[k]) pr = pk[k];
             ppc     = pr[PW-1 -: VA-1];
             rcv_ftq = pr[FTQW-1:0];
-            rcv_end = ppc[3:1] + pr[FTQW+2:FTQW] - 3'd1;
+            rcv_end = ppc[PB:1] + PB'(pr[FTQW+2:FTQW]) - PB'(1);
         end
         cmt_valid   = c;
         cmt_ld_n    = '0;

@@ -76,6 +76,8 @@ module OOO_FETCH2
         input  logic [MW-1:0]       up_meta,
         input  logic [2:0]          up_ex,
         input  logic [2:0]          up_tk,
+        input  logic [15:0]         up_pex,     // the branches past the slots (OOO_TAGE2)
+        input  logic [15:0]         up_ptk,
         input  logic                bt_valid,
         input  logic [VA-1:1]       bt_pc,
         input  logic [VA-1:1]       bt_tgt
@@ -161,7 +163,8 @@ module OOO_FETCH2
          .f2_sv(sl_v), .f2_par(sl_par), .f2_pred(sl_pred),
          .f2_push(f2), .f2_n(sl_n), .f2_meta(tmeta),
          .rs_valid(be_redirect), .rs_hist(be_hist), .rs_n(be_hist_n), .rs_bits(be_hist_bits),
-         .up_valid(up_valid), .up_meta(up_meta), .up_ex(up_ex), .up_tk(up_tk));
+         .up_valid(up_valid), .up_meta(up_meta), .up_ex(up_ex), .up_tk(up_tk),
+         .up_pex(up_pex), .up_ptk(up_ptk));
 
     OOO_BTB #(.VA(VA), .NLOG(8), .TW(10), .LB(5)) u_btb
         (.clk(clk), .rst_n(rst_n),

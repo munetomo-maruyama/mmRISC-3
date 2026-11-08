@@ -23,23 +23,30 @@
 22 DETECTED      pc: the second line from the first block
 23 DETECTED      block of an instruction across two lines
 24 DETECTED      last parcel of a 32-bit instruction
-25 DETECTED      skid: a group lost
-26 DETECTED      skid: not held
-27 DETECTED      R: the buffer's group over the skid's
-28 DETECTED      R: the skid's bits not taken
-29 DETECTED      R: the skid's blocks not taken
-30 DETECTED      R: not freed when it moves into the group register
-31 DETECTED      R: empty not counted as free (a bubble)
-32 DETECTED      fetch buffer gives while the skid is full
-33 DETECTED      the rare classes not cut
-34 DETECTED      group: one taken too many
-35 DETECTED      group overwritten while busy
-36 DETECTED      group, R and skid not flushed
-37 DETECTED      R alone not flushed
-38 DETECTED      TAGE never updated
-39 DETECTED      TAGE's update: the slots run taken from the outcomes
-40 DETECTED      TAGE updated at the pop with the metadata of the pop before
-41 DETECTED      FTQ: head read of the next entry
-42 DETECTED      FTQ: one free too many
-43 DETECTED      fetch buffer: one free too many
-44 mutations, 44 detected
+25 DETECTED      pc of one across two lines: its last half's line
+26 DETECTED      pc of one across two lines in the second block: its last half's line
+27 DETECTED      a 16-bit instruction at parcel 15 taken across two lines
+28 DETECTED      update: the slots also trained as past them
+29 DETECTED      update: the branches past the slots never trained
+30 DETECTED      update: the past branches' outcomes wrong
+31 DETECTED      skid: a group lost
+32 DETECTED      skid: not held
+33 DETECTED      R: the buffer's group over the skid's
+34 DETECTED      R: the skid's bits not taken
+35 DETECTED      R: the skid's blocks not taken
+36 DETECTED      R: not freed when it moves into the group register
+37 DETECTED      R: empty not counted as free (a bubble)
+38 DETECTED      fetch buffer gives while the skid is full
+39 DETECTED      a rare class not alone
+40 DETECTED      NO not kept: 6 given to a decode of 4
+41 DETECTED      group: one taken too many
+42 DETECTED      group overwritten while busy
+43 DETECTED      group, R and skid not flushed
+44 DETECTED      R alone not flushed
+45 DETECTED      TAGE never updated
+46 DETECTED      TAGE's update: the slots run taken from the outcomes
+47 DETECTED      TAGE updated at the pop with the metadata of the pop before
+48 DETECTED      FTQ: head read of the next entry
+49 DETECTED      FTQ: one free too many
+50 DETECTED      fetch buffer: one free too many
+51 mutations, 51 detected

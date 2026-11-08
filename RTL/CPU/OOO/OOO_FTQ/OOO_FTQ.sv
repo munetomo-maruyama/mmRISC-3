@@ -32,7 +32,8 @@ module OOO_FTQ
         parameter int NFTQ = 16,        // a power of two (D-18: 16)
         parameter int FTQW = 4,
         parameter int VA   = 39,
-        parameter int MW   = 32
+        parameter int MW   = 32,
+        parameter int PB   = 3          // a parcel's bits (3: 16-byte blocks; 4: 32 bytes)
     )
     (
         input  logic                        clk,
@@ -43,7 +44,7 @@ module OOO_FTQ
         input  logic [VA-1:1]               push_pc,
         input  logic [VA-1:1]               push_target,
         input  logic                        push_taken,
-        input  logic [2:0]                  push_end,
+        input  logic [PB-1:0]               push_end,
         input  logic [MW-1:0]               push_meta,
         output logic [FTQW-1:0]             push_idx,
 
@@ -54,7 +55,7 @@ module OOO_FTQ
         output logic [VA-1:1]               br_pc,
         output logic [VA-1:1]               br_target,
         output logic                        br_taken,
-        output logic [2:0]                  br_end,
+        output logic [PB-1:0]               br_end,
         output logic [MW-1:0]               br_meta,
 
         output logic [FTQW-1:0]             hd_idx,     // the head (the next block to pop)
@@ -67,7 +68,7 @@ module OOO_FTQ
         input  logic                        flush_all
     );
 
-    localparam int EW = 2 * (VA - 1) + 1 + 3 + MW;
+    localparam int EW = 2 * (VA - 1) + 1 + PB + MW;
     typedef logic [EW-1:0] ent_t;
     (* ram_style = "distributed" *) ent_t mem [NFTQ];
 

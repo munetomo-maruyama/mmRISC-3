@@ -10,9 +10,12 @@
 // are read at the end of F0, their tags compared and the way chosen in F1, as OOO_TAGE
 // and OOO_BTB do already. So F2 has none of the arrays' time.
 //
-// Every target is compared with where fetch went on, ahead of any choice, and a target's
-// form is told from the parcels' bits alone (Plan/OOC.md 28.22), so that those paths run
-// beside the boundaries and the choice, not after them.
+// Every target is compared with where fetch went on, ahead of any choice. A target's form
+// (32-bit or 16-bit) comes from the boundaries (hi): told from the parcels' bits alone
+// (Plan/OOC.md 28.22) it was wrong for a 16-bit transfer behind a 32-bit instruction whose
+// upper half looks like a branch's or a jal's low half, and OOO_CORE checks neither a
+// branch's target nor a jal's, so the core went down a wrong path (step 1.5, F1b, 29.39).
+// The choice waits on the boundaries anyway; the cost in time is for F3 to say.
 //
 // New against OOO_FDEC: a first half at parcel 15 stays for the next block unless the block
 // ends in a taken transfer, also when the block overrides fetch. With the override in the
@@ -121,7 +124,7 @@ module OOO_FDEC2
             automatic logic [31:0] i = {p[e], (e == 0) ? c_p : p[e-1]};
             automatic logic [15:0] c = p[e];
             automatic logic [20:0] imm;
-            automatic logic        f32 = (e != 0 || c_use) && (i[6:0] == 7'b1100011 || i[6:0] == 7'b1101111);
+            automatic logic        f32 = hi[e];             // a 32-bit instruction ends here
             automatic logic [4:0]  rd = i[11:7];
             automatic logic [4:0]  rs1 = hi[e] ? i[19:15] : c[11:7];
             br[e] = 1'b0; jal[e] = 1'b0; jalr[e] = 1'b0; call[e] = 1'b0; ret[e] = 1'b0;
@@ -185,7 +188,7 @@ module OOO_FDEC2
                 2'd0:    d = f2_hv[0] ? f2_pp[0] : f2_base[e];
                 2'd1:    d = f2_hv[1] ? f2_pp[1] : f2_base[e];
                 2'd2:    d = f2_hv[2] ? f2_pp[2] : f2_base[e];
-                default: d = 1'b0;
+                default: d = f2_base[e];    // past the slots: the base counter (OOO_TAGE2 trains it)
             endcase
             tk[e] = uj[e] || (br[e] && d);
         end

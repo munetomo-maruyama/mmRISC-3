@@ -34,7 +34,7 @@
 //     the latest commit, one a cycle; a flush drops the rest).
 //   - D1a: the skid holds a group only while the raw register R does.
 //   - TAGE's update (up_*_q) is the pop's of the cycle before.
-// The FTQ has 16 entries (D-18; FTQW=3 at the build: 8).
+// The FTQ has 16 entries (D-18; FTQW=3 at the build: 8). Blocks of 32 bytes (step 1.5, F1b).
 // A run passes when Spike's run reaches its HTIF exit on the true path with
 // no mismatch. The mispredictions per 1000 instructions show whether the
 // predictors are trained (the TAGE update through the FTQ's head read).
@@ -62,6 +62,8 @@ static const int VA = 39;
 #endif
 static const int NFTQ = 1 << FTQW;
 static const unsigned FM = NFTQ - 1;
+// OOO_TAGE2's metadata (290 bits, OOO_FRONT's M_*): the slots' parcels, the slots, the history
+static const int MWW = 10, M_PAR = 200, M_SV = 212, M_HIST = 218;
 
 template <class W> static uint64_t wbits(const W& w, int lo, int n)
 {
@@ -88,7 +90,7 @@ static void cti_kind(uint32_t x, bool& call, bool& ret, bool& ijmp)
 
 struct Opts { uint64_t seed = 1; int lag = -1; double mpki_max = 0; bool full = false; int miss = 8; uint64_t max = 20000000; bool verbose = false; };
 
-struct Result { bool pass = false; std::string why; std::map<uint64_t, long> by_pc; long updates = 0, restores = 0, lag_sum = 0, pushes = 0, insns = 0, cycles = 0, misp = 0, m_br = 0, m_ret = 0, m_ind = 0, m_other = 0, flush = 0, wrong = 0, taken_cyc = 0, ftq_full = 0; long imiss = 0, ireq = 0; };
+struct Result { bool pass = false; std::string why; std::map<uint64_t, long> by_pc; long updates = 0, restores = 0, past = 0, lag_sum = 0, pushes = 0, insns = 0, cycles = 0, misp = 0, m_br = 0, m_ret = 0, m_ind = 0, m_other = 0, flush = 0, wrong = 0, taken_cyc = 0, ftq_full = 0; long imiss = 0, ireq = 0; };
 
 static Result run(const std::string& elf, const Opts& o)
 {
@@ -122,11 +124,11 @@ static Result run(const std::string& elf, const Opts& o)
     std::deque<std::pair<uint64_t, uint64_t>> btq;
     int fhd = 0, ftgt = 0;           // OOO_CTRL's FTQ head mirror and pop target
     int exp_ex[NFTQ] = {0}, exp_tk[NFTQ] = {0};    // per FTQ block: the true path's conditional branches resolved, by parcel
-    struct Pushed { bool v = false; uint64_t line = 0, ras_val = 0; int ras_ptr = 0; uint32_t tmeta[9] = {0}; };
+    struct Pushed { bool v = false; uint64_t line = 0, ras_val = 0; int ras_ptr = 0; uint32_t tmeta[MWW] = {0}; };
     Pushed pushed[NFTQ];                       // per FTQ entry: what its push wrote
     long npush = 0, push_at[NFTQ] = {0};       // blocks pushed, and the count when each entry was pushed
     long last_take = 0, last_ready = 0;
-    struct Up { bool v = false; int ex = 0, tk = 0; uint32_t meta[9] = {0}; } up_prev;   // the pop's update of the cycle before
+    struct Up { bool v = false; int ex = 0, tk = 0; uint32_t meta[MWW] = {0}; } up_prev;   // the pop's update of the cycle before
 
     d->clk = 0; d->rst_n = 1; d->eval(); d->rst_n = 0; d->eval(); d->rst_n = 1; d->eval();
     fill(2);
@@ -153,9 +155,9 @@ static Result run(const std::string& elf, const Opts& o)
         d->fe_redirect = R; d->fe_flush = rr.flush; d->fe_pc = rr.pc >> 1;
         d->restore_ftq = rr.ftq; d->restore_port = rr.port;
         {
-            unsigned e2 = (unsigned)(rng() % 64), tk = rng() % 4, cl = rng() % 4, rt = rng() % 4;     // the other port: random
+            unsigned e2 = (unsigned)(rng() % 256), tk = rng() % 4, cl = rng() % 4, rt = rng() % 4;     // the other port: random
             int p = rr.port;
-            e2 = (e2 & ~(7u << (3 * p))) | ((unsigned)rr.e << (3 * p));
+            e2 = (e2 & ~(15u << (4 * p))) | ((unsigned)rr.e << (4 * p));
             tk = (tk & ~(1u << p)) | ((unsigned)rr.taken << p);
             cl = (cl & ~(1u << p)) | ((unsigned)rr.call << p);
             rt = (rt & ~(1u << p)) | ((unsigned)rr.ret << p);
@@ -166,7 +168,7 @@ static Result run(const std::string& elf, const Opts& o)
         unsigned rv = 0, rf = 0, re = 0, rt = 0, rwrong = 0;
         for (int k = 0, i = 0; k < 2 && i < (int)rsq.size();) {
             if (rsq[i].due <= cyc) {
-                rv |= 1u << k; rf |= (unsigned)rsq[i].ftq << (FTQW * k); re |= (unsigned)rsq[i].e << (3 * k); rt |= (unsigned)rsq[i].taken << k;
+                rv |= 1u << k; rf |= (unsigned)rsq[i].ftq << (FTQW * k); re |= (unsigned)rsq[i].e << (4 * k); rt |= (unsigned)rsq[i].taken << k;
                 rwrong |= (unsigned)rsq[i].wrong << k;
                 rsq.erase(rsq.begin() + i); k++;
             } else i++;
@@ -174,7 +176,7 @@ static Result run(const std::string& elf, const Opts& o)
         d->rs_valid = rv; d->rs_ftq = rf; d->rs_e = re; d->rs_taken = rt;
         for (int k = 0; k < 2; k++)
             if ((rv >> k) & 1 && (rwrong >> k & 1) == 0) {
-                int f = (rf >> (FTQW * k)) & FM, e = (re >> (3 * k)) & 7;
+                int f = (rf >> (FTQW * k)) & FM, e = (re >> (4 * k)) & 15;
                 exp_ex[f] |= 1 << e; exp_tk[f] = (exp_tk[f] & ~(1 << e)) | (int)((rt >> k) & 1) << e;
             }
         bool bt = !btq.empty();
@@ -183,7 +185,7 @@ static Result run(const std::string& elf, const Opts& o)
         // I$
         d->ic_req_ready = ic.ready();
         d->ic_resp_valid = ic.resp_valid();
-        { uint32_t w[4]; ic.resp_data(w); for (int k = 0; k < 4; k++) d->ic_resp_data[k] = w[k]; }
+        { uint32_t w[8]; ic.resp_data(w); for (int k = 0; k < 8; k++) d->ic_resp_data[k] = w[k]; }
         d->g_take = 0;
         d->ta_idx = 0;
         d->pa_idx = 0;
@@ -197,7 +199,7 @@ static Result run(const std::string& elf, const Opts& o)
             bool ok = (bool)rp->OOO_FRONT__DOT__up_valid_q == up_prev.v;
             if (ok && up_prev.v) {
                 ok = (int)rp->OOO_FRONT__DOT__up_ex_q == up_prev.ex && (int)rp->OOO_FRONT__DOT__up_tk_q == up_prev.tk;
-                for (int k = 0; k < 9 && ok; k++) ok = rp->OOO_FRONT__DOT__up_meta_q[k] == up_prev.meta[k];
+                for (int k = 0; k < MWW && ok; k++) ok = rp->OOO_FRONT__DOT__up_meta_q[k] == up_prev.meta[k];
             }
             if (!ok) fail("TAGE's update is not the pop's of the cycle before");
         }
@@ -208,24 +210,30 @@ static Result run(const std::string& elf, const Opts& o)
             const Pushed& w = pushed[rp->OOO_FRONT__DOT__rs_idx];
             bool ok = (uint64_t)rp->OOO_FRONT__DOT__ft_line == w.line && (int)rp->OOO_FRONT__DOT__ft_ras_ptr == w.ras_ptr &&
                       (uint64_t)rp->OOO_FRONT__DOT__ft_ras_val == w.ras_val &&
-                      (int)rp->OOO_FRONT__DOT__ft_sv == (int)wbits(w.tmeta, 194, 3) && (int)rp->OOO_FRONT__DOT__ft_par == (int)wbits(w.tmeta, 185, 9);
-            for (int b2 = 0; b2 < 72 && ok; b2++) ok = wbits(rp->OOO_FRONT__DOT__ft_hist, b2, 1) == wbits(w.tmeta, 200 + b2, 1);   // (with cprev, D-17)
+                      (int)rp->OOO_FRONT__DOT__ft_sv == (int)wbits(w.tmeta, M_SV, 3) && (int)rp->OOO_FRONT__DOT__ft_par == (int)wbits(w.tmeta, M_PAR, 12);
+            for (int b2 = 0; b2 < 72 && ok; b2++) ok = wbits(rp->OOO_FRONT__DOT__ft_hist, b2, 1) == wbits(w.tmeta, M_HIST + b2, 1);   // (with cprev, D-17)
             if (!ok) fail("the restore does not read back the block's push (line, history, slots, RAS)");
             res.restores++;
         }
         // ---- the TAGE update of the popped block: its metadata, the slots that ran and their outcomes
         if (pop) {
             if (pushed[fhd].v)
-                for (int k = 0; k < 9; k++)
+                for (int k = 0; k < MWW; k++)
                     if (rp->OOO_FRONT__DOT__up_meta[k] != pushed[fhd].tmeta[k]) { fail("the TAGE update's metadata is not the block's"); break; }
             const int TM = 42;
-            int sv = (int)wbits(rp->OOO_FRONT__DOT__hd_meta, TM + 194, 3);
+            int sv = (int)wbits(rp->OOO_FRONT__DOT__hd_meta, TM + M_SV, 3);
             int ex = 0, tk = 0;
             for (int s2 = 0; s2 < 3; s2++) {
-                int par = (int)wbits(rp->OOO_FRONT__DOT__hd_meta, TM + 185 + 3 * s2, 3);
+                int par = (int)wbits(rp->OOO_FRONT__DOT__hd_meta, TM + M_PAR + 4 * s2, 4);
                 if ((sv >> s2) & 1 && (exp_ex[fhd] >> par) & 1) { ex |= 1 << s2; tk |= ((exp_tk[fhd] >> par) & 1) << s2; }
             }
             int uex = rp->OOO_FRONT__DOT__up_ex, utk = rp->OOO_FRONT__DOT__up_tk;
+            // the branches past the slots, by parcel: their base counters (OOO_TAGE2)
+            int pex = exp_ex[fhd];
+            for (int s2 = 0; s2 < 3; s2++) if ((sv >> s2) & 1) pex &= ~(1 << (int)wbits(rp->OOO_FRONT__DOT__hd_meta, TM + M_PAR + 4 * s2, 4));
+            int upex = rp->OOO_FRONT__DOT__up_pex, uptk = rp->OOO_FRONT__DOT__up_ptk;
+            if (upex != pex || (uptk & pex) != (exp_tk[fhd] & pex)) fail("TAGE update: the branches past the slots");
+            res.past += __builtin_popcount(pex);
             if (!rp->OOO_FRONT__DOT__up_valid || uex != ex || (utk & ex) != tk) {
                 char m[128]; snprintf(m, sizeof m, "TAGE update of block %d: valid %d ex %d tk %d, expected ex %d tk %d", fhd,
                                       (int)rp->OOO_FRONT__DOT__up_valid, uex, utk & uex, ex, tk);
@@ -253,7 +261,7 @@ static Result run(const std::string& elf, const Opts& o)
             for (int i = 0; i < take && i < 2; i++) {
                 int k = head + i;
                 uint64_t pc = wbits(d->g_pc, 38 * k, 38) << 1;
-                bool cross = !((d->g_rvc >> k) & 1) && ((pc >> 1) & 7) == 7;
+                bool cross = !((d->g_rvc >> k) & 1) && ((pc >> 1) & 15) == 15;
                 pi |= (unsigned)((((d->g_ftq >> (FTQW * k)) & FM) - cross) & FM) << (FTQW * i);
             }
             d->pa_idx = pi;
@@ -262,14 +270,14 @@ static Result run(const std::string& elf, const Opts& o)
         d->eval();
         if (wbits(d->ta_tgt, 0, 38) != wbits(d->ta_tgt, 38, 38)) fail("the target array's two reads differ");
         for (int i = 0; i < take && i < 2 && !pend; i++)
-            if (wbits(d->pa_line, 35 * i, 35) != wbits(d->g_pc, 38 * (head + i) + 3, 35)) fail("the pc array: not the line of the instruction's first half");
+            if (wbits(d->pa_line, 34 * i, 34) != wbits(d->g_pc, 38 * (head + i) + 4, 34)) fail("the pc array: not the line of the instruction's first half");
         if (take) { res.taken_cyc++; last_take = cyc; }
         for (int i = 0; i < take && res.why.empty(); i++) {
             int k = head + i;
             uint64_t pc = wbits(d->g_pc, 38 * k, 38) << 1;
             uint32_t insn = (uint32_t)wbits(d->g_insn, 32 * k, 32);
             bool rvc = (d->g_rvc >> k) & 1, tk = (d->g_taken >> k) & 1, ill = (d->g_illegal >> k) & 1;
-            int ftq = (int)((d->g_ftq >> (FTQW * k)) & FM), e = (int)((d->g_end >> (3 * k)) & 7);
+            int ftq = (int)((d->g_ftq >> (FTQW * k)) & FM), e = (int)((d->g_end >> (4 * k)) & 15);
             bool isbr = (d->g_is_branch >> k) & 1;
             if (pend) {                                     // the wrong path: some branches resolved at random
                 res.wrong++;
@@ -283,7 +291,7 @@ static Result run(const std::string& elf, const Opts& o)
             uint32_t m = len == 4 ? 0xffffffffu : 0xffffu;
             if (pc != x.pc) { char s[96]; snprintf(s, sizeof s, "pc %llx, Spike %llx", (unsigned long long)pc, (unsigned long long)x.pc); fail(s); break; }
             if ((insn & m) != x.insn || rvc != (len == 2)) { char s[96]; snprintf(s, sizeof s, "pc %llx: instruction %08x, Spike %08x", (unsigned long long)pc, insn, x.insn); fail(s); break; }
-            if (e != (int)(((pc >> 1) + len / 2 - 1) & 7)) { fail("last parcel"); break; }
+            if (e != (int)(((pc >> 1) + len / 2 - 1) & 15)) { fail("last parcel"); break; }
             if (ill && !(x.trap && x.cause == 2)) { char s[96]; snprintf(s, sizeof s, "pc %llx: decoded illegal, Spike does not trap so", (unsigned long long)pc); fail(s); break; }
             // the classes decode gives only in slot 0 (cut): CSR, FP, system
             {
@@ -329,14 +337,14 @@ static Result run(const std::string& elf, const Opts& o)
         }
 
         up_prev.v = rp->OOO_FRONT__DOT__up_valid; up_prev.ex = rp->OOO_FRONT__DOT__up_ex; up_prev.tk = rp->OOO_FRONT__DOT__up_tk;
-        for (int k = 0; k < 9; k++) up_prev.meta[k] = rp->OOO_FRONT__DOT__up_meta[k];
+        for (int k = 0; k < MWW; k++) up_prev.meta[k] = rp->OOO_FRONT__DOT__up_meta[k];
         // ---- the clock (a block pushed now: what the restore and the update must read back)
         if (rp->OOO_FRONT__DOT__out_valid) {
             Pushed& w = pushed[rp->OOO_FRONT__DOT__push_idx];
-            w.v = true; w.line = (uint64_t)rp->OOO_FRONT__DOT__out_pc >> 3;
+            w.v = true; w.line = (uint64_t)rp->OOO_FRONT__DOT__out_pc >> 4;
             push_at[rp->OOO_FRONT__DOT__push_idx] = npush++;
             w.ras_ptr = rp->OOO_FRONT__DOT__out_ras_ptr; w.ras_val = rp->OOO_FRONT__DOT__out_ras_val;
-            for (int k = 0; k < 9; k++) w.tmeta[k] = rp->OOO_FRONT__DOT__out_tmeta[k];
+            for (int k = 0; k < MWW; k++) w.tmeta[k] = rp->OOO_FRONT__DOT__out_tmeta[k];
         }
         bool acc = d->ic_req_valid && ic.ready();
         uint64_t rpc = d->ic_req_pc;
@@ -388,7 +396,7 @@ int main(int argc, char** argv)
         printf("%-28s %s  %8ld insns  %8ld cycles  %.3f insns/cycle  %5ld mispredicted (%.2f / 1000)  %4ld flushes  %6ld wrong-path  I$ %ld / %ld missed\n",
                name.c_str(), r.pass ? "PASS" : "FAIL", r.insns, r.cycles, r.cycles ? (double)r.insns / r.cycles : 0.0, r.misp,
                r.insns ? 1000.0 * r.misp / r.insns : 0.0, r.flush, r.wrong, r.imiss, r.ireq);
-        if (o.verbose) printf("    mispredicted: conditional branch %ld, return %ld, other jalr %ld, other %ld; %ld TAGE updates and %ld restores checked\n", r.m_br, r.m_ret, r.m_ind, r.m_other, r.updates, r.restores);
+        if (o.verbose) printf("    mispredicted: conditional branch %ld, return %ld, other jalr %ld, other %ld; %ld TAGE updates (%ld branches past the slots) and %ld restores checked\n", r.m_br, r.m_ret, r.m_ind, r.m_other, r.updates, r.past, r.restores);
         if (o.verbose && r.updates)
             printf("    blocks pushed between a block's push and its update: %.1f on average (%ld pushed, %ld updated: %.1f on the true path); FTQ full in %ld cycles\n",
                    (double)r.lag_sum / r.updates, r.pushes, r.updates, (double)r.lag_sum / r.updates * r.updates / r.pushes, r.ftq_full);

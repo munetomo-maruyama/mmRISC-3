@@ -5,7 +5,7 @@
  4 DETECTED      D2: µop 1 with µop 0's checkpoint id
  5 DETECTED      link: pc + 4 for RVC too
  6 DETECTED      link: a jalr's from rs1
- 7 DETECTED      pc: an instruction across two lines from its second
+ 7 DETECTED     pc: an instruction across two lines from its second
  8 DETECTED      every transfer predicted not taken
  9 DETECTED      a call through x1 / x5 counted as a return
 10 DETECTED      jalr calls not calls (the RAS on a restore)
@@ -70,7 +70,7 @@
 69 DETECTED      FENCE.I run as FENCE
 70 DETECTED      CSR and system µops issued before the head
 71 DETECTED      the MDU's µops wake their dependents at issue
-72 DETECTED      the instruction bits of µop 1 at µop 0's entry
+72 NOT DETECTED  the instruction bits of µop 1 at µop 0's entry
 73 DETECTED      CSR: rs1 from the second read
 74 DETECTED      CSR: the old value not written
 75 DETECTED      a multiply to the MDU as well
@@ -78,7 +78,7 @@
 77 DETECTED      the MDU's result over an ALU0 µop's
 78 DETECTED      port 1: the multiply's result not written
 79 DETECTED      port 1: a multiply to x0 takes the write slot
-80 NOT DETECTED  port 0: a divide to x0 forwarded (tag 0)
+80 DETECTED      port 0: a divide to x0 forwarded (tag 0)
 81 DETECTED      IQ: loads not held for older stores (replays)
 82 DETECTED      SRET: the CSRs not restored
 83 DETECTED      a system µop complete at EX
@@ -105,7 +105,7 @@
 104 DETECTED      uncached: two accesses to devices at once
 105 DETECTED      uncached: the device's word never taken
 106 DETECTED      OOO_DMISS: a load's miss never filled
-107 DETECTED      OOO_DMISS: the victim's tag valid while its words are replaced
+107 NOT DETECTED  OOO_DMISS: the victim's tag valid while its words are replaced
 108 NOT DETECTED  OOO_DMISS: a fill before the writes are in memory
 109 DETECTED      OOO_DMISS: a write's strobes all on
 110 DETECTED      OOO_DMISS: FENCE.I done before the writes are in memory
@@ -124,4 +124,4 @@
 123 DETECTED      a load's exception a cycle before its completion
 124 DETECTED      CSR: an illegal access's tval 0
 125 DETECTED      CSR: fcsr with mstatus.FS off not illegal
-126 mutations, 120 detected
+126 mutations, 119 detected (7: rerun alone after its retarget)

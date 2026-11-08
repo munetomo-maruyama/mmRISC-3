@@ -48,7 +48,8 @@ module OOO_FERS
         parameter int VA   = 39,
         parameter int FTQW = 4,
         parameter int HL   = 70,        // OOO_TAGE's history
-        parameter int RW   = 4          // OOO_RAS's pointer
+        parameter int RW   = 4,         // OOO_RAS's pointer
+        parameter int PB   = 3          // a parcel's bits (3: 16-byte blocks; 4: 32 bytes)
     )
     (
         input  logic                        clk,
@@ -60,19 +61,19 @@ module OOO_FERS
         input  logic [VA-1:1]               fe_pc,
         input  logic [FTQW-1:0]             restore_ftq,
         input  logic                        restore_port,
-        input  logic [1:0][2:0]             br_e,           // the ALU ports' transfers: last parcel
+        input  logic [1:0][PB-1:0]          br_e,           // the ALU ports' transfers: last parcel
         input  logic [1:0]                  br_taken,       // the outcome
         input  logic [1:0]                  br_call,
         input  logic [1:0]                  br_ret,
         input  logic [FTQW-1:0]             rcv_ftq,        // OOO_ROB: the trapping / replayed µop's block
-        input  logic [2:0]                  rcv_end,        // and its last parcel
+        input  logic [PB-1:0]               rcv_end,        // and its last parcel
 
         // R + 1: the FTQ entry (OOO_FTQ's resolution read port)
         output logic [FTQW-1:0]             rs_idx,
-        input  logic [VA-1:4]               ft_line,        // the block's line (its fetch address)
+        input  logic [VA-1:PB+1]            ft_line,        // the block's line (its fetch address)
         input  logic [HL-1:0]               ft_hist,        // OOO_TAGE's metadata: the history before the block
         input  logic [2:0]                  ft_sv,          // the slots that hold a branch (a prefix)
-        input  logic [2:0][2:0]             ft_par,         // their last parcels (in order)
+        input  logic [2:0][PB-1:0]          ft_par,         // their last parcels (in order)
         input  logic [RW-1:0]               ft_ras_ptr,     // the RAS snapshot
         input  logic [VA-1:1]               ft_ras_val,
 
@@ -91,7 +92,7 @@ module OOO_FERS
 
     logic [VA-1:1]   q_pc;
     logic [FTQW-1:0] q_ftq;
-    logic [2:0]      q_e;
+    logic [PB-1:0]   q_e;
     logic            q_rs, q_tk, q_call, q_ret;    // q_rs: a restore (not a trap / replay)
 
     always_ff @(posedge clk or negedge rst_n) begin

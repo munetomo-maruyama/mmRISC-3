@@ -250,8 +250,8 @@ int main(int argc, char** argv)
     int miss_cnt = 0; uint64_t miss_pc = 0;
 
     // ---- the back end
-    struct Blk { uint64_t pc, next; int end; bool taken; Bits m; int rptr; uint64_t rval; int ex = 0, tk = 0; };
-    long nst = 0, nform = 0;
+    struct Blk { uint64_t pc, next; int end; bool taken; Bits m; int rptr; uint64_t rval; int ex = 0, tk = 0, pex = 0, ptk = 0; };
+    long nst = 0;
     std::deque<Blk> fbuf, ftq;
     uint64_t tp = BASE;                        // the next true instruction
     bool cross_pend = false;
@@ -291,7 +291,7 @@ int main(int argc, char** argv)
         bool up = !ftq.empty() && rng() % 3 != 0;
         Blk ub;
         if (up) ub = ftq.front();
-        d.up_valid = up; d.up_ex = up ? ub.ex : 0; d.up_tk = up ? ub.tk : 0;
+        d.up_valid = up; d.up_ex = up ? ub.ex : 0; d.up_tk = up ? ub.tk : 0; d.up_pex = up ? ub.pex : 0; d.up_ptk = up ? ub.ptk : 0;
         for (int k = 0; k < MWW; k++) d.up_meta[k] = up ? ub.m.w[k] : 0;
         bool bt = !btq.empty();
         std::pair<uint64_t, uint64_t> btu{0, 0};
@@ -342,20 +342,6 @@ int main(int argc, char** argv)
                     if (f.pc != (uint64_t)d.out_pc) FAIL("out_pc %llx, request %llx", (unsigned long long)d.out_pc, (unsigned long long)f.pc);
                     if (started && f.pc != e_pc) FAIL("block at %llx, expected %llx", (unsigned long long)f.pc, (unsigned long long)e_pc);
                     Predec pd = predec_ref(line, start, m_carry_v, m_carry, rp, 16);
-                    // OOO_FDEC2 tells a target's form from the bits alone (Plan/OOC.md 28.22): a 16-bit
-                    // transfer behind a parcel that looks like a branch's or a jal's low half gets the
-                    // 32-bit target, wrong, which the back end finds
-                    for (int e = 1; e < 16; e++) {
-                        if (!(((pd.br | pd.jal) >> e) & 1) || !((pd.st >> e) & 1)) continue;     // (16-bit: it starts where it ends)
-                        uint32_t lo = rp[e - 1];
-                        uint32_t i = lo | ((uint32_t)rp[e] << 16), op = i & 0x7f;
-                        if (op != 0x63 && op != 0x6f) continue;
-                        int64_t off = op == 0x63
-                            ? predec_sx(((i >> 31) & 1) << 12 | ((i >> 7) & 1) << 11 | ((i >> 25) & 63) << 5 | ((i >> 8) & 15) << 1, 13)
-                            : predec_sx(((i >> 31) & 1) << 20 | ((i >> 12) & 255) << 12 | ((i >> 20) & 1) << 11 | ((i >> 21) & 1023) << 1, 21);
-                        pd.tgt[e] = (((line << 5) + (uint64_t)(2 * (e - 1)) + (uint64_t)off) >> 1) & AM;
-                        nform++;
-                    }
                     ncarry += m_carry_v;
                     int sv = 0, par[3] = {0, 0, 0}, slot[16], ns = 0;
                     for (int e = 0; e < 16; e++) {
@@ -368,7 +354,7 @@ int main(int argc, char** argv)
                     int tk = 0;
                     for (int e = 0; e < 16; e++) {
                         bool t = false;
-                        if ((pd.br >> e) & 1) t = slot[e] < 3 && ((m_pred >> slot[e]) & 1);      // a 4th: not taken
+                        if ((pd.br >> e) & 1) t = slot[e] < 3 ? (bool)((m_pred >> slot[e]) & 1) : (bool)((basebits >> e) & 1);   // a 4th: the base counter
                         else if ((pd.jal >> e) & 1) t = true;
                         else if ((pd.jalr >> e) & 1) t = ((pd.ret >> e) & 1) || (f.bhit && f.boff == e);
                         if ((pd.iv >> e) & 1 && t) tk |= 1 << e;
@@ -449,6 +435,7 @@ int main(int argc, char** argv)
                     int s_i = -1;
                     if (I.kind == K_BR)
                         for (int s = 0; s < 3; s++) if ((sv >> s) & 1 && par[s] == le) { s_i = s; b.ex |= 1 << s; b.tk |= (int)t << s; }
+                    if (I.kind == K_BR && s_i < 0) { b.pex |= 1 << le; b.ptk |= (int)t << le; }     // past the slots: its base counter
                     if (I.kind == K_IJMP || I.kind == K_ICALL) btq.push_back({last, tn});
                     cross_pend = false;
                     if (tn != pn) {
@@ -501,7 +488,7 @@ int main(int argc, char** argv)
             }
         }
         ub_pend = UU{ub_upd, ub_upc, ub_utgt, ub_utk, ub_ucond, ub_uret};
-        if (up) { R.update(ub.m, ub.ex, ub.tk); ftq.pop_front(); ncommit++; }
+        if (up) { R.update(ub.m, ub.ex, ub.tk, ub.pex, ub.ptk); ftq.pop_front(); ncommit++; }
         if (redirect) {
             R.restore(rr.hist, rr.n, rr.bits);
             ras[rr.rptr] = rr.push ? rr.addr : rr.rval; ras_known[rr.rptr] = true;
@@ -525,8 +512,8 @@ int main(int argc, char** argv)
         s1_v = acc; s1_pc = req_pc; s1_miss = acc && rng() % 12 == 0;
         if (cyc - last_progress > 3000 && cyc > 3000) { FAIL("no progress"); break; }
     }
-    printf("tb_fetch2: %ld cycles, %ld instructions on the true path, %ld blocks, %ld overrides (%ld answers dropped by them, %ld by redirects), %ld mispredicted (branch %ld, return %ld, indirect %ld), %ld committed, %ld carried, %ld 4th branches, %ld starts, %ld targets of the 32-bit form behind a 32-bit instruction, %ld mismatches: %s\n",
-           cyc, ninsn, nblk, novr, novr_drop, ndead - novr_drop, nmisp, nmisp_br, nmisp_ret, nmisp_ind, ncommit, ncarry, nslot3, nst, nform, bad, bad ? "FAIL" : "PASS");
+    printf("tb_fetch2: %ld cycles, %ld instructions on the true path, %ld blocks, %ld overrides (%ld answers dropped by them, %ld by redirects), %ld mispredicted (branch %ld, return %ld, indirect %ld), %ld committed, %ld carried, %ld 4th branches, %ld starts, %ld mismatches: %s\n",
+           cyc, ninsn, nblk, novr, novr_drop, ndead - novr_drop, nmisp, nmisp_br, nmisp_ret, nmisp_ind, ncommit, ncarry, nslot3, nst, bad, bad ? "FAIL" : "PASS");
     (void)nras_push; (void)nresp;
     return bad ? 1 : 0;
 }

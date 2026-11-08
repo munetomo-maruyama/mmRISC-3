@@ -295,7 +295,7 @@ M = [
     ('M263', 'OOO_FETCH/OOO_FETCH.sv', 'fetch', 'assign f2  = ic_resp_valid && qlive[qh] && !stop;', 'assign f2  = ic_resp_valid && qlive[qh] && !be_redirect;', 'a block goes out in the cycle of a stop'),
     ('M264', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', 'restore_port = !(br_valid[0] && br_mispred[0] && br_ckpt[0] == rob_restore_ckpt);', 'restore_port = !(br_valid[0] && br_mispred[0]);', "port 0's misprediction taken for the oldest"),
     ('M265', 'OOO_ROB/OOO_ROB.sv', 'rob', 'pr = pk[0];', 'pr = pk[1];', 'a trap goes back to head + 1'),
-    ('M266', 'OOO_ROB/OOO_ROB.sv', 'rob', "rcv_end = ppc[3:1] + pr[FTQW+2:FTQW] - 3'd1;", 'rcv_end = ppc[3:1];', 'the point at its first parcel'),
+    ('M266', 'OOO_ROB/OOO_ROB.sv', 'rob', "rcv_end = ppc[PB:1] + PB'(pr[FTQW+2:FTQW]) - PB'(1);", 'rcv_end = ppc[PB:1];', 'the point at its first parcel'),
     # 2026-10-28: exceptions and interrupts, the system µops (Plan/OOC.md 22)
     ('M267', 'OOO_TRAP/OOO_TRAP.sv', 'trap', 'irq     = irq_q && head_valid && !ns_busy;', 'irq     = irq_q && head_valid;', 'an interrupt under an issued non-speculative µop'),
     ('M268', 'OOO_TRAP/OOO_TRAP.sv', 'trap', 'exc     = rob_trap && !irq;', 'exc     = rob_trap;', 'an exception taken with the interrupt'),
@@ -994,7 +994,7 @@ M = [
     ('M1030', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', "seq_eq  = {line_p1, 4'd0} == f2_expect;", "seq_eq  = {f2_line, 4'd0} == f2_expect;", 'the next block is this line'),
     ('M1031', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', 'if (f2_valid) c_p <= p[15];', 'c_p <= p[15];', 'a first half overwritten by no block'),
     ('M1032', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', "2'd1:    d = f2_hv[1] ? f2_pp[1] : f2_base[e];", "2'd1:    d = f2_hv[0] ? f2_pp[0] : f2_base[e];", 'the second branch reads the first slot'),
-    ('M1033', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', "default: d = 1'b0;", 'default: d = f2_base[e];', 'a fourth branch by its base counter'),
+    ('M1033', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', "default: d = f2_base[e];", "default: d = 1'b0;", 'a fourth branch never taken'),
     ('M1034', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', 'tk[e] = uj[e] || (br[e] && d);', 'tk[e] = uj[e] || d;', 'a prediction with no branch'),
     ('M1035', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', "first   = tk & (~tk + 16'd1);", 'first   = tk;', 'all transfers first'),
     ('M1036', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', "first_s = tk & (~tk + 16'd1);", 'first_s = tk;', 'the compare of any transfer'),
@@ -1009,7 +1009,7 @@ M = [
     ('M1045', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', "imm} - (VA-1)'(f32);", 'imm};', 'a 32-bit target from its last parcel'),
     ('M1046', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', 'same = (!taken && seq_eq) ||', 'same = seq_eq ||', 'none taken or not, the sequential compare'),
     ('M1047', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', "((first_s & ret) != 16'd0 && top_eq);", "((first_s & ret) != 16'd0);", 'a return always where fetch went'),
-    ('M1048', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', "automatic logic        f32 = (e != 0 || c_use) && (i[6:0] == 7'b1100011 || i[6:0] == 7'b1101111);", "automatic logic        f32 = i[6:0] == 7'b1100011 || i[6:0] == 7'b1101111;", 'a form from a stale first half'),
+    ('M1048', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', 'automatic logic        f32 = hi[e];', "automatic logic        f32 = (e != 0 || c_use) && (i[6:0] == 7'b1100011 || i[6:0] == 7'b1101111);", 'the form from the bits alone (28.22, wrong behind some 32-bit ones)'),
     ('M1049', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', "(first_s & ~ret & ok) != 16'd0", "(first_s & ok) != 16'd0", 'a return with a compare not its own'),
     ('M1050', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', 'else if (f2_valid) c_v <= strad && !taken;', 'else if (f2_valid) c_v <= strad;', 'a first half kept past a taken transfer'),
     ('M1051', 'OOO_FDEC2/OOO_FDEC2.sv', 'fdec2', 'else if (f2_valid) c_v <= strad && !taken;', 'else if (f2_valid && !ovr) c_v <= strad && !taken;', 'an override to the next line loses the first half'),
@@ -1022,7 +1022,7 @@ M = [
     ('M1060', 'OOO_FBUF3/OOO_FBUF3.sv', 'fbuf3', 'cr   = bv[1] && !rb[0] && !rb[1];', 'cr   = bv[1] && !rb[0];', 'a next block with a rare one goes beside'),
     ('M1061', 'OOO_FBUF3/OOO_FBUF3.sv', 'fbuf3', 'cr   = bv[1] && !rb[0] && !rb[1];', "cr   = 1'b0;", 'never 2 blocks'),
     ('M1062', 'OOO_FBUF3/OOO_FBUF3.sv', 'fbuf3', "all  = 6'(rem) + (cr ? 6'(n1) : 6'd0);", "all  = 6'(rem) + 6'(n1);", 'a next block counted when it is not read'),
-    ('M1063', 'OOO_FBUF3/OOO_FBUF3.sv', 'fbuf3', "take = rb[0] ? 3'd1 : all >= 6'd6 ? 3'd6 : 3'(all);", "take = all >= 6'd6 ? 3'd6 : 3'(all);", 'a rare class not alone'),
+    ('M1063', 'OOO_FBUF3/OOO_FBUF3.sv', 'fbuf3', "take = rb[0] ? 3'd1 : all >= 6'(NO) ? 3'(NO) : 3'(all);", "take = all >= 6'(NO) ? 3'(NO) : 3'(all);", 'a rare class not alone'),
     ('M1064', 'OOO_FBUF3/OOO_FBUF3.sv', 'fbuf3', "d0   = go && 5'(take) >= rem;", "d0   = go && 5'(take) > rem;", 'cur not done when it gives its last'),
     ('M1066', 'OOO_FBUF3/OOO_FBUF3.sv', 'fbuf3', 'ld0   = d0 && bv[1] && !d1;', 'ld0   = d0 && bv[1];', 'a next block done moves to cur'),
     ('M1067', 'OOO_FBUF3/OOO_FBUF3.sv', 'fbuf3', 'ld0_n = (!bv[0] || d1 || (d0 && !bv[1])) && e_v;', 'ld0_n = (!bv[0] || (d0 && !bv[1])) && e_v;', 'cur empty after both done'),
@@ -1092,6 +1092,8 @@ M = [
     ('M1150', 'OOO_FETCH2/OOO_FETCH2.sv', 'fetch2', "assign out_taken = out_first != 16'd0;", 'assign out_taken = ovr;', 'taken when it overrides'),
     ('M1151', 'OOO_BTB/OOO_BTB.sv', 'fetch2', '        return a[LB +: NLOG];', '        return a[4 +: NLOG];', 'the BTB indexed by a 16-byte line'),
     ('M1152', 'OOO_BTB/OOO_BTB.sv', 'fetch2', "{1'b1, tag_of(wr_pc), wr_pc[LB-1:1], wr_tgt};", "{1'b1, tag_of(wr_pc), 1'b0, wr_pc[LB-2:1], wr_tgt};", "the parcel's top bit lost"),
+    ('M1153', 'OOO_TAGE2/OOO_TAGE2.sv', 'fetch2', 'for (int e = 0; e < 16; e++) if (up_pex[e]) b[e] = sat2(b[e], up_ptk[e]);', '', 'the branches past the slots never trained'),
+    ('M1155', 'OOO_TAGE2/OOO_TAGE2.sv', 'fetch2', 'for (int e = 0; e < 16; e++) if (up_pex[e]) b[e] = sat2(b[e], up_ptk[e]);', 'for (int e = 0; e < 16; e++) if (up_pex[e]) b[e] = sat2(b[e], 1\'b1);', 'the past branches trained taken'),
 ]
 
 

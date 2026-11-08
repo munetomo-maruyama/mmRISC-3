@@ -73,12 +73,12 @@ static Dec dec16(uint32_t c) {
     return x;
 }
 
-// a target's offset and whether less 1, from the parcels' bits alone (what OOO_FDEC does)
-static void raw_off(uint16_t lo, uint16_t c, bool lo_ok, int64_t& off, int& less) {
+// a target's offset and whether less 1: the 32-bit form for a 32-bit instruction (big), else the
+// 16-bit one by the parcel's own bit (OOO_FDEC2 since step 1.5, F1b: no longer from the bits alone)
+static void raw_off(uint16_t lo, uint16_t c, bool big, int64_t& off, int& less) {
     uint32_t i = (uint32_t)lo | ((uint32_t)c << 16);
-    int op = i & 127;
     less = 0;
-    if (lo_ok && (op == 0x63 || op == 0x6f)) { off = dec32(i).off; less = 1; return; }
+    if (big) { off = dec32(i).off; less = 1; return; }
     if ((c >> 14) & 1) {
         int64_t o = ((c >> 3) & 3) | (((c >> 10) & 3) << 2) | (((c >> 2) & 1) << 4) | (((c >> 5) & 3) << 5) | (((c >> 12) & 1) << 7);
         if ((c >> 12) & 1) o |= ~0ll << 7;
@@ -116,7 +116,7 @@ int main(int argc, char** argv)
     uint64_t st_v[16] = {0};
     int sp = -1;                 // not known until the first move: taken from the block
     bool ub_v = false, ub_t = false, ub_c = false, ub_r = false; uint64_t ub_p = 0, ub_g = 0;
-    long nunt = 0, nb = 0, nov = 0, ntk = 0, ncr = 0, ncu = 0, nret = 0, ncall = 0, nsl = 0, nfl = 0, nbtb = 0;
+    long npast = 0, nunt = 0, nb = 0, nov = 0, ntk = 0, ncr = 0, ncu = 0, nret = 0, ncall = 0, nsl = 0, nfl = 0, nbtb = 0;
 
     for (long cyc = 0; cyc < 600000; cyc++) {
         // ---- F3
@@ -148,13 +148,13 @@ int main(int argc, char** argv)
             int nbr = 0;
             auto seen = [&](int e, const Dec& x, int hi) {
                 if (stop) return;
-                (void)hi;
                 int64_t ro; int rl;
-                raw_off(e ? n.p[e-1] : n.cp, n.p[e], e != 0 || n.cu, ro, rl);
+                raw_off(e ? n.p[e-1] : n.cp, n.p[e], hi != 0, ro, rl);
                 uint64_t tg = ((n.line << 4) + e + (uint64_t)ro - rl) & VM;
                 bool t = false;
                 if (x.br) {
                     if (nbr < 3) { t = (n.hv >> nbr & 1) ? (n.pp >> nbr & 1) : (n.base >> e & 1); nbr++; }
+                    else t = n.base >> e & 1;
                 } else if (x.jal) t = true;
                 else if (x.jalr) t = x.ret || (n.bh && n.boff == e);
                 if (t) {
@@ -211,9 +211,8 @@ int main(int argc, char** argv)
                     ns++;
                 }
                 if (stop) return;
-                (void)hi;
                 int64_t ro; int rl;
-                raw_off(e ? f4.p[e-1] : f4.cp, f4.p[e], e != 0 || f4.cu, ro, rl);
+                raw_off(e ? f4.p[e-1] : f4.cp, f4.p[e], hi != 0, ro, rl);
                 uint64_t tg = ((f4.line << 4) + e + (uint64_t)ro - rl) & VM;
                 bool t = false;
                 if (x.br) {
@@ -221,7 +220,7 @@ int main(int argc, char** argv)
                         t = (f4.hv >> nbr & 1) ? (f4.pp >> nbr & 1) : (f4.base >> e & 1);
                         if (t) ht |= 1 << hn;
                         hn++; nbr++; nsl++;
-                    }
+                    } else { t = f4.base >> e & 1; npast++; }     // past the slots: the base counter
                 } else if (x.jal) t = true;
                 else if (x.jalr) { t = x.ret || (f4.bh && f4.boff == e); if (t && !x.ret) nbtb++; }
                 if (t) {
@@ -290,8 +289,8 @@ int main(int argc, char** argv)
         if (n.v) cp = n.p[15];
         if (n.v) prev_line = n.line;
     }
-    bool cov = nb > 200000 && nov > 50000 && ntk > 50000 && ncr > 5000 && ncu > 1000 && nret > 5000 && ncall > 5000 && nsl > 100000 && nfl > 500 && nbtb > 1000 && nunt > 20000;
-    printf("tb_fdec2: %ld blocks, %ld taken, %ld overrides, %ld first halves, %ld finished, %ld calls, %ld returns, %ld through the BTB, %ld slot predictions, %ld flushes, %ld guesses trained not taken: %ld mismatches: %s\n",
-           nb, ntk, nov, ncr, ncu, ncall, nret, nbtb, nsl, nfl, nunt, bad, bad == 0 && cov ? "PASS" : "FAIL");
+    bool cov = nb > 200000 && nov > 50000 && ntk > 50000 && ncr > 5000 && ncu > 1000 && nret > 5000 && ncall > 5000 && nsl > 100000 && nfl > 500 && nbtb > 1000 && nunt > 20000 && npast > 1000;
+    printf("tb_fdec2: %ld blocks, %ld taken, %ld overrides, %ld first halves, %ld finished, %ld calls, %ld returns, %ld through the BTB, %ld slot predictions, %ld flushes, %ld guesses trained not taken, %ld branches past the slots: %ld mismatches: %s\n",
+           nb, ntk, nov, ncr, ncu, ncall, nret, nbtb, nsl, nfl, nunt, npast, bad, bad == 0 && cov ? "PASS" : "FAIL");
     return bad != 0 || !cov;
 }

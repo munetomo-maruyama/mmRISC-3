@@ -8388,3 +8388,37 @@ Also written in STRATEGY row 1.5.
 ```text
 Yes, start F1a
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**F1a (fetch of 32 bytes) is done.** I recorded it and pushed (9eb6455; 0 Ref on origin/dev). It is not in the core yet; putting it there is F1b. The decoders stay 4, as you approved.
+
+#### What I built
+- **`OOO_FETCH2` (new):** F0 to F2 on blocks of 32 bytes.
+  - F0 has `OOO_UBTB2` (96 entries), F1 the I$ 32 bytes wide, TAGE and the BTB, F2 `OOO_FDEC2`.
+  - The block goes out with "where instructions start" and "the transfer that ends it", which `OOO_FBUF3` uses.
+- **`OOO_TAGE2` (new):** the TAGE for 32 bytes. Its sizes are still S; F2 makes them M.
+  - In F2 it gives, per slot, "whether a tagged row decides it and which way" and the base's direction by parcel, and takes back the slots `OOO_FDEC2` decided. So the slots' parcels are not on the path that chooses the prediction.
+- **Two fixes in `OOO_FDEC2`:**
+  - **The slots go back to TAGE in the same cycle.** Before, they came a cycle late, which as it was would have made the history lag 3 blocks, not 2.
+  - **The uBTB is also trained when it guessed taken and F2 did not take it.** As it was built, such a conditional branch would have been overridden every time.
+- **`OOO_BTB`:** the line width is a parameter.
+
+#### Checks
+- **tb_fetch2 (new):** with the default seed it checks 112,732 blocks, 50,126 overrides and 21,305 mispredictions: 0 mismatches. Seeds 1 to 6 also give 0 mismatches.
+- **Earlier benches:** tb_fdec2, tb_fetch, tb_tage, tb_predec, tb_btb and tb_front (5 runs) all PASS.
+- **Bug injection:** all 66 detected. I read every line and added M1127 to M1152.
+- **Lint:** no warnings with `verilator -Wall`.
+
+#### Found on the way
+The bench gave a mismatch once, and the cause was a shortcut taken on purpose before (28.22). When a 32-bit instruction's upper half looks like a branch's bits, the 16-bit branch right after it gets its target computed in the 32-bit form. The target is wrong, but the back end fixes it as a misprediction, so correctness holds. It was already checked that CoreMark never executes this pattern. The bench's reference model now follows the same rule.
+
+The record is section 29.38 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also written in STRATEGY row 1.5.
+<!-- /answer -->
+
+## 206. 2026-11-08 14:56:12 JST
+
+```text
+Yes, start F1b
+```

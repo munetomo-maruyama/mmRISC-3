@@ -88,7 +88,7 @@ MUT = [
     (C, "d2[j].rec.ckpt       = ren_ckpt_id[j];", "d2[j].rec.ckpt       = ren_ckpt_id[0];", 'D2: µop 1 with µop 0\'s checkpoint id'),
     (C, "d2[j].rec.imm        = jmp ? (g_rvc[s] ? 32'd2 : 32'd4) :", "d2[j].rec.imm        = jmp ? 32'd4 :", 'link: pc + 4 for RVC too'),
     (C, "d2[j].rec.a_sel      = jmp ? 2'd1 : g_a_sel[s];", "d2[j].rec.a_sel      = g_a_sel[s];", "link: a jalr's from rs1"),
-    (C, "d2[j].rec.xline      = !g_rvc[s] && g_pc[s][3:1] == 3'd7;", "d2[j].rec.xline      = 1'b0;", 'pc: an instruction across two lines from its second'),
+    (C, "d2[j].rec.xline      = !g_rvc[s] && g_pc[s][4:1] == 4'd15;", "d2[j].rec.xline      = 1'b0;", 'pc: an instruction across two lines from its second'),
     (C, "d2[j].rec.pred_taken = g_taken[s];", "d2[j].rec.pred_taken = 1'b0;", 'every transfer predicted not taken'),
     (C, "d2[j].rec.ret        = g_is_jalr[s] && link_rs1 && !link_rd;", "d2[j].rec.ret        = g_is_jalr[s] && link_rs1;", 'a call through x1 / x5 counted as a return'),
     (C, "d2[j].rec.call       = g_is_jalr[s] && link_rd;", "d2[j].rec.call       = 1'b0;", 'jalr calls not calls (the RAS on a restore)'),

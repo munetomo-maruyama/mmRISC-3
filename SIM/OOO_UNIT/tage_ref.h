@@ -133,9 +133,10 @@ struct TageRefT {
 
     static unsigned sat(unsigned c, bool t, unsigned mx) { return t ? (c < mx ? c + 1 : mx) : (c > 0 ? c - 1 : 0); }
 
-    // the update at commit: the slots that ran (a prefix) and their outcomes
-    void update(const Bits& m, int ex, int tk) {
-        if (ex == 0) return;
+    // the update at commit: the slots that ran (a prefix) and their outcomes; pex / ptk (OOO_TAGE2):
+    // the branches past the slots that ran, by parcel, and their outcomes (their base counters)
+    void update(const Bits& m, int ex, int tk, int pex = 0, int ptk = 0) {
+        if (ex == 0 && pex == 0) return;
         unsigned idx[NT], tag[NT], row[NT], par[3];
         for (int j = 0; j < NT; j++) { idx[j] = (unsigned)m.get(M_IDX + 10 * j, 10); tag[j] = (unsigned)m.get(M_TAG + 9 * j, 9); row[j] = (unsigned)m.get(M_ROW + 21 * j, 21); }
         for (int s = 0; s < 3; s++) par[s] = (unsigned)m.get(M_PAR + PW * s, PW);
@@ -173,6 +174,7 @@ struct TageRefT {
                 if (aj < 0 && u == 0) b[par[s]] = sat(b[par[s]], t, 3);
             } else b[par[s]] = sat(b[par[s]], t, 3);
         }
+        for (int e = 0; e < NP; e++) if ((pex >> e) & 1) b[e] = sat(b[e], (ptk >> e) & 1, 3);
         tick ^= __builtin_popcount(ex) & 1;
         for (int j = 0; j < NT; j++) {
             if (j == pj) tbl[j][idx[j]] = (row[j] & ~0x7ffu) | (u << 9) | (c[2] << 6) | (c[1] << 3) | c[0];

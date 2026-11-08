@@ -20,6 +20,9 @@
 // One block a cycle comes from the RAM or straight in, to cur or nxt, whichever is free
 // next cycle. So short blocks that cur finishes each cycle leave nxt empty, with blocks
 // waiting: one block a cycle then, which is as fast as fetch gives them (Plan/OOC.md 29.11).
+//
+// NO: how many it gives a cycle at most (6; 4 in OOO_FRONT, whose decode is 4 wide: step 1.5,
+// Plan/OOC.md 29.37, 29.39). Slots NO and above are then never valid.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -27,7 +30,8 @@
 module OOO_FBUF3
     #(
         parameter int NB   = 8,         // blocks waiting (a power of two)
-        parameter int FTQW = 5
+        parameter int FTQW = 5,
+        parameter int NO   = 6          // given a cycle at most (1 .. 6)
     )
     (
         input  logic                     clk,
@@ -165,7 +169,7 @@ module OOO_FBUF3
     always @(*) begin
         cr   = bv[1] && !rb[0] && !rb[1];
         all  = 6'(rem) + (cr ? 6'(n1) : 6'd0);
-        take = rb[0] ? 3'd1 : all >= 6'd6 ? 3'd6 : 3'(all);
+        take = rb[0] ? 3'd1 : all >= 6'(NO) ? 3'(NO) : 3'(all);
         go   = bv[0] && out_ready;
         d0   = go && 5'(take) >= rem;
         over = 5'(take) - rem;

@@ -14,6 +14,11 @@
 //               what it decided (f2_sv, f2_par, f2_pred, f2_n) for the metadata and
 //               the history, in the same cycle.
 //
+// A conditional branch past the 3 slots (a 4th or later in the block: in 32 bytes CoreMark
+// has them, 29.39) is predicted by its base counter, and the update trains that counter
+// (up_pex, up_ptk: by parcel), as Plan/model/tageblk.h does (`past` 0). Not taken and
+// untrained, as OOO_TAGE has it, doubled g14-sflto's mispredictions (29.39).
+
 // Everything else as OOO_TAGE (below): the history lagging 2 blocks, F1's compare held
 // for F2, the restore, the update at commit slot by slot.
 //
@@ -102,7 +107,9 @@ module OOO_TAGE2
         input  logic                up_valid,
         input  logic [MW-1:0]       up_meta,
         input  logic [2:0]          up_ex,      // slots that ran (a prefix)
-        input  logic [2:0]          up_tk
+        input  logic [2:0]          up_tk,
+        input  logic [15:0]         up_pex,     // conditional branches past the slots that ran, by parcel ...
+        input  logic [15:0]         up_ptk      // ... and their outcomes: their base counters
     );
 
     localparam int NT = 4, NLOG = 10, NROW = 1 << NLOG, HMAX = 70, HREG = 76;
@@ -346,6 +353,8 @@ module OOO_TAGE2
                 end
             end
         end
+        // the branches past the slots: their base counters (no slot's parcel is among them)
+        for (int e = 0; e < 16; e++) if (up_pex[e]) b[e] = sat2(b[e], up_ptk[e]);
         use_alt_n = ua;
         tick_n    = tick ^ (^up_ex);
         // the writes: the provider's row, the allocated row, the useful counters gone down
@@ -365,7 +374,7 @@ module OOO_TAGE2
             end
             we[j] = we[j] && up_valid && up_ex != '0;
         end
-        bwe = up_valid && up_ex != '0;
+        bwe = up_valid && up_ex != '0;      // (a branch past the slots runs after the 3 slots' branches)
         bwa = um.bidx;
         bwd = b;
     end

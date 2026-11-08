@@ -30,7 +30,7 @@ module OOO_CPU
         output logic [VA-1:1]               ic_req_pc,
         input  logic                        ic_req_ready,
         input  logic                        ic_resp_valid,
-        input  logic [127:0]                ic_resp_data,
+        input  logic [255:0]                ic_resp_data,
         output logic                        ic_flush,   // FENCE.I: invalidate the I$ (until ic_done)
         input  logic                        ic_done,
         // the D$'s memory bus

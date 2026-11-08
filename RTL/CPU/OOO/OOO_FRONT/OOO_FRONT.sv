@@ -5,22 +5,30 @@
 // from the fetch address to the D1 / D2 register, the group of up to 4
 // decoded instructions that fusion and renaming take from in D2.
 //
-//   F0-F2  OOO_FETCH (uBTB, predecode, TAGE-S, BTB, RAS) on the I$ port.
+//   F0-F2  OOO_FETCH2 (OOO_UBTB2, OOO_FDEC2 with the RAS, OOO_TAGE2, BTB) on
+//          the I$ port, blocks of 32 bytes (step 1.5, F1b, Plan/OOC.md 29.39).
 //          Each block it gives goes into the FTQ (pc, next address, end,
-//          taken, 314 bits of predictor state: TAGE's 272 and the RAS
+//          taken, 332 bits of predictor state: TAGE's 290 and the RAS
 //          snapshot's 42) and into the fetch buffer with its FTQ index.
-//   D1a    OOO_FBUF gives up to 4 instructions, kept raw.
-//   D1b    OOO_DEC decodes them; the pc of each is its block's line (two
-//          FTQ reads: the group's two blocks) and its parcel.
+//   D1a    OOO_FBUF3 gives up to 4 instructions from up to 2 blocks, kept raw
+//          (NO = 4: decode stays 4 wide, 29.37).
+//   D1b    OOO_DEC decodes them; the pc of each is the line of its last
+//          half's block (two FTQ reads: the group's two blocks), less one
+//          for one across two lines, and its parcel.
 //   D2     the group register (g_*): what fusion and renaming read.
 //
-// Credit: fetch asks only while the fetch buffer and the FTQ (16 blocks,
-// D-18) have room
-// (free_n of both, from their pointers).
+// Credit: fetch asks only while the fetch buffer (8 blocks waiting) and the
+// FTQ (16 blocks, D-18) have room (free_n of both, from their pointers).
+//
+// Why the last half's block for the pc: OOO_FBUF3 does not keep a block in
+// which no instruction starts (one fetched at parcel 15 with a first half
+// there), so a group's first halves may lie in 3 blocks, its last halves in
+// 2 at most (cur's and nxt's); the first half of one across two lines is
+// always in the line before.
 //
 // D1a / D1b / D2, under the contract of Plan/OOC.md 13.6 (what the fetch
 // buffer gives must not depend on what D2 computes in the same cycle):
-//   D1a  the fetch buffer's group goes raw (4 x 41 bits: bits, rvc, parcel,
+//   D1a  the fetch buffer's group goes raw (4 x 42 bits: bits, rvc, parcel,
 //        block, taken, seq) into the raw register R, or into the skid S
 //        when R is not freed this cycle.
 //   D1b  R is decoded (and its two lines read from the FTQ) into the group
@@ -28,12 +36,10 @@
 //        how many of its instructions D2 took this cycle, oldest first); R
 //        is then freed and takes S's group, else the fetch buffer's.
 // The read of the buffer and decode each have a cycle: in one cycle they
-// closed by 0.03 ns only (Plan/OOC.md 26.6, 26.7). The fetch buffer's
-// consume comes from its own valid instructions, up to the first of a rare
-// class in slot 1 to 3 (the buffer's out_rare: OOO_RARE on its window's
-// parcels, a few gates beside the chain of lengths; decode's cut in that
-// loop missed 50 MHz by 2.2 ns, Plan/OOC.md 26, and OOO_RARE on the slots'
-// bits left 0.6 ns, 26.10), and S's occupancy, a register: the buffer gives while S is empty.
+// closed by 0.03 ns only (Plan/OOC.md 26.6, 26.7). The fetch buffer gives
+// all it shows while S is empty (out_ready, S's occupancy: a register); a
+// rare class goes alone in slot 0 (OOO_FBUF3 gives a block with one an
+// instruction at a time).
 // R's freeing (late: it waits for g_take) only enables R and S; the select
 // in front of R is S's occupancy. So a group of 4 follows one D2 takes in
 // 2 cycles without a bubble.
@@ -47,7 +53,7 @@
 //
 // The TAGE update: OOO_CTRL pops the FTQ one block a cycle (ftq_pop); the
 // popped block's metadata (the FTQ's head read) goes to TAGE with the
-// outcomes of its slot branches. Those are kept here by parcel (8 + 8
+// outcomes of its slot branches. Those are kept here by parcel (16 + 16
 // flip-flops a block: the resolution may write two a cycle): cleared when
 // the block is pushed, written when a conditional branch resolves (rs_*:
 // its block and last parcel), cleared again after the point of a restore
@@ -74,7 +80,7 @@ module OOO_FRONT
         parameter int VA   = 39,
         parameter int NFTQ = 16,
         parameter int FTQW = 4,
-        parameter int MW   = 272        // OOO_TAGE's metadata (the field positions below are its layout)
+        parameter int MW   = 290        // OOO_TAGE2's metadata (the field positions below are its layout)
     )
     (
         input  logic                        clk,
@@ -86,17 +92,17 @@ module OOO_FRONT
         input  logic [VA-1:1]               fe_pc,
         input  logic [FTQW-1:0]             restore_ftq,
         input  logic                        restore_port,
-        input  logic [1:0][2:0]             br_e,
+        input  logic [1:0][3:0]             br_e,
         input  logic [1:0]                  br_taken,
         input  logic [1:0]                  br_call,
         input  logic [1:0]                  br_ret,
         input  logic [FTQW-1:0]             rcv_ftq,
-        input  logic [2:0]                  rcv_end,
+        input  logic [3:0]                  rcv_end,
 
         // conditional branches resolved: their outcomes for the TAGE update
         input  logic [1:0]                  rs_valid,
         input  logic [1:0][FTQW-1:0]        rs_ftq,     // the branch's block (of its last half)
-        input  logic [1:0][2:0]             rs_e,       // its last parcel
+        input  logic [1:0][3:0]             rs_e,       // its last parcel
         input  logic [1:0]                  rs_taken,
 
         // an indirect jump resolved (the BTB)
@@ -111,14 +117,14 @@ module OOO_FRONT
         input  logic [1:0][FTQW-1:0]        ta_idx,
         output logic [1:0][VA-1:1]          ta_tgt,
         input  logic [1:0][FTQW-1:0]        pa_idx,
-        output logic [1:0][VA-1:4]          pa_line,
+        output logic [1:0][VA-1:5]          pa_line,
 
         // I$
         output logic                        ic_req_valid,
         output logic [VA-1:1]               ic_req_pc,
         input  logic                        ic_req_ready,
         input  logic                        ic_resp_valid,
-        input  logic [127:0]                ic_resp_data,
+        input  logic [255:0]                ic_resp_data,
 
         // the D2 group (slot 0 the oldest; the valid slots are contiguous)
         output logic [3:0]                  g_valid,
@@ -126,7 +132,7 @@ module OOO_FRONT
         output logic [3:0][31:0]            g_insn,     // an RVC one in the low 16 bits
         output logic [3:0]                  g_rvc,
         output logic [3:0][FTQW-1:0]        g_ftq,      // the block of its last half
-        output logic [3:0][2:0]             g_end,      // its last parcel
+        output logic [3:0][3:0]             g_end,      // its last parcel
         output logic [3:0]                  g_taken,    // predicted taken: it ends a taken block
         output logic [3:0]                  g_seq,      // follows the slot before directly
         output logic [3:0]        g_illegal,
@@ -187,16 +193,24 @@ module OOO_FRONT
     logic [VA-1:1]       out_pc      /*verilator public_flat_rd*/;
     logic [VA-1:1]       out_next;
     logic [VA-1:1]       out_ras_val /*verilator public_flat_rd*/;
-    logic [127:0]        out_data;
-    logic [2:0]          out_end;
+    logic [255:0]        out_data;
+    logic [3:0]          out_end;
+    logic [15:0]         out_st, out_first;
+    /* verilator lint_off UNUSEDSIGNAL */
+    logic                out_cross;         // (OOO_FBUF3 tells it from the starts and the bits)
+    /* verilator lint_on UNUSEDSIGNAL */
     logic [MW-1:0]       out_tmeta   /*verilator public_flat_rd*/;
     logic [3:0]          out_ras_ptr /*verilator public_flat_rd*/;
     logic                up_valid /*verilator public_flat_rd*/;     // (read by SIM/CORE/tb_front)
     logic [2:0]          up_ex    /*verilator public_flat_rd*/;
     logic [2:0]          up_tk    /*verilator public_flat_rd*/;
+    logic [15:0]         up_pex   /*verilator public_flat_rd*/;   // the branches past the slots, by parcel
+    logic [15:0]         up_ptk   /*verilator public_flat_rd*/;
     logic                up_valid_q /*verilator public_flat_rd*/;   // the same a cycle later, to TAGE
     logic [2:0]          up_ex_q    /*verilator public_flat_rd*/;
     logic [2:0]          up_tk_q    /*verilator public_flat_rd*/;
+    logic [15:0]         up_pex_q   /*verilator public_flat_rd*/;
+    logic [15:0]         up_ptk_q   /*verilator public_flat_rd*/;
     logic [MW-1:0]       up_meta_q  /*verilator public_flat_rd*/;
     /* verilator lint_off UNUSEDSIGNAL */
     logic [FW-1:0]       hd_meta /*verilator public_flat_rd*/;
@@ -209,24 +223,25 @@ module OOO_FRONT
     logic [FTQW:0]       ftq_free /*verilator public_flat_rd*/;
     logic [1:0][FTQW-1:0] rd_idx;
     logic [1:0][VA-1:1]  rd_pc;
-    logic [2:0]          fb_free;
+    logic [3:0]          fb_free;
 
-    // the smaller of the two (at most the fetch buffer's 4 blocks)
-    assign credit = (FTQW + 1)'(fb_free) < ftq_free ? 4'(fb_free) : 4'(ftq_free);
+    // the smaller of the two (at most the fetch buffer's 8 blocks)
+    assign credit = (FTQW + 1)'(fb_free) < ftq_free ? fb_free : 4'(ftq_free);
 
-    OOO_FETCH #(.VA(VA), .MW(MW)) u_fetch
+    OOO_FETCH2 #(.VA(VA), .MW(MW)) u_fetch
         (.clk(clk), .rst_n(rst_n),
          .be_stop(fe_redirect), .be_redirect(be_redirect), .be_pc(be_pc), .be_hist(be_hist), .be_hist_n(be_hist_n),
          .be_hist_bits(be_hist_bits), .be_ras_ptr(be_ras_ptr), .be_ras_val(be_ras_val), .be_ras_push(be_ras_push),
          .be_ras_addr(be_ras_addr), .be_ras_pop(be_ras_pop), .credit(credit),
          .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ready(ic_req_ready),
          .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data),
-         .out_valid(out_valid), .out_pc(out_pc), .out_data(out_data), .out_end(out_end), .out_taken(out_taken),
+         .out_valid(out_valid), .out_pc(out_pc), .out_data(out_data), .out_st(out_st), .out_first(out_first),
+         .out_cross(out_cross), .out_end(out_end), .out_taken(out_taken),
          .out_next(out_next), .out_tmeta(out_tmeta), .out_ras_ptr(out_ras_ptr), .out_ras_val(out_ras_val),
-         .up_valid(up_valid_q), .up_meta(up_meta_q), .up_ex(up_ex_q), .up_tk(up_tk_q),
+         .up_valid(up_valid_q), .up_meta(up_meta_q), .up_ex(up_ex_q), .up_tk(up_tk_q), .up_pex(up_pex_q), .up_ptk(up_ptk_q),
          .bt_valid(bt_valid), .bt_pc(bt_pc), .bt_tgt(bt_tgt));
 
-    OOO_FTQ #(.NFTQ(NFTQ), .FTQW(FTQW), .VA(VA), .MW(FW)) u_ftq
+    OOO_FTQ #(.NFTQ(NFTQ), .FTQW(FTQW), .VA(VA), .MW(FW), .PB(4)) u_ftq
         (.clk(clk), .rst_n(rst_n),
          .push_ready(), .push_valid(out_valid), .push_pc(out_pc), .push_target(out_next), .push_taken(out_taken),
          .push_end(out_end), .push_meta({out_tmeta, out_ras_ptr, out_ras_val}), .push_idx(push_idx),
@@ -235,24 +250,25 @@ module OOO_FRONT
          .hd_idx(hd_idx), .hd_meta(hd_meta), .free_n(ftq_free),
          .pop(ftq_pop), .restore(fe_redirect && !fe_flush), .restore_idx(restore_ftq), .flush_all(fe_redirect && fe_flush));
 
-    // the FTQ entry's fields: TAGE's metadata (OOO_TAGE meta_t, MSB first: hist 70, pred 3,
-    // sv 3, par 3 x 3, ...) above the RAS snapshot (pointer 4, value VA - 1)
+    // the FTQ entry's fields: TAGE's metadata (OOO_TAGE2 meta_t, MSB first: cprev 2, hist 70,
+    // pred 3, sv 3, par 3 x 4, ...) above the RAS snapshot (pointer 4, value VA - 1)
+    localparam int M_PAR = 200, M_SV = 212, M_HIST = 218;
     logic [MW-1:0]       up_meta    /*verilator public_flat_rd*/;
-    logic [VA-1:4]       ft_line    /*verilator public_flat_rd*/;
+    logic [VA-1:5]       ft_line    /*verilator public_flat_rd*/;
     logic [71:0]         ft_hist    /*verilator public_flat_rd*/;
     logic [2:0]          ft_sv      /*verilator public_flat_rd*/;
-    logic [2:0][2:0]     ft_par     /*verilator public_flat_rd*/;
+    logic [2:0][3:0]     ft_par     /*verilator public_flat_rd*/;
     logic [3:0]          ft_ras_ptr /*verilator public_flat_rd*/;
     logic [VA-1:1]       ft_ras_val /*verilator public_flat_rd*/;
     assign up_meta    = hd_meta[FW-1:TM];
-    assign ft_line    = ft_pc[VA-1:4];
-    assign ft_hist    = ft_meta[TM+271:TM+200];    // with cprev (D-17)
-    assign ft_sv      = ft_meta[TM+196:TM+194];
-    assign ft_par     = ft_meta[TM+193:TM+185];
+    assign ft_line    = ft_pc[VA-1:5];
+    assign ft_hist    = ft_meta[TM+M_HIST +: 72];   // with cprev (D-17)
+    assign ft_sv      = ft_meta[TM+M_SV +: 3];
+    assign ft_par     = ft_meta[TM+M_PAR +: 12];
     assign ft_ras_ptr = ft_meta[TM-1:TM-4];
     assign ft_ras_val = ft_meta[VA-2:0];
 
-    OOO_FERS #(.VA(VA), .FTQW(FTQW), .HL(72), .RW(4)) u_fers
+    OOO_FERS #(.VA(VA), .FTQW(FTQW), .HL(72), .RW(4), .PB(4)) u_fers
         (.clk(clk), .rst_n(rst_n),
          .fe_redirect(fe_redirect), .fe_flush(fe_flush), .fe_pc(fe_pc), .restore_ftq(restore_ftq),
          .restore_port(restore_port), .br_e(br_e), .br_taken(br_taken), .br_call(br_call), .br_ret(br_ret),
@@ -264,30 +280,33 @@ module OOO_FRONT
          .be_ras_push(be_ras_push), .be_ras_addr(be_ras_addr), .be_ras_pop(be_ras_pop));
 
     // ---- the outcomes of the slot branches, by block and parcel
-    logic [NFTQ-1:0][7:0] oc_ex, oc_tk;
+    logic [NFTQ-1:0][15:0] oc_ex, oc_tk;
     always_ff @(posedge clk) begin
         for (int f = 0; f < NFTQ; f++)
-            for (int p = 0; p < 8; p++) begin
+            for (int p = 0; p < 16; p++) begin
                 if (out_valid && push_idx == FTQW'(f)) oc_ex[f][p] <= 1'b0;
                 for (int k = 0; k < 2; k++)
-                    if (rs_valid[k] && rs_ftq[k] == FTQW'(f) && rs_e[k] == 3'(p)) begin
+                    if (rs_valid[k] && rs_ftq[k] == FTQW'(f) && rs_e[k] == 4'(p)) begin
                         oc_ex[f][p] <= 1'b1;
                         oc_tk[f][p] <= rs_taken[k];
                     end
-                if (fe_redirect && !fe_flush && restore_ftq == FTQW'(f) && 3'(p) > br_e[restore_port]) oc_ex[f][p] <= 1'b0;
+                if (fe_redirect && !fe_flush && restore_ftq == FTQW'(f) && 4'(p) > br_e[restore_port]) oc_ex[f][p] <= 1'b0;
             end
     end
 
     // the update of the popped block (the head)
     always @(*) begin
         logic [2:0]      sv;
-        logic [2:0][2:0] par;
-        sv  = hd_meta[TM+196:TM+194];
-        par = hd_meta[TM+193:TM+185];
+        logic [2:0][3:0] par;
+        sv  = hd_meta[TM+M_SV +: 3];
+        par = hd_meta[TM+M_PAR +: 12];
         up_valid = ftq_pop != 2'd0;
+        up_pex   = oc_ex[hd_idx];
+        up_ptk   = oc_tk[hd_idx];
         for (int s = 0; s < 3; s++) begin
             up_ex[s] = sv[s] && oc_ex[hd_idx][par[s]];
             up_tk[s] = oc_tk[hd_idx][par[s]];
+            if (sv[s]) up_pex[par[s]] = 1'b0;           // (the slots' own: through up_ex)
         end
     end
     always_ff @(posedge clk or negedge rst_n) begin
@@ -298,44 +317,61 @@ module OOO_FRONT
         up_meta_q <= up_meta;
         up_ex_q   <= up_ex;
         up_tk_q   <= up_tk;
+        up_pex_q  <= up_pex;
+        up_ptk_q  <= up_ptk;
     end
 
     // ---- the target array and the pc array
     (* ram_style = "distributed" *) logic [VA-1:1] ta_mem [NFTQ];
-    (* ram_style = "distributed" *) logic [VA-1:4] pa_mem [NFTQ];
+    (* ram_style = "distributed" *) logic [VA-1:5] pa_mem [NFTQ];
     always_ff @(posedge clk) if (out_valid) ta_mem[push_idx] <= out_next;
-    always_ff @(posedge clk) if (out_valid) pa_mem[push_idx] <= out_pc[VA-1:4];
+    always_ff @(posedge clk) if (out_valid) pa_mem[push_idx] <= out_pc[VA-1:5];
     for (genvar k = 0; k < 2; k++) begin : g_arr
         assign ta_tgt[k]  = ta_mem[ta_idx[k]];
         assign pa_line[k] = pa_mem[pa_idx[k]];
     end
 
     // ---- D1a: the fetch buffer's group into R (or the skid S)
-    logic [3:0]            fb_v, fb_rvc, fb_tk, fb_seq, fb_rare;
+    logic [3:0]            fb_v, fb_rvc, fb_tk, fb_seq;
     logic [3:0][31:0]      fb_inst;
-    logic [3:0][2:0]       fb_off;
+    logic [3:0][3:0]       fb_off;
     logic [3:0][FTQW-1:0]  fb_ftq;
-    logic [2:0]            consume;
+    /* verilator lint_off UNUSEDSIGNAL */           // (slots 4 and 5: never valid with NO = 4)
+    logic [5:0]            fb6_v, fb6_rvc, fb6_tk;
+    logic [5:0][31:0]      fb6_inst;
+    logic [5:0][3:0]       fb6_off;
+    logic [5:0][FTQW-1:0]  fb6_ftq;
+    /* verilator lint_on UNUSEDSIGNAL */
+    logic                  fb_ready;
 
-    OOO_FBUF #(.NB(4), .FTQW(FTQW)) u_fbuf
+    /* verilator lint_off PINCONNECTEMPTY */        // (in_ready: the credit keeps it; out_rare: a rare one comes alone)
+    OOO_FBUF3 #(.NB(8), .FTQW(FTQW), .NO(4)) u_fbuf
         (.clk(clk), .rst_n(rst_n), .flush(fe_redirect),
-         .in_ready(), .free_n(fb_free), .in_valid(out_valid), .in_data(out_data), .in_start(out_pc[3:1]),
-         .in_end(out_end), .in_taken(out_taken), .in_ftq(push_idx),
-         .out_valid(fb_v), .out_inst(fb_inst), .out_rvc(fb_rvc), .out_off(fb_off), .out_ftq(fb_ftq),
-         .out_taken(fb_tk), .out_seq(fb_seq), .out_rare(fb_rare), .consume(consume));
+         .in_ready(), .free_n(fb_free), .in_valid(out_valid), .in_data(out_data), .in_st(out_st),
+         .in_first(out_first), .in_ftq(push_idx),
+         .out_ready(fb_ready), .out_valid(fb6_v), .out_inst(fb6_inst), .out_rvc(fb6_rvc), .out_off(fb6_off),
+         .out_ftq(fb6_ftq), .out_taken(fb6_tk), .out_rare());
+    /* verilator lint_on PINCONNECTEMPTY */
+    assign fb_v    = fb6_v[3:0];
+    assign fb_inst = fb6_inst[3:0];
+    assign fb_rvc  = fb6_rvc[3:0];
+    assign fb_off  = fb6_off[3:0];
+    assign fb_ftq  = fb6_ftq[3:0];
+    assign fb_tk   = fb6_tk[3:0];
+    assign fb_seq  = {~fb_tk[2:0], 1'b1};           // (a slot follows the one before unless that one is taken)
 
     // the skid S and the raw register R
     logic [3:0]            s_m /*verilator public_flat_rd*/;
     logic [3:0]            s_rvc, s_tk, s_seq;
     logic [3:0][31:0]      s_inst;
-    logic [3:0][2:0]       s_off;
+    logic [3:0][3:0]       s_off;
     logic [3:0][FTQW-1:0]  s_ftq;
     logic                  s_v;
     assign s_v = s_m != 4'd0;
     logic [3:0]            r_m /*verilator public_flat_rd*/;
     logic [3:0]            r_rvc, r_tk, r_seq;
     logic [3:0][31:0]      r_inst;
-    logic [3:0][2:0]       r_off;
+    logic [3:0][3:0]       r_off;
     logic [3:0][FTQW-1:0]  r_ftq;
 
     logic [3:0] d_illegal;
@@ -391,22 +427,23 @@ module OOO_FRONT
          .illegal(d_illegal), .cls(d_cls), .op(d_op), .rd(d_rd), .rs1(d_rs1), .rs2(d_rs2), .use_rs1(d_use_rs1), .use_rs2(d_use_rs2), .imm(d_imm), .port(d_port), .lat2(d_lat2), .ext_ans(d_ext_ans), .nonspec(d_nonspec), .alu_op(d_alu_op), .a_uw(d_a_uw), .a_shift(d_a_shift), .a_sel(d_a_sel), .b_sel(d_b_sel), .word_op(d_word_op), .is_branch(d_is_branch), .is_jal(d_is_jal), .is_jalr(d_is_jalr), .br_op(d_br_op), .mdu_op(d_mdu_op), .mem_cmd(d_mem_cmd), .mem_size(d_mem_size), .mem_signed(d_mem_signed), .sys(d_sys), .is_sfence(d_is_sfence), .is_csr(d_is_csr), .csr_addr(d_csr_addr), .csr_op(d_csr_op), .csr_imm_sel(d_csr_imm_sel), .csr_wr(d_csr_wr), .csr_rd(d_csr_rd), .is_fp(d_is_fp), .fp_op(d_fp_op), .fp_fmt(d_fp_fmt), .fp_rm(d_fp_rm), .use_fs(d_use_fs), .rs3(d_rs3), .fp_we_rd(d_fp_we_rd), .fp_int_signed(d_fp_int_signed), .fp_int_w(d_fp_int_w));
     /* verilator lint_on PINCONNECTEMPTY */
 
-    // the fetch buffer's group: its valid instructions up to the first of a
-    // rare class in slot 1 to 3 (out_rare)
+    // the fetch buffer's group: all it shows, taken while S is empty
     logic [3:0] fb_m;
-    always @(*) begin
-        logic run;
-        run = 1'b1;
-        for (int k = 0; k < 4; k++) begin
-            run     = run && fb_v[k] && (k == 0 || !fb_rare[k]);
-            fb_m[k] = run;
-        end
-        consume = s_v ? 3'd0 : 3'(fb_m[0]) + 3'(fb_m[1]) + 3'(fb_m[2]) + 3'(fb_m[3]);
-    end
+    assign fb_m     = fb_v;
+    assign fb_ready = !s_v;
 
-    // R's two blocks: their lines
-    assign rd_idx[0] = r_ftq[0];
-    assign rd_idx[1] = r_ftq[0] + FTQW'(1);
+    // R's two blocks: the blocks of the last halves (slot 0's and the last valid slot's)
+    logic [3:0]            r_x;                     // across two lines
+    logic [3:0][FTQW-1:0]  r_lh;                    // the block of its last half
+    always @(*) begin
+        for (int k = 0; k < 4; k++) begin
+            r_x[k]  = r_off[k] == 4'd15 && !r_rvc[k];
+            r_lh[k] = r_ftq[k] + FTQW'(r_x[k]);
+        end
+        rd_idx[0] = r_lh[0];
+        rd_idx[1] = r_lh[0];
+        for (int k = 1; k < 4; k++) if (r_m[k]) rd_idx[1] = r_lh[k];
+    end
 
     // ---- D2: the group register
     typedef struct packed {
@@ -489,11 +526,11 @@ module OOO_FRONT
         end
     end
 
-    logic [3:0]            g_v, tm, g_left, g_bsel, g_rvc_q, g_tk_q, g_seq_q;
-    logic [3:0][2:0]       g_off;
+    logic [3:0]            g_v, tm, g_left, g_bsel, g_x, g_rvc_q, g_tk_q, g_seq_q;
+    logic [3:0][3:0]       g_off;
     logic [3:0][FTQW-1:0]  g_ftq_q;
     logic [3:0][31:0]      g_insn_q;
-    logic [VA-1:4]         g_line0, g_line1;
+    logic [VA-1:5]         g_line0, g_line1, g_line0m, g_line1m;    // (m: the line before)
     logic                  g_load, r_free;
     always @(*) begin
         logic [2:0] n;
@@ -542,11 +579,14 @@ module OOO_FRONT
         end
         if (g_load) begin
             g_d      <= gd;
-            g_line0  <= rd_pc[0][VA-1:4];
-            g_line1  <= rd_pc[1][VA-1:4];
+            g_line0  <= rd_pc[0][VA-1:5];
+            g_line1  <= rd_pc[1][VA-1:5];
+            g_line0m <= rd_pc[0][VA-1:5] - (VA-5)'(1);
+            g_line1m <= rd_pc[1][VA-1:5] - (VA-5)'(1);
             for (int k = 0; k < 4; k++) begin
-                g_bsel[k]   <= r_ftq[k] != r_ftq[0];
-                g_ftq_q[k]  <= r_ftq[k] + FTQW'(r_off[k] == 3'd7 && !r_rvc[k]);   // across two lines: the next block
+                g_bsel[k]   <= r_lh[k] != r_lh[0];
+                g_x[k]      <= r_x[k];
+                g_ftq_q[k]  <= r_lh[k];                 // across two lines: the next block
             end
             g_off    <= r_off;
             g_rvc_q  <= r_rvc;
@@ -563,8 +603,8 @@ module OOO_FRONT
     assign g_taken = g_tk_q;
     assign g_seq   = g_seq_q;
     for (genvar k = 0; k < 4; k++) begin : g_out
-        assign g_pc[k]  = {g_bsel[k] ? g_line1 : g_line0, g_off[k]};
-        assign g_end[k] = g_off[k] + 3'(!g_rvc_q[k]);
+        assign g_pc[k]  = {g_bsel[k] ? (g_x[k] ? g_line1m : g_line1) : (g_x[k] ? g_line0m : g_line0), g_off[k]};
+        assign g_end[k] = g_off[k] + 4'(!g_rvc_q[k]);
         assign g_illegal[k] = g_d[k].illegal;
         assign g_cls[k] = g_d[k].cls;
         assign g_op[k] = g_d[k].op;

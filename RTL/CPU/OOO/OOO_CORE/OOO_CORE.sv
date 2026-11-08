@@ -94,7 +94,7 @@ module OOO_CORE
         output logic [VA-1:1]               ic_req_pc,
         input  logic                        ic_req_ready,
         input  logic                        ic_resp_valid,
-        input  logic [127:0]                ic_resp_data,
+        input  logic [255:0]                ic_resp_data,
         // the D$ (OOO_LSU's abstract port: OOO_DCAD and the D$, or a model)
         // the D$'s miss handler (OOO_LSU3's arrays are inside; step 1.3 E1, Plan/OOC.md 29.32)
         output logic                        dc_miss_valid,
@@ -209,8 +209,8 @@ module OOO_CORE
         logic [11:0]     joff;                  // a jalr's offset; a fused branch's offset (halfwords)
         logic            len4;                  // 32-bit (else RVC)
         logic            xline;                 // its first half in the block before
-        logic [2:0]      off;                   // the first half's parcel
-        logic [2:0]      e;                     // the last half's parcel
+        logic [3:0]      off;                   // the first half's parcel (blocks of 32 bytes)
+        logic [3:0]      e;                     // the last half's parcel
         logic [CW-1:0]   ckpt;
         logic [FTQW-1:0] ftq;                   // the block of its last half
         logic [ROBW-1:0] rob;
@@ -244,11 +244,11 @@ module OOO_CORE
     logic                restore_k;               // the kill's: not held off by a trap or replay (the LSU's)
     logic [VA-1:1]       fe_pc;
     logic [FTQW-1:0]     restore_ftq, rcv_ftq;
-    logic [2:0]          rcv_end;
+    logic [3:0]          rcv_end;
     logic [CW-1:0]       restore_id;
     logic [NCKPT-1:0]    kill, clr;
     logic [1:0]          ftq_pop;
-    logic [1:0][2:0]     br_e     /*verilator public_flat_rd*/;
+    logic [1:0][3:0]     br_e     /*verilator public_flat_rd*/;
     // (the resolution's fields are read by SIM/CORE/tb_core, which checks them against the instruction)
     logic [1:0]          br_taken /*verilator public_flat_rd*/;
     logic [1:0]          br_call  /*verilator public_flat_rd*/;
@@ -256,20 +256,20 @@ module OOO_CORE
     logic [1:0]          rs_valid /*verilator public_flat_rd*/;
     logic [1:0]          rs_taken /*verilator public_flat_rd*/;
     logic [1:0][FTQW-1:0] rs_ftq;
-    logic [1:0][2:0]     rs_e     /*verilator public_flat_rd*/;
+    logic [1:0][3:0]     rs_e     /*verilator public_flat_rd*/;
     logic                bt_valid /*verilator public_flat_rd*/;
     logic [VA-1:1]       bt_pc    /*verilator public_flat_rd*/;
     logic [VA-1:1]       bt_tgt;
     logic [1:0][FTQW-1:0] ta_idx, pa_idx;
     logic [1:0][VA-1:1]  ta_tgt;
-    logic [1:0][VA-1:4]  pa_line;
+    logic [1:0][VA-1:5]  pa_line;
     logic [2:0]          g_take;
 
     logic [3:0]          g_valid, g_rvc, g_taken;
     logic [3:0][VA-1:1]  g_pc;
     logic [3:0][31:0]    g_insn;
     logic [3:0][FTQW-1:0] g_ftq;
-    logic [3:0][2:0]     g_end;
+    logic [3:0][3:0]     g_end;
     logic [3:0]          g_illegal;
     logic [3:0][2:0]     g_cls;
     logic [3:0][4:0]     g_rd, g_rs1, g_rs2;
@@ -385,8 +385,8 @@ module OOO_CORE
             d2[j].rec.imm        = jmp ? (g_rvc[s] ? 32'd2 : 32'd4) : g_imm[s];
             d2[j].rec.joff       = g_imm[s][11:0];
             d2[j].rec.len4       = !g_rvc[s];
-            d2[j].rec.xline      = !g_rvc[s] && g_pc[s][3:1] == 3'd7;
-            d2[j].rec.off        = g_pc[s][3:1];
+            d2[j].rec.xline      = !g_rvc[s] && g_pc[s][4:1] == 4'd15;
+            d2[j].rec.off        = g_pc[s][4:1];
             d2[j].rec.e          = g_end[s];
             d2[j].rec.ckpt       = ren_ckpt_id[j];
             d2[j].rec.ftq        = g_ftq[s];
@@ -523,7 +523,7 @@ module OOO_CORE
     logic [1:0][CW-1:0]        e_br_ckpt;
     logic [1:0][VA-1:1]        e_br_next;
     logic [1:0][ROBW-1:0]      e_br_rob;
-    logic [1:0][2:0]           e_br_e, e_rs_e;
+    logic [1:0][3:0]           e_br_e, e_rs_e;
     logic [1:0][FTQW-1:0]      e_rs_ftq;
     logic                      e_bt_valid;
     logic [VA-1:1]             e_bt_pc, e_bt_tgt;
@@ -579,7 +579,7 @@ module OOO_CORE
             disp_len[j]   = (ds[j].rec.len4 ? 3'd2 : 3'd1) + ((FUSE_AB && ds[j].rec.fused) ? (ds[j].rec.len4b ? 3'd2 : 3'd1) : 3'd0);
             disp_fused[j] = FUSE_AB && ds[j].rec.fused;
         end
-    OOO_ROB #(.NROB(NROB), .ROBW(ROBW), .VA(VA), .TAGW(TAGW), .CW(CW), .NCMP(NCMP), .FTQW(FTQW), .ND(ND)) u_rob
+    OOO_ROB #(.NROB(NROB), .ROBW(ROBW), .VA(VA), .TAGW(TAGW), .CW(CW), .NCMP(NCMP), .FTQW(FTQW), .ND(ND), .PB(4)) u_rob
         (.clk(clk), .rst_n(rst_n), .rob_avail(rob_avail), .disp_valid(disp_go),
          .disp_pc(dv_pc), .disp_wr(dv_wr), .disp_arch(dv_arch),
          .disp_new(dv_dst), .disp_old(dv_old), .disp_ld(dv_ld), .disp_st(dv_st),
@@ -697,7 +697,7 @@ module OOO_CORE
         logic [TAGW-1:0] dst;
         logic            wr;
         rec_t            rec;
-        logic [VA-1:4]   line;                                  // the pc array's line of its first half
+        logic [VA-1:5]   line;                                  // the pc array's line of its first half
         logic [VA-1:1]   ta;                                    // the target array: its block's predicted next
     } ex_t;
     localparam int WBW = TAGW + 64;
@@ -754,7 +754,7 @@ module OOO_CORE
         logic [RRW-1:0]  rr_d;
         logic [TAGW-1:0] rr_t1, rr_t2, rr_dst;
         logic            rr_wr;
-        logic [VA-1:4]   p_line;                                // the pc array's line, the target array's next
+        logic [VA-1:5]   p_line;                                // the pc array's line, the target array's next
         logic [VA-1:1]   p_ta;                                  // (ports 0, 1: the arrays' 2 read ports)
         ex_t             rx;
         OOO_STAGE #(.W(RRW), .NCK(NCKPT)) u_rr

@@ -4858,3 +4858,43 @@ So F is the largest piece of the core: about −16.5 % cycles, far more than the
 **Bug injection**: all the lines of `OOO_FDEC2`, `OOO_BTB`, `OOO_TAGE2`'s new ones and `OOO_FETCH2`: **66 of 66 detected**, every line read. M1038 and M1042 retargeted to the changed lines; M99 to `LB`; M1127 to M1152 new (`OOO_FDEC2`'s slots and training 6, `OOO_TAGE2` 7, `OOO_FETCH2` 11, `OOO_BTB` at 32 bytes 2). `verilator -Wall`: clean on `OOO_FETCH2` with its blocks and on `OOC_FE3`'s lines.
 
 **Next**: F1b: `OOO_FETCH2` and `OOO_FBUF3` in `OOO_FRONT`, the FTQ's entries, the back end's parcel fields, `tb_core`'s I$ at 32 bytes; cycles against the model's F1 row (−15.3 %).
+
+### 29.39 Step 1.5, F1b: the front end of 32 bytes in the core (2026-11-08)
+
+**What changed:**
+
+- **`OOO_FRONT`**: `OOO_FETCH2` in place of `OOO_FETCH`, `OOO_FBUF3` (8 blocks of 32 bytes, new parameter `NO` = 4: it gives at most 4, as decode stays 4 wide, 29.37) in place of `OOO_FBUF`; the FTQ's entries with 290 bits of TAGE's metadata and end parcels of 4 bits; the outcomes by parcel 16 + 16 a block; the pc array's line `VA-1:5`. The fetch buffer gives all it shows while the skid is empty (`out_ready`); a rare class comes alone from `OOO_FBUF3` itself, so the cut at `out_rare` goes.
+- **The pc from the last half's block.** `OOO_FBUF3` does not keep a block in which no instruction starts (one fetched at parcel 15 with a first half there), so a group's first halves may lie in 3 FTQ blocks, its last halves in 2 at most. The two FTQ reads are now the blocks of the last halves (slot 0's and the last valid slot's), and one across two lines takes the line before (`g_line0m`, `g_line1m`, made at the group's load).
+- **The parcel's width as a parameter** (`PB`, 3 by default): `OOO_FTQ`, `OOO_FERS`, `OOO_ROB` (`rcv_end`); 4 in the core. `OOO_CORE`: `rec.off`, `rec.e`, `xline` and the line of 32 bytes; `OOO_CORE` and `OOO_CPU` take the I$ 256 bits wide; `tb_core`'s and `tb_front`'s I$ model (`ports.h`) answers 32 bytes.
+- `build_core.sh`, `build_front.sh`, `synth_ooo.tcl` read the new files; `OOC_FE` follows the widths.
+
+**Two faults found on the way, both in F1a's blocks:**
+
+1. **A fourth branch in a block.** At 16 bytes CoreMark has none (14.1), so `OOO_TAGE` predicts one not taken and trains nothing. At 32 bytes it has them: `tb_front` on `g14-sflto` gave 14,173 mispredictions against 4,765 at 16 bytes. `core_state_transition`'s block at 0x80000dc0 holds 4 branches, the 4th taken 4,253 times; and every such misprediction's wrong path popped and pushed the RAS over its top, so a return mispredicted after it (`ret` at 0x80000df8: 3,472). `Plan/model/tageblk.h` now takes `bytes` and `past` (conditional branches of CoreMark, mispredicted, `slots=3 hist=1 lag=2`):
+
+   | | `g14-o2` | `g14-sflto` | `g13-o2-zb` |
+   |---|---|---|---|
+   | 16 bytes (until now) | 4,772 | 4,177 | 4,969 |
+   | 32 bytes, past the slots not taken (F1a) | 4,807 | **8,393** | 5,952 |
+   | **32 bytes, past the slots by the base counter, trained** | **4,822** | **4,111** | **5,261** |
+   | 32 bytes, 4 slots | 4,615 | 3,825 | 5,799 |
+
+   So a branch past the slots is now predicted by its base counter (`OOO_FDEC2`), and the update trains it (`OOO_TAGE2`'s `up_pex`, `up_ptk`, by parcel, from `OOO_FRONT`'s outcomes less the slots'). No more bits a block. `tb_front` on `g14-sflto`: 5,712 (conditional 5,424, returns 275). That is still 20 % above 16 bytes, spread over many branches; to look at again with TAGE M (F2).
+2. **A target's form from the bits alone was wrong, and the core does not check it.** 28.22 took a 16-bit transfer behind a 32-bit instruction whose upper half looks like a branch's or a jal's low half as 32-bit, on the ground that "the back end finds" the wrong target. `OOO_CORE` does not: a branch is checked only for its direction, a jal not at all; both trust predecode's target. With `OOO_FETCH` (its own predecode, with the boundaries) that never arose; with `OOO_FDEC2` `b2`'s `br-12` (a `c.j` behind `lui a0, 0xcc632`, upper half 0xcc63) and `ls-15` went down a wrong path. **`OOO_FDEC2` now takes the form from the boundaries (`hi[e]`).** The choice waits on them anyway; what it costs in time F3 will say (if too much: both forms' targets and compares, chosen by the boundaries, about 800 LUTs). `tb_fdec2` and `tb_fetch2` follow; M1048 now puts the old rule back.
+
+**Checks:**
+
+- `run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS on both tops, misses at random too. `run_front.sh`: 5 of 5 PASS; `g14-o2` (no misses) 5,345 mispredictions (16 bytes: 5,614). `tb_fetch2` (6 seeds), `tb_fdec2`, `tb_tage`, `tb_fetch` PASS.
+- **Cycles** (CoreMark, no misses):
+
+  | | E (29.36) | F1b | RTL | model (E → F1) | RTL above the model |
+  |---|---|---|---|---|---|
+  | `g14-o2` | 1,537,367 | **1,332,422** | **−13.3 %** | −15.3 % | 10.8 % (E 8.4 %) |
+  | `g14-sflto` | 1,448,830 | 1,228,690 | −15.2 % | −11.7 % | 12.4 % (E 17.0 %) |
+  | `g13-o2-zb` | 1,604,291 | 1,386,541 | −13.6 % | −13.3 % | 10.5 % (E 10.9 %) |
+
+  `OOO_CPU`: 1,336,080 / 1,235,530 / 1,390,337 (`g14-o2`: −13.3 % from 1,541,084), about 7.5 CoreMark/MHz without misses. The model's rows: E with `dec_block=1`, F1 with `dec_block=2 fetch_bytes=32 ubtb=96 ub_sets=32 ub_rr=1`.
+- **Bug injection**: `mutate_front.py` **51 of 51** (13 retargeted to the new lines, 9 new: the pc of one across two lines, the past branches' update, `OOO_FBUF3`'s `NO` and its rare class). Unit: 136 of 136 on the changed blocks (M266, M1063, M1033, M1048 retargeted; M1153, M1155 new; M1154 removed, equivalent: a branch past the slots runs only after the 3 slots' branches, so `up_pex` without `up_ex` never comes, and the term is gone from the RTL). Core: 119 of 126; not reached: 89 and now 72 (a µop in slot 1 to 3 with a CSR: `OOO_FBUF3` gives a rare class alone in slot 0, so neither can be reached), 100 to 102, 108, and 107 (`OOO_DMISS`'s victim invalidated while its words are replaced: met by the timing of the old front end only); 80 is detected now. Every line read.
+- `verilator -Wall` on `OOO_CPU`: nothing new.
+
+**Next**: F2, TAGE M (6 tables of 2,048, histories to 200; model −1.5 %); the RTL's 10.8 % above the model to be looked at by function (29.30's `CORE_BYPC`) at F2's end; then F3, `OOO_CPU` at 20 ns.

@@ -95,18 +95,18 @@ static std::string check_resolution(TopRoot* rp)
             in = rp->CORE(sh_insn2)[rob];
         }
         bool c = (in & 3) != 3;
-        int e = (int)((pc + (c ? 0 : 1)) & 7);
+        int e = (int)((pc + (c ? 0 : 1)) & 15);
         bool jalr = false; int rd = 0, rs1 = 0;
         if (!c && (in & 0x7f) == 0x67) { jalr = true; rd = (in >> 7) & 31; rs1 = (in >> 15) & 31; }
         if (c && (in & 3) == 2 && ((in >> 13) & 7) == 4 && ((in >> 2) & 31) == 0 && ((in >> 7) & 31) != 0) {
             jalr = true; rs1 = (in >> 7) & 31; rd = ((in >> 12) & 1) ? 1 : 0;       // c.jalr / c.jr
         }
         bool call = jalr && link_reg(rd), ret = jalr && link_reg(rs1) && !link_reg(rd);
-        int ge = (rp->CORE(br_e) >> (3 * p)) & 7;
+        int ge = (rp->CORE(br_e) >> (4 * p)) & 15;
         bool gt = (rp->CORE(br_taken) >> p) & 1, gc = (rp->CORE(br_call) >> p) & 1;
         bool gr = (rp->CORE(br_ret) >> p) & 1, rv = (rp->CORE(rs_valid) >> p) & 1;
         bool rt = (rp->CORE(rs_taken) >> p) & 1;
-        int re = (rp->CORE(rs_e) >> (3 * p)) & 7;
+        int re = (rp->CORE(rs_e) >> (4 * p)) & 15;
         bool ok = ge == e && gc == call && gr == ret && (jalr ? gt && !rv : rv && re == e && rt == gt);
         if (!ok) {
             std::snprintf(m, sizeof m, "port %d resolves pc %llx (%08x): last parcel %d call %d ret %d taken %d, TAGE %d %d %d",
@@ -185,7 +185,7 @@ static bool run(const Opts& o, const std::string& elf)
         d->boot_pc = b.entry() >> 1;
         d->ic_req_ready = ic.ready();
         d->ic_resp_valid = ic.resp_valid();
-        { uint32_t w[4]; ic.resp_data(w); for (int k = 0; k < 4; k++) d->ic_resp_data[k] = w[k]; }
+        { uint32_t w[8]; ic.resp_data(w); for (int k = 0; k < 8; k++) d->ic_resp_data[k] = w[k]; }
         d->ic_done = icf_q;
 #ifdef CPU_TOP
         ax.drive();
