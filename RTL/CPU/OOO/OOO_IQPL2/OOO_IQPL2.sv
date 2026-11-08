@@ -14,7 +14,9 @@
 // µops entries of different banks. So bank b here is a LUT RAM written by
 // the one µop that goes to bank b (each memory has one write port: all
 // Vivado maps to LUT RAM, Plan/OOC.md 12.6), and no live value table is
-// needed: an entry is only ever written in its own bank. A bank is
+// needed: an entry is only ever written in its own bank. The bank's address and data are
+// chosen by wr_cand (early: the slots that go if any do), its write by wr_valid (the go,
+// late; Plan/OOC.md 29.41). A bank is
 // addressed by the whole entry number (N <= 32: one RAM32M deep), so a read
 // takes the 4 banks at its entry and chooses by the entry's bank.
 //
@@ -46,6 +48,7 @@ module OOO_IQPL2
         input  logic                          clk,
         // DS: the dispatch slots (OOO_IQ2's disp_valid and disp_entry)
         input  logic [NBANK-1:0]              wr_valid,
+        input  logic [NBANK-1:0]              wr_cand,    // wr_valid is these or none; their entries in different banks
         input  logic [NBANK-1:0][$clog2(N)-1:0] wr_entry,
         input  logic [NBANK-1:0][W-1:0]       wr_data,
         // IS: the entries granted now
@@ -73,8 +76,8 @@ module OOO_IQPL2
         for (int b = 0; b < NBANK; b++) begin
             bw[b] = 1'b0; ba[b] = '0; bd[b] = '0;
             for (int k = 0; k < NBANK; k++)
-                if (wr_valid[k] && bank_of(wr_entry[k]) == BW'(b)) begin
-                    bw[b] = 1'b1; ba[b] = wr_entry[k]; bd[b] = wr_data[k];
+                if (wr_cand[k] && bank_of(wr_entry[k]) == BW'(b)) begin
+                    bw[b] = wr_valid[k]; ba[b] = wr_entry[k]; bd[b] = wr_data[k];
                 end
         end
     end

@@ -4924,3 +4924,28 @@ So F is the largest piece of the core: about −16.5 % cycles, far more than the
 **F stands at**: all of 29.37's pieces but F3 are in: 32 bytes, 2 blocks a cycle, uBTB 96, TAGE M, 4 decoded. The RTL is about 10.7 % above the model (8.4 % at E, 6.5 % at D).
 
 **Next**: F3, `OOO_CPU` at 20 ns (by the author). The new paths to watch: `OOO_FDEC2`'s target form from the boundaries (29.39) and the slots back to TAGE's history in the same cycle (29.38), F2 into F0; the FTQ's 573 bits; TAGE M's index from a history of 200 bits at F0. After it, the 10.7 % by function (29.30's `CORE_BYPC`).
+
+### 29.41 Step 1.5, F3: `OOO_CPU` at 20 ns, −2.226 ns between flip-flops; four cuts (2026-11-08)
+
+**The run** (by the author, with F2's RTL, a9e7900): **68,224 LUTs** after place and route (55,806 logic + 12,414 LUT RAM; E: 63,938), 16,797 FF after synthesis, 24.5 tiles of block RAM (E: 19.5). `OOO_FRONT` 12,537 LUTs (`OOO_FBUF3` 2,488, `OOO_FETCH2` 4,907 with `OOO_FDEC2` 2,413, `OOO_TAGE2` 1,447, `OOO_UBTB2` 1,002; `OOO_FTQ` 1,272). **WNS −5.534 ns; between flip-flops −2.226 ns, 25 levels.** Routing is about 80 % of the worst paths again.
+
+**The paths:**
+
+1. **Port `ic_resp_data` → `OOO_FDEC2` → TAGE's history (−5.534 ns)**: the 6 ns of input delay every port has here, in front of F2's whole depth. F2 starts from registers by design (29.9): the data and the way are settled in F1. So this is the constraint's, and **a requirement on the I$ of step 1.7: its answer comes from flip-flops**. For `OOO_CPU` the port's delay is now 1.5 ns (`ic_resp_*`).
+2. **ROB's head → restore → `fe_redirect` → fetch's stop → F2's valid → 12 levels of `OOO_FDEC2` → override → `OOO_UBTB2`'s `pc_q` (−2.226 ns, 25 levels)**: the stop is late, and it entered `OOO_FDEC2` at the top of its decision.
+3. **`OOO_FDEC2`'s `c_v` → boundaries (about 12 levels) → `first`'s carry chain → a second carry chain (`first - 1`, the slots up to the end) → the count → TAGE's `h` enable (−1.690 ns, 25 levels)**: the slots going back in the same cycle (29.38).
+4. **`OOO_IQ2`'s valid bits → room → the go (`OOO_CTRL`) → `disp_valid` → which bank each slot takes → `disp_entry` → `OOO_IQPL2`'s data choice → its LUT RAM (−1.768 ns, 15 levels, 88 % routing)**: the banks were counted over the slots that go.
+
+The other blocks are negative by less, all write-port or join paths near the placement's limit (`OOO_PRF` in −1.373 ns from the ROB's head, `OOO_CTRL`'s `ns_ok` −0.709 ns, ALU 0 to the register file −0.797 ns); their paths are not in the report (the 100 worst are all of the classes above). `synth_ooo.tcl` now writes every block's failing worst path in full (`timing_blocks.rpt`).
+
+**The cuts, all with no change in cycles** (CoreMark exactly the same cycles):
+
+- **The stop apart** (`OOO_FDEC2` `f2_kill`, `OOO_FETCH2`): F2's valid comes from registers (`ic_resp_valid`, `qlive`). The stop, late, only enables what the block does: it goes out, moves the RAS, trains the uBTB, keeps a first half. An override in a stopped cycle is overridden by the restore of the next. A stopped block's push into the history is undone by the same restore.
+- **The boundaries by groups** (`OOO_FDEC2`): 4 groups of 4 parcels, each worked out for both ways of entering it (the first parcel a second half or not), then chosen group by group: 3 choices in place of a chain of 16 (29.9 had this in hand).
+- **The slots up to the end by a prefix OR** of the predicted-taken transfers before each parcel, beside `first`, in place of `first - 1`.
+- **The history's push a cycle later** (`OOO_TAGE2` `pv_q`, `pn_q`, `pb_q`): what reads the history reads it with the waiting push (`he`, `c1e`, `c2e`: F0's index, F2's metadata), so each block reads and keeps what it did. The path now ends at 5 flip-flops.
+- **The banks from the candidates** (`OOO_IQ2` `disp_cand`, `OOO_IQPL2` `wr_cand`, `iq_cand` = the DS register's valid µops): dispatch is all of the register's µops or none, so which bank a slot takes need not wait for the go, which now only enables the writes.
+
+**Checks.** `tb_fdec2` (a random stop: 32,636 blocks), `tb_fetch2` (5 seeds; overrides in a stop mirrored: 2,842), `tb_iq2`, `tb_iq2n2`, `tb_iqpl2` (banks given and none going: 49,818 cycles) PASS. `run_front.sh` 5 of 5; `run_core.sh` 0 failures in all 12 runs; `run_coremark.sh` PASS, cycles unchanged (`OOO_CORE` 1,311,645 / 1,219,046 / 1,370,745; `OOO_CPU` 1,316,322 / 1,226,653 / 1,374,118). **Bug injection**: unit 140 of 140 on `OOO_FDEC2`, `OOO_TAGE2`, `OOO_FETCH2`, `OOO_IQ2`, `OOO_IQPL2` (M1164 to M1173 new, the changed lines retargeted; M860 to M867, not applied since C0's rewrite of the selects, retargeted too; one found equivalent, a stopped block's push, and the term removed from the RTL, its mutation replaced by one on the push in a restore's cycle). Core: 119 of 126, the same 7 as 29.39. `verilator -Wall` on `OOO_CPU`: nothing new.
+
+**Next**: `OOO_CPU` at 20 ns again (by the author).

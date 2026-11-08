@@ -31,7 +31,7 @@ int main(int argc, char** argv)
     d.clk = 0; d.eval();
     Rec mem[N]; bool written[N] = {};
     int ra[NR] = {}; bool rav = false;          // the grants of the cycle before
-    long bad = 0, checks = 0, same = 0, gaps = 0;
+    long bad = 0, checks = 0, same = 0, gaps = 0, nogo = 0;
     for (long cyc = 0; cyc < 400000; cyc++) {
         // writes: the valid slots to different banks, often an entry being read
         int we[NB]; Rec wd[NB];
@@ -58,6 +58,8 @@ int main(int argc, char** argv)
             d.wr_entry |= (uint32_t)(we[s] >= 0 ? we[s] : rng() % N) << (5 * s);
             for (int k = 0; k < WW; k++) d.wr_data[s * WW + k] = we[s] >= 0 ? wd[s].w[k] : rng();
         }
+        d.wr_cand = d.wr_valid;                      // the slots that go if any do; now and then none goes
+        if (rng() % 8 == 0) { d.wr_valid = 0; for (int s = 0; s < NB; s++) we[s] = -1; nogo++; }
         d.iss_entry = 0;
         for (int p = 0; p < NR; p++) d.iss_entry |= (uint64_t)gi[p] << (5 * p);
         d.eval();
@@ -84,7 +86,7 @@ int main(int argc, char** argv)
         for (int p = 0; p < NR; p++) ra[p] = gi[p];
         rav = true;
     }
-    printf("tb_iqpl2: %ld reads checked (%ld in the cycle their entry was written again), %ld cycles with a gap in the slots, %ld mismatches: %s\n",
-           checks, same, gaps, bad, bad ? "FAIL" : "PASS");
+    printf("tb_iqpl2: %ld reads checked (%ld in the cycle their entry was written again), %ld cycles with a gap in the slots, %ld with slots and none going, %ld mismatches: %s\n",
+           checks, same, gaps, nogo, bad, bad ? "FAIL" : "PASS");
     return bad ? 1 : 0;
 }

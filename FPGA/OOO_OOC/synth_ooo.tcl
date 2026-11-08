@@ -19,7 +19,7 @@
 #
 # Outputs in ./output/<top>[_<generics>]/ : utilization_synth.rpt /
 # utilization.rpt, timing_summary.rpt, timing_reg2reg.rpt, summary.txt
-# (OOC_FE also timing_d1.rpt; OOO_CPU timing_paths.rpt)
+# (OOC_FE also timing_d1.rpt; OOO_CPU timing_paths.rpt and timing_blocks.rpt)
 # (the numbers in one place; for a harness of several blocks, the rows of
 # their instances too). Plan/OOC.md says what each run is for.
 #
@@ -116,6 +116,9 @@ set outs [get_ports -quiet -filter {DIRECTION == OUT}]
 if {[llength $ins]}  { set_input_delay  -clock clk $io_dly $ins }
 if {[llength $outs]} { set_output_delay -clock clk $io_dly $outs }
 # OOO_IQ's ns_ok comes from a flip-flop of OOO_CTRL (Plan/OOC.md 19.4): early in the cycle
+# OOO_CPU: F2 starts from registers (Plan/OOC.md 29.9): the I$ of step 1.7 gives its answer from flip-flops (data and way
+# settled in F1), so the port's delay is a register's and a route's, not the 6 ns of the rest (Plan/OOC.md 29.41)
+if {$top eq "OOO_CPU" && [llength [get_ports -quiet ic_resp_*]]} { set_input_delay -clock clk 1.5 [get_ports ic_resp_*] }
 if {$top eq "OOO_IQ" && [llength [get_ports -quiet ns_ok]]} { set_input_delay -clock clk 1.0 [get_ports ns_ok] }
 # ... and mdu_ok / p0_hold from flip-flops of OOO_MDUP (Plan/OOC.md 23)
 if {$top eq "OOO_IQ" && [llength [get_ports -quiet mdu_ok]]} { set_input_delay -clock clk 1.0 [get_ports {mdu_ok p0_hold}] }
@@ -283,6 +286,8 @@ if {$impl} {
         # by block (Plan/OOC.md 27.3: the 100 worst all began at one register): the worst path into and out of
         # the flip-flops of each instance, so that the classes behind the worst one show
         puts $fh "the worst path into / out of each block's flip-flops:"
+        # (the failing ones in full in timing_blocks.rpt: Plan/OOC.md 29.41, the 100 worst all in two classes)
+        file delete -force $outdir/timing_blocks.rpt
         set insts [concat [get_cells -quiet u_core/u_*] [get_cells -quiet u_core/g_alu*] [get_cells -quiet u_core/u_front/u_*] \
                           [get_cells -quiet u_dc] [get_cells -quiet u_dcad]]
         foreach inst $insts {
@@ -294,6 +299,11 @@ if {$impl} {
             puts $fh [format "  %-24s in %7.3f ns (%2d levels, from %s)  out %7.3f ns (%2d levels, to %s)" $inst \
                           [get_property SLACK $pi] [get_property LOGIC_LEVELS $pi] [get_property STARTPOINT_PIN $pi] \
                           [get_property SLACK $po] [get_property LOGIC_LEVELS $po] [get_property ENDPOINT_PIN $po]]
+            foreach q [list $pi $po] {
+                if {[get_property SLACK $q] < 0} {
+                    report_timing -of_objects $q -path_type full -file $outdir/timing_blocks.rpt -append
+                }
+            }
         }
     }
 }

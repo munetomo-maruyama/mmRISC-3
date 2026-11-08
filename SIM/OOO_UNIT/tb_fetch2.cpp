@@ -251,7 +251,7 @@ int main(int argc, char** argv)
 
     // ---- the back end
     struct Blk { uint64_t pc, next; int end; bool taken; Bits m; int rptr; uint64_t rval; int ex = 0, tk = 0, pex = 0, ptk = 0; };
-    long nst = 0;
+    long nst = 0, nstop_ovr = 0;
     std::deque<Blk> fbuf, ftq;
     uint64_t tp = BASE;                        // the next true instruction
     bool cross_pend = false;
@@ -406,7 +406,16 @@ int main(int argc, char** argv)
                         ub_utk = hit_first;
                         ub_ucond = (pd.br >> end) & 1; ub_uret = (pd.ret >> end) & 1;
                                     }
-                } else { ndead++; if (!f.bek) novr_drop++; }
+                } else {
+                    ndead++; if (!f.bek) novr_drop++;
+                    // a live block in a cycle of a stop (not of a redirect) still overrides F0 when its next
+                    // differs (OOO_FETCH2 Plan/OOC.md 29.41: the stop is too late for the override); it trains
+                    // nothing, and the restore of the next cycle overrides it in turn. Its next is not checked
+                    if (stop && !redirect && f.live) {
+                        uint64_t expect_pc = fl.size() >= 2 ? fl[1].pc : m_pc;
+                        if ((uint64_t)d.out_next != expect_pc) { ovr = true; ub_utgt = d.out_next; nstop_ovr++; }
+                    }
+                }
                 fl.pop_front();
             }
         } else if (out) FAIL("a block without an answer");
@@ -513,8 +522,8 @@ int main(int argc, char** argv)
         s1_v = acc; s1_pc = req_pc; s1_miss = acc && rng() % 12 == 0;
         if (cyc - last_progress > 3000 && cyc > 3000) { FAIL("no progress"); break; }
     }
-    printf("tb_fetch2: %ld cycles, %ld instructions on the true path, %ld blocks, %ld overrides (%ld answers dropped by them, %ld by redirects), %ld mispredicted (branch %ld, return %ld, indirect %ld), %ld committed, %ld carried, %ld 4th branches, %ld starts, %ld mismatches: %s\n",
-           cyc, ninsn, nblk, novr, novr_drop, ndead - novr_drop, nmisp, nmisp_br, nmisp_ret, nmisp_ind, ncommit, ncarry, nslot3, nst, bad, bad ? "FAIL" : "PASS");
+    printf("tb_fetch2: %ld cycles, %ld instructions on the true path, %ld blocks, %ld overrides (%ld answers dropped by them, %ld by redirects), %ld mispredicted (branch %ld, return %ld, indirect %ld), %ld committed, %ld carried, %ld 4th branches, %ld starts, %ld overrides in a stop, %ld mismatches: %s\n",
+           cyc, ninsn, nblk, novr, novr_drop, ndead - novr_drop, nmisp, nmisp_br, nmisp_ret, nmisp_ind, ncommit, ncarry, nslot3, nst, nstop_ovr, bad, bad ? "FAIL" : "PASS");
     (void)nras_push; (void)nresp;
     return bad ? 1 : 0;
 }

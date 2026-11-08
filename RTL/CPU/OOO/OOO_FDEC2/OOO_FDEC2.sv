@@ -30,6 +30,14 @@
 // uBTB is trained as OOO_FETCH trains it, also when it guessed a taken transfer that F2
 // does not take (f2_ubt, f2_uoff: its guess for the block), so a conditional branch's
 // counter goes down; and the end parcel goes out (out_end) for the FTQ.
+//
+// At 20 ns in OOO_CPU (step 1.5, F3, Plan/OOC.md 29.41): f2_valid comes from registers and
+// f2_kill (fetch stopped in this cycle by the back end: late, from the ROB's head) only
+// enables what the block does (it goes out, moves the RAS, trains the uBTB, keeps a first
+// half); an override in a stopped cycle is overridden by the restore of the next. The
+// boundaries are found by groups of 4 parcels, each for both ways of entering it, then
+// chosen group by group (in place of a chain of 16); a slot is up to the end when no
+// transfer before it is predicted taken (a prefix OR, in place of first - 1).
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -45,6 +53,7 @@ module OOO_FDEC2
 
         // ---- F2: from F1's registers
         input  logic                f2_valid,
+        input  logic                f2_kill,    // fetch stopped now (late): the block does nothing
         input  logic [VA-1:5]       f2_line,
         input  logic [3:0]          f2_start,
         input  logic                f2_seq,     // it follows the block before, at parcel 0
@@ -102,17 +111,33 @@ module OOO_FDEC2
     logic [15:0] p [16];
     logic [15:0] l32, st, hi;
     assign c_use = c_v && f2_seq;
+    logic [15:0] ge;                         // at or after the fetch address
+    logic [3:0]  g_in;                       // a group's first parcel is a second half
+    logic [3:0][1:0][3:0] g_hi, g_st;        // each group's, for both ways in
+    logic [3:0][1:0]      g_out;             // ... and whether the next group's first is a second half
     always @(*) begin
         for (int k = 0; k < 16; k++) begin
             p[k]   = f2_data[16*k +: 16];
             l32[k] = p[k][1:0] == 2'b11;
+            ge[k]  = 4'(k) >= f2_start;
         end
-        hi[0] = c_use;
-        st[0] = f2_start == 4'd0 && !c_use;
-        for (int k = 1; k < 16; k++) begin
-            hi[k] = st[k-1] && l32[k-1];
-            st[k] = 4'(k) >= f2_start && !hi[k];
-        end
+        for (int g = 0; g < 4; g++)
+            for (int x = 0; x < 2; x++) begin
+                g_hi[g][x][0] = x[0];
+                g_st[g][x][0] = ge[4*g] && !x[0];
+                for (int i = 1; i < 4; i++) begin
+                    g_hi[g][x][i] = g_st[g][x][i-1] && l32[4*g+i-1];
+                    g_st[g][x][i] = ge[4*g+i] && !g_hi[g][x][i];
+                end
+                g_out[g][x] = g_st[g][x][3] && l32[4*g+3];
+            end
+        g_in[0] = c_use;
+        for (int g = 1; g < 4; g++) g_in[g] = g_in[g-1] ? g_out[g-1][1] : g_out[g-1][0];
+        for (int g = 0; g < 4; g++)
+            for (int i = 0; i < 4; i++) begin
+                hi[4*g+i] = g_in[g] ? g_hi[g][1][i] : g_hi[g][0][i];
+                st[4*g+i] = g_in[g] ? g_st[g][1][i] : g_st[g][0][i];
+            end
     end
 
     // ---- F2: per end parcel, the instruction and its target
@@ -208,7 +233,7 @@ module OOO_FDEC2
         for (int e = 0; e < 16; e++)
             if (first[e]) nxt = nxt | ((br[e] || jal[e]) ? tgt[e] : ret[e] ? top : f2_btgt);
     end
-    assign out_valid = f2_valid;
+    assign out_valid = f2_valid && !f2_kill;
     assign out_st    = st;
     assign out_first = first;
     assign out_cross = strad;
@@ -218,8 +243,10 @@ module OOO_FDEC2
     // the slots, and what goes into the history: the slots up to the end (a prefix, so the
     // last one in says how many)
     logic [2:0] sl_in;
+    logic [15:0] tkb;                        // a transfer before this parcel is predicted taken
     always @(*) begin
-        automatic logic [15:0] upto = first - 16'(first != 16'd0);       // the parcels before the end
+        tkb[0] = 1'b0;
+        for (int e = 1; e < 16; e++) tkb[e] = tkb[e-1] || tk[e-1];
         sl_v = '0; sl_par = '0; sl_pred = '0; sl_in = '0;
         for (int e = 0; e < 16; e++) begin
             for (int s = 0; s < 3; s++) begin
@@ -227,7 +254,7 @@ module OOO_FDEC2
                     sl_v[s]    = 1'b1;
                     sl_par[s]  = sl_par[s] | 4'(e);
                     sl_pred[s] = sl_pred[s] | tk[e];
-                    sl_in[s]   = sl_in[s] | (first == 16'd0 || upto[e] || first[e]);
+                    sl_in[s]   = sl_in[s] | !tkb[e];
                 end
             end
         end
@@ -238,15 +265,15 @@ module OOO_FDEC2
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n)        c_v <= 1'b0;
         else if (flush)    c_v <= 1'b0;
-        else if (f2_valid) c_v <= strad && !taken;
+        else if (f2_valid && !f2_kill) c_v <= strad && !taken;
     end
     always_ff @(posedge clk) if (f2_valid) c_p <= p[15];
 
     logic          push, pop;
     logic [VA-1:1] paddr;
     always @(*) begin
-        push = f2_valid && !flush && (first & call) != 16'd0;
-        pop  = f2_valid && !flush && (first & ret) != 16'd0;
+        push = f2_valid && !f2_kill && !flush && (first & call) != 16'd0;
+        pop  = f2_valid && !f2_kill && !flush && (first & ret) != 16'd0;
         paddr = '0;
         for (int e = 0; e < 16; e++)
             if (first[e]) paddr = paddr | (e == 15 ? {line_p1, 4'd0} : {f2_line, 4'(e + 1)});
@@ -269,7 +296,7 @@ module OOO_FDEC2
     assign out_end = eo;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) ub_valid <= 1'b0;
-        else        ub_valid <= ovr && (hit_first || f2_ubt);
+        else        ub_valid <= ovr && (hit_first || f2_ubt) && !f2_kill;
     end
     always_ff @(posedge clk) begin
         ub_pc    <= {f2_line, hit_first ? eo : f2_uoff};

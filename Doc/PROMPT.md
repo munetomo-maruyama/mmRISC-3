@@ -8469,3 +8469,47 @@ The record is section 29.39 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 Yes, start F2
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**F2 (TAGE M) is done.** I recorded it and pushed (a9e7900; 0 Ref on origin/dev). With this, all of F's pieces are in, except the check at 20 ns (F3).
+
+#### Cycles (CoreMark, no misses)
+| | F1b | F2 | RTL change | Model change |
+|---|---|---|---|---|
+| g14-o2 | 1,332,422 | **1,311,645** | **−1.6 %** | −1.5 % |
+| g14-sflto | 1,228,690 | 1,219,046 | −0.8 % | −0.4 % |
+| g13-o2-zb | 1,386,541 | 1,370,745 | −1.1 % | −1.3 % |
+
+- **From E in all:** g14-o2 goes from 1,537,367 to 1,311,645, **−14.7 %** (the model −16.5 %). On `OOO_CPU` it is about 7.6 CoreMark/MHz without misses.
+- **Gap from the model:** the RTL stays about 10.7 % above the model (8.4 % at E). I will look at it by function after F3.
+
+#### What changed
+- **`OOO_TAGE2`:** TAGE M's sizes behind a parameter; it can go back to S.
+  - 6 tagged tables (2,048 rows each), histories 4 to 200, tags 9 to 11 bits.
+  - The metadata grows from 290 to 531 bits.
+- **The FTQ and the restore path:** widened to match. The history used for the restore is 202 bits.
+- **Checked in the model first.** M pays per 32-byte block too: g14-o2's conditional branch mispredictions go from 4,822 to 3,563.
+
+#### Checks
+- **Mispredictions (tb_front):** g14-o2 5,345 → 4,041, g14-sflto 5,712 → 4,665. Below 16 bytes with S (5,614, 4,765), and the 20 % gap left at F1b is gone.
+- **Tests:** 12 regression runs, CoreMark, 5 tb_front runs and the unit benches all PASS.
+- **Bug injection:** the units 28 and the front end 52, all detected (including the 9 new ones). The core's files did not change, so the core's campaign was not run again.
+- **Lint:** no new warnings with `verilator -Wall`.
+
+#### Next (F3): `OOO_CPU` at 20 ns
+Please run `synth_ooo.bat OOO_CPU`. The new paths in this run are these 4:
+- F2 to F0. The target's form now waits for the instruction boundaries, so this may have grown. If it misses, there is a fallback: compute both forms and choose by the boundaries (about 800 LUTs).
+- The slots going back to TAGE's history in the same cycle
+- The FTQ, now 573 bits
+- TAGE M's index made from a history of 200 bits
+
+The record is section 29.40 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also written in STRATEGY row 1.5.
+<!-- /answer -->
+
+## 208. 2026-11-08 19:14:31 JST
+
+```text
+OOO_CPU run finished.
+```

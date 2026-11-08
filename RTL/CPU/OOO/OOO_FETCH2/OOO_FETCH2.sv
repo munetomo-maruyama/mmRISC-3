@@ -127,9 +127,9 @@ module OOO_FETCH2
     assign expect_pc = (qn >= 3'd2) ? qpc[qh + 2'd1] : pc_q;
 
     // ---- F2
-    logic          f2;                  // a block to use in this cycle
-    logic [VA-1:1] hpc;                 // the oldest request's address, in a register of its own
-    assign f2 = ic_resp_valid && qlive[qh] && !stop;
+    logic          f2;                  // a block to use in this cycle, unless fetch is stopped now (stop:
+    logic [VA-1:1] hpc;                 // late, so it only enables what the block does: Plan/OOC.md 29.41)
+    assign f2 = ic_resp_valid && qlive[qh];
 
     logic [2:0]       hv, pp;
     logic [15:0]      base;
@@ -143,7 +143,7 @@ module OOO_FETCH2
 
     OOO_FDEC2 #(.VA(VA)) u_fdec
         (.clk(clk), .rst_n(rst_n), .flush(be_redirect),
-         .f2_valid(f2), .f2_line(hpc[VA-1:5]), .f2_start(hpc[4:1]), .f2_seq(hpc[4:1] == 4'd0),
+         .f2_valid(f2), .f2_kill(stop), .f2_line(hpc[VA-1:5]), .f2_start(hpc[4:1]), .f2_seq(hpc[4:1] == 4'd0),
          .f2_data(ic_resp_data), .f2_expect(expect_pc),
          .f2_hv(hv), .f2_pp(pp), .f2_base(base),
          .f2_bh(b_hit), .f2_boff(b_off), .f2_btgt(b_tgt),
@@ -162,7 +162,7 @@ module OOO_FETCH2
          .f0_valid(acc), .f0_pc(pc_q), .f0_live((nlive >= 3'd2) ? 2'd2 : nlive[1:0]),
          .f2_hv(hv), .f2_pp(pp), .f2_base(base),
          .f2_sv(sl_v), .f2_par(sl_par), .f2_pred(sl_pred),
-         .f2_push(f2), .f2_n(sl_n), .f2_meta(tmeta),
+         .f2_push(f2), .f2_n(sl_n), .f2_meta(tmeta),      // (a stopped block's push: the restore of the next cycle wins)
          .rs_valid(be_redirect), .rs_hist(be_hist), .rs_n(be_hist_n), .rs_bits(be_hist_bits),
          .up_valid(up_valid), .up_meta(up_meta), .up_ex(up_ex), .up_tk(up_tk),
          .up_pex(up_pex), .up_ptk(up_ptk));

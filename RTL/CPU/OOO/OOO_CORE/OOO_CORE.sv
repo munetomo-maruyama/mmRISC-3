@@ -631,7 +631,7 @@ module OOO_CORE
 
     // the issue queue and its payload (an exception at decode is never issued)
     /* verilator lint_off UNUSEDSIGNAL */      // (port NAP, the LSU's: not in B2)
-    logic [ND-1:0]             iq_disp;
+    logic [ND-1:0]             iq_disp, iq_cand;
     logic [NAP+1:0]            iss_valid, iss_wr;
     logic [NAP+1:0][IQW-1:0]   iss_entry;
     logic [NAP+1:0][1:0][TAGW-1:0] iss_src;
@@ -643,6 +643,7 @@ module OOO_CORE
     logic                      iss_md, mdu_ok, p0_hold, md_ext_v;
     logic [TAGW-1:0]           md_ext_t;
     assign iq_disp = d_go & ~dv_exc;
+    assign iq_cand = ds_valid & ~dv_exc;              // (iq_disp is these or none: the banks need not wait for the go)
     // OOO_IQ2: ALU ports 0..3, LSU0 (port 4) and LSU1 (port 5, step 1.3 E1)
     logic [2:0]                q_ready;
     logic [3:0][IQW-1:0]       q_entry;
@@ -653,7 +654,7 @@ module OOO_CORE
     logic [5:0][NCKPT-1:0]     q_bm;
     OOO_IQ2 #(.N(NIQ), .TAGW(TAGW), .NEXT(2), .NCK(NCKPT), .NA(NAP), .P5(1'b1)) u_iq
         (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .ns_ok(ns_ok), .mdu_ok(mdu_ok),
-         .p0_hold(p0_hold), .disp_ready(q_ready), .disp_entry(q_entry), .disp_valid(iq_disp),
+         .p0_hold(p0_hold), .disp_ready(q_ready), .disp_entry(q_entry), .disp_valid(iq_disp), .disp_cand(iq_cand),
          .disp_port(dv_port), .disp_use(ds_use), .disp_src(ds_src), .disp_rdy(ds_rdy),
          .disp_wr(dv_iqwr), .disp_dst(dv_dst), .disp_lat2(dv_lat2), .disp_bm(d_bmask), .disp_ns(dv_ns),
          .disp_md(dv_md), .disp_st(dv_st),
@@ -685,7 +686,7 @@ module OOO_CORE
         end
     end
     OOO_IQPL2 #(.N(NIQ), .NBANK(4), .W($bits(rec_t)), .NR(NAP + 2)) u_iqpl
-        (.clk(clk), .wr_valid(iq_disp), .wr_entry(disp_entry), .wr_data(wrec),
+        (.clk(clk), .wr_valid(iq_disp), .wr_cand(iq_cand), .wr_entry(disp_entry), .wr_data(wrec),
          .iss_entry(iss_entry), .rr_data(rr_rec));
     /* verilator lint_on PINCONNECTEMPTY */
 

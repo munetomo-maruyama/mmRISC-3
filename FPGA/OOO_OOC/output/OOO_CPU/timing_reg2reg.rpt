@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 -----------------------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Sun Nov  8 13:48:58 2026
+| Date         : Sun Nov  8 18:58:32 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_timing -max_paths 10 -nworst 1 -path_type full -from [all_registers] -to [all_registers] -file ./output/OOO_CPU/timing_reg2reg.rpt
 | Design       : OOO_CPU
@@ -12,16 +12,16 @@ Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanc
 
 Timing Report
 
-Slack (MET) :             0.210ns  (required time - arrival time)
-  Source:                 u_core/g_alu[3].u_wb/out_data_reg[65]/C
-                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            u_core/u_prf/g_bank[0].g_two.lo_reg_r7_0_63_63_63/DP/I
-                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+Slack (VIOLATED) :        -2.226ns  (required time - arrival time)
+  Source:                 u_core/u_rob/head_reg[1]_rep/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_core/u_front/u_fetch/u_ubtb/pc_q_reg[8]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Setup (Max at Slow Process Corner)
   Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
-  Data Path Delay:        18.981ns  (logic 3.780ns (19.914%)  route 15.201ns (80.085%))
-  Logic Levels:           17  (CARRY4=3 LUT3=1 LUT4=2 LUT5=3 LUT6=8)
+  Data Path Delay:        21.956ns  (logic 4.127ns (18.796%)  route 17.829ns (81.204%))
+  Logic Levels:           25  (LUT2=1 LUT3=5 LUT4=2 LUT5=2 LUT6=13 MUXF7=2)
   Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
     Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
     Source Clock Delay      (SCD):    0.973ns
@@ -37,47 +37,60 @@ Slack (MET) :             0.210ns  (required time - arrival time)
                          (clock clk rise edge)        0.000     0.000 r  
                          propagated clock network latency
                                                       0.973     0.973    
-    SLICE_X65Y126        FDRE                         0.000     0.973 r  u_core/g_alu[3].u_wb/out_data_reg[65]/C
-    SLICE_X65Y126        FDRE (Prop_fdre_C_Q)         0.456     1.429 r  u_core/g_alu[3].u_wb/out_data_reg[65]/Q
-                         net (fo=11, routed)          1.345     2.774    u_core/g_alu[3].u_wb/wb_d[3]_52[65]
-    SLICE_X78Y126        LUT6 (Prop_lut6_I5_O)        0.124     2.898 r  u_core/g_alu[3].u_wb/p_hl0_i_115/O
-                         net (fo=1, routed)           1.311     4.209    u_core/g_alu[3].u_wb/p_hl0_i_115_n_0
-    SLICE_X95Y127        LUT5 (Prop_lut5_I0_O)        0.124     4.333 r  u_core/g_alu[3].u_wb/p_hl0_i_101/O
-                         net (fo=65, routed)          1.151     5.484    u_core/g_alu[3].u_wb/p_hl0_i_101_n_0
-    SLICE_X109Y130       LUT3 (Prop_lut3_I0_O)        0.124     5.608 r  u_core/g_alu[3].u_wb/p_hl0_i_33/O
-                         net (fo=64, routed)          1.580     7.188    u_core/g_alu[3].u_wb/p_hl0_i_33_n_0
-    SLICE_X107Y126       LUT5 (Prop_lut5_I0_O)        0.124     7.312 r  u_core/g_alu[3].u_wb/p_hl0_i_8/O
-                         net (fo=13, routed)          1.612     8.923    u_core/g_alu[0].u_ex/pp_hh0__0_4
-    SLICE_X115Y152       LUT4 (Prop_lut4_I2_O)        0.150     9.073 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_88/O
-                         net (fo=16, routed)          0.873     9.947    u_core/g_alu[0].u_ex/g_alu[0].u_alu/a1[56]
-    SLICE_X118Y155       LUT4 (Prop_lut4_I2_O)        0.320    10.267 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105/O
-                         net (fo=1, routed)           0.441    10.707    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105_n_0
-    SLICE_X118Y155       LUT6 (Prop_lut6_I5_O)        0.326    11.033 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_98/O
-                         net (fo=2, routed)           0.522    11.555    u_core_n_352
-    SLICE_X116Y155       CARRY4 (Prop_carry4_DI[0]_CO[3])
-                                                      0.550    12.105 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85/CO[3]
-                         net (fo=1, routed)           0.000    12.105    g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85_n_0
-    SLICE_X116Y156       CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.117    12.222 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_30/CO[3]
-                         net (fo=1, routed)           0.000    12.222    u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193[0]
-    SLICE_X116Y157       CARRY4 (Prop_carry4_CI_CO[0])
-                                                      0.254    12.476 r  u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_196/CO[0]
-                         net (fo=4, routed)           0.376    12.851    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_6_8_i_70_0[0]
-    SLICE_X117Y157       LUT5 (Prop_lut5_I4_O)        0.367    13.218 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193/O
-                         net (fo=4, routed)           0.621    13.840    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193_n_0
-    SLICE_X118Y153       LUT6 (Prop_lut6_I1_O)        0.124    13.964 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198/O
-                         net (fo=1, routed)           0.398    14.362    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198_n_0
-    SLICE_X117Y153       LUT6 (Prop_lut6_I5_O)        0.124    14.486 f  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95/O
-                         net (fo=64, routed)          0.727    15.213    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95_n_0
-    SLICE_X114Y151       LUT6 (Prop_lut6_I5_O)        0.124    15.337 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_27/O
-                         net (fo=1, routed)           0.299    15.637    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_27_n_0
-    SLICE_X114Y150       LUT6 (Prop_lut6_I2_O)        0.124    15.761 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_9/O
-                         net (fo=33, routed)          0.898    16.658    u_core/g_alu[0].u_ex/ex_res[0]_164[31]
-    SLICE_X111Y151       LUT6 (Prop_lut6_I0_O)        0.124    16.782 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_4/O
-                         net (fo=1, routed)           1.657    18.439    u_core/g_alu[0].u_ex/ex_res[0]_164[63]
-    SLICE_X73Y153        LUT6 (Prop_lut6_I5_O)        0.124    18.563 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_1/O
-                         net (fo=34, routed)          1.391    19.954    u_core/u_prf/g_bank[0].g_two.lo_reg_r7_0_63_63_63/D
-    SLICE_X52Y162        RAMD64E                                      r  u_core/u_prf/g_bank[0].g_two.lo_reg_r7_0_63_63_63/DP/I
+    SLICE_X46Y55         FDCE                         0.000     0.973 r  u_core/u_rob/head_reg[1]_rep/C
+    SLICE_X46Y55         FDCE (Prop_fdce_C_Q)         0.518     1.491 r  u_core/u_rob/head_reg[1]_rep/Q
+                         net (fo=117, routed)         0.603     2.094    u_core/u_rob/head_reg[1]_rep_0
+    SLICE_X46Y55         LUT3 (Prop_lut3_I2_O)        0.124     2.218 r  u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4/O
+                         net (fo=302, routed)         0.539     2.756    u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4_n_0
+    SLICE_X46Y53         LUT3 (Prop_lut3_I2_O)        0.124     2.880 r  u_core/u_rob/g_bank[0].mem_reg_r3_0_15_0_5_i_4/O
+                         net (fo=315, routed)         0.787     3.667    u_core/u_rob/rw1_return[0]
+    SLICE_X46Y52         MUXF7 (Prop_muxf7_S_O)       0.292     3.959 f  u_core/u_rob/head_reg[3]_i_72/O
+                         net (fo=1, routed)           0.538     4.498    u_core/u_rob/head_reg[3]_i_72_n_0
+    SLICE_X49Y53         LUT3 (Prop_lut3_I2_O)        0.297     4.795 f  u_core/u_rob/head[3]_i_37/O
+                         net (fo=1, routed)           0.834     5.629    u_core/u_rob/head[3]_i_37_n_0
+    SLICE_X51Y53         LUT5 (Prop_lut5_I2_O)        0.124     5.753 f  u_core/u_rob/head[3]_i_18/O
+                         net (fo=4, routed)           1.015     6.768    u_core/u_rob/head[3]_i_18_n_0
+    SLICE_X54Y50         LUT5 (Prop_lut5_I4_O)        0.124     6.892 f  u_core/u_rob/tail[5]_i_5/O
+                         net (fo=1, routed)           0.811     7.703    u_core/u_rob/tail[5]_i_5_n_0
+    SLICE_X58Y50         LUT6 (Prop_lut6_I1_O)        0.124     7.827 f  u_core/u_rob/tail[5]_i_3/O
+                         net (fo=85, routed)          1.088     8.915    u_core/u_rob/tail[5]_i_3_n_0
+    SLICE_X65Y50         LUT4 (Prop_lut4_I3_O)        0.124     9.039 r  u_core/u_rob/ic_req_valid_INST_0_i_28/O
+                         net (fo=19, routed)          1.067    10.106    u_core/u_rob/ic_req_valid_INST_0_i_28_n_0
+    SLICE_X82Y50         LUT3 (Prop_lut3_I2_O)        0.124    10.230 f  u_core/u_rob/ic_req_valid_INST_0_i_19/O
+                         net (fo=95, routed)          1.786    12.016    u_core/u_rob/restore
+    SLICE_X115Y46        LUT3 (Prop_lut3_I1_O)        0.124    12.140 f  u_core/u_rob/ic_req_valid_INST_0_i_5/O
+                         net (fo=44, routed)          0.775    12.915    u_core/u_front/u_fers/fe_redirect0
+    SLICE_X124Y38        LUT4 (Prop_lut4_I1_O)        0.124    13.039 r  u_core/u_front/u_fers/c_p[15]_i_1__0/O
+                         net (fo=241, routed)         0.959    13.998    u_core/u_front/u_fers/out_valid
+    SLICE_X124Y25        LUT2 (Prop_lut2_I0_O)        0.124    14.122 r  u_core/u_front/u_fers/ub_valid_i_344/O
+                         net (fo=1, routed)           0.493    14.616    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_1
+    SLICE_X124Y25        LUT6 (Prop_lut6_I0_O)        0.124    14.740 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_327/O
+                         net (fo=1, routed)           0.487    15.226    u_core/u_front/u_fetch/u_fdec/ub_valid_i_327_n_0
+    SLICE_X123Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.350 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_309/O
+                         net (fo=1, routed)           0.488    15.838    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_n_0
+    SLICE_X122Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.962 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_291/O
+                         net (fo=1, routed)           0.420    16.382    u_core/u_front/u_fetch/u_fdec/ub_valid_i_291_n_0
+    SLICE_X122Y26        LUT6 (Prop_lut6_I5_O)        0.124    16.506 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_265/O
+                         net (fo=1, routed)           0.436    16.942    u_core/u_front/u_fetch/u_fdec/ub_valid_i_265_n_0
+    SLICE_X120Y27        LUT6 (Prop_lut6_I5_O)        0.124    17.066 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_224/O
+                         net (fo=1, routed)           0.590    17.656    u_core/u_front/u_fetch/u_fdec/ub_valid_i_224_n_0
+    SLICE_X120Y28        LUT6 (Prop_lut6_I5_O)        0.124    17.780 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_178/O
+                         net (fo=1, routed)           0.441    18.221    u_core/u_front/u_fetch/u_fdec/ub_valid_i_178_n_0
+    SLICE_X123Y30        LUT6 (Prop_lut6_I5_O)        0.124    18.345 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_132/O
+                         net (fo=1, routed)           0.296    18.641    u_core/u_front/u_fetch/u_fdec/ub_valid_i_132_n_0
+    SLICE_X123Y31        LUT6 (Prop_lut6_I5_O)        0.124    18.765 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_89/O
+                         net (fo=1, routed)           0.445    19.209    u_core/u_front/u_fetch/u_fdec/ub_valid_i_89_n_0
+    SLICE_X125Y31        LUT6 (Prop_lut6_I5_O)        0.124    19.333 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_48/O
+                         net (fo=1, routed)           0.404    19.737    u_core/u_front/u_fetch/u_fdec/ub_valid_i_48_n_0
+    SLICE_X125Y30        LUT6 (Prop_lut6_I3_O)        0.124    19.861 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_19/O
+                         net (fo=1, routed)           0.577    20.438    u_core/u_front/u_fetch/u_fdec/ub_valid_i_19_n_0
+    SLICE_X129Y30        LUT6 (Prop_lut6_I5_O)        0.124    20.562 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_7/O
+                         net (fo=3, routed)           0.474    21.036    u_core/u_front/u_fetch/u_fdec/ub_valid_i_7_n_0
+    SLICE_X134Y31        LUT6 (Prop_lut6_I4_O)        0.124    21.160 r  u_core/u_front/u_fetch/u_fdec/pc_q[38]_i_3_comp/O
+                         net (fo=38, routed)          1.105    22.265    u_core/u_front/u_fetch/u_fdec/u_ras/ovr
+    SLICE_X128Y36        MUXF7 (Prop_muxf7_S_O)       0.292    22.557 r  u_core/u_front/u_fetch/u_fdec/u_ras/pc_q_reg[8]_i_1/O
+                         net (fo=4, routed)           0.372    22.929    u_core/u_front/u_fetch/u_ubtb/pc_q_reg[38]_0[7]
+    SLICE_X124Y36        FDCE                                         r  u_core/u_front/u_fetch/u_ubtb/pc_q_reg[8]/D
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)       20.000    20.000 r  
@@ -85,24 +98,23 @@ Slack (MET) :             0.210ns  (required time - arrival time)
                                                       0.924    20.924    
                          clock pessimism              0.000    20.924    
                          clock uncertainty           -0.035    20.889    
-    SLICE_X52Y162        RAMD64E (Setup_ramd64e_CLK_I)
-                                                     -0.725    20.164    u_core/u_prf/g_bank[0].g_two.lo_reg_r7_0_63_63_63/DP
+    SLICE_X124Y36        FDCE (Setup_fdce_C_D)       -0.186    20.703    u_core/u_front/u_fetch/u_ubtb/pc_q_reg[8]
   -------------------------------------------------------------------
-                         required time                         20.164    
-                         arrival time                         -19.954    
+                         required time                         20.703    
+                         arrival time                         -22.929    
   -------------------------------------------------------------------
-                         slack                                  0.210    
+                         slack                                 -2.226    
 
-Slack (MET) :             0.338ns  (required time - arrival time)
-  Source:                 u_core/g_alu[3].u_wb/out_data_reg[65]/C
-                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            u_core/u_prf/g_bank[0].g_two.lo_reg_r9_0_63_57_59/RAMB/I
-                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+Slack (VIOLATED) :        -2.226ns  (required time - arrival time)
+  Source:                 u_core/u_rob/head_reg[1]_rep/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_core/u_front/u_fetch/u_ubtb/pi_q_reg[3]_rep__0/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Setup (Max at Slow Process Corner)
   Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
-  Data Path Delay:        19.243ns  (logic 3.780ns (19.643%)  route 15.463ns (80.357%))
-  Logic Levels:           17  (CARRY4=3 LUT3=1 LUT4=2 LUT5=5 LUT6=6)
+  Data Path Delay:        21.956ns  (logic 4.127ns (18.796%)  route 17.829ns (81.204%))
+  Logic Levels:           25  (LUT2=1 LUT3=5 LUT4=2 LUT5=2 LUT6=13 MUXF7=2)
   Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
     Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
     Source Clock Delay      (SCD):    0.973ns
@@ -118,47 +130,60 @@ Slack (MET) :             0.338ns  (required time - arrival time)
                          (clock clk rise edge)        0.000     0.000 r  
                          propagated clock network latency
                                                       0.973     0.973    
-    SLICE_X65Y126        FDRE                         0.000     0.973 r  u_core/g_alu[3].u_wb/out_data_reg[65]/C
-    SLICE_X65Y126        FDRE (Prop_fdre_C_Q)         0.456     1.429 r  u_core/g_alu[3].u_wb/out_data_reg[65]/Q
-                         net (fo=11, routed)          1.345     2.774    u_core/g_alu[3].u_wb/wb_d[3]_52[65]
-    SLICE_X78Y126        LUT6 (Prop_lut6_I5_O)        0.124     2.898 r  u_core/g_alu[3].u_wb/p_hl0_i_115/O
-                         net (fo=1, routed)           1.311     4.209    u_core/g_alu[3].u_wb/p_hl0_i_115_n_0
-    SLICE_X95Y127        LUT5 (Prop_lut5_I0_O)        0.124     4.333 r  u_core/g_alu[3].u_wb/p_hl0_i_101/O
-                         net (fo=65, routed)          1.151     5.484    u_core/g_alu[3].u_wb/p_hl0_i_101_n_0
-    SLICE_X109Y130       LUT3 (Prop_lut3_I0_O)        0.124     5.608 r  u_core/g_alu[3].u_wb/p_hl0_i_33/O
-                         net (fo=64, routed)          1.580     7.188    u_core/g_alu[3].u_wb/p_hl0_i_33_n_0
-    SLICE_X107Y126       LUT5 (Prop_lut5_I0_O)        0.124     7.312 r  u_core/g_alu[3].u_wb/p_hl0_i_8/O
-                         net (fo=13, routed)          1.612     8.923    u_core/g_alu[0].u_ex/pp_hh0__0_4
-    SLICE_X115Y152       LUT4 (Prop_lut4_I2_O)        0.150     9.073 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_88/O
-                         net (fo=16, routed)          0.873     9.947    u_core/g_alu[0].u_ex/g_alu[0].u_alu/a1[56]
-    SLICE_X118Y155       LUT4 (Prop_lut4_I2_O)        0.320    10.267 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105/O
-                         net (fo=1, routed)           0.441    10.707    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105_n_0
-    SLICE_X118Y155       LUT6 (Prop_lut6_I5_O)        0.326    11.033 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_98/O
-                         net (fo=2, routed)           0.522    11.555    u_core_n_352
-    SLICE_X116Y155       CARRY4 (Prop_carry4_DI[0]_CO[3])
-                                                      0.550    12.105 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85/CO[3]
-                         net (fo=1, routed)           0.000    12.105    g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85_n_0
-    SLICE_X116Y156       CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.117    12.222 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_30/CO[3]
-                         net (fo=1, routed)           0.000    12.222    u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193[0]
-    SLICE_X116Y157       CARRY4 (Prop_carry4_CI_CO[0])
-                                                      0.254    12.476 r  u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_196/CO[0]
-                         net (fo=4, routed)           0.376    12.851    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_6_8_i_70_0[0]
-    SLICE_X117Y157       LUT5 (Prop_lut5_I4_O)        0.367    13.218 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193/O
-                         net (fo=4, routed)           0.621    13.840    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193_n_0
-    SLICE_X118Y153       LUT6 (Prop_lut6_I1_O)        0.124    13.964 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198/O
-                         net (fo=1, routed)           0.398    14.362    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198_n_0
-    SLICE_X117Y153       LUT6 (Prop_lut6_I5_O)        0.124    14.486 f  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95/O
-                         net (fo=64, routed)          0.615    15.101    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95_n_0
-    SLICE_X110Y154       LUT6 (Prop_lut6_I0_O)        0.124    15.225 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_41/O
-                         net (fo=1, routed)           0.446    15.672    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_41_n_0
-    SLICE_X110Y151       LUT5 (Prop_lut5_I2_O)        0.124    15.796 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_25/O
-                         net (fo=1, routed)           0.926    16.721    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_25_n_0
-    SLICE_X110Y147       LUT5 (Prop_lut5_I4_O)        0.124    16.845 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_9/O
-                         net (fo=1, routed)           1.358    18.203    u_core/g_alu[0].u_ex/ex_res[0]_164[58]
-    SLICE_X78Y146        LUT6 (Prop_lut6_I5_O)        0.124    18.327 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_2/O
-                         net (fo=23, routed)          1.889    20.216    u_core/u_prf/g_bank[0].g_two.lo_reg_r9_0_63_57_59/DIB
-    SLICE_X52Y161        RAMD64E                                      r  u_core/u_prf/g_bank[0].g_two.lo_reg_r9_0_63_57_59/RAMB/I
+    SLICE_X46Y55         FDCE                         0.000     0.973 r  u_core/u_rob/head_reg[1]_rep/C
+    SLICE_X46Y55         FDCE (Prop_fdce_C_Q)         0.518     1.491 r  u_core/u_rob/head_reg[1]_rep/Q
+                         net (fo=117, routed)         0.603     2.094    u_core/u_rob/head_reg[1]_rep_0
+    SLICE_X46Y55         LUT3 (Prop_lut3_I2_O)        0.124     2.218 r  u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4/O
+                         net (fo=302, routed)         0.539     2.756    u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4_n_0
+    SLICE_X46Y53         LUT3 (Prop_lut3_I2_O)        0.124     2.880 r  u_core/u_rob/g_bank[0].mem_reg_r3_0_15_0_5_i_4/O
+                         net (fo=315, routed)         0.787     3.667    u_core/u_rob/rw1_return[0]
+    SLICE_X46Y52         MUXF7 (Prop_muxf7_S_O)       0.292     3.959 f  u_core/u_rob/head_reg[3]_i_72/O
+                         net (fo=1, routed)           0.538     4.498    u_core/u_rob/head_reg[3]_i_72_n_0
+    SLICE_X49Y53         LUT3 (Prop_lut3_I2_O)        0.297     4.795 f  u_core/u_rob/head[3]_i_37/O
+                         net (fo=1, routed)           0.834     5.629    u_core/u_rob/head[3]_i_37_n_0
+    SLICE_X51Y53         LUT5 (Prop_lut5_I2_O)        0.124     5.753 f  u_core/u_rob/head[3]_i_18/O
+                         net (fo=4, routed)           1.015     6.768    u_core/u_rob/head[3]_i_18_n_0
+    SLICE_X54Y50         LUT5 (Prop_lut5_I4_O)        0.124     6.892 f  u_core/u_rob/tail[5]_i_5/O
+                         net (fo=1, routed)           0.811     7.703    u_core/u_rob/tail[5]_i_5_n_0
+    SLICE_X58Y50         LUT6 (Prop_lut6_I1_O)        0.124     7.827 f  u_core/u_rob/tail[5]_i_3/O
+                         net (fo=85, routed)          1.088     8.915    u_core/u_rob/tail[5]_i_3_n_0
+    SLICE_X65Y50         LUT4 (Prop_lut4_I3_O)        0.124     9.039 r  u_core/u_rob/ic_req_valid_INST_0_i_28/O
+                         net (fo=19, routed)          1.067    10.106    u_core/u_rob/ic_req_valid_INST_0_i_28_n_0
+    SLICE_X82Y50         LUT3 (Prop_lut3_I2_O)        0.124    10.230 f  u_core/u_rob/ic_req_valid_INST_0_i_19/O
+                         net (fo=95, routed)          1.786    12.016    u_core/u_rob/restore
+    SLICE_X115Y46        LUT3 (Prop_lut3_I1_O)        0.124    12.140 f  u_core/u_rob/ic_req_valid_INST_0_i_5/O
+                         net (fo=44, routed)          0.775    12.915    u_core/u_front/u_fers/fe_redirect0
+    SLICE_X124Y38        LUT4 (Prop_lut4_I1_O)        0.124    13.039 r  u_core/u_front/u_fers/c_p[15]_i_1__0/O
+                         net (fo=241, routed)         0.959    13.998    u_core/u_front/u_fers/out_valid
+    SLICE_X124Y25        LUT2 (Prop_lut2_I0_O)        0.124    14.122 r  u_core/u_front/u_fers/ub_valid_i_344/O
+                         net (fo=1, routed)           0.493    14.616    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_1
+    SLICE_X124Y25        LUT6 (Prop_lut6_I0_O)        0.124    14.740 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_327/O
+                         net (fo=1, routed)           0.487    15.226    u_core/u_front/u_fetch/u_fdec/ub_valid_i_327_n_0
+    SLICE_X123Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.350 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_309/O
+                         net (fo=1, routed)           0.488    15.838    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_n_0
+    SLICE_X122Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.962 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_291/O
+                         net (fo=1, routed)           0.420    16.382    u_core/u_front/u_fetch/u_fdec/ub_valid_i_291_n_0
+    SLICE_X122Y26        LUT6 (Prop_lut6_I5_O)        0.124    16.506 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_265/O
+                         net (fo=1, routed)           0.436    16.942    u_core/u_front/u_fetch/u_fdec/ub_valid_i_265_n_0
+    SLICE_X120Y27        LUT6 (Prop_lut6_I5_O)        0.124    17.066 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_224/O
+                         net (fo=1, routed)           0.590    17.656    u_core/u_front/u_fetch/u_fdec/ub_valid_i_224_n_0
+    SLICE_X120Y28        LUT6 (Prop_lut6_I5_O)        0.124    17.780 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_178/O
+                         net (fo=1, routed)           0.441    18.221    u_core/u_front/u_fetch/u_fdec/ub_valid_i_178_n_0
+    SLICE_X123Y30        LUT6 (Prop_lut6_I5_O)        0.124    18.345 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_132/O
+                         net (fo=1, routed)           0.296    18.641    u_core/u_front/u_fetch/u_fdec/ub_valid_i_132_n_0
+    SLICE_X123Y31        LUT6 (Prop_lut6_I5_O)        0.124    18.765 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_89/O
+                         net (fo=1, routed)           0.445    19.209    u_core/u_front/u_fetch/u_fdec/ub_valid_i_89_n_0
+    SLICE_X125Y31        LUT6 (Prop_lut6_I5_O)        0.124    19.333 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_48/O
+                         net (fo=1, routed)           0.404    19.737    u_core/u_front/u_fetch/u_fdec/ub_valid_i_48_n_0
+    SLICE_X125Y30        LUT6 (Prop_lut6_I3_O)        0.124    19.861 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_19/O
+                         net (fo=1, routed)           0.577    20.438    u_core/u_front/u_fetch/u_fdec/ub_valid_i_19_n_0
+    SLICE_X129Y30        LUT6 (Prop_lut6_I5_O)        0.124    20.562 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_7/O
+                         net (fo=3, routed)           0.474    21.036    u_core/u_front/u_fetch/u_fdec/ub_valid_i_7_n_0
+    SLICE_X134Y31        LUT6 (Prop_lut6_I4_O)        0.124    21.160 r  u_core/u_front/u_fetch/u_fdec/pc_q[38]_i_3_comp/O
+                         net (fo=38, routed)          1.105    22.265    u_core/u_front/u_fetch/u_fdec/u_ras/ovr
+    SLICE_X128Y36        MUXF7 (Prop_muxf7_S_O)       0.292    22.557 r  u_core/u_front/u_fetch/u_fdec/u_ras/pc_q_reg[8]_i_1/O
+                         net (fo=4, routed)           0.372    22.929    u_core/u_front/u_fetch/u_ubtb/pc_q_reg[38]_0[7]
+    SLICE_X124Y36        FDCE                                         r  u_core/u_front/u_fetch/u_ubtb/pi_q_reg[3]_rep__0/D
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)       20.000    20.000 r  
@@ -166,24 +191,23 @@ Slack (MET) :             0.338ns  (required time - arrival time)
                                                       0.924    20.924    
                          clock pessimism              0.000    20.924    
                          clock uncertainty           -0.035    20.889    
-    SLICE_X52Y161        RAMD64E (Setup_ramd64e_CLK_I)
-                                                     -0.335    20.554    u_core/u_prf/g_bank[0].g_two.lo_reg_r9_0_63_57_59/RAMB
+    SLICE_X124Y36        FDCE (Setup_fdce_C_D)       -0.186    20.703    u_core/u_front/u_fetch/u_ubtb/pi_q_reg[3]_rep__0
   -------------------------------------------------------------------
-                         required time                         20.554    
-                         arrival time                         -20.216    
+                         required time                         20.703    
+                         arrival time                         -22.929    
   -------------------------------------------------------------------
-                         slack                                  0.338    
+                         slack                                 -2.226    
 
-Slack (MET) :             0.393ns  (required time - arrival time)
-  Source:                 u_core/g_alu[3].u_wb/out_data_reg[65]/C
-                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            u_core/u_prf/g_bank[0].g_two.lo_reg_r6_0_63_60_62/RAMA/I
-                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+Slack (VIOLATED) :        -2.224ns  (required time - arrival time)
+  Source:                 u_core/u_rob/head_reg[1]_rep/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_core/u_front/u_fetch/u_ubtb/pi_q_reg[2]_rep__0/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Setup (Max at Slow Process Corner)
   Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
-  Data Path Delay:        19.196ns  (logic 3.780ns (19.691%)  route 15.416ns (80.309%))
-  Logic Levels:           17  (CARRY4=3 LUT3=1 LUT4=2 LUT5=4 LUT6=7)
+  Data Path Delay:        21.939ns  (logic 4.173ns (19.021%)  route 17.766ns (80.979%))
+  Logic Levels:           26  (LUT2=1 LUT3=5 LUT4=2 LUT5=4 LUT6=12 MUXF7=2)
   Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
     Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
     Source Clock Delay      (SCD):    0.973ns
@@ -199,47 +223,62 @@ Slack (MET) :             0.393ns  (required time - arrival time)
                          (clock clk rise edge)        0.000     0.000 r  
                          propagated clock network latency
                                                       0.973     0.973    
-    SLICE_X65Y126        FDRE                         0.000     0.973 r  u_core/g_alu[3].u_wb/out_data_reg[65]/C
-    SLICE_X65Y126        FDRE (Prop_fdre_C_Q)         0.456     1.429 r  u_core/g_alu[3].u_wb/out_data_reg[65]/Q
-                         net (fo=11, routed)          1.345     2.774    u_core/g_alu[3].u_wb/wb_d[3]_52[65]
-    SLICE_X78Y126        LUT6 (Prop_lut6_I5_O)        0.124     2.898 r  u_core/g_alu[3].u_wb/p_hl0_i_115/O
-                         net (fo=1, routed)           1.311     4.209    u_core/g_alu[3].u_wb/p_hl0_i_115_n_0
-    SLICE_X95Y127        LUT5 (Prop_lut5_I0_O)        0.124     4.333 r  u_core/g_alu[3].u_wb/p_hl0_i_101/O
-                         net (fo=65, routed)          1.151     5.484    u_core/g_alu[3].u_wb/p_hl0_i_101_n_0
-    SLICE_X109Y130       LUT3 (Prop_lut3_I0_O)        0.124     5.608 r  u_core/g_alu[3].u_wb/p_hl0_i_33/O
-                         net (fo=64, routed)          1.580     7.188    u_core/g_alu[3].u_wb/p_hl0_i_33_n_0
-    SLICE_X107Y126       LUT5 (Prop_lut5_I0_O)        0.124     7.312 r  u_core/g_alu[3].u_wb/p_hl0_i_8/O
-                         net (fo=13, routed)          1.612     8.923    u_core/g_alu[0].u_ex/pp_hh0__0_4
-    SLICE_X115Y152       LUT4 (Prop_lut4_I2_O)        0.150     9.073 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_88/O
-                         net (fo=16, routed)          0.873     9.947    u_core/g_alu[0].u_ex/g_alu[0].u_alu/a1[56]
-    SLICE_X118Y155       LUT4 (Prop_lut4_I2_O)        0.320    10.267 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105/O
-                         net (fo=1, routed)           0.441    10.707    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105_n_0
-    SLICE_X118Y155       LUT6 (Prop_lut6_I5_O)        0.326    11.033 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_98/O
-                         net (fo=2, routed)           0.522    11.555    u_core_n_352
-    SLICE_X116Y155       CARRY4 (Prop_carry4_DI[0]_CO[3])
-                                                      0.550    12.105 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85/CO[3]
-                         net (fo=1, routed)           0.000    12.105    g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85_n_0
-    SLICE_X116Y156       CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.117    12.222 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_30/CO[3]
-                         net (fo=1, routed)           0.000    12.222    u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193[0]
-    SLICE_X116Y157       CARRY4 (Prop_carry4_CI_CO[0])
-                                                      0.254    12.476 r  u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_196/CO[0]
-                         net (fo=4, routed)           0.376    12.851    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_6_8_i_70_0[0]
-    SLICE_X117Y157       LUT5 (Prop_lut5_I4_O)        0.367    13.218 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193/O
-                         net (fo=4, routed)           0.621    13.840    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193_n_0
-    SLICE_X118Y153       LUT6 (Prop_lut6_I1_O)        0.124    13.964 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198/O
-                         net (fo=1, routed)           0.398    14.362    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198_n_0
-    SLICE_X117Y153       LUT6 (Prop_lut6_I5_O)        0.124    14.486 f  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95/O
-                         net (fo=64, routed)          0.727    15.213    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95_n_0
-    SLICE_X114Y151       LUT6 (Prop_lut6_I5_O)        0.124    15.337 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_27/O
-                         net (fo=1, routed)           0.299    15.637    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_27_n_0
-    SLICE_X114Y150       LUT6 (Prop_lut6_I2_O)        0.124    15.761 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_9/O
-                         net (fo=33, routed)          1.128    16.888    u_core/g_alu[0].u_ex/ex_res[0]_164[31]
-    SLICE_X107Y152       LUT5 (Prop_lut5_I0_O)        0.124    17.012 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_60_62_i_6/O
-                         net (fo=1, routed)           1.637    18.649    u_core/g_alu[0].u_ex/ex_res[0]_164[60]
-    SLICE_X73Y152        LUT6 (Prop_lut6_I5_O)        0.124    18.773 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_60_62_i_1/O
-                         net (fo=23, routed)          1.396    20.169    u_core/u_prf/g_bank[0].g_two.lo_reg_r6_0_63_60_62/DIA
-    SLICE_X48Y162        RAMD64E                                      r  u_core/u_prf/g_bank[0].g_two.lo_reg_r6_0_63_60_62/RAMA/I
+    SLICE_X46Y55         FDCE                         0.000     0.973 r  u_core/u_rob/head_reg[1]_rep/C
+    SLICE_X46Y55         FDCE (Prop_fdce_C_Q)         0.518     1.491 r  u_core/u_rob/head_reg[1]_rep/Q
+                         net (fo=117, routed)         0.603     2.094    u_core/u_rob/head_reg[1]_rep_0
+    SLICE_X46Y55         LUT3 (Prop_lut3_I2_O)        0.124     2.218 r  u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4/O
+                         net (fo=302, routed)         0.539     2.756    u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4_n_0
+    SLICE_X46Y53         LUT3 (Prop_lut3_I2_O)        0.124     2.880 r  u_core/u_rob/g_bank[0].mem_reg_r3_0_15_0_5_i_4/O
+                         net (fo=315, routed)         0.787     3.667    u_core/u_rob/rw1_return[0]
+    SLICE_X46Y52         MUXF7 (Prop_muxf7_S_O)       0.292     3.959 f  u_core/u_rob/head_reg[3]_i_72/O
+                         net (fo=1, routed)           0.538     4.498    u_core/u_rob/head_reg[3]_i_72_n_0
+    SLICE_X49Y53         LUT3 (Prop_lut3_I2_O)        0.297     4.795 f  u_core/u_rob/head[3]_i_37/O
+                         net (fo=1, routed)           0.834     5.629    u_core/u_rob/head[3]_i_37_n_0
+    SLICE_X51Y53         LUT5 (Prop_lut5_I2_O)        0.124     5.753 f  u_core/u_rob/head[3]_i_18/O
+                         net (fo=4, routed)           1.015     6.768    u_core/u_rob/head[3]_i_18_n_0
+    SLICE_X54Y50         LUT5 (Prop_lut5_I4_O)        0.124     6.892 f  u_core/u_rob/tail[5]_i_5/O
+                         net (fo=1, routed)           0.811     7.703    u_core/u_rob/tail[5]_i_5_n_0
+    SLICE_X58Y50         LUT6 (Prop_lut6_I1_O)        0.124     7.827 f  u_core/u_rob/tail[5]_i_3/O
+                         net (fo=85, routed)          1.088     8.915    u_core/u_rob/tail[5]_i_3_n_0
+    SLICE_X65Y50         LUT4 (Prop_lut4_I3_O)        0.124     9.039 r  u_core/u_rob/ic_req_valid_INST_0_i_28/O
+                         net (fo=19, routed)          1.067    10.106    u_core/u_rob/ic_req_valid_INST_0_i_28_n_0
+    SLICE_X82Y50         LUT3 (Prop_lut3_I2_O)        0.124    10.230 f  u_core/u_rob/ic_req_valid_INST_0_i_19/O
+                         net (fo=95, routed)          1.786    12.016    u_core/u_rob/restore
+    SLICE_X115Y46        LUT3 (Prop_lut3_I1_O)        0.124    12.140 f  u_core/u_rob/ic_req_valid_INST_0_i_5/O
+                         net (fo=44, routed)          0.775    12.915    u_core/u_front/u_fers/fe_redirect0
+    SLICE_X124Y38        LUT4 (Prop_lut4_I1_O)        0.124    13.039 r  u_core/u_front/u_fers/c_p[15]_i_1__0/O
+                         net (fo=241, routed)         0.959    13.998    u_core/u_front/u_fers/out_valid
+    SLICE_X124Y25        LUT2 (Prop_lut2_I0_O)        0.124    14.122 r  u_core/u_front/u_fers/ub_valid_i_344/O
+                         net (fo=1, routed)           0.493    14.616    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_1
+    SLICE_X124Y25        LUT6 (Prop_lut6_I0_O)        0.124    14.740 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_327/O
+                         net (fo=1, routed)           0.487    15.226    u_core/u_front/u_fetch/u_fdec/ub_valid_i_327_n_0
+    SLICE_X123Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.350 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_309/O
+                         net (fo=1, routed)           0.488    15.838    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_n_0
+    SLICE_X122Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.962 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_291/O
+                         net (fo=1, routed)           0.420    16.382    u_core/u_front/u_fetch/u_fdec/ub_valid_i_291_n_0
+    SLICE_X122Y26        LUT6 (Prop_lut6_I5_O)        0.124    16.506 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_265/O
+                         net (fo=1, routed)           0.436    16.942    u_core/u_front/u_fetch/u_fdec/ub_valid_i_265_n_0
+    SLICE_X120Y27        LUT6 (Prop_lut6_I5_O)        0.124    17.066 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_224/O
+                         net (fo=1, routed)           0.590    17.656    u_core/u_front/u_fetch/u_fdec/ub_valid_i_224_n_0
+    SLICE_X120Y28        LUT6 (Prop_lut6_I5_O)        0.124    17.780 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_178/O
+                         net (fo=1, routed)           0.441    18.221    u_core/u_front/u_fetch/u_fdec/ub_valid_i_178_n_0
+    SLICE_X123Y30        LUT6 (Prop_lut6_I5_O)        0.124    18.345 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_132/O
+                         net (fo=1, routed)           0.296    18.641    u_core/u_front/u_fetch/u_fdec/ub_valid_i_132_n_0
+    SLICE_X123Y31        LUT6 (Prop_lut6_I5_O)        0.124    18.765 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_89/O
+                         net (fo=1, routed)           0.445    19.209    u_core/u_front/u_fetch/u_fdec/ub_valid_i_89_n_0
+    SLICE_X125Y31        LUT6 (Prop_lut6_I5_O)        0.124    19.333 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_48/O
+                         net (fo=1, routed)           0.404    19.737    u_core/u_front/u_fetch/u_fdec/ub_valid_i_48_n_0
+    SLICE_X125Y30        LUT6 (Prop_lut6_I3_O)        0.124    19.861 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_19/O
+                         net (fo=1, routed)           0.577    20.438    u_core/u_front/u_fetch/u_fdec/ub_valid_i_19_n_0
+    SLICE_X129Y30        LUT6 (Prop_lut6_I5_O)        0.124    20.562 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_7/O
+                         net (fo=3, routed)           0.477    21.039    u_core/u_front/u_fetch/u_fdec/ub_valid_i_7_n_0
+    SLICE_X134Y31        LUT5 (Prop_lut5_I3_O)        0.124    21.163 r  u_core/u_front/u_fetch/u_fdec/qlive[3]_i_3_comp/O
+                         net (fo=42, routed)          0.825    21.987    u_core/u_front/u_fetch/u_fdec/u_ras/pc_q_reg[1]_0
+    SLICE_X132Y28        LUT5 (Prop_lut5_I3_O)        0.124    22.111 r  u_core/u_front/u_fetch/u_fdec/u_ras/pc_q[7]_i_3/O
+                         net (fo=1, routed)           0.000    22.111    u_core/u_front/u_fetch/u_fdec/u_ras/hr[7]
+    SLICE_X132Y28        MUXF7 (Prop_muxf7_I1_O)      0.214    22.325 r  u_core/u_front/u_fetch/u_fdec/u_ras/pc_q_reg[7]_i_1/O
+                         net (fo=4, routed)           0.587    22.912    u_core/u_front/u_fetch/u_ubtb/pc_q_reg[38]_0[6]
+    SLICE_X132Y28        FDCE                                         r  u_core/u_front/u_fetch/u_ubtb/pi_q_reg[2]_rep__0/D
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)       20.000    20.000 r  
@@ -247,24 +286,23 @@ Slack (MET) :             0.393ns  (required time - arrival time)
                                                       0.924    20.924    
                          clock pessimism              0.000    20.924    
                          clock uncertainty           -0.035    20.889    
-    SLICE_X48Y162        RAMD64E (Setup_ramd64e_CLK_I)
-                                                     -0.327    20.562    u_core/u_prf/g_bank[0].g_two.lo_reg_r6_0_63_60_62/RAMA
+    SLICE_X132Y28        FDCE (Setup_fdce_C_D)       -0.201    20.688    u_core/u_front/u_fetch/u_ubtb/pi_q_reg[2]_rep__0
   -------------------------------------------------------------------
-                         required time                         20.562    
-                         arrival time                         -20.169    
+                         required time                         20.688    
+                         arrival time                         -22.912    
   -------------------------------------------------------------------
-                         slack                                  0.393    
+                         slack                                 -2.224    
 
-Slack (MET) :             0.409ns  (required time - arrival time)
-  Source:                 u_core/g_alu[3].u_wb/out_data_reg[65]/C
-                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            u_core/u_prf/g_bank[0].g_two.lo_reg_r10_0_63_57_59/RAMC/I
-                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+Slack (VIOLATED) :        -2.204ns  (required time - arrival time)
+  Source:                 u_core/u_rob/head_reg[1]_rep/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_core/u_front/u_fetch/u_ubtb/pi_q_reg[3]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Setup (Max at Slow Process Corner)
   Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
-  Data Path Delay:        19.176ns  (logic 3.780ns (19.712%)  route 15.396ns (80.288%))
-  Logic Levels:           17  (CARRY4=3 LUT3=1 LUT4=2 LUT5=4 LUT6=7)
+  Data Path Delay:        21.934ns  (logic 4.127ns (18.815%)  route 17.807ns (81.184%))
+  Logic Levels:           25  (LUT2=1 LUT3=5 LUT4=2 LUT5=2 LUT6=13 MUXF7=2)
   Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
     Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
     Source Clock Delay      (SCD):    0.973ns
@@ -280,47 +318,60 @@ Slack (MET) :             0.409ns  (required time - arrival time)
                          (clock clk rise edge)        0.000     0.000 r  
                          propagated clock network latency
                                                       0.973     0.973    
-    SLICE_X65Y126        FDRE                         0.000     0.973 r  u_core/g_alu[3].u_wb/out_data_reg[65]/C
-    SLICE_X65Y126        FDRE (Prop_fdre_C_Q)         0.456     1.429 r  u_core/g_alu[3].u_wb/out_data_reg[65]/Q
-                         net (fo=11, routed)          1.345     2.774    u_core/g_alu[3].u_wb/wb_d[3]_52[65]
-    SLICE_X78Y126        LUT6 (Prop_lut6_I5_O)        0.124     2.898 r  u_core/g_alu[3].u_wb/p_hl0_i_115/O
-                         net (fo=1, routed)           1.311     4.209    u_core/g_alu[3].u_wb/p_hl0_i_115_n_0
-    SLICE_X95Y127        LUT5 (Prop_lut5_I0_O)        0.124     4.333 r  u_core/g_alu[3].u_wb/p_hl0_i_101/O
-                         net (fo=65, routed)          1.151     5.484    u_core/g_alu[3].u_wb/p_hl0_i_101_n_0
-    SLICE_X109Y130       LUT3 (Prop_lut3_I0_O)        0.124     5.608 r  u_core/g_alu[3].u_wb/p_hl0_i_33/O
-                         net (fo=64, routed)          1.580     7.188    u_core/g_alu[3].u_wb/p_hl0_i_33_n_0
-    SLICE_X107Y126       LUT5 (Prop_lut5_I0_O)        0.124     7.312 r  u_core/g_alu[3].u_wb/p_hl0_i_8/O
-                         net (fo=13, routed)          1.612     8.923    u_core/g_alu[0].u_ex/pp_hh0__0_4
-    SLICE_X115Y152       LUT4 (Prop_lut4_I2_O)        0.150     9.073 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_88/O
-                         net (fo=16, routed)          0.873     9.947    u_core/g_alu[0].u_ex/g_alu[0].u_alu/a1[56]
-    SLICE_X118Y155       LUT4 (Prop_lut4_I2_O)        0.320    10.267 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105/O
-                         net (fo=1, routed)           0.441    10.707    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105_n_0
-    SLICE_X118Y155       LUT6 (Prop_lut6_I5_O)        0.326    11.033 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_98/O
-                         net (fo=2, routed)           0.522    11.555    u_core_n_352
-    SLICE_X116Y155       CARRY4 (Prop_carry4_DI[0]_CO[3])
-                                                      0.550    12.105 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85/CO[3]
-                         net (fo=1, routed)           0.000    12.105    g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85_n_0
-    SLICE_X116Y156       CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.117    12.222 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_30/CO[3]
-                         net (fo=1, routed)           0.000    12.222    u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193[0]
-    SLICE_X116Y157       CARRY4 (Prop_carry4_CI_CO[0])
-                                                      0.254    12.476 r  u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_196/CO[0]
-                         net (fo=4, routed)           0.376    12.851    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_6_8_i_70_0[0]
-    SLICE_X117Y157       LUT5 (Prop_lut5_I4_O)        0.367    13.218 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193/O
-                         net (fo=4, routed)           0.621    13.840    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193_n_0
-    SLICE_X118Y153       LUT6 (Prop_lut6_I1_O)        0.124    13.964 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198/O
-                         net (fo=1, routed)           0.398    14.362    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198_n_0
-    SLICE_X117Y153       LUT6 (Prop_lut6_I5_O)        0.124    14.486 f  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95/O
-                         net (fo=64, routed)          0.727    15.213    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95_n_0
-    SLICE_X114Y151       LUT6 (Prop_lut6_I5_O)        0.124    15.337 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_27/O
-                         net (fo=1, routed)           0.299    15.637    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_27_n_0
-    SLICE_X114Y150       LUT6 (Prop_lut6_I2_O)        0.124    15.761 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_9/O
-                         net (fo=33, routed)          0.903    16.664    u_core/g_alu[0].u_ex/ex_res[0]_164[31]
-    SLICE_X110Y148       LUT5 (Prop_lut5_I0_O)        0.124    16.788 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_12/O
-                         net (fo=1, routed)           1.646    18.433    u_core/g_alu[0].u_ex/ex_res[0]_164[59]
-    SLICE_X73Y147        LUT6 (Prop_lut6_I5_O)        0.124    18.557 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_3/O
-                         net (fo=23, routed)          1.592    20.149    u_core/u_prf/g_bank[0].g_two.lo_reg_r10_0_63_57_59/DIC
-    SLICE_X52Y160        RAMD64E                                      r  u_core/u_prf/g_bank[0].g_two.lo_reg_r10_0_63_57_59/RAMC/I
+    SLICE_X46Y55         FDCE                         0.000     0.973 r  u_core/u_rob/head_reg[1]_rep/C
+    SLICE_X46Y55         FDCE (Prop_fdce_C_Q)         0.518     1.491 r  u_core/u_rob/head_reg[1]_rep/Q
+                         net (fo=117, routed)         0.603     2.094    u_core/u_rob/head_reg[1]_rep_0
+    SLICE_X46Y55         LUT3 (Prop_lut3_I2_O)        0.124     2.218 r  u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4/O
+                         net (fo=302, routed)         0.539     2.756    u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4_n_0
+    SLICE_X46Y53         LUT3 (Prop_lut3_I2_O)        0.124     2.880 r  u_core/u_rob/g_bank[0].mem_reg_r3_0_15_0_5_i_4/O
+                         net (fo=315, routed)         0.787     3.667    u_core/u_rob/rw1_return[0]
+    SLICE_X46Y52         MUXF7 (Prop_muxf7_S_O)       0.292     3.959 f  u_core/u_rob/head_reg[3]_i_72/O
+                         net (fo=1, routed)           0.538     4.498    u_core/u_rob/head_reg[3]_i_72_n_0
+    SLICE_X49Y53         LUT3 (Prop_lut3_I2_O)        0.297     4.795 f  u_core/u_rob/head[3]_i_37/O
+                         net (fo=1, routed)           0.834     5.629    u_core/u_rob/head[3]_i_37_n_0
+    SLICE_X51Y53         LUT5 (Prop_lut5_I2_O)        0.124     5.753 f  u_core/u_rob/head[3]_i_18/O
+                         net (fo=4, routed)           1.015     6.768    u_core/u_rob/head[3]_i_18_n_0
+    SLICE_X54Y50         LUT5 (Prop_lut5_I4_O)        0.124     6.892 f  u_core/u_rob/tail[5]_i_5/O
+                         net (fo=1, routed)           0.811     7.703    u_core/u_rob/tail[5]_i_5_n_0
+    SLICE_X58Y50         LUT6 (Prop_lut6_I1_O)        0.124     7.827 f  u_core/u_rob/tail[5]_i_3/O
+                         net (fo=85, routed)          1.088     8.915    u_core/u_rob/tail[5]_i_3_n_0
+    SLICE_X65Y50         LUT4 (Prop_lut4_I3_O)        0.124     9.039 r  u_core/u_rob/ic_req_valid_INST_0_i_28/O
+                         net (fo=19, routed)          1.067    10.106    u_core/u_rob/ic_req_valid_INST_0_i_28_n_0
+    SLICE_X82Y50         LUT3 (Prop_lut3_I2_O)        0.124    10.230 f  u_core/u_rob/ic_req_valid_INST_0_i_19/O
+                         net (fo=95, routed)          1.786    12.016    u_core/u_rob/restore
+    SLICE_X115Y46        LUT3 (Prop_lut3_I1_O)        0.124    12.140 f  u_core/u_rob/ic_req_valid_INST_0_i_5/O
+                         net (fo=44, routed)          0.775    12.915    u_core/u_front/u_fers/fe_redirect0
+    SLICE_X124Y38        LUT4 (Prop_lut4_I1_O)        0.124    13.039 r  u_core/u_front/u_fers/c_p[15]_i_1__0/O
+                         net (fo=241, routed)         0.959    13.998    u_core/u_front/u_fers/out_valid
+    SLICE_X124Y25        LUT2 (Prop_lut2_I0_O)        0.124    14.122 r  u_core/u_front/u_fers/ub_valid_i_344/O
+                         net (fo=1, routed)           0.493    14.616    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_1
+    SLICE_X124Y25        LUT6 (Prop_lut6_I0_O)        0.124    14.740 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_327/O
+                         net (fo=1, routed)           0.487    15.226    u_core/u_front/u_fetch/u_fdec/ub_valid_i_327_n_0
+    SLICE_X123Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.350 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_309/O
+                         net (fo=1, routed)           0.488    15.838    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_n_0
+    SLICE_X122Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.962 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_291/O
+                         net (fo=1, routed)           0.420    16.382    u_core/u_front/u_fetch/u_fdec/ub_valid_i_291_n_0
+    SLICE_X122Y26        LUT6 (Prop_lut6_I5_O)        0.124    16.506 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_265/O
+                         net (fo=1, routed)           0.436    16.942    u_core/u_front/u_fetch/u_fdec/ub_valid_i_265_n_0
+    SLICE_X120Y27        LUT6 (Prop_lut6_I5_O)        0.124    17.066 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_224/O
+                         net (fo=1, routed)           0.590    17.656    u_core/u_front/u_fetch/u_fdec/ub_valid_i_224_n_0
+    SLICE_X120Y28        LUT6 (Prop_lut6_I5_O)        0.124    17.780 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_178/O
+                         net (fo=1, routed)           0.441    18.221    u_core/u_front/u_fetch/u_fdec/ub_valid_i_178_n_0
+    SLICE_X123Y30        LUT6 (Prop_lut6_I5_O)        0.124    18.345 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_132/O
+                         net (fo=1, routed)           0.296    18.641    u_core/u_front/u_fetch/u_fdec/ub_valid_i_132_n_0
+    SLICE_X123Y31        LUT6 (Prop_lut6_I5_O)        0.124    18.765 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_89/O
+                         net (fo=1, routed)           0.445    19.209    u_core/u_front/u_fetch/u_fdec/ub_valid_i_89_n_0
+    SLICE_X125Y31        LUT6 (Prop_lut6_I5_O)        0.124    19.333 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_48/O
+                         net (fo=1, routed)           0.404    19.737    u_core/u_front/u_fetch/u_fdec/ub_valid_i_48_n_0
+    SLICE_X125Y30        LUT6 (Prop_lut6_I3_O)        0.124    19.861 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_19/O
+                         net (fo=1, routed)           0.577    20.438    u_core/u_front/u_fetch/u_fdec/ub_valid_i_19_n_0
+    SLICE_X129Y30        LUT6 (Prop_lut6_I5_O)        0.124    20.562 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_7/O
+                         net (fo=3, routed)           0.474    21.036    u_core/u_front/u_fetch/u_fdec/ub_valid_i_7_n_0
+    SLICE_X134Y31        LUT6 (Prop_lut6_I4_O)        0.124    21.160 r  u_core/u_front/u_fetch/u_fdec/pc_q[38]_i_3_comp/O
+                         net (fo=38, routed)          1.105    22.265    u_core/u_front/u_fetch/u_fdec/u_ras/ovr
+    SLICE_X128Y36        MUXF7 (Prop_muxf7_S_O)       0.292    22.557 r  u_core/u_front/u_fetch/u_fdec/u_ras/pc_q_reg[8]_i_1/O
+                         net (fo=4, routed)           0.350    22.907    u_core/u_front/u_fetch/u_ubtb/pc_q_reg[38]_0[7]
+    SLICE_X128Y35        FDCE                                         r  u_core/u_front/u_fetch/u_ubtb/pi_q_reg[3]/D
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)       20.000    20.000 r  
@@ -328,24 +379,23 @@ Slack (MET) :             0.409ns  (required time - arrival time)
                                                       0.924    20.924    
                          clock pessimism              0.000    20.924    
                          clock uncertainty           -0.035    20.889    
-    SLICE_X52Y160        RAMD64E (Setup_ramd64e_CLK_I)
-                                                     -0.331    20.558    u_core/u_prf/g_bank[0].g_two.lo_reg_r10_0_63_57_59/RAMC
+    SLICE_X128Y35        FDCE (Setup_fdce_C_D)       -0.186    20.703    u_core/u_front/u_fetch/u_ubtb/pi_q_reg[3]
   -------------------------------------------------------------------
-                         required time                         20.558    
-                         arrival time                         -20.149    
+                         required time                         20.703    
+                         arrival time                         -22.907    
   -------------------------------------------------------------------
-                         slack                                  0.409    
+                         slack                                 -2.204    
 
-Slack (MET) :             0.425ns  (required time - arrival time)
-  Source:                 u_core/g_alu[3].u_wb/out_data_reg[65]/C
-                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            u_core/u_prf/g_bank[0].g_two.lo_reg_r5_0_63_63_63/DP/I
-                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+Slack (VIOLATED) :        -2.139ns  (required time - arrival time)
+  Source:                 u_core/u_rob/head_reg[1]_rep/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_core/u_front/u_fetch/u_ubtb/pc_q_reg[9]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Setup (Max at Slow Process Corner)
   Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
-  Data Path Delay:        18.766ns  (logic 3.780ns (20.143%)  route 14.986ns (79.857%))
-  Logic Levels:           17  (CARRY4=3 LUT3=1 LUT4=2 LUT5=3 LUT6=8)
+  Data Path Delay:        21.818ns  (logic 4.176ns (19.141%)  route 17.642ns (80.859%))
+  Logic Levels:           26  (LUT2=1 LUT3=5 LUT4=2 LUT5=4 LUT6=12 MUXF7=2)
   Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
     Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
     Source Clock Delay      (SCD):    0.973ns
@@ -361,47 +411,62 @@ Slack (MET) :             0.425ns  (required time - arrival time)
                          (clock clk rise edge)        0.000     0.000 r  
                          propagated clock network latency
                                                       0.973     0.973    
-    SLICE_X65Y126        FDRE                         0.000     0.973 r  u_core/g_alu[3].u_wb/out_data_reg[65]/C
-    SLICE_X65Y126        FDRE (Prop_fdre_C_Q)         0.456     1.429 r  u_core/g_alu[3].u_wb/out_data_reg[65]/Q
-                         net (fo=11, routed)          1.345     2.774    u_core/g_alu[3].u_wb/wb_d[3]_52[65]
-    SLICE_X78Y126        LUT6 (Prop_lut6_I5_O)        0.124     2.898 r  u_core/g_alu[3].u_wb/p_hl0_i_115/O
-                         net (fo=1, routed)           1.311     4.209    u_core/g_alu[3].u_wb/p_hl0_i_115_n_0
-    SLICE_X95Y127        LUT5 (Prop_lut5_I0_O)        0.124     4.333 r  u_core/g_alu[3].u_wb/p_hl0_i_101/O
-                         net (fo=65, routed)          1.151     5.484    u_core/g_alu[3].u_wb/p_hl0_i_101_n_0
-    SLICE_X109Y130       LUT3 (Prop_lut3_I0_O)        0.124     5.608 r  u_core/g_alu[3].u_wb/p_hl0_i_33/O
-                         net (fo=64, routed)          1.580     7.188    u_core/g_alu[3].u_wb/p_hl0_i_33_n_0
-    SLICE_X107Y126       LUT5 (Prop_lut5_I0_O)        0.124     7.312 r  u_core/g_alu[3].u_wb/p_hl0_i_8/O
-                         net (fo=13, routed)          1.612     8.923    u_core/g_alu[0].u_ex/pp_hh0__0_4
-    SLICE_X115Y152       LUT4 (Prop_lut4_I2_O)        0.150     9.073 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_88/O
-                         net (fo=16, routed)          0.873     9.947    u_core/g_alu[0].u_ex/g_alu[0].u_alu/a1[56]
-    SLICE_X118Y155       LUT4 (Prop_lut4_I2_O)        0.320    10.267 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105/O
-                         net (fo=1, routed)           0.441    10.707    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105_n_0
-    SLICE_X118Y155       LUT6 (Prop_lut6_I5_O)        0.326    11.033 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_98/O
-                         net (fo=2, routed)           0.522    11.555    u_core_n_352
-    SLICE_X116Y155       CARRY4 (Prop_carry4_DI[0]_CO[3])
-                                                      0.550    12.105 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85/CO[3]
-                         net (fo=1, routed)           0.000    12.105    g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85_n_0
-    SLICE_X116Y156       CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.117    12.222 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_30/CO[3]
-                         net (fo=1, routed)           0.000    12.222    u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193[0]
-    SLICE_X116Y157       CARRY4 (Prop_carry4_CI_CO[0])
-                                                      0.254    12.476 r  u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_196/CO[0]
-                         net (fo=4, routed)           0.376    12.851    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_6_8_i_70_0[0]
-    SLICE_X117Y157       LUT5 (Prop_lut5_I4_O)        0.367    13.218 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193/O
-                         net (fo=4, routed)           0.621    13.840    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193_n_0
-    SLICE_X118Y153       LUT6 (Prop_lut6_I1_O)        0.124    13.964 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198/O
-                         net (fo=1, routed)           0.398    14.362    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198_n_0
-    SLICE_X117Y153       LUT6 (Prop_lut6_I5_O)        0.124    14.486 f  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95/O
-                         net (fo=64, routed)          0.727    15.213    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95_n_0
-    SLICE_X114Y151       LUT6 (Prop_lut6_I5_O)        0.124    15.337 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_27/O
-                         net (fo=1, routed)           0.299    15.637    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_27_n_0
-    SLICE_X114Y150       LUT6 (Prop_lut6_I2_O)        0.124    15.761 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_9/O
-                         net (fo=33, routed)          0.898    16.658    u_core/g_alu[0].u_ex/ex_res[0]_164[31]
-    SLICE_X111Y151       LUT6 (Prop_lut6_I0_O)        0.124    16.782 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_4/O
-                         net (fo=1, routed)           1.657    18.439    u_core/g_alu[0].u_ex/ex_res[0]_164[63]
-    SLICE_X73Y153        LUT6 (Prop_lut6_I5_O)        0.124    18.563 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_1/O
-                         net (fo=34, routed)          1.176    19.739    u_core/u_prf/g_bank[0].g_two.lo_reg_r5_0_63_63_63/D
-    SLICE_X62Y168        RAMD64E                                      r  u_core/u_prf/g_bank[0].g_two.lo_reg_r5_0_63_63_63/DP/I
+    SLICE_X46Y55         FDCE                         0.000     0.973 r  u_core/u_rob/head_reg[1]_rep/C
+    SLICE_X46Y55         FDCE (Prop_fdce_C_Q)         0.518     1.491 r  u_core/u_rob/head_reg[1]_rep/Q
+                         net (fo=117, routed)         0.603     2.094    u_core/u_rob/head_reg[1]_rep_0
+    SLICE_X46Y55         LUT3 (Prop_lut3_I2_O)        0.124     2.218 r  u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4/O
+                         net (fo=302, routed)         0.539     2.756    u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4_n_0
+    SLICE_X46Y53         LUT3 (Prop_lut3_I2_O)        0.124     2.880 r  u_core/u_rob/g_bank[0].mem_reg_r3_0_15_0_5_i_4/O
+                         net (fo=315, routed)         0.787     3.667    u_core/u_rob/rw1_return[0]
+    SLICE_X46Y52         MUXF7 (Prop_muxf7_S_O)       0.292     3.959 f  u_core/u_rob/head_reg[3]_i_72/O
+                         net (fo=1, routed)           0.538     4.498    u_core/u_rob/head_reg[3]_i_72_n_0
+    SLICE_X49Y53         LUT3 (Prop_lut3_I2_O)        0.297     4.795 f  u_core/u_rob/head[3]_i_37/O
+                         net (fo=1, routed)           0.834     5.629    u_core/u_rob/head[3]_i_37_n_0
+    SLICE_X51Y53         LUT5 (Prop_lut5_I2_O)        0.124     5.753 f  u_core/u_rob/head[3]_i_18/O
+                         net (fo=4, routed)           1.015     6.768    u_core/u_rob/head[3]_i_18_n_0
+    SLICE_X54Y50         LUT5 (Prop_lut5_I4_O)        0.124     6.892 f  u_core/u_rob/tail[5]_i_5/O
+                         net (fo=1, routed)           0.811     7.703    u_core/u_rob/tail[5]_i_5_n_0
+    SLICE_X58Y50         LUT6 (Prop_lut6_I1_O)        0.124     7.827 f  u_core/u_rob/tail[5]_i_3/O
+                         net (fo=85, routed)          1.088     8.915    u_core/u_rob/tail[5]_i_3_n_0
+    SLICE_X65Y50         LUT4 (Prop_lut4_I3_O)        0.124     9.039 r  u_core/u_rob/ic_req_valid_INST_0_i_28/O
+                         net (fo=19, routed)          1.067    10.106    u_core/u_rob/ic_req_valid_INST_0_i_28_n_0
+    SLICE_X82Y50         LUT3 (Prop_lut3_I2_O)        0.124    10.230 f  u_core/u_rob/ic_req_valid_INST_0_i_19/O
+                         net (fo=95, routed)          1.786    12.016    u_core/u_rob/restore
+    SLICE_X115Y46        LUT3 (Prop_lut3_I1_O)        0.124    12.140 f  u_core/u_rob/ic_req_valid_INST_0_i_5/O
+                         net (fo=44, routed)          0.775    12.915    u_core/u_front/u_fers/fe_redirect0
+    SLICE_X124Y38        LUT4 (Prop_lut4_I1_O)        0.124    13.039 r  u_core/u_front/u_fers/c_p[15]_i_1__0/O
+                         net (fo=241, routed)         0.959    13.998    u_core/u_front/u_fers/out_valid
+    SLICE_X124Y25        LUT2 (Prop_lut2_I0_O)        0.124    14.122 r  u_core/u_front/u_fers/ub_valid_i_344/O
+                         net (fo=1, routed)           0.493    14.616    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_1
+    SLICE_X124Y25        LUT6 (Prop_lut6_I0_O)        0.124    14.740 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_327/O
+                         net (fo=1, routed)           0.487    15.226    u_core/u_front/u_fetch/u_fdec/ub_valid_i_327_n_0
+    SLICE_X123Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.350 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_309/O
+                         net (fo=1, routed)           0.488    15.838    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_n_0
+    SLICE_X122Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.962 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_291/O
+                         net (fo=1, routed)           0.420    16.382    u_core/u_front/u_fetch/u_fdec/ub_valid_i_291_n_0
+    SLICE_X122Y26        LUT6 (Prop_lut6_I5_O)        0.124    16.506 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_265/O
+                         net (fo=1, routed)           0.436    16.942    u_core/u_front/u_fetch/u_fdec/ub_valid_i_265_n_0
+    SLICE_X120Y27        LUT6 (Prop_lut6_I5_O)        0.124    17.066 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_224/O
+                         net (fo=1, routed)           0.590    17.656    u_core/u_front/u_fetch/u_fdec/ub_valid_i_224_n_0
+    SLICE_X120Y28        LUT6 (Prop_lut6_I5_O)        0.124    17.780 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_178/O
+                         net (fo=1, routed)           0.441    18.221    u_core/u_front/u_fetch/u_fdec/ub_valid_i_178_n_0
+    SLICE_X123Y30        LUT6 (Prop_lut6_I5_O)        0.124    18.345 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_132/O
+                         net (fo=1, routed)           0.296    18.641    u_core/u_front/u_fetch/u_fdec/ub_valid_i_132_n_0
+    SLICE_X123Y31        LUT6 (Prop_lut6_I5_O)        0.124    18.765 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_89/O
+                         net (fo=1, routed)           0.445    19.209    u_core/u_front/u_fetch/u_fdec/ub_valid_i_89_n_0
+    SLICE_X125Y31        LUT6 (Prop_lut6_I5_O)        0.124    19.333 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_48/O
+                         net (fo=1, routed)           0.404    19.737    u_core/u_front/u_fetch/u_fdec/ub_valid_i_48_n_0
+    SLICE_X125Y30        LUT6 (Prop_lut6_I3_O)        0.124    19.861 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_19/O
+                         net (fo=1, routed)           0.577    20.438    u_core/u_front/u_fetch/u_fdec/ub_valid_i_19_n_0
+    SLICE_X129Y30        LUT6 (Prop_lut6_I5_O)        0.124    20.562 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_7/O
+                         net (fo=3, routed)           0.477    21.039    u_core/u_front/u_fetch/u_fdec/ub_valid_i_7_n_0
+    SLICE_X134Y31        LUT5 (Prop_lut5_I3_O)        0.124    21.163 r  u_core/u_front/u_fetch/u_fdec/qlive[3]_i_3_comp/O
+                         net (fo=42, routed)          0.784    21.947    u_core/u_front/u_fetch/u_fdec/u_ras/pc_q_reg[1]_0
+    SLICE_X134Y31        LUT5 (Prop_lut5_I3_O)        0.124    22.071 r  u_core/u_front/u_fetch/u_fdec/u_ras/pc_q[9]_i_3/O
+                         net (fo=1, routed)           0.000    22.071    u_core/u_front/u_fetch/u_fdec/u_ras/hr[9]
+    SLICE_X134Y31        MUXF7 (Prop_muxf7_I1_O)      0.217    22.288 r  u_core/u_front/u_fetch/u_fdec/u_ras/pc_q_reg[9]_i_1/O
+                         net (fo=4, routed)           0.503    22.791    u_core/u_front/u_fetch/u_ubtb/pc_q_reg[38]_0[8]
+    SLICE_X134Y32        FDCE                                         r  u_core/u_front/u_fetch/u_ubtb/pc_q_reg[9]/D
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)       20.000    20.000 r  
@@ -409,24 +474,23 @@ Slack (MET) :             0.425ns  (required time - arrival time)
                                                       0.924    20.924    
                          clock pessimism              0.000    20.924    
                          clock uncertainty           -0.035    20.889    
-    SLICE_X62Y168        RAMD64E (Setup_ramd64e_CLK_I)
-                                                     -0.725    20.164    u_core/u_prf/g_bank[0].g_two.lo_reg_r5_0_63_63_63/DP
+    SLICE_X134Y32        FDCE (Setup_fdce_C_D)       -0.237    20.652    u_core/u_front/u_fetch/u_ubtb/pc_q_reg[9]
   -------------------------------------------------------------------
-                         required time                         20.164    
-                         arrival time                         -19.739    
+                         required time                         20.652    
+                         arrival time                         -22.791    
   -------------------------------------------------------------------
-                         slack                                  0.425    
+                         slack                                 -2.139    
 
-Slack (MET) :             0.427ns  (required time - arrival time)
-  Source:                 u_core/g_alu[3].u_wb/out_data_reg[65]/C
-                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            u_core/u_prf/g_bank[0].g_two.lo_reg_r9_0_63_63_63/DP/I
-                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+Slack (VIOLATED) :        -2.052ns  (required time - arrival time)
+  Source:                 u_core/u_rob/head_reg[1]_rep/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_core/u_front/u_fetch/u_ubtb/pc_q_reg[7]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Setup (Max at Slow Process Corner)
   Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
-  Data Path Delay:        18.764ns  (logic 3.780ns (20.145%)  route 14.984ns (79.855%))
-  Logic Levels:           17  (CARRY4=3 LUT3=1 LUT4=2 LUT5=3 LUT6=8)
+  Data Path Delay:        21.750ns  (logic 4.173ns (19.186%)  route 17.577ns (80.814%))
+  Logic Levels:           26  (LUT2=1 LUT3=5 LUT4=2 LUT5=4 LUT6=12 MUXF7=2)
   Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
     Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
     Source Clock Delay      (SCD):    0.973ns
@@ -442,47 +506,62 @@ Slack (MET) :             0.427ns  (required time - arrival time)
                          (clock clk rise edge)        0.000     0.000 r  
                          propagated clock network latency
                                                       0.973     0.973    
-    SLICE_X65Y126        FDRE                         0.000     0.973 r  u_core/g_alu[3].u_wb/out_data_reg[65]/C
-    SLICE_X65Y126        FDRE (Prop_fdre_C_Q)         0.456     1.429 r  u_core/g_alu[3].u_wb/out_data_reg[65]/Q
-                         net (fo=11, routed)          1.345     2.774    u_core/g_alu[3].u_wb/wb_d[3]_52[65]
-    SLICE_X78Y126        LUT6 (Prop_lut6_I5_O)        0.124     2.898 r  u_core/g_alu[3].u_wb/p_hl0_i_115/O
-                         net (fo=1, routed)           1.311     4.209    u_core/g_alu[3].u_wb/p_hl0_i_115_n_0
-    SLICE_X95Y127        LUT5 (Prop_lut5_I0_O)        0.124     4.333 r  u_core/g_alu[3].u_wb/p_hl0_i_101/O
-                         net (fo=65, routed)          1.151     5.484    u_core/g_alu[3].u_wb/p_hl0_i_101_n_0
-    SLICE_X109Y130       LUT3 (Prop_lut3_I0_O)        0.124     5.608 r  u_core/g_alu[3].u_wb/p_hl0_i_33/O
-                         net (fo=64, routed)          1.580     7.188    u_core/g_alu[3].u_wb/p_hl0_i_33_n_0
-    SLICE_X107Y126       LUT5 (Prop_lut5_I0_O)        0.124     7.312 r  u_core/g_alu[3].u_wb/p_hl0_i_8/O
-                         net (fo=13, routed)          1.612     8.923    u_core/g_alu[0].u_ex/pp_hh0__0_4
-    SLICE_X115Y152       LUT4 (Prop_lut4_I2_O)        0.150     9.073 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_88/O
-                         net (fo=16, routed)          0.873     9.947    u_core/g_alu[0].u_ex/g_alu[0].u_alu/a1[56]
-    SLICE_X118Y155       LUT4 (Prop_lut4_I2_O)        0.320    10.267 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105/O
-                         net (fo=1, routed)           0.441    10.707    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105_n_0
-    SLICE_X118Y155       LUT6 (Prop_lut6_I5_O)        0.326    11.033 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_98/O
-                         net (fo=2, routed)           0.522    11.555    u_core_n_352
-    SLICE_X116Y155       CARRY4 (Prop_carry4_DI[0]_CO[3])
-                                                      0.550    12.105 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85/CO[3]
-                         net (fo=1, routed)           0.000    12.105    g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85_n_0
-    SLICE_X116Y156       CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.117    12.222 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_30/CO[3]
-                         net (fo=1, routed)           0.000    12.222    u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193[0]
-    SLICE_X116Y157       CARRY4 (Prop_carry4_CI_CO[0])
-                                                      0.254    12.476 r  u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_196/CO[0]
-                         net (fo=4, routed)           0.376    12.851    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_6_8_i_70_0[0]
-    SLICE_X117Y157       LUT5 (Prop_lut5_I4_O)        0.367    13.218 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193/O
-                         net (fo=4, routed)           0.621    13.840    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193_n_0
-    SLICE_X118Y153       LUT6 (Prop_lut6_I1_O)        0.124    13.964 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198/O
-                         net (fo=1, routed)           0.398    14.362    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198_n_0
-    SLICE_X117Y153       LUT6 (Prop_lut6_I5_O)        0.124    14.486 f  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95/O
-                         net (fo=64, routed)          0.727    15.213    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95_n_0
-    SLICE_X114Y151       LUT6 (Prop_lut6_I5_O)        0.124    15.337 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_27/O
-                         net (fo=1, routed)           0.299    15.637    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_27_n_0
-    SLICE_X114Y150       LUT6 (Prop_lut6_I2_O)        0.124    15.761 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_9/O
-                         net (fo=33, routed)          0.898    16.658    u_core/g_alu[0].u_ex/ex_res[0]_164[31]
-    SLICE_X111Y151       LUT6 (Prop_lut6_I0_O)        0.124    16.782 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_4/O
-                         net (fo=1, routed)           1.657    18.439    u_core/g_alu[0].u_ex/ex_res[0]_164[63]
-    SLICE_X73Y153        LUT6 (Prop_lut6_I5_O)        0.124    18.563 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_1/O
-                         net (fo=34, routed)          1.174    19.737    u_core/u_prf/g_bank[0].g_two.lo_reg_r9_0_63_63_63/D
-    SLICE_X56Y155        RAMD64E                                      r  u_core/u_prf/g_bank[0].g_two.lo_reg_r9_0_63_63_63/DP/I
+    SLICE_X46Y55         FDCE                         0.000     0.973 r  u_core/u_rob/head_reg[1]_rep/C
+    SLICE_X46Y55         FDCE (Prop_fdce_C_Q)         0.518     1.491 r  u_core/u_rob/head_reg[1]_rep/Q
+                         net (fo=117, routed)         0.603     2.094    u_core/u_rob/head_reg[1]_rep_0
+    SLICE_X46Y55         LUT3 (Prop_lut3_I2_O)        0.124     2.218 r  u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4/O
+                         net (fo=302, routed)         0.539     2.756    u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4_n_0
+    SLICE_X46Y53         LUT3 (Prop_lut3_I2_O)        0.124     2.880 r  u_core/u_rob/g_bank[0].mem_reg_r3_0_15_0_5_i_4/O
+                         net (fo=315, routed)         0.787     3.667    u_core/u_rob/rw1_return[0]
+    SLICE_X46Y52         MUXF7 (Prop_muxf7_S_O)       0.292     3.959 f  u_core/u_rob/head_reg[3]_i_72/O
+                         net (fo=1, routed)           0.538     4.498    u_core/u_rob/head_reg[3]_i_72_n_0
+    SLICE_X49Y53         LUT3 (Prop_lut3_I2_O)        0.297     4.795 f  u_core/u_rob/head[3]_i_37/O
+                         net (fo=1, routed)           0.834     5.629    u_core/u_rob/head[3]_i_37_n_0
+    SLICE_X51Y53         LUT5 (Prop_lut5_I2_O)        0.124     5.753 f  u_core/u_rob/head[3]_i_18/O
+                         net (fo=4, routed)           1.015     6.768    u_core/u_rob/head[3]_i_18_n_0
+    SLICE_X54Y50         LUT5 (Prop_lut5_I4_O)        0.124     6.892 f  u_core/u_rob/tail[5]_i_5/O
+                         net (fo=1, routed)           0.811     7.703    u_core/u_rob/tail[5]_i_5_n_0
+    SLICE_X58Y50         LUT6 (Prop_lut6_I1_O)        0.124     7.827 f  u_core/u_rob/tail[5]_i_3/O
+                         net (fo=85, routed)          1.088     8.915    u_core/u_rob/tail[5]_i_3_n_0
+    SLICE_X65Y50         LUT4 (Prop_lut4_I3_O)        0.124     9.039 r  u_core/u_rob/ic_req_valid_INST_0_i_28/O
+                         net (fo=19, routed)          1.067    10.106    u_core/u_rob/ic_req_valid_INST_0_i_28_n_0
+    SLICE_X82Y50         LUT3 (Prop_lut3_I2_O)        0.124    10.230 f  u_core/u_rob/ic_req_valid_INST_0_i_19/O
+                         net (fo=95, routed)          1.786    12.016    u_core/u_rob/restore
+    SLICE_X115Y46        LUT3 (Prop_lut3_I1_O)        0.124    12.140 f  u_core/u_rob/ic_req_valid_INST_0_i_5/O
+                         net (fo=44, routed)          0.775    12.915    u_core/u_front/u_fers/fe_redirect0
+    SLICE_X124Y38        LUT4 (Prop_lut4_I1_O)        0.124    13.039 r  u_core/u_front/u_fers/c_p[15]_i_1__0/O
+                         net (fo=241, routed)         0.959    13.998    u_core/u_front/u_fers/out_valid
+    SLICE_X124Y25        LUT2 (Prop_lut2_I0_O)        0.124    14.122 r  u_core/u_front/u_fers/ub_valid_i_344/O
+                         net (fo=1, routed)           0.493    14.616    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_1
+    SLICE_X124Y25        LUT6 (Prop_lut6_I0_O)        0.124    14.740 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_327/O
+                         net (fo=1, routed)           0.487    15.226    u_core/u_front/u_fetch/u_fdec/ub_valid_i_327_n_0
+    SLICE_X123Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.350 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_309/O
+                         net (fo=1, routed)           0.488    15.838    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_n_0
+    SLICE_X122Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.962 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_291/O
+                         net (fo=1, routed)           0.420    16.382    u_core/u_front/u_fetch/u_fdec/ub_valid_i_291_n_0
+    SLICE_X122Y26        LUT6 (Prop_lut6_I5_O)        0.124    16.506 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_265/O
+                         net (fo=1, routed)           0.436    16.942    u_core/u_front/u_fetch/u_fdec/ub_valid_i_265_n_0
+    SLICE_X120Y27        LUT6 (Prop_lut6_I5_O)        0.124    17.066 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_224/O
+                         net (fo=1, routed)           0.590    17.656    u_core/u_front/u_fetch/u_fdec/ub_valid_i_224_n_0
+    SLICE_X120Y28        LUT6 (Prop_lut6_I5_O)        0.124    17.780 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_178/O
+                         net (fo=1, routed)           0.441    18.221    u_core/u_front/u_fetch/u_fdec/ub_valid_i_178_n_0
+    SLICE_X123Y30        LUT6 (Prop_lut6_I5_O)        0.124    18.345 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_132/O
+                         net (fo=1, routed)           0.296    18.641    u_core/u_front/u_fetch/u_fdec/ub_valid_i_132_n_0
+    SLICE_X123Y31        LUT6 (Prop_lut6_I5_O)        0.124    18.765 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_89/O
+                         net (fo=1, routed)           0.445    19.209    u_core/u_front/u_fetch/u_fdec/ub_valid_i_89_n_0
+    SLICE_X125Y31        LUT6 (Prop_lut6_I5_O)        0.124    19.333 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_48/O
+                         net (fo=1, routed)           0.404    19.737    u_core/u_front/u_fetch/u_fdec/ub_valid_i_48_n_0
+    SLICE_X125Y30        LUT6 (Prop_lut6_I3_O)        0.124    19.861 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_19/O
+                         net (fo=1, routed)           0.577    20.438    u_core/u_front/u_fetch/u_fdec/ub_valid_i_19_n_0
+    SLICE_X129Y30        LUT6 (Prop_lut6_I5_O)        0.124    20.562 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_7/O
+                         net (fo=3, routed)           0.477    21.039    u_core/u_front/u_fetch/u_fdec/ub_valid_i_7_n_0
+    SLICE_X134Y31        LUT5 (Prop_lut5_I3_O)        0.124    21.163 r  u_core/u_front/u_fetch/u_fdec/qlive[3]_i_3_comp/O
+                         net (fo=42, routed)          0.825    21.987    u_core/u_front/u_fetch/u_fdec/u_ras/pc_q_reg[1]_0
+    SLICE_X132Y28        LUT5 (Prop_lut5_I3_O)        0.124    22.111 r  u_core/u_front/u_fetch/u_fdec/u_ras/pc_q[7]_i_3/O
+                         net (fo=1, routed)           0.000    22.111    u_core/u_front/u_fetch/u_fdec/u_ras/hr[7]
+    SLICE_X132Y28        MUXF7 (Prop_muxf7_I1_O)      0.214    22.325 r  u_core/u_front/u_fetch/u_fdec/u_ras/pc_q_reg[7]_i_1/O
+                         net (fo=4, routed)           0.398    22.723    u_core/u_front/u_fetch/u_ubtb/pc_q_reg[38]_0[6]
+    SLICE_X132Y28        FDCE                                         r  u_core/u_front/u_fetch/u_ubtb/pc_q_reg[7]/D
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)       20.000    20.000 r  
@@ -490,24 +569,23 @@ Slack (MET) :             0.427ns  (required time - arrival time)
                                                       0.924    20.924    
                          clock pessimism              0.000    20.924    
                          clock uncertainty           -0.035    20.889    
-    SLICE_X56Y155        RAMD64E (Setup_ramd64e_CLK_I)
-                                                     -0.725    20.164    u_core/u_prf/g_bank[0].g_two.lo_reg_r9_0_63_63_63/DP
+    SLICE_X132Y28        FDCE (Setup_fdce_C_D)       -0.218    20.671    u_core/u_front/u_fetch/u_ubtb/pc_q_reg[7]
   -------------------------------------------------------------------
-                         required time                         20.164    
-                         arrival time                         -19.737    
+                         required time                         20.671    
+                         arrival time                         -22.723    
   -------------------------------------------------------------------
-                         slack                                  0.427    
+                         slack                                 -2.052    
 
-Slack (MET) :             0.431ns  (required time - arrival time)
-  Source:                 u_core/g_alu[3].u_wb/out_data_reg[65]/C
-                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            u_core/u_prf/g_bank[0].g_two.lo_reg_r2_0_63_54_56/RAMA/I
-                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+Slack (VIOLATED) :        -2.051ns  (required time - arrival time)
+  Source:                 u_core/u_rob/head_reg[1]_rep/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_core/u_front/u_fetch/u_ubtb/pc_q_reg[6]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Setup (Max at Slow Process Corner)
   Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
-  Data Path Delay:        19.158ns  (logic 3.780ns (19.730%)  route 15.378ns (80.270%))
-  Logic Levels:           17  (CARRY4=3 LUT3=1 LUT4=2 LUT5=5 LUT6=6)
+  Data Path Delay:        21.752ns  (logic 4.111ns (18.899%)  route 17.641ns (81.101%))
+  Logic Levels:           25  (LUT2=1 LUT3=5 LUT4=2 LUT5=2 LUT6=13 MUXF7=2)
   Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
     Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
     Source Clock Delay      (SCD):    0.973ns
@@ -523,47 +601,60 @@ Slack (MET) :             0.431ns  (required time - arrival time)
                          (clock clk rise edge)        0.000     0.000 r  
                          propagated clock network latency
                                                       0.973     0.973    
-    SLICE_X65Y126        FDRE                         0.000     0.973 r  u_core/g_alu[3].u_wb/out_data_reg[65]/C
-    SLICE_X65Y126        FDRE (Prop_fdre_C_Q)         0.456     1.429 r  u_core/g_alu[3].u_wb/out_data_reg[65]/Q
-                         net (fo=11, routed)          1.345     2.774    u_core/g_alu[3].u_wb/wb_d[3]_52[65]
-    SLICE_X78Y126        LUT6 (Prop_lut6_I5_O)        0.124     2.898 r  u_core/g_alu[3].u_wb/p_hl0_i_115/O
-                         net (fo=1, routed)           1.311     4.209    u_core/g_alu[3].u_wb/p_hl0_i_115_n_0
-    SLICE_X95Y127        LUT5 (Prop_lut5_I0_O)        0.124     4.333 r  u_core/g_alu[3].u_wb/p_hl0_i_101/O
-                         net (fo=65, routed)          1.151     5.484    u_core/g_alu[3].u_wb/p_hl0_i_101_n_0
-    SLICE_X109Y130       LUT3 (Prop_lut3_I0_O)        0.124     5.608 r  u_core/g_alu[3].u_wb/p_hl0_i_33/O
-                         net (fo=64, routed)          1.580     7.188    u_core/g_alu[3].u_wb/p_hl0_i_33_n_0
-    SLICE_X107Y126       LUT5 (Prop_lut5_I0_O)        0.124     7.312 r  u_core/g_alu[3].u_wb/p_hl0_i_8/O
-                         net (fo=13, routed)          1.612     8.923    u_core/g_alu[0].u_ex/pp_hh0__0_4
-    SLICE_X115Y152       LUT4 (Prop_lut4_I2_O)        0.150     9.073 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_88/O
-                         net (fo=16, routed)          0.873     9.947    u_core/g_alu[0].u_ex/g_alu[0].u_alu/a1[56]
-    SLICE_X118Y155       LUT4 (Prop_lut4_I2_O)        0.320    10.267 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105/O
-                         net (fo=1, routed)           0.441    10.707    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105_n_0
-    SLICE_X118Y155       LUT6 (Prop_lut6_I5_O)        0.326    11.033 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_98/O
-                         net (fo=2, routed)           0.522    11.555    u_core_n_352
-    SLICE_X116Y155       CARRY4 (Prop_carry4_DI[0]_CO[3])
-                                                      0.550    12.105 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85/CO[3]
-                         net (fo=1, routed)           0.000    12.105    g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85_n_0
-    SLICE_X116Y156       CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.117    12.222 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_30/CO[3]
-                         net (fo=1, routed)           0.000    12.222    u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193[0]
-    SLICE_X116Y157       CARRY4 (Prop_carry4_CI_CO[0])
-                                                      0.254    12.476 r  u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_196/CO[0]
-                         net (fo=4, routed)           0.376    12.851    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_6_8_i_70_0[0]
-    SLICE_X117Y157       LUT5 (Prop_lut5_I4_O)        0.367    13.218 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193/O
-                         net (fo=4, routed)           0.621    13.840    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193_n_0
-    SLICE_X118Y153       LUT6 (Prop_lut6_I1_O)        0.124    13.964 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198/O
-                         net (fo=1, routed)           0.398    14.362    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198_n_0
-    SLICE_X117Y153       LUT6 (Prop_lut6_I5_O)        0.124    14.486 f  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95/O
-                         net (fo=64, routed)          0.883    15.369    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95_n_0
-    SLICE_X111Y154       LUT6 (Prop_lut6_I3_O)        0.124    15.493 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_36/O
-                         net (fo=1, routed)           0.439    15.932    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_36_n_0
-    SLICE_X111Y151       LUT5 (Prop_lut5_I2_O)        0.124    16.056 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_19/O
-                         net (fo=1, routed)           0.567    16.623    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_19_n_0
-    SLICE_X110Y149       LUT5 (Prop_lut5_I4_O)        0.124    16.747 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_6/O
-                         net (fo=1, routed)           1.610    18.357    u_core/g_alu[0].u_ex/ex_res[0]_164[54]
-    SLICE_X77Y149        LUT6 (Prop_lut6_I5_O)        0.124    18.481 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_1/O
-                         net (fo=23, routed)          1.650    20.131    u_core/u_prf/g_bank[0].g_two.lo_reg_r2_0_63_54_56/DIA
-    SLICE_X56Y159        RAMD64E                                      r  u_core/u_prf/g_bank[0].g_two.lo_reg_r2_0_63_54_56/RAMA/I
+    SLICE_X46Y55         FDCE                         0.000     0.973 r  u_core/u_rob/head_reg[1]_rep/C
+    SLICE_X46Y55         FDCE (Prop_fdce_C_Q)         0.518     1.491 r  u_core/u_rob/head_reg[1]_rep/Q
+                         net (fo=117, routed)         0.603     2.094    u_core/u_rob/head_reg[1]_rep_0
+    SLICE_X46Y55         LUT3 (Prop_lut3_I2_O)        0.124     2.218 r  u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4/O
+                         net (fo=302, routed)         0.539     2.756    u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4_n_0
+    SLICE_X46Y53         LUT3 (Prop_lut3_I2_O)        0.124     2.880 r  u_core/u_rob/g_bank[0].mem_reg_r3_0_15_0_5_i_4/O
+                         net (fo=315, routed)         0.787     3.667    u_core/u_rob/rw1_return[0]
+    SLICE_X46Y52         MUXF7 (Prop_muxf7_S_O)       0.292     3.959 f  u_core/u_rob/head_reg[3]_i_72/O
+                         net (fo=1, routed)           0.538     4.498    u_core/u_rob/head_reg[3]_i_72_n_0
+    SLICE_X49Y53         LUT3 (Prop_lut3_I2_O)        0.297     4.795 f  u_core/u_rob/head[3]_i_37/O
+                         net (fo=1, routed)           0.834     5.629    u_core/u_rob/head[3]_i_37_n_0
+    SLICE_X51Y53         LUT5 (Prop_lut5_I2_O)        0.124     5.753 f  u_core/u_rob/head[3]_i_18/O
+                         net (fo=4, routed)           1.015     6.768    u_core/u_rob/head[3]_i_18_n_0
+    SLICE_X54Y50         LUT5 (Prop_lut5_I4_O)        0.124     6.892 f  u_core/u_rob/tail[5]_i_5/O
+                         net (fo=1, routed)           0.811     7.703    u_core/u_rob/tail[5]_i_5_n_0
+    SLICE_X58Y50         LUT6 (Prop_lut6_I1_O)        0.124     7.827 f  u_core/u_rob/tail[5]_i_3/O
+                         net (fo=85, routed)          1.088     8.915    u_core/u_rob/tail[5]_i_3_n_0
+    SLICE_X65Y50         LUT4 (Prop_lut4_I3_O)        0.124     9.039 r  u_core/u_rob/ic_req_valid_INST_0_i_28/O
+                         net (fo=19, routed)          1.067    10.106    u_core/u_rob/ic_req_valid_INST_0_i_28_n_0
+    SLICE_X82Y50         LUT3 (Prop_lut3_I2_O)        0.124    10.230 f  u_core/u_rob/ic_req_valid_INST_0_i_19/O
+                         net (fo=95, routed)          1.786    12.016    u_core/u_rob/restore
+    SLICE_X115Y46        LUT3 (Prop_lut3_I1_O)        0.124    12.140 f  u_core/u_rob/ic_req_valid_INST_0_i_5/O
+                         net (fo=44, routed)          0.775    12.915    u_core/u_front/u_fers/fe_redirect0
+    SLICE_X124Y38        LUT4 (Prop_lut4_I1_O)        0.124    13.039 r  u_core/u_front/u_fers/c_p[15]_i_1__0/O
+                         net (fo=241, routed)         0.959    13.998    u_core/u_front/u_fers/out_valid
+    SLICE_X124Y25        LUT2 (Prop_lut2_I0_O)        0.124    14.122 r  u_core/u_front/u_fers/ub_valid_i_344/O
+                         net (fo=1, routed)           0.493    14.616    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_1
+    SLICE_X124Y25        LUT6 (Prop_lut6_I0_O)        0.124    14.740 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_327/O
+                         net (fo=1, routed)           0.487    15.226    u_core/u_front/u_fetch/u_fdec/ub_valid_i_327_n_0
+    SLICE_X123Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.350 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_309/O
+                         net (fo=1, routed)           0.488    15.838    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_n_0
+    SLICE_X122Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.962 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_291/O
+                         net (fo=1, routed)           0.420    16.382    u_core/u_front/u_fetch/u_fdec/ub_valid_i_291_n_0
+    SLICE_X122Y26        LUT6 (Prop_lut6_I5_O)        0.124    16.506 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_265/O
+                         net (fo=1, routed)           0.436    16.942    u_core/u_front/u_fetch/u_fdec/ub_valid_i_265_n_0
+    SLICE_X120Y27        LUT6 (Prop_lut6_I5_O)        0.124    17.066 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_224/O
+                         net (fo=1, routed)           0.590    17.656    u_core/u_front/u_fetch/u_fdec/ub_valid_i_224_n_0
+    SLICE_X120Y28        LUT6 (Prop_lut6_I5_O)        0.124    17.780 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_178/O
+                         net (fo=1, routed)           0.441    18.221    u_core/u_front/u_fetch/u_fdec/ub_valid_i_178_n_0
+    SLICE_X123Y30        LUT6 (Prop_lut6_I5_O)        0.124    18.345 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_132/O
+                         net (fo=1, routed)           0.296    18.641    u_core/u_front/u_fetch/u_fdec/ub_valid_i_132_n_0
+    SLICE_X123Y31        LUT6 (Prop_lut6_I5_O)        0.124    18.765 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_89/O
+                         net (fo=1, routed)           0.445    19.209    u_core/u_front/u_fetch/u_fdec/ub_valid_i_89_n_0
+    SLICE_X125Y31        LUT6 (Prop_lut6_I5_O)        0.124    19.333 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_48/O
+                         net (fo=1, routed)           0.404    19.737    u_core/u_front/u_fetch/u_fdec/ub_valid_i_48_n_0
+    SLICE_X125Y30        LUT6 (Prop_lut6_I3_O)        0.124    19.861 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_19/O
+                         net (fo=1, routed)           0.577    20.438    u_core/u_front/u_fetch/u_fdec/ub_valid_i_19_n_0
+    SLICE_X129Y30        LUT6 (Prop_lut6_I5_O)        0.124    20.562 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_7/O
+                         net (fo=3, routed)           0.474    21.036    u_core/u_front/u_fetch/u_fdec/ub_valid_i_7_n_0
+    SLICE_X134Y31        LUT6 (Prop_lut6_I4_O)        0.124    21.160 r  u_core/u_front/u_fetch/u_fdec/pc_q[38]_i_3_comp/O
+                         net (fo=38, routed)          0.937    22.096    u_core/u_front/u_fetch/u_fdec/u_ras/ovr
+    SLICE_X137Y35        MUXF7 (Prop_muxf7_S_O)       0.276    22.372 r  u_core/u_front/u_fetch/u_fdec/u_ras/pc_q_reg[6]_i_1/O
+                         net (fo=4, routed)           0.353    22.725    u_core/u_front/u_fetch/u_ubtb/pc_q_reg[38]_0[5]
+    SLICE_X138Y35        FDCE                                         r  u_core/u_front/u_fetch/u_ubtb/pc_q_reg[6]/D
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)       20.000    20.000 r  
@@ -571,24 +662,23 @@ Slack (MET) :             0.431ns  (required time - arrival time)
                                                       0.924    20.924    
                          clock pessimism              0.000    20.924    
                          clock uncertainty           -0.035    20.889    
-    SLICE_X56Y159        RAMD64E (Setup_ramd64e_CLK_I)
-                                                     -0.327    20.562    u_core/u_prf/g_bank[0].g_two.lo_reg_r2_0_63_54_56/RAMA
+    SLICE_X138Y35        FDCE (Setup_fdce_C_D)       -0.215    20.674    u_core/u_front/u_fetch/u_ubtb/pc_q_reg[6]
   -------------------------------------------------------------------
-                         required time                         20.562    
-                         arrival time                         -20.131    
+                         required time                         20.674    
+                         arrival time                         -22.725    
   -------------------------------------------------------------------
-                         slack                                  0.431    
+                         slack                                 -2.051    
 
-Slack (MET) :             0.443ns  (required time - arrival time)
-  Source:                 u_core/g_alu[3].u_wb/out_data_reg[65]/C
-                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            u_core/u_prf/g_bank[0].g_two.lo_reg_r7_0_63_3_5/RAMB/I
-                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+Slack (VIOLATED) :        -2.048ns  (required time - arrival time)
+  Source:                 u_core/u_rob/head_reg[1]_rep/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_core/u_front/u_fetch/u_ubtb/pi_q_reg[1]_rep/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Setup (Max at Slow Process Corner)
   Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
-  Data Path Delay:        19.138ns  (logic 3.656ns (19.103%)  route 15.482ns (80.897%))
-  Logic Levels:           16  (CARRY4=3 LUT3=1 LUT4=2 LUT5=5 LUT6=5)
+  Data Path Delay:        21.749ns  (logic 4.111ns (18.902%)  route 17.638ns (81.098%))
+  Logic Levels:           25  (LUT2=1 LUT3=5 LUT4=2 LUT5=2 LUT6=13 MUXF7=2)
   Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
     Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
     Source Clock Delay      (SCD):    0.973ns
@@ -604,45 +694,60 @@ Slack (MET) :             0.443ns  (required time - arrival time)
                          (clock clk rise edge)        0.000     0.000 r  
                          propagated clock network latency
                                                       0.973     0.973    
-    SLICE_X65Y126        FDRE                         0.000     0.973 r  u_core/g_alu[3].u_wb/out_data_reg[65]/C
-    SLICE_X65Y126        FDRE (Prop_fdre_C_Q)         0.456     1.429 r  u_core/g_alu[3].u_wb/out_data_reg[65]/Q
-                         net (fo=11, routed)          1.345     2.774    u_core/g_alu[3].u_wb/wb_d[3]_52[65]
-    SLICE_X78Y126        LUT6 (Prop_lut6_I5_O)        0.124     2.898 r  u_core/g_alu[3].u_wb/p_hl0_i_115/O
-                         net (fo=1, routed)           1.311     4.209    u_core/g_alu[3].u_wb/p_hl0_i_115_n_0
-    SLICE_X95Y127        LUT5 (Prop_lut5_I0_O)        0.124     4.333 r  u_core/g_alu[3].u_wb/p_hl0_i_101/O
-                         net (fo=65, routed)          1.151     5.484    u_core/g_alu[3].u_wb/p_hl0_i_101_n_0
-    SLICE_X109Y130       LUT3 (Prop_lut3_I0_O)        0.124     5.608 r  u_core/g_alu[3].u_wb/p_hl0_i_33/O
-                         net (fo=64, routed)          1.580     7.188    u_core/g_alu[3].u_wb/p_hl0_i_33_n_0
-    SLICE_X107Y126       LUT5 (Prop_lut5_I0_O)        0.124     7.312 r  u_core/g_alu[3].u_wb/p_hl0_i_8/O
-                         net (fo=13, routed)          1.612     8.923    u_core/g_alu[0].u_ex/pp_hh0__0_4
-    SLICE_X115Y152       LUT4 (Prop_lut4_I2_O)        0.150     9.073 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_88/O
-                         net (fo=16, routed)          0.873     9.947    u_core/g_alu[0].u_ex/g_alu[0].u_alu/a1[56]
-    SLICE_X118Y155       LUT4 (Prop_lut4_I2_O)        0.320    10.267 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105/O
-                         net (fo=1, routed)           0.441    10.707    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105_n_0
-    SLICE_X118Y155       LUT6 (Prop_lut6_I5_O)        0.326    11.033 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_98/O
-                         net (fo=2, routed)           0.522    11.555    u_core_n_352
-    SLICE_X116Y155       CARRY4 (Prop_carry4_DI[0]_CO[3])
-                                                      0.550    12.105 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85/CO[3]
-                         net (fo=1, routed)           0.000    12.105    g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85_n_0
-    SLICE_X116Y156       CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.117    12.222 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_30/CO[3]
-                         net (fo=1, routed)           0.000    12.222    u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193[0]
-    SLICE_X116Y157       CARRY4 (Prop_carry4_CI_CO[0])
-                                                      0.254    12.476 r  u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_196/CO[0]
-                         net (fo=4, routed)           0.376    12.851    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_6_8_i_70_0[0]
-    SLICE_X117Y157       LUT5 (Prop_lut5_I4_O)        0.367    13.218 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193/O
-                         net (fo=4, routed)           0.621    13.840    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193_n_0
-    SLICE_X118Y153       LUT6 (Prop_lut6_I1_O)        0.124    13.964 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198/O
-                         net (fo=1, routed)           0.398    14.362    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198_n_0
-    SLICE_X117Y153       LUT6 (Prop_lut6_I5_O)        0.124    14.486 f  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95/O
-                         net (fo=64, routed)          1.327    15.813    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95_n_0
-    SLICE_X115Y142       LUT5 (Prop_lut5_I4_O)        0.124    15.937 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_3_5_i_40/O
-                         net (fo=1, routed)           0.770    16.707    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_3_5_i_40_n_0
-    SLICE_X114Y149       LUT5 (Prop_lut5_I2_O)        0.124    16.831 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_3_5_i_12/O
-                         net (fo=1, routed)           1.335    18.166    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_3_5_i_12_n_0
-    SLICE_X89Y151        LUT6 (Prop_lut6_I5_O)        0.124    18.290 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_3_5_i_2/O
-                         net (fo=23, routed)          1.821    20.111    u_core/u_prf/g_bank[0].g_two.lo_reg_r7_0_63_3_5/DIB
-    SLICE_X76Y174        RAMD64E                                      r  u_core/u_prf/g_bank[0].g_two.lo_reg_r7_0_63_3_5/RAMB/I
+    SLICE_X46Y55         FDCE                         0.000     0.973 r  u_core/u_rob/head_reg[1]_rep/C
+    SLICE_X46Y55         FDCE (Prop_fdce_C_Q)         0.518     1.491 r  u_core/u_rob/head_reg[1]_rep/Q
+                         net (fo=117, routed)         0.603     2.094    u_core/u_rob/head_reg[1]_rep_0
+    SLICE_X46Y55         LUT3 (Prop_lut3_I2_O)        0.124     2.218 r  u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4/O
+                         net (fo=302, routed)         0.539     2.756    u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4_n_0
+    SLICE_X46Y53         LUT3 (Prop_lut3_I2_O)        0.124     2.880 r  u_core/u_rob/g_bank[0].mem_reg_r3_0_15_0_5_i_4/O
+                         net (fo=315, routed)         0.787     3.667    u_core/u_rob/rw1_return[0]
+    SLICE_X46Y52         MUXF7 (Prop_muxf7_S_O)       0.292     3.959 f  u_core/u_rob/head_reg[3]_i_72/O
+                         net (fo=1, routed)           0.538     4.498    u_core/u_rob/head_reg[3]_i_72_n_0
+    SLICE_X49Y53         LUT3 (Prop_lut3_I2_O)        0.297     4.795 f  u_core/u_rob/head[3]_i_37/O
+                         net (fo=1, routed)           0.834     5.629    u_core/u_rob/head[3]_i_37_n_0
+    SLICE_X51Y53         LUT5 (Prop_lut5_I2_O)        0.124     5.753 f  u_core/u_rob/head[3]_i_18/O
+                         net (fo=4, routed)           1.015     6.768    u_core/u_rob/head[3]_i_18_n_0
+    SLICE_X54Y50         LUT5 (Prop_lut5_I4_O)        0.124     6.892 f  u_core/u_rob/tail[5]_i_5/O
+                         net (fo=1, routed)           0.811     7.703    u_core/u_rob/tail[5]_i_5_n_0
+    SLICE_X58Y50         LUT6 (Prop_lut6_I1_O)        0.124     7.827 f  u_core/u_rob/tail[5]_i_3/O
+                         net (fo=85, routed)          1.088     8.915    u_core/u_rob/tail[5]_i_3_n_0
+    SLICE_X65Y50         LUT4 (Prop_lut4_I3_O)        0.124     9.039 r  u_core/u_rob/ic_req_valid_INST_0_i_28/O
+                         net (fo=19, routed)          1.067    10.106    u_core/u_rob/ic_req_valid_INST_0_i_28_n_0
+    SLICE_X82Y50         LUT3 (Prop_lut3_I2_O)        0.124    10.230 f  u_core/u_rob/ic_req_valid_INST_0_i_19/O
+                         net (fo=95, routed)          1.786    12.016    u_core/u_rob/restore
+    SLICE_X115Y46        LUT3 (Prop_lut3_I1_O)        0.124    12.140 f  u_core/u_rob/ic_req_valid_INST_0_i_5/O
+                         net (fo=44, routed)          0.775    12.915    u_core/u_front/u_fers/fe_redirect0
+    SLICE_X124Y38        LUT4 (Prop_lut4_I1_O)        0.124    13.039 r  u_core/u_front/u_fers/c_p[15]_i_1__0/O
+                         net (fo=241, routed)         0.959    13.998    u_core/u_front/u_fers/out_valid
+    SLICE_X124Y25        LUT2 (Prop_lut2_I0_O)        0.124    14.122 r  u_core/u_front/u_fers/ub_valid_i_344/O
+                         net (fo=1, routed)           0.493    14.616    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_1
+    SLICE_X124Y25        LUT6 (Prop_lut6_I0_O)        0.124    14.740 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_327/O
+                         net (fo=1, routed)           0.487    15.226    u_core/u_front/u_fetch/u_fdec/ub_valid_i_327_n_0
+    SLICE_X123Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.350 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_309/O
+                         net (fo=1, routed)           0.488    15.838    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_n_0
+    SLICE_X122Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.962 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_291/O
+                         net (fo=1, routed)           0.420    16.382    u_core/u_front/u_fetch/u_fdec/ub_valid_i_291_n_0
+    SLICE_X122Y26        LUT6 (Prop_lut6_I5_O)        0.124    16.506 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_265/O
+                         net (fo=1, routed)           0.436    16.942    u_core/u_front/u_fetch/u_fdec/ub_valid_i_265_n_0
+    SLICE_X120Y27        LUT6 (Prop_lut6_I5_O)        0.124    17.066 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_224/O
+                         net (fo=1, routed)           0.590    17.656    u_core/u_front/u_fetch/u_fdec/ub_valid_i_224_n_0
+    SLICE_X120Y28        LUT6 (Prop_lut6_I5_O)        0.124    17.780 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_178/O
+                         net (fo=1, routed)           0.441    18.221    u_core/u_front/u_fetch/u_fdec/ub_valid_i_178_n_0
+    SLICE_X123Y30        LUT6 (Prop_lut6_I5_O)        0.124    18.345 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_132/O
+                         net (fo=1, routed)           0.296    18.641    u_core/u_front/u_fetch/u_fdec/ub_valid_i_132_n_0
+    SLICE_X123Y31        LUT6 (Prop_lut6_I5_O)        0.124    18.765 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_89/O
+                         net (fo=1, routed)           0.445    19.209    u_core/u_front/u_fetch/u_fdec/ub_valid_i_89_n_0
+    SLICE_X125Y31        LUT6 (Prop_lut6_I5_O)        0.124    19.333 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_48/O
+                         net (fo=1, routed)           0.404    19.737    u_core/u_front/u_fetch/u_fdec/ub_valid_i_48_n_0
+    SLICE_X125Y30        LUT6 (Prop_lut6_I3_O)        0.124    19.861 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_19/O
+                         net (fo=1, routed)           0.577    20.438    u_core/u_front/u_fetch/u_fdec/ub_valid_i_19_n_0
+    SLICE_X129Y30        LUT6 (Prop_lut6_I5_O)        0.124    20.562 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_7/O
+                         net (fo=3, routed)           0.474    21.036    u_core/u_front/u_fetch/u_fdec/ub_valid_i_7_n_0
+    SLICE_X134Y31        LUT6 (Prop_lut6_I4_O)        0.124    21.160 r  u_core/u_front/u_fetch/u_fdec/pc_q[38]_i_3_comp/O
+                         net (fo=38, routed)          0.937    22.096    u_core/u_front/u_fetch/u_fdec/u_ras/ovr
+    SLICE_X137Y35        MUXF7 (Prop_muxf7_S_O)       0.276    22.372 r  u_core/u_front/u_fetch/u_fdec/u_ras/pc_q_reg[6]_i_1/O
+                         net (fo=4, routed)           0.350    22.722    u_core/u_front/u_fetch/u_ubtb/pc_q_reg[38]_0[5]
+    SLICE_X139Y35        FDCE                                         r  u_core/u_front/u_fetch/u_ubtb/pi_q_reg[1]_rep/D
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)       20.000    20.000 r  
@@ -650,24 +755,23 @@ Slack (MET) :             0.443ns  (required time - arrival time)
                                                       0.924    20.924    
                          clock pessimism              0.000    20.924    
                          clock uncertainty           -0.035    20.889    
-    SLICE_X76Y174        RAMD64E (Setup_ramd64e_CLK_I)
-                                                     -0.335    20.554    u_core/u_prf/g_bank[0].g_two.lo_reg_r7_0_63_3_5/RAMB
+    SLICE_X139Y35        FDCE (Setup_fdce_C_D)       -0.215    20.674    u_core/u_front/u_fetch/u_ubtb/pi_q_reg[1]_rep
   -------------------------------------------------------------------
-                         required time                         20.554    
-                         arrival time                         -20.111    
+                         required time                         20.674    
+                         arrival time                         -22.722    
   -------------------------------------------------------------------
-                         slack                                  0.443    
+                         slack                                 -2.048    
 
-Slack (MET) :             0.443ns  (required time - arrival time)
-  Source:                 u_core/g_alu[3].u_wb/out_data_reg[65]/C
-                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            u_core/u_prf/g_bank[0].g_two.lo_reg_r5_0_63_57_59/RAMC/I
-                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+Slack (VIOLATED) :        -2.038ns  (required time - arrival time)
+  Source:                 u_core/u_rob/head_reg[1]_rep/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_core/u_front/u_fetch/u_ubtb/pi_q_reg[1]/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Setup (Max at Slow Process Corner)
   Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
-  Data Path Delay:        19.142ns  (logic 3.780ns (19.747%)  route 15.362ns (80.253%))
-  Logic Levels:           17  (CARRY4=3 LUT3=1 LUT4=2 LUT5=4 LUT6=7)
+  Data Path Delay:        21.749ns  (logic 4.111ns (18.902%)  route 17.638ns (81.098%))
+  Logic Levels:           25  (LUT2=1 LUT3=5 LUT4=2 LUT5=2 LUT6=13 MUXF7=2)
   Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
     Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
     Source Clock Delay      (SCD):    0.973ns
@@ -683,47 +787,60 @@ Slack (MET) :             0.443ns  (required time - arrival time)
                          (clock clk rise edge)        0.000     0.000 r  
                          propagated clock network latency
                                                       0.973     0.973    
-    SLICE_X65Y126        FDRE                         0.000     0.973 r  u_core/g_alu[3].u_wb/out_data_reg[65]/C
-    SLICE_X65Y126        FDRE (Prop_fdre_C_Q)         0.456     1.429 r  u_core/g_alu[3].u_wb/out_data_reg[65]/Q
-                         net (fo=11, routed)          1.345     2.774    u_core/g_alu[3].u_wb/wb_d[3]_52[65]
-    SLICE_X78Y126        LUT6 (Prop_lut6_I5_O)        0.124     2.898 r  u_core/g_alu[3].u_wb/p_hl0_i_115/O
-                         net (fo=1, routed)           1.311     4.209    u_core/g_alu[3].u_wb/p_hl0_i_115_n_0
-    SLICE_X95Y127        LUT5 (Prop_lut5_I0_O)        0.124     4.333 r  u_core/g_alu[3].u_wb/p_hl0_i_101/O
-                         net (fo=65, routed)          1.151     5.484    u_core/g_alu[3].u_wb/p_hl0_i_101_n_0
-    SLICE_X109Y130       LUT3 (Prop_lut3_I0_O)        0.124     5.608 r  u_core/g_alu[3].u_wb/p_hl0_i_33/O
-                         net (fo=64, routed)          1.580     7.188    u_core/g_alu[3].u_wb/p_hl0_i_33_n_0
-    SLICE_X107Y126       LUT5 (Prop_lut5_I0_O)        0.124     7.312 r  u_core/g_alu[3].u_wb/p_hl0_i_8/O
-                         net (fo=13, routed)          1.612     8.923    u_core/g_alu[0].u_ex/pp_hh0__0_4
-    SLICE_X115Y152       LUT4 (Prop_lut4_I2_O)        0.150     9.073 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_88/O
-                         net (fo=16, routed)          0.873     9.947    u_core/g_alu[0].u_ex/g_alu[0].u_alu/a1[56]
-    SLICE_X118Y155       LUT4 (Prop_lut4_I2_O)        0.320    10.267 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105/O
-                         net (fo=1, routed)           0.441    10.707    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105_n_0
-    SLICE_X118Y155       LUT6 (Prop_lut6_I5_O)        0.326    11.033 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_98/O
-                         net (fo=2, routed)           0.522    11.555    u_core_n_352
-    SLICE_X116Y155       CARRY4 (Prop_carry4_DI[0]_CO[3])
-                                                      0.550    12.105 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85/CO[3]
-                         net (fo=1, routed)           0.000    12.105    g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85_n_0
-    SLICE_X116Y156       CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.117    12.222 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_30/CO[3]
-                         net (fo=1, routed)           0.000    12.222    u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193[0]
-    SLICE_X116Y157       CARRY4 (Prop_carry4_CI_CO[0])
-                                                      0.254    12.476 r  u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_196/CO[0]
-                         net (fo=4, routed)           0.376    12.851    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_6_8_i_70_0[0]
-    SLICE_X117Y157       LUT5 (Prop_lut5_I4_O)        0.367    13.218 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193/O
-                         net (fo=4, routed)           0.621    13.840    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193_n_0
-    SLICE_X118Y153       LUT6 (Prop_lut6_I1_O)        0.124    13.964 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198/O
-                         net (fo=1, routed)           0.398    14.362    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198_n_0
-    SLICE_X117Y153       LUT6 (Prop_lut6_I5_O)        0.124    14.486 f  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95/O
-                         net (fo=64, routed)          0.727    15.213    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95_n_0
-    SLICE_X114Y151       LUT6 (Prop_lut6_I5_O)        0.124    15.337 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_27/O
-                         net (fo=1, routed)           0.299    15.637    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_27_n_0
-    SLICE_X114Y150       LUT6 (Prop_lut6_I2_O)        0.124    15.761 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_30_32_i_9/O
-                         net (fo=33, routed)          0.903    16.664    u_core/g_alu[0].u_ex/ex_res[0]_164[31]
-    SLICE_X110Y148       LUT5 (Prop_lut5_I0_O)        0.124    16.788 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_12/O
-                         net (fo=1, routed)           1.646    18.433    u_core/g_alu[0].u_ex/ex_res[0]_164[59]
-    SLICE_X73Y147        LUT6 (Prop_lut6_I5_O)        0.124    18.557 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_3/O
-                         net (fo=23, routed)          1.558    20.115    u_core/u_prf/g_bank[0].g_two.lo_reg_r5_0_63_57_59/DIC
-    SLICE_X56Y162        RAMD64E                                      r  u_core/u_prf/g_bank[0].g_two.lo_reg_r5_0_63_57_59/RAMC/I
+    SLICE_X46Y55         FDCE                         0.000     0.973 r  u_core/u_rob/head_reg[1]_rep/C
+    SLICE_X46Y55         FDCE (Prop_fdce_C_Q)         0.518     1.491 r  u_core/u_rob/head_reg[1]_rep/Q
+                         net (fo=117, routed)         0.603     2.094    u_core/u_rob/head_reg[1]_rep_0
+    SLICE_X46Y55         LUT3 (Prop_lut3_I2_O)        0.124     2.218 r  u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4/O
+                         net (fo=302, routed)         0.539     2.756    u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4_n_0
+    SLICE_X46Y53         LUT3 (Prop_lut3_I2_O)        0.124     2.880 r  u_core/u_rob/g_bank[0].mem_reg_r3_0_15_0_5_i_4/O
+                         net (fo=315, routed)         0.787     3.667    u_core/u_rob/rw1_return[0]
+    SLICE_X46Y52         MUXF7 (Prop_muxf7_S_O)       0.292     3.959 f  u_core/u_rob/head_reg[3]_i_72/O
+                         net (fo=1, routed)           0.538     4.498    u_core/u_rob/head_reg[3]_i_72_n_0
+    SLICE_X49Y53         LUT3 (Prop_lut3_I2_O)        0.297     4.795 f  u_core/u_rob/head[3]_i_37/O
+                         net (fo=1, routed)           0.834     5.629    u_core/u_rob/head[3]_i_37_n_0
+    SLICE_X51Y53         LUT5 (Prop_lut5_I2_O)        0.124     5.753 f  u_core/u_rob/head[3]_i_18/O
+                         net (fo=4, routed)           1.015     6.768    u_core/u_rob/head[3]_i_18_n_0
+    SLICE_X54Y50         LUT5 (Prop_lut5_I4_O)        0.124     6.892 f  u_core/u_rob/tail[5]_i_5/O
+                         net (fo=1, routed)           0.811     7.703    u_core/u_rob/tail[5]_i_5_n_0
+    SLICE_X58Y50         LUT6 (Prop_lut6_I1_O)        0.124     7.827 f  u_core/u_rob/tail[5]_i_3/O
+                         net (fo=85, routed)          1.088     8.915    u_core/u_rob/tail[5]_i_3_n_0
+    SLICE_X65Y50         LUT4 (Prop_lut4_I3_O)        0.124     9.039 r  u_core/u_rob/ic_req_valid_INST_0_i_28/O
+                         net (fo=19, routed)          1.067    10.106    u_core/u_rob/ic_req_valid_INST_0_i_28_n_0
+    SLICE_X82Y50         LUT3 (Prop_lut3_I2_O)        0.124    10.230 f  u_core/u_rob/ic_req_valid_INST_0_i_19/O
+                         net (fo=95, routed)          1.786    12.016    u_core/u_rob/restore
+    SLICE_X115Y46        LUT3 (Prop_lut3_I1_O)        0.124    12.140 f  u_core/u_rob/ic_req_valid_INST_0_i_5/O
+                         net (fo=44, routed)          0.775    12.915    u_core/u_front/u_fers/fe_redirect0
+    SLICE_X124Y38        LUT4 (Prop_lut4_I1_O)        0.124    13.039 r  u_core/u_front/u_fers/c_p[15]_i_1__0/O
+                         net (fo=241, routed)         0.959    13.998    u_core/u_front/u_fers/out_valid
+    SLICE_X124Y25        LUT2 (Prop_lut2_I0_O)        0.124    14.122 r  u_core/u_front/u_fers/ub_valid_i_344/O
+                         net (fo=1, routed)           0.493    14.616    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_1
+    SLICE_X124Y25        LUT6 (Prop_lut6_I0_O)        0.124    14.740 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_327/O
+                         net (fo=1, routed)           0.487    15.226    u_core/u_front/u_fetch/u_fdec/ub_valid_i_327_n_0
+    SLICE_X123Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.350 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_309/O
+                         net (fo=1, routed)           0.488    15.838    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_n_0
+    SLICE_X122Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.962 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_291/O
+                         net (fo=1, routed)           0.420    16.382    u_core/u_front/u_fetch/u_fdec/ub_valid_i_291_n_0
+    SLICE_X122Y26        LUT6 (Prop_lut6_I5_O)        0.124    16.506 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_265/O
+                         net (fo=1, routed)           0.436    16.942    u_core/u_front/u_fetch/u_fdec/ub_valid_i_265_n_0
+    SLICE_X120Y27        LUT6 (Prop_lut6_I5_O)        0.124    17.066 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_224/O
+                         net (fo=1, routed)           0.590    17.656    u_core/u_front/u_fetch/u_fdec/ub_valid_i_224_n_0
+    SLICE_X120Y28        LUT6 (Prop_lut6_I5_O)        0.124    17.780 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_178/O
+                         net (fo=1, routed)           0.441    18.221    u_core/u_front/u_fetch/u_fdec/ub_valid_i_178_n_0
+    SLICE_X123Y30        LUT6 (Prop_lut6_I5_O)        0.124    18.345 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_132/O
+                         net (fo=1, routed)           0.296    18.641    u_core/u_front/u_fetch/u_fdec/ub_valid_i_132_n_0
+    SLICE_X123Y31        LUT6 (Prop_lut6_I5_O)        0.124    18.765 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_89/O
+                         net (fo=1, routed)           0.445    19.209    u_core/u_front/u_fetch/u_fdec/ub_valid_i_89_n_0
+    SLICE_X125Y31        LUT6 (Prop_lut6_I5_O)        0.124    19.333 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_48/O
+                         net (fo=1, routed)           0.404    19.737    u_core/u_front/u_fetch/u_fdec/ub_valid_i_48_n_0
+    SLICE_X125Y30        LUT6 (Prop_lut6_I3_O)        0.124    19.861 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_19/O
+                         net (fo=1, routed)           0.577    20.438    u_core/u_front/u_fetch/u_fdec/ub_valid_i_19_n_0
+    SLICE_X129Y30        LUT6 (Prop_lut6_I5_O)        0.124    20.562 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_7/O
+                         net (fo=3, routed)           0.474    21.036    u_core/u_front/u_fetch/u_fdec/ub_valid_i_7_n_0
+    SLICE_X134Y31        LUT6 (Prop_lut6_I4_O)        0.124    21.160 r  u_core/u_front/u_fetch/u_fdec/pc_q[38]_i_3_comp/O
+                         net (fo=38, routed)          0.937    22.096    u_core/u_front/u_fetch/u_fdec/u_ras/ovr
+    SLICE_X137Y35        MUXF7 (Prop_muxf7_S_O)       0.276    22.372 r  u_core/u_front/u_fetch/u_fdec/u_ras/pc_q_reg[6]_i_1/O
+                         net (fo=4, routed)           0.349    22.722    u_core/u_front/u_fetch/u_ubtb/pc_q_reg[38]_0[5]
+    SLICE_X136Y36        FDCE                                         r  u_core/u_front/u_fetch/u_ubtb/pi_q_reg[1]/D
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)       20.000    20.000 r  
@@ -731,24 +848,23 @@ Slack (MET) :             0.443ns  (required time - arrival time)
                                                       0.924    20.924    
                          clock pessimism              0.000    20.924    
                          clock uncertainty           -0.035    20.889    
-    SLICE_X56Y162        RAMD64E (Setup_ramd64e_CLK_I)
-                                                     -0.331    20.558    u_core/u_prf/g_bank[0].g_two.lo_reg_r5_0_63_57_59/RAMC
+    SLICE_X136Y36        FDCE (Setup_fdce_C_D)       -0.205    20.684    u_core/u_front/u_fetch/u_ubtb/pi_q_reg[1]
   -------------------------------------------------------------------
-                         required time                         20.558    
-                         arrival time                         -20.115    
+                         required time                         20.684    
+                         arrival time                         -22.722    
   -------------------------------------------------------------------
-                         slack                                  0.443    
+                         slack                                 -2.038    
 
-Slack (MET) :             0.455ns  (required time - arrival time)
-  Source:                 u_core/g_alu[3].u_wb/out_data_reg[65]/C
-                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            u_core/u_prf/g_bank[0].g_two.lo_reg_r5_0_63_57_59/RAMB/I
-                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+Slack (VIOLATED) :        -2.005ns  (required time - arrival time)
+  Source:                 u_core/u_rob/head_reg[1]_rep/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_core/u_front/u_fetch/u_ubtb/pi_q_reg[4]_rep/D
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Setup (Max at Slow Process Corner)
   Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
-  Data Path Delay:        19.126ns  (logic 3.780ns (19.764%)  route 15.346ns (80.236%))
-  Logic Levels:           17  (CARRY4=3 LUT3=1 LUT4=2 LUT5=5 LUT6=6)
+  Data Path Delay:        21.685ns  (logic 4.176ns (19.258%)  route 17.509ns (80.742%))
+  Logic Levels:           26  (LUT2=1 LUT3=5 LUT4=2 LUT5=4 LUT6=12 MUXF7=2)
   Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
     Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
     Source Clock Delay      (SCD):    0.973ns
@@ -764,47 +880,62 @@ Slack (MET) :             0.455ns  (required time - arrival time)
                          (clock clk rise edge)        0.000     0.000 r  
                          propagated clock network latency
                                                       0.973     0.973    
-    SLICE_X65Y126        FDRE                         0.000     0.973 r  u_core/g_alu[3].u_wb/out_data_reg[65]/C
-    SLICE_X65Y126        FDRE (Prop_fdre_C_Q)         0.456     1.429 r  u_core/g_alu[3].u_wb/out_data_reg[65]/Q
-                         net (fo=11, routed)          1.345     2.774    u_core/g_alu[3].u_wb/wb_d[3]_52[65]
-    SLICE_X78Y126        LUT6 (Prop_lut6_I5_O)        0.124     2.898 r  u_core/g_alu[3].u_wb/p_hl0_i_115/O
-                         net (fo=1, routed)           1.311     4.209    u_core/g_alu[3].u_wb/p_hl0_i_115_n_0
-    SLICE_X95Y127        LUT5 (Prop_lut5_I0_O)        0.124     4.333 r  u_core/g_alu[3].u_wb/p_hl0_i_101/O
-                         net (fo=65, routed)          1.151     5.484    u_core/g_alu[3].u_wb/p_hl0_i_101_n_0
-    SLICE_X109Y130       LUT3 (Prop_lut3_I0_O)        0.124     5.608 r  u_core/g_alu[3].u_wb/p_hl0_i_33/O
-                         net (fo=64, routed)          1.580     7.188    u_core/g_alu[3].u_wb/p_hl0_i_33_n_0
-    SLICE_X107Y126       LUT5 (Prop_lut5_I0_O)        0.124     7.312 r  u_core/g_alu[3].u_wb/p_hl0_i_8/O
-                         net (fo=13, routed)          1.612     8.923    u_core/g_alu[0].u_ex/pp_hh0__0_4
-    SLICE_X115Y152       LUT4 (Prop_lut4_I2_O)        0.150     9.073 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_88/O
-                         net (fo=16, routed)          0.873     9.947    u_core/g_alu[0].u_ex/g_alu[0].u_alu/a1[56]
-    SLICE_X118Y155       LUT4 (Prop_lut4_I2_O)        0.320    10.267 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105/O
-                         net (fo=1, routed)           0.441    10.707    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_105_n_0
-    SLICE_X118Y155       LUT6 (Prop_lut6_I5_O)        0.326    11.033 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_98/O
-                         net (fo=2, routed)           0.522    11.555    u_core_n_352
-    SLICE_X116Y155       CARRY4 (Prop_carry4_DI[0]_CO[3])
-                                                      0.550    12.105 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85/CO[3]
-                         net (fo=1, routed)           0.000    12.105    g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_54_56_i_85_n_0
-    SLICE_X116Y156       CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.117    12.222 r  g_alu[0].u_alu/u_alu1/g_bank[0].g_two.hi_reg_r1_0_15_60_63_i_30/CO[3]
-                         net (fo=1, routed)           0.000    12.222    u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193[0]
-    SLICE_X116Y157       CARRY4 (Prop_carry4_CI_CO[0])
-                                                      0.254    12.476 r  u_core/g_alu[0].u_alu/u_alu1/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_196/CO[0]
-                         net (fo=4, routed)           0.376    12.851    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_6_8_i_70_0[0]
-    SLICE_X117Y157       LUT5 (Prop_lut5_I4_O)        0.367    13.218 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193/O
-                         net (fo=4, routed)           0.621    13.840    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_193_n_0
-    SLICE_X118Y153       LUT6 (Prop_lut6_I1_O)        0.124    13.964 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198/O
-                         net (fo=1, routed)           0.398    14.362    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_198_n_0
-    SLICE_X117Y153       LUT6 (Prop_lut6_I5_O)        0.124    14.486 f  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95/O
-                         net (fo=64, routed)          0.615    15.101    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_0_2_i_95_n_0
-    SLICE_X110Y154       LUT6 (Prop_lut6_I0_O)        0.124    15.225 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_41/O
-                         net (fo=1, routed)           0.446    15.672    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_41_n_0
-    SLICE_X110Y151       LUT5 (Prop_lut5_I2_O)        0.124    15.796 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_25/O
-                         net (fo=1, routed)           0.926    16.721    u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_25_n_0
-    SLICE_X110Y147       LUT5 (Prop_lut5_I4_O)        0.124    16.845 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_9/O
-                         net (fo=1, routed)           1.358    18.203    u_core/g_alu[0].u_ex/ex_res[0]_164[58]
-    SLICE_X78Y146        LUT6 (Prop_lut6_I5_O)        0.124    18.327 r  u_core/g_alu[0].u_ex/g_bank[0].g_two.lo_reg_r1_0_63_57_59_i_2/O
-                         net (fo=23, routed)          1.771    20.099    u_core/u_prf/g_bank[0].g_two.lo_reg_r5_0_63_57_59/DIB
-    SLICE_X56Y162        RAMD64E                                      r  u_core/u_prf/g_bank[0].g_two.lo_reg_r5_0_63_57_59/RAMB/I
+    SLICE_X46Y55         FDCE                         0.000     0.973 r  u_core/u_rob/head_reg[1]_rep/C
+    SLICE_X46Y55         FDCE (Prop_fdce_C_Q)         0.518     1.491 r  u_core/u_rob/head_reg[1]_rep/Q
+                         net (fo=117, routed)         0.603     2.094    u_core/u_rob/head_reg[1]_rep_0
+    SLICE_X46Y55         LUT3 (Prop_lut3_I2_O)        0.124     2.218 r  u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4/O
+                         net (fo=302, routed)         0.539     2.756    u_core/u_rob/g_bank[0].mem_reg_r2_0_15_0_5_i_4_n_0
+    SLICE_X46Y53         LUT3 (Prop_lut3_I2_O)        0.124     2.880 r  u_core/u_rob/g_bank[0].mem_reg_r3_0_15_0_5_i_4/O
+                         net (fo=315, routed)         0.787     3.667    u_core/u_rob/rw1_return[0]
+    SLICE_X46Y52         MUXF7 (Prop_muxf7_S_O)       0.292     3.959 f  u_core/u_rob/head_reg[3]_i_72/O
+                         net (fo=1, routed)           0.538     4.498    u_core/u_rob/head_reg[3]_i_72_n_0
+    SLICE_X49Y53         LUT3 (Prop_lut3_I2_O)        0.297     4.795 f  u_core/u_rob/head[3]_i_37/O
+                         net (fo=1, routed)           0.834     5.629    u_core/u_rob/head[3]_i_37_n_0
+    SLICE_X51Y53         LUT5 (Prop_lut5_I2_O)        0.124     5.753 f  u_core/u_rob/head[3]_i_18/O
+                         net (fo=4, routed)           1.015     6.768    u_core/u_rob/head[3]_i_18_n_0
+    SLICE_X54Y50         LUT5 (Prop_lut5_I4_O)        0.124     6.892 f  u_core/u_rob/tail[5]_i_5/O
+                         net (fo=1, routed)           0.811     7.703    u_core/u_rob/tail[5]_i_5_n_0
+    SLICE_X58Y50         LUT6 (Prop_lut6_I1_O)        0.124     7.827 f  u_core/u_rob/tail[5]_i_3/O
+                         net (fo=85, routed)          1.088     8.915    u_core/u_rob/tail[5]_i_3_n_0
+    SLICE_X65Y50         LUT4 (Prop_lut4_I3_O)        0.124     9.039 r  u_core/u_rob/ic_req_valid_INST_0_i_28/O
+                         net (fo=19, routed)          1.067    10.106    u_core/u_rob/ic_req_valid_INST_0_i_28_n_0
+    SLICE_X82Y50         LUT3 (Prop_lut3_I2_O)        0.124    10.230 f  u_core/u_rob/ic_req_valid_INST_0_i_19/O
+                         net (fo=95, routed)          1.786    12.016    u_core/u_rob/restore
+    SLICE_X115Y46        LUT3 (Prop_lut3_I1_O)        0.124    12.140 f  u_core/u_rob/ic_req_valid_INST_0_i_5/O
+                         net (fo=44, routed)          0.775    12.915    u_core/u_front/u_fers/fe_redirect0
+    SLICE_X124Y38        LUT4 (Prop_lut4_I1_O)        0.124    13.039 r  u_core/u_front/u_fers/c_p[15]_i_1__0/O
+                         net (fo=241, routed)         0.959    13.998    u_core/u_front/u_fers/out_valid
+    SLICE_X124Y25        LUT2 (Prop_lut2_I0_O)        0.124    14.122 r  u_core/u_front/u_fers/ub_valid_i_344/O
+                         net (fo=1, routed)           0.493    14.616    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_1
+    SLICE_X124Y25        LUT6 (Prop_lut6_I0_O)        0.124    14.740 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_327/O
+                         net (fo=1, routed)           0.487    15.226    u_core/u_front/u_fetch/u_fdec/ub_valid_i_327_n_0
+    SLICE_X123Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.350 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_309/O
+                         net (fo=1, routed)           0.488    15.838    u_core/u_front/u_fetch/u_fdec/ub_valid_i_309_n_0
+    SLICE_X122Y25        LUT6 (Prop_lut6_I5_O)        0.124    15.962 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_291/O
+                         net (fo=1, routed)           0.420    16.382    u_core/u_front/u_fetch/u_fdec/ub_valid_i_291_n_0
+    SLICE_X122Y26        LUT6 (Prop_lut6_I5_O)        0.124    16.506 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_265/O
+                         net (fo=1, routed)           0.436    16.942    u_core/u_front/u_fetch/u_fdec/ub_valid_i_265_n_0
+    SLICE_X120Y27        LUT6 (Prop_lut6_I5_O)        0.124    17.066 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_224/O
+                         net (fo=1, routed)           0.590    17.656    u_core/u_front/u_fetch/u_fdec/ub_valid_i_224_n_0
+    SLICE_X120Y28        LUT6 (Prop_lut6_I5_O)        0.124    17.780 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_178/O
+                         net (fo=1, routed)           0.441    18.221    u_core/u_front/u_fetch/u_fdec/ub_valid_i_178_n_0
+    SLICE_X123Y30        LUT6 (Prop_lut6_I5_O)        0.124    18.345 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_132/O
+                         net (fo=1, routed)           0.296    18.641    u_core/u_front/u_fetch/u_fdec/ub_valid_i_132_n_0
+    SLICE_X123Y31        LUT6 (Prop_lut6_I5_O)        0.124    18.765 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_89/O
+                         net (fo=1, routed)           0.445    19.209    u_core/u_front/u_fetch/u_fdec/ub_valid_i_89_n_0
+    SLICE_X125Y31        LUT6 (Prop_lut6_I5_O)        0.124    19.333 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_48/O
+                         net (fo=1, routed)           0.404    19.737    u_core/u_front/u_fetch/u_fdec/ub_valid_i_48_n_0
+    SLICE_X125Y30        LUT6 (Prop_lut6_I3_O)        0.124    19.861 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_19/O
+                         net (fo=1, routed)           0.577    20.438    u_core/u_front/u_fetch/u_fdec/ub_valid_i_19_n_0
+    SLICE_X129Y30        LUT6 (Prop_lut6_I5_O)        0.124    20.562 f  u_core/u_front/u_fetch/u_fdec/ub_valid_i_7/O
+                         net (fo=3, routed)           0.477    21.039    u_core/u_front/u_fetch/u_fdec/ub_valid_i_7_n_0
+    SLICE_X134Y31        LUT5 (Prop_lut5_I3_O)        0.124    21.163 r  u_core/u_front/u_fetch/u_fdec/qlive[3]_i_3_comp/O
+                         net (fo=42, routed)          0.784    21.947    u_core/u_front/u_fetch/u_fdec/u_ras/pc_q_reg[1]_0
+    SLICE_X134Y31        LUT5 (Prop_lut5_I3_O)        0.124    22.071 r  u_core/u_front/u_fetch/u_fdec/u_ras/pc_q[9]_i_3/O
+                         net (fo=1, routed)           0.000    22.071    u_core/u_front/u_fetch/u_fdec/u_ras/hr[9]
+    SLICE_X134Y31        MUXF7 (Prop_muxf7_I1_O)      0.217    22.288 r  u_core/u_front/u_fetch/u_fdec/u_ras/pc_q_reg[9]_i_1/O
+                         net (fo=4, routed)           0.370    22.658    u_core/u_front/u_fetch/u_ubtb/pc_q_reg[38]_0[8]
+    SLICE_X133Y32        FDCE                                         r  u_core/u_front/u_fetch/u_ubtb/pi_q_reg[4]_rep/D
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)       20.000    20.000 r  
@@ -812,13 +943,12 @@ Slack (MET) :             0.455ns  (required time - arrival time)
                                                       0.924    20.924    
                          clock pessimism              0.000    20.924    
                          clock uncertainty           -0.035    20.889    
-    SLICE_X56Y162        RAMD64E (Setup_ramd64e_CLK_I)
-                                                     -0.335    20.554    u_core/u_prf/g_bank[0].g_two.lo_reg_r5_0_63_57_59/RAMB
+    SLICE_X133Y32        FDCE (Setup_fdce_C_D)       -0.236    20.653    u_core/u_front/u_fetch/u_ubtb/pi_q_reg[4]_rep
   -------------------------------------------------------------------
-                         required time                         20.554    
-                         arrival time                         -20.099    
+                         required time                         20.653    
+                         arrival time                         -22.658    
   -------------------------------------------------------------------
-                         slack                                  0.455    
+                         slack                                 -2.005    
 
 
 

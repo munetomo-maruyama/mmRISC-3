@@ -5,7 +5,7 @@
  4 DETECTED      D2: µop 1 with µop 0's checkpoint id
  5 DETECTED      link: pc + 4 for RVC too
  6 DETECTED      link: a jalr's from rs1
- 7 DETECTED     pc: an instruction across two lines from its second
+ 7 DETECTED      pc: an instruction across two lines from its second
  8 DETECTED      every transfer predicted not taken
  9 DETECTED      a call through x1 / x5 counted as a return
 10 DETECTED      jalr calls not calls (the RAS on a restore)
@@ -124,4 +124,4 @@
 123 DETECTED      a load's exception a cycle before its completion
 124 DETECTED      CSR: an illegal access's tval 0
 125 DETECTED      CSR: fcsr with mstatus.FS off not illegal
-126 mutations, 119 detected (7: rerun alone after its retarget)
+126 mutations, 119 detected

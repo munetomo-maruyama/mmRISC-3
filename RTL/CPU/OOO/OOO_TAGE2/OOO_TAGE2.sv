@@ -24,6 +24,11 @@
 // (up_pex, up_ptk: by parcel), as Plan/model/tageblk.h does (`past` 0). Not taken and
 // untrained, as OOO_TAGE has it, doubled g14-sflto's mispredictions (29.39).
 
+// The push into the history waits a cycle in registers (pv_q, pn_q, pb_q: at 20 ns the slots
+// OOO_FDEC2 decides came into h's enable too late, Plan/OOC.md 29.41); what reads the
+// history reads it with that push in (he, c1e, c2e: F0's index, the metadata at F2), so
+// every block reads and keeps what it did with the push at once.
+
 // Everything else as OOO_TAGE (below): the history lagging 2 blocks, F1's compare held
 // for F2, the restore, the update at commit slot by slot.
 //
@@ -192,6 +197,14 @@ module OOO_TAGE2
 
     logic [HREG-1:0] h;                 // the speculative global history (h[0] newest)
     logic [1:0]      c1, c2;            // the bit counts of the last block pushed and the one before
+    logic            pv_q;              // a push waits: the block in F2 the cycle before
+    logic [1:0]      pn_q;
+    logic [2:0]      pb_q;
+    logic [HREG-1:0] he;                // the history, the bit counts with it
+    logic [1:0]      c1e, c2e;
+    assign he  = pv_q ? hpush(h, pn_q, pb_q) : h;
+    assign c1e = pv_q ? pn_q : c1;
+    assign c2e = pv_q ? c1 : c2;
     logic [3:0]      use_alt;
     logic            tick;
 
@@ -200,8 +213,8 @@ module OOO_TAGE2
     logic [NT-1:0][TWM-1:0]  tag0;
     logic [2:0]              hs;        // the bits of the blocks before that are in h already
     logic [HMAX-1:0]         hr;        // the history read with
-    assign hs = (f0_live == 2'd2 || f0_live == 2'd3) ? 3'd0 : (f0_live == 2'd1) ? {1'b0, c1} : 3'(c1) + 3'(c2);
-    assign hr = HMAX'(h >> hs);
+    assign hs = (f0_live == 2'd2 || f0_live == 2'd3) ? 3'd0 : (f0_live == 2'd1) ? {1'b0, c1e} : 3'(c1e) + 3'(c2e);
+    assign hr = HMAX'(he >> hs);
     /* verilator lint_off UNUSEDSIGNAL */     // (the folds to fewer than NLOG bits, the top bit of tt)
     always @(*) begin
         for (int j = 0; j < NT; j++) begin
@@ -297,8 +310,8 @@ module OOO_TAGE2
             f2_pp[s] = alt ? atk2[s] : ptk2[s];
         end
         for (int e = 0; e < 16; e++) f2_base[e] = base2[2*e + 1];
-        m2.cprev = c1;
-        m2.hist = h[HMAX-1:0];
+        m2.cprev = c1e;
+        m2.hist = he[HMAX-1:0];
         m2.pred = f2_pred;
         m2.sv   = f2_sv;
         m2.par  = f2_par;
@@ -401,23 +414,29 @@ module OOO_TAGE2
         bwd = b;
     end
 
+    always_ff @(posedge clk) begin
+        pn_q <= f2_n;
+        pb_q <= f2_pred;
+    end
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             h       <= '0;
             c1      <= '0;
             c2      <= '0;
+            pv_q    <= 1'b0;
             use_alt <= 4'd8;
             tick    <= 1'b0;
         end else begin
-            if (rs_valid) begin
+            if (rs_valid) begin                 // (over a push that waits: that block was stopped)
                 h  <= hpush({(HREG - HMAX)'(0), rs_hist[HMAX-1:0]}, rs_n, rs_bits);
                 c1 <= rs_n;
                 c2 <= rs_hist[HMAX+1:HMAX];
-            end else if (f2_push) begin
-                h  <= hpush(h, f2_n, f2_pred);
-                c1 <= f2_n;
+            end else if (pv_q) begin
+                h  <= he;
+                c1 <= pn_q;
                 c2 <= c1;
             end
+            pv_q <= f2_push && !rs_valid;
             if (up_valid) begin
                 use_alt <= use_alt_n;
                 tick    <= tick_n;

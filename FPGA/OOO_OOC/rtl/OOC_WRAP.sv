@@ -1349,7 +1349,7 @@ module OOC_IQ2
     end
     OOO_IQ2 u_iq
         (.clk(clk), .rst_n(rst_n), .flush(i_fl), .kill(i_ki), .clr(i_cl), .ns_ok(i_nk), .mdu_ok(i_mk), .p0_hold(i_ph),
-         .disp_ready(dr), .disp_entry(de), .disp_valid(i_v), .disp_port(i_p), .disp_use(i_u), .disp_src(i_s),
+         .disp_ready(dr), .disp_entry(de), .disp_valid(i_v), .disp_cand(i_v), .disp_port(i_p), .disp_use(i_u), .disp_src(i_s),
          .disp_rdy(i_r), .disp_wr(i_w), .disp_dst(i_d), .disp_lat2(i_l), .disp_bm(i_b), .disp_ns(i_n), .disp_md(i_m),
          .disp_st(i_t), .ext_valid(i_xv), .ext_tag(i_xt),
          .iss_valid(iv), .iss_entry(ie), .iss_src(is), .iss_wr(iw), .iss_dst(id), .iss_bm(ib), .iss_ns(in), .iss_md(im),
@@ -1967,7 +1967,7 @@ module OOC_REN3
     logic              in, im;
     OOO_IQ2 u_iq
         (.clk(clk), .rst_n(rst_n), .flush(s_fl), .kill(s_ki), .clr(s_cl), .ns_ok(s_nk), .mdu_ok(s_mk), .p0_hold(s_ph),
-         .disp_ready(dr), .disp_entry(de), .disp_valid(go), .disp_port(d_p), .disp_use(d_u), .disp_src(rs),
+         .disp_ready(dr), .disp_entry(de), .disp_valid(go), .disp_cand(go), .disp_port(d_p), .disp_use(d_u), .disp_src(rs),
          .disp_rdy(rdy), .disp_wr(rw), .disp_dst(rd), .disp_lat2(d_l), .disp_bm(d_b), .disp_ns(d_n), .disp_md(d_m),
          .disp_st(d_t), .ext_valid(s_xv), .ext_tag(s_xt),
          .iss_valid(iv), .iss_entry(ie), .iss_src(is), .iss_wr(iw), .iss_dst(id), .iss_bm(ib), .iss_ns(in), .iss_md(im),

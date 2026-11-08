@@ -192,6 +192,7 @@ int main(int argc, char** argv)
             int k = 0;
             for (int i = 0; i < 4; i++) if ((mask >> i) & 1) pos[k++] = i;
             d.disp_valid = mask;
+            d.disp_cand = mask ? mask : rng() & 15;     // the slots that go if any do (none goes: the banks are given, nothing written)
             if (mask != (1u << nd) - 1) ngap++;
         }
         uint64_t src = 0, dst = 0, bmw = 0;

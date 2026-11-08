@@ -31,7 +31,10 @@
 // free entry of its bank. The valid slots need not be a prefix (the DS register keeps what
 // did not go in its slot), but no more than disp_ready of them. There is no search of 24 for 4, and it costs -0.1 % in the
 // model (iq_bank). The fields of a slot go to its bank on one bus, 4 to 1 for the bank, not
-// for each entry of it.
+// for each entry of it. The banks are given by disp_cand, the slots that go if any do (the
+// DS register's, early: dispatch is all of them or none), and written by disp_valid, which
+// is late (the go; Plan/OOC.md 29.41): so disp_entry and the payload's buses do not wait
+// for the go.
 //
 // A new entry's age row is all ones but for what is written after it in the same
 // cycle: the bits of empty entries do not count, as an empty entry requests nothing.
@@ -77,6 +80,7 @@ module OOO_IQ2
         output logic [2:0]            disp_ready, // room for this many
         output logic [3:0][$clog2(N)-1:0] disp_entry, // the entries they go to (for the payload)
         input  logic [3:0]            disp_valid, // oldest in the lowest slot, gaps allowed
+        input  logic [3:0]            disp_cand,  // the slots that go if any do: disp_valid is these or none
         input  logic [3:0][1:0]       disp_port,  // 0 any ALU, 1 ALU0 only, 2 LSU
         input  logic [3:0][1:0]       disp_use,   // the sources the µop reads
         input  logic [3:0][1:0][TAGW-1:0] disp_src,
@@ -297,7 +301,7 @@ module OOO_IQ2
     always @(*) begin
         nv = 3'd0;
         for (int k = 0; k < 4; k++) sl[k] = 2'd0;
-        for (int k = 0; k < 4; k++) if (disp_valid[k]) begin
+        for (int k = 0; k < 4; k++) if (disp_cand[k]) begin
             sl[nv[1:0]] = 2'(k);
             nv = nv + 3'd1;
         end
@@ -322,7 +326,7 @@ module OOO_IQ2
             for (int s = 0; s < 2; s++) dwk[d][s] = disp_rdy[d][s] || woken(disp_src[d][s]);
         dany = '0;
         for (int b = 0; b < NBANK; b++) begin
-            bw[b] = bg[b];                 // (flush wins at the valid bit)
+            bw[b] = bg[b] && disp_valid[bs[b]];    // (flush wins at the valid bit)
             for (int i = 0; i < N; i++) if (bw[b] && be[b] == EW'(i)) dany[i] = 1'b1;
         end
         for (int b = 0; b < NBANK; b++) begin

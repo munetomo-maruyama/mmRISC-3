@@ -116,7 +116,7 @@ int main(int argc, char** argv)
     uint64_t st_v[16] = {0};
     int sp = -1;                 // not known until the first move: taken from the block
     bool ub_v = false, ub_t = false, ub_c = false, ub_r = false; uint64_t ub_p = 0, ub_g = 0;
-    long npast = 0, nunt = 0, nb = 0, nov = 0, ntk = 0, ncr = 0, ncu = 0, nret = 0, ncall = 0, nsl = 0, nfl = 0, nbtb = 0;
+    long nkill = 0, npast = 0, nunt = 0, nb = 0, nov = 0, ntk = 0, ncr = 0, ncu = 0, nret = 0, ncall = 0, nsl = 0, nfl = 0, nbtb = 0;
 
     for (long cyc = 0; cyc < 600000; cyc++) {
         // ---- F3
@@ -137,7 +137,8 @@ int main(int argc, char** argv)
         d.f2_hv = n.hv; d.f2_pp = n.pp; d.f2_base = n.base; d.f2_bh = n.bh; d.f2_boff = n.boff; d.f2_btgt = n.btgt;
         bool ubt = rng() % 2; int uoff = (int)(rng() % 16);
         d.f2_ubt = ubt; d.f2_uoff = uoff;
-        d.flush = fl;
+        bool kill = rng() % 16 == 0;            // fetch stopped now: the block does nothing (it may still override)
+        d.flush = fl; d.f2_kill = kill;
 
         // ---- the walk of the block in F3: its right next address, if its predictions stand
         unsigned st3 = 0; bool cross3 = false;
@@ -239,7 +240,8 @@ int main(int argc, char** argv)
             }
             if (ee >= 0) { first_exp = 1u << ee; tk_now = true; }
             ovr_exp = nxt != f4.expect && !fl;
-            if (!d.out_valid) FAIL("cycle %ld: no block in F4", cyc);
+            if ((bool)d.out_valid != !kill) FAIL("cycle %ld: out_valid %d with kill %d", cyc, (int)d.out_valid, (int)kill);
+            if (kill) nkill++;
             if (d.out_first != first_exp) FAIL("cycle %ld: first %04x, expected %04x", cyc, d.out_first, first_exp);
             if ((d.out_st & sta) != sta || d.out_st != sta) FAIL("cycle %ld: starts %04x, expected %04x", cyc, d.out_st, sta);
             if ((bool)d.out_cross != cross4) FAIL("cycle %ld: cross", cyc);
@@ -254,7 +256,7 @@ int main(int argc, char** argv)
             if (ee >= 0) ntk++;
             if (cross4) ncr++;
             // the stack moves
-            if (!fl && ee >= 0) {
+            if (!fl && !kill && ee >= 0) {
                 if (ic) {
                     uint64_t a = ee == 15 ? (f4.line + 1) << 4 : (f4.line << 4) + ee + 1;
                     if (sp < 0) sp = (int)d.rootp->OOO_FDEC2__DOT__u_ras__DOT__ptr;
@@ -265,7 +267,7 @@ int main(int argc, char** argv)
                 }
             }
             bool hf = ee >= 0 && !(ubt && uoff < ee);
-            ub_v = ovr_exp && (hf || ubt); ub_p = (f4.line << 4) | (uint64_t)(hf ? ee : uoff); ub_t = hf; ub_g = nxt; ub_c = ib; ub_r = ir;
+            ub_v = ovr_exp && (hf || ubt) && !kill; ub_p = (f4.line << 4) | (uint64_t)(hf ? ee : uoff); ub_t = hf; ub_g = nxt; ub_c = ib; ub_r = ir;
             if (ub_v && !hf) nunt++;
         } else {
             if (d.out_valid) FAIL("cycle %ld: a block in F4 not expected", cyc);
@@ -285,12 +287,12 @@ int main(int argc, char** argv)
         (void)ov_now;
         if (fl) nfl++;
         if (fl) cv = false;
-        else if (n.v) cv = cross4 && !tk_now;
+        else if (n.v && !kill) cv = cross4 && !tk_now;
         if (n.v) cp = n.p[15];
         if (n.v) prev_line = n.line;
     }
-    bool cov = nb > 200000 && nov > 50000 && ntk > 50000 && ncr > 5000 && ncu > 1000 && nret > 5000 && ncall > 5000 && nsl > 100000 && nfl > 500 && nbtb > 1000 && nunt > 20000 && npast > 1000;
-    printf("tb_fdec2: %ld blocks, %ld taken, %ld overrides, %ld first halves, %ld finished, %ld calls, %ld returns, %ld through the BTB, %ld slot predictions, %ld flushes, %ld guesses trained not taken, %ld branches past the slots: %ld mismatches: %s\n",
-           nb, ntk, nov, ncr, ncu, ncall, nret, nbtb, nsl, nfl, nunt, npast, bad, bad == 0 && cov ? "PASS" : "FAIL");
+    bool cov = nb > 200000 && nov > 50000 && ntk > 50000 && ncr > 5000 && ncu > 1000 && nret > 5000 && ncall > 5000 && nsl > 100000 && nfl > 500 && nbtb > 1000 && nunt > 20000 && npast > 1000 && nkill > 20000;
+    printf("tb_fdec2: %ld blocks, %ld taken, %ld overrides, %ld first halves, %ld finished, %ld calls, %ld returns, %ld through the BTB, %ld slot predictions, %ld flushes, %ld guesses trained not taken, %ld branches past the slots, %ld killed: %ld mismatches: %s\n",
+           nb, ntk, nov, ncr, ncu, ncall, nret, nbtb, nsl, nfl, nunt, npast, nkill, bad, bad == 0 && cov ? "PASS" : "FAIL");
     return bad != 0 || !cov;
 }
