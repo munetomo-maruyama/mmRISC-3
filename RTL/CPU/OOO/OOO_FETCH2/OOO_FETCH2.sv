@@ -129,6 +129,9 @@ module OOO_FETCH2
     // ---- F2
     logic          f2;                  // a block to use in this cycle, unless fetch is stopped now (stop:
     logic [VA-1:1] hpc;                 // late, so it only enables what the block does: Plan/OOC.md 29.41)
+    logic [15:0]   hge;                 // the parcels at or after hpc's: decoded a cycle ahead (29.42)
+    logic [VA-1:1] hpc_d;
+    logic          hpc_ld;
     assign f2 = ic_resp_valid && qlive[qh];
 
     logic [2:0]       hv, pp;
@@ -143,7 +146,7 @@ module OOO_FETCH2
 
     OOO_FDEC2 #(.VA(VA)) u_fdec
         (.clk(clk), .rst_n(rst_n), .flush(be_redirect),
-         .f2_valid(f2), .f2_kill(stop), .f2_line(hpc[VA-1:5]), .f2_start(hpc[4:1]), .f2_seq(hpc[4:1] == 4'd0),
+         .f2_valid(f2), .f2_kill(stop), .f2_line(hpc[VA-1:5]), .f2_ge(hge), .f2_seq(hge[0]),
          .f2_data(ic_resp_data), .f2_expect(expect_pc),
          .f2_hv(hv), .f2_pp(pp), .f2_base(base),
          .f2_bh(b_hit), .f2_boff(b_off), .f2_btgt(b_tgt),
@@ -207,12 +210,20 @@ module OOO_FETCH2
             qubt[t]  <= ub_taken;
             quoff[t] <= ub_off;
         end
-        // the oldest request after this cycle's answer and request
+        if (hpc_ld) begin
+            hpc <= hpc_d;
+            for (int k = 0; k < 16; k++) hge[k] <= 4'(k) >= hpc_d[4:1];
+        end
+    end
+    // the oldest request after this cycle's answer and request
+    always @(*) begin
+        hpc_d  = pc_q;
+        hpc_ld = 1'b0;
         if (ic_resp_valid) begin
-            if (qn >= 3'd2) hpc <= qpc[qh + 2'd1];
-            else if (acc)   hpc <= pc_q;
-        end else if (qn == 3'd0 && acc) begin
-            hpc <= pc_q;
+            if (qn >= 3'd2) begin hpc_d = qpc[qh + 2'd1]; hpc_ld = 1'b1; end
+            else            hpc_ld = acc;
+        end else if (qn == 3'd0) begin
+            hpc_ld = acc;
         end
     end
 

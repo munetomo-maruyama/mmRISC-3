@@ -8513,3 +8513,38 @@ The record is section 29.40 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 OOO_CPU run finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**F's first `OOO_CPU` run did not meet 20 ns.** Between flip-flops it is −2.226 ns (25 levels), WNS −5.534 ns. I cut the causes and pushed (2bdcf68; 0 Ref on origin/dev). The effect of the cuts is unknown until the next run.
+
+#### Results
+- **Size:** 68,224 LUTs (E: 63,938), 16,797 FF, 24.5 tiles of block RAM (E: 19.5).
+- **What WNS −5.534 ns was:** the 6 ns of delay on the I$ answer's input port stood in front of all of F2's levels. By design F2 starts from registers, so I changed the constraint to 1.5 ns. This is recorded as a requirement on the real I$ of step 1.7 (its answer comes from flip-flops).
+
+#### The failing paths and the cuts (none changes the cycles)
+| Path | Slack | Cut |
+|---|---|---|
+| ROB head → fetch's stop → FDEC2's decision → uBTB | −2.226 ns | The late stop taken out of the decision, used only for the block's last enables |
+| FDEC2's boundaries → slot count → TAGE's history | −1.690 ns | Boundaries by carry-select over groups of 4 parcels; the slots' test by a prefix OR, not a subtraction; the history's push a cycle later (the readers bypass) |
+| IQ room → go → bank assignment → payload | −1.768 ns | Banks counted from the early candidates; the go only enables the writes (dispatch is all or nothing, so the result is the same) |
+
+Paths of −0.2 to −1.4 ns also remained, such as the writes into the PRF. Their details were not in the report, so **I added a report that writes each block's failing paths in full (`timing_blocks.rpt`).** The next run will show them.
+
+#### Checks
+- **Cycles:** CoreMark exactly as before (`OOO_CPU` g14-o2: 1,316,322).
+- **Tests:** 12 regression runs, 4 CoreMark runs, 5 tb_front runs and the changed units' benches all PASS.
+- **Bug injection:** all 140 of the changed blocks' unit mutations detected. One found equivalent was replaced by another, and its redundant term removed from the RTL too. I also retargeted M860 to M867, which had not applied since C0. The core is 119 of 126; the 7 not detected are the same as in 29.39.
+- **Lint:** no new warnings with `verilator -Wall`.
+
+The record is section 29.41 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also written in STRATEGY row 1.6.
+
+Please run `synth_ooo.bat OOO_CPU` again.
+<!-- /answer -->
+
+## 209. 2026-11-08 21:51:33 JST
+
+```text
+OOO_CPU run finished.
+```

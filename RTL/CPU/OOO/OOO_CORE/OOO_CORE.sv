@@ -733,6 +733,7 @@ module OOO_CORE
     logic [NAP-1:0]            ex_v;
     logic                      pm_w, md_w;     // port 0's multiplier / MDU result written (below)
     logic                      md_wr, wbw0;    // the MDU's register-file write (also when killed now), port 0's
+    logic                      pm_wr, wbw1;    // the multiplier's, port 1's (Plan/OOC.md 29.42)
     ex_t  [NAP-1:0]            ex;
     logic [NAP-1:0][63:0]      ex_res;
     /* verilator lint_off UNUSEDSIGNAL */      // (ALU1..3: no branch; port 0's units read port 0's operands)
@@ -858,7 +859,7 @@ module OOO_CORE
             // multiplier's and the MDU's results, below); completion in EX, but of what an MDU or the system
             // unit completes later, and of a branch or jalr: through the resolution's register, a cycle later
             // (below, Plan/OOC.md 29.25)
-            prf_we[p]     = p == 0 ? wbw0 : wbi_v[p];
+            prf_we[p]     = p == 0 ? wbw0 : p == 1 ? wbw1 : wbi_v[p];
             prf_wa[p]     = wbi_t[p];
             prf_wd[p]     = wbi_d[p];
             cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS && ex[p].rec.kind != K_CSR && !isbr;
@@ -936,7 +937,7 @@ module OOO_CORE
          .x_sret(x_sret), .wfi_wake(wfi_wake), .cmp_valid(sys_cv), .cmp_rob(sys_rob), .cmp_rp(sys_rp),
          .cmp_exc(sys_exc), .tv_valid(sys_tv_v), .tv_rob(sys_tv_rob), .tv_val(sys_tv));
 
-    logic            pm_v, md_v, md_we;
+    logic            pm_v, pm_we, md_v, md_we;
     logic [TAGW-1:0] pm_t, md_t;
     logic [63:0]     pm_d, md_d;
     logic [ROBW-1:0] pm_rob, md_rob;
@@ -944,12 +945,12 @@ module OOO_CORE
         (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill),
          .ex_valid(x_mul), .ex_word(ex[0].rec.word_op), .ex_a(ex_a[0]), .ex_b(ex_b[0]), .ex_rob(ex[0].rec.rob),
          .ex_dst(ex[0].dst), .ex_bm(ex_bms[0]),
-         .res_valid(pm_v), .res_tag(pm_t), .res_data(pm_d), .res_rob(pm_rob));
+         .res_valid(pm_v), .res_we(pm_we), .res_tag(pm_t), .res_data(pm_d), .res_rob(pm_rob));
     OOO_MDUP #(.ROBW(ROBW), .TAGW(TAGW), .NCK(NCKPT)) u_mdup
         (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr),
          .iss_md(iss_md), .iss_bm(iss_bm[0]), .mdu_ok(mdu_ok), .p0_hold(p0_hold), .res_we(md_we),
          .ex_valid(x_mdu), .ex_op(ex[0].rec.xop), .ex_word(ex[0].rec.word_op), .ex_a(ex_a[0]), .ex_b(ex_b[0]),
-         .ex_rob(ex[0].rec.rob), .ex_dst(ex[0].dst), .ex_bm(ex_bms[0]), .slot_busy(x_wv || pm_v),   // (pm: the completion port they share)
+         .ex_rob(ex[0].rec.rob), .ex_dst(ex[0].dst), .ex_bm(ex_bms[0]), .slot_busy(x_wv || pm_we),   // (pm: the completion port they share; not waiting on the kill)
          .res_valid(md_v), .res_tag(md_t), .res_data(md_d), .res_rob(md_rob), .ext_valid(md_ext_v), .ext_tag(md_ext_t));
 
     // the write-back registers: port 0 takes the MDU's result, else its EX's; port 1 the multiplier's, else
@@ -962,13 +963,17 @@ module OOO_CORE
     // write, which implies no latency-1 writer (slot_busy), so the choice below can take it too
     assign md_wr = md_we && md_t != '0;
     assign wbw0  = md_wr || x_wv;
+    // port 1 the same: a multiply in its write slot (also one killed now) implies no latency-1 writer there, the
+    // queue having kept the slot (blk1), but for one to x0, which keeps none
+    assign pm_wr = pm_we && pm_t != '0;
+    assign wbw1  = pm_wr || (ex_v[1] && ex[1].wr);
     always @(*) begin
         wbi_v[0] = md_w || x_wv;
         wbi_t[0] = md_wr ? md_t : ex[0].dst;
         wbi_d[0] = md_wr ? md_d : (ex[0].rec.kind == K_CSR ? csr_res : ex_res[0]);
         wbi_v[1] = pm_w || (ex_v[1] && ex[1].wr);
-        wbi_t[1] = pm_w ? pm_t : ex[1].dst;
-        wbi_d[1] = pm_w ? pm_d : ex_res[1];
+        wbi_t[1] = pm_wr ? pm_t : ex[1].dst;
+        wbi_d[1] = pm_wr ? pm_d : ex_res[1];
         for (int p = 2; p < NAP; p++) begin                     // ALU2, ALU3: their own results only
             wbi_v[p] = ex_v[p] && ex[p].wr;
             wbi_t[p] = ex[p].dst;

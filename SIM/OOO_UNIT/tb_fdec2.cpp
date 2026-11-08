@@ -132,7 +132,7 @@ int main(int argc, char** argv)
         n.bh = rng() % 2; n.boff = rng() % 16; n.btgt = rng() & VM;
         n.expect = rng() & VM;       // set right below, half the time
         bool fl = rng() % 256 == 0;
-        d.f2_valid = n.v; d.f2_line = n.line; d.f2_start = n.start; d.f2_seq = seq;
+        d.f2_valid = n.v; d.f2_line = n.line; { unsigned ge = 0; for (int k = 0; k < 16; k++) if (k >= n.start) ge |= 1u << k; d.f2_ge = ge; } d.f2_seq = seq;
         for (int i = 0; i < 8; i++) d.f2_data[i] = (uint32_t)(dw[i / 2] >> (32 * (i & 1)));
         d.f2_hv = n.hv; d.f2_pp = n.pp; d.f2_base = n.base; d.f2_bh = n.bh; d.f2_boff = n.boff; d.f2_btgt = n.btgt;
         bool ubt = rng() % 2; int uoff = (int)(rng() % 16);

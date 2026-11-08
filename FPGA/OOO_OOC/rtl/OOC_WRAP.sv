@@ -1110,7 +1110,7 @@ module OOC_PMUL
     logic [4:0] res_rob;
     assign {flush, kill, ex_valid, ex_word, ex_a, ex_b, ex_rob, ex_dst, ex_bm} = q;
     OOO_PMUL #(.ROBW(5), .TAGW(6), .NCK(6)) u_pmul
-        (.flush(flush), .kill(kill), .ex_valid(ex_valid), .ex_word(ex_word), .ex_a(ex_a), .ex_b(ex_b), .ex_rob(ex_rob), .ex_dst(ex_dst), .ex_bm(ex_bm), .res_valid(res_valid), .res_tag(res_tag), .res_data(res_data), .res_rob(res_rob), .clk(clk), .rst_n(rst_n));
+        (.flush(flush), .kill(kill), .ex_valid(ex_valid), .ex_word(ex_word), .ex_a(ex_a), .ex_b(ex_b), .ex_rob(ex_rob), .ex_dst(ex_dst), .ex_bm(ex_bm), .res_valid(res_valid), .res_we(), .res_tag(res_tag), .res_data(res_data), .res_rob(res_rob), .clk(clk), .rst_n(rst_n));
     always_ff @(posedge clk) out <= {res_valid, res_tag, res_data, res_rob};
 endmodule : OOC_PMUL
 
@@ -1800,13 +1800,15 @@ module OOC_FE3
     logic [3:0]   s_uo;
     logic [38:1]  s_bp, s_exp, s_bt, s_rval, s_radd;
     logic [38:5]  s_l;
-    logic [3:0]   s_s, s_bo, s_rp;
+    logic [3:0]   s_bo, s_rp;
+    logic [15:0]  s_ge;
     logic [255:0] s_d;
     logic [2:0]   s_hv, s_pp;
     logic [15:0]  s_b;
     logic [4:0]   s_ftq;
     always_ff @(posedge clk) begin
-        s_be <= be_redirect; s_bp <= be_pc; s_st <= stall; s_v <= f2_valid; s_l <= f2_line; s_s <= f2_start; s_seq <= f2_seq;
+        s_be <= be_redirect; s_bp <= be_pc; s_st <= stall; s_v <= f2_valid; s_l <= f2_line; s_seq <= f2_seq;
+        for (int k = 0; k < 16; k++) s_ge[k] <= 4'(k) >= f2_start;
         s_d <= f2_data; s_exp <= f2_expect; s_hv <= f2_hv; s_pp <= f2_pp; s_b <= f2_base; s_bh <= f2_bh; s_bo <= f2_boff; s_bt <= f2_btgt;
         s_ftq <= f2_ftq; s_rv <= rs_valid; s_rp <= rs_ptr; s_rval <= rs_val; s_rpu <= rs_push; s_radd <= rs_addr; s_rpo <= rs_pop; s_or <= out_ready;
         s_ubt <= f2_ubt; s_uo <= f2_uoff;
@@ -1821,7 +1823,7 @@ module OOC_FE3
     logic [3:0]    snp, off;
     logic          tk;
     OOO_FDEC2 #(.VA(39)) u_fd
-        (.clk(clk), .rst_n(rst_n), .flush(s_be), .f2_valid(s_v), .f2_line(s_l), .f2_start(s_s), .f2_seq(s_seq), .f2_data(s_d),
+        (.clk(clk), .rst_n(rst_n), .flush(s_be), .f2_valid(s_v), .f2_kill(1'b0), .f2_line(s_l), .f2_ge(s_ge), .f2_seq(s_seq), .f2_data(s_d),
          .f2_expect(s_exp), .f2_hv(s_hv), .f2_pp(s_pp), .f2_base(s_b), .f2_bh(s_bh), .f2_boff(s_bo), .f2_btgt(s_bt),
          .f2_ubt(s_ubt), .f2_uoff(s_uo),
          .out_valid(fv), .out_st(fst), .out_first(ffr), .out_cross(cr), .out_end(fe), .ovr(ovr), .ovr_pc(op),

@@ -38,6 +38,7 @@
 // boundaries are found by groups of 4 parcels, each for both ways of entering it, then
 // chosen group by group (in place of a chain of 16); a slot is up to the end when no
 // transfer before it is predicted taken (a prefix OR, in place of first - 1).
+// The fetch address comes decoded, from flip-flops (f2_ge; 29.42).
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -55,7 +56,7 @@ module OOO_FDEC2
         input  logic                f2_valid,
         input  logic                f2_kill,    // fetch stopped now (late): the block does nothing
         input  logic [VA-1:5]       f2_line,
-        input  logic [3:0]          f2_start,
+        input  logic [15:0]         f2_ge,      // the parcels at or after the fetch address (decoded, from flip-flops)
         input  logic                f2_seq,     // it follows the block before, at parcel 0
         input  logic [255:0]        f2_data,
         input  logic [VA-1:1]       f2_expect,  // where fetch went on after it
@@ -111,7 +112,6 @@ module OOO_FDEC2
     logic [15:0] p [16];
     logic [15:0] l32, st, hi;
     assign c_use = c_v && f2_seq;
-    logic [15:0] ge;                         // at or after the fetch address
     logic [3:0]  g_in;                       // a group's first parcel is a second half
     logic [3:0][1:0][3:0] g_hi, g_st;        // each group's, for both ways in
     logic [3:0][1:0]      g_out;             // ... and whether the next group's first is a second half
@@ -119,15 +119,14 @@ module OOO_FDEC2
         for (int k = 0; k < 16; k++) begin
             p[k]   = f2_data[16*k +: 16];
             l32[k] = p[k][1:0] == 2'b11;
-            ge[k]  = 4'(k) >= f2_start;
         end
         for (int g = 0; g < 4; g++)
             for (int x = 0; x < 2; x++) begin
                 g_hi[g][x][0] = x[0];
-                g_st[g][x][0] = ge[4*g] && !x[0];
+                g_st[g][x][0] = f2_ge[4*g] && !x[0];
                 for (int i = 1; i < 4; i++) begin
                     g_hi[g][x][i] = g_st[g][x][i-1] && l32[4*g+i-1];
-                    g_st[g][x][i] = ge[4*g+i] && !g_hi[g][x][i];
+                    g_st[g][x][i] = f2_ge[4*g+i] && !g_hi[g][x][i];
                 end
                 g_out[g][x] = g_st[g][x][3] && l32[4*g+3];
             end

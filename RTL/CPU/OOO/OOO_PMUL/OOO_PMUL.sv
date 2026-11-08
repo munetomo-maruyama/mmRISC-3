@@ -22,7 +22,9 @@
 // A µop is not taken when it is killed in EX (its branch mask has the
 // killed bit) or flushed, and writes nothing when killed or flushed in the
 // cycle after (the mask keeps that cycle's clears: one cycle, as the LSU's
-// M, OOO_LSU).
+// M, OOO_LSU). The register file's write (res_we) does not wait on that
+// kill, as OOO_MDUP's (Plan/OOC.md 29.28, 29.42): a killed µop's register
+// gets its value, and no consumer of it lives.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -50,6 +52,7 @@ module OOO_PMUL
 
         // into port 0's write-back register at the end of this cycle
         output logic                res_valid,
+        output logic                res_we,     // the register file's write: also of a µop killed now
         output logic [TAGW-1:0]     res_tag,
         output logic [63:0]         res_data,
         output logic [ROBW-1:0]     res_rob
@@ -80,6 +83,7 @@ module OOO_PMUL
         logic [63:0] s;
         s         = p_ll + {p_lh + p_hl, 32'd0};
         res_valid = m_v && !flush && (m_bm & kill) == '0;
+        res_we    = m_v;
         res_tag   = m_dst;
         res_data  = m_w ? {{32{s[31]}}, s[31:0]} : s;
         res_rob   = m_rob;

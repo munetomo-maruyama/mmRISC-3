@@ -4949,3 +4949,19 @@ The other blocks are negative by less, all write-port or join paths near the pla
 **Checks.** `tb_fdec2` (a random stop: 32,636 blocks), `tb_fetch2` (5 seeds; overrides in a stop mirrored: 2,842), `tb_iq2`, `tb_iq2n2`, `tb_iqpl2` (banks given and none going: 49,818 cycles) PASS. `run_front.sh` 5 of 5; `run_core.sh` 0 failures in all 12 runs; `run_coremark.sh` PASS, cycles unchanged (`OOO_CORE` 1,311,645 / 1,219,046 / 1,370,745; `OOO_CPU` 1,316,322 / 1,226,653 / 1,374,118). **Bug injection**: unit 140 of 140 on `OOO_FDEC2`, `OOO_TAGE2`, `OOO_FETCH2`, `OOO_IQ2`, `OOO_IQPL2` (M1164 to M1173 new, the changed lines retargeted; M860 to M867, not applied since C0's rewrite of the selects, retargeted too; one found equivalent, a stopped block's push, and the term removed from the RTL, its mutation replaced by one on the push in a restore's cycle). Core: 119 of 126, the same 7 as 29.39. `verilator -Wall` on `OOO_CPU`: nothing new.
 
 **Next**: `OOO_CPU` at 20 ns again (by the author).
+
+### 29.42 Step 1.5, F3: the second run, −0.306 ns; two cuts (2026-11-08)
+
+**The run** (by the author, with 29.41's cuts): **68,861 LUTs** after place and route (56,443 logic + 12,414 LUT RAM), 16,847 FF after synthesis, 24.5 tiles of block RAM. **WNS −0.306 ns, between flip-flops, 19 levels** (from −2.226 ns); the port's path of 29.41 is gone. The new `timing_blocks.rpt` holds the failing paths; only two classes are left below 0:
+
+1. **A branch's result (`br_rob`, also the ROB's head) → the restore → the kill → `OOO_PMUL`'s `res_valid` → the MDU's `slot_busy` → its register-file write → `OOO_PRF`'s live value table (−0.306 ns, 19 levels, 82 % routing).** 29.28 took the kill off port 0's write, but the multiplier's result still waited on it: on port 1's write, and through the MDU's `slot_busy` on port 0's.
+2. **`hpc` (the fetch address of F2) → the decode of the start → the boundaries → the choice → the override → `OOO_UBTB2`'s `pc_q` (−0.169 ns, 21 levels, 80 % routing).**
+
+**The cuts, again with no change in cycles:**
+
+- **`OOO_PMUL`'s `res_we`** (= `m_v`, as `OOO_MDUP`'s): the register file's write of port 1 (`wbw1`, `pm_wr`) and the MDU's `slot_busy` do not wait on the kill. A killed multiply's register gets its value: no consumer of it lives, and its tag is not given out again in that cycle. The WB register, the completion and the wakeup still take `res_valid`. A multiply in the slot implies no latency-1 writer on port 1, the queue having kept it (`blk1`), but for one to x0, which keeps none (`pm_wr` tests the tag).
+- **The fetch address decoded a cycle ahead** (`OOO_FETCH2`'s `hge`, 16 flip-flops loaded with `hpc`): `OOO_FDEC2` takes `f2_ge`, the parcels at or after the address, in place of `f2_start`; `f2_seq` is `hge[0]`.
+
+**Checks.** `tb_pmul` (`res_we` also for what is killed), `tb_fdec2`, `tb_fetch2` (5 seeds) PASS. `run_front.sh` 5 of 5; `run_core.sh` 0 failures in all 12 runs; `run_coremark.sh` PASS, **the same cycles** (`OOO_CPU` 1,316,322 / 1,226,653 / 1,374,118). **Bug injection**: unit 75 of 75 on `OOO_FDEC2`, `OOO_FETCH2`, `OOO_PMUL` and the 7 of `OOO_LSU3` found not applying since E1b (`w_ok`, `w_miss`, `ev`), retargeted; all of `mutate.py`'s 1,060 now apply once. M1174 to M1176 new. Core: 121 of 128 (2 new, on port 1's write); the same 7 not reached as 29.39. `verilator -Wall` on `OOO_CPU`: nothing new.
+
+**Next**: `OOO_CPU` at 20 ns again (by the author).

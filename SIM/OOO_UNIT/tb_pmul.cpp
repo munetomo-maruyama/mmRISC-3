@@ -68,6 +68,7 @@ int main(int argc, char** argv)
         // the µop of the cycle before writes now, unless killed or flushed now
         bool ew = m.v && !flush && !(m.bm & killm);
         if ((bool)d.res_valid != ew) FAIL("res_valid %d, expected %d", (int)d.res_valid, ew);
+        if ((bool)d.res_we != m.v) FAIL("res_we %d, expected %d (not waiting on the kill)", (int)d.res_we, m.v);
         else if (ew) {
             if ((uint64_t)d.res_data != m.e) FAIL("product %016llx, expected %016llx", (unsigned long long)d.res_data, (unsigned long long)m.e);
             if ((int)d.res_tag != m.tag || (int)d.res_rob != m.rob) FAIL("tag %d rob %d, expected %d %d", (int)d.res_tag, (int)d.res_rob, m.tag, m.rob);
