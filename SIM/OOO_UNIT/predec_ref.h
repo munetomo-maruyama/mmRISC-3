@@ -1,31 +1,34 @@
 //---------------------------------------------------------------------------
 // predec_ref.h : the reference of OOO_PREDEC, written from the
-// specification's tables with byte offsets (for tb_predec and tb_fetch)
+// specification's tables with byte offsets (for tb_predec and tb_fetch; with
+// N = 16, lines of 32 bytes, for tb_fetch2)
 //---------------------------------------------------------------------------
 #pragma once
 #include <cstdint>
 
 struct Predec {
     int iv = 0, br = 0, jal = 0, jalr = 0, call = 0, ret = 0;   // per end parcel
-    uint64_t tgt[8] = {0};                                     // halfword addresses
+    int st = 0;                                                // an instruction starts at this parcel
+    uint64_t tgt[16] = {0};                                    // halfword addresses
     bool cross = false;
 };
 
 inline int64_t predec_sx(uint64_t v, int b) { return (int64_t)(v << (64 - b)) >> (64 - b); }
 
-// line: the 16-byte line (byte address / 16); p: its 8 parcels
-inline Predec predec_ref(uint64_t line, int start, bool carry_v, uint16_t carry, const uint16_t p[8])
+// line: the line of 2N bytes (byte address / 2N); p: its N parcels
+inline Predec predec_ref(uint64_t line, int start, bool carry_v, uint16_t carry, const uint16_t* p, int N = 8)
 {
     const uint64_t HM = (1ull << 38) - 1;
     Predec r;
     auto link = [](uint32_t x) { return x == 1 || x == 5; };
     int q = carry_v ? -1 : start;
-    while (q < 8) {
+    while (q < N) {
         uint32_t lo = q < 0 ? carry : p[q];
         bool big = (lo & 3) == 3;
-        if (big && q == 7) { r.cross = true; break; }
+        if (q >= 0) r.st |= 1 << q;
+        if (big && q == N - 1) { r.cross = true; break; }
         int e = big ? q + 1 : q;
-        uint64_t pcb = line * 16 + (uint64_t)(q * 2);          // byte address (q = -1: the line before)
+        uint64_t pcb = line * (uint64_t)(2 * N) + (uint64_t)(q * 2);          // byte address (q = -1: the line before)
         r.iv |= 1 << e;
         if (big) {
             uint32_t i = lo | ((uint32_t)p[e] << 16);

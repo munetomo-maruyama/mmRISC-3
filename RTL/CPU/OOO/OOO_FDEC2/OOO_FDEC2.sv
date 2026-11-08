@@ -20,6 +20,13 @@
 //
 // What is around it is not here: F0 (OOO_UBTB2 gets ovr, ovr_pc), the arrays. A block that
 // fetch dropped does not come: f2_valid is for one still wanted.
+//
+// In OOO_FETCH2 (step 1.5, F1a, Plan/OOC.md 29.37): the slots it found and decided go to
+// OOO_TAGE2 in the same cycle (sl_*: for the metadata and the history; they first came a
+// cycle on, from registers, which would have made the history lag 3 blocks, not 2); the
+// uBTB is trained as OOO_FETCH trains it, also when it guessed a taken transfer that F2
+// does not take (f2_ubt, f2_uoff: its guess for the block), so a conditional branch's
+// counter goes down; and the end parcel goes out (out_end) for the FTQ.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -46,16 +53,21 @@ module OOO_FDEC2
         input  logic                f2_bh,      // the BTB has an indirect jump
         input  logic [3:0]          f2_boff,    // at this parcel
         input  logic [VA-1:1]       f2_btgt,
+        input  logic                f2_ubt,     // the uBTB's guess for it: a taken transfer ...
+        input  logic [3:0]          f2_uoff,    // ... ending at this parcel
 
         // ---- F2: the block
         output logic                out_valid,
         output logic [15:0]         out_st,     // an instruction starts here (past the end too)
         output logic [15:0]         out_first,  // the transfer that ends it, by its last parcel
         output logic                out_cross,  // a first half at parcel 15
+        output logic [3:0]          out_end,    // the parcel it ends at (15 when none is taken)
         output logic                ovr,        // F0 was wrong
         output logic [VA-1:1]       ovr_pc,
-        output logic [1:0]          f5_hn,      // a cycle on: the slot predictions it takes
-        output logic [2:0]          f5_ht,      // ... and they, slot 0 first
+        output logic [2:0]          sl_v,       // the slots: the first 3 branches (a prefix) ...
+        output logic [2:0][3:0]     sl_par,     // ... the parcel of each (its last half) ...
+        output logic [2:0]          sl_pred,    // ... what was decided for each
+        output logic [1:0]          sl_n,       // the slots up to the end: what the history takes
 
         // ---- the training of the uBTB: registers, a cycle after
         output logic                ub_valid,
@@ -200,26 +212,23 @@ module OOO_FDEC2
     assign ovr      = f2_valid && !same && !flush;
     assign ovr_pc   = nxt;
 
-    // what goes into the history, a cycle on: nothing here is in a hurry
-    logic [15:0] tk5, first5, br5;
-    logic [1:0]  cnt5 [16];
-    always_ff @(posedge clk) begin
-        tk5    <= tk;
-        first5 <= first;
-        br5    <= br;
-        for (int e = 0; e < 16; e++) cnt5[e] <= cnt[e];
-    end
+    // the slots, and what goes into the history: the slots up to the end (a prefix, so the
+    // last one in says how many)
+    logic [2:0] sl_in;
     always @(*) begin
-        automatic logic [15:0] upto = first5 - 16'(first5 != 16'd0);     // the parcels before the end
-        automatic logic [1:0]  n = 2'd0;
-        f5_ht = 3'd0;
+        automatic logic [15:0] upto = first - 16'(first != 16'd0);       // the parcels before the end
+        sl_v = '0; sl_par = '0; sl_pred = '0; sl_in = '0;
         for (int e = 0; e < 16; e++) begin
-            if (br5[e] && cnt5[e] != 2'd3 && (first5 == 16'd0 || upto[e] || first5[e])) begin
-                f5_ht[n] = tk5[e];
-                n = n + 2'd1;
+            for (int s = 0; s < 3; s++) begin
+                if (br[e] && cnt[e] == 2'(s)) begin
+                    sl_v[s]    = 1'b1;
+                    sl_par[s]  = sl_par[s] | 4'(e);
+                    sl_pred[s] = sl_pred[s] | tk[e];
+                    sl_in[s]   = sl_in[s] | (first == 16'd0 || upto[e] || first[e]);
+                end
             end
         end
-        f5_hn = n;
+        sl_n = sl_in[2] ? 2'd3 : sl_in[1] ? 2'd2 : sl_in[0] ? 2'd1 : 2'd0;
     end
 
     // the first half kept, and the stack, moved by the transfer that ends the block
@@ -245,19 +254,23 @@ module OOO_FDEC2
          .rs_valid(rs_valid), .rs_ptr(rs_ptr), .rs_val(rs_val),
          .rs_push(rs_push), .rs_addr(rs_addr), .rs_pop(rs_pop));
 
-    // the uBTB learns from what F2 decided when it was wrong
+    // the uBTB learns from what F2 decided when it was wrong: its transfer, or (when the uBTB
+    // guessed a taken one earlier, or none at all) its guess not taken
     logic [3:0] eo;
+    logic       hit_first;
     always @(*) begin
         eo = 4'd15;
         for (int e = 15; e >= 0; e--) if (first[e]) eo = 4'(e);
+        hit_first = taken && !(f2_ubt && f2_uoff < eo);
     end
+    assign out_end = eo;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) ub_valid <= 1'b0;
-        else        ub_valid <= ovr && taken;
+        else        ub_valid <= ovr && (hit_first || f2_ubt);
     end
     always_ff @(posedge clk) begin
-        ub_pc    <= {f2_line, eo};
-        ub_taken <= taken;
+        ub_pc    <= {f2_line, hit_first ? eo : f2_uoff};
+        ub_taken <= hit_first;
         ub_tgt   <= nxt;
         ub_cond  <= (first & br) != 16'd0;
         ub_ret   <= (first & ret) != 16'd0;

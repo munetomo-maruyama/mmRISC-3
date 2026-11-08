@@ -74,7 +74,8 @@ TOP[dec]=OOO_DEC;       SRC[dec]="$C/CORE_DECOMP/CORE_DECOMP.sv $C/CORE_DEC/CORE
 XC[dec]="-I$SP/include -I$SP/include/riscv -I$SP/include/softfloat -I$SP/include/fesvr -Wno-c++20-extensions"
 XL[dec]="-L$SP/lib -lriscv -ldisasm -lsoftfloat -lfesvr -Wl,-rpath,$SP/lib -lpthread -ldl"
 TOP[fetch]=OOO_FETCH;   SRC[fetch]="$R/OOO_UBTB/OOO_UBTB.sv $R/OOO_PREDEC/OOO_PREDEC.sv $R/OOO_TAGE/OOO_TAGE.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FETCH/OOO_FETCH.sv"
-TESTS=${*:-alu2 alu1 alum exu exu2 fuse prf prf2 rename rename2 ctrl dsreg stage fers trap sys csru mdup pmul iq iq2 iq2n2 busy sched iqpl iqpl2 ubtb ubtb2 lsu lsu2 lsu3 dcad rob fbuf fbuf2 fbuf3 fdec fdec2 ftq predec ras btb tage fetch dec}
+TOP[fetch2]=OOO_FETCH2; SRC[fetch2]="$R/OOO_UBTB2/OOO_UBTB2.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FDEC2/OOO_FDEC2.sv $R/OOO_TAGE2/OOO_TAGE2.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_FETCH2/OOO_FETCH2.sv"
+TESTS=${*:-alu2 alu1 alum exu exu2 fuse prf prf2 rename rename2 ctrl dsreg stage fers trap sys csru mdup pmul iq iq2 iq2n2 busy sched iqpl iqpl2 ubtb ubtb2 lsu lsu2 lsu3 dcad rob fbuf fbuf2 fbuf3 fdec fdec2 ftq predec ras btb tage fetch fetch2 dec}
 
 fail=0
 for t in $TESTS; do

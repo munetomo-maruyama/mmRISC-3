@@ -8349,3 +8349,42 @@ The record is section 29.36 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 Go to F
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**I made F's plan, wrote it in section 29.37 of Plan/OOC.md and pushed it** (ae66264; 0 Ref on origin/dev). The RTL is not touched yet.
+
+#### What the model shows
+Cycles against today's E (g14-o2):
+
+| Stage | CoreMark/MHz | Cycles |
+|---|---|---|
+| Today's E (16 bytes, one block a cycle, uBTB 8, TAGE S) | 7.049 | base |
+| 32 bytes, one block a cycle | 7.759 | −9.2 % |
+| 32 bytes, 2 blocks a cycle (`OOO_FBUF3`) | 8.191 | −13.9 % |
+| and uBTB 96 (F1) | 8.318 | −15.3 % |
+| and TAGE M (F2) | 8.445 | −16.5 % |
+
+- **F is the largest piece of the core.** It is worth far more than the 2.9 % found in 29.30.
+- **What the RTL should get:** E's 1,541,084 cycles become about 1,286k after F2, about 7.8 CoreMark/MHz. To reach gate S1-B's 8.0, the 6.5 % gap between the RTL and the model still has to be closed after F.
+
+#### A proposal (your decision)
+**6 decoded and the decoded queue are worth 0 in the model.** With 4 renamed, decode of 4, 6 or 8 gives exactly the same cycles (8.445), as the fetch buffer already runs ahead of renaming.
+
+So I propose to keep 4 decoders and today's group of 4. That saves 2 decoders and the queue. Two of `OOO_FBUF3`'s 6 outputs are left unconnected, so 6 can come back later if needed. This changes the configuration fixed in 29.15 (6 decoded), so it is the author's decision.
+
+#### The pieces
+- **F1a:** a new `OOO_FETCH2`: `OOO_UBTB2`, the I$ of 32 bytes, TAGE and BTB for 16 parcels, `OOO_FDEC2`.
+- **F1b:** the FTQ, `OOO_FBUF3` (4 of its 6 used), the back end's parcel fields from 3 to 4 bits; tb_core's I$ model at 256 bits.
+- **F2:** TAGE M.
+- **F3:** `OOO_CPU` at 20 ns (to be run by the author).
+
+Also written in STRATEGY row 1.5.
+<!-- /answer -->
+
+## 205. 2026-11-08 14:22:30 JST
+
+```text
+Yes, start F1a
+```

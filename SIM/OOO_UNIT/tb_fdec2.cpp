@@ -7,8 +7,10 @@
 // slots with a hit, base counters, the BTB; fetch went on to the right place half the
 // time. Now and then a flush. What must hold, in the same cycle: where instructions
 // start, the first transfer predicted taken, whether fetch was wrong and where it
-// should go, the slot predictions taken, a first half at parcel 15; the stack (a stack
-// here, where it has been written); the training a cycle after.
+// should go, the slots (the first 3 branches, their parcels and predictions, how many
+// up to the end), the end parcel, a first half at parcel 15; the stack (a stack here,
+// where it has been written); the training a cycle after, also of the uBTB's guess (a
+// random one) when F2 does not take it.
 //---------------------------------------------------------------------------
 #include "VOOO_FDEC2.h"
 #include "VOOO_FDEC2___024root.h"
@@ -114,8 +116,7 @@ int main(int argc, char** argv)
     uint64_t st_v[16] = {0};
     int sp = -1;                 // not known until the first move: taken from the block
     bool ub_v = false, ub_t = false, ub_c = false, ub_r = false; uint64_t ub_p = 0, ub_g = 0;
-    bool hv_n = false; int hn_n = 0, ht_n = 0;
-    long nb = 0, nov = 0, ntk = 0, ncr = 0, ncu = 0, nret = 0, ncall = 0, nsl = 0, nfl = 0, nbtb = 0;
+    long nunt = 0, nb = 0, nov = 0, ntk = 0, ncr = 0, ncu = 0, nret = 0, ncall = 0, nsl = 0, nfl = 0, nbtb = 0;
 
     for (long cyc = 0; cyc < 600000; cyc++) {
         // ---- F3
@@ -134,6 +135,8 @@ int main(int argc, char** argv)
         d.f2_valid = n.v; d.f2_line = n.line; d.f2_start = n.start; d.f2_seq = seq;
         for (int i = 0; i < 8; i++) d.f2_data[i] = (uint32_t)(dw[i / 2] >> (32 * (i & 1)));
         d.f2_hv = n.hv; d.f2_pp = n.pp; d.f2_base = n.base; d.f2_bh = n.bh; d.f2_boff = n.boff; d.f2_btgt = n.btgt;
+        bool ubt = rng() % 2; int uoff = (int)(rng() % 16);
+        d.f2_ubt = ubt; d.f2_uoff = uoff;
         d.flush = fl;
 
         // ---- the walk of the block in F3: its right next address, if its predictions stand
@@ -200,7 +203,13 @@ int main(int argc, char** argv)
             int k = f4.start;
             int nbr = 0; bool stop = false; int ht = 0, hn = 0; uint64_t nxt = (f4.line + 1) << 4;
             int ee = -1; bool ic = false, ir = false, ib = false;
+            int ns = 0, svx = 0, prx = 0, parx[3] = {0, 0, 0};       // the slots, past the end too
             auto seen = [&](int e, const Dec& x, int hi) {
+                if (x.br && ns < 3) {
+                    svx |= 1 << ns; parx[ns] = e;
+                    prx |= (int)((f4.hv >> ns & 1) ? (f4.pp >> ns & 1) : (f4.base >> e & 1)) << ns;
+                    ns++;
+                }
                 if (stop) return;
                 (void)hi;
                 int64_t ro; int rl;
@@ -237,7 +246,11 @@ int main(int argc, char** argv)
             if ((bool)d.out_cross != cross4) FAIL("cycle %ld: cross", cyc);
             if ((bool)d.ovr != ovr_exp) FAIL("cycle %ld: ovr %d, expected %d (next %llx, expect %llx)", cyc, (int)d.ovr, ovr_exp, (unsigned long long)nxt, (unsigned long long)f4.expect);
             if (((uint64_t)d.ovr_pc & VM) != (nxt & VM)) FAIL("cycle %ld: next %llx, expected %llx", cyc, (unsigned long long)d.ovr_pc, (unsigned long long)nxt);
-            hv_n = true; hn_n = hn; ht_n = ht;
+            if ((int)d.sl_v != svx || (int)d.sl_pred != prx || (int)d.sl_n != hn || (prx & ((1 << hn) - 1)) != ht)
+                FAIL("cycle %ld: slots %x %x %d, expected %x %x %d", cyc, (int)d.sl_v, (int)d.sl_pred, (int)d.sl_n, svx, prx, hn);
+            for (int q = 0; q < 3; q++)
+                if ((svx >> q & 1) && (int)((d.sl_par >> (4 * q)) & 15) != parx[q]) FAIL("cycle %ld: slot %d at %d, expected %d", cyc, q, (int)((d.sl_par >> (4 * q)) & 15), parx[q]);
+            if ((int)d.out_end != (ee >= 0 ? ee : 15)) FAIL("cycle %ld: end %d, expected %d", cyc, (int)d.out_end, ee);
             if (ovr_exp) nov++;
             if (ee >= 0) ntk++;
             if (cross4) ncr++;
@@ -252,7 +265,9 @@ int main(int argc, char** argv)
                     sp = (sp - 1) & 15; nret++;
                 }
             }
-            ub_v = ovr_exp && ee >= 0; ub_p = (f4.line << 4) | (ee >= 0 ? ee : 15); ub_t = ee >= 0; ub_g = nxt; ub_c = ib; ub_r = ir;
+            bool hf = ee >= 0 && !(ubt && uoff < ee);
+            ub_v = ovr_exp && (hf || ubt); ub_p = (f4.line << 4) | (uint64_t)(hf ? ee : uoff); ub_t = hf; ub_g = nxt; ub_c = ib; ub_r = ir;
+            if (ub_v && !hf) nunt++;
         } else {
             if (d.out_valid) FAIL("cycle %ld: a block in F4 not expected", cyc);
             if (d.ovr) FAIL("cycle %ld: ovr with no block", cyc);
@@ -260,12 +275,8 @@ int main(int argc, char** argv)
         }
 
         // ---- the edge
-        bool hv_c = hv_n; int hn_c = hn_n, ht_c = ht_n;
-        hv_n = false;
         bool ov_now = ovr_exp;
         d.clk = 1; d.eval(); d.clk = 0; d.eval();
-        if (hv_c && ((int)d.f5_hn != hn_c || ((int)d.f5_ht & ((1 << hn_c) - 1)) != ht_c))
-            FAIL("cycle %ld: history %d %x, expected %d %x", cyc, (int)d.f5_hn, (int)d.f5_ht, hn_c, ht_c);
         if ((bool)d.ub_valid != ub_v) FAIL("cycle %ld: training %d, expected %d", cyc, (int)d.ub_valid, ub_v);
         if (ub_v) {
             if ((uint64_t)d.ub_pc != (ub_p & VM)) FAIL("cycle %ld: training at %llx, expected %llx", cyc, (unsigned long long)d.ub_pc, (unsigned long long)ub_p);
@@ -279,8 +290,8 @@ int main(int argc, char** argv)
         if (n.v) cp = n.p[15];
         if (n.v) prev_line = n.line;
     }
-    bool cov = nb > 200000 && nov > 50000 && ntk > 50000 && ncr > 5000 && ncu > 1000 && nret > 5000 && ncall > 5000 && nsl > 100000 && nfl > 500 && nbtb > 1000;
-    printf("tb_fdec2: %ld blocks, %ld taken, %ld overrides, %ld first halves, %ld finished, %ld calls, %ld returns, %ld through the BTB, %ld slot predictions, %ld flushes: %ld mismatches: %s\n",
-           nb, ntk, nov, ncr, ncu, ncall, nret, nbtb, nsl, nfl, bad, bad == 0 && cov ? "PASS" : "FAIL");
+    bool cov = nb > 200000 && nov > 50000 && ntk > 50000 && ncr > 5000 && ncu > 1000 && nret > 5000 && ncall > 5000 && nsl > 100000 && nfl > 500 && nbtb > 1000 && nunt > 20000;
+    printf("tb_fdec2: %ld blocks, %ld taken, %ld overrides, %ld first halves, %ld finished, %ld calls, %ld returns, %ld through the BTB, %ld slot predictions, %ld flushes, %ld guesses trained not taken: %ld mismatches: %s\n",
+           nb, ntk, nov, ncr, ncu, ncall, nret, nbtb, nsl, nfl, nunt, bad, bad == 0 && cov ? "PASS" : "FAIL");
     return bad != 0 || !cov;
 }

@@ -4833,3 +4833,28 @@ So F is the largest piece of the core: about −16.5 % cycles, far more than the
 **What F should give the RTL**: from E's 1,541,084 cycles (`OOO_CPU`, no misses) about 1,306k after F1 and 1,286k after F2, about 7.8 CoreMark/MHz, if the RTL follows the model as at D and E. Gate S1-B asks 8.0 with real caches (step 1.7), so the RTL's 6.5 % above the model (29.30: replays, `core_bench_state`) is still to be found after F.
 
 **Not in F**: E1c (AMO, LR, SC), the directed programs of E, the real I$ (1.7).
+
+### 29.38 Step 1.5, F1a: `OOO_FETCH2`, fetch of 32 bytes (2026-11-08)
+
+**What was built** (not in the core yet; F1b puts it there):
+
+- **`OOO_FETCH2`** (new, from `OOO_FETCH`): F0 `OOO_UBTB2` (32 sets × 3 ways); F1 the I$ 32 bytes wide, `OOO_TAGE2` and `OOO_BTB` read with the fetch address; F2 `OOO_FDEC2` (16 parcels, the choice, the override, the RAS inside). The requests in flight, the credit, the stop and the restore as `OOO_FETCH`. The block goes out with what `OOO_FBUF3` takes besides (`out_st`, `out_first`, `out_cross`) and its end parcel of 4 bits.
+- **`OOO_TAGE2`** (new, from `OOO_TAGE`): a base row of 16 parcels (256 rows: the same 4,096 counters, as `Plan/model/tageblk.h` indexes them by parcel), parcels of 4 bits, metadata of 290 bits. In F2 it no longer computes predictions from the slots' parcels: it gives per slot whether a tagged row decides it and what it says (`f2_hv`, `f2_pp`) and the base's direction by parcel (`f2_base`), so the parcels are not on the path into `OOO_FDEC2`'s choice; `OOO_FDEC2` gives back the slots it found and decided (`f2_sv`, `f2_par`, `f2_pred`, `f2_n`) for the metadata and the history. Sizes still S (F2: M).
+- **`OOO_FDEC2`**, three changes:
+  1. The slots go out in the same cycle (`sl_v`, `sl_par`, `sl_pred`, `sl_n`). They came a cycle later from registers (`f5_*`), which would have made TAGE's history lag 3 blocks, not 2 (D-17). The path is the choice's `first` into the history register, a few levels more than the override's; F3 will say.
+  2. The uBTB is trained as `OOO_FETCH` trains it: also when it guessed a taken transfer that F2 does not take (`f2_ubt`, `f2_uoff`, the guess kept with the request), so that a conditional branch's counter goes down. It trained only on a taken override before, and such a guess would have overridden every time.
+  3. The end parcel goes out (`out_end`) for the FTQ.
+- **`OOO_BTB`**: `LB`, the line's address bits (4 as before, 5 at 32 bytes).
+- `OOC_FE3` and `report_fe3.tcl` follow the new ports (the class `hist` now ends at the harness's output registers).
+
+**One behaviour kept on purpose, met in the bench**: `OOO_FDEC2` tells a target's form from the bits alone (28.22): a 16-bit transfer right behind a 32-bit instruction whose upper half looks like a branch's or a jal's low half gets the 32-bit target, a wrong one that the back end finds. `tb_fetch2`'s random program meets it (219 times with the default seed, 559 with seed 3); its reference now follows the rule, and the back end's walk recovers from it as from any misprediction. CoreMark's builds have 5 such places and none runs (28.22).
+
+**The benches:**
+
+- `tb_fetch2` (new, from `tb_fetch`): the same program, I$ with misses and back end on the true path, at 32 bytes; mirrors of `OOO_UBTB2` (32 × 3, round robin by set), `TageRef2`, the BTB, the RAS; every fetch address and every block (end, taken, next, starts, ending transfer, crossing, all 290 bits of TAGE's metadata, the RAS snapshot). Default seed: 112,732 blocks, 50,126 overrides, 21,305 mispredicted, 94,057 committed, 3,200 first halves carried, 48,905 fourth branches: 0 mismatches; seeds 1 to 6: 0 mismatches (seed 1 falls into a short loop, few events).
+- `tage_ref.h`: `TageRefT<LB>` (`TageRef` 16 bytes, `TageRef2` 32 bytes); `predec_ref.h` for N parcels with the starts. `tb_tage`, `tb_fetch`, `tb_predec`, `tb_btb` PASS as before; `SIM/CORE/run_front.sh` 5 of 5 PASS.
+- `tb_fdec2`: the slots and the end in the block's cycle, the training with a random guess of the uBTB (57,580 guesses trained not taken): 0 mismatches.
+
+**Bug injection**: all the lines of `OOO_FDEC2`, `OOO_BTB`, `OOO_TAGE2`'s new ones and `OOO_FETCH2`: **66 of 66 detected**, every line read. M1038 and M1042 retargeted to the changed lines; M99 to `LB`; M1127 to M1152 new (`OOO_FDEC2`'s slots and training 6, `OOO_TAGE2` 7, `OOO_FETCH2` 11, `OOO_BTB` at 32 bytes 2). `verilator -Wall`: clean on `OOO_FETCH2` with its blocks and on `OOC_FE3`'s lines.
+
+**Next**: F1b: `OOO_FETCH2` and `OOO_FBUF3` in `OOO_FRONT`, the FTQ's entries, the back end's parcel fields, `tb_core`'s I$ at 32 bytes; cycles against the model's F1 row (−15.3 %).

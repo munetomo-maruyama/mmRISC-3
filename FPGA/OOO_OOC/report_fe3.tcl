@@ -7,7 +7,8 @@
 #   ovr   F2: the block, the boundaries, the choice, into F0: the override
 #   ras   F2: into the stack
 #   ubup  F2: into the training's registers
-#   hist  F2: into what goes to the history
+#   hist  F2: into what goes to the history and TAGE's metadata (in OOO_FETCH2 in the same
+#         cycle: here into the harness's output registers)
 #   cut   F2: the choice, into the buffer's table
 #   tab   F2: the starts into the buffer's table
 #   pred  F2: TAGE's results to the override
@@ -33,7 +34,7 @@ proc fe3_classes {fh outdir} {
         ovr   $blk $pc \
         ras   $blk {*u_fd/u_ras/*} \
         ubup  $blk {*u_fd/ub_*} \
-        hist  $blk {*u_fd/tk5_reg* *u_fd/first5_reg* *u_fd/cnt5_reg* *u_fd/br5_reg*} \
+        hist  [concat $blk $prd] {o_hn_reg* o_ht_reg* o_sv_reg* o_spar_reg*} \
         cut   [concat $blk $prd] {*u_fb/rem_reg* *u_fb/tk_reg*} \
         tab   $blk $cur \
         pred  $prd $pc \

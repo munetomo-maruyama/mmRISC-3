@@ -1766,6 +1766,8 @@ module OOC_FE3
         input  logic          f2_bh,
         input  logic [3:0]    f2_boff,
         input  logic [38:1]   f2_btgt,
+        input  logic          f2_ubt,
+        input  logic [3:0]    f2_uoff,
         input  logic [4:0]    f2_ftq,
         input  logic          rs_valid,
         input  logic [3:0]    rs_ptr,
@@ -1779,6 +1781,9 @@ module OOC_FE3
         output logic [3:0]    o_off,
         output logic [1:0]    o_hn,
         output logic [2:0]    o_ht,
+        output logic [2:0]    o_sv,
+        output logic [2:0][3:0] o_spar,
+        output logic [3:0]    o_end,
         output logic [3:0]    o_snp,
         output logic [38:1]   o_snv,
         output logic          o_ir,
@@ -1791,7 +1796,8 @@ module OOC_FE3
         output logic [5:0]    o_stk,
         output logic          o_rare
     );
-    logic         s_be, s_st, s_v, s_seq, s_bh, s_rv, s_rpu, s_rpo, s_or;
+    logic         s_be, s_st, s_v, s_seq, s_bh, s_rv, s_rpu, s_rpo, s_or, s_ubt;
+    logic [3:0]   s_uo;
     logic [38:1]  s_bp, s_exp, s_bt, s_rval, s_radd;
     logic [38:5]  s_l;
     logic [3:0]   s_s, s_bo, s_rp;
@@ -1803,18 +1809,23 @@ module OOC_FE3
         s_be <= be_redirect; s_bp <= be_pc; s_st <= stall; s_v <= f2_valid; s_l <= f2_line; s_s <= f2_start; s_seq <= f2_seq;
         s_d <= f2_data; s_exp <= f2_expect; s_hv <= f2_hv; s_pp <= f2_pp; s_b <= f2_base; s_bh <= f2_bh; s_bo <= f2_boff; s_bt <= f2_btgt;
         s_ftq <= f2_ftq; s_rv <= rs_valid; s_rp <= rs_ptr; s_rval <= rs_val; s_rpu <= rs_push; s_radd <= rs_addr; s_rpo <= rs_pop; s_or <= out_ready;
+        s_ubt <= f2_ubt; s_uo <= f2_uoff;
     end
     logic          ovr, fv, cr, uv, ut, uc, ur;
     logic [38:1]   op, up, ug, top, snv, pc;
     logic [15:0]   fst, ffr;
     logic [1:0]    hn;
-    logic [2:0]    ht;
+    logic [2:0]    ht, sv;
+    logic [2:0][3:0] spar;
+    logic [3:0]    fe;
     logic [3:0]    snp, off;
     logic          tk;
     OOO_FDEC2 #(.VA(39)) u_fd
         (.clk(clk), .rst_n(rst_n), .flush(s_be), .f2_valid(s_v), .f2_line(s_l), .f2_start(s_s), .f2_seq(s_seq), .f2_data(s_d),
          .f2_expect(s_exp), .f2_hv(s_hv), .f2_pp(s_pp), .f2_base(s_b), .f2_bh(s_bh), .f2_boff(s_bo), .f2_btgt(s_bt),
-         .out_valid(fv), .out_st(fst), .out_first(ffr), .out_cross(cr), .ovr(ovr), .ovr_pc(op), .f5_hn(hn), .f5_ht(ht),
+         .f2_ubt(s_ubt), .f2_uoff(s_uo),
+         .out_valid(fv), .out_st(fst), .out_first(ffr), .out_cross(cr), .out_end(fe), .ovr(ovr), .ovr_pc(op),
+         .sl_v(sv), .sl_par(spar), .sl_pred(ht), .sl_n(hn),
          .ub_valid(uv), .ub_pc(up), .ub_taken(ut), .ub_tgt(ug), .ub_cond(uc), .ub_ret(ur),
          .rs_valid(s_rv), .rs_ptr(s_rp), .rs_val(s_rval), .rs_push(s_rpu), .rs_addr(s_radd), .rs_pop(s_rpo),
          .ras_top(top), .snap_ptr(snp), .snap_val(snv));
@@ -1838,7 +1849,7 @@ module OOC_FE3
     /* verilator lint_on UNUSEDSIGNAL */
     always_ff @(posedge clk) begin
         cr_q <= cr;
-        o_pc <= pc; o_taken <= tk; o_off <= off; o_hn <= hn; o_ht <= ht; o_snp <= snp; o_snv <= snv;
+        o_pc <= pc; o_taken <= tk; o_off <= off; o_hn <= hn; o_ht <= ht; o_sv <= sv; o_spar <= spar; o_end <= fe; o_snp <= snp; o_snv <= snv;
         o_ir <= ir; o_free <= fr; o_valid <= v; o_inst <= ii; o_rvc <= rv; o_soff <= so; o_ftq <= ff; o_stk <= stk; o_rare <= rr;
     end
 endmodule : OOC_FE3
