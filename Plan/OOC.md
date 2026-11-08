@@ -4794,3 +4794,13 @@ CoreMark: **the same cycles on every run** (`OOO_CORE` 1,537,367 / 1,448,830 / 1
 `tb_ctrl` PASS; the control's campaign 21, all detected. `run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS. The core's campaign: 126, 120 detected, the same 6 not reached as in 29.34. `verilator -Wall` on `OOO_CPU`: nothing new.
 
 **Next**: `OOO_CPU` at 20 ns again (by the author).
+
+### 29.36 Step 1.3, E: the second run meets 20 ns (2026-11-08)
+
+**The run** (by the author, with 29.35's cuts): **63,938 LUTs** after place and route (51,876 logic + 12,058 LUT RAM), **15,682 FF** after synthesis, 19.5 tiles of block RAM. **WNS +0.210 ns, TNS 0, no failing endpoint; hold +0.028 ns; pulse width met; between flip-flops +0.210 ns, 17 levels** (ALU 3's WB register to the register file's write data). The input and output paths are not among the worst.
+
+`OOO_DMISS` 731 LUTs and 355 FF (3,135 and 7,824 at 29.35): with its tags in LUT RAM, the whole is 3.4k LUTs and 7.4k FF smaller than at 29.35, and 3.3k LUTs smaller than D's (29.29) while it has the second load port, the D$'s arrays and their miss handler.
+
+**E stands at**: CoreMark `g14-o2-zbsc` without misses, `OOO_CPU` 1,541,084 (D: 1,572,482, −2.0 %), at 20 ns. Left of E: E1c (AMO, LR, SC) and the directed programs (6 mutations not reached: 29.32, 29.33, 29.34).
+
+**Next**: F, the front end of 32 bytes (`OOO_FDEC2`, `OOO_FBUF3`, `OOO_UBTB2`, 6 decoded): the model's 2.9 % of 29.30 is there; or E1c and the directed programs first.

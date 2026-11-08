@@ -8282,3 +8282,39 @@ The record is section 29.34 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 OOO_CPU run finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**E's `OOO_CPU` came out at WNS −0.144 ns at 20 ns (5 failing endpoints).** I fixed 3 things and pushed (3f48e83; 0 Ref on origin/dev). The slack after the fix is not measured yet.
+
+#### Results
+- **LUTs:** 67,392, about the same as D.
+  - mmRISC-2's DCACHE (6.5k) and OOO_DCAD are gone.
+  - In their place, `OOO_LSU3` (3.2k), `OOO_DMISS` (3.1k) and the PRF (12.3k, 6 writes and 11 reads) grew.
+- **Waste found:** `OOO_DMISS` had as many as 7,824 flip-flops. Its copy of the tags did not go into LUT RAM but became flip-flops and selection logic.
+- **Negative paths:**
+  - from the ROB head's exception bit through the trap and the rename go/no-go to the front end's group register (−0.144 ns)
+  - 2 paths that choose a CSR µop's instruction bits in EX from `rob_insn`'s 48 to 1, then go through the CSR decode to the PRF's write data or the CSRs (about −0.13 ns)
+- **The I$ port path that was a problem at D:** not among the worst this time.
+
+#### What I fixed
+- **Renaming no longer waits on the trap either** (the same treatment as dispatch in 29.24). What renames in a trap cycle is put back to the committed RAT and free list by the next cycle's flush.
+- **A CSR µop's instruction bits are read in RR and passed to EX in a register.**
+- **`OOO_DMISS`'s copy of the tags is now LUT RAM, one per way.**
+
+#### Checks
+- **Cycles:** CoreMark gave exactly the same cycles on every run.
+- **Unit:** `tb_ctrl` PASS (its model now renames in a trap cycle too).
+- **Regression:** all 12 runs with 0 failures; CoreMark's 4 PASS.
+- **Bug injection:** all 21 detected in the control unit. In the core, 120 of 126; the 6 not reached are the same as in 29.34.
+- **Lint:** no new warnings.
+
+The record is section 29.35 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.6.
+<!-- /answer -->
+
+## 203. 2026-11-08 13:51:39 JST
+
+```text
+OOO_CPU run finished.
+```
