@@ -2,10 +2,15 @@
 // OOO_TAGE2.sv
 //
 // OOO_TAGE for fetch blocks of 32 bytes (step 1.5, F1a, Plan/OOC.md 29.37), the TAGE of
-// OOO_FETCH2. The same predictor, sizes still S (F2 makes them M), and two changes:
+// OOO_FETCH2. The same predictor, with TAGE-M's sizes (M = 1, step 1.5, F2, 29.40) or S's
+// (M = 0, as OOO_TAGE), and two changes:
 //
-//   base table  256 rows x 16 parcels of 2-bit counters, indexed by the 32-byte line:
-//               the same 4,096 counters (Plan/model/tageblk.h indexes them by parcel)
+//   base table  512 rows (M; 256 at S) x 16 parcels of 2-bit counters, indexed by the
+//               32-byte line: 8,192 counters (4,096 at S), as Plan/model/tageblk.h
+//               indexes them by parcel
+//   M's sizes   6 tagged tables x 2,048 rows, histories 4 / 9 / 20 / 44 / 96 / 200, tags
+//               9 / 9 / 10 / 10 / 11 / 11 bits (Plan/model/tage.h "M"); the history
+//               register 206 bits, the metadata 531 (S: 290)
 //   F2          OOO_FDEC2 decides the block from what this gives in F2, not from
 //               predictions this computes from the slots' parcels: per slot whether
 //               a tagged row decides it (f2_hv) and what it says (f2_pp), and the
@@ -75,7 +80,8 @@
 module OOO_TAGE2
     #(
         parameter int VA = 39,
-        parameter int MW = 290          // f2_meta / up_meta (see the packing below)
+        parameter bit M  = 1'b1,        // 1: TAGE-M's sizes; 0: TAGE-S's
+        parameter int MW = M ? 531 : 290    // f2_meta / up_meta (see the packing below)
     )
     (
         input  logic                clk,
@@ -99,7 +105,7 @@ module OOO_TAGE2
 
         // recovery
         input  logic                rs_valid,
-        input  logic [71:0]         rs_hist,    // the block's metadata: {cprev, hist}
+        input  logic [(M ? 200 : 70)+1:0] rs_hist,  // the block's metadata: {cprev, hist}
         input  logic [1:0]          rs_n,
         input  logic [2:0]          rs_bits,    // slot 0 first
 
@@ -112,14 +118,30 @@ module OOO_TAGE2
         input  logic [15:0]         up_ptk      // ... and their outcomes: their base counters
     );
 
-    localparam int NT = 4, NLOG = 10, NROW = 1 << NLOG, HMAX = 70, HREG = 76;
-    localparam int RW = 21;             // row: v, tag[8:0], u[1:0], ctr[2:0] x 3
-    localparam int BLOG = 8;
+    localparam int NT = M ? 6 : 4, NLOG = M ? 11 : 10, NROW = 1 << NLOG, HMAX = M ? 200 : 70, HREG = HMAX + 6;
+    localparam int TWM = M ? 11 : 9;    // the widest tag
+    localparam int RW = 1 + TWM + 2 + 9;    // row: v, tag, u[1:0], ctr[2:0] x 3
+    localparam int BLOG = M ? 9 : 8;
+    localparam int JW = $clog2(NT);     // a table's number
+    localparam int MWX = 2 + HMAX + 3 + 3 + 12 + BLOG + 32 + NT * (RW + TWM + NLOG);
+    if (MW != MWX) begin : g_mw
+        $error("OOO_TAGE2: MW must be %0d", MWX);
+    end
 
     function automatic int tw(input int j);     // tag bits
+        if (M) return (j < 2) ? 9 : (j < 4) ? 10 : 11;
         return (j < 2) ? 8 : 9;
     endfunction
     function automatic int hl(input int j);     // history length
+        if (M)
+            case (j)
+                0: return 4;
+                1: return 9;
+                2: return 20;
+                3: return 44;
+                4: return 96;
+                default: return 200;
+            endcase
         case (j)
             0: return 5;
             1: return 12;
@@ -164,7 +186,7 @@ module OOO_TAGE2
         logic [BLOG-1:0]           bidx;
         logic [31:0]               base;    // the base row as read
         logic [NT-1:0][RW-1:0]     row;     // the tagged rows as read
-        logic [NT-1:0][8:0]        tag;     // the tags of this block
+        logic [NT-1:0][TWM-1:0]    tag;     // the tags of this block
         logic [NT-1:0][NLOG-1:0]   idx;
     } meta_t;
 
@@ -175,22 +197,22 @@ module OOO_TAGE2
 
     // ---- F0: index and tag of each table, from the history lagging 2 blocks
     logic [NT-1:0][NLOG-1:0] idx0;
-    logic [NT-1:0][8:0]      tag0;
+    logic [NT-1:0][TWM-1:0]  tag0;
     logic [2:0]              hs;        // the bits of the blocks before that are in h already
     logic [HMAX-1:0]         hr;        // the history read with
     assign hs = (f0_live == 2'd2 || f0_live == 2'd3) ? 3'd0 : (f0_live == 2'd1) ? {1'b0, c1} : 3'(c1) + 3'(c2);
     assign hr = HMAX'(h >> hs);
-    /* verilator lint_off UNUSEDSIGNAL */     // (the folds to fewer than 10 bits, the top bit of tt)
+    /* verilator lint_off UNUSEDSIGNAL */     // (the folds to fewer than NLOG bits, the top bit of tt)
     always @(*) begin
         for (int j = 0; j < NT; j++) begin
             logic [NLOG-1:0] fi, f1, f2;
-            logic [9:0]      tt;
+            logic [TWM:0]    tt;
             fi = fold(hr, hl(j), NLOG);
             f1 = fold(hr, hl(j), tw(j));
             f2 = fold(hr, hl(j), tw(j) - 1);
             idx0[j] = f0_pc[NLOG:1] ^ f0_pc[NLOG - j + 1 +: NLOG] ^ fi;
-            tt      = {1'b0, f0_pc[9:1]} ^ {1'b0, f1[8:0]} ^ {f2[8:0], 1'b0};
-            tag0[j] = (j < 2) ? {1'b0, tt[7:0]} : tt[8:0];
+            tt      = {1'b0, f0_pc[TWM:1]} ^ {1'b0, f1[TWM-1:0]} ^ {f2[TWM-1:0], 1'b0};
+            tag0[j] = tt[TWM-1:0] & TWM'((1 << tw(j)) - 1);
         end
     end
     /* verilator lint_on UNUSEDSIGNAL */
@@ -216,7 +238,7 @@ module OOO_TAGE2
 
     logic                    v1;
     logic [NT-1:0][NLOG-1:0] idx1;
-    logic [NT-1:0][8:0]      tag1;
+    logic [NT-1:0][TWM-1:0]  tag1;
     logic [BLOG-1:0]         bidx1;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) v1 <= 1'b0;
@@ -234,7 +256,7 @@ module OOO_TAGE2
     always @(*) begin
         logic [NT-1:0] hit;
         logic [RW-1:0] pr, ar;
-        for (int j = 0; j < NT; j++) hit[j] = rd1[j][20] && rd1[j][19:11] == tag1[j];
+        for (int j = 0; j < NT; j++) hit[j] = rd1[j][RW-1] && rd1[j][RW-2 -: TWM] == tag1[j];
         pv1 = 1'b0; av1 = 1'b0; pr = '0; ar = '0;
         for (int j = 0; j < NT; j++) begin     // the highest hit, then the next
             if (hit[j]) begin
@@ -255,7 +277,7 @@ module OOO_TAGE2
     logic [2:0]              ptk2, pweak2, atk2;
     logic [NT-1:0][RW-1:0]   row2;
     logic [NT-1:0][NLOG-1:0] idx2;
-    logic [NT-1:0][8:0]      tag2;
+    logic [NT-1:0][TWM-1:0]  tag2;
     logic [BLOG-1:0]         bidx2;
     logic [31:0]             base2;
     always_ff @(posedge clk) if (v1) begin
@@ -298,7 +320,7 @@ module OOO_TAGE2
     always @(*) begin
         logic [NT-1:0] hit;
         logic          pv, av, alloc, dec;
-        logic [1:0]    pj, aj, ja;
+        logic [JW-1:0] pj, aj, ja;
         logic [RW-1:0] pr, ar;
         logic [1:0]    u;
         logic [2:0][2:0] c;
@@ -307,10 +329,10 @@ module OOO_TAGE2
         logic [2:0]    init;            // the counters of an allocated row: taken or not
         logic          tk, bp, ap, pp, wk, n2;
         logic [NT-1:0] fr;
-        logic [1:0]    f0, f1;
-        for (int j = 0; j < NT; j++) hit[j] = um.row[j][20] && um.row[j][19:11] == um.tag[j];
+        logic [JW-1:0] f0, f1;
+        for (int j = 0; j < NT; j++) hit[j] = um.row[j][RW-1] && um.row[j][RW-2 -: TWM] == um.tag[j];
         pv = 1'b0; av = 1'b0; pj = '0; aj = '0;
-        for (int j = 0; j < NT; j++) if (hit[j]) begin av = pv; aj = pj; pv = 1'b1; pj = 2'(j); end
+        for (int j = 0; j < NT; j++) if (hit[j]) begin av = pv; aj = pj; pv = 1'b1; pj = JW'(j); end
         pr = um.row[pj];
         ar = um.row[aj];
         u  = pr[10:9];
@@ -331,9 +353,9 @@ module OOO_TAGE2
                     else          ua = (ua == 4'd0)  ? ua : ua - 4'd1;
                 end
                 // a misprediction allocates in a longer table (at most one a block)
-                if (um.pred[s] != tk && !(pv && pj == 2'd3) && !alloc && !dec) begin
-                    for (int j = 0; j < NT; j++) fr[j] = (!pv || 2'(j) > pj) && um.row[j][10:9] == 2'd0;
-                    for (int j = NT - 1; j >= 0; j--) if (fr[j]) begin f1 = f0; f0 = 2'(j); end
+                if (um.pred[s] != tk && !(pv && pj == JW'(NT - 1)) && !alloc && !dec) begin
+                    for (int j = 0; j < NT; j++) fr[j] = (!pv || JW'(j) > pj) && um.row[j][10:9] == 2'd0;
+                    for (int j = NT - 1; j >= 0; j--) if (fr[j]) begin f1 = f0; f0 = JW'(j); end
                     n2 = $countones(fr) >= 2;
                     if (fr != '0) begin
                         alloc = 1'b1;
@@ -362,13 +384,13 @@ module OOO_TAGE2
             wa[j] = um.idx[j];
             we[j] = 1'b0;
             wd[j] = um.row[j];
-            if (pv && pj == 2'(j)) begin
+            if (pv && pj == JW'(j)) begin
                 we[j] = 1'b1;
-                wd[j] = {pr[20:11], u, c[2], c[1], c[0]};
-            end else if (alloc && ja == 2'(j)) begin
+                wd[j] = {pr[RW-1:11], u, c[2], c[1], c[0]};
+            end else if (alloc && ja == JW'(j)) begin
                 we[j] = 1'b1;
                 wd[j] = {1'b1, um.tag[j], 2'd0, init[2] ? 3'd4 : 3'd3, init[1] ? 3'd4 : 3'd3, init[0] ? 3'd4 : 3'd3};
-            end else if (dec && (!pv || 2'(j) > pj) && um.row[j][10:9] != 2'd0) begin
+            end else if (dec && (!pv || JW'(j) > pj) && um.row[j][10:9] != 2'd0) begin
                 we[j] = 1'b1;
                 wd[j][10:9] = um.row[j][10:9] - 2'd1;
             end

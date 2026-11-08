@@ -172,9 +172,9 @@ int main(int argc, char** argv)
         bool halve = o.get("halve", 1);
         int delay = (int)o.get("delay", 0);
         bool stale = o.get("stale", 1);
-        int bytes = (int)o.get("bytes", 16), past = (int)o.get("past", 0);
+        int bytes = (int)o.get("bytes", 16), past = (int)o.get("past", 0), msz = (int)o.get("m", 0);
         o.check();
-        TageBlk tb(slots, hist, lag);
+        TageBlk tb(slots, hist, lag, msz != 0);
         tb.bytes = bytes; tb.past = past;
         tb.halve = halve;
         tb.delay = delay;

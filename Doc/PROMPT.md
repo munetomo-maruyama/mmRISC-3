@@ -8422,3 +8422,50 @@ The record is section 29.38 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 Yes, start F1b
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**F1b is done: the front end of 32 bytes is in the core.** I recorded it and pushed (8224ab2; 0 Ref on origin/dev). Timing at 20 ns is not measured yet.
+
+#### Cycles (CoreMark, no misses)
+| | E | F1b | RTL change | Model change |
+|---|---|---|---|---|
+| g14-o2 | 1,537,367 | **1,332,422** | **−13.3 %** | −15.3 % |
+| g14-sflto | 1,448,830 | 1,228,690 | −15.2 % | −11.7 % |
+| g13-o2-zb | 1,604,291 | 1,386,541 | −13.6 % | −13.3 % |
+
+- On `OOO_CPU`, g14-o2 takes 1,336,080 cycles: about 7.5 CoreMark/MHz without misses.
+- The gap between the RTL and the model is 10.8 % on g14-o2 (8.4 % at E). I will look at it by function at the end of F2.
+
+#### What changed
+- **`OOO_FRONT`:** `OOO_FETCH2` and `OOO_FBUF3` in place of the old blocks. `OOO_FBUF3` got a parameter "give at most 4" (decode stays 4).
+- **How the pc is found:** from the line of the block that holds the instruction's last half. `OOO_FBUF3` drops a block in which no instruction starts, so counting by the first half's block, one group could need 3 lines.
+- **Core, FTQ, FERS, ROB:** parcel numbers are 4 bits, and the I$ is 256 bits.
+
+#### Faults found and fixed on the way (both in F1a's blocks)
+1. **A 4th branch in a block was always predicted not taken.**
+   - CoreMark at 16 bytes had no 4th branch, but at 32 bytes it has them. g14-sflto's mispredictions had grown from 4,765 to 14,173.
+   - Each time the 4th branch was missed, the wrong path broke the RAS, so the returns after it missed too.
+   - I compared the choices in the model and chose to predict by the base counter and train it too. That brought it back to 5,712. It is still 20 % above 16 bytes, and the gap is spread over many branches, so I will look again in F2.
+2. **The shortcut that tells a target's form from the bits alone was sending the core down a wrong path.**
+   - 28.22 assumed "the back end finds a wrong target", but this core checks neither a branch's target nor a jal's; it trusts predecode.
+   - `FDEC2` now takes the form from the instruction boundaries. How much time this adds, F3 will show. If it is too much, there is a fallback: compute both forms and choose by the boundaries (about 800 LUTs).
+
+#### Checks
+- **Tests:** 12 regression runs, 4 CoreMark runs, 5 tb_front runs and the unit benches all PASS.
+- **Bug injection:** the front end 51 of 51 and the units 136 of 136 detected. The core 119 of 126.
+  - 72 and 89 cannot be reached. `FBUF3` always gives a CSR alone in slot 0, so mutations that need a CSR µop in slot 1 or later never show.
+  - 107 was not hit this time. It was a mutation only the old front end's timing hit.
+  - 100 to 102 and 108 are not reached, as before.
+  - Besides, I removed one equivalent mutation (M1154) and its redundant term from the RTL too.
+- **Lint:** no new warnings with `verilator -Wall`.
+
+The record is section 29.39 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also written in STRATEGY row 1.5.
+<!-- /answer -->
+
+## 207. 2026-11-08 17:54:30 JST
+
+```text
+Yes, start F2
+```

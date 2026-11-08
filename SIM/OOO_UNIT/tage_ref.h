@@ -27,19 +27,21 @@ struct Bits {               // a wide vector of bits, as Verilator's VlWide word
     }
 };
 
-template <int LB>               // a line of 2^LB bytes: 4 (OOO_TAGE), 5 (OOO_TAGE2)
+template <int LB, bool MS = false>  // a line of 2^LB bytes: 4 (OOO_TAGE), 5 (OOO_TAGE2); MS: TAGE-M's sizes (OOO_TAGE2's M)
 struct TageRefT {
-    static constexpr int NP = 1 << (LB - 1), PW = LB - 1, BLOG = 13 - LB;    // parcels a line, their bits, base rows
-    static constexpr int NT = 4, NLOG = 10, HMAX = 70, HREG = 76;
+    static constexpr int NP = 1 << (LB - 1), PW = LB - 1, BLOG = (MS ? 14 : 13) - LB;    // parcels a line, their bits, base rows
+    static constexpr int NT = MS ? 6 : 4, NLOG = MS ? 11 : 10, HMAX = MS ? 200 : 70, HREG = HMAX + 6;
+    static constexpr int TWM = MS ? 11 : 9, RW = 1 + TWM + 2 + 9;     // the widest tag; a row: v, tag, u, 3 counters
     // the metadata fields (low bit, width), as OOO_TAGE's packed struct
-    static constexpr int M_IDX = 0, M_TAG = 40, M_ROW = 76, M_BASE = 160, M_BIDX = M_BASE + 2 * NP, M_PAR = M_BIDX + BLOG,
-                         M_SV = M_PAR + 3 * PW, M_PRED = M_SV + 3, M_HIST = M_PRED + 3, M_CPREV = M_HIST + HMAX, MW = M_CPREV + 2;
-    static int tw(int j) { return j < 2 ? 8 : 9; }
-    static int hl(int j) { static const int L[4] = {5, 12, 30, 70}; return L[j]; }
+    static constexpr int M_IDX = 0, M_TAG = NT * NLOG, M_ROW = M_TAG + NT * TWM, M_BASE = M_ROW + NT * RW, M_BIDX = M_BASE + 2 * NP,
+                         M_PAR = M_BIDX + BLOG, M_SV = M_PAR + 3 * PW, M_PRED = M_SV + 3, M_HIST = M_PRED + 3, M_CPREV = M_HIST + HMAX,
+                         MW = M_CPREV + 2;
+    static int tw(int j) { return MS ? (j < 2 ? 9 : j < 4 ? 10 : 11) : (j < 2 ? 8 : 9); }
+    static int hl(int j) { static const int L[4] = {5, 12, 30, 70}, LM[6] = {4, 9, 20, 44, 96, 200}; return MS ? LM[j] : L[j]; }
 
     uint32_t tbl[NT][1 << NLOG];
     uint32_t base[1 << BLOG];
-    bool h[HREG] = {false};         // h[0] newest (76: 70 and what a shift of 6 takes, D-17)
+    bool h[HREG] = {false};         // h[0] newest (HMAX and what a shift of 6 takes, D-17)
     int c1 = 0, c2 = 0;             // the bit counts of the last block pushed and the one before
     int use_alt = 8, tick = 0;
 
@@ -72,8 +74,8 @@ struct TageRefT {
         return r;
     }
 
-    static bool rv(unsigned row) { return (row >> 20) & 1; }
-    static unsigned rtag(unsigned row) { return (row >> 11) & 511; }
+    static bool rv(unsigned row) { return (row >> (RW - 1)) & 1; }
+    static unsigned rtag(unsigned row) { return (row >> 11) & ((1u << TWM) - 1); }
     static unsigned ru(unsigned row) { return (row >> 9) & 3; }
     static unsigned rc(unsigned row, int s) { return (row >> (3 * s)) & 7; }
 
@@ -104,9 +106,9 @@ struct TageRefT {
         if (LB == 5) pred &= sv;          // OOO_TAGE2: OOO_FDEC2 decides only the slots there are
         m = Bits(MW);
         for (int j = 0; j < NT; j++) {
-            m.set(M_IDX + 10 * j, 10, r.idx[j]);
-            m.set(M_TAG + 9 * j, 9, r.tag[j]);
-            m.set(M_ROW + 21 * j, 21, r.row[j]);
+            m.set(M_IDX + NLOG * j, NLOG, r.idx[j]);
+            m.set(M_TAG + TWM * j, TWM, r.tag[j]);
+            m.set(M_ROW + RW * j, RW, r.row[j]);
         }
         m.set(M_BASE, 2 * NP, r.base);
         m.set(M_BIDX, BLOG, r.bidx);
@@ -138,7 +140,7 @@ struct TageRefT {
     void update(const Bits& m, int ex, int tk, int pex = 0, int ptk = 0) {
         if (ex == 0 && pex == 0) return;
         unsigned idx[NT], tag[NT], row[NT], par[3];
-        for (int j = 0; j < NT; j++) { idx[j] = (unsigned)m.get(M_IDX + 10 * j, 10); tag[j] = (unsigned)m.get(M_TAG + 9 * j, 9); row[j] = (unsigned)m.get(M_ROW + 21 * j, 21); }
+        for (int j = 0; j < NT; j++) { idx[j] = (unsigned)m.get(M_IDX + NLOG * j, NLOG); tag[j] = (unsigned)m.get(M_TAG + TWM * j, TWM); row[j] = (unsigned)m.get(M_ROW + RW * j, RW); }
         for (int s = 0; s < 3; s++) par[s] = (unsigned)m.get(M_PAR + PW * s, PW);
         unsigned bidx = (unsigned)m.get(M_BIDX, BLOG), brow = (unsigned)m.get(M_BASE, 2 * NP);
         int pred = (int)m.get(M_PRED, 3);
@@ -158,7 +160,7 @@ struct TageRefT {
             bool weak = pj >= 0 && (c[s] == 3 || c[s] == 4) && u == 0;
             if (weak && pp != ap) use_alt = ap == t ? (use_alt < 15 ? use_alt + 1 : 15) : (use_alt > 0 ? use_alt - 1 : 0);
             if ((bool)((pred >> s) & 1) != t && pj < NT - 1 && !alloc && !dec) {
-                int fr[4], nf = 0;
+                int fr[8], nf = 0;
                 for (int j = pj + 1; j < NT; j++) if (ru(row[j]) == 0) fr[nf++] = j;
                 if (nf) {
                     alloc = true;
@@ -179,7 +181,7 @@ struct TageRefT {
         for (int j = 0; j < NT; j++) {
             if (j == pj) tbl[j][idx[j]] = (row[j] & ~0x7ffu) | (u << 9) | (c[2] << 6) | (c[1] << 3) | c[0];
             else if (alloc && j == ja)
-                tbl[j][idx[j]] = (1u << 20) | (tag[j] << 11) | ((init[2] ? 4u : 3u) << 6) | ((init[1] ? 4u : 3u) << 3) | (init[0] ? 4u : 3u);
+                tbl[j][idx[j]] = (1u << (RW - 1)) | (tag[j] << 11) | ((init[2] ? 4u : 3u) << 6) | ((init[1] ? 4u : 3u) << 3) | (init[0] ? 4u : 3u);
             else if (dec && j > pj && ru(row[j]) != 0) tbl[j][idx[j]] = row[j] - (1u << 9);
         }
         unsigned nb = 0;
@@ -188,4 +190,4 @@ struct TageRefT {
     }
 };
 using TageRef = TageRefT<4>;
-using TageRef2 = TageRefT<5>;
+using TageRef2 = TageRefT<5, true>;      // OOO_TAGE2 with M = 1 (step 1.5, F2)

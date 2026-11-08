@@ -3,7 +3,7 @@
 // blocks of 32 bytes) running a program, against mirrors of its predictors and the
 // program's true path. tb_fetch's bench with lines of 32 bytes: the same program, I$,
 // back end and checks (below), the uBTB's mirror of 32 sets of 3 ways (tb_ubtb2's),
-// TageRef2, the predecode of 16 parcels; besides, the starts and the first transfer
+// TageRef2 (TAGE-M's sizes since step 1.5, F2), the predecode of 16 parcels; besides, the starts and the first transfer
 // that OOO_FBUF3 takes.
 //
 // (tb_fetch's description:)
@@ -276,7 +276,8 @@ int main(int argc, char** argv)
         }
         d.be_stop = stop;
         d.be_redirect = redirect; d.be_pc = rr.pc;
-        for (int k = 0; k < 3; k++) d.be_hist[k] = redirect ? (uint32_t)rr.hist.get(TageRef2::M_HIST + 32 * k, k < 2 ? 32 : 8) : 0;   // {cprev, history}
+        const int HB = TageRef2::HMAX + 2;     // {cprev, history}
+        for (int k = 0; k < (HB + 31) / 32; k++) d.be_hist[k] = redirect ? (uint32_t)rr.hist.get(TageRef2::M_HIST + 32 * k, std::min(32, HB - 32 * k)) : 0;
         d.be_hist_n = rr.n; d.be_hist_bits = rr.bits;
         d.be_ras_ptr = rr.rptr; d.be_ras_val = rr.rval; d.be_ras_push = rr.push; d.be_ras_pop = rr.pop; d.be_ras_addr = rr.addr;
         int nftq = (int)(fbuf.size() + ftq.size());

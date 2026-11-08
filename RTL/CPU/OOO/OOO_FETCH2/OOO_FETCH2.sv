@@ -30,7 +30,8 @@
 module OOO_FETCH2
     #(
         parameter int VA = 39,
-        parameter int MW = 290          // OOO_TAGE2's metadata
+        parameter bit M  = 1'b1,        // OOO_TAGE2 with TAGE-M's sizes (0: S's)
+        parameter int MW = M ? 531 : 290    // OOO_TAGE2's metadata
     )
     (
         input  logic                clk,
@@ -40,7 +41,7 @@ module OOO_FETCH2
         input  logic                be_stop,    // OOO_CTRL fe_redirect: stop now (the restore comes next cycle)
         input  logic                be_redirect,
         input  logic [VA-1:1]       be_pc,
-        input  logic [71:0]         be_hist,    // {cprev, history}: OOO_TAGE2's metadata of the block
+        input  logic [(M ? 200 : 70)+1:0] be_hist,  // {cprev, history}: OOO_TAGE2's metadata of the block
         input  logic [1:0]          be_hist_n,
         input  logic [2:0]          be_hist_bits,
         input  logic [3:0]          be_ras_ptr,
@@ -156,7 +157,7 @@ module OOO_FETCH2
          .rs_push(be_ras_push), .rs_addr(be_ras_addr), .rs_pop(be_ras_pop),
          .ras_top(ras_top), .snap_ptr(out_ras_ptr), .snap_val(out_ras_val));
 
-    OOO_TAGE2 #(.VA(VA), .MW(MW)) u_tage
+    OOO_TAGE2 #(.VA(VA), .M(M), .MW(MW)) u_tage
         (.clk(clk), .rst_n(rst_n),
          .f0_valid(acc), .f0_pc(pc_q), .f0_live((nlive >= 3'd2) ? 2'd2 : nlive[1:0]),
          .f2_hv(hv), .f2_pp(pp), .f2_base(base),

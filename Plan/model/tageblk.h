@@ -53,8 +53,10 @@ struct TageBlk {
     long nbr = 0;
     long stat_blocks = 0, stat_br = 0, stat_miss = 0, stat_past = 0, stat_nbr[8] = {0};
 
-    TageBlk(int slots_, int hist_, int lag_) : slots(slots_), hist(hist_), lag(lag_)
+    // m: TAGE-M's sizes (tage.h: base 2^13, 6 tables of 2^11, tags 9..11, histories 4..200), else S's
+    TageBlk(int slots_, int hist_, int lag_, bool m = false) : slots(slots_), hist(hist_), lag(lag_)
     {
+        if (m) { blog = 13; nlog = 11; n = 6; tags = {9, 9, 10, 10, 11, 11}; hists = {4, 9, 20, 44, 96, 200}; }
         base.assign(1u << blog, 2);
         for (int j = 0; j < n; j++) {
             u.emplace_back(1u << nlog, 0);

@@ -1094,6 +1094,15 @@ M = [
     ('M1152', 'OOO_BTB/OOO_BTB.sv', 'fetch2', "{1'b1, tag_of(wr_pc), wr_pc[LB-1:1], wr_tgt};", "{1'b1, tag_of(wr_pc), 1'b0, wr_pc[LB-2:1], wr_tgt};", "the parcel's top bit lost"),
     ('M1153', 'OOO_TAGE2/OOO_TAGE2.sv', 'fetch2', 'for (int e = 0; e < 16; e++) if (up_pex[e]) b[e] = sat2(b[e], up_ptk[e]);', '', 'the branches past the slots never trained'),
     ('M1155', 'OOO_TAGE2/OOO_TAGE2.sv', 'fetch2', 'for (int e = 0; e < 16; e++) if (up_pex[e]) b[e] = sat2(b[e], up_ptk[e]);', 'for (int e = 0; e < 16; e++) if (up_pex[e]) b[e] = sat2(b[e], 1\'b1);', 'the past branches trained taken'),
+    # step 1.5, F2 (Plan/OOC.md 29.40): OOO_TAGE2 with TAGE-M's sizes
+    ('M1156', 'OOO_TAGE2/OOO_TAGE2.sv', 'fetch2', 'if (M) return (j < 2) ? 9 : (j < 4) ? 10 : 11;', 'if (M) return (j < 2) ? 9 : (j < 4) ? 10 : 10;', 'the longest tags a bit short'),
+    ('M1157', 'OOO_TAGE2/OOO_TAGE2.sv', 'fetch2', '                default: return 200;', '                default: return 96;', 'the longest history 96, not 200'),
+    ('M1158', 'OOO_TAGE2/OOO_TAGE2.sv', 'fetch2', '                3: return 44;', '                3: return 40;', "the 4th table's history 40"),
+    ('M1159', 'OOO_TAGE2/OOO_TAGE2.sv', 'fetch2', "if (um.pred[s] != tk && !(pv && pj == JW'(NT - 1)) && !alloc && !dec) begin", "if (um.pred[s] != tk && !(pv && pj == JW'(3)) && !alloc && !dec) begin", "no allocation above table 3, S's last"),
+    ('M1160', 'OOO_TAGE2/OOO_TAGE2.sv', 'fetch2', "tag0[j] = tt[TWM-1:0] & TWM'((1 << tw(j)) - 1);", 'tag0[j] = tt[TWM-1:0];', 'tags not cut to their width'),
+    ('M1161', 'OOO_TAGE2/OOO_TAGE2.sv', 'fetch2', 'idx0[j] = f0_pc[NLOG:1] ^ f0_pc[NLOG - j + 1 +: NLOG] ^ fi;', 'idx0[j] = f0_pc[NLOG:1] ^ f0_pc[NLOG + 1 +: NLOG] ^ fi;', 'every table indexed by the same bits of the address'),
+    ('M1162', 'OOO_TAGE2/OOO_TAGE2.sv', 'fetch2', 'for (int j = 0; j < NT; j++) hit[j] = rd1[j][RW-1] && rd1[j][RW-2 -: TWM] == tag1[j];', 'for (int j = 0; j < NT; j++) hit[j] = rd1[j][RW-1] && rd1[j][RW-2 -: 9] == tag1[j][8:0];', 'tags compared on 9 bits'),
+    ('M1163', 'OOO_TAGE2/OOO_TAGE2.sv', 'fetch2', "    assign hr = HMAX'(h >> hs);", "    assign hr = HMAX'(h);", 'the history read with the lag not taken out'),
 ]
 
 

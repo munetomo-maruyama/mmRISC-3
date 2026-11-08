@@ -4898,3 +4898,29 @@ So F is the largest piece of the core: about −16.5 % cycles, far more than the
 - `verilator -Wall` on `OOO_CPU`: nothing new.
 
 **Next**: F2, TAGE M (6 tables of 2,048, histories to 200; model −1.5 %); the RTL's 10.8 % above the model to be looked at by function (29.30's `CORE_BYPC`) at F2's end; then F3, `OOO_CPU` at 20 ns.
+
+### 29.40 Step 1.5, F2: TAGE M (2026-11-08)
+
+**What changed.** `OOO_TAGE2` takes TAGE-M's sizes behind a parameter (`M` = 1; 0 keeps S's): 6 tagged tables of 2,048 rows, histories 4 / 9 / 20 / 44 / 96 / 200, tags 9 / 9 / 10 / 10 / 11 / 11 bits (rows of 23 bits), a base of 512 rows × 16 parcels (8,192 counters), a history register of 206 bits; the metadata grows from 290 to 531 bits (the history 200, 6 rows, tags and indexes), checked against `MW` at elaboration. In block RAM: 6 × 2,048 × 23 and 512 × 32. `OOO_FETCH2` passes `M`; `OOO_FRONT`'s FTQ holds 573 bits of predictor state a block, the restore's history is 202 bits (`OOO_FERS` `HL`), the field positions move (`M_PAR` 311, `M_SV` 323, `M_HIST` 329). `tage_ref.h`: `TageRefT<LB, MS>`, `TageRef2` at M. `OOC_FE` follows.
+
+**The model first** (`tageblk`, new option `m`; 32 bytes, 3 slots, past the slots by the base, `hist=1 lag=2`; conditional branches mispredicted): `g14-o2` 4,822 → **3,563**, `g14-sflto` 4,111 → 3,674, `g13-o2-zb` 5,261 → 3,844. So M pays per block as it does per branch.
+
+**Checks:**
+
+- `tb_fetch2` (5 seeds), `tb_tage`, `tb_fetch` PASS. `run_front.sh` 5 of 5 PASS; mispredictions (no misses) `g14-o2` 5,345 → **4,041**, `g14-sflto` 5,712 → **4,665**, below 16 bytes with S (5,614, 4,765): the 20 % of 29.39 is gone.
+- `run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS.
+- **Cycles** (CoreMark, no misses):
+
+  | | F1b (29.39) | F2 | RTL | model (F1 → F2) | RTL above the model |
+  |---|---|---|---|---|---|
+  | `g14-o2` | 1,332,422 | **1,311,645** | **−1.6 %** | −1.5 % | 10.7 % |
+  | `g14-sflto` | 1,228,690 | 1,219,046 | −0.8 % | −0.4 % | 11.9 % |
+  | `g13-o2-zb` | 1,386,541 | 1,370,745 | −1.1 % | −1.3 % | 10.7 % |
+
+  `OOO_CPU`: 1,316,322 / 1,226,653 / 1,374,118. From E (29.36): `g14-o2` 1,537,367 → 1,311,645, **−14.7 %** (the model −16.5 %); about 7.6 CoreMark/MHz on `OOO_CPU` without misses.
+- **Bug injection**: unit 28 of 28 (`OOO_TAGE2`, `OOO_FETCH2`; M1156 to M1163 new: a tag's width, a history's length, the last table for allocation, the tags' cut, the tables' index bits, the compare's width, the lag); `mutate_front.py` 52 of 52 (one new: only S's 70 bits of history put back). The core's campaign not run again: no line of `OOO_CORE` changed. Every line read.
+- `verilator -Wall` on `OOO_TAGE2` (both sizes) and `OOO_CPU`: nothing new.
+
+**F stands at**: all of 29.37's pieces but F3 are in: 32 bytes, 2 blocks a cycle, uBTB 96, TAGE M, 4 decoded. The RTL is about 10.7 % above the model (8.4 % at E, 6.5 % at D).
+
+**Next**: F3, `OOO_CPU` at 20 ns (by the author). The new paths to watch: `OOO_FDEC2`'s target form from the boundaries (29.39) and the slots back to TAGE's history in the same cycle (29.38), F2 into F0; the FTQ's 573 bits; TAGE M's index from a history of 200 bits at F0. After it, the 10.7 % by function (29.30's `CORE_BYPC`).
