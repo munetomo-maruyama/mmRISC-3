@@ -8318,3 +8318,34 @@ The record is section 29.35 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 OOO_CPU run finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**E's second `OOO_CPU` run meets 20 ns (50 MHz).** I recorded it and pushed (87630fb; 0 Ref on origin/dev).
+
+#### Results
+- **Timing:** WNS +0.210 ns, TNS 0, no failing endpoints. Hold and pulse width are met too. The worst path is 17 levels, from ALU3's WB register to the PRF's write data.
+- **Size:** 63,938 LUTs (−3.4k from the last run), 15,682 FF (−7.4k).
+  - `OOO_DMISS` went from 3,135 LUTs and 7,824 FF to 731 LUTs and 355 FF.
+  - With the second load port, the D$ arrays and the miss handler in, it is 3.3k LUTs smaller than at D.
+
+#### Where E stands
+CoreMark without misses (g14-o2) takes 1,541,084 cycles on `OOO_CPU`. That is −2.0 % from D's 1,572,482, and it meets 20 ns.
+
+#### What is left in E
+- **E1c:** making AMO, LR and SC work. Linux (step 1.8) needs them.
+- **Directed tests:** to catch the 6 mutations today's tests do not reach (29.32–29.34). They need a device whose reads change it, an eviction and refill while writes wait, and so on.
+
+#### Next candidates
+- **F (the 32-byte front end):** the 2.9 % gap from the model found in 29.30 should come back here.
+- **E1c and the directed tests:** first, if E is to be closed before F.
+
+The record is section 29.36 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.6.
+<!-- /answer -->
+
+## 204. 2026-11-08 14:02:08 JST
+
+```text
+Go to F
+```

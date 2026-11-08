@@ -4804,3 +4804,32 @@ CoreMark: **the same cycles on every run** (`OOO_CORE` 1,537,367 / 1,448,830 / 1
 **E stands at**: CoreMark `g14-o2-zbsc` without misses, `OOO_CPU` 1,541,084 (D: 1,572,482, −2.0 %), at 20 ns. Left of E: E1c (AMO, LR, SC) and the directed programs (6 mutations not reached: 29.32, 29.33, 29.34).
 
 **Next**: F, the front end of 32 bytes (`OOO_FDEC2`, `OOO_FBUF3`, `OOO_UBTB2`, 6 decoded): the model's 2.9 % of 29.30 is there; or E1c and the directed programs first.
+
+### 29.37 Step 1.5, F: the plan (2026-11-08)
+
+**What F is** (29.16, `Doc/STRATEGY.md` 1.5): the front end of 32 bytes in place of today's 16: `OOO_UBTB2` (96 entries, 32 sets × 3 ways) at F0, the I$ of 32 bytes, `OOO_FDEC2` at F2 (predecode of 16 parcels, the choice and the override in one stage, `OOO_RAS` inside: 29.9, 29.10), `OOO_FBUF3` (blocks of 32 bytes, read 2 at a time: 29.11, 29.12), TAGE M. Today's RTL: `OOO_FETCH` (16 bytes, `OOO_UBTB` of 8, TAGE S), `OOO_FBUF` (one block a cycle, at most 4), 4 decoders. The I$ is `tb_core`'s model (the real one is step 1.7), so 32 bytes there is the bench's.
+
+**The model** (E's row of 29.31: `lsu=2 issue_w=6`; cycles against E as built, `dec_block=1`):
+
+| | `g14-o2` | `g14-sflto` | `g13-o2-zb` | Cycles `g14-o2` |
+|---|---|---|---|---|
+| E as built: 16 bytes, one block a cycle, uBTB 8, TAGE S | 7.049 | 8.073 | 6.911 | |
+| 32 bytes, one block a cycle | 7.759 | 8.595 | 7.330 | −9.2 % |
+| 32 bytes, 2 blocks a cycle (`OOO_FBUF3`) | 8.191 | 9.052 | 7.882 | −13.9 % |
+| **... and uBTB 96 (`OOO_UBTB2`): F1** | **8.318** | **9.160** | **7.987** | **−15.3 %** |
+| **... and TAGE M: F2** | **8.445** | **9.192** | **8.092** | **−16.5 %** |
+
+So F is the largest piece of the core: about −16.5 % cycles, far more than the 2.9 % of 29.30 (that was 2 blocks of 16 bytes on D alone). Two blocks a cycle stay worth it at 32 bytes (−5.3 % against one).
+
+**6 decoded and the decoded queue: worth nothing in the model.** With 4 renamed, `dec_w` 4, 6 and 8 give the same cycles to the last one (8.445), as the fetch buffer already runs ahead of renaming: what decode gives beyond 4 only waits. The fetch buffer's size does count a little (`fb` 8: 8.430, 24: 8.446). **Proposed: F keeps 4 decoders and today's R / S / D2 group of 4; no decoded queue.** `OOO_FBUF3`'s slots 4 and 5 stay unconnected (synthesis drops them), so 6 can come back if a measurement asks for it. It saves 2 decoders and a queue of decoded µops; the configuration of 29.15 said 6 decoded, so this is the author's to accept.
+
+**The pieces, each in lock-step before the next:**
+
+- **F1a, `OOO_FETCH2`** (new, from `OOO_FETCH`): F0 `OOO_UBTB2`; F1 the I$ of 32 bytes, `OOO_TAGE` with a base of 16 parcels a row and parcels of 4 bits (its sizes still S), `OOO_BTB` at parcels of 4 bits; F2 `OOO_FDEC2`. A 32-bit instruction across two lines (a first half at parcel 15) as `OOO_FDEC2` keeps it. `tb_fetch` to 32 bytes; its mutations carried over.
+- **F1b, `OOO_FRONT` and the core**: the FTQ's entries (the end parcel of 4 bits, the line `VA-1:5`), `OOO_FERS`; `OOO_FBUF3` (8 blocks of 32 bytes) giving 4 of its 6 into today's R / S / D1b / D2; the back end's parcel fields (`g_end`, `br_e`, `rs_e`, `rcv_end`: 3 → 4 bits) and the pc array's line; `tb_front`, `tb_core`'s I$ model and `OOO_CPU`'s port at 256 bits. Cycles against the model's F1 row, and two things to look at: `core_bench_state`'s idle front end (29.30) and `OOO_FBUF3`'s one block a cycle into a backlog (29.11).
+- **F2, TAGE M**: 6 tables of 2,048 rows, histories 4 / 9 / 20 / 44 / 96 / 200, tags 9 to 11 bits, a base of 8,192 counters (512 rows × 16 parcels); its metadata grows, and the FTQ's entry with it. `tb_tage` and `tage_ref.h` at M.
+- **F3**: `OOO_CPU` at 20 ns (by the author). F1's fetch path is 29.12's `OOC_FE3` (about 15.3 ns alone, without F1's block RAM and tags); TAGE M's arrays are new.
+
+**What F should give the RTL**: from E's 1,541,084 cycles (`OOO_CPU`, no misses) about 1,306k after F1 and 1,286k after F2, about 7.8 CoreMark/MHz, if the RTL follows the model as at D and E. Gate S1-B asks 8.0 with real caches (step 1.7), so the RTL's 6.5 % above the model (29.30: replays, `core_bench_state`) is still to be found after F.
+
+**Not in F**: E1c (AMO, LR, SC), the directed programs of E, the real I$ (1.7).
