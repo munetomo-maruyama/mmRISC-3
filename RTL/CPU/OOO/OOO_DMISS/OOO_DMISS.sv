@@ -136,20 +136,25 @@ module OOO_DMISS
     localparam int WW = $clog2(NWQ);
 
     // ---- the tags as written, a free way, the last written way of a set
-    logic [TW:0]  tagm [64][4];
-    logic [1:0]   lastw [64];
+    // (a RAM a way, one write, one read at the line's set: LUT RAM. As one array of 64 x 4 they were 7.4k flip-flops,
+    // Plan/OOC.md 29.35)
+    logic [TW:0]  tagr [4];             // the tags of f_line's set
+    logic [1:0]   lastr;                // its last written way
     logic [15:0]  lfsr;
-    always_ff @(posedge clk) begin
-        if (tw_en) tagm[tw_set][tw_way] <= tw_tag;
-        if (dirty_set) lastw[dirty_idx] <= dirty_way;
+    logic [PAW-1:6] f_line;
+    for (genvar w = 0; w < 4; w++) begin : g_tag
+        (* ram_style = "distributed" *) logic [TW:0] tagm [64];
+        initial for (int s = 0; s < 64; s++) tagm[s] = '0;
+        always_ff @(posedge clk) if (tw_en && int'(tw_way) == w) tagm[tw_set] <= tw_tag;
+        assign tagr[w] = tagm[f_line[11:6]];
     end
+    (* ram_style = "distributed" *) logic [1:0] lastw [64];
+    initial for (int s = 0; s < 64; s++) lastw[s] = '0;
+    always_ff @(posedge clk) if (dirty_set) lastw[dirty_idx] <= dirty_way;
+    assign lastr = lastw[f_line[11:6]];
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) lfsr <= 16'hace1;
         else        lfsr <= {lfsr[14:0], lfsr[15] ^ lfsr[13] ^ lfsr[12] ^ lfsr[10]};
-    end
-    initial for (int s = 0; s < 64; s++) begin
-        for (int w = 0; w < 4; w++) tagm[s][w] = '0;
-        lastw[s] = '0;
     end
 
     // ---- the lines asked for
@@ -231,7 +236,6 @@ module OOO_DMISS
     // ---- the one thing at a time: a line, a device, FENCE.I
     typedef enum logic [3:0] { S_IDLE, S_LOOK, S_INV, S_AR, S_R, S_TAG, S_DONE, S_UAW, S_UW, S_UB, S_UAR, S_UR, S_FL } st_t;
     st_t            st;
-    logic [PAW-1:6] f_line;
     logic [IW:0]    f_id;
     logic [1:0]     f_way;
     logic [2:0]     f_beat;
@@ -245,11 +249,10 @@ module OOO_DMISS
     logic [1:0]     f_free;
     logic           f_any;
     always @(*) begin
-        automatic logic [5:0] s = f_line[11:6];
         f_have = 1'b0; f_any = 1'b0; f_free = '0;
         for (int w = 3; w >= 0; w--) begin
-            if (tagm[s][w][TW] && tagm[s][w][TW-1:0] == f_line[PAW-1:12]) f_have = 1'b1;
-            if (!tagm[s][w][TW]) begin f_any = 1'b1; f_free = 2'(w); end
+            if (tagr[w][TW] && tagr[w][TW-1:0] == f_line[PAW-1:12]) f_have = 1'b1;
+            if (!tagr[w][TW]) begin f_any = 1'b1; f_free = 2'(w); end
         end
     end
     assign aq_pop = st == S_IDLE && !u_pend && !fl_req && aq_n != '0 && wr_quiet;
@@ -284,7 +287,7 @@ module OOO_DMISS
             f_id   <= aq_id[0];
         end
         if (st == S_LOOK) begin
-            f_way  <= f_any ? f_free : (lfsr[1:0] == lastw[f_line[11:6]] ? lfsr[1:0] + 2'd1 : lfsr[1:0]);
+            f_way  <= f_any ? f_free : (lfsr[1:0] == lastr ? lfsr[1:0] + 2'd1 : lfsr[1:0]);
             f_beat <= '0;
         end
         if (st == S_R && m_axi4_rvalid) f_beat <= f_beat + 3'd1;
@@ -298,7 +301,7 @@ module OOO_DMISS
         tw_en   = st == S_INV || st == S_TAG;
         tw_way  = f_way;
         tw_set  = f_line[11:6];
-        tw_tag  = st == S_TAG ? {1'b1, f_line[PAW-1:12]} : {1'b0, tagm[f_line[11:6]][f_way][TW-1:0]};
+        tw_tag  = st == S_TAG ? {1'b1, f_line[PAW-1:12]} : {1'b0, tagr[f_way][TW-1:0]};
         rf_en   = st == S_R && m_axi4_rvalid;
         rf_way  = f_way;
         rf_addr = {f_line[11:6], f_beat};

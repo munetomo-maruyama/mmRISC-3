@@ -8232,3 +8232,53 @@ The record is section 29.33 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 Go to E2
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**E2 is done and pushed (f3b45a9; 0 Ref on origin/dev).** `OOO_CPU` runs with the new miss handling, and mmRISC-2's DCACHE and OOO_DCAD are gone. Timing at 20 ns is not measured yet.
+
+#### A decision: the D$ is written through
+`OOO_LSU3`'s arrays have no port to read the data of a line being evicted (the 2 loads use the read ports). So every store written into the D$ is written to memory too.
+- **The gain:** no write-back on eviction and none for FENCE.I. A fill just waits for the earlier writes to reach memory.
+- **Against 29.31:** 29.31 said write-back, but it is write-through for now. If bus traffic becomes a problem, a read port for the evicted line and dirty bits can make it write-back.
+
+#### `OOO_DMISS` (new)
+- **Line fill:** requests go into a queue of 4, a line asked twice once. When the earlier writes are done, the tag of a free or a random way is made invalid and 8 beats are read over AXI4. The words read go into the arrays, the tag is made valid, and `fill_done` is returned.
+- **Write-through:** from a queue of 8, one-beat writes on AXI4.
+  - At first AW → W → B were waited for one at a time, and `OOO_CPU`'s CoreMark got 12.6 % slower.
+  - With the address, data and answer going on apart so that several overlap, the difference from the bench's model shrank to 0.14 %.
+- **Devices:** one at a time over AXI4-Lite.
+- **FENCE.I:** done once the writes are out.
+
+| CoreMark | D (`OOO_CPU`) | E2 (`OOO_CPU`) |
+|---|---|---|
+| g14-o2 | 1,572,482 | 1,539,579 (−2.1 %) |
+
+#### The test bench made stricter
+- **Write stalls:** the AXI4 memory model now and then stops taking writes for 20 to 50 cycles.
+- **Memory check after the end:** after a program ends, 3,000 more cycles run, and then the memory the D$ wrote is compared in full with the memory of the committed stores.
+  - In the first form, the loop exited at the end at once and the drain never ran. So the last write had not arrived, and a false mismatch was reported. Fixed.
+- **The resulting number:** after adding the write stalls, `OOO_CPU`'s CoreMark is 1,541,084.
+
+#### Checks
+- **Regression:** all 12 runs with 0 failures (`OOO_CPU`'s 4 are back); CoreMark's 4 PASS.
+- **Unit:** `tb_lsu3` PASS.
+- **Lint:** no new warnings.
+- **Bug injection:** 120 of 126 detected in the core. OOO_DMISS's mutations run on `OOO_CPU`; 6 of 7 detected.
+  - "A fill before the writes reach memory" only shows when a written line is evicted and filled again while its write waits, and the tests do not reach that.
+  - Besides, 2 from 29.32 and 3 from 29.33 remain. All are work for aimed tests.
+
+#### What remains
+- **AMO/LR/SC (E1c):** not implemented yet.
+- **Aimed tests:** to catch the 6 mutations not reached; to be written.
+- **Vivado run:** E1 to E2 put the D$'s arrays and search, and the miss handling, into the core and `OOO_CPU`. `OOO_DMISS` is added to `synth_ooo.tcl`.
+
+The record is section 29.34 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also noted in STRATEGY row 1.4.
+<!-- /answer -->
+
+## 202. 2026-11-08 12:11:52 JST
+
+```text
+OOO_CPU run finished.
+```

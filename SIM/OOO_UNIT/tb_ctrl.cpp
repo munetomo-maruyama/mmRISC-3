@@ -164,8 +164,8 @@ int main(int argc, char** argv)
         bool dsfree = dsv == 0 || dgo == dsv;
         unsigned go = 0;
         bool ok0 = !(rck & 1) || !((live >> id0) & 1), ok1 = !(rck & 2) || !((live >> id1) & 1);
-        if ((rv & 1) && dsfree && ren_ready && !rcv && ok0) { go = 1; if ((rv & 2) && ok1) go = 3; }
-        if ((rv & 1) && dsfree && ren_ready && !rcv && (!ok0 || ((rv & 2) && !ok1))) nckstall++;
+        if ((rv & 1) && dsfree && ren_ready && !flushq && !rs && ok0) { go = 1; if ((rv & 2) && ok1) go = 3; }   // (a trap or replay does not stop it: 29.35)
+        if ((rv & 1) && dsfree && ren_ready && !flushq && !rs && (!ok0 || ((rv & 2) && !ok1))) nckstall++;
         if ((unsigned)d.r_go != go) FAIL("r_go %u, expected %u", (unsigned)d.r_go, go);
         if (go && !d.ds_load) FAIL("ds_load 0 with µops renamed now");
         if ((dsv & ~dgo) && d.ds_load) FAIL("ds_load 1 while the DS register keeps µops (ds %u, go %u)", dsv, dgo);
@@ -219,7 +219,14 @@ int main(int argc, char** argv)
         if (was_fq) {
             fl.clear(); stream.clear(); nflush++;   // the back end flushes in the cycle after
         } else if (flush) {
-            stream.clear();                         // nothing renamed now; the front end flushed
+            // what renames now (29.35) goes with the back end's flush in the next cycle; the front end flushed
+            for (int k = 0; k < 2; k++) if ((gor >> k) & 1) {
+                U u = stream.front(); stream.pop_front();
+                u.renamed = true;
+                if (u.ck) { u.id = ck_next; ck_next = (ck_next + 1) % NCK; }
+                fl.push_back(u); nren++;
+            }
+            stream.clear();
         } else if (restore) {
             rs->resolved = true; nrestore++;
             long s = rs->seq;

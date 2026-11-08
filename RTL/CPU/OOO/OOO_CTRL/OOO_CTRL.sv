@@ -24,7 +24,11 @@
 //       id in the next cycle, so a live one must not be given out again
 //       (the ring of ids is used in order; one still open stops it). The
 //       DS register must be free or leaving, renaming must have registers
-//       (r_ren_ready), and nothing is renamed in a cycle of recovery.
+//       (r_ren_ready), and nothing is renamed in a cycle of restore or of
+//       flush_all. In a cycle of trap or replay it may: flush_all of the next
+//       cycle puts renaming back to the committed RAT and free list
+//       (OOO_RENAME2's arat, chead), and clears the DS register (Plan/OOC.md
+//       29.35).
 //       A renamed µop's mask is the live checkpoints then (with the one
 //       of slot 0 for slot 1), less those cleared in that cycle.
 //   DS  dispatch: the µops of the DS register go together (both or none:
@@ -197,7 +201,6 @@ module OOO_CTRL
 
     // ---- recovery and resolution
     logic [NCKPT-1:0] killset;                 // the restored checkpoint and those younger
-    logic             rcv;                     // nothing renamed or dispatched
     logic             flush_q;                 // trap / replay of the cycle before
     logic             ns_busy_n;
     logic [FTQW-1:0]  ftq_hd, ftq_tgt;         // the FTQ's head (a mirror); pop up to the target
@@ -222,7 +225,6 @@ module OOO_CTRL
         restore_lq_tail = ck_lq[rob_restore_ckpt];
         restore_sq_tail = ck_sq[rob_restore_ckpt];
         restore_ftq     = ck_ftq[rob_restore_ckpt];
-        rcv         = fe_flush || flush_q || restore;
         restore_port = !(br_valid[0] && br_mispred[0] && br_ckpt[0] == rob_restore_ckpt);
         fe_redirect = fe_flush || restore;
         if (trap)                                                   fe_pc = trap_vec;
@@ -277,7 +279,7 @@ module OOO_CTRL
         ds_free = ds_v == '0 || d_go == ds_v;
         ds_load = ds_free;
         for (int k = 0; k < ND; k++) begin
-            r_go[k] = (k == 0 ? ds_free && r_ren_ready && !rcv : r_go[k-1]) && r_valid[k] && nck != 2'd2 &&
+            r_go[k] = (k == 0 ? ds_free && r_ren_ready && !flush_q && !restore_k : r_go[k-1]) && r_valid[k] && nck != 2'd2 &&
                       (!r_ckpt[k] || !live[r_ckpt_id[k]]);
             r_bm[k] = lv_c;
             for (int m = 0; m < k; m++) if (r_go[m] && r_ckpt[m]) r_bm[k] = r_bm[k] | bit_of(r_ckpt_id[m]);

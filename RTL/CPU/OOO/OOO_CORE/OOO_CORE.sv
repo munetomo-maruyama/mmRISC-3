@@ -879,7 +879,9 @@ module OOO_CORE
     // ---- port 0's units beside ALU0: the CSRs, the system µops, the multiplier, the MDU
     logic [31:0]     x_ins;                                     // the instruction of port 0's EX
     logic            x_csr, x_sys, x_mul, x_mdu, x_wv;
-    assign x_ins = rob_insn[ex[0].rec.rob];
+    // (read in RR, from a register in EX: the choice of 48 lay on the CSRs' paths, Plan/OOC.md 29.35; written at
+    // dispatch, a cycle at least before the µop's issue)
+    always_ff @(posedge clk) x_ins <= rob_insn[rr_rec[0].rob];
     assign x_csr = ex_v[0] && ex[0].rec.kind == K_CSR;
     assign x_sys = ex_v[0] && ex[0].rec.kind == K_SYS;
     assign x_mul = ex_v[0] && ex[0].rec.kind == K_MDU && ex[0].rec.xop == 4'd0;

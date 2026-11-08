@@ -4773,3 +4773,24 @@ On `OOO_CPU`: 75 line reads, 147,234 one-beat writes, 502 device reads and write
 `run_core.sh` (with the check): 0 failures in all 12 runs; `run_coremark.sh` PASS.
 
 **Next**: `OOO_CPU` at 20 ns (by the author): E1 to E2 put the D$'s arrays and its search in the core. Then E1c (AMO, LR, SC) and the directed programs.
+
+### 29.35 Step 1.3, E: `OOO_CPU` at 20 ns, −0.144 ns; three cuts (2026-11-08)
+
+**The run** (by the author, E2 of 29.34): **67,392 LUTs** after place and route (55,414 logic + 11,974 LUT RAM), 23,134 FF after synthesis, 19.5 tiles of block RAM; **WNS −0.144 ns, 17 levels, TNS −0.417 ns, 5 endpoints**. Against D (29.29, 67,196 LUTs): mmRISC-2's `DCACHE` (6.5k) and `OOO_DCAD` gone; `OOO_LSU3` 3,152, `OOO_DMISS` 3,135 with **7,824 FF**, `OOO_PRF` 12,310 (6 writes, 11 reads), `OOO_IQ2` 9,399 (`P5`). The I$ port's path of 29.29 is not among the worst now.
+
+**Below 0:**
+
+1. The ROB's head (its exception bit, a choice of 48) to the front end's group register (−0.144 ns, 17 levels): the trap, `OOO_CTRL`'s recovery, renaming's go (`r_go`), the front end's hand-over of its group.
+2. ALU 0's EX to the register file's write data (−0.129 ns, 13 levels) and `rob_insn` to the CSRs' `hpm_sel` (−0.118 ns, 21 levels): a CSR µop's instruction bits chosen in EX among 48 (`rob_insn[ex[0].rec.rob]`), the CSRs' decode and their read or write.
+
+**The cuts:**
+
+- **Renaming does not wait on the trap or replay** (`OOO_CTRL`'s `r_go`: not in a cycle of `flush_q` or `restore_k`): what renames in a cycle of trap or replay is undone by `flush_all` of the next cycle, which puts `OOO_RENAME2` back to its committed RAT and free list (`arat`, `chead`) and clears the DS register and the live checkpoints, as dispatch in 29.24. `rcv` goes. `tb_ctrl`'s model renames in such a cycle too.
+- **A CSR µop's instruction bits read in RR**, into a register for EX (`x_ins`): written at dispatch, a cycle at least before the issue.
+- **`OOO_DMISS`'s copy of the tags in LUT RAM**: a RAM a way (one write, one read at the line's set) and the last written ways too. As one array of 64 × 4 they were the 7,824 flip-flops above, and their muxes most of its 3,135 LUTs.
+
+CoreMark: **the same cycles on every run** (`OOO_CORE` 1,537,367 / 1,448,830 / 1,604,291; `OOO_CPU` 1,541,084 / 1,458,490 / 1,607,994): what renames in a cycle of trap is flushed in the next.
+
+`tb_ctrl` PASS; the control's campaign 21, all detected. `run_core.sh`: 0 failures in all 12 runs; `run_coremark.sh` PASS. The core's campaign: 126, 120 detected, the same 6 not reached as in 29.34. `verilator -Wall` on `OOO_CPU`: nothing new.
+
+**Next**: `OOO_CPU` at 20 ns again (by the author).
