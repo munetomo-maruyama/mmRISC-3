@@ -8548,3 +8548,37 @@ Please run `synth_ooo.bat OOO_CPU` again.
 ```text
 OOO_CPU run finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**F's second `OOO_CPU` run reached WNS −0.306 ns, but does not meet 20 ns yet.** Last time it was −2.226 ns between flip-flops. I cut the remaining paths and pushed (b4c14e4; 0 Ref on origin/dev). The effect of the cuts is unknown until the next run.
+
+#### Results
+- **Size:** 68,861 LUTs, 16,847 FF, 24.5 tiles of block RAM.
+- **The I$ port's path:** gone with the corrected constraint. WNS and the flip-flop value are now the same.
+- **New report (`timing_blocks.rpt`):** only the following 2 classes of path were negative.
+
+#### The remaining paths and the cuts (neither changes the cycles)
+| Path | Slack | Cut |
+|---|---|---|
+| Branch result → kill → multiplier's `res_valid` → the MDU's "slot busy" → the PRF's LVT | −0.306 ns (19 levels) | A write `res_we` for the multiplier that does not wait on the kill (as done for the MDU in 29.28; a killed µop's result only goes to its own register, which is harmless) |
+| `hpc` (F2's address) → decode of the start → boundaries → override → uBTB | −0.169 ns (21 levels) | The address decoded a cycle ahead, kept in 16 flip-flops |
+
+#### Checks
+- **Cycles:** CoreMark exactly as before (`OOO_CPU` g14-o2: 1,316,322).
+- **Tests:** 12 regression runs, 4 CoreMark runs, 5 tb_front runs and the changed units' benches all PASS.
+- **Bug injection:** all 75 unit mutations detected. The core is 121 of 128; the 7 not detected are the same as before.
+- **Mutations tidied:** I checked all 1,060 in `mutate.py` and fixed the 7 of LSU3 that had stopped applying since the rewrite of E1b. Now all apply to today's RTL.
+- **Lint:** no new warnings with `verilator -Wall`.
+
+The record is section 29.42 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also written in STRATEGY row 1.6.
+
+Please run `synth_ooo.bat OOO_CPU` again.
+<!-- /answer -->
+
+## 210. 2026-11-09 20:56:51 JST
+
+```text
+OOO_CPU run finished.
+```

@@ -4965,3 +4965,19 @@ The other blocks are negative by less, all write-port or join paths near the pla
 **Checks.** `tb_pmul` (`res_we` also for what is killed), `tb_fdec2`, `tb_fetch2` (5 seeds) PASS. `run_front.sh` 5 of 5; `run_core.sh` 0 failures in all 12 runs; `run_coremark.sh` PASS, **the same cycles** (`OOO_CPU` 1,316,322 / 1,226,653 / 1,374,118). **Bug injection**: unit 75 of 75 on `OOO_FDEC2`, `OOO_FETCH2`, `OOO_PMUL` and the 7 of `OOO_LSU3` found not applying since E1b (`w_ok`, `w_miss`, `ev`), retargeted; all of `mutate.py`'s 1,060 now apply once. M1174 to M1176 new. Core: 121 of 128 (2 new, on port 1's write); the same 7 not reached as 29.39. `verilator -Wall` on `OOO_CPU`: nothing new.
 
 **Next**: `OOO_CPU` at 20 ns again (by the author).
+
+### 29.43 Step 1.5, F3: the third run meets 20 ns (2026-11-08)
+
+**The run** (by the author, with 29.42's cuts): **68,526 LUTs** after place and route (56,108 logic + 12,414 LUT RAM), 16,836 FF after synthesis, 24.5 tiles of block RAM. **WNS +0.203 ns, TNS 0, no failing endpoint out of 148,770; hold +0.028 ns; pulse width met; between flip-flops +0.203 ns, 19 levels, 78 % routing** (ALU 3's WB register to the register file's write data, as at E). The new paths of F are off the top 20. `OOO_FRONT` 12,627 LUTs (`OOO_FETCH2` 4,944 with `OOO_FDEC2` 2,581, `OOO_TAGE2` 1,606, `OOO_UBTB2` 730; `OOO_FBUF3` 2,481; `OOO_FTQ` 1,382).
+
+The I$ port's input delay is 1.5 ns here (29.41): **the I$ of step 1.7 has to give its answer from flip-flops** for this result to hold.
+
+**F stands at** (CoreMark, no misses, `OOO_CPU`): `g14-o2` 1,316,322 cycles, `g14-sflto` 1,226,653, `g13-o2-zb` 1,374,118, at 20 ns. From E: `g14-o2` −14.6 % (1,541,084), about 7.6 CoreMark/MHz; the model's −16.5 %. Cost against E: 4.6k LUTs, 5 tiles of block RAM. All of 29.37's pieces are in; 6 decoded and the decoded queue dropped, as accepted there.
+
+| Run | Between flip-flops | LUTs | What it asked for |
+|---|---|---|---|
+| 29.41 | −2.226 ns | 68,224 | the stop apart, the boundaries by groups, the slots by a prefix OR, the history's push later, the banks from the candidates |
+| 29.42 | −0.306 ns | 68,861 | the multiply's write without the kill, the start decoded ahead |
+| 29.43 | **+0.203 ns** | 68,526 | |
+
+**Left**: the RTL stays about 10.7 % above the model (8.4 % at E): by function, as 29.30. E1c (AMO, LR, SC), needed for Linux. The real I$ (step 1.7). The 7 core mutations not reached (directed programs).
