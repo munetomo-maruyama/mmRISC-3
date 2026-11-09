@@ -29,7 +29,7 @@
 
 module OOO_FTQ
     #(
-        parameter int NFTQ = 16,        // a power of two (D-18: 16)
+        parameter int NFTQ = 16,        // a power of two (D-18: 32 in the core)
         parameter int FTQW = 4,
         parameter int VA   = 39,
         parameter int MW   = 32,

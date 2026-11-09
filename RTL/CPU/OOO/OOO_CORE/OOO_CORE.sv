@@ -161,7 +161,7 @@ module OOO_CORE
 `endif
     );
 
-    localparam int NFTQ  = 16, FTQW = 4;        // D-18
+    localparam int NFTQ  = 32, FTQW = 5;        // D-18 (16 until ROB 48 and short blocks kept it full, Plan/OOC.md 29.45)
     localparam int NCKPT = 12, CW   = 4;        // step 1.2 A (Plan/OOC.md 29.16): the frozen sizes first
     localparam int TAGW  = 7;                   // 80 physical registers
     localparam int NROB  = 48, ROBW = 6;

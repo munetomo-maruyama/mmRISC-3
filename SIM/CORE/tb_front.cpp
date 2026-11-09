@@ -34,7 +34,7 @@
 //     the latest commit, one a cycle; a flush drops the rest).
 //   - D1a: the skid holds a group only while the raw register R does.
 //   - TAGE's update (up_*_q) is the pop's of the cycle before.
-// The FTQ has 16 entries (D-18; FTQW=3 at the build: 8). Blocks of 32 bytes (step 1.5, F1b).
+// The FTQ has 32 entries (D-18; FTQW=3 at the build: 8). Blocks of 32 bytes (step 1.5, F1b).
 // A run passes when Spike's run reaches its HTIF exit on the true path with
 // no mismatch. The mispredictions per 1000 instructions show whether the
 // predictors are trained (the TAGE update through the FTQ's head read).
@@ -58,7 +58,7 @@
 
 static const int VA = 39;
 #ifndef FTQW
-#define FTQW 4                      // the FTQ's index width (build_front.sh: FTQW=3 for 8 entries)
+#define FTQW 5                      // the FTQ's index width (build_front.sh: FTQW=3 for 8 entries)
 #endif
 static const int NFTQ = 1 << FTQW;
 static const unsigned FM = NFTQ - 1;

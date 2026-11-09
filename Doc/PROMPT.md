@@ -8678,3 +8678,42 @@ The record is section 29.44 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 Yes, hot loops
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**I found one cause of the gap: the FTQ (16 blocks) is nearly always full and stops fetch.** With a scratch copy of the RTL at 32 blocks, g14-o2 improves by 1.30 %, and the timed part reaches **7.98 CoreMark/MHz**. I recorded it and pushed (5bdd121; 0 Ref on origin/dev). The repository's RTL is unchanged so far.
+
+#### How I looked
+I set the same instructions in the RTL and the model one against one, and compared the times of dispatch, issue, completion and commit. In nearly every function the wait in the queue is shorter in the RTL, and yet dispatch falls behind the model. So most of the loss is before the queue.
+
+#### What I found: the FTQ
+A 6-instruction loop of `matrix_test` takes 3 cycles a turn in the model and 4 in the RTL. Cycle by cycle, the requests pass only every other cycle, though the I$ and the fetch buffer are free.
+
+The cause is the FTQ. 16 blocks was chosen when the ROB had 24 entries (D-18); it is not enough with a ROB of 48 and short blocks. In 64 % of the timed part's cycles it had 2 or fewer free. The model has no FTQ, so this was invisible.
+
+| No misses, `OOO_CORE` | FTQ 16 | FTQ 32 | Change |
+|---|---|---|---|
+| g14-o2 | 1,311,645 | **1,294,645** | **−1.30 %** |
+| g14-sflto | 1,219,046 | 1,216,474 | −0.21 % |
+| g13-o2-zb | 1,370,745 | 1,360,115 | −0.78 % |
+| g14-o2, timed part | 1,269,766 | **1,252,575** | 7.88 → **7.98 CoreMark/MHz** |
+
+- **Checks:** lock-step PASS on the copy (b2's 60 programs and CoreMark). The whole regression and bug injection will be run when it is applied.
+- **Cost:** should be small. LUT RAM of 32 rows takes as many LUTs as 16; what grows is 512 FF, their choice, and one bit of the FTQ index.
+- **Gap from the model:** the timed part goes from 7.2 % to **5.8 %**.
+
+#### What is left
+- **Next suspect (not measured):** groups that split. In the branchy `core_state_transition` the RTL's groups split as 3, 4, 3, 1, 4, 4, 3, 1, none, 3. There is a limit of 2 checkpoints a cycle, and what is left of a group cannot be topped up from the next. The model tops up to 4, so it has no such loss.
+- **Functions with the largest gaps left (dispatch falling behind):** `core_state_transition` +16.8k, `matrix_test` +12.3k, `core_list_mergesort` +12.1k, `core_bench_list` +8.9k, `matrix_mul_matrix_bitextract` +8.6k, `core_bench_state` +7.0k.
+
+An FTQ of 32 changes the decision D-18, and I will ask you for another run at 20 ns. 8.0 is still just out of reach before the real caches, and their loss comes on top.
+
+The record is section 29.45 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)). I also added the analysis tools (`Plan/model/tl*.py`, `SIM/CORE/acct.patch`).
+<!-- /answer -->
+
+## 213. 2026-11-09 22:55:29 JST
+
+```text
+Yes, FTQ 32
+```

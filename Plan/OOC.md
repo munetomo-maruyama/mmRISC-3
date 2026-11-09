@@ -5042,3 +5042,22 @@ The gap to the model in the timed part goes from 7.2 % to **5.8 %**. The price i
 **What is left, after it** (by function, the dispatch gap against the model): `core_state_transition` +16.8k, `core_list_mergesort` +12.1k, `matrix_test` +12.3k, `core_bench_list` +8.9k, `matrix_mul_matrix_bitextract` +8.6k, `core_bench_state` +7.0k.
 
 **A next suspect, not measured yet**: groups that split. In `core_state_transition` the RTL dispatches groups of 3, 4, 3, 1, 4, 4, 3, 1, none, 3 where the model goes on 4 a cycle. The group register takes a new group only when empty (`g_left`), so what stays of a group (the limit of 2 checkpoints a cycle: 48,822 slots; "a leftover" 167,929 slots in all) goes alone. The model tops a cycle up to 4 from what follows, so it has no such loss (its `ck_max` 2, 3, 4 give the same cycles). `Plan/model` does not model it yet.
+
+### 29.46 The FTQ of 32 blocks in the RTL (2026-11-10)
+
+**The change.** D-18 from 16 blocks to 32 at the author's word: `NFTQ` 32, `FTQW` 5 in `OOO_CORE` (and the defaults of `OOO_FRONT`, `tb_front`, `build_front.sh`); `Doc/UARCH` follows. Nothing else in the RTL: `OOO_FTQ` and its users take the size from the parameters. The `OOC_FE` harness keeps its own 16 blocks and is not run for this.
+
+| Cycles | FTQ 16 | FTQ 32 | |
+|---|---|---|---|
+| `OOO_CORE`, no misses: `g14-o2-zbsc` | 1,311,645 | **1,294,645** | −1.30 % |
+| `g14-sflto-zbsc` | 1,219,046 | 1,216,474 | −0.21 % |
+| `g13-o2-zb` | 1,370,745 | 1,360,115 | −0.78 % |
+| `OOO_CPU`, the real D$: `g14-o2-zbsc` | 1,316,322 | **1,298,795** | −1.33 % |
+| `g14-sflto-zbsc` | 1,226,653 | 1,224,276 | −0.19 % |
+| `g13-o2-zb` | 1,374,118 | 1,363,088 | −0.80 % |
+
+The three `OOO_CORE` numbers are those of the scratch copy to the cycle (29.45), so its timed part holds too: 1,252,575 cycles, **7.98 CoreMark/MHz** with ideal caches, 5.8 % above the model.
+
+**Checks.** Lint: only the warnings from before. `run_front` PASS; 12 runs of `tb_core`, 0 failures; CoreMark in lock-step on all 4 configurations. Bug injection: `mutate_front.py` 52 of 52; `mutate_core.py` 121 of 128, the same 7 not reached as before (72, 91, 102, 103, 104, 109, 110).
+
+**Not done yet: 20 ns.** F met it with a margin of +0.203 ns (29.43). This adds 512 flip-flops for the outcomes of the slots, a 32-to-1 choice, and a bit in every µop's FTQ index, so `OOO_CPU` has to be run again.

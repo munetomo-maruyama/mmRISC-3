@@ -18,7 +18,7 @@
 //   D2     the group register (g_*): what fusion and renaming read.
 //
 // Credit: fetch asks only while the fetch buffer (8 blocks waiting) and the
-// FTQ (16 blocks, D-18) have room (free_n of both, from their pointers).
+// FTQ (32 blocks, D-18, Plan/OOC.md 29.45) have room (free_n of both, from their pointers).
 //
 // Why the last half's block for the pc: OOO_FBUF3 does not keep a block in
 // which no instruction starts (one fetched at parcel 15 with a first half
@@ -78,8 +78,8 @@
 module OOO_FRONT
     #(
         parameter int VA   = 39,
-        parameter int NFTQ = 16,
-        parameter int FTQW = 4,
+        parameter int NFTQ = 32,
+        parameter int FTQW = 5,
         parameter int MW   = 531        // OOO_TAGE2's metadata, TAGE-M (the field positions below are its layout)
     )
     (

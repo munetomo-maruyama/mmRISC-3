@@ -5,7 +5,7 @@
 #   ./build_front.sh            -> obj/front/VOOO_FRONT
 #   OOO_RTL=<dir> OBJ=<dir>     another copy of RTL/CPU/OOO and where to build
 #                               (the bug injection of mutate_front.py)
-#   FTQW=<n>                    the FTQ with 2^n entries (default 4: 16, D-18)
+#   FTQW=<n>                    the FTQ with 2^n entries (default 5: 32, D-18, as the core)
 #
 # Verilator from scratch every time (the shared folder keeps file times to
 # one second), with the options of SIM/OOO_UNIT/run.sh: what has no reset
@@ -17,7 +17,7 @@ R=${OOO_RTL:-$(cd ../../RTL/CPU/OOO && pwd)}
 C=$(cd ../../RTL/CPU/CORE && pwd)
 S=${SPIKE:-$HOME/RISCV/toolchain/spike-install}
 O=${OBJ:-$HERE/obj/front}
-W=${FTQW:-4}
+W=${FTQW:-5}
 rm -rf $O; mkdir -p $O
 verilator --cc --exe --build -O2 -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT --x-assign unique --x-initial unique --Mdir $O \
     --top-module OOO_FRONT -GFTQW=$W -GNFTQ=$((1 << W)) \
