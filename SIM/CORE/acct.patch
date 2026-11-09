@@ -1,0 +1,144 @@
+diff --git RTL/CPU/OOO/OOO_CORE/OOO_CORE.sv tmp/claude-1001/-media-psf-Home-Documents-CQ-RISCV-mmRISC-mmRISC-3/ddf026d1-6071-4c66-889b-a5187e347f13/scratchpad/gap/core_acct.sv
+index 63a234b..8966c9a 100644
+--- RTL/CPU/OOO/OOO_CORE/OOO_CORE.sv
++++ tmp/claude-1001/-media-psf-Home-Documents-CQ-RISCV-mmRISC-mmRISC-3/ddf026d1-6071-4c66-889b-a5187e347f13/scratchpad/gap/core_acct.sv
+@@ -1298,4 +1298,139 @@ module OOO_CORE
+     end
+ `endif
+ 
++
++    // ---- accounting (a scratch copy only)
++    /* verilator lint_off WIDTH */
++    longint c_tot, c_cmt[5], c_go[5], c_st[8], c_fe[4], c_gv, c_head[8], n_rest, n_repl, n_flush, n_ovr, c_res, n_res, c_cred0, n_blk, n_ins, c_rest_k;
++    logic   acct_on; logic [63:0] acct_lo, acct_hi, acct_flo, acct_fhi; longint n_try, n_iss_m, n_load_ncm, c_ftq0, c_ftq2, c_ftq_sum;
++    longint l_be, l_empty, l_ck, l_ckl, l_ren, l_left, l_short_tk, l_short_buf, l_short_x, n_mis_c, c_iqshort[5], c_iq1, c_grp[5];
++    logic [NROB-1:0] mis_f; logic was_left; logic [3:0] lastv;
++    logic   wait_mp, wait_ovr; int since_mp; int since_ovr;
++    initial begin
++        acct_on = 0; wait_mp = 0; wait_ovr = 0; since_mp = 0; since_ovr = 1000;
++        if (!$value$plusargs("acct_lo=%h", acct_lo)) acct_lo = 0;
++        if (!$value$plusargs("acct_hi=%h", acct_hi)) acct_hi = 0;
++        if (!$value$plusargs("flo=%h", acct_flo)) acct_flo = 0;
++        if (!$value$plusargs("fhi=%h", acct_fhi)) acct_fhi = 64'hffffffffff;
++    end
++    function automatic int hclass(input logic [31:0] in);
++        automatic logic [6:0] op = in[6:0];
++        if (in[1:0] == 2'b11) begin
++            if (op == 7'h03 || op == 7'h07) return 1;                    // load
++            if (op == 7'h23 || op == 7'h27) return 2;                    // store
++            if ((op == 7'h33 || op == 7'h3b) && in[31:25] == 7'd1) return 3;  // mul / div
++            if (op == 7'h63 || op == 7'h6f || op == 7'h67) return 4;     // transfer
++            if (op == 7'h73) return 5;
++            return 0;
++        end
++        if (in[1:0] == 2'b00 && (in[15:13] == 3'd2 || in[15:13] == 3'd3)) return 1;
++        if (in[1:0] == 2'b10 && (in[15:13] == 3'd2 || in[15:13] == 3'd3)) return 1;
++        if (in[1:0] == 2'b00 && (in[15:13] == 3'd6 || in[15:13] == 3'd7)) return 2;
++        if (in[1:0] == 2'b10 && (in[15:13] == 3'd6 || in[15:13] == 3'd7)) return 2;
++        if (in[1:0] == 2'b01 && (in[15:13] == 3'd5 || in[15:14] == 2'd3)) return 4;
++        if (in[1:0] == 2'b10 && in[15:13] == 3'd4 && in[6:2] == 5'd0) return 4;
++        return 0;
++    endfunction
++    always @(posedge clk) begin
++        automatic int ncm = $countones(cmt_valid);
++        automatic int nall = $countones(ds_valid), nld = $countones(ds_valid & dv_ld), nst = $countones(ds_valid & dv_st);
++        for (int u = 0; u < ND; u++) if (cmt_valid[u]) begin
++            automatic logic [63:0] a = {cmt_pc[u], 1'b0};
++            if (a >= acct_lo && a < acct_lo + 8) acct_on <= 1'b1;
++            if (a >= acct_hi && a < acct_hi + 8) acct_on <= 1'b0;
++        end
++        if (fe_redirect) begin wait_mp <= 1'b1; since_mp <= 0; end
++        else if (g_take != 0) wait_mp <= 1'b0;
++        else since_mp <= since_mp + 1;
++        if (u_front.u_fetch.ovr) begin wait_ovr <= 1'b1; since_ovr <= 0; end
++        else if (|g_valid) wait_ovr <= 1'b0;
++        else since_ovr <= since_ovr + 1;
++        was_left <= g_valid != 0 && 3'($countones(g_valid)) != g_take;
++        for (int p = 0; p < 2; p++) if (br_valid[p] && br_mispred[p]) mis_f[br_rob[p]] <= 1'b1;
++        for (int j = 0; j < ND; j++) if (d_go[j]) mis_f[disp_rob[j]] <= 1'b0;
++        if (acct_on && {sh_pc[head_rob], 1'b0} >= acct_flo && {sh_pc[head_rob], 1'b0} < acct_fhi) begin
++            automatic int m = $countones(g_valid), n = g_take, l = 4 - n;
++            for (int u = 0; u < ND; u++) if (cmt_valid[u] && mis_f[head_rob + ROBW'(u)]) n_mis_c++;
++            if (nall != 0 && d_go == 0 && iq_ready < nall) c_iqshort[iq_ready]++;
++            if (nall != 0) c_grp[nall]++;
++            if (!(ds_valid == 0 || d_go == ds_valid)) l_be += l;
++            else if (m == 0) l_empty += l;
++            else if (n < m) begin
++                if (!ren_ready) l_ren += l;
++                else if (r_valid[n] && r_ckpt[n] && u_ctrl.live[ren_ckpt_id[n]]) l_ckl += l;
++                else l_ck += l;
++            end else if (m < 4) begin
++                if (was_left) l_left += l;
++                else if (g_taken != 0) l_short_tk += l;
++                else if (u_front.r_m == 0) l_short_buf += l;
++                else l_short_x += l;
++            end
++            if (u_front.ftq_free == 0) c_ftq0++;
++            if (u_front.ftq_free <= 2) c_ftq2++;
++            c_ftq_sum += u_front.ftq_free;
++            c_tot++;
++            if (rt_q) n_try++;
++            c_cmt[ncm]++;
++            n_ins += ncm;
++            if (restore) n_rest++;
++            if (replay) n_repl++;
++            if (fe_flush) n_flush++;
++            if (u_front.u_fetch.ovr) n_ovr++;
++            if (u_front.out_valid) n_blk++;
++            if (u_front.credit == 0) c_cred0++;
++            if (restore_k) c_rest_k++;
++            if (|d_go) c_go[$countones(d_go)]++;
++            else if (nall != 0) begin
++                if (fe_redirect || restore_k) c_st[0]++;
++                else if (rob_avail < nall) c_st[1]++;
++                else if (iq_ready < nall) c_st[2]++;
++                else if (lq_avail < nld) c_st[3]++;
++                else if (sq_avail < nst) c_st[4]++;
++                else c_st[5]++;
++            end else if (g_valid == 0) begin
++                if (wait_mp) c_fe[0]++; else if (wait_ovr) c_fe[1]++; else c_fe[2]++;
++            end else c_gv++;
++            if (ncm == 0 && head_valid) c_head[hclass(sh_insn[head_rob])]++;
++            else if (ncm == 0) c_head[7]++;
++            if (wait_mp && g_take != 0) begin c_res += since_mp; n_res++; end
++        end
++    end
++    longint tl_cyc, tl_ds[NROB], tl_is[NROB], tl_dn[NROB]; int tl_f; logic [NAP+1:0] iv_q;
++    initial begin tl_f = 0; tl_cyc = 0; iv_q = 0; end
++    always @(posedge clk) begin
++        automatic string fn;
++        if (tl_f == 0 && $value$plusargs("tl=%s", fn)) tl_f = $fopen(fn, "w");
++        tl_cyc <= tl_cyc + 1;
++        iv_q <= iss_valid;
++        for (int j = 0; j < ND; j++) if (d_go[j]) tl_ds[disp_rob[j]] <= tl_cyc;
++        for (int p = 0; p < NAP + 2; p++) if (iv_q[p]) tl_is[rr_rec[p].rob] <= tl_cyc - 1;
++        for (int k = 0; k < NCMP; k++) if (cmp_valid[k]) tl_dn[cmp_rob[k]] <= tl_cyc;
++        if (acct_on && tl_f != 0)
++            for (int u = 0; u < ND; u++) if (cmt_valid[u])
++                $fdisplay(tl_f, "%h %0d %0d %0d %0d", {cmt_pc[u], 1'b0}, tl_ds[u_rob.hi[u]], tl_is[u_rob.hi[u]], tl_dn[u_rob.hi[u]], tl_cyc);
++    end
++    longint dump_lo, dump_hi;
++    initial begin if (!$value$plusargs("dump_lo=%d", dump_lo)) dump_lo = -1; if (!$value$plusargs("dump_hi=%d", dump_hi)) dump_hi = -1; end
++    always @(posedge clk) if (tl_cyc >= dump_lo && tl_cyc < dump_hi)
++        $display("CYC %0d req %b pc %h ovr %b | F2 %b pc %h end %0d tk %b next %h | fb free %0d out %b (cur %b rem %0d n1 %0d) | R %b G %b take %0d | DS %b go %b avail rob %0d iq %0d",
++            tl_cyc, u_front.u_fetch.acc, {u_front.u_fetch.pc_q, 1'b0}, u_front.u_fetch.ovr,
++            u_front.out_valid, {u_front.out_pc, 1'b0}, u_front.out_end, u_front.out_taken, {u_front.out_next, 1'b0},
++            u_front.fb_free, u_front.fb_v, u_front.u_fbuf.bv, u_front.u_fbuf.rem, u_front.u_fbuf.n1,
++            u_front.r_m, g_valid, g_take, ds_valid, d_go, rob_avail, iq_ready);
++    final begin
++        $display("ACCT cycles %0d instrs %0d", c_tot, n_ins);
++        $display("STATE ds_valid %b d_go %b iq_ready %0d rob_avail %0d lq %0d sq %0d head_valid %b head_rob %0d disp_rob %0d %0d %0d %0d g_valid %b r_go %b q_v %b", ds_valid, d_go, iq_ready, rob_avail, lq_avail, sq_avail, head_valid, head_rob, disp_rob[0], disp_rob[1], disp_rob[2], disp_rob[3], g_valid, r_go, u_iq.v);
++        $display("ACCT commit 0:%0d 1:%0d 2:%0d 3:%0d 4:%0d", c_cmt[0], c_cmt[1], c_cmt[2], c_cmt[3], c_cmt[4]);
++        $display("ACCT dispatch went 1:%0d 2:%0d 3:%0d 4:%0d", c_go[1], c_go[2], c_go[3], c_go[4]);
++        $display("ACCT DS held: redirect/restore %0d ROB %0d IQ %0d LQ %0d SQ %0d other %0d", c_st[0], c_st[1], c_st[2], c_st[3], c_st[4], c_st[5]);
++        $display("ACCT DS empty, no group: after a redirect %0d after an override %0d other %0d; group there but not renamed %0d", c_fe[0], c_fe[1], c_fe[2], c_gv);
++        $display("ACCT no commit, head: alu %0d load %0d store %0d muldiv %0d transfer %0d sys %0d; ROB empty %0d", c_head[0], c_head[1], c_head[2], c_head[3], c_head[4], c_head[5], c_head[7]);
++        $display("ACCT rename slots lost: backend (DS not free) %0d; no group %0d; rename not ready %0d; ckpt id live %0d; 2 ckpts a cycle %0d; group short: a leftover %0d, ends taken %0d, R empty behind %0d, other %0d", l_be, l_empty, l_ren, l_ckl, l_ck, l_left, l_short_tk, l_short_buf, l_short_x);
++        $display("ACCT mispredicted and committed %0d; DS size when held or not 1:%0d 2:%0d 3:%0d 4:%0d; IQ room when short 0:%0d 1:%0d 2:%0d 3:%0d", n_mis_c, c_grp[1], c_grp[2], c_grp[3], c_grp[4], c_iqshort[0], c_iqshort[1], c_iqshort[2], c_iqshort[3]);
++        $display("ACCT tries %0d", n_try);
++        $display("ACCT FTQ free: 0 in %0d cycles, <=2 in %0d, mean %0d/1000", c_ftq0, c_ftq2, c_ftq_sum * 1000 / (c_tot + 1));
++        $display("ACCT restores %0d replays %0d flushes %0d overrides %0d blocks %0d credit0 %0d; redirect to first rename: %0d events, %0d cycles", n_rest, n_repl, n_flush, n_ovr, n_blk, c_cred0, n_res, c_res);
++    end
++    /* verilator lint_on WIDTH */
++
+ endmodule : OOO_CORE

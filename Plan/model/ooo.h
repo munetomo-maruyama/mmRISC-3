@@ -664,6 +664,10 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         if (u >= 1) cmt = std::max(cmt, cm[u - 1]);
         if (u >= (size_t)c.w) cmt = std::max(cmt, cm[u - c.w] + 1);
         cm.push_back(cmt);
+        if (const char* tlf = getenv("OOO_TL")) {   // per µop: pc, dispatch, issue, done, commit (Plan/OOC.md 29.45)
+            static FILE* f = fopen(tlf, "w");
+            fprintf(f, "%llx %ld %ld %ld %ld\n", (unsigned long long)t[i].pc, d, is, done, cmt);
+        }
         if (getenv("OOO_BYPC")) {               // cycles between commits, by the pc of the µop that ends them
             static std::map<uint64_t, long>* by = new std::map<uint64_t, long>;
             static long lastc = -1;

@@ -8625,3 +8625,56 @@ The record is section 29.43 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 Look at the 10.7 %
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**3.4 % of the 10.7 % is in what CoreMark does not time. In the timed part alone the gap is 7.2 %.** But of that I could explain only about 1.3 points; **the cause of the other 6 or so is not known yet.** I recorded it and pushed (3779f07; 0 Ref on origin/dev). The RTL is unchanged.
+
+#### What is in the 10.7 %
+The bench's cycles run from reset to the exit, while the model's trace holds the timed part only. Outside it there are 39.8k cycles on g14-o2, mostly printing (`tohost_putc` 23.8k, `ee_printf` 6.0k), the rest the exit and start-up.
+
+From `start_time` to `stop_time` the RTL commits 3,118,899 instructions and the model 3,118,901: nearly the same. In that part:
+
+| CoreMark (no misses) | RTL above | CoreMark/MHz (RTL) | Model |
+|---|---|---|---|
+| g14-o2 | **7.2 %** | **about 7.9** | 8.44 |
+| g14-sflto | 8.0 % | 8.50 | 9.18 |
+| g13-o2-zb | 7.8 % | 7.49 | 8.08 |
+
+The 7.6 CoreMark/MHz I gave you last time included the printing. The score CoreMark itself reports would be about 7.9 (g14-o2's timed part, ideal caches). Gate S1-B's 8.0 is about 1.6 % away, and the real caches' loss comes on top.
+
+#### What I measured about the 7.2 %
+| Examined | Result |
+|---|---|
+| Mispredictions (4,046 restores, the model 3,030) | at most 12k cycles, **about 1.0 point** |
+| Overrides (82.6k, the model 50.8k) | about 4k cycles, **about 0.3 point** |
+| DS "all go or all stay" | a scratch RTL dispatching a prefix gave **−0.09 %**: not the cause; the queue really is full |
+| The limit of 80 physical registers | 0 (in the model) |
+| Later completion (loads, branches, stores) | +0.15 to 0.18 % (in the model) |
+| Replays | 0 in the timed part |
+
+I first thought DS waiting was the main cause; the test showed it is not.
+
+#### The functions furthest off (g14-o2, RTL − model)
+| Function | Difference |
+|---|---|
+| `core_state_transition` | +16.2k (7.6 %) |
+| `core_bench_state` | +13.7k (**44 %**) |
+| `matrix_test` | +13.2k (16 %) |
+| `core_bench_list` | +11.2k (3.4 %) |
+| `core_list_mergesort` | +9.4k (20 %) |
+| `matrix_mul_matrix_bitextract` | +8.7k (6.9 %) |
+| `cmp_idx` | +7.0k (**32 %**) |
+
+#### Proposal
+Take the hot loops one at a time, as 29.30 did with `matrix_mul_matrix`, starting with `core_bench_state`, `cmp_idx` and `matrix_test`, whose gaps are large for their size. 8.0 is about 1.6 % away, so one or two causes found here may be enough.
+
+The record is section 29.44 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)); I also added [Plan/model/byfn.py](../Plan/model/byfn.py) for the summing.
+<!-- /answer -->
+
+## 212. 2026-11-09 22:07:41 JST
+
+```text
+Yes, hot loops
+```

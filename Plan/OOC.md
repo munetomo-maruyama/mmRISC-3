@@ -5019,3 +5019,26 @@ So 29.43's 7.6 CoreMark/MHz counted the printing: **the score CoreMark itself re
 **A scratch fix to keep in mind**: `OOO_IQPL2`'s choice by `wr_cand` relies on every candidate having a bank, which holds while dispatch is all or nothing (29.41). A prefix dispatch would need the youngest slot to lose, as the scratch copy did.
 
 **Proposed next**: the hot loops one at a time, as 29.30's `matrix_mul_matrix`, starting where the RTL is furthest above the model for its size (`core_bench_state`, `cmp_idx`, `matrix_test`).
+
+### 29.45 The hot loops: the FTQ of 16 blocks is the first cause (2026-11-09)
+
+**How.** Per instruction, the same dynamic instruction in the RTL and the model: dispatch, issue, done, commit (`OOO_TL=<file>` in the model; `SIM/CORE/acct.patch` on a copy of `OOO_CORE`, `+tl=<file>`, `+acct_lo`, `+acct_hi` the addresses of `start_time` and `stop_time`, `+dump_lo`, `+dump_hi` a cycle-by-cycle dump). `Plan/model/tl.py` sums by function, `tl_pc.py` by pc, `tl_seq.py` shows a stretch side by side.
+
+**First result, by function**: in nearly every function the µops wait **less** in the queue in the RTL than in the model, and the dispatch of the RTL falls behind the model's by about what the commits do. So the loss is mostly before dispatch, or in dispatch's order, not in the queue.
+
+**A loop.** `matrix_test`, 0x8000155a to 0x8000156c, 6 instructions in 2 blocks a turn (`lhu` across the 32-byte line): the model 3 cycles a turn, the RTL 4. Cycle by cycle, the I$ takes a request only every other cycle (`acc` 1, 0, 1, 0), with the I$ ready and the fetch buffer empty: the **FTQ**. It has 16 blocks since D-18 (Plan/OOC.md 26.9), when the ROB had 24 entries; with 48 and short blocks it is full nearly always: **at most 2 free in 812,275 of the 1,269,766 cycles of the timed part.** The model has no FTQ, so this was invisible in it.
+
+**An FTQ of 32 blocks** (a scratch copy of the RTL, `NFTQ` 32, `FTQW` 5; lock-step PASS on the 60 directed programs and CoreMark):
+
+| No misses, `OOO_CORE` | FTQ 16 | FTQ 32 | |
+|---|---|---|---|
+| `g14-o2-zbsc` | 1,311,645 | **1,294,645** | **−1.30 %** |
+| `g14-sflto-zbsc` | 1,219,046 | 1,216,474 | −0.21 % |
+| `g13-o2-zb` | 1,370,745 | 1,360,115 | −0.78 % |
+| `g14-o2`, the timed part | 1,269,766 | **1,252,575** | CoreMark/MHz 7.88 → **7.98** |
+
+The gap to the model in the timed part goes from 7.2 % to **5.8 %**. The price is small: the entries are in LUT RAM, where 32 rows take as many LUTs as 16; a bit more in each µop's FTQ index; the outcomes of the slots (`oc_ex`, `oc_tk`) 16 + 16 flip-flops a block, 512 more, and their 32-to-1 choice. **Not applied yet: the configuration's D-18 is the author's, and 20 ns has to be run again.**
+
+**What is left, after it** (by function, the dispatch gap against the model): `core_state_transition` +16.8k, `core_list_mergesort` +12.1k, `matrix_test` +12.3k, `core_bench_list` +8.9k, `matrix_mul_matrix_bitextract` +8.6k, `core_bench_state` +7.0k.
+
+**A next suspect, not measured yet**: groups that split. In `core_state_transition` the RTL dispatches groups of 3, 4, 3, 1, 4, 4, 3, 1, none, 3 where the model goes on 4 a cycle. The group register takes a new group only when empty (`g_left`), so what stays of a group (the limit of 2 checkpoints a cycle: 48,822 slots; "a leftover" 167,929 slots in all) goes alone. The model tops a cycle up to 4 from what follows, so it has no such loss (its `ck_max` 2, 3, 4 give the same cycles). `Plan/model` does not model it yet.
