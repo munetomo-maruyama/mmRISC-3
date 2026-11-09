@@ -8582,3 +8582,46 @@ Please run `synth_ooo.bat OOO_CPU` again.
 ```text
 OOO_CPU run finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**The third `OOO_CPU` run meets 20 ns (50 MHz), and F is done.** I recorded it and pushed (4cdd501; 0 Ref on origin/dev).
+
+#### Results
+- **Timing:** WNS +0.203 ns, TNS 0, no failing endpoint out of 148,770. Hold (+0.028 ns) and pulse width are met.
+- **The worst path:** 19 levels from ALU3's WB register to the PRF's write data, the same place as at E. The new paths F brought are not among the worst 20.
+- **Size:** 68,526 LUTs (+4.6k from E), 16,836 FF, 24.5 tiles of block RAM (+5 from E).
+
+| Run | Between flip-flops | LUTs |
+|---|---|---|
+| 1st (29.41) | −2.226 ns | 68,224 |
+| 2nd (29.42) | −0.306 ns | 68,861 |
+| 3rd (29.43) | **+0.203 ns** | 68,526 |
+
+#### F's performance now (CoreMark, no misses, `OOO_CPU`, 20 ns)
+| | E | F | Change |
+|---|---|---|---|
+| g14-o2 | 1,541,084 | **1,316,322** | **−14.6 %** (the model −16.5 %) |
+| g14-sflto | 1,458,490 | 1,226,653 | −15.9 % |
+| g13-o2-zb | 1,607,994 | 1,374,118 | −14.5 % |
+
+g14-o2 is about **7.6 CoreMark/MHz**. It does not reach gate S1-B's 8.0 (with the real caches) yet.
+
+#### What this result assumes
+It is met with the I$ answer's port at an input delay of 1.5 ns. The real I$ of step 1.7 has to **give its answer from flip-flops**.
+
+#### Next candidates
+- **The 10.7 % between the RTL and the model, by function (recommended):** it was 8.4 % at E. Whether 8.0 can be reached depends on this.
+- **E1c (AMO, LR, SC):** Linux (step 1.8) needs them.
+- **The real I$ (step 1.7):** built to meet the assumption above.
+- **Directed tests:** for the 7 core mutations today's tests do not reach.
+
+The record is section 29.43 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OOC_J.md](../Plan/OOC_J.md)), also written in STRATEGY rows 1.5 and 1.6.
+<!-- /answer -->
+
+## 211. 2026-11-09 21:15:53 JST
+
+```text
+Look at the 10.7 %
+```

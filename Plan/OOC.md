@@ -4981,3 +4981,41 @@ The I$ port's input delay is 1.5 ns here (29.41): **the I$ of step 1.7 has to gi
 | 29.43 | **+0.203 ns** | 68,526 | |
 
 **Left**: the RTL stays about 10.7 % above the model (8.4 % at E): by function, as 29.30. E1c (AMO, LR, SC), needed for Linux. The real I$ (step 1.7). The 7 core mutations not reached (directed programs).
+
+### 29.44 The RTL against the model after F: 10.7 % is 7.2 % in the timed part (2026-11-09)
+
+**How.** As 29.30: `CORE_BYPC` and `OOO_BYPC`, cycles between commits by pc, summed by function (`Plan/model/byfn.py`, new). The model's row is F2's of 29.40. For counts, a scratch copy of the RTL with counters in `OOO_CORE`, from the commit in `start_time` to the commit in `stop_time`: not in the repository.
+
+**The 10.7 % is not all in what CoreMark times.** The bench's cycles run from reset to the exit; the model's trace only holds the timed part. Outside it: `tohost_putc` 23.8k cycles (the uncached path of 29.33, slow on purpose), `ee_printf` 6.0k, `_exit`, `core_init_state`, `number`, start-up: 39.8k in all on `g14-o2`. Between `start_time` and `stop_time` the RTL commits 3,118,899 instructions, the model's trace 3,118,901:
+
+| CoreMark, `OOO_CORE`, no misses | RTL, in the model's functions | model | RTL above | CoreMark/MHz, RTL (model) |
+|---|---|---|---|---|
+| `g14-o2-zbsc` | 1,274,795 (timed window: 1,269,766) | 1,184,342 | 7.6 % (window: **7.2 %**) | **7.84 to 7.88** (8.44) |
+| `g14-sflto-zbsc` | 1,176,592 | 1,089,505 | 8.0 % | 8.50 (9.18) |
+| `g13-o2-zb` | 1,334,904 | 1,237,833 | 7.8 % | 7.49 (8.08) |
+
+So 29.43's 7.6 CoreMark/MHz counted the printing: **the score CoreMark itself reports would be about 7.9**, with these ideal caches. Gate S1-B's 8.0 is then 1.6 % away, before the real caches' cost.
+
+**By function** (`g14-o2`, RTL − model): `core_state_transition` +16.2k (7.6 %), `core_bench_state` +13.7k (44 %), `matrix_test` +13.2k (16 %), `core_bench_list` +11.2k (3.4 %), `core_list_mergesort` +9.4k (20 %), `matrix_mul_matrix_bitextract` +8.7k (6.9 %), `cmp_idx` +7.0k (32 %), `matrix_mul_matrix` +4.0k (5.3 %), `calc_func` +2.2k, `crc16` +1.8k, `cmp_complex` +1.3k.
+
+**In the timed window** (1,269,766 cycles): dispatch went in 925,622; the DS register held by the queue 199,458, the LQ 38,176, the ROB 5,321; empty with no group 37,568 (after a redirect 24,182, after an override 4,258), empty with a group arriving 59,801. No commit: the head a load 133,693, a store 33,959. 4,046 restores (the model's 3,030 mispredictions), 0 replays, 82,584 overrides (the model's 50,773).
+
+**What it is not, measured:**
+
+| Hypothesis | Measured | Effect |
+|---|---|---|
+| Dispatch all or nothing, against the model's µop by µop: 142k of the 199k held cycles had 3 banks with room | a scratch RTL dispatching a prefix (`OOO_CTRL`, `OOO_ROB`'s positions by the valid slots, `OOO_IQPL2`): lock-step PASS | **−0.09 %** (1,310,490): the queue really is full |
+| 80 registers | model `regs=80` | 0 |
+| Completion later (29.25's registers) | model `ld_cmt`, `br_cmt`, `lsu_cmt` up to 2 | +0.15 % to +0.18 % |
+| Replays (29.30) | 0 in the window | gone with `OOO_LSU3` |
+
+**What it is, in part** (the model's slopes on `g14-o2`):
+
+- **Mispredictions**: 4,046 restores against 3,030, about 1,000 more, at 12.2 cycles each (pred S against M: 17.8k cycles for 1,459): at most **12k cycles, 1.0 point**. The RTL's TAGE is per block with a lag of 2 blocks, the model's per branch; `tageblk` M gives 3,563. `core_list_mergesort`'s redirects are 12.4k cycles of its 55.5k.
+- **Overrides**: 31.8k more at 0.12 cycles each (uBTB 24 against 96): about **4k cycles, 0.3 point**.
+
+**So about 1.3 of the 7.2 points are explained; about 6 are not.** They are in the back end, spread over the functions above, and the counts in the window do not tell them apart from what the model also pays.
+
+**A scratch fix to keep in mind**: `OOO_IQPL2`'s choice by `wr_cand` relies on every candidate having a bank, which holds while dispatch is all or nothing (29.41). A prefix dispatch would need the youngest slot to lose, as the scratch copy did.
+
+**Proposed next**: the hot loops one at a time, as 29.30's `matrix_mul_matrix`, starting where the RTL is furthest above the model for its size (`core_bench_state`, `cmp_idx`, `matrix_test`).
