@@ -8856,3 +8856,42 @@ Please try again
 ```text
 Please try again
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+About 2 of the 3 points are explained by four RTL rules the model did not have. About 1 point is left unexplained. I also found a change that could cut the RTL's cycles a lot. I recorded it as 29.49 and pushed it to dev (5905b57). origin has 0 Ref files; the RTL is unchanged.
+
+**First, an apology.** The two "Please try again" in a row were caused by my model runs. `sd_alu=1` became a loop without end on F's unified IQ, used up the memory, and the VM rebooted. The scratch files were lost, but the numbers needed were still in this conversation. I fixed it with code for the unified IQ, and from now on every model run has a memory limit. I also wrote this pitfall into memory.
+
+**RTL rules added to the model** (`g14-o2`, each on top of the ones before):
+
+| Option | The RTL's rule | Step |
+|---|---|---|
+| `grp=1`, `ck_rr=1` | how groups are formed, checkpoint ids in turn (29.48) | +0.49 % |
+| `ck_stop=1` | after the second branch, not even a non-branch goes in that cycle | +0.24 % |
+| `regs=72` | no renaming unless 8 or more registers are free | +0.55 % |
+| `lsu_cmt=2 br_cmt=1` | loads and stores complete 2 cycles later, branches 1 | +0.30 % |
+| `sa_lag=1` | a load issues only from the cycle after an older store's issue | **+1.63 %** |
+
+The model with all of them (from now on "the RTL's model") takes 1,222,750 cycles, **2.4 %** below the RTL. Of that, mispredictions are up to 1.0 point and overrides 0.3, so about 1 point is unexplained.
+
+**Candidates to win it back** (measured on the RTL's model):
+
+| Change | `g14-o2` | Cost |
+|---|---|---|
+| **Split stores**: the address issued without waiting for the data, the data written into the SQ later through an ALU issue slot | **−3.84 %** | a store issues twice, a write port for the SQ's data, a way to hold a load that meets a store waiting for its data |
+| A load issued in the same cycle as an older store | −1.61 % | inside the wakeup-select loop, so 20 ns gets hard |
+| 88 registers | −0.54 % | a larger register file and free list |
+
+- **Why split stores:** in "read, change, write" loops such as `matrix_test` and the CRCs, the next load now waits for a store that waits for its data. `sflto` −3.20 %, `g13` −3.65 %. If the RTL gets what the model does, the timed part reaches about **8.3 CoreMark/MHz** with ideal caches (7.98 now).
+- **Condition:** a load that meets a store without its data must wait for that data in the IQ. Replaying it at commit makes things 1.6–3.2 % worse than now.
+
+Splitting stores is an RTL change of E's size.
+<!-- /answer -->
+
+## 220. 2026-11-10 22:13:43 JST
+
+```text
+Please try again
+```
