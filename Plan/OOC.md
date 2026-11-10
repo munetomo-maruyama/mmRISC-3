@@ -5082,7 +5082,7 @@ As expected, the FTQ's LUT RAM does not grow; the outcomes of the slots (in `OOO
 
 **The RTL** (`OOO_FRONT`, D2): a group of up to 4 instructions of up to 2 blocks is taken from the fetch buffer into R, decoded into the group register G, and renamed as a prefix (`OOO_CTRL` `r_go`: at most 2 checkpoints, each with its id free, the rename ready). G takes the next group only when it is empty (`g_left`), so what is left of a group renames alone, and the next group never shares a cycle with the one before. R is filled as G takes its group, so a group holds what the fetch buffer has at that moment.
 
-**The slots lost in the timed part** (the accounting copy of 29.45, FTQ 32, `g14-o2`; 4 slots a cycle, 5,010,300 in all, 3,118,899 used):
+**The slots lost in the timed part** (the accounting copy of 29.45, FTQ 32, `g14-o2`; 4 slots a cycle, 5,010,300 in all: 3,118,899 committed, about 73,600 renamed on a wrong path, 1,817,832 lost):
 
 | Cause | Slots |
 |---|---|
