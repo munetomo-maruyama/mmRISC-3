@@ -11,7 +11,7 @@
 #
 #   u64 pc, u64 mem (0: none), u8 size, u8 cls, u8 sub, u8 flags,
 #   u8 src[3] (255: none), u8 dst (255: none), u8 base (255: none),
-#   u8 op, u16 opx, u32 pad
+#   u8 op, u16 opx, u32 msz (a load's or store's bytes, 0 none or unknown)
 #
 #   cls  : 0 alu 1 br 2 jal 3 jalr 4 load 5 store 6 mul 7 div 8 sys 9 fp
 #   sub  : 0 - 1 shift 2 zba 3 zbb 4 zbs 5 zicond
@@ -70,6 +70,20 @@ for k, names in enumerate(('clz clzw ctz ctzw cpop cpopw rev8 orc.b rol rolw ror
         OPX[m] = 1 << k
 
 
+def msz_of(mn):
+    m = mn[2:] if mn.startswith('c.') else mn
+    m = m[:-2] if m.endswith('sp') else m
+    if m in ('lb', 'lbu', 'sb'):
+        return 1
+    if m in ('lh', 'lhu', 'sh'):
+        return 2
+    if m in ('lw', 'lwu', 'sw', 'flw', 'fsw'):
+        return 4
+    if m in ('ld', 'sd', 'fld', 'fsd'):
+        return 8
+    return 0
+
+
 def main():
     tr = A.load_trace(sys.argv[1])
     taken = A.taken_flags(tr)
@@ -87,7 +101,8 @@ def main():
                                 SUB[x.sub], fl, *src,
                                 255 if x.dst is None else x.dst,
                                 255 if x.base is None else x.base,
-                                op_of(x.mn), OPX.get(x.mn, 0), 0))
+                                op_of(x.mn), OPX.get(x.mn, 0),
+                                msz_of(x.mn) if x.cls in ('load', 'store') else 0))
     print(f'{len(tr)} records')
 
 

@@ -30,6 +30,7 @@
 //---------------------------------------------------------------------------
 #pragma once
 #include <algorithm>
+#include <array>
 #include <map>
 #include <cstdlib>
 #include <cstdio>
@@ -73,6 +74,7 @@ struct OooCfg {
     int hole_bank = 0;          // OOO_SDISP as a stage before: a group's queues and banks stay with it through a stall
     int cmp_lag = 0;            // cycles from a result to its done bit in the ROB (a register in between)
     int ck_max = 0;             // at most this many checkpoints taken a cycle
+    int st_bytes = 0;           // a load meets a store only if their bytes overlap (Rec.msz; OOO_LSU3's masks), not by the 8-byte word
     int sa_lag = 0;             // mem_cons: a load issues this many cycles after the older stores' issue at the earliest (OOO_LSU3: 1)
     int ck_stop = 0;            // ck_max stops the cycle: no µop after its last checkpoint goes in it (OOO_CTRL's r_go)
     int ck_rr = 0;              // checkpoints taken in turn (OOO_RENAME2's ck_next): one waits for its own to be free, not any
@@ -89,6 +91,7 @@ struct OooCfg {
     int rp_stall = 3;           // from a store's commit to its leaving the SQ
     int ld_wt = 0;              // a wait table of this many bits, by the load's pc: a load that replayed waits for the data of all older stores
     long ld_wt_clr = 0;         // ... cleared every so many cycles
+    int wt_lag = -2;            // ... such a load issues at the earliest st_data_known + sd_lag + wt_lag (a register bit as sw: 0)
     int sd_alu = 0;             // a store's data takes an issue slot of an ALU queue when it is ready; 2: and a dispatch slot and an entry of that queue
     int lsu_cmt = 0;
     int ld_cmt = 0, br_cmt = 0;  // loads only / branches and jalrs: completion so many cycles later
@@ -268,6 +271,16 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     std::unordered_map<long, int> useq[8];
     struct StInfo { long data_ready, commit; };
     std::unordered_map<uint64_t, StInfo> st_word;   // latest store per 8-byte word
+    std::unordered_map<uint64_t, std::array<StInfo, 8>> st_byte;   // st_bytes: latest store per byte (commit -1: none)
+    auto bmask = [](const Rec& r) -> unsigned { int n = r.msz ? r.msz : 8; return ((1u << n) - 1) << (r.mem & 7) & 0xff; };
+    // the latest older store whose bytes meet the load's: by word, or by byte
+    auto st_find = [&](const Rec& r, StInfo& out) -> bool {
+        if (!c.st_bytes) { auto it = st_word.find(r.mem >> 3); if (it == st_word.end()) return false; out = it->second; return true; }
+        auto it = st_byte.find(r.mem >> 3); if (it == st_byte.end()) return false;
+        unsigned m = bmask(r); bool f = false;
+        for (int b = 0; b < 8; b++) if (m >> b & 1 && it->second[b].commit >= 0 && (!f || it->second[b].commit > out.commit)) { out = it->second[b]; f = true; }
+        return f;
+    };
     long st_addr_known = 0;
     struct StOff { uint64_t mem; long commit; };
     std::unordered_map<int, StOff> st_off;          // latest store per offset in a page, by 8-byte word
@@ -522,13 +535,13 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         if (any_load && c.ld_wt) {
             if (c.ld_wt_clr && is >= wt_next) { std::fill(wt.begin(), wt.end(), 0); wt_next = is + c.ld_wt_clr; }
             for (size_t k = i; k <= last; k++)
-                if (t[k].cls == C_LOAD && wt[(t[k].pc >> 1) % c.ld_wt] && st_data_known + c.sd_lag - 2 > is) is = st_data_known + c.sd_lag - 2;
+                if (t[k].cls == C_LOAD && wt[(t[k].pc >> 1) % c.ld_wt] && st_data_known + c.sd_lag + c.wt_lag > is) is = st_data_known + c.sd_lag + c.wt_lag;
         }
         if (any_load && !c.fwd)
             for (size_t k = i; k <= last; k++)
                 if (t[k].cls == C_LOAD) {
-                    auto it = st_word.find(t[k].mem >> 3);
-                    if (it != st_word.end() && it->second.commit + 1 > is) is = it->second.commit + 1;
+                    StInfo si;
+                    if (st_find(t[k], si) && si.commit + 1 > is) is = si.commit + 1;
                 }
         const Rec& pr = t[pair && t[last].cls != C_ALU ? last : i];
         int port = (pr.cls == C_LOAD || pr.cls == C_STORE) ? 1 : (pr.cls == C_MUL || pr.cls == C_DIV) ? (c.mul_shared ? 0 : 2) : 0;
@@ -617,13 +630,13 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             if (pair && k == last && t[i].cls == C_ALU && r.cls == C_ALU) lat = c.chain;
             long rd = is + lat;
             if (r.cls == C_LOAD) {
-                auto it = st_word.find(r.mem >> 3);
-                if (c.fwd && it != st_word.end() && it->second.commit >= is)
-                    rd = std::max(rd, it->second.data_ready + 1);
+                StInfo si; bool sf = st_find(r, si);
+                if (c.fwd && sf && si.commit >= is)
+                    rd = std::max(rd, si.data_ready + 1);
                 if (c.ld_rp) {
-                    if ((c.ld_rp & 1) && c.fwd && it != st_word.end() && it->second.commit >= is
-                        && it->second.data_ready + 1 + c.sd_lag > is + lat) {
-                        rd = std::max(rd, it->second.data_ready + 1 + c.sd_lag);
+                    if ((c.ld_rp & 1) && c.fwd && sf && si.commit >= is
+                        && si.data_ready + 1 + c.sd_lag > is + lat) {
+                        rd = std::max(rd, si.data_ready + 1 + c.sd_lag);
                         res.rp_data++; rp_at = 1;
                         if (c.ld_wt) wt[(r.pc >> 1) % c.ld_wt] = 1;
                     }
@@ -718,6 +731,13 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 dr = it != ready.end() ? it->second : is;
                 if ((c.sd_alu || c.sd_ord) && !c.st_data_issue) dr = ready_sd;
                 st_word[t[k].mem >> 3] = StInfo{dr, cmt};
+                if (c.st_bytes) {
+                    auto ins = st_byte.try_emplace(t[k].mem >> 3);
+                    auto& w = ins.first->second;
+                    if (ins.second) for (auto& e : w) e = StInfo{0, -1};
+                    unsigned m = bmask(t[k]);
+                    for (int b = 0; b < 8; b++) if (m >> b & 1) w[b] = StInfo{dr, cmt};
+                }
                 st_off[(int)((t[k].mem >> 3) & 0x1ff)] = StOff{t[k].mem, cmt};
             }
         }

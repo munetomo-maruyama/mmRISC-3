@@ -23,7 +23,7 @@ struct Rec {
     uint8_t  base;
     uint8_t  op;
     uint16_t opx;       // the class of an ALU operation (mktrace.py)
-    uint32_t pad1;
+    uint32_t msz;       // a load's or store's bytes (0: none, or a trace made before)
 };
 #pragma pack(pop)
 static_assert(sizeof(Rec) == 32, "record of mktrace.py");

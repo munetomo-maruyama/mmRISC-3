@@ -114,6 +114,7 @@ int main(int argc, char** argv)
         c.rp_stall = (int)o.get("rp_stall", c.rp_stall);
         c.ld_wt = (int)o.get("ld_wt", c.ld_wt);
         c.ld_wt_clr = (long)o.get("ld_wt_clr", c.ld_wt_clr);
+        c.wt_lag = (int)o.get("wt_lag", c.wt_lag);
         c.sd_alu = (int)o.get("sd_alu", c.sd_alu);
         c.sd_q = (int)o.get("sd_q", c.sd_q);
         c.ck_end = (int)o.get("ck_end", c.ck_end);
@@ -122,6 +123,7 @@ int main(int argc, char** argv)
         c.ck_rr = (int)o.get("ck_rr", c.ck_rr);
         c.ck_stop = (int)o.get("ck_stop", c.ck_stop);
         c.sa_lag = (int)o.get("sa_lag", c.sa_lag);
+        c.st_bytes = (int)o.get("st_bytes", c.st_bytes);
         c.p0_ops = (int)o.get("p0_ops", c.p0_ops);
         c.p0_opx = (int)o.get("p0_opx", c.p0_opx);
         c.st_lsu0 = (int)o.get("st_lsu0", c.st_lsu0);

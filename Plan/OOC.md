@@ -5144,3 +5144,32 @@ With all of them (+3.24 % on `g14-o2`), **the gap to the RTL's timed part (1,252
 **Stores split are the big one**: in loops that read, change and write (`matrix_test`, the CRCs, the lists) the next load waits now for the store, which waits for its data, which waits for the load before. With the address issued as soon as its base is ready, the next load goes at once. About **8.3 CoreMark/MHz** in the timed part with ideal caches (from 7.98), if the RTL gets what the model does. But only if a load that meets an older store without its data waits for that data (as a dependence in the IQ): replaying it at its commit loses more than the change wins.
 
 **The model's `sd_alu` with the unified queue** (`iqd=0`): it searched queues that do not exist, without end, until the memory ran out (the VM rebooted twice). The unified case has its own code now: an ALU port's issue slot from the cycle the data is ready.
+
+### 29.50 Stores split, G: the plan (2026-11-10)
+
+**What G is**: a store's address no longer waits for its data. Today a store is one µop that issues on LSU 0 with its base and its data (29.31), and a younger load issues only after it (`sa_lag`, 29.49). In a loop that reads, changes and writes, the next load waits for the store, the store for its data, the data for the load before: `matrix_test` takes 4 cycles a turn where 3 would do. With G the store's address issues as soon as its base is ready, its data later through an ALU port.
+
+**How a load that meets a store without its data waits.** Measured in the model on the RTL's model of 29.49 (`g14-o2` 1,222,750 cycles). Two changes to the model first: the trace carries each load's and store's size (`mktrace.py`, `Rec.msz`), and `st_bytes=1` matches a load with a store by their bytes, as `OOO_LSU3` does by its masks, not by the 8-byte word (a `lhu` of `a[i+1]` is not held by the `sh` of `a[i]`). Before G it changes nothing (the stores have their data).
+
+| On the RTL's model | `g14-o2` | `g14-sflto` | `g13-o2-zb` | Replays |
+|---|---|---|---|---|
+| the RTL's model (29.49) | 1,222,750 | 1,123,863 | 1,275,618 | |
+| G, such a load waits exactly for the data (ideal) | −3.92 % | −3.26 % | −3.73 % | |
+| G, such a load replayed at its commit (`ld_rp=1`) | +2.11 % | +3.55 % | +1.51 % | 3,859 |
+| **G, replayed at its commit, and a wait table of 256 bits** | **−3.67 %** | **−2.61 %** | **−3.65 %** | 8 |
+| G, the same with 64 bits | −3.30 % | −2.39 % | −3.17 % | 8 |
+
+(G in the model: `st_data_issue=0 sd_alu=1 sd_ord=1 sd_lag=1 st_bytes=1`, the table `ld_rp=1 ld_wt=256 wt_lag=0`.) **The wait table** is the one of the Alpha 21264: a bit by the load's pc, set when the load was replayed because a store had no data; a load with its bit waits in the queue, as today's loads do, until every older store has its data. A replay costs what a misprediction does, but there are only 8 to 20 of them in a whole CoreMark run, one per load that meets such a store (in `g14-o2` 8 pcs). No clearing is needed. **It keeps the RTL's way**: the IQ has no cancel, a load's dependents are woken at its issue + 2 and undone by the replay at the load's commit (`cmp_ld_rp`, 29.31), and `OOO_LSU3` already puts a load that cannot finish to wait and tries it again at an event.
+
+**The pieces, each in lock-step before the next:**
+
+- **G1, `OOO_LSU4`** (from `OOO_LSU3`): the SQ entry gets a data valid bit and a data write port (`sd_v`, `sd_sq`, `sd_data`, `sd_size`; the data replicated by its size as `sd_rep` does now, so it needs no address). A store's µop on port 0 carries the address only; `cmp_st` when the entry has both. A load in M that meets an older store without its data goes to wait, and the store's data write is the event that tries it again; it is replayed at its commit, with a new output saying why (for the table). A store drains with its data (it cannot commit before). `tb_lsu3` grows to a `tb_lsu4` with stores whose data comes late.
+- **G2, `OOO_IQ3`** (from `OOO_IQ2`): a store's entry issues twice: its address on port 4 when its base is ready, its data on ALU port 3 when the data is ready, the oldest such store first; the entry leaves when both have gone. A load's wait `sw` ends at the older stores' address issue (as now, a cycle after). A load with its table bit has a second wait, `wd`, that ends a cycle after every older store's data issue; both waits stay registers off the wakeup-select loop. The payload keeps the store's SQ index and size for port 3. `tb_iq2` grows to a `tb_iq3`.
+- **G3, the core**: ALU 3 passes the data through (no register write) into `OOO_LSU4`'s data port, a register between them (`sd_lag` 1); the wait table, 256 bits by `pc[8:1]`, read in D2 for the group's loads (4 copies of 256 × 1 in LUT RAM) and set at the commit of a load replayed for a store's data; lock-step on the 12 runs and CoreMark; `mutate_core.py` with G's mutations.
+- **G4**: `OOO_CPU` at 20 ns (by the author). The new paths: port 3's select gets a class more (store data), not in the chain of ports 0 to 2; the SQ's data write; the table's read in D2.
+
+**What G should give the RTL**: about −3.7 % cycles on `g14-o2`, from 1,252,575 to about 1,206,600 in the timed part, **about 8.28 CoreMark/MHz** with ideal caches (from 7.98), if the RTL follows the model as at D, E and F. Gate S1-B asks 8.0 with the real caches of step 1.7; G gives that step about 0.3 to lose.
+
+**The model's approximations**: the data takes any ALU slot (`sd_alu=1` on the unified queue), not port 3 alone; `sd_ord=1` (one a cycle, in order) is the stricter side of that. The cost in LUTs is not measured yet: two bits and a wait a queue entry, a valid bit and a write port in the SQ, 1,024 bits of table, ALU 3's path to the LSU.
+
+**Not in G**: a load in the same cycle as an older store (29.49, −1.61 %, inside the wakeup-select loop), 88 registers (−0.54 %); E1c (AMO, LR, SC), the directed programs of E, the real I$ (1.7).

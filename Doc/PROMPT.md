@@ -8895,3 +8895,35 @@ Splitting stores is an RTL change of E's size.
 ```text
 Please try again
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The previous answer had run to the end, and 29.49 is pushed (5905b57). There was no VM reboot this time. The app's restart seems to have kept the answer from showing, so here are the main points again. I also committed the prompt log (e168864). origin has 0 Ref files.
+
+**What the 3 points are:** four RTL rules the model did not have explain about 2 points (`g14-o2`, each on top of the ones before).
+- After the second branch, not even a non-branch goes in that cycle (`ck_stop`): +0.24 %
+- No renaming unless 8 or more registers are free (`regs=72`): +0.55 %
+- Loads and stores complete 2 cycles later, branches 1: +0.30 %
+- A load issues only from the cycle after an older store's issue (`sa_lag`): **+1.63 %**
+
+"The RTL's model", with 29.48's way of forming groups too (+0.49 %), is only **2.4 %** below the RTL. Of that, mispredictions are up to 1.0 point and overrides 0.3, so about 1 point is unexplained.
+
+**Candidates to win it back** (measured on the RTL's model):
+
+| Change | `g14-o2` | Cost |
+|---|---|---|
+| **Split stores** (the address issued without waiting for the data, the data written into the SQ later through an ALU issue slot) | **−3.84 %** | a store issues twice, a data write port in the SQ, a way to hold in the IQ a load that meets a store waiting for its data |
+| A load issued in the same cycle as an older store | −1.61 % | inside the wakeup-select loop, so 20 ns gets hard |
+| 88 registers | −0.54 % | a larger register file and free list |
+
+Splitting stores speeds up "read, change, write" loops such as `matrix_test` and the CRCs. With ideal caches the timed part should reach about **8.3 CoreMark/MHz** (7.98 now). But if a load that meets a store waiting for its data is replayed at commit, it gets worse than now. As an RTL change it is about the size of E.
+
+The two "Please try again" before that were because my model run used up the memory and rebooted the VM. The cause is fixed, and model runs now have a memory limit.
+<!-- /answer -->
+
+## 221. 2026-11-10 22:14:50 JST
+
+```text
+Yes, plan it
+```
