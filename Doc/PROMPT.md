@@ -8717,3 +8717,37 @@ The record is section 29.45 of [Plan/OOC.md](../Plan/OOC.md) (Japanese: [Plan/OO
 ```text
 Yes, FTQ 32
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I put the FTQ of 32 blocks in the RTL and pushed it to dev (ff19d07). origin has 0 Ref files. Whether it meets 20 ns waits for the Vivado run.
+
+| Cycles | FTQ 16 | FTQ 32 | Change |
+|---|---|---|---|
+| `OOO_CORE` (no misses) `g14-o2-zbsc` | 1,311,645 | **1,294,645** | −1.30 % |
+| `g14-sflto-zbsc` | 1,219,046 | 1,216,474 | −0.21 % |
+| `g13-o2-zb` | 1,370,745 | 1,360,115 | −0.78 % |
+| `OOO_CPU` (the real D$) `g14-o2-zbsc` | 1,316,322 | **1,298,795** | −1.33 % |
+| `g14-sflto-zbsc` | 1,226,653 | 1,224,276 | −0.19 % |
+| `g13-o2-zb` | 1,374,118 | 1,363,088 | −0.80 % |
+
+- **Performance:** the three `OOO_CORE` runs equal the scratch copy's to the cycle, so the timed-part result holds as it is: **7.98 CoreMark/MHz** with ideal caches, 5.8 % above the model.
+- **Regression:** `run_front` PASS, the 12 runs of `tb_core` 0 failures, CoreMark all PASS in lock-step. Lint: only the warnings from before.
+- **Bug injection:** `mutate_front.py` detected 52 of 52. `mutate_core.py` 121 of 128; the 7 not detected (72, 91, 102, 103, 104, 109, 110) are the same as before.
+- **Records:** section 29.46 of `Plan/OOC(_J).md`, `Doc/STRATEGY(_J).md`, `Doc/UARCH(_J).md` updated.
+
+F's margin is only +0.203 ns. This adds 512 flip-flops, a 32-to-1 choice and a bit of FTQ index in each µop, so please run `OOO_CPU` again.
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+
+When it finishes, I will read the results from `FPGA/OOO_OOC/output/OOO_CPU`.
+<!-- /answer -->
+
+## 214. 2026-11-10 21:05:14 JST
+
+```text
+OOO_CPU finished running.
+```

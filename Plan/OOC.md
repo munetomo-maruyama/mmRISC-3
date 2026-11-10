@@ -5061,3 +5061,19 @@ The three `OOO_CORE` numbers are those of the scratch copy to the cycle (29.45),
 **Checks.** Lint: only the warnings from before. `run_front` PASS; 12 runs of `tb_core`, 0 failures; CoreMark in lock-step on all 4 configurations. Bug injection: `mutate_front.py` 52 of 52; `mutate_core.py` 121 of 128, the same 7 not reached as before (72, 91, 102, 103, 104, 109, 110).
 
 **Not done yet: 20 ns.** F met it with a margin of +0.203 ns (29.43). This adds 512 flip-flops for the outcomes of the slots, a 32-to-1 choice, and a bit in every µop's FTQ index, so `OOO_CPU` has to be run again.
+
+### 29.47 The FTQ of 32 blocks meets 20 ns (2026-11-10)
+
+**The run** (by the author, 29.46's RTL): **69,887 LUTs** after place and route (57,451 logic + 12,432 LUT RAM), 17,419 FF after synthesis, 24.5 tiles of block RAM. **WNS +0.447 ns, TNS 0, no failing endpoint out of 152,774; hold +0.028 ns; pulse width met; between flip-flops +0.493 ns**, 31 levels (15 of them CARRY4), 72 % routing: ALU 2's WB register to the register file's write data, the same kind of path as at F3. No path of the FTQ is in the top 20; the FTQ's own worst, out of it, has 7.138 ns.
+
+| Against 29.43 (FTQ 16) | FTQ 16 | FTQ 32 | |
+|---|---|---|---|
+| LUTs, the whole | 68,526 | 69,887 | +1,361 |
+| FF after synthesis | 16,836 | 17,419 | +583 |
+| `OOO_FRONT` LUTs / FF | 12,627 / 3,605 | 13,847 / 4,141 | +1,220 / +536 |
+| `OOO_FTQ` LUTs (LUT RAM) | 1,382 (472) | 1,826 (472) | +444 (0) |
+| Between flip-flops | +0.203 ns | +0.493 ns | |
+
+As expected, the FTQ's LUT RAM does not grow; the outcomes of the slots (in `OOO_FRONT`, 512 flip-flops) and their choice make most of the cost. The other blocks move by a few hundred LUTs either way from placement (`OOO_PRF` −1.5k, `OOO_ROB` +0.4k).
+
+**F with the FTQ of 32 stands at** (CoreMark, `OOO_CPU`, no I$ misses, the real D$): `g14-o2` 1,298,795 cycles, `g14-sflto` 1,224,276, `g13-o2-zb` 1,363,088, at 20 ns; with ideal caches 7.98 CoreMark/MHz in the timed part.
