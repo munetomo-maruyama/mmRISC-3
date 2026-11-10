@@ -73,6 +73,8 @@ struct OooCfg {
     int hole_bank = 0;          // OOO_SDISP as a stage before: a group's queues and banks stay with it through a stall
     int cmp_lag = 0;            // cycles from a result to its done bit in the ROB (a register in between)
     int ck_max = 0;             // at most this many checkpoints taken a cycle
+    int sa_lag = 0;             // mem_cons: a load issues this many cycles after the older stores' issue at the earliest (OOO_LSU3: 1)
+    int ck_stop = 0;            // ck_max stops the cycle: no µop after its last checkpoint goes in it (OOO_CTRL's r_go)
     int ck_rr = 0;              // checkpoints taken in turn (OOO_RENAME2's ck_next): one waits for its own to be free, not any
     int grp = 0;                // OOO_FRONT's group register: a group (up to dec_w µops of up to dec_block blocks, those in the
                                 // fetch buffer when it is formed) renames alone; what is left of it goes alone, the next group after
@@ -475,7 +477,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
         }
         if (has_cti && c.ck1 && last_ck >= d) { res.st_ckpt += last_ck + 1 - d; d = last_ck + 1; }
         if (c.ck_end && last_ck >= d) { res.st_ckpt += last_ck + 1 - d; d = last_ck + 1; }
-        if (has_cti && c.ck_max && last_ck >= d && ck_n >= c.ck_max) { res.st_ckpt += last_ck + 1 - d; d = last_ck + 1; }
+        if ((has_cti || c.ck_stop) && c.ck_max && last_ck >= d && ck_n >= c.ck_max) { res.st_ckpt += last_ck + 1 - d; d = last_ck + 1; }
         if (has_cti && c.ckpt) {
             while (!ckh.empty() && ckh.top() < d) ckh.pop();
             if ((int)ckh.size() >= c.ckpt) {
@@ -516,7 +518,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 if (it != ready.end() && it->second > is) is = it->second;
             }
         bool any_load = nld > 0;
-        if (any_load && c.mem_cons && st_addr_known > is) is = st_addr_known;
+        if (any_load && c.mem_cons && st_addr_known + c.sa_lag > is) is = st_addr_known + c.sa_lag;
         if (any_load && c.ld_wt) {
             if (c.ld_wt_clr && is >= wt_next) { std::fill(wt.begin(), wt.end(), 0); wt_next = is + c.ld_wt_clr; }
             for (size_t k = i; k <= last; k++)
@@ -638,7 +640,13 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 if (r.src[0] != NOREG && r.src[0] != r.base) { auto it = ready.find(r.src[0]); if (it != ready.end()) dr = std::max(dr, it->second); }
                 if (c.sd_alu && !c.st_data_issue) {
                     dr = std::max(dr, d + 1);
-                    if (c.sd_alu >= 2) {
+                    if (!c.iqd) {
+                        // unified queue: an ALU port's issue slot from when the data is ready (no queues to search)
+                        for (;; dr++) {
+                            if ((c.issue_w && use_all[dr] >= c.issue_w) || use_alu[dr] >= c.alu) continue;
+                            use_alu[dr]++; use_all[dr]++; break;
+                        }
+                    } else if (c.sd_alu >= 2) {
                         // its own entry, in the queue next in turn with room, from a cycle after the store's if none has
                         int qs = -1, hs = -1;
                         for (long sd_d = d; qs < 0; sd_d++) {

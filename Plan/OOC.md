@@ -5108,3 +5108,39 @@ As expected, the FTQ's LUT RAM does not grow; the outcomes of the slots (in `OOO
 **Checked on the way**: the IQ frees an entry at the issue edge, and `disp_ready` counts it the next cycle, as the model does. A group of 4 needs all 4 banks with room (`disp_ready` counts banks); the model's `iq_bank` gives each µop a bank of its own too, and the partial dispatch, the one difference, was −0.09 % (29.44).
 
 **What is left of the 5.2 %**: mispredictions up to 1.0 point and overrides 0.3 (29.44); about 3 points not explained yet.
+
+### 29.49 The 3 points: four RTL rules the model did not have; stores that wait for their data (2026-11-10)
+
+**How.** The timelines of 29.45 again, with the model given 29.48's `grp=1 ck_rr=1`; by function, then by pc, then cycle by cycle (`+dump_lo`). Four RTL rules the model did not have, each now an option of `Plan/model` (off by default):
+
+| Option | The RTL's rule | Where seen |
+|---|---|---|
+| `ck_stop=1` | after a group's second checkpoint nothing else renames in that cycle, a non-branch either (`OOO_CTRL` `r_go`: `nck != 2` for every slot) | `core_state_transition`: groups of 3 and a leftover of 1 |
+| `regs=72` | a group renames only if 8 registers were free in the cycle before (`OOO_RENAME2` `free_ok`, 80 registers): about 72 in effect | "rename not ready" 92,260 slots |
+| `lsu_cmt=2 br_cmt=1` | a load's or store's done bit 2 cycles later than the model's, a branch's 1 (the timing cuts of 29.25); measured in 29.44 alone | issue to done: loads 5 against 3, branches 3 against 2 |
+| `sa_lag=1` | a load issues at the earliest a cycle after the older stores' issue (`OOO_IQ2` `sw`, a register off the wakeup-select loop); the model let it go in the same cycle | `matrix_test`'s loop `lhu`, `addw`, `sh`: 4 cycles a turn against 3 |
+
+| Model, one on top of another | `g14-o2-zbsc` | step | `g14-sflto-zbsc` | `g13-o2-zb` |
+|---|---|---|---|---|
+| F | 1,184,347 | | 1,089,510 | 1,237,838 |
+| + `grp=1` (29.48) | 1,189,366 | +0.42 % | 1,092,926 | 1,243,240 |
+| + `ck_rr=1` (29.48) | 1,190,153 | +0.07 % | 1,093,104 | 1,244,083 |
+| + `ck_stop=1` | 1,192,957 | +0.24 % | 1,099,253 | 1,249,322 |
+| + `regs=72` | 1,199,559 | +0.55 % | 1,105,786 | 1,254,739 |
+| + `lsu_cmt=2 br_cmt=1` | 1,203,123 | +0.30 % | 1,108,839 | 1,254,489 |
+| + `sa_lag=1` | **1,222,750** | **+1.63 %** | 1,123,863 | 1,275,618 |
+
+With all of them (+3.24 % on `g14-o2`), **the gap to the RTL's timed part (1,252,575) is 2.4 %**, of which mispredictions are up to 1.0 point and overrides 0.3 (29.44): about 1 point is left unexplained. This set of options is "the RTL's model" from here on.
+
+**What would win it back** (on the RTL's model; the RTL itself would be about as much):
+
+| Change | `g14-o2` | `g14-sflto` | `g13-o2-zb` | Cost |
+|---|---|---|---|---|
+| a load in the same cycle as an older store (`sa_lag=0`) | −1.61 % | −1.34 % | −1.66 % | the store's select in the load's ready: in the wakeup-select loop |
+| 88 registers (`regs=80`) | −0.54 % | −0.60 % | −0.37 % | the register file, the free list, a tag bit |
+| **stores split**: the address issued without waiting for the data, the data through an ALU port's issue slot in order (`st_data_issue=0 sd_alu=1 sd_ord=1`) | **−3.84 %** | −3.20 % | −3.65 % | a store issues twice; a write port of the SQ's data; a load that finds an older store without its data waits for it |
+| the same, but such a load replayed at its commit (`ld_rp=1`) | +1.63 % | +3.19 % | +1.91 % | (worse than now) |
+
+**Stores split are the big one**: in loops that read, change and write (`matrix_test`, the CRCs, the lists) the next load waits now for the store, which waits for its data, which waits for the load before. With the address issued as soon as its base is ready, the next load goes at once. About **8.3 CoreMark/MHz** in the timed part with ideal caches (from 7.98), if the RTL gets what the model does. But only if a load that meets an older store without its data waits for that data (as a dependence in the IQ): replaying it at its commit loses more than the change wins.
+
+**The model's `sd_alu` with the unified queue** (`iqd=0`): it searched queues that do not exist, without end, until the memory ran out (the VM rebooted twice). The unified case has its own code now: an ALU port's issue slot from the cycle the data is ready.

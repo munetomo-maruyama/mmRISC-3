@@ -8778,3 +8778,81 @@ The record is section 29.47 of `Plan/OOC(_J).md` and rows 1.5 and 1.6 of `Doc/ST
 ```text
 Yes, groups
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Groups that split cost about 0.4 %; they are not the main cause of the gap. I recorded it as 29.48 and pushed it to dev (f50082c). origin has 0 Ref files.
+
+**Slots the RTL loses** (timed part, `g14-o2`, FTQ 32):
+
+| Cause | Slots lost |
+|---|---|
+| The back end not free (mainly the IQ, 214,324 cycles) | 1,131,232 |
+| A group's leftover renamed alone | 204,507 |
+| No group (after a redirect or override) | 143,300 |
+| A short group ending with a taken branch | 110,956 |
+| The rename not ready | 92,260 |
+| A checkpoint's id still in use | 60,422 |
+| At most 2 checkpoints a cycle | 51,082 |
+
+"Leftover alone" is 200k slots, but most of it comes when the back end could not have taken more anyway.
+
+**Reproduced in the model:** I added two options to the model (off by default).
+- `grp=1`: groups formed as the RTL does.
+- `ck_rr=1`: checkpoint ids used in turn, as in the RTL.
+
+| Model (F's configuration) | Before | `grp=1` | `ck_rr=1` | Both |
+|---|---|---|---|---|
+| `g14-o2-zbsc` | 1,184,347 | +0.42 % | +0.05 % | +0.49 % |
+| `g14-sflto-zbsc` | 1,089,510 | +0.31 % | +0.01 % | +0.33 % |
+| `g13-o2-zb` | 1,237,838 | +0.44 % | +0.08 % | +0.50 % |
+
+- **Decision:** I do not propose topping the RTL's group register G up from the R that follows. It would move about 120 bits of decoded fields per slot 4 ways, in D2's path, for only 0.4 %.
+- **Checked on the way:** the IQ frees its entries at the same time as the model.
+- **Where the gap stands:** with both options the gap to the model in the timed part goes from 5.8 % to **5.2 %**. Mispredictions are up to 1.0 point of it and overrides 0.3. About 3 points are not explained yet.
+
+The record is section 29.48 of `Plan/OOC(_J).md`. The model changes are in `Plan/model/ooo.h` and `model.cpp`.
+<!-- /answer -->
+
+## 216. 2026-11-10 21:29:49 JST
+
+```text
+Yes, the 3 points
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+(None: the turn was cut off while the model runs were going.)
+<!-- /answer -->
+
+## 217. 2026-11-10 21:37:01 JST
+
+```text
+Please try again
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+(None: the turn ended while the split-store runs were going in the background.)
+<!-- /answer -->
+
+## 218. 2026-11-10 21:39:11 JST
+
+```text
+Please try again
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+(None: a model run with `sd_alu=1` on the unified queue never ended and used up the memory; the VM rebooted.)
+<!-- /answer -->
+
+## 219. 2026-11-10 21:50:02 JST
+
+```text
+Please try again
+```
