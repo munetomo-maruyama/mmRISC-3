@@ -73,6 +73,9 @@ struct OooCfg {
     int hole_bank = 0;          // OOO_SDISP as a stage before: a group's queues and banks stay with it through a stall
     int cmp_lag = 0;            // cycles from a result to its done bit in the ROB (a register in between)
     int ck_max = 0;             // at most this many checkpoints taken a cycle
+    int ck_rr = 0;              // checkpoints taken in turn (OOO_RENAME2's ck_next): one waits for its own to be free, not any
+    int grp = 0;                // OOO_FRONT's group register: a group (up to dec_w µops of up to dec_block blocks, those in the
+                                // fetch buffer when it is formed) renames alone; what is left of it goes alone, the next group after
     int p0_ops = 0;             // unified queue: MUL, DIV and system µops only on one ALU port, one a cycle; DIV keeps only the MDU (OOO_IQ2); 2: and jalr (OOO_EXU2)
     int p0_opx = 0;             // ... and the ALU µops of these classes (Rec.opx), in their usual latency
     int st_lsu0 = 0;            // unified queue: one store a cycle, on the first LSU port
@@ -116,7 +119,7 @@ struct OooResult {
     long insns = 0, uops = 0, cycles = 0;
     long m_br = 0, m_jal = 0, m_jalr = 0, overrides = 0, ubtb_taken_hits = 0, taken = 0;
     long rp_data = 0, rp_alias = 0;
-    long st_fe_misp = 0, st_fe_ovr = 0, st_fe_other = 0, st_rob = 0, st_iq = 0, st_lsq = 0, st_ckpt = 0;
+    long st_fe_misp = 0, st_fe_ovr = 0, st_fe_other = 0, st_rob = 0, st_iq = 0, st_lsq = 0, st_ckpt = 0, st_grp = 0;
     long fused = 0;
 };
 
@@ -245,6 +248,10 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
     std::vector<long> ld_cm, st_cm;             // commit cycles of loads / stores, in order
     std::vector<long> wr_cm;                    // ... of the µops that take a register
     long dg_c = -1; int dg_n = 0;               // dec_block: the decode cycle, its blocks so far
+    std::vector<uint8_t> bstart(n, 0);          // grp: the instruction starts a block
+    std::vector<long> ckr(c.ckpt > 0 ? c.ckpt : 1, -1); long ck_cnt = 0;   // ck_rr: each id's free cycle, the count taken
+    long g_t = -1, g_p = -1; int g_n = 0, g_b = 0;  // grp: the group's forming cycle (in dispatch's time), the last dispatch of the
+                                                // group before, the group's µops, its blocks
     std::priority_queue<long, std::vector<long>, std::greater<long>> iqh, ckh;
     std::unordered_map<int, long> ready;        // register -> cycle a dependent may issue
     std::unordered_map<int, long> spec;         // register -> cycle its open loads are decided (keep_spec)
@@ -311,6 +318,7 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 }
             }
             dec[k] = d;
+            bstart[k] = nb || cross;
         }
         // ---- dispatch
         size_t u = ds.size();
@@ -323,6 +331,17 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             long s = fe - d;
             if (blk_cause == 1) res.st_fe_misp += s; else if (blk_cause == 2) res.st_fe_ovr += s; else res.st_fe_other += s;
             d = fe;
+        }
+        if (c.grp) {
+            int nbk = 0;
+            for (size_t k = i; k <= last; k++) nbk += bstart[k];
+            if (g_n > 0 && g_n < c.dec_w && fe <= g_t && g_b + nbk <= std::max(c.dec_block, 1)) { g_n++; g_b += nbk; }
+            else {
+                // (formed into R as the group two before leaves G, 2 stages before renaming; renames after the one before)
+                long p1 = u ? ds[u - 1] : -1;
+                g_t = std::max(fe, g_p + 2); g_p = p1; g_n = 1; g_b = 1;
+                if (p1 + 1 > d) { res.st_grp += p1 + 1 - d; d = p1 + 1; }
+            }
         }
         if (u >= (size_t)c.rob && cm[u - c.rob] + 1 > d) { res.st_rob += cm[u - c.rob] + 1 - d; d = cm[u - c.rob] + 1; }
         int bq = 0;                 // iqd: the queue this µop is bound to (iqd: the memory queue)
@@ -464,6 +483,8 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
                 res.st_ckpt += need - d; d = need;
                 while (!ckh.empty() && ckh.top() < d) ckh.pop();
             }
+            long& fr = ckr[ck_cnt % c.ckpt];
+            if (c.ck_rr && fr >= d) { res.st_ckpt += fr + 1 - d; d = fr + 1; }
         }
         if (has_cti) { ck_n = last_ck == d ? ck_n + 1 : 1; last_ck = d; }
         int bk = 0;                 // iq_bank: the bank this µop goes to
@@ -699,7 +720,8 @@ inline OooResult run_ooo(const std::vector<Rec>& t, const OooCfg& c)
             if (!is_cti(r)) continue;
             bool tk = r.flags & F_TAKEN;
             if (c.ckpt && (c.ck_jal || r.cls != C_JAL))
-                ckh.push(is + c.iss_to_ex);             // a checkpoint until it is resolved
+            { ckh.push(is + c.iss_to_ex);           // a checkpoint until it is resolved
+                ckr[ck_cnt++ % c.ckpt] = is + c.iss_to_ex; }
             uint64_t next = k + 1 < n ? t[k + 1].pc : r.pc + r.size;
             uint64_t ras_top = ras_n ? ras[(ras_n - 1) % ras.size()] : 0;
             // the main prediction (F2)

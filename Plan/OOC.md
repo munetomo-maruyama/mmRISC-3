@@ -5077,3 +5077,34 @@ The three `OOO_CORE` numbers are those of the scratch copy to the cycle (29.45),
 As expected, the FTQ's LUT RAM does not grow; the outcomes of the slots (in `OOO_FRONT`, 512 flip-flops) and their choice make most of the cost. The other blocks move by a few hundred LUTs either way from placement (`OOO_PRF` −1.5k, `OOO_ROB` +0.4k).
 
 **F with the FTQ of 32 stands at** (CoreMark, `OOO_CPU`, no I$ misses, the real D$): `g14-o2` 1,298,795 cycles, `g14-sflto` 1,224,276, `g13-o2-zb` 1,363,088, at 20 ns; with ideal caches 7.98 CoreMark/MHz in the timed part.
+
+### 29.48 Groups that split: 0.4 %, not the gap (2026-11-10)
+
+**The RTL** (`OOO_FRONT`, D2): a group of up to 4 instructions of up to 2 blocks is taken from the fetch buffer into R, decoded into the group register G, and renamed as a prefix (`OOO_CTRL` `r_go`: at most 2 checkpoints, each with its id free, the rename ready). G takes the next group only when it is empty (`g_left`), so what is left of a group renames alone, and the next group never shares a cycle with the one before. R is filled as G takes its group, so a group holds what the fetch buffer has at that moment.
+
+**The slots lost in the timed part** (the accounting copy of 29.45, FTQ 32, `g14-o2`; 4 slots a cycle, 5,010,300 in all, 3,118,899 used):
+
+| Cause | Slots |
+|---|---|
+| the back end (DS not free: the IQ 214,324 cycles, the LQ 53,586, the ROB 11,005) | 1,131,232 |
+| a leftover of a group alone | 204,507 |
+| no group (after a redirect, an override) | 143,300 |
+| a group short, ending with a taken branch | 110,956 |
+| the rename not ready | 92,260 |
+| a checkpoint's id still live | 60,422 |
+| 2 checkpoints a cycle | 51,082 |
+| other | 24,073 |
+
+**In the model**: two options, off by default. `grp=1`: the RTL's groups as above (a group is formed as the group two before leaves G, 2 stages before renaming, and holds what is decoded by then, up to `dec_w` µops of up to `dec_block` blocks; the first µop of a group renames after the last of the group before). `ck_rr=1`: the checkpoints' ids in turn (`OOO_RENAME2`'s `ck_next`): a branch waits for its own id to be free, not any of the 12.
+
+| Model, F's configuration | as before | `grp=1` | `ck_rr=1` | both |
+|---|---|---|---|---|
+| `g14-o2-zbsc` | 1,184,347 | 1,189,366 (+0.42 %) | 1,184,912 (+0.05 %) | 1,190,153 (+0.49 %) |
+| `g14-sflto-zbsc` | 1,089,510 | 1,092,926 (+0.31 %) | 1,089,665 (+0.01 %) | 1,093,104 (+0.33 %) |
+| `g13-o2-zb` | 1,237,838 | 1,243,240 (+0.44 %) | 1,238,830 (+0.08 %) | 1,244,083 (+0.50 %) |
+
+**So the groups cost about 0.4 %**, and the ids in turn 0.05 %. Most of the leftovers come when the back end could not have taken more anyway. Topping G up from R (the model's way) would move about 120 bits of decoded fields per slot 4 ways between G and R, in D2's path, for 0.4 %: **not proposed**. With both options the timed part's gap to the model goes from 5.8 % to **5.2 %**.
+
+**Checked on the way**: the IQ frees an entry at the issue edge, and `disp_ready` counts it the next cycle, as the model does. A group of 4 needs all 4 banks with room (`disp_ready` counts banks); the model's `iq_bank` gives each µop a bank of its own too, and the partial dispatch, the one difference, was −0.09 % (29.44).
+
+**What is left of the 5.2 %**: mispredictions up to 1.0 point and overrides 0.3 (29.44); about 3 points not explained yet.

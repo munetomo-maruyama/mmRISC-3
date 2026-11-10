@@ -8751,3 +8751,30 @@ When it finishes, I will read the results from `FPGA/OOO_OOC/output/OOO_CPU`.
 ```text
 OOO_CPU finished running.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+With the FTQ of 32 blocks, `OOO_CPU` still meets 20 ns. I recorded it as 29.47 and pushed it to dev (2653bf4). origin has 0 Ref files.
+
+| | FTQ 16 (29.43) | FTQ 32 | Change |
+|---|---|---|---|
+| WNS | +0.203 ns | **+0.447 ns** | |
+| Between flip-flops | +0.203 ns | **+0.493 ns** | |
+| LUTs (whole) | 68,526 | 69,887 | +1,361 |
+| FF after synthesis | 16,836 | 17,419 | +583 |
+| `OOO_FRONT` LUTs / FF | 12,627 / 3,605 | 13,847 / 4,141 | +1,220 / +536 |
+| `OOO_FTQ` LUTs (LUT RAM) | 1,382 (472) | 1,826 (472) | +444 (0) |
+
+- **Timing:** TNS 0, hold +0.028 ns. The worst path is of the same kind as before: 31 levels from ALU 2's WB to the register file's write data. No FTQ path is in the top 20.
+- **Cost:** as expected, the FTQ's LUT RAM does not grow. What grows is mainly the 512 flip-flops of the slots' outcomes in `OOO_FRONT` and their choice. The other blocks move by a few hundred LUTs from placement.
+- **Where it stands:** at 20 ns `g14-o2` takes 1,298,795 cycles (`OOO_CPU`, the real D$). With ideal caches the timed part is **7.98 CoreMark/MHz**.
+
+The record is section 29.47 of `Plan/OOC(_J).md` and rows 1.5 and 1.6 of `Doc/STRATEGY(_J).md`. The gap to the model is still 5.8 %. The next suspect is "dispatch groups that split", not measured yet.
+<!-- /answer -->
+
+## 215. 2026-11-10 21:15:49 JST
+
+```text
+Yes, groups
+```

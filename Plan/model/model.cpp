@@ -118,6 +118,8 @@ int main(int argc, char** argv)
         c.sd_q = (int)o.get("sd_q", c.sd_q);
         c.ck_end = (int)o.get("ck_end", c.ck_end);
         c.ck_max = (int)o.get("ck_max", c.ck_max);
+        c.grp = (int)o.get("grp", c.grp);
+        c.ck_rr = (int)o.get("ck_rr", c.ck_rr);
         c.p0_ops = (int)o.get("p0_ops", c.p0_ops);
         c.p0_opx = (int)o.get("p0_opx", c.p0_opx);
         c.st_lsu0 = (int)o.get("st_lsu0", c.st_lsu0);
@@ -153,8 +155,8 @@ int main(int argc, char** argv)
                r.m_br, r.m_jal, r.m_jalr, (r.m_br + r.m_jal + r.m_jalr) * 1000.0 / r.insns, r.overrides,
                r.taken, 100.0 * r.ubtb_taken_hits / (r.taken ? r.taken : 1));
         if (c.ld_rp) printf("loads replayed: the data late %ld, an offset alias %ld\n", r.rp_data, r.rp_alias);
-        printf("dispatch held: front end after misprediction %ld, after override %ld, other %ld; ROB %ld  IQ %ld  LQ/SQ %ld  checkpoints %ld\n",
-               r.st_fe_misp, r.st_fe_ovr, r.st_fe_other, r.st_rob, r.st_iq, r.st_lsq, r.st_ckpt);
+        printf("dispatch held: front end after misprediction %ld, after override %ld, other %ld; ROB %ld  IQ %ld  LQ/SQ %ld  checkpoints %ld  groups %ld\n",
+               r.st_fe_misp, r.st_fe_ovr, r.st_fe_other, r.st_rob, r.st_iq, r.st_lsq, r.st_ckpt, r.st_grp);
     } else if (mode == "tage") {
         // the conditional branches alone through the three TAGE sizes, to
         // hold against ../trace/analyze.py
