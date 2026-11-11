@@ -5191,3 +5191,18 @@ With all of them (+3.24 % on `g14-o2`), **the gap to the RTL's timed part (1,252
 **Results**: `tb_lsu4` PASS, 600,000 cycles twice: physical 17,795 data before the address, 15,212 after, 526 killed with their store, 932 loads that waited for a store's data, 821 pairs (805 timed); translated 17,012, 14,465, 556, 957, 847 (814), 490 misaligned loads alone after a flush. `tb_lsu3` PASS. `verilator -Wall`: no warning, as `OOO_LSU3`. **Bug injection: 65 of 65** for `OOO_LSU4` (M1177 to M1243 less M1227, M1228, which tested the mask now gone): 49 of `OOO_LSU3`'s retargeted (the `OOO_DCH2` ones stay with `OOO_LSU3`'s; M988 went with the store's data in M), 16 new for the data's port, the completion and the wait's reason; and `OOO_LSU3`'s 51 of 51 again with the bench's fix.
 
 **Next**: G2, `OOO_IQ3`.
+
+### 29.52 Step 1.5b, G2: `OOO_IQ3`, a store issued twice (2026-11-11)
+
+**What was built** (not in the core yet; G3 puts it there): `OOO_IQ3`, from `OOO_IQ2`:
+
+- **A store issues twice from one entry**: its address (source 0) on port 4 when its base is ready, its data (source 1) on **port 1** when the data is ready, the oldest such store first (`iss_sd`: port 1 has a store's data, for `OOO_LSU4`'s data port through ALU1, which writes no register). The two go in either order or in one cycle; the entry leaves when both have gone (`sa`, `sd`, `left`). A non-speculative µop of the store class (AMO, CBO, later) is not split: it goes once on port 4 with both, as before.
+- **Port 1, not port 3 as 29.50 said.** The data takes its port before the any-ALU µop of that port's rank, which waits a cycle; the ranks fill port 3 first (rank 0), port 2, then port 1 (rank 2), so port 1 is the any-ALU port least often in use, and the µop pushed off is the third oldest ready, not the oldest. The data's request needs no rank: the oldest of the stores' requests (an age-matrix select) and their OR, beside the rank's tree, not after it. Port 1's slot after a multiply (`blk1`) does not hold the data back, as it writes no register.
+- **The loads' waits**: `sw` ends at the older stores' address issue (it ended at their issue); a load the wait table marks (`disp_wt`) waits also while an older store's data is in the queue (`wd`). Both stay registers, off the wakeup-select loop, and end a cycle after the issue they wait for (the model's `sa_lag=1`, `wt_lag=0` with `sd_lag=1`).
+- `NA` and `P5` are gone: `OOO_IQ3` is for the 4-wide core only (`OOO_IQ2` keeps its 2-wide form for `iq2n2`).
+
+**`tb_iq3`**, from `tb_iq2` (the exact account of what must issue each cycle): a store not non-speculative is ready for its address with source 0 and for its data with source 1; port 1 takes the oldest ready data before the any-ALU µop of rank 2; a load waits for older stores' addresses, a marked one for their data too; the wait bit on anything but a load means nothing (random there). New checks: `iss_sd`; the store's entry, sources and mask on port 1. The first runs failed on the bench itself: a store that gave its address and its data in the cycle a kill took it left the account twice, a tag's readers went negative and the tag was given out while read. Fixed (a µop on two ports leaves once).
+
+**Results**: `tb_iq3` PASS, 400,000 cycles, 0 mismatches: 22,959 stores' data issued (8,031 with the address, 8,864 before it), 2,540 rank-2 µops pushed off port 1, 57,890 marked loads (held by the data alone 53,730 cycles), 7,572 kills. `verilator -Wall`: no warning. **Bug injection: 81 of 81** (M1244 to M1324): `OOO_IQ2`'s 54 retargeted, 27 new for the two issues, the leaving, the waits and port 1.
+
+**Next**: G3, the core: ALU1's path to `OOO_LSU4`'s data port, the wait table, `OOO_IQ3` and `OOO_LSU4` in `OOO_CORE`.

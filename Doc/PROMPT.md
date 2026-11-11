@@ -8959,3 +8959,30 @@ I planned splitting stores as step G and wrote it into row 1.5b of `Doc/STRATEGY
 ```text
 Yes, start G1
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+G1 is done. `OOO_LSU4` (the LSU with stores split) passes its bench `tb_lsu4`, and bug injection detected 65 of 65. I recorded it as 29.51 and pushed it to dev (8c10657). origin has 0 Ref files. It is not in the core yet.
+
+**What changed in `OOO_LSU4`** (from `OOO_LSU3`):
+- **A store's issue:** a store's µop on port 0 carries its address alone. The data comes on a port of its own and is written into the SQ at the end of that cycle, with a data valid bit an entry.
+- **A store's completion:** it completes when address and data are both there. A store whose data came later reports it through the same completion port in a free cycle, so the ROB gets no more ports.
+- **A load waiting for data:** a load that meets a store without its data waits. When the data is written it is tried again, and replayed at its commit. That it waited for data is reported, for G3's wait table.
+- **A mistake of mine found on the way:** the first version cleared the valid bit when the store left, and a load that met a draining store waited for nothing. It now clears it at the allocation.
+- **Terms removed:** four terms that bug injection showed doing nothing (the data's branch mask among them).
+
+**The bench `tb_lsu4`** (PASS, 2 modes × 600,000 cycles):
+- Each store's data comes at a random time, before or after its address. Data of stores being killed is mixed in.
+- A time with only "a store whose data is 60 cycles late + a load of the same address": the load must complete within 12 cycles of the data (805 pairs physical, 814 translated).
+
+**A hole in `tb_lsu3` too:** an input, `uc_done`, was never driven. In runs where it started at 1, the LSU's retry event stood in every cycle and event bugs could not be seen. That is why the bench's counts and the campaign results changed from run to run. I fixed both benches and checked that `OOO_LSU3`'s 51 are all detected. I also wrote this pitfall into memory.
+
+The next, G2, is the IQ that issues a store twice (`OOO_IQ3`).
+<!-- /answer -->
+
+## 223. 2026-11-11 22:42:18 JST
+
+```text
+Yes, start G2
+```

@@ -36,6 +36,7 @@ TOP[rename]=OOO_RENAME; SRC[rename]="$R/OOO_RENAME/OOO_RENAME.sv"
 TOP[rename2]=OOO_RENAME2; SRC[rename2]="$R/OOO_RENAME2/OOO_RENAME2.sv"; GV[rename2]="--public-flat-rw"
 TOP[iq]=OOO_IQ;         SRC[iq]="$R/OOO_IQ/OOO_IQ.sv"
 TOP[iq2]=OOO_IQ2;       SRC[iq2]="$R/OOO_IQ2/OOO_IQ2.sv"
+TOP[iq3]=OOO_IQ3;       SRC[iq3]="$R/OOO_IQ3/OOO_IQ3.sv"   # (stores split, step 1.5b G2)
 TOP[iq2n2]=OOO_IQ2;     SRC[iq2n2]="$R/OOO_IQ2/OOO_IQ2.sv"; GV[iq2n2]="-GNA=2 -GP5=0"; XC[iq2n2]="-DNA=2"; TB[iq2n2]=tb_iq2
 TOP[busy]=OOO_BUSY;     SRC[busy]="$R/OOO_BUSY/OOO_BUSY.sv"
 TOP[sched]=OOO_SCHED;   SRC[sched]="$R/OOO_SDISP/OOO_SDISP.sv $R/OOO_SCHED/OOO_SCHED.sv"
@@ -76,7 +77,7 @@ XC[dec]="-I$SP/include -I$SP/include/riscv -I$SP/include/softfloat -I$SP/include
 XL[dec]="-L$SP/lib -lriscv -ldisasm -lsoftfloat -lfesvr -Wl,-rpath,$SP/lib -lpthread -ldl"
 TOP[fetch]=OOO_FETCH;   SRC[fetch]="$R/OOO_UBTB/OOO_UBTB.sv $R/OOO_PREDEC/OOO_PREDEC.sv $R/OOO_TAGE/OOO_TAGE.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FETCH/OOO_FETCH.sv"
 TOP[fetch2]=OOO_FETCH2; SRC[fetch2]="$R/OOO_UBTB2/OOO_UBTB2.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FDEC2/OOO_FDEC2.sv $R/OOO_TAGE2/OOO_TAGE2.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_FETCH2/OOO_FETCH2.sv"
-TESTS=${*:-alu2 alu1 alum exu exu2 fuse prf prf2 rename rename2 ctrl dsreg stage fers trap sys csru mdup pmul iq iq2 iq2n2 busy sched iqpl iqpl2 ubtb ubtb2 lsu lsu2 lsu3 lsu4 dcad rob fbuf fbuf2 fbuf3 fdec fdec2 ftq predec ras btb tage fetch fetch2 dec}
+TESTS=${*:-alu2 alu1 alum exu exu2 fuse prf prf2 rename rename2 ctrl dsreg stage fers trap sys csru mdup pmul iq iq2 iq2n2 iq3 busy sched iqpl iqpl2 ubtb ubtb2 lsu lsu2 lsu3 lsu4 dcad rob fbuf fbuf2 fbuf3 fdec fdec2 ftq predec ras btb tage fetch fetch2 dec}
 
 fail=0
 for t in $TESTS; do
