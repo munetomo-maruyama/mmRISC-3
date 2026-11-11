@@ -5173,3 +5173,21 @@ With all of them (+3.24 % on `g14-o2`), **the gap to the RTL's timed part (1,252
 **The model's approximations**: the data takes any ALU slot (`sd_alu=1` on the unified queue), not port 3 alone; `sd_ord=1` (one a cycle, in order) is the stricter side of that. The cost in LUTs is not measured yet: two bits and a wait a queue entry, a valid bit and a write port in the SQ, 1,024 bits of table, ALU 3's path to the LSU.
 
 **Not in G**: a load in the same cycle as an older store (29.49, −1.61 %, inside the wakeup-select loop), 88 registers (−0.54 %); E1c (AMO, LR, SC), the directed programs of E, the real I$ (1.7).
+
+### 29.51 Step 1.5b, G1: `OOO_LSU4`, stores split (2026-11-11)
+
+**What was built** (not in the core yet; G3 puts it there): `OOO_LSU4`, from `OOO_LSU3`:
+
+- A store's µop on port 0 carries its address alone (`e_sd` is gone).
+- **The data's port** `sd_v`, `sd_sq`, `sd_size`, `sd_data`, from a register in the core (ALU 3's): written into `sd_f` at the end of that cycle, replicated by its size (as `sd_rep` was), so it needs no address; a data valid bit `sdv` an SQ entry. The bit goes when the entry is given out, not when its store leaves: a load that searches as the store drains may still find it, and its data is right. (The first version cleared it at the leaving, and loads waited for data that was there.)
+- **A store completes with both.** One whose data comes after its address waits in `sdone` (with its ROB entry, `srob`) and completes through the same `cmp_st` in a cycle when port 0's W has no store that completes, never in a recovery's cycle: no second completion port to the ROB.
+- **A load whose store to forward from has no data waits** (`f_cv`: the store can forward; `f_ok`: and it has its data). The data's write is an event; tried again, the load is replayed at its commit, and `cmp_ld_sd` says it waited for a store's data (for G3's wait table).
+- No branch mask on the data: the data of a store that a recovery kills, in that cycle, sets the bit of an entry that is free and is cleared when it is given out; in the next cycle the core has dropped it. Three more terms went because mutations showed them doing nothing: `rec` in the allocation's clear, `sv` in the late completion, `!sdv` in the wait's reason.
+
+**`tb_lsu4`**, from `tb_lsu3`: each store's data on `sd_*` at its own time (half at once, half up to 24 cycles later; before its address or after, 2 cycles after its dispatch at least, as the core's data µop is), now and then in the cycle a recovery kills the store. New checks: a store completes only with its data, and once; `cmp_ld_sd` only with a replay, and with an older store of the offset whose data came after the load's issue. A time of pairs: a store whose data comes 60 cycles late and a load of its bytes, alone, nothing committed until the load is done; the load must complete within 12 cycles of the data (tried again at the data's write, not at the store's leaving). Before a quiet time the data goes at once, and in its last 256 cycles (the recoveries on a try) no store comes, so that no data's write lets a dropped try go. Alone, after a flush of the DTLB, misaligned loads: a walk for one is for nobody.
+
+**A hole in `tb_lsu3` too**: `uc_done` was never driven (the benches' pages are all cacheable). An input left alone starts at anything; when it started at 1 the LSU's `ev` was 1 in every cycle, every waiting µop was tried again at once, and no mutation of an event could be seen. It changed from run to run, which is why a bench's counts moved between runs. Both benches drive it to 0 now.
+
+**Results**: `tb_lsu4` PASS, 600,000 cycles twice: physical 17,795 data before the address, 15,212 after, 526 killed with their store, 932 loads that waited for a store's data, 821 pairs (805 timed); translated 17,012, 14,465, 556, 957, 847 (814), 490 misaligned loads alone after a flush. `tb_lsu3` PASS. `verilator -Wall`: no warning, as `OOO_LSU3`. **Bug injection: 65 of 65** for `OOO_LSU4` (M1177 to M1243 less M1227, M1228, which tested the mask now gone): 49 of `OOO_LSU3`'s retargeted (the `OOO_DCH2` ones stay with `OOO_LSU3`'s; M988 went with the store's data in M), 16 new for the data's port, the completion and the wait's reason; and `OOO_LSU3`'s 51 of 51 again with the bench's fix.
+
+**Next**: G2, `OOO_IQ3`.

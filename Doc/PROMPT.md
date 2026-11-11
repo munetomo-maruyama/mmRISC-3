@@ -8927,3 +8927,35 @@ The two "Please try again" before that were because my model run used up the mem
 ```text
 Yes, plan it
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I planned splitting stores as step G and wrote it into row 1.5b of `Doc/STRATEGY(_J).md` and section 29.50 of `Plan/OOC(_J).md`. It is pushed to dev (e8c29d6). origin has 0 Ref files, and nothing in the RTL has changed yet.
+
+**What to do with a load that meets a store without its data** (measured on 29.49's RTL's model):
+
+| Way | `g14-o2` | `g14-sflto` | `g13-o2-zb` | Replays |
+|---|---|---|---|---|
+| Wait exactly for the data (ideal) | −3.92 % | −3.26 % | −3.73 % | |
+| Only replay at commit | +2.11 % | +3.55 % | +1.51 % | 3,859 |
+| **Replay + a wait table of 256 bits by pc** | **−3.67 %** | **−2.61 %** | **−3.65 %** | 8 |
+
+- **The way chosen:** the wait table (the idea of the Alpha 21264). A load replayed once waits from then on in the IQ until the older stores have their data. There are only 8 to 20 replays in a whole run, so it nearly reaches the ideal.
+- **The RTL's way can be kept:** it rides on today's IQ without a cancel and its replay at commit. The LSU already has a way to hold a µop and try it again.
+- **The model was fixed too:** the trace now carries each load's and store's size, and the match is by bytes as in the RTL (`st_bytes=1`). By the 8-byte word, as before, a load of `a[i+1]` was caught by the store of `a[i]` and waited too much.
+
+**The pieces** (each through lock-step before the next):
+- **G1 `OOO_LSU4`:** a data valid bit and a write port in the SQ. A load that meets a store without its data waits and is replayed at commit.
+- **G2 `OOO_IQ3`:** a store issues twice (the address on port 4, the data on ALU port 3). A load with its table bit set gets a second wait.
+- **G3 the core:** the data path from ALU 3 to the LSU, and the wait table (read in D2, set at commit). Checked with the 12 runs, CoreMark and bug injection.
+- **G4:** `OOO_CPU` at 20 ns (I will ask you).
+
+**Expected:** the timed part from 1,252,575 cycles to about 1,206,600, **about 8.28 CoreMark/MHz** with ideal caches (7.98 now). What step 1.7's real caches may lose becomes about 0.3. The cost in LUTs is not measured yet.
+<!-- /answer -->
+
+## 222. 2026-11-11 21:48:07 JST
+
+```text
+Yes, start G1
+```
