@@ -14,8 +14,8 @@
 //              prefix, at most 2 checkpoints); g_take back to the front end
 //   DS         OOO_RENAME2's R2 (tags, 4 slots), OOO_BUSY for the ready bits,
 //              and the µop's payload: the record of OOO_IQPL2, pc, ...;
-//              OOO_CTRL's d_go writes OOO_ROB, OOO_IQ2, OOO_IQPL2 and the LSU
-//   IS         OOO_IQ2 (24 entries; NA 2, P5 0 so far, Plan/OOC.md 29.18): port 0 (ALU0, OOO_ALU2 full; OOO_CSRU, OOO_SYS,
+//              OOO_CTRL's d_go writes OOO_ROB, OOO_IQ3, OOO_IQPL2 and the LSU
+//   IS         OOO_IQ3 (24 entries; stores split, step 1.5b G3, Plan/OOC.md 29.53): port 0 (ALU0, OOO_ALU2 full; OOO_CSRU, OOO_SYS,
 //              OOO_PMUL, OOO_MDUP), port 1 (ALU1, FULL 0), port 2 (OOO_LSU)
 //   RR         OOO_STAGE; OOO_PRF (2 reads a port), OOO_IQPL2's record, the
 //              pc array and the target array (OOO_FRONT)
@@ -173,7 +173,7 @@ module OOO_CORE
     // constant, and the compare after the ALU would stay in EX (Plan/OOC.md 27.7)
     localparam logic [7:0] FUSE_KINDS = 8'h00;
     localparam bit         FUSE_AB    = FUSE_KINDS[7];
-    localparam int NWK   = 9;                   // wakeup buses (OOO_IQ2: 7 + NEXT)
+    localparam int NWK   = 9;                   // wakeup buses (OOO_IQ3: 7 + NEXT)
 
     logic [1:0]          priv;                  // the privilege level (CORE_CSR): ECALL's cause at decode
 
@@ -232,6 +232,7 @@ module OOO_CORE
         logic            md;                    // answered from outside (OOO_MDUP): the issue queue does not wake for it
         logic [1:0]      port;
         logic            lat2;
+        logic            wt;                    // the wait table's bit: a load waits for older stores' data too
         logic [31:0]     insn;
 `ifdef OOO_TRACE
         logic [31:0]     insn2;                 // a pair's second instruction (the trace only)
@@ -331,6 +332,20 @@ module OOO_CORE
         end
     end
 
+    // ---- the wait table (step 1.5b G3, Plan/OOC.md 29.50, 29.53): a bit by pc[8:1], set at the commit of a load
+    // that waited for a store's data (OOO_LSU4's cmp_ld_sd, replayed); a load with its bit waits in OOO_IQ3 for
+    // the older stores' data too, so that it is not replayed again. Never cleared (there are a few such loads
+    // in a program). A copy of 256 x 1 in LUT RAM for each slot of the group register, written alike
+    logic [3:0]      wt_g;                      // the group's slots' bits
+    logic            wt_we;
+    logic [7:0]      wt_wa;
+    for (genvar k = 0; k < 4; k++) begin : g_wt
+        (* ram_style = "distributed" *) logic wt_ram [256];
+        initial for (int i = 0; i < 256; i++) wt_ram[i] = 1'b0;
+        always_ff @(posedge clk) if (wt_we) wt_ram[wt_wa] <= 1'b1;
+        assign wt_g[k] = wt_ram[g_pc[k][8:1]];
+    end
+
     // the µops: one instruction each, ND of them (Plan/OOC.md 29.19: OOO_FUSE pairs 2 µops out of 4 slots, and
     // with 4 µops a group no pairing is left; ALU + branch has been off since 5.21)
     /* verilator lint_off UNUSEDSIGNAL */
@@ -409,6 +424,7 @@ module OOO_CORE
             d2[j].md             = g_ext_ans[s];
             d2[j].port           = g_port[s];
             d2[j].lat2           = g_lat2[s];
+            d2[j].wt             = wt_g[s];
             d2[j].insn           = g_insn[s];
 `ifdef OOO_TRACE
             d2[j].insn2          = g_insn[s];
@@ -467,7 +483,7 @@ module OOO_CORE
     logic [ND-1:0][ROBW-1:0]   disp_rob;
     logic [ND-1:0][IQW-1:0]    disp_entry;
     // the DS µops' fields by slot, for the units' ports
-    logic [ND-1:0]             dv_ld, dv_st, dv_wr, dv_ns, dv_exc, dv_iqwr, dv_lat2, dv_md;
+    logic [ND-1:0]             dv_ld, dv_st, dv_wr, dv_ns, dv_exc, dv_iqwr, dv_lat2, dv_md, dv_wt;
     logic [ND-1:0][FTQW-1:0]   dv_ftq;
     logic [ND-1:0][VA-1:1]     dv_pc;
     logic [ND-1:0][4:0]        dv_arch, dv_cause;
@@ -502,6 +518,7 @@ module OOO_CORE
             dv_iqwr[j]  = ds[j].wr && !ds[j].md;
             dv_lat2[j]  = ds[j].lat2;
             dv_md[j]    = ds[j].md && ds[j].rec.kind == K_MDU;
+            dv_wt[j]    = ds[j].wt;
             dv_ftq[j]   = ds[j].rec.ftq;
             dv_pc[j]    = ds[j].pc;
             dv_arch[j]  = ds[j].arch;
@@ -640,11 +657,12 @@ module OOO_CORE
     /* verilator lint_off UNUSEDSIGNAL */
     rec_t [NAP+1:0]            rr_rec;
     /* verilator lint_on UNUSEDSIGNAL */
-    logic                      iss_md, mdu_ok, p0_hold, md_ext_v;
+    logic                      iss_md, iss_sd, mdu_ok, p0_hold, md_ext_v;
     logic [TAGW-1:0]           md_ext_t;
     assign iq_disp = d_go & ~dv_exc;
     assign iq_cand = ds_valid & ~dv_exc;              // (iq_disp is these or none: the banks need not wait for the go)
-    // OOO_IQ2: ALU ports 0..3, LSU0 (port 4) and LSU1 (port 5, step 1.3 E1)
+    // OOO_IQ3: ALU ports 0..3 (port 1 also a store's data, iss_sd), LSU0 (port 4: loads, stores' addresses) and
+    // LSU1 (port 5, step 1.3 E1)
     logic [2:0]                q_ready;
     logic [3:0][IQW-1:0]       q_entry;
     logic [5:0]                q_valid, q_wr;
@@ -652,15 +670,15 @@ module OOO_CORE
     logic [5:0][1:0][TAGW-1:0] q_src;
     logic [5:0][TAGW-1:0]      q_dst;
     logic [5:0][NCKPT-1:0]     q_bm;
-    OOO_IQ2 #(.N(NIQ), .TAGW(TAGW), .NEXT(2), .NCK(NCKPT), .NA(NAP), .P5(1'b1)) u_iq
+    OOO_IQ3 #(.N(NIQ), .TAGW(TAGW), .NEXT(2), .NCK(NCKPT)) u_iq
         (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .ns_ok(ns_ok), .mdu_ok(mdu_ok),
          .p0_hold(p0_hold), .disp_ready(q_ready), .disp_entry(q_entry), .disp_valid(iq_disp), .disp_cand(iq_cand),
          .disp_port(dv_port), .disp_use(ds_use), .disp_src(ds_src), .disp_rdy(ds_rdy),
          .disp_wr(dv_iqwr), .disp_dst(dv_dst), .disp_lat2(dv_lat2), .disp_bm(d_bmask), .disp_ns(dv_ns),
-         .disp_md(dv_md), .disp_st(dv_st),
+         .disp_md(dv_md), .disp_st(dv_st), .disp_wt(dv_wt),
          .ext_valid({1'b0, md_ext_v}), .ext_tag({TAGW'(0), md_ext_t}),
          .iss_valid(q_valid), .iss_entry(q_ientry), .iss_src(q_src), .iss_wr(q_wr), .iss_dst(q_dst),
-         .iss_bm(q_bm), .iss_ns(iss_ns), .iss_md(iss_md), .wk_valid(wk_valid), .wk_tag(wk_tag));
+         .iss_bm(q_bm), .iss_ns(iss_ns), .iss_md(iss_md), .iss_sd(iss_sd), .wk_valid(wk_valid), .wk_tag(wk_tag));
     assign iq_ready   = q_ready;
     assign disp_entry = q_entry;
     always @(*) begin
@@ -700,11 +718,12 @@ module OOO_CORE
         rec_t            rec;
         logic [VA-1:5]   line;                                  // the pc array's line of its first half
         logic [VA-1:1]   ta;                                    // the target array: its block's predicted next
+        logic            sd;                                    // port 1: a store's data (source 2), for OOO_LSU4
     } ex_t;
     localparam int WBW = TAGW + 64;
 
-    logic [2*NAP+2:0][TAGW-1:0] prf_ra;                // (LSU1's one source: 2 * NAP + 2)
-    logic [2*NAP+2:0][63:0]    prf_rd;
+    logic [2*NAP+1:0][TAGW-1:0] prf_ra;                // (LSU0's and LSU1's one source each: 2 * NAP, 2 * NAP + 1)
+    logic [2*NAP+1:0][63:0]    prf_rd;
     logic [NAP+1:0]            prf_we;
     logic [NAP+1:0][TAGW-1:0]  prf_wa;
     logic [NAP+1:0][63:0]      prf_wd;
@@ -753,17 +772,18 @@ module OOO_CORE
         /* verilator lint_off UNUSEDSIGNAL */
         logic [NCKPT-1:0] wb_bm;
         /* verilator lint_on UNUSEDSIGNAL */
-        logic [RRW-1:0]  rr_d;
+        logic [RRW:0]    rr_d;
         logic [TAGW-1:0] rr_t1, rr_t2, rr_dst;
-        logic            rr_wr;
+        logic            rr_wr, rr_sd;
         logic [VA-1:5]   p_line;                                // the pc array's line, the target array's next
         logic [VA-1:1]   p_ta;                                  // (ports 0, 1: the arrays' 2 read ports)
         ex_t             rx;
-        OOO_STAGE #(.W(RRW), .NCK(NCKPT)) u_rr
+        OOO_STAGE #(.W(RRW + 1), .NCK(NCKPT)) u_rr
             (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
-             .in_valid(iss_valid[p]), .in_bm(iss_bm[p]), .in_data({iss_src[p][1], iss_src[p][0], iss_dst[p], iss_wr[p]}),
+             .in_valid(iss_valid[p]), .in_bm(iss_bm[p]),
+             .in_data({p == 1 && iss_sd, iss_src[p][1], iss_src[p][0], iss_dst[p], iss_wr[p]}),
              .out_valid(rr_v), .out_bm(rr_bm), .out_data(rr_d));
-        assign {rr_t2, rr_t1, rr_dst, rr_wr} = rr_d;
+        assign {rr_sd, rr_t2, rr_t1, rr_dst, rr_wr} = rr_d;
         assign prf_ra[2*p]   = rr_t1;
         assign prf_ra[2*p+1] = rr_t2;
         if (p < 2) begin : g_pa
@@ -786,6 +806,7 @@ module OOO_CORE
             rx.rec  = rr_rec[p];
             rx.line = p_line;
             rx.ta   = p_ta;
+            rx.sd   = rr_sd;
         end
         // EX
         OOO_STAGE #(.W($bits(ex_t)), .NCK(NCKPT)) u_ex
@@ -862,7 +883,9 @@ module OOO_CORE
             prf_we[p]     = p == 0 ? wbw0 : p == 1 ? wbw1 : wbi_v[p];
             prf_wa[p]     = wbi_t[p];
             prf_wd[p]     = wbi_d[p];
-            cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS && ex[p].rec.kind != K_CSR && !isbr;
+            // (a store's data on port 1 completes nothing: the store completes in OOO_LSU4 with both)
+            cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS && ex[p].rec.kind != K_CSR && !isbr &&
+                            !ex[p].sd;
             cmp_rob[p]    = ex[p].rec.rob;
         end
         assign ex_bms[p] = ex_bm;
@@ -981,9 +1004,10 @@ module OOO_CORE
         end
     end
 
-    // ---- the LSU's ports (step 1.3 E1, Plan/OOC.md 29.32): LSU0 (issue port NAP: loads, stores, and OOO_LSU3's
-    // tries of what had to wait) and LSU1 (NAP + 1: loads, one source). RR and EX here; OOO_LSU3 follows them with
-    // its E (the address of EX), M (the D$'s arrays inside it) and W
+    // ---- the LSU's ports (step 1.3 E1, Plan/OOC.md 29.32): LSU0 (issue port NAP: loads, stores' addresses, and
+    // OOO_LSU4's tries of what had to wait) and LSU1 (NAP + 1: loads), one source each: a store's data comes on
+    // port 1 (step 1.5b G3, Plan/OOC.md 29.53). RR and EX here; OOO_LSU4 follows them with its E (the address of
+    // EX), M (the D$'s arrays inside it) and W
     logic [1:0]              m_rr_v, m_ex_v;
     logic [1:0][NCKPT-1:0]   m_rr_bm;
     /* verilator lint_off UNUSEDSIGNAL */      // (the address and the store's data only, and the trace)
@@ -992,11 +1016,11 @@ module OOO_CORE
     /* verilator lint_on UNUSEDSIGNAL */
     logic [1:0][TAGW-1:0]    m_rr_dst;
     logic [1:0][63:0]        m_a, m_ea;
-    logic [63:0]             m_b;                               // LSU0's second source: a store's data
     for (genvar m = 0; m < 2; m++) begin : g_mem
         logic [RRW-1:0]  rr_d;
-        logic [TAGW-1:0] t1, t2;
+        logic [TAGW-1:0] t1;
         /* verilator lint_off UNUSEDSIGNAL */
+        logic [TAGW-1:0] t2;                                    // (a store's data: port 1's)
         logic            wr;
         /* verilator lint_on UNUSEDSIGNAL */
         ex_t             rx;
@@ -1006,16 +1030,11 @@ module OOO_CORE
              .in_data({iss_src[NAP+m][1], iss_src[NAP+m][0], iss_dst[NAP+m], iss_wr[NAP+m]}),
              .out_valid(m_rr_v[m]), .out_bm(m_rr_bm[m]), .out_data(rr_d));
         assign {t2, t1, m_rr_dst[m], wr} = rr_d;
-        assign prf_ra[2*NAP + 2*m] = t1;                        // the base (LSU1: 2 * NAP + 2)
-        if (m == 0) begin : g_d
-            assign prf_ra[2*NAP + 1] = t2;                      // a store's data
-        end
+        assign prf_ra[2*NAP + m] = t1;                          // the base
         always @(*) begin
             rx     = '0;
-            rx.v1  = prf_rd[2*NAP + 2*m];
-            rx.v2  = m == 0 ? prf_rd[2*NAP + 1] : 64'd0;
+            rx.v1  = prf_rd[2*NAP + m];
             rx.t1  = t1;
-            rx.t2  = m == 0 ? t2 : '0;
             rx.dst = m_rr_dst[m];
             rx.rec = rr_rec[NAP+m];
         end
@@ -1024,19 +1043,33 @@ module OOO_CORE
              .in_valid(m_rr_v[m]), .in_bm(m_rr_bm[m]), .in_data(rx), .out_valid(m_ex_v[m]), .out_bm(m_ex_bm[m]),
              .out_data(m_ex[m]));
         always @(*) begin
-            logic [63:0] b;
             m_a[m] = m_ex[m].v1;
-            b      = m_ex[m].v2;
-            for (int q = 0; q < NAP + 2; q++) begin
+            for (int q = 0; q < NAP + 2; q++)
                 if (byp_v[q] && byp_t[q] == m_ex[m].t1) m_a[m] = byp_d[q];
-                if (m == 0 && byp_v[q] && byp_t[q] == m_ex[m].t2) b = byp_d[q];
-            end
             m_ea[m] = m_a[m] + {{52{m_ex[m].rec.imm[11]}}, m_ex[m].rec.imm[11:0]};
-            if (m == 0) m_b = b;
         end
     end
 
-    // a try of OOO_LSU3 takes LSU0's RR when the queue leaves it: in EX its address is rt_base, offset 0
+    // a store's data: port 1's EX after the bypass, through a register into OOO_LSU4 (sd_lag 1 of the model).
+    // Not dropped by a kill or a flush, nor by EX's valid bit (ex[1].sd without ex_v[1] is a store's data killed
+    // in RR or EX; iss_sd is 1 only with an issue): the data of a store killed meanwhile writes an SQ entry that is
+    // free then (behind the restored tail), cleared as it is given out again, and nothing is given out in a
+    // recovery's cycle (OOO_LSU4)
+    logic            sd_v;
+    logic [3:0]      sd_sq;
+    logic [1:0]      sd_size;
+    logic [63:0]     sd_data;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) sd_v <= 1'b0;
+        else        sd_v <= ex[1].sd;
+    end
+    always_ff @(posedge clk) begin
+        sd_sq   <= ex[1].rec.sq;
+        sd_size <= ex[1].rec.msize;
+        sd_data <= ex_b[1];
+    end
+
+    // a try of OOO_LSU4 takes LSU0's RR when the queue leaves it: in EX its address is rt_base, offset 0
     logic            rt_v, rt_q;
     logic [PAW-1:0]  rt_base, rt_bq;
     always_ff @(posedge clk or negedge rst_n) begin
@@ -1045,7 +1078,7 @@ module OOO_CORE
     end
     always_ff @(posedge clk) rt_bq <= rt_base;
 
-    // dispatch: OOO_LSU3 takes counts and gives its tails; the slots' entries, a load's older stores (rr_st),
+    // dispatch: OOO_LSU4 takes counts and gives its tails; the slots' entries, a load's older stores (rr_st),
     // and the tails after each slot (the checkpoint table's) are counted here
     logic [4:0]      l3_lq_tail, l3_sq_tail, l3_lq_free, l3_sq_free;
     logic [2:0]      lq_alloc, sq_alloc;
@@ -1072,12 +1105,12 @@ module OOO_CORE
     logic [1:0]      ld_nv;
     logic [1:0][TAGW-1:0] ld_nt;
     logic [1:0][63:0] ld_d;
-    logic [1:0]      cmp_ld_v, cmp_ld_e, cmp_ld_rp;
+    logic [1:0]      cmp_ld_v, cmp_ld_e, cmp_ld_rp, cmp_ld_sd;
     logic [1:0][ROBW-1:0] cmp_ld_rob;
     logic            cmp_st_v, cmp_st_e;
     logic [ROBW-1:0] cmp_st_rob;
     /* verilator lint_off PINCONNECTEMPTY */   // (translation: step 1.8)
-    OOO_LSU3 #(.NLQ(16), .NSQ(16), .PAW(PAW), .VA(VA), .TAGW(TAGW), .ROBW(ROBW), .NCK(NCKPT)) u_lsu
+    OOO_LSU4 #(.NLQ(16), .NSQ(16), .PAW(PAW), .VA(VA), .TAGW(TAGW), .ROBW(ROBW), .NCK(NCKPT)) u_lsu
         (.clk(clk), .rst_n(rst_n), .tr_on(1'b0),
          .lq_alloc(lq_alloc), .sq_alloc(sq_alloc), .lq_tail(l3_lq_tail), .sq_tail(l3_sq_tail),
          .lq_free(l3_lq_free), .sq_free(l3_sq_free),
@@ -1085,9 +1118,10 @@ module OOO_CORE
          .rr_st({rr_rec[NAP+1].st, rr_rec[NAP].st}), .rr_size({rr_rec[NAP+1].msize, rr_rec[NAP].msize}),
          .rr_uns({rr_rec[NAP+1].uns, rr_rec[NAP].uns}), .rr_dst(m_rr_dst), .rr_rob({rr_rec[NAP+1].rob, rr_rec[NAP].rob}),
          .rr_bm(m_rr_bm), .rt_v(rt_v), .rt_base(rt_base),
-         .e_addr({m_ea[1], rt_q ? 64'(rt_bq) : m_ea[0]}), .e_sd(m_b),
+         .e_addr({m_ea[1], rt_q ? 64'(rt_bq) : m_ea[0]}),
+         .sd_v(sd_v), .sd_sq(sd_sq), .sd_size(sd_size), .sd_data(sd_data),
          .ld_nv(ld_nv), .ld_nt(ld_nt), .ld_d(ld_d),
-         .cmp_ld_valid(cmp_ld_v), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_e), .cmp_ld_rp(cmp_ld_rp),
+         .cmp_ld_valid(cmp_ld_v), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_e), .cmp_ld_rp(cmp_ld_rp), .cmp_ld_sd(cmp_ld_sd),
          .cmp_st_valid(cmp_st_v), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_e),
          .lq_commit(lq_commit), .sq_commit(sq_commit), .restore(restore_k), .kill(kill),
          .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all(flush_all),
@@ -1141,6 +1175,34 @@ module OOO_CORE
         ld_ce   <= cmp_ld_e;
         ld_crp  <= cmp_ld_rp;
     end
+    // the wait table's write: a load that waited for a store's data is marked by its ROB entry when it completes
+    // (cmp_ld_sd comes with its replay), and its pc goes to the table at its commit, as the last µop of the cycle
+    // (a replay commits nothing younger with it); through a register
+    logic [NROB-1:0] rob_sd;
+    always_ff @(posedge clk) begin
+        for (int j = 0; j < ND; j++) if (disp_go[j]) rob_sd[disp_rob[j]] <= 1'b0;
+        for (int m = 0; m < 2; m++) if (cmp_ld_v[m] && cmp_ld_sd[m]) rob_sd[cmp_ld_rob[m]] <= 1'b1;
+    end
+    logic            wt_we_n;
+    logic [7:0]      wt_wa_n;
+    always @(*) begin
+        automatic logic [ROBW-1:0] ik = head_rob;
+        wt_we_n = 1'b0;
+        wt_wa_n = '0;
+        for (int k = 0; k < ND; k++) begin
+            if (cmt_valid[k] && rob_sd[ik]) begin
+                wt_we_n = 1'b1;
+                wt_wa_n = cmt_pc[k][8:1];
+            end
+            ik = (ik == ROBW'(NROB - 1)) ? '0 : ik + ROBW'(1);
+        end
+    end
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) wt_we <= 1'b0;
+        else        wt_we <= wt_we_n;
+    end
+    always_ff @(posedge clk) wt_wa <= wt_wa_n;
+
     // A CSR µop completes, and reports its tval, a cycle after EX too: its illegal check lay on the 4-wide core's
     // paths (Plan/OOC.md 29.28). It runs at the ROB head alone, so this costs a cycle a CSR instruction
     logic            csr_cv, csr_ce, csr_crp, csr_tvq;
@@ -1237,7 +1299,7 @@ module OOO_CORE
     end
 
     /* verilator lint_off PINCONNECTEMPTY */
-    OOO_PRF #(.NREG(80), .NW(NAP + 2), .NR(2 * NAP + 3)) u_prf
+    OOO_PRF #(.NREG(80), .NW(NAP + 2), .NR(2 * NAP + 2)) u_prf
         (.clk(clk), .ra(prf_ra), .rd(prf_rd), .we(prf_we), .wa(prf_wa), .wd(prf_wd));
     /* verilator lint_on PINCONNECTEMPTY */
 
@@ -1266,12 +1328,12 @@ module OOO_CORE
         if (pm_v) sh_val[pm_rob] <= pm_d;                                         // the multiplier's and the MDU's
         if (md_v) sh_val[md_rob] <= md_d;
         if (x_csr) sh_val[ex[0].rec.rob] <= csr_res;                              // a CSR µop's old value
-        if (m_ex_v[0] && !m_ex[0].rec.is_ld) begin                                // a store in EX (OOO_LSU3's E)
+        if (m_ex_v[0] && !m_ex[0].rec.is_ld) begin                                // a store's address in EX (OOO_LSU4's E)
             sh_st[m_ex[0].rec.rob] <= 1'b1;
             sh_sa[m_ex[0].rec.rob] <= m_ea[0];
-            sh_sd[m_ex[0].rec.rob] <= m_b;
             sh_ss[m_ex[0].rec.rob] <= m_ex[0].rec.msize;
         end
+        if (ex_v[1] && ex[1].sd) sh_sd[ex[1].rec.rob] <= ex_b[1];                  // its data in port 1's EX
     end
     always @(*) begin
         logic [ROBW-1:0] ik;

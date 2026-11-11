@@ -41,89 +41,98 @@
 40 DETECTED      LSU: every access a double word
 41 DETECTED      LSU: lbu / lhu / lwu sign-extended
 42 DETECTED      port 2: no bypass for the base
-43 DETECTED      port 2: no bypass for a store's data
-44 DETECTED      bypass: the LSU's result not forwarded
-45 DETECTED      bypass: a load to x0 forwarded (tag 0)
-46 DETECTED      register file: loads not written
-47 DETECTED      ROB: no replay after a load that raised ld_cancel
-48 DETECTED      LSU: the SQ restored to the LQ's tail
-49 DETECTED      LSU: stores never committed
-50 DETECTED      a jalr never mispredicted
-51 DETECTED      a branch mispredicted when taken
-52 DETECTED      the next pc after an RVC instruction
-53 DETECTED      a jalr's offset left out
-54 DETECTED      a jalr predicted to the branch target
-55 DETECTED      jalrs not resolved
-56 DETECTED      FERS: a jalr not taken (the history)
-57 DETECTED      TAGE: every branch taken
-58 DETECTED      TAGE: no outcomes
-59 DETECTED      BTB: never written
-60 DETECTED      ROB: µops without a destination never complete
-61 DETECTED      ROB: port 1 completes port 0's entry
-62 DETECTED      ECALL not an exception
-63 DETECTED      an FP instruction not illegal (no FPU)
-64 DETECTED      ECALL: the cause without the level
-65 DETECTED      EBREAK: cause 2
-66 DETECTED      tval at decode: µop 1 with µop 0's
-67 DETECTED      multiplies and divides on the ALU
-68 DETECTED      MRET an ALU µop
-69 DETECTED      FENCE.I run as FENCE
-70 DETECTED      CSR and system µops issued before the head
-71 DETECTED      the MDU's µops wake their dependents at issue
-72 NOT DETECTED  the instruction bits of µop 1 at µop 0's entry
-73 DETECTED      CSR: rs1 from the second read
-74 DETECTED      CSR: the old value not written
-75 DETECTED      a multiply to the MDU as well
-76 DETECTED      the MDU's result and the multiply's in one cycle (one completion port)
-77 DETECTED      the MDU's result over an ALU0 µop's
-78 DETECTED      port 1: the multiply's result not written
-79 DETECTED      port 1: the multiply not written to the register file
-80 DETECTED      port 1: a multiply to x0 takes the file's write and the choice
-81 DETECTED      port 1: a multiply to x0 takes the write slot
-82 DETECTED      port 0: a divide to x0 forwarded (tag 0)
-83 DETECTED      IQ: loads not held for older stores (replays)
-84 DETECTED      SRET: the CSRs not restored
-85 DETECTED      a system µop complete at EX
-86 DETECTED      CSR: an illegal access completes
-87 DETECTED      CSR: no replay after a write
-88 DETECTED      the multiply completes the MDU's entry
-89 DETECTED      tval: a misaligned address not given
-90 DETECTED      tval: an illegal CSR access's not given
-91 NOT DETECTED  4 wide: slots 2 and 3 leave rob_insn unwritten (a CSR µop reads a stale one)
-92 DETECTED      4 wide: four go, three taken (one runs twice)
-93 DETECTED      4 wide: slots 2 and 3 with the ports of slots 0 and 1
-94 DETECTED      minstret: a write counts its own commit
-95 DETECTED      mcountinhibit: setting IR, its own commit not counted (under the new bit)
-96 DETECTED      a branch complete in EX, mispredicted or not (younger µops commit before the restore)
-97 DETECTED      a branch killed as it leaves EX resolves
-98 DETECTED      a branch flushed as it leaves EX resolves
-99 DETECTED      a mispredicted branch never completes
-100 DETECTED      tval: LSU1's misaligned address not given
-101 DETECTED      uncached: the bench's line cached
-102 NOT DETECTED  uncached: a load for a device takes the D$ or the SQ
-103 NOT DETECTED  uncached: a load goes before older stores reach the devices
-104 NOT DETECTED  uncached: a load goes before it is the head
-105 DETECTED      uncached: a store for a device lost while another access is out
-106 DETECTED      uncached: two accesses to devices at once
-107 DETECTED      uncached: the device's word never taken
-108 DETECTED      OOO_DMISS: a load's miss never filled
-109 NOT DETECTED  OOO_DMISS: the victim's tag valid while its words are replaced
-110 NOT DETECTED  OOO_DMISS: a fill before the writes are in memory
-111 DETECTED      OOO_DMISS: a write's strobes all on
-112 DETECTED      OOO_DMISS: FENCE.I done before the writes are in memory
-113 DETECTED      OOO_DMISS: every word of a fill to the line's first
-114 DETECTED      OOO_DMISS: a write taken into a full queue
-115 DETECTED      LSU0: a try takes the address left in EX
-116 DETECTED      LSU: a load takes the store after it as older
-117 DETECTED      LSU: a restore takes the LQ's tail of the group's start
-118 DETECTED      a CSR µop never completes
-119 DETECTED      an illegal CSR access completes without its exception
-120 DETECTED      register file: the MDU's results not written
-121 DETECTED      a CSR µop completes in EX too (twice: the late one may hit the next µop)
-122 DETECTED      bypass: ALU3's result not forwarded
-123 DETECTED      register file: ALU3's results not written
-124 DETECTED      a branch resolved as predicted never completes
-125 DETECTED      a load's exception a cycle before its completion
-126 DETECTED      CSR: an illegal access's tval 0
-127 DETECTED      CSR: fcsr with mstatus.FS off not illegal
-128 mutations, 121 detected
+43 DETECTED      bypass: the LSU's result not forwarded
+44 DETECTED      bypass: a load to x0 forwarded (tag 0)
+45 DETECTED      register file: loads not written
+46 DETECTED      ROB: no replay after a load that raised ld_cancel
+47 DETECTED      LSU: the SQ restored to the LQ's tail
+48 DETECTED      LSU: stores never committed
+49 DETECTED      a jalr never mispredicted
+50 DETECTED      a branch mispredicted when taken
+51 DETECTED      the next pc after an RVC instruction
+52 DETECTED      a jalr's offset left out
+53 DETECTED      a jalr predicted to the branch target
+54 DETECTED      jalrs not resolved
+55 DETECTED      FERS: a jalr not taken (the history)
+56 DETECTED      TAGE: every branch taken
+57 DETECTED      TAGE: no outcomes
+58 DETECTED      BTB: never written
+59 DETECTED      ROB: µops without a destination never complete
+60 DETECTED      ROB: port 1 completes port 0's entry
+61 DETECTED      ECALL not an exception
+62 DETECTED      an FP instruction not illegal (no FPU)
+63 DETECTED      ECALL: the cause without the level
+64 DETECTED      EBREAK: cause 2
+65 DETECTED      tval at decode: µop 1 with µop 0's
+66 DETECTED      multiplies and divides on the ALU
+67 DETECTED      MRET an ALU µop
+68 DETECTED      FENCE.I run as FENCE
+69 DETECTED      CSR and system µops issued before the head
+70 DETECTED      the MDU's µops wake their dependents at issue
+71 NOT DETECTED  the instruction bits of µop 1 at µop 0's entry
+72 DETECTED      CSR: rs1 from the second read
+73 DETECTED      CSR: the old value not written
+74 DETECTED      a multiply to the MDU as well
+75 DETECTED      the MDU's result and the multiply's in one cycle (one completion port)
+76 DETECTED      the MDU's result over an ALU0 µop's
+77 DETECTED      port 1: the multiply's result not written
+78 DETECTED      port 1: the multiply not written to the register file
+79 DETECTED      port 1: a multiply to x0 takes the file's write and the choice
+80 DETECTED      port 1: a multiply to x0 takes the write slot
+81 DETECTED      port 0: a divide to x0 forwarded (tag 0)
+82 DETECTED      IQ: loads not held for older stores (replays)
+83 DETECTED      SRET: the CSRs not restored
+84 DETECTED      a system µop complete at EX
+85 DETECTED      CSR: an illegal access completes
+86 DETECTED      CSR: no replay after a write
+87 DETECTED      the multiply completes the MDU's entry
+88 DETECTED      tval: a misaligned address not given
+89 DETECTED      tval: an illegal CSR access's not given
+90 NOT DETECTED  4 wide: slots 2 and 3 leave rob_insn unwritten (a CSR µop reads a stale one)
+91 DETECTED      4 wide: four go, three taken (one runs twice)
+92 DETECTED      4 wide: slots 2 and 3 with the ports of slots 0 and 1
+93 DETECTED      minstret: a write counts its own commit
+94 DETECTED      mcountinhibit: setting IR, its own commit not counted (under the new bit)
+95 DETECTED      a branch complete in EX, mispredicted or not (younger µops commit before the restore)
+96 DETECTED      a branch killed as it leaves EX resolves
+97 DETECTED      a branch flushed as it leaves EX resolves
+98 DETECTED      a mispredicted branch never completes
+99 DETECTED      tval: LSU1's misaligned address not given
+100 DETECTED      uncached: the bench's line cached
+101 NOT DETECTED  uncached: a load for a device takes the D$ or the SQ
+102 NOT DETECTED  uncached: a load goes before older stores reach the devices
+103 NOT DETECTED  uncached: a load goes before it is the head
+104 DETECTED      uncached: a store for a device lost while another access is out
+105 DETECTED      uncached: two accesses to devices at once
+106 DETECTED      uncached: the device's word never taken
+107 DETECTED      OOO_DMISS: a load's miss never filled
+108 DETECTED      OOO_DMISS: the victim's tag valid while its words are replaced
+109 NOT DETECTED  OOO_DMISS: a fill before the writes are in memory
+110 DETECTED      OOO_DMISS: a write's strobes all on
+111 DETECTED      OOO_DMISS: FENCE.I done before the writes are in memory
+112 DETECTED      OOO_DMISS: every word of a fill to the line's first
+113 DETECTED      OOO_DMISS: a write taken into a full queue
+114 DETECTED      LSU0: a try takes the address left in EX
+115 DETECTED      LSU: a load takes the store after it as older
+116 DETECTED      LSU: a restore takes the LQ's tail of the group's start
+117 DETECTED      a CSR µop never completes
+118 DETECTED      an illegal CSR access completes without its exception
+119 DETECTED      register file: the MDU's results not written
+120 DETECTED      a CSR µop completes in EX too (twice: the late one may hit the next µop)
+121 DETECTED      bypass: ALU3's result not forwarded
+122 DETECTED      register file: ALU3's results not written
+123 DETECTED      a branch resolved as predicted never completes
+124 DETECTED      a load's exception a cycle before its completion
+125 DETECTED      CSR: an illegal access's tval 0
+126 DETECTED      CSR: fcsr with mstatus.FS off not illegal
+127 DETECTED      G3: a store completes when its data goes on port 1
+128 DETECTED      G3: a store's data never reaches the LSU
+129 DETECTED      G3: every ALU port's µop taken for a store's data
+130 DETECTED      G3: a store's data without the bypass
+131 DETECTED      G3: a store's data into another SQ entry
+132 DETECTED      G3: a store's data not replicated by its size
+133 DETECTED      G3: a store's data never written into the SQ
+134 DETECTED      G3: the wait table never read
+135 DETECTED      G3: the wait table never written
+136 DETECTED      G3: the group's wait bits dropped
+137 mutations, 131 detected

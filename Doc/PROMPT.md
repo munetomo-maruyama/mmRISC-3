@@ -8986,3 +8986,25 @@ The next, G2, is the IQ that issues a store twice (`OOO_IQ3`).
 ```text
 Yes, start G2
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+G2 is done. `OOO_IQ3` (the IQ that issues a store twice) passes its bench `tb_iq3` with 0 mismatches, and bug injection detected 81 of 81. I recorded it as 29.52 and pushed it to dev (9feb326). origin has 0 Ref files. It is not in the core yet.
+
+**What changed in `OOO_IQ3`** (from `OOO_IQ2`):
+- **A store's issue:** a store issues twice from one entry: its address on port 4 when its base is ready, its data on port 1 when the data is ready. Either may go first, or both in one cycle. The entry leaves when both have gone.
+- **A change from the plan:** the data goes on **port 1**, not port 3 as planned. The data takes the port before the ALU µop that would come to it, which then waits a cycle. Port 1 is the third of the 4 ALU ports to fill, so what waits is the third oldest µop, not the oldest. The data's choice runs beside the rank's computation, not after it.
+- **The loads' waits:** a load may issue from the cycle after the older stores' addresses went. A load that the wait table marks waits for the data too. Both are registers outside the wakeup-select loop, as now.
+- **What does not change:** a non-speculative store (AMO and such, later) is not split; it goes once, as before.
+
+**The bench `tb_iq3`:** I added the two issues and the waits to `tb_iq2`'s reference model, which computes exactly what must issue each cycle. The first failure was the bench's own mistake: a store that gave its address and data in the cycle a kill took it was removed twice, and a tag in use was given out again. After the fix, 400,000 cycles with 22,959 stores' data issued, 0 mismatches.
+
+Next, G3 builds the data path from ALU1 to the LSU and the wait table, and puts `OOO_IQ3` and `OOO_LSU4` in the core.
+<!-- /answer -->
+
+## 224. 2026-11-11 23:11:07 JST
+
+```text
+Yes, start G3
+```

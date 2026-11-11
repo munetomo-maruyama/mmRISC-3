@@ -33,7 +33,7 @@
 # core's own, with the 30 % I/O delay: only the LUT count is the point.
 #
 # OOO_CPU (B7, Plan/CORE.md 5.17): mmRISC-3's core as it will be in the
-# chip, OOO_CORE (its D$ in OOO_LSU3) with OOO_DMISS (step 1.3 E2), its own ports (the I$
+# chip, OOO_CORE (its D$ in OOO_LSU4) with OOO_DMISS (step 1.3 E2), its own ports (the I$
 # port, the D$'s AXI4 and AXI4-Lite) with the 30 % I/O delay, as
 # MM2_CPU_CORE: a whole core out of context counts as in the chip (Plan/
 # OOC.md 25.3), and its LUTs are what the budget's estimate from the
@@ -91,7 +91,7 @@ if {$top eq "MM2_CPU_CORE"} {
 } else {
 read_verilog -sv [list \
     $rtl/OOO_ALU/OOO_ALU.sv $rtl/OOO_ALU2/OOO_ALU2.sv $rtl/OOO_FUSE/OOO_FUSE.sv \
-    $rtl/OOO_PRF/OOO_PRF.sv $rtl/OOO_RENAME/OOO_RENAME.sv $rtl/OOO_IQ/OOO_IQ.sv $rtl/OOO_IQ2/OOO_IQ2.sv $rtl/OOO_BUSY/OOO_BUSY.sv $rtl/OOO_EXU2/OOO_EXU2.sv $rtl/OOO_LSU3/OOO_LSU3.sv $rtl/OOO_FDEC2/OOO_FDEC2.sv $rtl/OOO_FBUF3/OOO_FBUF3.sv $rtl/OOO_DCH2/OOO_DCH2.sv $rtl/OOO_SDISP/OOO_SDISP.sv $rtl/OOO_SCHED/OOO_SCHED.sv \
+    $rtl/OOO_PRF/OOO_PRF.sv $rtl/OOO_RENAME/OOO_RENAME.sv $rtl/OOO_IQ/OOO_IQ.sv $rtl/OOO_IQ2/OOO_IQ2.sv $rtl/OOO_IQ3/OOO_IQ3.sv $rtl/OOO_BUSY/OOO_BUSY.sv $rtl/OOO_EXU2/OOO_EXU2.sv $rtl/OOO_LSU3/OOO_LSU3.sv $rtl/OOO_LSU4/OOO_LSU4.sv $rtl/OOO_FDEC2/OOO_FDEC2.sv $rtl/OOO_FBUF3/OOO_FBUF3.sv $rtl/OOO_DCH2/OOO_DCH2.sv $rtl/OOO_SDISP/OOO_SDISP.sv $rtl/OOO_SCHED/OOO_SCHED.sv \
     $rtl/OOO_UBTB/OOO_UBTB.sv $rtl/OOO_UBTB2/OOO_UBTB2.sv $rtl/OOO_LSU/OOO_LSU.sv $rtl/OOO_DCH/OOO_DCH.sv $rtl/OOO_DTLB2/OOO_DTLB2.sv $rtl/OOO_LSU2/OOO_LSU2.sv $rtl/OOO_RENAME2/OOO_RENAME2.sv $rtl/OOO_FBUF2/OOO_FBUF2.sv $rtl/OOO_FDEC/OOO_FDEC.sv $rtl/OOO_ROB/OOO_ROB.sv \
     $rtl/OOO_FBUF/OOO_FBUF.sv $rtl/OOO_FTQ/OOO_FTQ.sv \
     $rtl/OOO_PREDEC/OOO_PREDEC.sv $rtl/OOO_TAGE/OOO_TAGE.sv $rtl/OOO_BTB/OOO_BTB.sv $rtl/OOO_RAS/OOO_RAS.sv \

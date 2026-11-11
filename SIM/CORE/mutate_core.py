@@ -77,7 +77,7 @@ RPROGS = sorted(os.path.join(RV, t) for t in os.listdir(RV)
 CS = 'OOO_CSRU/OOO_CSRU.sv'
 
 C = 'OOO_CORE/OOO_CORE.sv'
-L3 = 'OOO_LSU3/OOO_LSU3.sv'
+L3 = 'OOO_LSU4/OOO_LSU4.sv'   # (OOO_LSU3's lines, in OOO_LSU4 since step 1.5b G3)
 DM = 'OOO_DMISS/OOO_DMISS.sv'   # (on OOO_CPU: the runs take VOOO_CPU)
 MUT = [
     # D2
@@ -128,7 +128,6 @@ MUT = [
     (C, '.rr_size({rr_rec[NAP+1].msize, rr_rec[NAP].msize})', ".rr_size({2'd3, 2'd3})", 'LSU: every access a double word'),
     (C, '.rr_uns({rr_rec[NAP+1].uns, rr_rec[NAP].uns})', ".rr_uns(2'b00)", 'LSU: lbu / lhu / lwu sign-extended'),
     (C, 'if (byp_v[q] && byp_t[q] == m_ex[m].t1) m_a[m] = byp_d[q];', '', 'port 2: no bypass for the base'),
-    (C, 'if (m == 0 && byp_v[q] && byp_t[q] == m_ex[m].t2) b = byp_d[q];', '', "port 2: no bypass for a store's data"),
     (C, 'byp_v[NAP + m] = lw_v[m];', "byp_v[NAP + m] = 1'b0;", "bypass: the LSU's result not forwarded"),
     (C, "lw_v[m] <= ld_nv[m] && ld_nt[m] != '0 && !flush_all;", 'lw_v[m] <= ld_nv[m] && !flush_all;', 'bypass: a load to x0 forwarded (tag 0)'),
     (C, 'prf_we[NAP + m] = ld_nv[m];', "prf_we[NAP + m] = 1'b0;", 'register file: loads not written'),
@@ -196,7 +195,7 @@ MUT = [
     (CS, "ir_force <= ex_addr == 12'h320 && !rd_data[2] && wdata[2];", "ir_force <= 1'b0;",
      'mcountinhibit: setting IR, its own commit not counted (under the new bit)'),
     # the resolution through a register (Plan/CORE.md 5.20)
-    (C, "ex[p].rec.kind != K_CSR && !isbr;", "ex[p].rec.kind != K_CSR;", 'a branch complete in EX, mispredicted or not (younger µops commit before the restore)'),
+    (C, "ex[p].rec.kind != K_CSR && !isbr &&", "ex[p].rec.kind != K_CSR &&", 'a branch complete in EX, mispredicted or not (younger µops commit before the restore)'),
     (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && !flush_all;", 'a branch killed as it leaves EX resolves'),
     (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && (ex_bms[p] & kill) == '0;", 'a branch flushed as it leaves EX resolves'),
     (C, "{csr_cv, br_valid, sys_cv,", "{csr_cv, br_valid & ~br_mispred, sys_cv,", 'a mispredicted branch never completes'),
@@ -221,13 +220,24 @@ MUT = [
     (C, "            csr_cv  <= x_csr;", "            csr_cv  <= 1'b0;", 'a CSR µop never completes'),
     (C, "        csr_ce      <= csr_exc;", "        csr_ce      <= 1'b0;", 'an illegal CSR access completes without its exception'),
     (C, "    assign wbw0  = md_wr || x_wv;", "    assign wbw0  = x_wv;", 'register file: the MDU\'s results not written'),
-    (C, "ex[p].rec.kind != K_SYS && ex[p].rec.kind != K_CSR && !isbr;", "ex[p].rec.kind != K_SYS && !isbr;", 'a CSR µop completes in EX too (twice: the late one may hit the next µop)'),
+    (C, "ex[p].rec.kind != K_SYS && ex[p].rec.kind != K_CSR && !isbr &&", "ex[p].rec.kind != K_SYS && !isbr &&", 'a CSR µop completes in EX too (twice: the late one may hit the next µop)'),
     (C, "        for (int q = 0; q < NAP; q++) begin\n            byp_v[q] = wb_v[q];", "        for (int q = 0; q < NAP - 1; q++) begin\n            byp_v[q] = wb_v[q];", 'bypass: ALU3\'s result not forwarded'),
     (C, "            wbi_v[p] = ex_v[p] && ex[p].wr;\n            wbi_t[p] = ex[p].dst;", "            wbi_v[p] = ex_v[p] && ex[p].wr && p != 3;\n            wbi_t[p] = ex[p].dst;", 'register file: ALU3\'s results not written'),
     (C, "{csr_cv, br_valid, sys_cv,", "{csr_cv, br_valid & br_mispred, sys_cv,", 'a branch resolved as predicted never completes'),
     (C, "cmp_exc   = {csr_ce, 2'b00, sys_exc, 1'b0, cmp_st_e, ld_ce,", "cmp_exc   = {csr_ce, 2'b00, sys_exc, 1'b0, cmp_st_e, cmp_ld_e,", "a load's exception a cycle before its completion"),
     (CS, "tv_val   = {32'd0, ex_inst};", "tv_val   = 64'd0;", 'CSR: an illegal access\'s tval 0'),
     (CS, "(fs == 2'b00 && (ex_addr == 12'h001", "(1'b0 && (ex_addr == 12'h001", 'CSR: fcsr with mstatus.FS off not illegal'),
+    # step 1.5b G3 (Plan/OOC.md 29.53): a store's data on port 1, the wait table
+    (C, 'cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS && ex[p].rec.kind != K_CSR && !isbr &&\n                            !ex[p].sd;', 'cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS && ex[p].rec.kind != K_CSR && !isbr;', 'G3: a store completes when its data goes on port 1'),
+    (C, 'rx.sd   = rr_sd;', "rx.sd   = 1'b0;", "G3: a store's data never reaches the LSU"),
+    (C, '.in_data({p == 1 && iss_sd, iss_src[p][1]', '.in_data({iss_sd, iss_src[p][1]', "G3: every ALU port's µop taken for a store's data"),
+    (C, 'sd_data <= ex_b[1];', 'sd_data <= ex[1].v2;', "G3: a store's data without the bypass"),
+    (C, 'sd_sq   <= ex[1].rec.sq;', 'sd_sq   <= ex[1].rec.lq;', "G3: a store's data into another SQ entry"),
+    (C, 'sd_size <= ex[1].rec.msize;', "sd_size <= 2'd3;", "G3: a store's data not replicated by its size"),
+    (C, 'else        sd_v <= ex[1].sd;', "else        sd_v <= 1'b0;", "G3: a store's data never written into the SQ"),
+    (C, '.disp_wt(dv_wt)', ".disp_wt('0)", 'G3: the wait table never read'),
+    (C, "for (int m = 0; m < 2; m++) if (cmp_ld_v[m] && cmp_ld_sd[m]) rob_sd[cmp_ld_rob[m]] <= 1'b1;", '', 'G3: the wait table never written'),
+    (C, 'd2[j].wt             = wt_g[s];', "d2[j].wt             = 1'b0;", "G3: the group's wait bits dropped"),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),

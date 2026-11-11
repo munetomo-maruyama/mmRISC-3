@@ -5206,3 +5206,29 @@ With all of them (+3.24 % on `g14-o2`), **the gap to the RTL's timed part (1,252
 **Results**: `tb_iq3` PASS, 400,000 cycles, 0 mismatches: 22,959 stores' data issued (8,031 with the address, 8,864 before it), 2,540 rank-2 µops pushed off port 1, 57,890 marked loads (held by the data alone 53,730 cycles), 7,572 kills. `verilator -Wall`: no warning. **Bug injection: 81 of 81** (M1244 to M1324): `OOO_IQ2`'s 54 retargeted, 27 new for the two issues, the leaving, the waits and port 1.
 
 **Next**: G3, the core: ALU1's path to `OOO_LSU4`'s data port, the wait table, `OOO_IQ3` and `OOO_LSU4` in `OOO_CORE`.
+
+### 29.53 Step 1.5b, G3: stores split in the core (2026-11-12)
+
+**What was changed** in `OOO_CORE` (and `build_core.sh`, `synth_ooo.tcl`): `OOO_IQ3` for `OOO_IQ2`, `OOO_LSU4` for `OOO_LSU3`, and between them:
+
+- **The data's path**: `iss_sd` goes down port 1's RR and EX stages as a bit (`sd`) beside the µop; that µop is the store's (its ROB entry, its SQ entry, source 1 read as `v2` and bypassed as any ALU source, `ex_b[1]`), it writes no register and completes nothing (`cmp_valid` leaves it out: the store completes in `OOO_LSU4` when both halves are there). After EX one register (`sd_v`, `sd_sq`, `sd_size`, `sd_data`: the model's `sd_lag=1`) gives it to `OOO_LSU4`'s data port. The register is not dropped by a kill, a flush or EX's valid bit (`iss_sd` is 1 only with an issue): a killed store's data writes an SQ entry that is free by then, cleared as it is given out again, and nothing is given out in a recovery's cycle.
+- **Port 4 reads one source**: every store of class 5 is split (an AMO or a CBO is another class), so the LSU's ports read only their base: the register file's read ports go from 11 to 10 (`NR = 2·NAP + 2`), and the store data's bypass on the LSU's port 0 is gone.
+- **The wait table**: 256 bits by `pc[8:1]`, distributed RAM, one read per dispatch slot (4 copies, as the group's pcs are read), cleared only by the configuration. A load that met an older store without its data (`cmp_ld_sd` from `OOO_LSU4`) marks its ROB entry (`rob_sd`); at its commit the oldest such commit slot writes the table a cycle later (one write a cycle is enough: such loads are rare). A marked load is dispatched with `disp_wt` and waits in `OOO_IQ3` for older stores' data (`wd`).
+- **The trace**: a store's address is taken from port 4's EX, its data from port 1's EX (for the checker, which compares the store at its commit).
+
+**Results**: `run_core` PASS (12 runs, the ISA tests, riscv-arch-test, the programs), `run_coremark` PASS (4 configurations). CoreMark cycles, the whole run:
+
+| CoreMark | F (29.47) | G3 | change |
+|---|---|---|---|
+| `OOO_CORE`, ideal caches, `g14-o2` | 1,294,645 | **1,253,413** | −3.18 % |
+| `OOO_CORE`, ideal caches, `g14-sflto` | 1,216,474 | 1,178,034 | −3.16 % |
+| `OOO_CORE`, ideal caches, `g13-o2-zb` | 1,360,115 | 1,316,172 | −3.23 % |
+| `OOO_CPU`, the real D$, `g14-o2` | 1,298,795 | **1,257,666** | −3.17 % |
+| `OOO_CPU`, the real D$, `g14-sflto` | 1,224,276 | 1,185,497 | −3.17 % |
+| `OOO_CPU`, the real D$, `g13-o2-zb` | 1,363,088 | 1,319,722 | −3.18 % |
+
+Replays hardly move (`g14-o2` 534 → 538): the wait table holds back the loads that would wait for a store's data. **The timed part** of `g14-o2` (the run less the outside part, 42,070 cycles at 29.47, which these changes do not touch much) is about 1,211,300 cycles, **about 8.26 CoreMark/MHz** with ideal caches (from 7.98); the model asked 1,206,600 (29.50), the RTL is 0.4 % above it. `verilator -Wall`: only the warnings that were there before (4 PINCONNECTEMPTY in `OOO_FRONT`, UNOPTFLAT on the interrupt and the CSR cause).
+
+**Bug injection** (`mutate_core.py`, `OOO_LSU3`'s lines now in `OOO_LSU4`): **137 mutations, 131 detected**. The 10 new ones of G3 (the store's completion on port 1, `sd` on every ALU port or on none, the data without the bypass, into another SQ entry, not replicated by its size, never written, the wait table never read, never written, the group's wait bits dropped) are all detected. The 6 not detected are those of the last campaign: the instruction bits of µop 1, `rob_insn` of slots 2 and 3, the three uncached loads', a fill before the writes; OOO_DMISS's victim tag is detected now (a matter of timing). Three entries that no longer applied were fixed: the store data's bypass on the LSU's port 0 is gone (taken out), and `cmp_valid` has a new term (two entries rewritten). First run: `sd_v <= ex_v[1] && ex[1].sd` with EX's valid bit removed was not detected: `iss_sd` is 1 only with an issue, so `ex[1].sd` without `ex_v[1]` is a store's data killed in RR or EX, the case the kill and the flush already leave alone (a free SQ entry). The bit was taken out (one input less); `g14-sflto` moved by a few hundred cycles (the write is an event of `OOO_LSU4`, which tries the waiting loads again): `OOO_CORE` 1,178,076 → 1,178,034, `OOO_CPU` 1,185,019 → 1,185,497, the table above has the last numbers.
+
+**Next**: G4, `OOO_CPU` at 20 ns (`synth_ooo.bat OOO_CPU`): the data's register and port 1's new bit are short; the wait table's read is beside the group's pc array.
