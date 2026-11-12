@@ -5251,3 +5251,29 @@ Replays hardly move (`g14-o2` 534 → 538): the wait table holds back the loads 
 **Step G is done**: stores split, −3.18 % cycles (`g14-o2`, ideal caches), about 8.26 CoreMark/MHz in the timed part, at 20 ns, about 0.9k LUTs. With F (29.47) `OOO_CPU` stands at 70.8k LUTs of the 106.5k budget of gate S1-A.
 
 **Next**: step 1.7, the real I$ and L2 (gate S1-B asks 8.0 CoreMark/MHz with the real caches; G leaves about 0.26 for them to lose); E1c (AMO, LR, SC) is still open.
+
+### 29.55 Step 1.7, H: the real I$ and the L2: the plan (2026-11-12)
+
+**What step 1.7 asks** (`Doc/STRATEGY.md`): the real I$ and L2, CoreMark on `OOO_CPU`; **gate S1-B**: RTL `-O2` ≥ 8.0 CoreMark/MHz with the real caches at 50 MHz, tests and bug injection clean. Today (29.53, 29.54): about 8.26 in the timed part with the I$ a bench model that always hits, the D$ real (OOO_LSU4, OOO_DMISS, written through), memory a bench model of 3 to 16 cycles; `OOO_CPU` 70,845 LUTs at 20 ns.
+
+**What CoreMark needs from the caches** (the timed part's traces, `Plan/trace`, an LRU I$ of 64-byte lines):
+
+| | `g14-o2` | `g14-sflto` | `g13-o2-zb` |
+|---|---|---|---|
+| Code lines touched | 61 | 221 | 59 |
+| I$ misses, 16 KB (64 sets × 4 ways) | 61 | 350 | 59 |
+| I$ misses, 32 KB (64 × 8, or 128 × 4) | 61 | 221 | 59 |
+| Data lines touched | 42 | 41 | 42 |
+
+So only cold misses, a few hundred lines at about 45 cycles each from memory through the L2 (mmRISC-2 on the board: 30 to 50 cycles for an L1 fill that misses in the L2, 14 to 15 when it hits): about 5k cycles on `g14-o2`, **−0.4 %**, about 8.22. The L2 does nothing for CoreMark (it is all cold); it is for Linux. **The risk is the writes**: the D$ is written through (29.34), so the 147k one-beat writes of a CoreMark run all go into the L2, and mmRISC-2's L2 takes one request at a time and passes a partial write on to memory, waiting for its answer (it was made for a write-back D$, where only the debugger writes partially). Unchanged, that would cost more than the whole gap to 8.0.
+
+**The plan, H in four pieces:**
+
+- **H1, `OOO_ICACHE`** (new, `RTL/CPU/OOO/OOO_ICACHE`): the port `OOO_FETCH2` has (`ic_*`) and the timing of `ICacheModel`: a request taken at F0 reads the arrays (block RAM, address from F0's register), F1 compares the tags and chooses the way, F2 answers from flip-flops (as `synth_ooo.tcl` assumed, 29.43); a request every cycle while they hit; every request taken answered, in order. **32 KB, 64 sets × 8 ways × 64 bytes** (recommended; 16 KB as 64 × 4 is a parameter away): `g14-sflto` misses 37 % less, the block RAM is the same width-bound count either way (32 bytes a way a cycle: 4 tiles a way, 32 tiles for 8 ways), and 64 sets keep the index inside a 4 KB page, so the ITLB of step 1.8 can come without aliases. Physical tags (the address as it is until the ITLB). One miss at a time: a line of 8 beats from the L2, written word by word, the request answered when the line is in (no early restart, no prefetch: mmRISC-2's was slower on the board). FENCE.I (`ic_flush`): the valid bits are flip-flops (512), cleared in one cycle; a fill in flight is dropped as it ends. Fetches outside the cached region (a boot ROM) wait for the SoC (step 2). `tb_icache`: random requests, redirects and FENCE.I against the bench's memory with random bus delays, every answer compared; bug injection.
+- **H2, the L2**: mmRISC-2's `CPU_L2` (256 KB, 4 ways, pseudo-LRU, write-back, on the board with Linux since 2026-10-07, 31 of 31 mutations) into `RTL/CPU/CACHE`, with: **a partial write that hits is written into the L2** (dirty) and answered at once; one that misses goes on to memory as now (the D$ fills the line on a store miss, so its next stores hit). Then the partial writes' throughput, measured in H3 first: if one at a time (about 4 cycles each) holds the D$'s write queue, a hit's write pipelined (the next one taken while one is written). An AXI4 arbiter in front of it for the I$'s fills and `OOO_DMISS` (reads in turn, writes from the D$ only). `SIM_L2`'s bench brought over with the new partial write.
+- **H3, `OOO_CPU`**: `OOO_ICACHE`, the arbiter and the L2 in it; its ports are then one AXI4 to memory and the AXI4-Lite to the devices. `tb_core`: `ICacheModel` stays for `OOO_CORE`; `Axi4Mem` gains the board's latency (the first beat 25 to 45 cycles) for the gate's CoreMark, keeps its random delays for the tests. `run_core`, `run_coremark` with a configuration "the real caches"; the gate's number is that run's timed part. Core mutations for the new blocks.
+- **H4, 20 ns**: `OOO_CPU` by the author; the I$'s input delay of 1.5 ns goes (it is inside now).
+
+**Cost**: about 1.0k LUTs for the I$ (8 ways: the tags of 8 compared, 256 bits chosen of 8), 1.1k for the L2, 0.2k for the arbiter: `OOO_CPU` about 73k LUTs; block RAM 24.5 → about 125 tiles of 365.
+
+**What is not in it**: the D$'s write policy (the author: later). It is tied to H2: a write-back D$ would leave the L2 only fills and whole-line writes, the case mmRISC-2's L2 was built for; if H3 shows the writes cost too much even pipelined, that question comes back first. AMO, LR, SC (E1c) stay open.

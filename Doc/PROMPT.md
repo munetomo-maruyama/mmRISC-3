@@ -9046,3 +9046,74 @@ G3 (stores split, put in the core) is done and pushed to dev (6e30e65). origin h
 ```text
 The OOO_CPU run has finished.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+OOO_CPU meets 20 ns. G needed no extra fixes; it passed in one run. That finishes G4, and with it all of step G (stores split).
+
+**Result (against F, 29.47)**
+
+| Item | F | G | Difference |
+|---|---|---|---|
+| WNS (between flip-flops) | +0.447 ns (+0.493) | **+0.411 ns** (+0.606) | |
+| LUTs (after place and route) | 69,887 | **70,845** | +958 |
+| of which logic / LUT RAM | 57,451 / 12,432 | 59,105 / 11,736 | +1,654 / −696 |
+| FF (after synthesis) | 17,419 | 17,483 | +64 |
+
+- Hold is +0.028 ns, and pulse width is met too.
+- The added LUTs are mainly IQ3's two issues and waits, and LSU4's data port. The register file's read ports went from 11 to 10, which lowered the LUT RAM and roughly offsets the wait table (it is in LUT RAM).
+- The worst paths are the same kinds as at F (WB into the register file, the front end's history, the TAGE's update). No path through the store's data, port 1's `sd` bit or the wait table is near the top.
+
+**Step G in sum**
+- −3.18 % cycles, about 8.26 CoreMark/MHz in the timed part (an estimate with ideal caches), at 20 ns, for about 0.9k more LUTs.
+- OOO_CPU uses 70.8k of gate S1-A's budget of 106.5k LUTs.
+
+**Records**
+- I wrote Plan/OOC(_J).md 29.54, updated STRATEGY 1.5b (G done) and 1.6, and logged answer 224 and prompt 225 in PROMPT.md.
+- Pushed to dev with the Vivado reports (0eb2946, 65aca1f). origin has 0 Ref files.
+
+**Next candidates**
+- Step 1.7, the real I$ and L2. Gate S1-B asks 8.0 CoreMark/MHz with the real caches, which leaves about 0.26 for the caches to lose.
+- E1c: AMO, LR and SC are still open.
+<!-- /answer -->
+
+## 226. 2026-11-12 23:03:13 JST
+
+```text
+By the way, is the D$ write-through or write-back? What was the reason for that choice?
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The D$ is **write-through**. That was decided at E2 (Plan/OOC.md 29.34, 2026-11-08). Before that, OOO_LSU3 was designed as write-back, and 29.31 still called it write-back.
+
+**Why**
+- The D$'s data arrays (OOO_DCH2) have one copy per load port.
+- Each copy's read port is used by its load port, so no read port is left to read the words of a dirty line being evicted.
+- Write-back would need a third read port or another copy, which costs block RAM and timing.
+- So every store the D$ takes also goes on to memory (OOO_LSU3's `wt_*`).
+
+**What write-through made simple**
+- An eviction has nothing to write back.
+- FENCE.I has nothing to flush; it is done when all writes have reached memory.
+- A fill only waits for the writes before it to reach memory.
+
+**What it costs**
+- One CoreMark run puts about 147k one-beat writes on the bus (against 75 line reads).
+- So OOO_DMISS got an 8-entry write queue, with the address, the data and the answers going separately so that several are out at once. Issued one at a time, CoreMark was 12.6 % slower than OOO_CORE.
+
+**Later**
+- 29.34 says write-back can come back if the bus traffic becomes a problem, by adding a way to read the evicted line and a dirty bit per line.
+- Once step 1.7 puts in L2, the L2 takes the write-through traffic. That gives the common arrangement of a write-through L1 and a write-back L2. It will be decided again when the L2 is designed.
+
+Answer 225 and prompt 226 are logged in Doc/PROMPT.md. They will be committed with the next piece of work.
+<!-- /answer -->
+
+## 227. 2026-11-12 23:06:30 JST
+
+```text
+Let's revisit the D$ later.
+First, please go on to step 1.7.
+```
