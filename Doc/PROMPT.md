@@ -9008,3 +9008,41 @@ Next, G3 builds the data path from ALU1 to the LSU and the wait table, and puts 
 ```text
 Yes, start G3
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+G3 (stores split, put in the core) is done and pushed to dev (6e30e65). origin has 0 Ref files. Timing at 20 ns (G4) is not checked yet.
+
+**Tests**
+- run_core passes all 12 runs, and run_coremark passes all 4 configurations.
+
+**CoreMark cycles (F → G3)**
+
+| Configuration | F | G3 | Change |
+|---|---|---|---|
+| OOO_CORE, ideal caches, g14-o2 | 1,294,645 | 1,253,413 | −3.18 % |
+| OOO_CPU, real D$, g14-o2 | 1,298,795 | 1,257,666 | −3.17 % |
+
+- The timed part is about **8.26 CoreMark/MHz**, up from 7.98. It is an estimate that subtracts the outside part as measured at F, 42,070 cycles. It is 0.4 % from the model's 8.28.
+- Replays barely moved (534 → 538): the wait table is working.
+
+**Bug injection**
+- 131 of 137 detected. The 10 added for G3 are all detected.
+- The 6 not detected are the same ones as in the last campaign.
+- In the first run, removing the `ex_v[1]` term from `sd_v` was not detected, so I removed that term. `iss_sd` is 1 only when something issues, so the term matters only for a store killed in RR or EX. Its write then goes to a free SQ entry, which is harmless for the same reason as when the kill and flush terms were removed.
+- This removal changed only g14-sflto, slightly (OOO_CORE −42, OOO_CPU +478 cycles). The data write is now an LSU4 event, which shifts when waiting loads are tried again.
+
+**Records**
+- I wrote Plan/OOC(_J).md 29.53, marked STRATEGY 1.5b "G3 done", and updated the README rows for OOO_CORE, OOO_CPU, LSU4 and IQ3.
+
+**Next (G4)**
+- Please run `synth_ooo.bat OOO_CPU` at 20 ns.
+- The new paths are the data register, port 1's `sd` bit and the wait table's read. All three are short, so I do not expect much worse timing.
+<!-- /answer -->
+
+## 225. 2026-11-12 22:54:31 JST
+
+```text
+The OOO_CPU run has finished.
+```

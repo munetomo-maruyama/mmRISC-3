@@ -5232,3 +5232,22 @@ Replays hardly move (`g14-o2` 534 → 538): the wait table holds back the loads 
 **Bug injection** (`mutate_core.py`, `OOO_LSU3`'s lines now in `OOO_LSU4`): **137 mutations, 131 detected**. The 10 new ones of G3 (the store's completion on port 1, `sd` on every ALU port or on none, the data without the bypass, into another SQ entry, not replicated by its size, never written, the wait table never read, never written, the group's wait bits dropped) are all detected. The 6 not detected are those of the last campaign: the instruction bits of µop 1, `rob_insn` of slots 2 and 3, the three uncached loads', a fill before the writes; OOO_DMISS's victim tag is detected now (a matter of timing). Three entries that no longer applied were fixed: the store data's bypass on the LSU's port 0 is gone (taken out), and `cmp_valid` has a new term (two entries rewritten). First run: `sd_v <= ex_v[1] && ex[1].sd` with EX's valid bit removed was not detected: `iss_sd` is 1 only with an issue, so `ex[1].sd` without `ex_v[1]` is a store's data killed in RR or EX, the case the kill and the flush already leave alone (a free SQ entry). The bit was taken out (one input less); `g14-sflto` moved by a few hundred cycles (the write is an event of `OOO_LSU4`, which tries the waiting loads again): `OOO_CORE` 1,178,076 → 1,178,034, `OOO_CPU` 1,185,019 → 1,185,497, the table above has the last numbers.
 
 **Next**: G4, `OOO_CPU` at 20 ns (`synth_ooo.bat OOO_CPU`): the data's register and port 1's new bit are short; the wait table's read is beside the group's pc array.
+
+### 29.54 Step 1.5b, G4: stores split meet 20 ns (2026-11-12)
+
+**The run** (by the author, `synth_ooo.bat OOO_CPU`, 29.53's RTL): **WNS +0.411 ns, TNS 0, no failing endpoint; hold +0.028 ns; pulse width met. 70,845 LUTs** after place and route (59,105 logic + 11,736 LUT RAM), 17,483 FF after synthesis, 26 DSP, 24.5 tiles of block RAM. Met in one run.
+
+| Against 29.47 (F, FTQ 32) | F | G | |
+|---|---|---|---|
+| LUTs, the whole | 69,887 | 70,845 | +958 |
+| of which logic / LUT RAM | 57,451 / 12,432 | 59,105 / 11,736 | +1,654 / −696 |
+| FF after synthesis | 17,419 | 17,483 | +64 |
+| WNS (between flip-flops) | +0.447 ns (+0.493 ns) | +0.411 ns (+0.606 ns) | |
+| Cells after synthesis: the IQ / the LSU / `OOO_PRF` | 11,114 / 5,069 / 6,762 | 12,351 / 5,543 / 6,158 | +1,237 / +474 / −604 |
+
+- **Where the LUTs went**: `OOO_IQ3`'s two issues and its waits (9,552 LUTs after place and route), `OOO_LSU4`'s data port and its valid bits (3,513). The register file reads one port less (10, not 11): its LUT RAM goes down, which pays for most of what the wait table costs (4 copies of 256 bits, in LUT RAM as asked).
+- **The worst paths** are the same kinds as at F: a result from WB into the register file's banks (+0.606 ns, 16 levels), the front end's history into the fetch buffer (+0.618 ns), the TAGE's update. None goes through the store's data, port 1's `sd` bit or the wait table.
+
+**Step G is done**: stores split, −3.18 % cycles (`g14-o2`, ideal caches), about 8.26 CoreMark/MHz in the timed part, at 20 ns, about 0.9k LUTs. With F (29.47) `OOO_CPU` stands at 70.8k LUTs of the 106.5k budget of gate S1-A.
+
+**Next**: step 1.7, the real I$ and L2 (gate S1-B asks 8.0 CoreMark/MHz with the real caches; G leaves about 0.26 for them to lose); E1c (AMO, LR, SC) is still open.
