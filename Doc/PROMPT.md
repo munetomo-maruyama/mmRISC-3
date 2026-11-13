@@ -9193,3 +9193,39 @@ The D$'s write policy and larger caches if block RAM is left over will come up o
 ```text
 Yes, start H2
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+H2 is done and pushed to dev (17f788b). origin has 0 Ref files. The L2 and the arbiter are not in OOO_CPU yet (H3 puts them there).
+
+**The L2 (`CPU_L2`)**
+- I brought mmRISC-2's L2 (256 KB, 4 ways, write back, proven on the board with Linux) into `RTL/CPU/CACHE/CPU_L2`.
+- One change: a part write that hits is written into the L2's line, which becomes dirty, and is answered without waiting for memory.
+- In mmRISC-2 only the debugger wrote partially, so part writes went through to memory. mmRISC-3's D$ is write-through and every store comes as a part write, so as it was, each would wait for memory.
+- A part write that misses goes on to memory as before.
+
+**The arbiter (`OOO_MARB`, new)**
+- It puts the I$'s fills and the D$ (`OOO_DMISS`) on one AXI4 into the L2.
+- When both ask for a read at once they go in turn, and the choice is held while it waits. Read data goes back by ID, and the D$'s writes pass straight through.
+
+**Verification (`SIM/L2`)**
+- I brought over mmRISC-2's L2 bench with the arbiter's two ports in front, and renewed its checks of part writes and of which port goes first.
+- All 6 configurations pass (the 256 KB design, small ones that evict all the time, direct mapped, 8 ways and so on).
+- Bug injection detected 46 of 46: mmRISC-2's 31, 2 for the part writes and 13 for the arbiter.
+- The first campaign missed 4 of the arbiter's (which goes first, and holding a waiting read request). Random traffic almost never makes those situations, so I added a directed test that detects them.
+- The 2 failures on the way were both wrong assumptions in the bench, now fixed.
+
+**The concern H3 will check**
+- A part write that hits takes 4 cycles each.
+- CoreMark's roughly 147k stores would keep the L2 busy about 0.6M of about 1.25M cycles.
+- H3 puts everything into OOO_CPU and measures how much slower it really gets.
+
+It is recorded in Plan/OOC(_J).md 29.57, STRATEGY 1.7 and the READMEs.
+<!-- /answer -->
+
+## 230. 2026-11-14 00:53:08 JST
+
+```text
+Yes, start H3
+```

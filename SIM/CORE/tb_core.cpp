@@ -3,7 +3,7 @@
 // Verilator, fetching through ICacheModel from the bench's Memory, its
 // commit trace in lock-step with Spike at every instruction (bench.h).
 //
-//   tb_core [-seed <n>] [-miss <%>] [-dhit <%>] [-exit <symbol>] [-max <cycles>] [-v]
+//   tb_core [-seed <n>] [-miss <%>] [-dhit <%>] [-mlat <cycles>] [-exit <symbol>] [-max <cycles>] [-v]
 //           [-restores-out <file>] [-restores-ref <file> -restores-max <x>] [-replays-max <n>] <elf> ...
 //
 // The D$: OOO_LSU3's, with DMissModel (ports.h) as its miss handler (step 1.3
@@ -27,6 +27,13 @@
 // -replays-max fails a run with more than n replays (loads issued past an
 // older store, Plan/CORE.md 5.9: what costs cycles, not values).
 // The register file is set to 0 after reset, as Spike's registers start.
+// OOO_CPU (build_core.sh cpu, step 1.7 H3, Plan/OOC.md 29.58) has its own I$, the
+// arbiter and the L2: ICacheModel is not used (-miss means nothing), the memory
+// model (Axi4Mem) is behind the L2. -mlat n: the memory as the board's (the first
+// beat of a read n to n + 20 cycles after its address, a write's answer n / 2 to
+// n / 2 + 10 after its last beat, the readies up); 0 (the default): 3 to 16 cycles
+// with random readies and stalls, for the tests. After the exit the memory the D$
+// wrote through is compared with the program's with the L2's dirty lines over it.
 //---------------------------------------------------------------------------
 #ifdef CPU_TOP                  // OOO_CPU: the core with OOO_DCAD and the D$ on the AXI models (build_core.sh cpu)
 #include "VOOO_CPU.h"
@@ -34,6 +41,8 @@
 typedef VOOO_CPU Top;
 typedef VOOO_CPU___024root TopRoot;
 #define CORE(x) OOO_CPU__DOT__u_core__DOT__##x
+#define L2_TAG(w) OOO_CPU__DOT__u_l2__DOT__u_tag__DOT__g_way__BRA__##w##__KET____DOT__mem
+#define L2_DAT(w) OOO_CPU__DOT__u_l2__DOT__u_dat__DOT__g_way__BRA__##w##__KET____DOT__mem
 #else                           // OOO_CORE: OOO_LSU3's D$ with DMissModel behind it (step 1.3 E1)
 #include "VOOO_CORE.h"
 #include "VOOO_CORE___024root.h"
@@ -68,7 +77,7 @@ static uint64_t wbits(uint64_t w, int lo, int n) { return (w >> lo) & (n >= 64 ?
 #include <fstream>
 
 struct Opts {
-    uint64_t seed = 1; int miss = 8, dhit = 80; std::string exit_sym; uint64_t max = 20000000; bool verbose = false;
+    uint64_t seed = 1; int miss = 8, dhit = 80, mlat = 0; std::string exit_sym; uint64_t max = 20000000; bool verbose = false;
     std::string rs_out; std::map<std::string, long> rs_ref; double rs_max = 0;
     long rp_max = -1;                   // -replays-max: fail a run with more replays
 };
@@ -137,7 +146,9 @@ static bool run(const Opts& o, const std::string& elf)
     Bench b(cfg);
     ICacheModel ic(b.mem(), o.seed * 7 + 1, o.miss);
 #ifdef CPU_TOP
-    Axi4Mem ax(b.mem(), o.seed * 13 + 5);
+    Axi4Mem ax(b.mem(), o.seed * 13 + 5, o.mlat);
+    long ic_reqs = 0, ic_misses = 0;                    // (OOO_ICACHE's, from its registers)
+    long wq_full = 0, wq_full_tw = 0;                   // cycles the D$'s write queue is full (in the timed window)
     AxiLite al(b.mem(), o.seed * 17 + 3);
 #else
     DMissModel dm(b.mem(), o.seed * 13 + 5, o.dhit >= 100 ? 0 : 12);     // (-dhit 100: fills at once, else up to 12 cycles late)
@@ -155,7 +166,9 @@ static bool run(const Opts& o, const std::string& elf)
 #ifndef CPU_TOP
     bool flq_q = false;                                 // FENCE.I: Memory has every committed store, nothing to write back
 #endif
+#ifndef CPU_TOP
     d->ic_req_ready = 0; d->ic_resp_valid = 0;
+#endif
     d->rst_n = 1; d->eval(); d->rst_n = 0; d->eval(); d->rst_n = 1; d->eval();
     // the register file starts at 0, as Spike's: it has no reset (a boot ROM would clear it), and a program's
     // start may save registers it has not written yet (CoreMark's does)
@@ -180,13 +193,18 @@ static bool run(const Opts& o, const std::string& elf)
     // OOO_BYPC, for the comparison by function, Plan/OOC.md 29.30); one program a run
     std::map<uint64_t, long> bypc;
     long bypc_last = -1;
+    // CoreMark's timed window: from the commit of start_time's first instruction to stop_time's (-v prints it)
+    uint64_t tw_lo = b.symbol("start_time"), tw_hi = b.symbol("stop_time");
+    long tw_a = -1, tw_b = -1;
     for (uint64_t cyc = 0; !b.done() || drain_left > 0; cyc++) {
         d->boot = cyc == 2;
         d->boot_pc = b.entry() >> 1;
+#ifndef CPU_TOP
         d->ic_req_ready = ic.ready();
         d->ic_resp_valid = ic.resp_valid();
         { uint32_t w[8]; ic.resp_data(w); for (int k = 0; k < 8; k++) d->ic_resp_data[k] = w[k]; }
         d->ic_done = icf_q;
+#endif
 #ifdef CPU_TOP
         ax.drive();
         d->m_axi4_arready = ax.arready; d->m_axi4_awready = ax.awready; d->m_axi4_wready = ax.wready;
@@ -246,17 +264,28 @@ static bool run(const Opts& o, const std::string& elf)
         if (n > 0 && !s[0].trap) {
             if (bypc_last >= 0) bypc[s[n-1].pc] += (long)cyc - bypc_last;
             bypc_last = (long)cyc;
+            for (int k = 0; k < n; k++) {
+                if (tw_lo && s[k].pc == tw_lo && tw_a < 0) tw_a = (long)cyc;
+                if (tw_hi && s[k].pc == tw_hi && tw_b < 0) tw_b = (long)cyc;
+            }
         }
         {
             std::string why = check_resolution(d->rootp);
             if (!why.empty()) { std::printf("cycle %llu: %s\n", (unsigned long long)cyc, why.c_str()); res_bad = true; break; }
         }
-        bool icf = d->ic_flush;                         // (sampled before the clock edge)
 #ifndef CPU_TOP
+        bool icf = d->ic_flush;                         // (sampled before the clock edge)
         bool flr = d->fl_req;                           // taken now (fl_take is 1): done in the next cycle
-#endif
         bool acc = d->ic_req_valid && ic.ready();
         uint64_t rpc = d->ic_req_pc;
+#else
+        if (d->rootp->OOO_CPU__DOT__u_icache__DOT__s1_v && !d->rootp->OOO_CPU__DOT__u_icache__DOT__s1_rp) {
+            ic_reqs++;
+            if (!d->rootp->OOO_CPU__DOT__u_icache__DOT__s1_hit) ic_misses++;
+        }
+        // the D$'s write queue full: the only time a store waits for it (the LSU raises wt_valid only with wt_ready)
+        if (d->rootp->OOO_CPU__DOT__u_dmiss__DOT__wq_n == 8) { wq_full++; if (tw_a >= 0 && tw_b < 0) wq_full_tw++; }
+#endif
 #ifdef CPU_TOP
         bool arv = d->m_axi4_arvalid, rr = d->m_axi4_rready, awv = d->m_axi4_awvalid, wv = d->m_axi4_wvalid, br = d->m_axi4_bready;
         uint64_t ara = d->m_axi4_araddr, awa = d->m_axi4_awaddr, wd = d->m_axi4_wdata;
@@ -278,11 +307,11 @@ static bool run(const Opts& o, const std::string& elf)
             else if (!b.tick()) break;
         } else if (--drain_left == 0) break;
         d->clk = 1; d->eval(); d->clk = 0; d->eval();
-        icf_q = icf && !icf_q;
 #ifndef CPU_TOP
+        icf_q = icf && !icf_q;
         flq_q = flr;
-#endif
         ic.clock(acc, rpc);
+#endif
 #ifdef CPU_TOP
         ax.clock(arv, ara, arl, rr, awv, awa, awl, wv, wd, ws, br);
         al.clock(larv, lara, lrr, lawv, lawa, lwv, lwd, lws, lbr);
@@ -294,6 +323,26 @@ static bool run(const Opts& o, const std::string& elf)
     }
     if (continue_clock && b.passed()) {
         uint64_t th = b.symbol("tohost") >> 6, fh = b.symbol("fromhost") >> 6;
+#ifdef CPU_TOP
+        // the L2's dirty lines over the memory behind it (4 ways of L2_SETS sets, build_core.sh's L2KB;
+        // {valid, dirty, tag} with the tag the 40-bit address above the set and the line's offset)
+        {
+            auto* r = d->rootp;
+            int ib = 0; while ((1 << ib) < L2_SETS) ib++;
+            const int tb = 40 - 6 - ib;
+            for (int s = 0; s < L2_SETS; s++)
+                for (int w = 0; w < 4; w++) {
+                    uint64_t t = w == 0 ? r->L2_TAG(0)[s] : w == 1 ? r->L2_TAG(1)[s] : w == 2 ? r->L2_TAG(2)[s] : r->L2_TAG(3)[s];
+                    if (!((t >> (tb + 1)) & 1) || !((t >> tb) & 1)) continue;
+                    uint64_t a = ((t & ((1ull << tb) - 1)) << (6 + ib)) | ((uint64_t)s << 6);
+                    for (int k = 0; k < 8; k++) {
+                        uint64_t v = w == 0 ? r->L2_DAT(0)[s * 8 + k] : w == 1 ? r->L2_DAT(1)[s * 8 + k] :
+                                     w == 2 ? r->L2_DAT(2)[s * 8 + k] : r->L2_DAT(3)[s * 8 + k];
+                        b.mem().write64(a + 8 * k, v, 0xff);
+                    }
+                }
+        }
+#endif
         std::vector<uint64_t> pgs = b.mem().pages(), pa = b.arch().pages();
         pgs.insert(pgs.end(), pa.begin(), pa.end());
         std::sort(pgs.begin(), pgs.end());
@@ -317,10 +366,16 @@ static bool run(const Opts& o, const std::string& elf)
     if (o.verbose)
 #ifdef CPU_TOP
         std::printf("    %ld restores (mispredicted branches and jalr), %ld replays, I$ %ld / %ld missed, memory %ld line reads %ld line writes, uncached %ld reads %ld writes\n",
-                    restores, replays, ic.misses, ic.reqs, ax.reads, ax.writes, al.reads, al.writes);
+                    restores, replays, ic_misses, ic_reqs, ax.reads, ax.writes, al.reads, al.writes);
 #else
         std::printf("    %ld restores (mispredicted branches and jalr), %ld replays, I$ %ld / %ld missed, D$ %ld lines filled (%ld asked by loads, %ld by stores), %ld evicted, uncached %ld reads %ld writes\n",
                     restores, replays, ic.misses, ic.reqs, dm.fills, dm.asks, dm.st_asks, dm.evicts, uc.reads, uc.writes);
+#endif
+    if (o.verbose && tw_a >= 0 && tw_b >= 0)
+        std::printf("    the timed window (start_time to stop_time): %ld cycles\n", tw_b - tw_a);
+#ifdef CPU_TOP
+    if (o.verbose)
+        std::printf("    the D$'s write queue full (the only time a store waits for it): %ld cycles (%ld in the timed window)\n", wq_full, wq_full_tw);
 #endif
     if (rs_out_f) std::fprintf(rs_out_f, "%s %ld\n", name.c_str(), restores);
     if (const char* bp = std::getenv("CORE_BYPC")) {
@@ -355,6 +410,7 @@ int main(int argc, char** argv)
         if (a == "-seed" && i + 1 < argc) o.seed = strtoull(argv[++i], nullptr, 0);
         else if (a == "-miss" && i + 1 < argc) o.miss = atoi(argv[++i]);
         else if (a == "-dhit" && i + 1 < argc) o.dhit = atoi(argv[++i]);
+        else if (a == "-mlat" && i + 1 < argc) o.mlat = atoi(argv[++i]);
         else if (a == "-exit" && i + 1 < argc) o.exit_sym = argv[++i];
         else if (a == "-max" && i + 1 < argc) o.max = strtoull(argv[++i], nullptr, 0);
         else if (a == "-v") o.verbose = true;

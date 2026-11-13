@@ -198,9 +198,21 @@ private:
 
 class Axi4Mem {
 public:
-    Axi4Mem(Memory& m, uint64_t seed) : m(m), rng(seed) {}
+    // mlat > 0: the board's memory (step 1.7 H3, Plan/OOC.md 29.58): a read's first beat mlat to mlat + 20 cycles
+    // after its address, the beats then one a cycle; a write's answer mlat / 2 to mlat / 2 + 10 after its last
+    // beat; the readies up, no stalls. 0: the tests' memory, below.
+    Axi4Mem(Memory& m, uint64_t seed, int mlat = 0) : m(m), rng(seed), mlat(mlat) {}
     // the inputs of this cycle (call once, before the core's evaluation)
     void drive() {
+        if (mlat > 0) {
+            arready = awready = true;
+            wready  = !wq.empty();
+            rvalid  = !rq.empty() && rq.front().at <= cyc;
+            bvalid  = !bq.empty() && bq.front().at <= cyc;
+            rdata   = rvalid ? m.read64(rq.front().addr + 8 * rq.front().beat) : 0;
+            rlast   = rvalid && rq.front().beat == rq.front().len;
+            return;
+        }
         // now and then the writes stall for 20 to 50 cycles (step 1.3 E2: the write queue fills, and what must wait
         // for the writes to reach Memory is seen to)
         if (stall == 0 && rng() % 300 == 0) stall = 20 + (int)(rng() % 31);
@@ -220,11 +232,18 @@ public:
         if (wvalid && wready) {
             Burst& x = wq.front();
             m.write64(x.addr + 8 * x.beat, wdata, wstrb);
-            if (++x.beat > x.len) { Burst y = x; wq.pop_front(); y.at = cyc + 1 + (long)(rng() % 6); bq.push_back(y); }
+            if (++x.beat > x.len) {
+                Burst y = x; wq.pop_front();
+                y.at = mlat > 0 ? cyc + mlat / 2 + (long)(rng() % 11) : cyc + 1 + (long)(rng() % 6);
+                bq.push_back(y);
+            }
         }
         if (rvalid && rready && ++rq.front().beat > rq.front().len) rq.pop_front();
         if (bvalid && bready) bq.pop_front();
-        if (arvalid && arready) { rq.push_back(Burst{araddr, arlen, 0, cyc + 3 + (long)(rng() % 14)}); reads++; }
+        if (arvalid && arready) {
+            rq.push_back(Burst{araddr, arlen, 0, mlat > 0 ? cyc + mlat + (long)(rng() % 21) : cyc + 3 + (long)(rng() % 14)});
+            reads++;
+        }
         if (awvalid && awready) { wq.push_back(Burst{awaddr, awlen, 0, 0}); writes++; }
         if (stall > 0) stall--;
         cyc++;
@@ -237,6 +256,7 @@ private:
     std::deque<Burst> rq, wq, bq;
     long cyc = 0;
     int stall = 0;
+    int mlat;
 };
 
 class AxiLite {

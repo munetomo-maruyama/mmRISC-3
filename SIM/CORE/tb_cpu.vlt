@@ -1,0 +1,6 @@
+// tb_cpu.vlt : Verilator's configuration for OOO_CPU in tb_core.cpp (build_core.sh cpu)
+//
+// OOO_DMISS's write queue's count is read by the bench (the cycles a store waits
+// on a full queue, -v): kept even when a mutation leaves it unused (mutate_core.py).
+`verilator_config
+public_flat_rd -module "OOO_DMISS" -var "wq_n"

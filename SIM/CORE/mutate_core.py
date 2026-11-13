@@ -79,6 +79,8 @@ CS = 'OOO_CSRU/OOO_CSRU.sv'
 C = 'OOO_CORE/OOO_CORE.sv'
 L3 = 'OOO_LSU4/OOO_LSU4.sv'   # (OOO_LSU3's lines, in OOO_LSU4 since step 1.5b G3)
 DM = 'OOO_DMISS/OOO_DMISS.sv'   # (on OOO_CPU: the runs take VOOO_CPU)
+CP = 'OOO_CPU/OOO_CPU.sv'       # (the same, step 1.7 H3)
+IC = 'OOO_ICACHE/OOO_ICACHE.sv' # (the same)
 MUT = [
     # D2
     (C, "hd = g_valid[0] ? 2'd0 : g_valid[1] ? 2'd1 : g_valid[2] ? 2'd2 : 2'd3;", "hd = 2'd0;", 'D2: the group not rotated'),
@@ -238,6 +240,10 @@ MUT = [
     (C, '.disp_wt(dv_wt)', ".disp_wt('0)", 'G3: the wait table never read'),
     (C, "for (int m = 0; m < 2; m++) if (cmp_ld_v[m] && cmp_ld_sd[m]) rob_sd[cmp_ld_rob[m]] <= 1'b1;", '', 'G3: the wait table never written'),
     (C, 'd2[j].wt             = wt_g[s];', "d2[j].wt             = 1'b0;", "G3: the group's wait bits dropped"),
+    # step 1.7 H3 (Plan/OOC.md 29.58): the I$, the arbiter and the L2 in OOO_CPU
+    (CP, ".AXI_ID(4'd2)) u_icache", ".AXI_ID(4'd0)) u_icache", "H3: the I$'s fills answered to the D$"),
+    (CP, ".ic_resp_data(ic_resp_data), .ic_flush(ic_flush)", ".ic_resp_data(ic_resp_data), .ic_flush(1'b0)", 'H3: FENCE.I never reaches the I$'),
+    (IC, "if (ic_flush && !ic_done && !cl && !busy && !s1_miss) cl <= 1'b1;", "if (ic_flush && !ic_done && !cl && !busy && !s1_miss) ic_done <= 1'b1;", 'H3: FENCE.I done without the sweep (stale code runs)'),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),
@@ -270,8 +276,10 @@ def run(i, m):
     shutil.rmtree(d, ignore_errors=True)
     shutil.copytree(OOO, os.path.join(d, 'OOO'))
     open(os.path.join(d, 'OOO', f), 'w').write(src.replace(old, new))
-    env = dict(os.environ, OOO_RTL=os.path.join(d, 'OOO'), OBJ=os.path.join(d, 'obj'))
-    cpu = f == DM                       # OOO_DMISS runs in OOO_CPU only
+    cpu = f in (DM, CP, IC)             # OOO_DMISS, OOO_CPU's wiring and OOO_ICACHE run in OOO_CPU only,
+                                        # with an L2 of 4 KB (step 1.7 H3, Plan/OOC.md 29.58): most accesses
+                                        # miss it, so memory's stalls reach the D$ and its writes go to memory
+    env = dict(os.environ, OOO_RTL=os.path.join(d, 'OOO'), OBJ=os.path.join(d, 'obj'), L2KB='4' if cpu else '256')
     if subprocess.run([os.path.join(HERE, 'build_core.sh')] + (['cpu'] if cpu else []), env=env, capture_output=True).returncode:
         return i, 'BUILD FAILED', desc
     t = os.path.join(d, 'obj', 'VOOO_CPU' if cpu else 'VOOO_CORE')

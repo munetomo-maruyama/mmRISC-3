@@ -33,12 +33,13 @@
 # core's own, with the 30 % I/O delay: only the LUT count is the point.
 #
 # OOO_CPU (B7, Plan/CORE.md 5.17): mmRISC-3's core as it will be in the
-# chip, OOO_CORE (its D$ in OOO_LSU4) with OOO_DMISS (step 1.3 E2), its own ports (the I$
-# port, the D$'s AXI4 and AXI4-Lite) with the 30 % I/O delay, as
+# chip, OOO_CORE (its D$ in OOO_LSU4) with OOO_DMISS (step 1.3 E2), and since step 1.7
+# H3 (Plan/OOC.md 29.58) OOO_ICACHE, OOO_MARB and CPU_L2; its own ports (the L2's AXI4
+# and the D$'s AXI4-Lite) with the 30 % I/O delay, as
 # MM2_CPU_CORE: a whole core out of context counts as in the chip (Plan/
 # OOC.md 25.3), and its LUTs are what the budget's estimate from the
-# blocks is checked against. The port paths are the I$ model's and the
-# buses' (the chip registers them); the paths between the blocks are
+# blocks is checked against. The port paths are the buses' (the chip
+# registers them); the paths between the blocks are
 # register to register: summary.txt lists the 20 worst of them by
 # endpoint, timing_paths.rpt the 100 worst in full.
 #
@@ -99,10 +100,10 @@ read_verilog -sv [list \
     $rtl/OOO_RARE/OOO_RARE.sv $rtl/OOO_DEC/OOO_DEC.sv $rtl/OOO_IQPL/OOO_IQPL.sv $rtl/OOO_IQPL2/OOO_IQPL2.sv $rtl/OOO_DCAD/OOO_DCAD.sv $rtl/OOO_CTRL/OOO_CTRL.sv \
     $rtl/OOO_DSREG/OOO_DSREG.sv $rtl/OOO_FERS/OOO_FERS.sv $rtl/OOO_TRAP/OOO_TRAP.sv $rtl/OOO_SYS/OOO_SYS.sv \
     $rtl/OOO_ALUF/OOO_ALUF.sv $rtl/OOO_ALUR/OOO_ALUR.sv $rtl/OOO_EXU/OOO_EXU.sv $rtl/OOO_PRF2/OOO_PRF2.sv \
-    $rtl/OOO_STAGE/OOO_STAGE.sv $rtl/OOO_CORE/OOO_CORE.sv $rtl/OOO_DMISS/OOO_DMISS.sv $rtl/OOO_CPU/OOO_CPU.sv \
+    $rtl/OOO_STAGE/OOO_STAGE.sv $rtl/OOO_CORE/OOO_CORE.sv $rtl/OOO_DMISS/OOO_DMISS.sv $rtl/OOO_ICACHE/OOO_ICACHE.sv $rtl/OOO_MARB/OOO_MARB.sv $rtl/OOO_CPU/OOO_CPU.sv \
     $core/CORE_CSR/CORE_CSR.sv $rtl/OOO_CSRU/OOO_CSRU.sv $core/CORE_MDU/CORE_MDU.sv $rtl/OOO_MDUP/OOO_MDUP.sv $rtl/OOO_PMUL/OOO_PMUL.sv \
     $cache/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv $cache/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv \
-    $cache/DCACHE/DCACHE.sv ./rtl/OOC_WRAP.sv]
+    $cache/DCACHE/DCACHE.sv $cache/CPU_L2/L2_TAG_ARRAY.sv $cache/CPU_L2/CPU_L2.sv ./rtl/OOC_WRAP.sv]
 }
 
 set gargs {}
@@ -117,7 +118,8 @@ if {[llength $ins]}  { set_input_delay  -clock clk $io_dly $ins }
 if {[llength $outs]} { set_output_delay -clock clk $io_dly $outs }
 # OOO_IQ's ns_ok comes from a flip-flop of OOO_CTRL (Plan/OOC.md 19.4): early in the cycle
 # OOO_CPU: F2 starts from registers (Plan/OOC.md 29.9): the I$ of step 1.7 gives its answer from flip-flops (data and way
-# settled in F1), so the port's delay is a register's and a route's, not the 6 ns of the rest (Plan/OOC.md 29.41)
+# settled in F1), so the port's delay is a register's and a route's, not the 6 ns of the rest (Plan/OOC.md 29.41);
+# since step 1.7 H3 the I$ is inside OOO_CPU and there is no such port (the line does nothing)
 if {$top eq "OOO_CPU" && [llength [get_ports -quiet ic_resp_*]]} { set_input_delay -clock clk 1.5 [get_ports ic_resp_*] }
 if {$top eq "OOO_IQ" && [llength [get_ports -quiet ns_ok]]} { set_input_delay -clock clk 1.0 [get_ports ns_ok] }
 # ... and mdu_ok / p0_hold from flip-flops of OOO_MDUP (Plan/OOC.md 23)

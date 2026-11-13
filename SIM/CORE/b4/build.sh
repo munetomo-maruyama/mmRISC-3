@@ -20,7 +20,9 @@
 # bench's 64 MB RAM). The expected values come from lock-step with Spike at
 # every instruction, not from a Sail signature (Plan/CORE.md 5.7).
 # b4/dir/*.S: illegal.S, the exceptions found at decode (FP instructions with
-# mstatus.FS off, illegal compressed encodings and their tval, either slot).
+# mstatus.FS off, illegal compressed encodings and their tval, either slot);
+# dcrace.S, the D$'s races behind the L2 (a fill over a valid line, FENCE.I
+# behind slow writes: step 1.7 H3, Plan/OOC.md 29.58).
 # -mno-relax: binutils 2.43 picks how to fill a code alignment by the relax
 # option at the end of the file, and the tests' .option pop sets it back
 # there: LA's .p2align 5 (made under norelax) came out as zeros, not nops.

@@ -3,9 +3,12 @@
 # build_core.sh : the core's bench (tb_core.cpp on OOO_CORE, B2 on)
 #
 #   ./build_core.sh             -> obj/core/VOOO_CORE  (the D$: a model on the LSU's port)
-#   ./build_core.sh cpu         -> obj/cpu/VOOO_CPU    (OOO_DCAD and mmRISC-2's D$ on AXI models, B3b)
+#   ./build_core.sh cpu         -> obj/cpu/VOOO_CPU    (the D$, the I$, the arbiter and the L2 on AXI models, step 1.7 H3)
 #   OOO_RTL=<dir> OBJ=<dir>     another copy of RTL/CPU/OOO and where to build
 #                               (the bug injection of mutate_core.py)
+#   L2KB=<n>                    OOO_CPU's L2 of n KB (256 by default; mutate_core.py
+#                               takes 4: most accesses miss it, so memory's stalls
+#                               reach the D$ and its writes go through to memory)
 #
 # Verilator from scratch every time (the shared folder keeps file times to
 # one second), with the options of SIM/OOO_UNIT/run.sh: what has no reset
@@ -18,8 +21,9 @@ C=$(cd ../../RTL/CPU/CORE && pwd)
 S=${SPIKE:-$HOME/RISCV/toolchain/spike-install}
 CA=$(cd ../../RTL/CPU/CACHE && pwd)
 if [ "$1" = cpu ]; then
-    TOP=OOO_CPU; O=${OBJ:-$HERE/obj/cpu}; DEF="+define+DCACHE_SIM_UC"; CDEF="-DCPU_TOP"
-    XSRC="$R/OOO_DMISS/OOO_DMISS.sv $R/OOO_CPU/OOO_CPU.sv"
+    L2KB=${L2KB:-256}
+    TOP=OOO_CPU; O=${OBJ:-$HERE/obj/cpu}; DEF="+define+DCACHE_SIM_UC -GL2_SIZE=$((L2KB * 1024)) $HERE/tb_cpu.vlt"; CDEF="-DCPU_TOP -DL2_SETS=$((L2KB * 4))"
+    XSRC="$R/OOO_DMISS/OOO_DMISS.sv $R/OOO_ICACHE/OOO_ICACHE.sv $R/OOO_MARB/OOO_MARB.sv $CA/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv $CA/CPU_L2/L2_TAG_ARRAY.sv $CA/CPU_L2/CPU_L2.sv $R/OOO_CPU/OOO_CPU.sv"
 else
     TOP=OOO_CORE; O=${OBJ:-$HERE/obj/core}; DEF=""; CDEF=""; XSRC=""
 fi

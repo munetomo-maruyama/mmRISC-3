@@ -1,32 +1,56 @@
 == OOO_CORE, no I$ miss, every D$ load a hit
 g14-o2-zbsc.elf              PASS  exit 0  3146593 insns  3146593 uops  1253413 cycles  IPC 2.510
     4993 restores (mispredicted branches and jalr), 538 replays, I$ 0 / 875509 missed, D$ 75 lines filled (57 asked by loads, 47 by stores), 0 evicted, uncached 502 reads 503 writes
+    the timed window (start_time to stop_time): 1211976 cycles
 g14-sflto-zbsc.elf           PASS  exit 0  2837136 insns  2837136 uops  1178034 cycles  IPC 2.408
     6589 restores (mispredicted branches and jalr), 674 replays, I$ 0 / 677836 missed, D$ 75 lines filled (47 asked by loads, 49 by stores), 0 evicted, uncached 631 reads 632 writes
 g13-o2-zb.elf                PASS  exit 0  3214086 insns  3214086 uops  1316172 cycles  IPC 2.442
     5517 restores (mispredicted branches and jalr), 627 replays, I$ 0 / 872813 missed, D$ 75 lines filled (53 asked by loads, 48 by stores), 0 evicted, uncached 491 reads 492 writes
+    the timed window (start_time to stop_time): 1275657 cycles
 tb_core: 3 files, 0 failures: PASS
-== OOO_CPU, the real D$, no I$ miss
-g14-o2-zbsc.elf              PASS  exit 0  3146593 insns  3146593 uops  1257666 cycles  IPC 2.502
-    4997 restores (mispredicted branches and jalr), 536 replays, I$ 0 / 877139 missed, memory 75 line reads 147234 line writes, uncached 502 reads 503 writes
-g14-sflto-zbsc.elf           PASS  exit 0  2837136 insns  2837136 uops  1185497 cycles  IPC 2.393
-    6844 restores (mispredicted branches and jalr), 674 replays, I$ 0 / 680639 missed, memory 75 line reads 145030 line writes, uncached 631 reads 632 writes
-g13-o2-zb.elf                PASS  exit 0  3214086 insns  3214086 uops  1319722 cycles  IPC 2.435
-    5530 restores (mispredicted branches and jalr), 621 replays, I$ 0 / 874427 missed, memory 76 line reads 147219 line writes, uncached 491 reads 492 writes
+== OOO_CPU, the real caches (I$, D$, L2), the tests' memory (3 to 16 cycles)
+g14-o2-zbsc.elf              PASS  exit 0  3146593 insns  3146593 uops  1273046 cycles  IPC 2.472
+    4969 restores (mispredicted branches and jalr), 538 replays, I$ 152 / 870616 missed, memory 218 line reads 0 line writes, uncached 502 reads 503 writes
+    the timed window (start_time to stop_time): 1225683 cycles
+    the D$'s write queue full (the only time a store waits for it): 66451 cycles (64226 in the timed window)
+g14-sflto-zbsc.elf           PASS  exit 0  2837136 insns  2837136 uops  1207810 cycles  IPC 2.349
+    6415 restores (mispredicted branches and jalr), 674 replays, I$ 386 / 675193 missed, memory 453 line reads 0 line writes, uncached 631 reads 632 writes
+    the D$'s write queue full (the only time a store waits for it): 90373 cycles (0 in the timed window)
+g13-o2-zb.elf                PASS  exit 0  3214086 insns  3214086 uops  1336097 cycles  IPC 2.406
+    5653 restores (mispredicted branches and jalr), 647 replays, I$ 149 / 872960 missed, memory 209 line reads 0 line writes, uncached 491 reads 492 writes
+    the timed window (start_time to stop_time): 1289537 cycles
+    the D$'s write queue full (the only time a store waits for it): 57928 cycles (55312 in the timed window)
+tb_core: 3 files, 0 failures: PASS
+== OOO_CPU, the real caches, the board's memory (-mlat 25: 25 to 45 cycles)
+g14-o2-zbsc.elf              PASS  exit 0  3146593 insns  3146593 uops  1278206 cycles  IPC 2.462
+    4976 restores (mispredicted branches and jalr), 539 replays, I$ 152 / 870751 missed, memory 218 line reads 0 line writes, uncached 502 reads 503 writes
+    the timed window (start_time to stop_time): 1226719 cycles
+    the D$'s write queue full (the only time a store waits for it): 67097 cycles (64503 in the timed window)
+g14-sflto-zbsc.elf           PASS  exit 0  2837136 insns  2837136 uops  1218113 cycles  IPC 2.329
+    6421 restores (mispredicted branches and jalr), 674 replays, I$ 386 / 675296 missed, memory 453 line reads 0 line writes, uncached 631 reads 632 writes
+    the D$'s write queue full (the only time a store waits for it): 91467 cycles (0 in the timed window)
+g13-o2-zb.elf                PASS  exit 0  3214086 insns  3214086 uops  1340824 cycles  IPC 2.397
+    5658 restores (mispredicted branches and jalr), 646 replays, I$ 149 / 873020 missed, memory 209 line reads 0 line writes, uncached 491 reads 492 writes
+    the timed window (start_time to stop_time): 1290515 cycles
+    the D$'s write queue full (the only time a store waits for it): 58428 cycles (55577 in the timed window)
 tb_core: 3 files, 0 failures: PASS
 == OOO_CORE, misses at random (seed 1)
 g14-o2-zbsc.elf              PASS  exit 0  3146593 insns  3146593 uops  1526475 cycles  IPC 2.061
     4869 restores (mispredicted branches and jalr), 539 replays, I$ 68466 / 859781 missed, D$ 75 lines filled (85 asked by loads, 48 by stores), 0 evicted, uncached 502 reads 503 writes
+    the timed window (start_time to stop_time): 1480070 cycles
 g14-sflto-zbsc.elf           PASS  exit 0  2837136 insns  2837136 uops  1345457 cycles  IPC 2.109
     6160 restores (mispredicted branches and jalr), 674 replays, I$ 52653 / 660766 missed, D$ 75 lines filled (72 asked by loads, 49 by stores), 0 evicted, uncached 631 reads 632 writes
 g13-o2-zb.elf                PASS  exit 0  3214086 insns  3214086 uops  1575355 cycles  IPC 2.040
     5512 restores (mispredicted branches and jalr), 574 replays, I$ 67798 / 851567 missed, D$ 75 lines filled (71 asked by loads, 48 by stores), 0 evicted, uncached 491 reads 492 writes
+    the timed window (start_time to stop_time): 1529192 cycles
 tb_core: 3 files, 0 failures: PASS
 == OOO_CORE, misses at random (seed 2, 30 % D$ hits)
 g14-o2-zbsc.elf              PASS  exit 0  3146593 insns  3146593 uops  1526549 cycles  IPC 2.061
     4864 restores (mispredicted branches and jalr), 540 replays, I$ 68827 / 859305 missed, D$ 75 lines filled (84 asked by loads, 48 by stores), 0 evicted, uncached 502 reads 503 writes
+    the timed window (start_time to stop_time): 1480589 cycles
 g14-sflto-zbsc.elf           PASS  exit 0  2837136 insns  2837136 uops  1344387 cycles  IPC 2.110
     6205 restores (mispredicted branches and jalr), 674 replays, I$ 52893 / 660606 missed, D$ 75 lines filled (76 asked by loads, 49 by stores), 0 evicted, uncached 631 reads 632 writes
 g13-o2-zb.elf                PASS  exit 0  3214086 insns  3214086 uops  1573494 cycles  IPC 2.043
     5508 restores (mispredicted branches and jalr), 569 replays, I$ 68082 / 850396 missed, D$ 75 lines filled (76 asked by loads, 48 by stores), 0 evicted, uncached 491 reads 492 writes
+    the timed window (start_time to stop_time): 1527548 cycles
 tb_core: 3 files, 0 failures: PASS

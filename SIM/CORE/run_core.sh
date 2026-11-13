@@ -10,7 +10,8 @@
 # store-forwarding tests), rv64uc and the Zb* / Zicond tests on a minimal
 # environment, and the console through tohost; run to their HTIF exit.
 # On OOO_CORE with the D$ model (I$ misses and D$ hits at random, 2 seeds;
-# no I$ miss and no D$ hit) and on OOO_CPU with OOO_DCAD and the real D$.
+# no I$ miss and no D$ hit) and on OOO_CPU with the real caches (the D$, and
+# since step 1.7 H3 the I$ and the L2, Plan/OOC.md 29.58).
 # b4/build.sh: riscv-arch-test's I, M, Zca, Zba, Zbb, Zbc, Zbs, Zicond,
 # Zicsr, Zifencei, Zicntr, Sm and Exceptions tests that fit the core (185),
 # and riscv-tests' -p- programs of mmRISC-2 ($RVTESTS: rv64ui / um / uc /
@@ -18,7 +19,7 @@
 # cannot run: rv64mi-p-breakpoint (the triggers' firing is not wired),
 # rv64mi-p-csr (an FP instruction: no FPU), rv64si-p-dirty (paging); on
 # both tops, to their HTIF exit; with b4/dir/illegal.S (the exceptions
-# found at decode).
+# found at decode) and b4/dir/dcrace.S (the D$'s races behind the L2).
 # The restores of the first run are what mutate_core.py holds the mutated
 # cores to.
 #---------------------------------------------------------------------------
