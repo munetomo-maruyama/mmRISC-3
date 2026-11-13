@@ -9117,3 +9117,46 @@ Answer 225 and prompt 226 are logged in Doc/PROMPT.md. They will be committed wi
 Let's revisit the D$ later.
 First, please go on to step 1.7.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I wrote the step 1.7 plan in Plan/OOC(_J).md 29.55 and STRATEGY 1.7, and pushed it to dev (35a73ee). origin has 0 Ref files. No RTL is written yet.
+
+**What I found**
+- CoreMark's timed part touches few lines, 61 of code and 42 of data on g14-o2, so it fits in the caches.
+- So a real I$ and L2 only add the first loads (cold misses): about 5k cycles on g14-o2, about −0.4 %, an estimated 8.22 CoreMark/MHz.
+- The L2 does not speed up CoreMark. It matters for Linux.
+- **The risk is the writes.** The D$ is write-through, so the roughly 147k one-beat writes of one CoreMark run all go into the L2.
+- mmRISC-2's L2 handles one request at a time and passes a partial write on to memory, waiting for the answer. It was built for a write-back D$, and as it is it would use up all of the margin to 8.0.
+
+**The plan (H1 to H4)**
+- **H1 `OOO_ICACHE` (new)**
+  - The same timing as today's bench model: a request taken at F0, the tags compared and the way chosen at F1, 32 bytes given from flip-flops at F2.
+  - **32 KB (64 sets × 8 ways) recommended.** It takes as many block RAMs as 16 KB, and g14-sflto's misses go down 37 %. With 64 sets the index stays inside a 4 KB page, so step 1.8's ITLB fits without aliases.
+  - FENCE.I clears the valid bits in one cycle.
+  - A unit bench and bug injection.
+- **H2 L2**
+  - mmRISC-2's `CPU_L2`, reused: 256 KB, proven on the board with Linux.
+  - The change: a partial write that hits is written into the L2 and answered at once, pipelined if needed.
+  - An arbiter so that the I$ and the D$ share the L2.
+- **H3 into `OOO_CPU`**
+  - The bench's memory gains the board's latency (25 to 45 cycles to the first beat); the timed part of that CoreMark run is the gate's number.
+- **H4 20 ns**
+  - The timing check is yours again.
+
+**Estimated cost**
+- About +2.3k LUTs, OOO_CPU about 73k.
+- About 125 tiles of block RAM, out of 365.
+
+**Left for later**
+- The D$'s write policy, as you asked. It is tied to H2, though: if H3 shows the writes cost too much, that question comes first.
+- E1c (AMO, LR, SC) is still open.
+<!-- /answer -->
+
+## 228. 2026-11-13 23:51:18 JST
+
+```text
+Yes. I want to look at the D$'s caching scheme later, and also at raising each cache's size if the FPGA's block RAM is left over.
+Here, let's go ahead with H1 first.
+```

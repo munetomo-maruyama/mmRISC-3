@@ -5277,3 +5277,29 @@ So only cold misses, a few hundred lines at about 45 cycles each from memory thr
 **Cost**: about 1.0k LUTs for the I$ (8 ways: the tags of 8 compared, 256 bits chosen of 8), 1.1k for the L2, 0.2k for the arbiter: `OOO_CPU` about 73k LUTs; block RAM 24.5 → about 125 tiles of 365.
 
 **What is not in it**: the D$'s write policy (the author: later). It is tied to H2: a write-back D$ would leave the L2 only fills and whole-line writes, the case mmRISC-2's L2 was built for; if H3 shows the writes cost too much even pipelined, that question comes back first. AMO, LR, SC (E1c) stay open.
+
+### 29.56 Step 1.7, H1: `OOO_ICACHE` (2026-11-14)
+
+**What was built** (`RTL/CPU/OOO/OOO_ICACHE`, not in `OOO_CPU` yet; H3 puts it there): the I$ on `OOO_FETCH2`'s port (`ic_*`) with the timing `tb_core`'s `ICacheModel` gave it (29.39): a request taken at F0, its answer at F2 from flip-flops, a request every cycle while they hit, every request taken answered in order.
+
+- **32 KB: 64 sets × 8 ways × 64 bytes**, as 29.55 recommended. Tagged by the fetch address (27 bits; the ITLB is step 1.8, and with 64 sets the index stays inside a page).
+- **F0**: the {valid, tag} of the 8 ways (LUT RAM, 80 RAM64M) read by the request's address and compared at once; the data (block RAM, 4 columns of 8 bytes a way: 32 tiles) read by the same address, **each way's output reset when it does not hit**, so F1's answer is the 8 ways' OR, with no select.
+- **F1**: a hit goes into the answer's register; a miss holds the requests and asks for the line: one at a time, 8 beats of AXI4 into the arrays, the tag and valid bit at the last; the way a free one, else a counter's. The cycle after the line is in, **the request is looked up again** in F0 and answered as a hit, 3 cycles after the last beat. A beat with an error answer leaves the way invalid, and the request is answered with zeros (fetch faults are step 1.8).
+- **FENCE.I and the reset**: the valid bits are in the LUT RAM, so a sweep clears them, one set a cycle (64 cycles), with no request taken; after the reset, and when `ic_flush` comes, once no line is asked for (a fill asked before the flush, the D$'s writes not yet in memory, is swept away). No request is taken while `ic_flush` is up; `ic_done` the cycle after the sweep, until `ic_flush` goes.
+- The AXI4 side: reads only, ID 2, bursts of 8 × 8 bytes, `rready` always 1.
+
+**On the way: from 4.2k LUTs to 1.2k** (Yosys, `synth_xilinx`; Vivado's count comes at H4):
+
+| Form | LUTs (Yosys) | What it cost |
+|---|---|---|
+| Valid bits in 512 flip-flops, FENCE.I in one cycle; the answer from the arrays or from the beats; 8 ways chosen by the hit | 4,185 | each valid bit's own next-state LUT and 64:1 reads; the answer's second source (the beats by column) |
+| {valid, tag} in LUT RAM, a sweep; the data's output reset | 2,543 | |
+| The same, the request looked up again (the answer has one source) | **1,207** | + 320 LUT RAM, 32 tiles, 357 FF |
+
+The answer's second source alone was about 1.5k: so a miss costs 2 cycles more (the lookup again), a few hundred cycles on CoreMark. A fill also found a bug in the first form before any run: a fill with an error answer left the way's old line valid under the new tag.
+
+**`tb_icache`** (`SIM/OOO_UNIT`, in `run.sh`): an exact account of what the I$ must do each cycle: its lines (tag, valid, the 8 words a fill gave), the way counter, the request in F1, the miss, the lookup again, the sweep; so it knows `ic_req_ready`, the AR (its address and constants), whether an answer comes and its 32 bytes, and `ic_done`, every cycle. The requests as `OOO_FETCH2`'s, from 64 lines of which 48 share 4 sets (more lines than ways: evictions), with a hot part that fits and the next half lines; the fills from a memory model with the first beat 1 to 20 cycles after the AR (now and then 40), gaps, an error answer one beat in 300, the memory's words changed at random (the D$'s writes); FENCE.I now and then (held until `ic_done`, as `OOO_SYS`), also while a line is filled; the LUT RAM starts at random (Verilator's random reset), so only the sweep makes it right. One run failed on the bench (the sweep's start taken with `busy` already updated); fixed.
+
+**Results**: `tb_icache` PASS, 400,200 cycles, 0 mismatches: 44,963 requests (31,603 hits, 13,360 misses, 3,268 evicting), 331 fills with an error, 160 FENCE.I (122 during a fill), 7,931 memory writes. `verilator -Wall`: no warning. **Bug injection: 42 of 42** (M1325 to M1366). Two of the first campaign's were not detected and showed redundant forms, now taken out: `ic_done <= ic_flush` at the sweep's end (the line after clears it without `ic_flush`: `1'b1`), and F1's 8 hit bits taken again at the lookup again (its words come by the output reset: one hit bit, taken at a request).
+
+**Next**: H2, the L2 (mmRISC-2's `CPU_L2` with partial writes kept in it) and the arbiter of the I$'s and the D$'s requests.
