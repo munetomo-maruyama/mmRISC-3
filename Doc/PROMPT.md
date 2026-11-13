@@ -9160,3 +9160,36 @@ I wrote the step 1.7 plan in Plan/OOC(_J).md 29.55 and STRATEGY 1.7, and pushed 
 Yes. I want to look at the D$'s caching scheme later, and also at raising each cache's size if the FPGA's block RAM is left over.
 Here, let's go ahead with H1 first.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+H1's I$ (`OOO_ICACHE`) is done. Its unit bench `tb_icache` passes with 0 mismatches, and bug injection detected 42 of 42. It is pushed to dev (7aaccd2). origin has 0 Ref files. It is not in OOO_CPU yet (H3 puts it there), and Vivado has not seen it.
+
+**What was built**
+- **Size:** 32 KB (64 sets × 8 ways × 64 bytes).
+- **Timing:** the same as today's bench model. A request taken at F0 is answered at F2 with 32 bytes from flip-flops, one request every cycle while they hit.
+- **A miss:** one at a time, 8 beats on AXI4. When the line is in, the request is looked up again inside and answered as a hit.
+- **FENCE.I and the reset:** every set is cleared over 64 cycles. FENCE.I is rare, so the length does not matter.
+
+**Size from 4.2k down to 1.2k LUTs (Yosys estimates)**
+- The first form was about 4.2k LUTs, far above the plan's 1.0k.
+- Moving the valid bits from 512 flip-flops into the tags' LUT RAM, and replacing the way select with the block RAMs' output reset, brought it to about 2.5k.
+- The path writing a miss's data straight into the answer alone took about 1.5k, so a miss now looks its request up again after the line is in. A miss is 2 cycles slower in exchange, a few hundred cycles on CoreMark.
+- In the end about 1.2k LUTs, 320 LUT RAM and 32 tiles of block RAM. Vivado's numbers come at H4.
+
+**What verification found**
+- Before any run I found and fixed an RTL bug: a fill with an error answer left the way's old line valid under the new tag.
+- The 2 mutations the first campaign did not detect were both redundant forms; the RTL now has the simpler ones.
+- I also fixed a mistake in the bench itself (the sweep's start looked at `busy` after it was updated).
+
+It is recorded in Plan/OOC(_J).md 29.56, STRATEGY 1.7 and the README.
+
+The D$'s write policy and larger caches if block RAM is left over will come up once step H is done. I kept a memory note so they are not forgotten.
+<!-- /answer -->
+
+## 229. 2026-11-14 00:28:27 JST
+
+```text
+Yes, start H2
+```
