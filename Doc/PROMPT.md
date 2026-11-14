@@ -9416,3 +9416,39 @@ For W3, please do the 20 ns Vivado run. New in it:
 ```text
 OOO_CPU run done
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+W3 met 20 ns in one run, and **step W (the D$ written back) is done**. Committed as 7716b97 and pushed to dev; Ref is 0 on the remote.
+
+**The Vivado result**
+- WNS +0.511 ns, TNS 0, hold +0.028 ns.
+- 73,094 LUTs, +311 (+0.4 %) from H4.
+- 128.5 block RAM tiles: +4 for the victim's copy.
+
+| Against H4 | H4 | W3 |
+|---|---|---|
+| `OOO_DMISS` → `OOO_DMISS2` | 611 LUTs, 355 FF | 947 LUTs, 654 FF |
+| `OOO_LSU4` | 3,510 | 3,980 |
+| FF, the whole | 18,823 | 19,144 |
+
+- 29.60 estimated the LUTs at "about ±0"; they came to +311.
+  - `OOO_DMISS2`'s dirty bits are 256 flip-flops, with a 256-to-1 select to read them.
+  - `OOO_LSU4`'s +470 is large for what changed; my reading is that it includes synthesis's spread, as `OOO_FRONT` (−407) and `OOO_ROB` (−447) moved the other way.
+- **The worst paths** are of the same kind as before: the ROB's head pointer into the issue queue's entries. The path into `OOO_DMISS2`'s device-data register, new in the first 20 (+0.727 ns), is logic `OOO_DMISS` had too, so it is placement. The victim's copy and the evict buffer have no path in the first 20.
+
+**Step W in sum** (29.60–29.63)
+- **8.244 CoreMark/MHz** with the board's memory (from 8.152), 0.13 % from ideal caches.
+- Stores went from one every 4 cycles to one a cycle.
+- The cost: +311 LUTs and 4 block RAM tiles.
+- `OOO_CPU` uses 73.1k of the 106.5k LUT budget and 128.5 of 365 block RAM tiles.
+
+The second deferred question is bigger caches; about 236 block RAM tiles are left. AMO/LR/SC (E1c) is also still open, but now that the D$ is written back it can run on the line in the D$, which makes it simpler than before.
+<!-- /answer -->
+
+## 236. 2026-11-14 13:19:20 JST
+
+```text
+Yes, study caches
+```

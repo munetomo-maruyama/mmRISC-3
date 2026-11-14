@@ -1,0 +1,23 @@
+#!/bin/busybox sh
+/bin/busybox --install -s /bin
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev
+if [ 1 = 1 ]; then
+for r in 1 2 3; do
+echo "== workload $r"
+ls -lR /sys > /tmp/ls.txt 2>/dev/null
+head -c 4194304 /dev/zero > /tmp/z
+md5sum /tmp/z
+gzip -c /bin/busybox > /tmp/b.gz
+gunzip -c /tmp/b.gz | md5sum
+find / -xdev > /tmp/f.txt
+sort -r /tmp/f.txt | md5sum
+cp /tmp/z /tmp/z2
+cmp /tmp/z /tmp/z2 && echo same
+awk '{ n += length($0) } END { print n }' /tmp/ls.txt
+: > /tmp/z; : > /tmp/z2; : > /tmp/b.gz
+done
+fi
+echo "== end"
+poweroff -f

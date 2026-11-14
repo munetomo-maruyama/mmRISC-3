@@ -5534,3 +5534,56 @@ The real caches now cost 0.13 % on `g14-o2` against ideal caches (1,538 cycles: 
 **Step W is done** (29.60–29.63): the D$ written back, **8.244 CoreMark/MHz** with the board's memory at 50 MHz (from 8.152; 0.13 % above ideal caches), stores at 1 a cycle (from 1 every 4), 20 ns met, +311 LUTs and +4 block RAM tiles. `OOO_CPU` stands at 73.1k LUTs of the 106.5k budget and 128.5 of 365 block RAM tiles.
 
 **Next**: the author's second question put off during H: bigger caches with the ~236 block RAM tiles left. E1c (AMO, LR, SC) is still open, simpler now with the D$ written back.
+
+### 29.64 The caches' sizes: measured on Linux, a proposal (2026-11-14)
+
+The author's second question put off during H (29.55): bigger caches while block RAM is spare. Measured with Spike's own cache models running Linux (`Plan/csize/csize.sh`, results in `Plan/csize/results`). The RTL is unchanged.
+
+**Why not CoreMark.** CoreMark fits: the real caches cost it 0.13 % against ideal ones (29.62), so no size changes it. The caches matter for what Linux runs.
+
+**The workload.** The kernel `Image` (defconfig) on OpenSBI's `fw_jump`, under Spike with `--ic`, `--dc`, `--l2`. The initramfs is a static busybox, and its `/init` runs 3 rounds of: `ls -lR /sys`, 4 MB of zeros through `md5sum`, `gzip` / `gunzip` of busybox, `find /` and `sort`, `cp` and `cmp` of 4 MB, `awk`. Spike prints the counts only at its exit, so each configuration runs twice (boot only, and boot and workload) and the workload is the difference: **5.1 billion instructions** (the boot 0.2 billion). 30 runs of 10 to 25 minutes, 8 at a time.
+
+**The block RAM to spend.** `OOO_CPU` has 128.5 of 365 tiles. mmRISC-2's LiteX SoC on the Arty took about 29 tiles outside the CPU (ROM, SRAM, Ethernet, SD, LiteDRAM). So about **206 tiles** are free for caches.
+
+**The results** (the workload; misses per 1,000 instructions; "stall" = (L1 misses × 15 + L2 misses × 40) cycles an instruction, my penalties for `OOO_CPU` at 50 MHz with the board's DDR3, an upper bound: the core hides part of a D$ miss):
+
+| Configuration (sets × ways) | I$ | D$ | L2 | Stall / insn | Against today |
+|---|---|---|---|---|---|
+| **Today**: I$ 32 KB (64 × 8), D$ 16 KB (64 × 4), L2 256 KB (1024 × 4) | 4.04 | 18.6 | 1.23 | 0.389 | |
+| I$ 16 KB (64 × 4) | 8.98 | | 1.30 | 0.466 | +0.077 |
+| I$ 64 KB by ways (64 × 16) / by sets (128 × 8) | 0.83 / 1.11 | | 1.06 / 1.08 | 0.334 / 0.339 | −0.055 / −0.050 |
+| I$ 128 KB by sets (256 × 8) | 0.17 | | 0.88 | 0.317 | −0.072 |
+| D$ 32 KB by ways (64 × 8) / by sets (128 × 4) | | 12.7 / 13.0 | 1.24 | 0.300 / 0.305 | −0.089 / −0.084 |
+| D$ 64 KB by ways (64 × 16) / by sets (256 × 4) | | 6.80 / 7.06 | 1.24 / 1.25 | 0.212 / 0.216 | −0.177 / −0.173 |
+| L2 512 KB (2048 × 4 / 1024 × 8) | | | 0.76 / 0.74 | 0.370 / 0.369 | −0.019 / −0.020 |
+| L2 1 MB (4096 × 4) | | | 0.60 | 0.364 | −0.025 |
+| **I$ 128 KB + D$ 64 KB, both by sets; L2 256 KB** | 0.17 | 7.06 | 0.91 | **0.145** | **−0.244** |
+
+What it says:
+- **The D$ is the biggest lever**: 16 KB misses 18.6 times per 1,000 instructions on this workload; 64 KB cuts that to 7.
+- **The I$ next**: 128 KB all but ends its misses (0.17).
+- **The L2 last**: 512 KB saves 0.019 cycles an instruction for 68 tiles, the least per tile.
+- **Sets do as well as ways** (within 3 %). That decides how to grow, below.
+- At a CPI of 1.0 without misses (my guess for such code on this core), today's 0.389 is 28 % of the time; the combination's 0.145 would make the same work about 18 % faster. Read it as an upper bound.
+
+**What each costs** (the block RAM counted, the LUTs my estimates):
+
+| Change | Block RAM | LUTs | What changes, the risk |
+|---|---|---|---|
+| I$ 128 KB, 256 sets × 8 ways | **+0** | about +1.5k | Each column of a way is 128 × 64 bits in a RAMB36 that holds 512 × 72: 256 sets fit the same 32 tiles. The tags in LUT RAM, read at one address and written at another, go from 64 to 256 deep. The sweep (reset, FENCE.I) 256 cycles. The index takes bits 13:12 of the fetch address; with the ITLB (step 1.8) a line could sit in 4 sets, which is harmless in an I$ (no store writes it, FENCE.I clears it all). |
+| I$ 64 KB, 128 sets × 8 ways | +0 | about +0.6k | The same, at half the LUT RAM. |
+| D$ 64 KB, 256 sets × 4 ways | **+36** | about +1.2k | Each copy of a way, 3 copies, goes from 512 to 2,048 words: 4 RAMB36 for 1. The hit path keeps its 4 ways. The index takes bits 13:12 of the virtual address, so a physical line can sit in 4 sets (synonyms: Linux maps a page at a user address and at its own). Handled at the fill: `OOO_DMISS2` looks for the line in the other 3 sets (its LUT RAM tags, 3 cycles) and writes it out and invalidates it there before the fill. Bits 13:12 then travel with the LQ's and the SQ's addresses and the misses. The dirty bits (1,024) can go into LUT RAM with one write port, as a store and a clear never meet. The risk: the load path's array output, now 4 tiles deep, needs a mux. |
+| D$ 32 KB, 128 sets × 4 ways | +12 | about +0.8k | The same with one bit (one other set). |
+| D$ 32 KB, 64 sets × 8 ways | +18 | more | 8 ways compared and chosen on the load-use path (loop 3): the riskier timing. Not recommended. |
+| L2 512 KB | +68 | small | H4's path from the L2's way register to its 64 data tiles (+0.659 ns, 8.5 ns of route) would reach 128 tiles: a pipeline stage (a cycle more for each L2 access). |
+
+**My recommendation**:
+1. **The I$ to 128 KB by sets**: no block RAM, −0.072 cycles an instruction. Fallback 64 KB if the deeper tag read is too slow at F0 (the I$ has no path in the first 20 today).
+2. **The D$ to 64 KB by sets, with the synonym check at the fill**: +36 tiles, −0.173 cycles an instruction, the largest gain. The hit path keeps its 4 ways; the new work is in the miss path, where `tb_dmiss2` and the lock-step bench are strong. Fallback 32 KB (+12 tiles) if 4 tiles of output mux hurt the load path.
+3. **The L2 stays at 256 KB** for now: the least per tile, and it has the near-critical path. Revisit when the SoC's own block RAM is known (step 2).
+
+Together: 164.5 tiles for `OOO_CPU` (with LiteX's ~30, about 195 of 365), about +2.7k LUTs (75.8k of the 106.5k budget). CoreMark stays where it is.
+
+**Limits of the measurement**: Spike's cache models block, answer every miss alike and replace at their own policy (the I$ here uses a counter, the D$ a random way); the penalties are estimates; the workload is busybox, not Debian. The comparisons between sizes are sound; the cycles are an upper bound.
+
+**Awaiting the author's choice.** If the I$ and the D$ go ahead: C1 the I$ (`OOO_ICACHE` with `SETS=256`, its unit bench, the core, 20 ns), then C2 the D$ (the arrays, `OOO_LSU4`'s addresses, `OOO_DMISS2`'s synonym check, the benches, 20 ns).
