@@ -13,10 +13,14 @@
 //   F2  the answer (ic_resp_valid, ic_resp_data) from flip-flops
 //
 // A request every cycle while they hit; every request taken is answered, in order
-// (OOO_FETCH2 throws away what it no longer wants). SETS x WAYS lines of 64 bytes
-// (32 KB at 64 x 8): with 64 sets the index stays inside a 4 KB page, so the ITLB
-// (step 1.8) can come without aliases. Tagged by the fetch address (no translation
-// yet). One miss at a time: a burst of 8 beats on AXI4 (m_axi4_ar*, r*), each word
+// (OOO_FETCH2 throws away what it no longer wants). SETS x WAYS lines of 64 bytes:
+// 128 KB at 256 x 8 (step 1.7c C1, Plan/OOC.md 29.64-29.66; 32 KB at 64 x 8 before).
+// Each column of a way is SETS*2 x 64 bits: at 256 sets 512 x 64 in one RAMB36
+// (512 x 72), the same 32 tiles as at 64 sets; the tags' LUT RAM 4 times as deep.
+// The index takes bits 13:12 of the fetch address, beyond a 4 KB page: with the ITLB
+// (step 1.8) a physical line can sit in up to 4 sets. In an I$ that is harmless: no
+// store writes it, and FENCE.I sweeps every set. Tagged by the fetch address (no
+// translation yet). One miss at a time: a burst of 8 beats on AXI4 (m_axi4_ar*, r*), each word
 // written into the arrays as it comes, the line's tag and valid bit at the last beat;
 // the cycle after, the request is looked up again in F0 (rp) and answered as a hit,
 // 3 cycles after the last beat (the answer has one source: answered from the beats,
@@ -27,7 +31,7 @@
 // outside memory waits for the SoC, step 2).
 //
 // The valid bits are in the tags' LUT RAM ({valid, tag} a way and set), so they are
-// cleared by a sweep, one set a cycle (SETS cycles), in which no request is taken:
+// cleared by a sweep, one set a cycle (SETS cycles: 256), in which no request is taken:
 // after the reset, and for FENCE.I (ic_flush until ic_done; no request is taken
 // while ic_flush is up). The sweep waits for a line asked for to be in, so a fill
 // asked before the flush (the D$'s writes not yet in memory) is swept away; ic_done
@@ -41,7 +45,7 @@ module OOO_ICACHE
     #(
         parameter int VA   = 39,
         parameter int PAW  = 40,
-        parameter int SETS = 64,
+        parameter int SETS = 256,
         parameter int WAYS = 8,
         parameter logic [3:0] AXI_ID = 4'd2
     )

@@ -9496,3 +9496,49 @@ To go ahead: C1 the I$ (the smaller risk), then C2 the D$, each to the 20 ns che
 ```text
 The I$ and D$ sizes as proposed are OK. For the L2, I want 512 KB with large user applications in mind; is that possible?
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+**The L2 at 512 KB is possible.** I put it in 29.65 and pushed it as 1c6be3c (Ref 0). The RTL is unchanged so far.
+
+**The gain (measured behind the I$ 128 KB + D$ 64 KB)**
+I added a workload with larger working sets, `init_big` (sort, a large awk table, gzip -9; 12.2 billion instructions), and measured on it and on 29.64's.
+
+| L2 | 29.64's workload: L2 misses | stall / insn | `init_big`: L2 misses | stall / insn |
+|---|---|---|---|---|
+| 256 KB | 0.91 | 0.145 | 0.64 | 0.096 |
+| **512 KB** | 0.68 | 0.135 | 0.49 | 0.089 |
+| 1 MB | 0.58 | 0.131 | 0.38 | 0.085 |
+
+- On both workloads the L2's misses fall by about a quarter.
+- Behind the bigger L1s, though, the L2 sees few accesses, and the gain in time is about 1 %.
+- A program whose working set is between 256 and 512 KB gains more, but these workloads are not such programs. For large user applications, take it as insurance more than a measured gain.
+
+**The check**
+Changing `L2_SIZE` to 512 KB is all it takes. The core's 4 test runs on `OOO_CPU` all PASS. CoreMark's timed window stays at 1,213,068 cycles, 8.244 CoreMark/MHz.
+
+**The cost**
+- +68 block RAM tiles (the data +64, the tags +4).
+- With the I$/D$ changes, `OOO_CPU` at 232.5 tiles; with LiteX about 262 of 365 (72 %), about 100 left.
+- Few LUTs.
+
+**The timing**
+This is the main issue. The L2's path that had +0.659 ns at H4 (the way register → the write enables of 128 tiles) gets longer with twice the tiles.
+- The remedy: the L2's write port registered. The reads do not change, so an L2 hit is no slower.
+- If 20 ns is still not met, the arrays' output register: but that costs +1 cycle on each L2 hit, about as much as 512 KB gains. So only if really needed, keeping the option of staying at 256 KB in the end.
+
+**The plan of step C** (added as STRATEGY 1.7c)
+1. C1: I$ 128 KB
+2. C2: D$ 64 KB
+3. C3: L2 512 KB
+4. C4: the 20 ns check
+
+The Vivado runs can be one for all three, or one after each step to separate the risks.
+<!-- /answer -->
+
+## 238. 2026-11-14 19:50:13 JST
+
+```text
+Start C1
+```

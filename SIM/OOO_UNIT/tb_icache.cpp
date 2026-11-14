@@ -1,5 +1,6 @@
 //---------------------------------------------------------------------------
-// tb_icache.cpp : OOO_ICACHE (64 sets x 8 ways, step 1.7 H1, Plan/OOC.md 29.56)
+// tb_icache.cpp : OOO_ICACHE (256 sets x 8 ways since step 1.7c C1, Plan/OOC.md 29.66;
+// 64 sets at step 1.7 H1, 29.56)
 // against an exact account of what it must do each cycle
 //
 // The requests come as OOO_FETCH2's: now and then, from a pool of lines that
@@ -27,7 +28,7 @@
 
 static std::mt19937_64 rng(29);
 static VOOO_ICACHE d;
-static const int SETS = 64, WAYS = 8;
+static const int SETS = 256, WAYS = 8;
 
 // ---- the memory: 8-byte words, a hash until written
 static std::map<uint64_t, uint64_t> mem;
@@ -46,12 +47,14 @@ int main(int argc, char** argv)
     d.m_axi4_arready = 0; d.m_axi4_rvalid = 0; d.m_axi4_rdata = 0; d.m_axi4_rresp = 0; d.m_axi4_rlast = 0;
     d.eval(); d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
 
-    // the lines (64 bytes): 4 sets, 12 tags each, the hot part 6 of them; and 16 anywhere
+    // the lines (64 bytes): 4 sets, 12 tags each, the hot part 6 of them; and 16 anywhere.
+    // Sets 3, 67 and 195 differ only in the index's top 2 bits (the address's 13:12, new at
+    // 256 sets): an I$ that lost them would mix their lines; 255 the last set (the sweep's end)
     std::vector<uint64_t> pool, hot;
-    int sets4[4] = {3, 17, 40, 63};
+    int sets4[4] = {3, 67, 195, 255};
     for (int s = 0; s < 4; s++)
         for (int t = 0; t < 12; t++) {
-            uint64_t l = ((rng() & ((1ull << 27) - 1)) << 6) | (uint64_t)sets4[s];
+            uint64_t l = ((rng() & ((1ull << 25) - 1)) << 8) | (uint64_t)sets4[s];
             pool.push_back(l); if (t < 6) hot.push_back(l);
         }
     for (int k = 0; k < 16; k++) pool.push_back(rng() & ((1ull << 33) - 1));

@@ -5620,3 +5620,20 @@ The author's choice on 29.64: **the I$ at 128 KB and the D$ at 64 KB as proposed
 - **C2** the D$ 64 KB (the arrays, `OOO_LSU4`'s addresses with VA[13:12], `OOO_DMISS2`'s synonym check, `tb_dmiss2`, the core).
 - **C3** the L2 512 KB (`CPU_L2`'s write port registered and the guard, `SIM/L2`'s bench and mutations, `OOO_CPU`'s `L2_SIZE`, the core).
 - **C4** `OOO_CPU` at 20 ns (the author's Vivado run). One run for all three, or one after each if the author prefers to separate the risks.
+
+### 29.66 Step 1.7c C1: the I$ at 128 KB (2026-11-14)
+
+The author's choice on 29.65: go ahead with step C, C1 first. `OOO_ICACHE` goes from 64 to 256 sets of 8 ways (128 KB).
+
+**What changed**: the parameter only. `OOO_ICACHE` was written for any `SETS`: its index, tags and sweep follow `SW = $clog2(SETS)`. The default is now 256, and `OOO_CPU` names `.SETS(256), .WAYS(8)`. Each column of a way is 512 × 64 bits, one RAMB36 (512 × 72), so the data stays in the same 32 tiles. The tags' LUT RAM is 4 times as deep (256 × 26 bits a way, read at one address and written at another). The header now says why aliases with the ITLB (step 1.8) are harmless in an I$.
+
+**The unit bench** (`tb_icache`, the exact account each cycle): `SETS = 256`, the pool's sets 3, 67, 195 and 255. The first three differ only in the index's top 2 bits (the fetch address's 13:12, new at 256 sets); 255 is the sweep's last set. PASS: 42,930 requests, 12,457 misses, 3,176 evicting, 142 FENCE.I (106 during a fill).
+- **Mutations: 47 of 47 detected** (the 42 of before and M1403-M1407: a request's index without its top 2 bits, a request looked up again without the index's top bit, a fill's words or tag written without them, the sweep ending at 64 sets).
+
+**The core**: `run_core` PASS (12 runs) and `run_coremark` PASS.
+- **CoreMark unchanged to the cycle** (g14-o2 with the board's memory: 1,260,547 cycles, timed window 1,213,068, 8.244 CoreMark/MHz; the I$ misses the same 147). CoreMark's 61 code lines fit either way, and the I$'s reset sweep (256 cycles) hides behind the L2's (1,024).
+- **FENCE.I costs about 190 cycles more**: its sweep is 256 cycles instead of 64. That is the change in `results/core.txt` (207 runs on `OOO_CPU`, +1.7 % cycles in sum): the arch tests +430 cycles each (their FENCE.Is), `Zifencei-fence.i` +1,133, `dcrace` +5,161 (FENCE.I in a loop). The random b2 programs are up to 98 cycles faster (fewer conflicts). Linux runs FENCE.I when it loads code, rarely against the work; if it ever matters, the sweep can clear 2 sets a cycle with the tags in two LUT RAMs.
+
+**The 20 ns check** is the author's Vivado run (`synth_ooo.bat OOO_CPU`). Expected: the same 124.5 + 4 block RAM tiles (128.5), about +1.5k LUTs (the tags' LUT RAM, 256 deep with a read port and a write port). The risk is F0's path: the request's address → the tags' LUT RAM (now 256 deep, 2 levels of mux more) → the compare → each way's block RAM output reset. At H4 and W3 the I$ had no path in the first 20 (W3: none in the first 100, slack > 0.979 ns). If it fails, the fallback is 128 sets (64 KB, 29.64).
+
+**Next**: C2 the D$ at 64 KB, or the Vivado run first, as the author chooses.

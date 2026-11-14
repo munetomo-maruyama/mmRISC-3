@@ -190,7 +190,7 @@ module OOO_CPU
          .m_axil_arready(m_axil_arready), .m_axil_rdata(m_axil_rdata), .m_axil_rresp(m_axil_rresp),
          .m_axil_rvalid(m_axil_rvalid), .m_axil_rready(m_axil_rready));
 
-    OOO_ICACHE #(.VA(VA), .PAW(PAW), .AXI_ID(4'd2)) u_icache
+    OOO_ICACHE #(.VA(VA), .PAW(PAW), .SETS(256), .WAYS(8), .AXI_ID(4'd2)) u_icache
         (.clk(clk), .rst_n(rst_n),
          .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ready(ic_req_ready),
          .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data), .ic_flush(ic_flush), .ic_done(ic_done),

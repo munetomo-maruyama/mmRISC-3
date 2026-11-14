@@ -1272,6 +1272,12 @@ M = [
     ('M1327', 'OOO_ICACHE/OOO_ICACHE.sv', 'icache', 'assign vs0[w]  = tv[w][TW];', "assign vs0[w]  = 1'b1;", 'no way seen free'),
     ('M1328', 'OOO_ICACHE/OOO_ICACHE.sv', 'icache', "assign t_wd = cl ? '0 : {!m_err && m_axi4_rresp == 2'b00, m_line[VA-1:6+SW]};", "assign t_wd = cl ? '0 : {1'b1, m_line[VA-1:6+SW]};", 'a fill with an error answer left valid'),
     ('M1329', 'OOO_ICACHE/OOO_ICACHE.sv', 'icache', "assign t_wd = cl ? '0 : {!m_err && m_axi4_rresp == 2'b00, m_line[VA-1:6+SW]};", "assign t_wd = cl ? '0 : {!m_err, m_line[VA-1:6+SW]};", "the last beat's error answer not seen"),
+    # step 1.7c C1 (Plan/OOC.md 29.66): 256 sets, the index's top 2 bits (the address's 13:12)
+    ('M1403', 'OOO_ICACHE/OOO_ICACHE.sv', 'icache', 'assign idx0 = rp ? m_line[6+SW-1:6]  : ic_req_pc[6+SW-1:6];', "assign idx0 = rp ? m_line[6+SW-1:6]  : {2'b0, ic_req_pc[6+SW-3:6]};", "a request's index without its top 2 bits"),
+    ('M1404', 'OOO_ICACHE/OOO_ICACHE.sv', 'icache', 'assign idx0 = rp ? m_line[6+SW-1:6]  : ic_req_pc[6+SW-1:6];', "assign idx0 = rp ? {1'b0, m_line[6+SW-2:6]}  : ic_req_pc[6+SW-1:6];", "a request looked up again without the index's top bit"),
+    ('M1405', 'OOO_ICACHE/OOO_ICACHE.sv', 'icache', 'dat[{m_line[6+SW-1:6], beat[2]}] <= m_axi4_rdata;', "dat[{2'b0, m_line[6+SW-3:6], beat[2]}] <= m_axi4_rdata;", "a fill's words written without the index's top 2 bits"),
+    ('M1406', 'OOO_ICACHE/OOO_ICACHE.sv', 'icache', "assign t_wa = cl ? fc : m_line[6+SW-1:6];", "assign t_wa = cl ? fc : {1'b0, m_line[6+SW-2:6]};", "a fill's tag written without the index's top bit"),
+    ('M1407', 'OOO_ICACHE/OOO_ICACHE.sv', 'icache', "if (fc == SW'(SETS - 1)) begin", "if (fc == SW'(63)) begin", 'the sweep ends at 64 sets (as before C1)'),
     ('M1330', 'OOO_ICACHE/OOO_ICACHE.sv', 'icache', "assign t_wd = cl ? '0 : {!m_err && m_axi4_rresp == 2'b00, m_line[VA-1:6+SW]};", "assign t_wd = cl ? '0 : {!m_err && m_axi4_rresp == 2'b00, tag0};", 'a fill writes the tag at F0, not its own'),
     ('M1331', 'OOO_ICACHE/OOO_ICACHE.sv', 'icache', 'assign t_wa = cl ? fc : m_line[6+SW-1:6];', 'assign t_wa = cl ? fc : idx0;', 'a fill writes its tag into the set at F0'),
     ('M1332', 'OOO_ICACHE/OOO_ICACHE.sv', 'icache', 'assign t_we = cl || fill_end;', 'assign t_we = fill_end;', "no sweep: the reset's and FENCE.I's"),
