@@ -6,7 +6,7 @@
 // arrays (with the victim's copy); OOO_DMISS2, the D$'s miss handler; OOO_ICACHE, the I$
 // on OOO_FETCH2's port (FENCE.I's invalidate from OOO_SYS); OOO_MARB, which puts the
 // I$'s fills and OOO_DMISS2's fills and line writes on one AXI4; and CPU_L2 (mmRISC-2's,
-// 256 KB, write back) behind it. The ports: the L2's memory bus (AXI4) and the D$'s
+// 512 KB since step 1.7c C3, write back) behind it. The ports: the L2's memory bus (AXI4) and the D$'s
 // peripheral bus (AXI4-Lite: what is not cacheable). The D$ is written back, into the
 // L2; FENCE.I's FLUSH of the D$ (OOO_SYS) goes to OOO_DMISS2, which writes every dirty
 // line out and waits for the last answer (from the L2, which keeps it in order with the
@@ -14,7 +14,9 @@
 //
 // The caches' sizes (step 1.7c, Plan/OOC.md 29.64-29.68): the I$ 128 KB (256 sets x 8
 // ways, C1), the D$ 64 KB (256 sets x 4 ways, the set from the virtual 13:6, C2; vx, the
-// virtual 13:12, goes with each miss to OOO_DMISS2, which keeps a line in one set).
+// virtual 13:12, goes with each miss to OOO_DMISS2, which keeps a line in one set), the
+// L2 512 KB (2,048 sets x 4 ways, C3, Plan/OOC.md 29.70; its data array's write port
+// registered).
 //
 // Simulation (DCACHE_SIM_UC): sim_uc_line names one line not cached (OOO_LSU3's
 // uc_line): the test bench's tohost, which HTIF must see in the memory and set back to
@@ -27,7 +29,7 @@ module OOO_CPU
     #(
         parameter int VA      = 39,
         parameter int PAW     = 40,
-        parameter int L2_SIZE = 256 * 1024
+        parameter int L2_SIZE = 512 * 1024
     )
     (
         input  logic                        clk,

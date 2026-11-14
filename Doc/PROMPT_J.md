@@ -9810,3 +9810,40 @@ OOO_CPU実行した。C2に進もう。
 ```text
 I ran Vivado
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+C2(D$ 64 KB)は1回の実行で20 nsを満たしました。これで手順C2は完了です。結果をPlan/OOC(_J)の29.69とSTRATEGYの1.7cの行に書き、5987622としてコミットとpushをしました。Refはpushされていません(0件)。
+
+| | C1 | C2 |
+|---|---|---|
+| WNS / ホールド | +0.254 / +0.014 ns | **+0.639 / +0.028 ns** |
+| LUT(配置配線後) | 74,205 | 74,809(+604) |
+| `OOO_DMISS2` | 949 LUT(FF 654) | 1,485 LUT(FF 416) |
+| ブロックRAMタイル | 128.5 | **164.5**(+36) |
+
+- **ブロックRAM**は予想どおり+36タイルでした。
+- **LUT**は+604で、見積もりの約+1kより少なく済みました。
+  - `OOO_DMISS2`が+536増えました。タグを4バンクにしたことと、ダーティビットをLUT RAMに移したことによるものです。その代わりFFは238個減りました。
+  - `OOO_LSU4`の−357は合成のばらつきです。
+- **最悪パスはキャッシュのものではありません。**
+  - 1番目は予測を外した分岐の復帰で、`OOO_PMUL`のROB番号からROBのキルを通り、トラップの窓に入るパスです(+0.639 ns)。
+  - 同じ始点から`OOO_DMISS2`のキューのイネーブルに入るパスもあります(+0.752 ns)。どちらもC2の前からある論理で、配置が遠くなっただけです。
+  - 心配していた「4タイルの配列から読むロードのパス」は上位20に入っていません。
+- WNSがC1より良くなったのは配置配線のばらつきです。意図して直したところはありません。
+
+次はC3で、L2を512 KBにします。`OOO_CPU`で232.5タイル、LiteX込みで365タイル中の約262タイルになる見込みです。29.65の計画どおり、書き込みポートはレジスタで受けます。
+<!-- /answer -->
+
+## 241. 2026-11-14 23:35:00 JST
+
+```text
+Start C3
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+All 51 L2 mutations are caught: 50 in the full run, plus L48 rerun on its own after a g++ crash under load. Only the core mutation campaign is still running. When it finishes, I'll check every NOT line and look for any build crash.
+<!-- /answer -->

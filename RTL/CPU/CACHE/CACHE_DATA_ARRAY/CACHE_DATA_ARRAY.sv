@@ -1,7 +1,12 @@
 //---------------------------------------------------------------------------
 // CACHE_DATA_ARRAY.sv
 //
-// (mmRISC-3: taken from mmRISC-2 Rev.02 without change, RTL/CPU/CACHE/README.md)
+// (mmRISC-3: taken from mmRISC-2 Rev.02, RTL/CPU/CACHE/README.md. One change,
+// step 1.7c C3, Plan/OOC.md 29.70: WR_REG = 1 registers the write port -- the
+// address, the data, the strobes and one enable a way -- so that each way's
+// block RAMs are written from flip-flops, one route away; a write lands one
+// cycle after wr_en. CPU_L2 at 512 KB takes it (its 128 tiles spread far);
+// WR_REG = 0, the default, is the module as it was.)
 //
 // Data storage of a set-associative L1 cache.
 //
@@ -22,6 +27,7 @@ module CACHE_DATA_ARRAY
         parameter int SETS        = 64,
         parameter int WAYS        = 4,
         parameter int BLOCK_BYTES = 64,
+        parameter bit WR_REG      = 1'b0,   // 1: the write port registered
         // derived; do not override
         parameter int ADDR_BITS   = $clog2(SETS * BLOCK_BYTES / 8),
         parameter int WAY_BITS    = (WAYS > 1) ? $clog2(WAYS) : 1
@@ -53,6 +59,34 @@ module CACHE_DATA_ARRAY
     // arrays end up in flip flops - 2 x 4 x 512 x 64 bit does not fit into
     // an Artix-7 100T (the 2026-09-20 build failed with DRC UTLZ-1).
     //-----------------------------------------------------------------
+    // the write port as the arrays see it: as it comes (WR_REG = 0), or a
+    // cycle later from flip-flops (WR_REG = 1), each way with its own enable
+    logic [WAYS-1:0]      w_en;
+    logic [ADDR_BITS-1:0] w_addr;
+    logic [63:0]          w_data;
+    logic [7:0]           w_strb;
+    generate
+        if (WR_REG) begin : g_wreg
+            initial begin
+                w_en = '0; w_addr = '0; w_data = '0; w_strb = '0;
+            end
+            always_ff @(posedge clk) begin
+                for (int w = 0; w < WAYS; w++)
+                    w_en[w] <= wr_en && (int'(wr_way) == w);
+                w_addr <= wr_addr;
+                w_data <= wr_data;
+                w_strb <= wr_strb;
+            end
+        end else begin : g_wdir
+            always_comb
+                for (int w = 0; w < WAYS; w++)
+                    w_en[w] = wr_en && (int'(wr_way) == w);
+            assign w_addr = wr_addr;
+            assign w_data = wr_data;
+            assign w_strb = wr_strb;
+        end
+    endgenerate
+
     genvar gw;
     generate
         for (gw = 0; gw < WAYS; gw++) begin : g_way
@@ -67,10 +101,9 @@ module CACHE_DATA_ARRAY
 
             // write port : byte enables, one way selected
             always_ff @(posedge clk) begin
-                for (int b = 0; b < 8; b++) begin
-                    if (wr_en && wr_strb[b] && (int'(wr_way) == gw))
-                        mem[wr_addr][8*b +: 8] <= wr_data[8*b +: 8];
-                end
+                if (w_en[gw])
+                    for (int b = 0; b < 8; b++)
+                        if (w_strb[b]) mem[w_addr][8*b +: 8] <= w_data[8*b +: 8];
             end
 
             // read port

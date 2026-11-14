@@ -7,7 +7,10 @@
 // Plan/OOC.md 29.57. One change: a part write that hits is written into the
 // line, which becomes dirty, and answered without memory, as a line write is:
 // mmRISC-3's D$ is written through (Plan/OOC.md 29.34), so every store comes here
-// as a part write; passed through, each would wait for memory's answer.)
+// as a part write; passed through, each would wait for memory's answer.
+// Step 1.7c C3, Plan/OOC.md 29.70: OOO_CPU takes it at 512 KB, and the data
+// array's write port is registered (CACHE_DATA_ARRAY's WR_REG): a write lands a
+// cycle later, see "accepting a transaction".)
 //
 //   SIZE_BYTES, WAYS, 64 byte lines, write back, non-inclusive.
 //
@@ -193,7 +196,7 @@ module CPU_L2
     logic [63:0]         d_wr_data;
     logic [7:0]          d_wr_strb;
 
-    CACHE_DATA_ARRAY #(.SETS(SETS), .WAYS(WAYS), .BLOCK_BYTES(64)) u_dat
+    CACHE_DATA_ARRAY #(.SETS(SETS), .WAYS(WAYS), .BLOCK_BYTES(64), .WR_REG(1'b1)) u_dat
         (
             .clk     (clk),
             .rd_en   (d_rd_en),   .rd_addr (d_rd_addr), .rd_data (d_rd_data),
@@ -293,12 +296,22 @@ module CPU_L2
     //-----------------------------------------------------------------
     logic acc_ar, acc_aw;
     // a read only when no beat of the last one is still waiting (M_CMP
-    // pushes its first beat without asking)
+    // pushes its first beat without asking), and not while the data array's
+    // write register holds a write: that write lands at the end of this cycle,
+    // and the read of this cycle would see the word as it was. Only a fill's
+    // last beat leaves one held in M_IDLE (a line or part write goes on
+    // through M_BRESP), and then only a read that did not ask for the last
+    // word is not still in the R FIFO: one cycle more for such a read.
+    logic wr_held;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) wr_held <= 1'b0;
+        else        wr_held <= d_wr_en;
+    end
     always_comb begin
         acc_ar = 1'b0;
         acc_aw = 1'b0;
         if (st == M_IDLE) begin
-            if (s_axi4_arvalid && (f_cnt == 3'd0) && !(s_axi4_awvalid && rr_aw))
+            if (s_axi4_arvalid && (f_cnt == 3'd0) && !wr_held && !(s_axi4_awvalid && rr_aw))
                 acc_ar = 1'b1;
             else if (s_axi4_awvalid)
                 acc_aw = 1'b1;

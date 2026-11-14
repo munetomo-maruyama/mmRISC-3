@@ -5712,3 +5712,24 @@ The author's Vivado run of `OOO_CPU` with the D$ at 64 KB (`synth_ooo.bat OOO_CP
 - **The load path out of the 4-tile arrays**, the risk named in 29.68, is not in the first 20: `OOO_LSU4`'s worst into its flip-flops is +1.723 ns, out +1.151 ns.
 
 **Step C2 is done.** Next C3, the L2 at 512 KB (+68 tiles, 232.5 in `OOO_CPU`; about 262 of 365 with LiteX), with its write port registered as 29.65 planned.
+
+### 29.70 Step 1.7c C3: the L2 at 512 KB, its write port registered (2026-11-14)
+
+The author's go on 29.69. `OOO_CPU`'s L2 goes from 256 KB to 512 KB (2,048 sets of 4 ways), as 29.65 planned.
+
+**What changed**
+- `OOO_CPU`: `L2_SIZE` 512 KB by default (`CPU_L2` was written for any size: its index, tags and reset walk follow `SETS`).
+- `CACHE_DATA_ARRAY`: a parameter `WR_REG`. At 1 the write port is registered: the address, the data, the strobes and one enable a way go through flip-flops, and each way's block RAMs are written from them, one route away (H4's L2 path was the way register → a LUT → the tiles' enables, 18 ns of route). A write lands a cycle after `wr_en`. At 0, the default, the module is as it was (`DCACHE` keeps it).
+- `CPU_L2`: takes `WR_REG = 1`. The one hazard is a read in the cycle the held write lands: the read would see the word as it was. Only a fill's last beat leaves a write held in `M_IDLE` (a line or part write goes on through `M_BRESP`), and then the R FIFO is still holding the read's last beat unless that read stopped before word 7. So a new flag `wr_held` (the last cycle's `d_wr_en`) keeps an AR waiting one cycle. The I$ and the D$ always read whole lines from word 0, so in `OOO_CPU` this never costs a cycle; it is there for any burst inside a line that the L2's specification allows.
+- `build_core.sh` builds `OOO_CPU` with `L2KB=512` by default; `tb_L2`'s design configuration (`big`) is 512 KB.
+
+**The L2's bench** (`SIM/L2`, `run.sh`): a new directed step: a short read that misses (word 0, or words 0 to 3) and, on the other port, a read of the same line's word 7 waiting behind it. It is taken when the fill ends, while the fill's last word is still in the write register; it must wait a cycle and see that word, and the bench counts that it did wait (`n_held`). Lines of sets 10 and 11 (a first try in sets 26 and 27 left a clean line in a set that `held_eviction` needs empty, which under random replacement made it wait forever on its own held memory: the bench's, not the L2's).
+- **PASS in all 6 configurations** (512 KB 4 ways, 8 KB, 8 KB random, 4 KB direct mapped, 16 KB 8 ways, another seed).
+- **Mutations: 51 of 51 detected** (the 46 of before and L47-L51: the guard dropped, `wr_held` never set, a registered write into every way, with every byte, into the next word). L47 and L48 were first NOT DETECTED: no random read ever came in that one cycle. The directed step catches both. In the full run L48 was NOT APPLIED once (g++ crashed building it, with the core's campaign running beside); run again alone it is DETECTED.
+
+**The core**: `run_core` PASS (12 runs), `run_coremark` PASS.
+- **CoreMark's timed window unchanged** (g14-o2 with the board's memory: 1,213,068 cycles, 8.244 CoreMark/MHz). The total is 917 cycles more (1,261,464): the reset's walk of 2,048 sets instead of 1,024.
+- Every `OOO_CPU` run of `results/core.txt` (470) takes 618 to 2,516 cycles more, most about 1,000: the same walk before the first fetch. Small programs fit either L2.
+- **Core mutations: 138 of 146 detected (the same 8 undetected as before: 71, 90, 101-103, and 109, 113, 115 behind the L2)** (with `L2KB=4`, as before: most accesses miss the L2).
+
+**The 20 ns check** is the author's Vivado run (`synth_ooo.bat OOO_CPU`). Expected: block RAM 164.5 → **232.5 tiles** (the data 64 → 128, the tags 4 → 8); LUTs about +100 (the pseudo-LRU's LUT RAM 2,048 × 3), flip-flops about +90 (the write register). The risk is the read side: the address to 128 tiles and the data back through the depth mux into the R FIFO. If it fails, the next step is the arrays' output register (+1 cycle on each L2 hit, about 0.007 cycles an instruction), and the fallback is 256 KB.

@@ -9601,3 +9601,34 @@ The core mutation campaign has finished. With it, C2 (the D$ at 64 KB) is fully 
 ```text
 I ran Vivado
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+C2 (the D$ at 64 KB) met 20 ns in one run, so step C2 is done. I wrote the result into 29.69 of Plan/OOC(_J) and row 1.7c of STRATEGY, and committed and pushed it as 5987622. Ref was not pushed (0 files).
+
+| | C1 | C2 |
+|---|---|---|
+| WNS / hold | +0.254 / +0.014 ns | **+0.639 / +0.028 ns** |
+| LUTs (after place and route) | 74,205 | 74,809 (+604) |
+| `OOO_DMISS2` | 949 LUTs (654 FF) | 1,485 LUTs (416 FF) |
+| Block RAM tiles | 128.5 | **164.5** (+36) |
+
+- **The block RAM** is +36 tiles, as expected.
+- **The LUTs** are +604, fewer than the estimate of about +1k.
+  - `OOO_DMISS2` grew by 536: the tags in 4 banks and the dirty bits moved into LUT RAM. Its flip-flops went down by 238 in exchange.
+  - `OOO_LSU4`'s −357 is synthesis's spread.
+- **The worst paths are not the caches'.**
+  - The first is a mispredicted branch's restore: from `OOO_PMUL`'s ROB index through the ROB's kill into the trap's window (+0.639 ns).
+  - From the same start there is also a path into `OOO_DMISS2`'s queue enables (+0.752 ns). Both are logic that was there before C2, only placed farther.
+  - The worry, "the load path reading the 4-tile arrays", is not in the first 20.
+- The WNS better than C1's is place and route's spread. Nothing was fixed on purpose.
+
+Next is C3: the L2 at 512 KB. Expected 232.5 tiles in `OOO_CPU`, about 262 of 365 with LiteX. As planned in 29.65, the write port is registered.
+<!-- /answer -->
+
+## 241. 2026-11-14 23:35:00 JST
+
+```text
+Start C3
+```

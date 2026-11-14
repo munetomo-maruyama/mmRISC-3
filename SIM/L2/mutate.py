@@ -24,6 +24,7 @@ CACHE = os.path.abspath(os.path.join(HERE, '..', '..', 'RTL', 'CPU', 'CACHE'))
 OOO = os.path.abspath(os.path.join(HERE, '..', '..', 'RTL', 'CPU', 'OOO'))
 L2 = 'L2:CPU_L2/CPU_L2.sv'
 AR = 'OOO:OOO_MARB/OOO_MARB.sv'
+DA = 'L2:CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv'
 
 M = [
     # id, file, old, new, what it breaks
@@ -75,6 +76,12 @@ M = [
     ('L44', AR, "else                            sel = d_arvalid;", "else                            sel = i_arvalid;", "the D$'s port alone never chosen"),
     ('L45', AR, "assign m_wstrb   = d_wstrb;", "assign m_wstrb   = '1;", 'every write with all its strobes'),
     ('L46', AR, "assign m_arlen   = sel ? d_arlen   : i_arlen;", "assign m_arlen   = sel ? d_arlen   : d_arlen;", "the I$'s AR with the D$'s length"),
+    # the data array's write port registered (step 1.7c C3)
+    ('L47', L2, "(f_cnt == 3'd0) && !wr_held && ", "(f_cnt == 3'd0) && ", "a read taken while the fill's last word is still in the write register"),
+    ('L48', L2, "else        wr_held <= d_wr_en;", "else        wr_held <= 1'b0;", 'the write register never seen as holding a write'),
+    ('L49', DA, "w_en[w] <= wr_en && (int'(wr_way) == w);", "w_en[w] <= wr_en;", 'a registered write goes into every way'),
+    ('L50', DA, "w_strb <= wr_strb;", "w_strb <= '1;", 'a registered write writes every byte'),
+    ('L51', DA, "w_addr <= wr_addr;", "w_addr <= wr_addr ^ 1'b1;", 'a registered write into the next word'),
 ]
 
 

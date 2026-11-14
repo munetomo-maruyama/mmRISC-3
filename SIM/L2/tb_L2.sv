@@ -20,7 +20,9 @@
 //     write out); part writes: one to a dirty line and one to a clean line
 //     stay in the L2 (no memory write; the clean line written out when it
 //     is evicted), one that misses goes to memory only; short reads inside
-//     a line. Each step checks the
+//     a line, and a read waiting behind a short read's fill for the line's
+//     last word, still in the data array's write register (step 1.7c C3).
+//     Each step checks the
 //     number of memory reads and writes and the PMU pulses it causes.
 //   2 random, three threads at once (reads on each port; line writes and part writes) on
 //     lines that are hot, conflict in a few sets, or are anywhere; a line
@@ -40,7 +42,7 @@
 
 module tb_L2;
 
-    parameter int L2_SIZE   = 256 * 1024;
+    parameter int L2_SIZE   = 512 * 1024;
     parameter int L2_WAYS   = 4;
     parameter int L2_RANDOM = 0;
     parameter int RANGE_X   = 4;
@@ -514,6 +516,9 @@ module tb_L2;
     // the run
     //-----------------------------------------------------------------
     int r0, a0, w0, m0;
+    // cycles a read waited at the L2's M_IDLE for its data array's write register
+    int n_held = 0;
+    always @(posedge clk) if (int'(u_dut.st) == ST_IDLE && u_dut.wr_held && s_arvalid) n_held++;
     int lA, lB;
 
     initial begin
@@ -617,6 +622,20 @@ module tb_L2;
         do_read(lA, 5, 0, 3);
         do_read(lA, 2, 3, 3);
         do_read(lA + 1, 6, 1, 2);
+        // a short read that misses, and a read of the line's last word waiting
+        // behind it on the other port: taken when the fill ends, while the
+        // fill's last word is still in the data array's write register (step
+        // 1.7c C3): it must wait a cycle and see that word. (Lines of sets 10
+        // and 11, which no other directed step uses: held_eviction needs its
+        // sets empty when the replacement is random)
+        for (int k = 0; k < 2; k++) begin
+            int h0 = n_held;
+            fork
+                do_read(LINES / 2 + 10 + k, 0, 3 * k, 3);
+                begin repeat (3) @(negedge clk); do_read(LINES / 2 + 10 + k, 7, 0, 2); end
+            join
+            check(n_held > h0, "a read waiting while the fill's last word is held: not seen");
+        end
         // a part write to a line that is not in the L2: memory only, its bytes there at B
         a0 = n_mar; w0 = n_maw;
         do_write(lA + 11, 0, 7, 8'h80, 1, 0);
