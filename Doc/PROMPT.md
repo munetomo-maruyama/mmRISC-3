@@ -9542,3 +9542,32 @@ The Vivado runs can be one for all three, or one after each step to separate the
 ```text
 Start C1
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+C1 (the I$ at 128 KB) is done. I put it in 29.66 and pushed it as 46c47fc (Ref 0). Whether it fits 20 ns is not yet checked.
+
+**What changed**
+- `OOO_ICACHE` was written to work at any `SETS`, so only its default changed, to 256. `OOO_CPU` names `.SETS(256), .WAYS(8)`.
+- The data block RAM stays in the same 32 tiles: each column is 512 × 64 bits, one RAMB36.
+- The tags' LUT RAM is 4 times as deep.
+
+**The checks**
+- `tb_icache` PASS. At 256 sets it uses sets 3, 67 and 195, which differ only in the index's top 2 bits (the address's 13:12), and checks that they do not mix.
+- All 47 mutations detected. The 5 new ones (M1403-M1407) are the new index bits dropped and the sweep ending at 64 sets. I checked there is no NOT line.
+- `run_core` (12 runs) and `run_coremark` PASS.
+
+**Performance**
+- CoreMark unchanged to the cycle (8.244 CoreMark/MHz). Its code is 61 lines and fits either size.
+- FENCE.I costs about 190 cycles more each: its sweep goes from 64 to 256 cycles. So the arch tests take +430 cycles each and `dcrace` +5,161. In Linux FENCE.I is rare, so I see no problem; if needed, the sweep can clear 2 sets a cycle.
+
+**The 20 ns check**
+Please run Vivado. I expect the block RAM to stay at 128.5 tiles and the LUTs about +1.5k. The risk is F0's path (the deeper tag LUT RAM → the compare → the block RAMs' output reset). At W3 the I$ had no path in the first 100. If it fails, down to 64 KB.
+<!-- /answer -->
+
+## 239. 2026-11-14 20:43:44 JST
+
+```text
+I ran OOO_CPU. Let's go on to C2.
+```

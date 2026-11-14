@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Sat Nov 14 12:57:47 2026
+| Date         : Sat Nov 14 20:20:11 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file ./output/OOO_CPU/utilization_synth.rpt
 | Design       : OOO_CPU
@@ -22,7 +22,7 @@ Table of Contents
 +--------------------+------------------------------+------------+------------+---------+------+-------+--------+--------+------------+
 |      Instance      |            Module            | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs  | RAMB36 | RAMB18 | DSP Blocks |
 +--------------------+------------------------------+------------+------------+---------+------+-------+--------+--------+------------+
-| OOO_CPU            |                        (top) |      74186 |      62066 |   12116 |    4 | 19144 |    119 |     19 |         26 |
+| OOO_CPU            |                        (top) |      75337 |      62369 |   12964 |    4 | 19150 |    119 |     19 |         26 |
 |   (OOO_CPU)        |                        (top) |          0 |          0 |       0 |    0 |     4 |      0 |      0 |          0 |
 |   u_core           |                     OOO_CORE |      68909 |      57349 |   11556 |    4 | 17158 |     19 |     19 |         26 |
 |     (u_core)       |                     OOO_CORE |         34 |          2 |      32 |    0 |  3018 |      0 |      0 |          0 |
@@ -74,7 +74,7 @@ Table of Contents
 |     u_sys          |                      OOO_SYS |        146 |        146 |       0 |    0 |    19 |      0 |      0 |          0 |
 |     u_trap         |                     OOO_TRAP |         16 |         16 |       0 |    0 |    76 |      0 |      0 |          0 |
 |   u_dmiss          |                   OOO_DMISS2 |        989 |        781 |     208 |    0 |   654 |      0 |      0 |          0 |
-|   u_icache         |                   OOO_ICACHE |       3143 |       2839 |     304 |    0 |   370 |     32 |      0 |          0 |
+|   u_icache         |                   OOO_ICACHE |       4293 |       3141 |    1152 |    0 |   376 |     32 |      0 |          0 |
 |   u_l2             |                       CPU_L2 |       1145 |       1097 |      48 |    0 |   955 |     68 |      0 |          0 |
 |     (u_l2)         |                       CPU_L2 |        545 |        497 |      48 |    0 |   955 |      0 |      0 |          0 |
 |     u_dat          |             CACHE_DATA_ARRAY |        401 |        401 |       0 |    0 |     0 |     64 |      0 |          0 |

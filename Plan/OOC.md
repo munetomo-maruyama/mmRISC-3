@@ -5637,3 +5637,20 @@ The author's choice on 29.65: go ahead with step C, C1 first. `OOO_ICACHE` goes 
 **The 20 ns check** is the author's Vivado run (`synth_ooo.bat OOO_CPU`). Expected: the same 124.5 + 4 block RAM tiles (128.5), about +1.5k LUTs (the tags' LUT RAM, 256 deep with a read port and a write port). The risk is F0's path: the request's address → the tags' LUT RAM (now 256 deep, 2 levels of mux more) → the compare → each way's block RAM output reset. At H4 and W3 the I$ had no path in the first 20 (W3: none in the first 100, slack > 0.979 ns). If it fails, the fallback is 128 sets (64 KB, 29.64).
 
 **Next**: C2 the D$ at 64 KB, or the Vivado run first, as the author chooses.
+
+### 29.67 Step 1.7c C1 at 20 ns (2026-11-14)
+
+The author's Vivado run of `OOO_CPU` with the I$ at 128 KB (`synth_ooo.bat OOO_CPU`, reports in `FPGA/OOO_OOC/output/OOO_CPU`):
+
+| | W3 (29.63) | C1 |
+|---|---|---|
+| WNS / hold | +0.511 / +0.028 ns | **+0.254 / +0.014 ns** |
+| LUTs (after place and route) | 73,094 | 74,205 (+1,111) |
+| `OOO_ICACHE` | 3,082 (304 LUT RAM), 370 FF | 4,194 (1,152 LUT RAM), 376 FF |
+| Block RAM tiles | 128.5 | 128.5 |
+
+- **20 ns met** in one run. The block RAM is unchanged, as planned; the LUTs +1,111 against the estimate of +1.5k (the tags' LUT RAM +848).
+- **The worst paths** are now the front end's: from the I$'s answer register (`ic_resp_data`, flip-flops) through the predecode and the micro-BTB into the fetch buffer and `OOO_UBTB2`'s PC (20 to 21 levels, +0.254 ns). This is the same F2 logic that was W3's front-end path (+0.872 ns from `u_fdec/c_v_reg`). Its route grew with the I$ (14.7 ns of 19.2 ns). It is the place to watch when C2 and C3 add block RAM. The ROB's path follows (+0.416 ns).
+- F0 (the deeper tags → the compare → the output reset), the risk named in 29.66, has no path in the first 20.
+
+**Step C1 is done.** Next C2, the D$ at 64 KB.
