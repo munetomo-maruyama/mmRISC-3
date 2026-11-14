@@ -1,0 +1,17 @@
+#!/bin/busybox sh
+/bin/busybox --install -s /bin
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev
+for r in 1 2; do
+echo "== big $r"
+awk 'BEGIN { srand(7); for (i = 0; i < 120000; i++) print int(rand() * 10000000) }' > /tmp/n.txt
+sort -n /tmp/n.txt | md5sum
+awk '{ c[$1 % 100000]++ } END { n = 0; for (k in c) n++; print n }' /tmp/n.txt
+gzip -9 -c /tmp/n.txt | wc -c
+gzip -9 -c /bin/busybox | wc -c
+sort -u /tmp/n.txt | wc -l
+: > /tmp/n.txt
+done
+echo "== end"
+poweroff -f

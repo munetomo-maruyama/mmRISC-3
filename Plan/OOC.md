@@ -5587,3 +5587,36 @@ Together: 164.5 tiles for `OOO_CPU` (with LiteX's ~30, about 195 of 365), about 
 **Limits of the measurement**: Spike's cache models block, answer every miss alike and replace at their own policy (the I$ here uses a counter, the D$ a random way); the penalties are estimates; the workload is busybox, not Debian. The comparisons between sizes are sound; the cycles are an upper bound.
 
 **Awaiting the author's choice.** If the I$ and the D$ go ahead: C1 the I$ (`OOO_ICACHE` with `SETS=256`, its unit bench, the core, 20 ns), then C2 the D$ (the arrays, `OOO_LSU4`'s addresses, `OOO_DMISS2`'s synonym check, the benches, 20 ns).
+
+### 29.65 The L2 at 512 KB: possible; measured behind the chosen L1s (2026-11-14)
+
+The author's choice on 29.64: **the I$ at 128 KB and the D$ at 64 KB as proposed**, and the question whether the L2 can be **512 KB**, for large user programs. The answer is **yes**. The RTL is unchanged so far.
+
+**Measured behind the chosen L1s** (`Plan/csize`, `SETS=C3` and `C4`; misses per 1,000 instructions; stall as in 29.64, an upper bound). Two workloads: 29.64's (5.1 billion instructions) and a new `init_big` with larger working sets (2 rounds of `sort -n`, an awk table of 100,000 keys and `gzip -9` over 120,000 numbers, `gzip -9` of busybox, `sort -u`: 12.2 billion instructions):
+
+| L1s; L2 | 29.64's workload: L2 misses | stall / insn | `init_big`: L2 misses | stall / insn |
+|---|---|---|---|---|
+| today's L1s; 256 KB | 1.23 | 0.389 | 0.73 | 0.201 |
+| I$ 128 KB + D$ 64 KB; **256 KB** | 0.91 | 0.145 | 0.64 | 0.096 |
+| I$ 128 KB + D$ 64 KB; **512 KB** | 0.68 | 0.135 | 0.49 | 0.089 |
+| I$ 128 KB + D$ 64 KB; 1 MB | 0.58 | 0.131 | 0.38 | 0.085 |
+
+- 512 KB takes **a quarter of the L2's misses** away on both workloads (−25 %, −23 %): −0.010 and −0.007 cycles an instruction, about 1 % of the time. Behind the bigger L1s the L2 sees fewer accesses, so its share is small on these workloads.
+- A program whose working set lies between 256 KB and 512 KB gains more; busybox's tools mostly do not have one. Neither workload is a large user program; for such programs the 512 KB L2 is insurance more than a measured gain.
+
+**The core with a 512 KB L2** (`L2KB=512 ./build_core.sh cpu`, no RTL change: `OOO_CPU`'s `L2_SIZE`): run_core's 4 runs on `OOO_CPU` PASS (b2, b3, b4 with dcrace, rv64 -p-); CoreMark g14-o2 with the board's memory PASS, the timed window the same 1,213,068 cycles (8.244 CoreMark/MHz), the total 917 cycles more for the reset's walk of 2,048 sets instead of 1,024.
+
+**The cost**:
+- **Block RAM +68 tiles**: the data 64 → 128 (4 ways × 16K × 64 bits), the tags 4 → 8 (2,048 × 25 bits a way). With C1 and C2: `OOO_CPU` 232.5 tiles; with LiteX's ~30 about **262 of 365** (72 %), 100 left.
+- LUTs small: the pseudo-LRU's LUT RAM 2,048 × 3, one bit more of index; the write port's register below, about 90 flip-flops.
+
+**The timing, the real question.** H4's L2 path (+0.659 ns): the way register → a LUT (way == w and the write) → the data tiles' enables, 1 logic level but 18 ns of route in two long hops (8.5 ns to the LUT, 9.5 ns to the tiles; at W3 it had more than 0.979 ns). With 128 tiles the array spreads further. The plan:
+1. **The write port registered** (address, data, strobes, one enable a way): a write reaches the array a cycle later; the reads keep their timing, so an L2 hit costs nothing more. The only hazard is a read of the word just written in the very next cycle, which only an accept right after a fill's last beat can do (`M_FILL` → `M_IDLE`; a line write goes through `M_BRESP`). An accept waits one cycle while the write register holds a write. Then each enable comes from a flip-flop (one hop), which Vivado can replicate.
+2. **The read side** (the address to 128 tiles, the data out through the depth mux Vivado builds, the way mux into the R FIFO) had no path in the first 100 at W3. If it fails, the arrays' output register (+1 cycle on each L2 hit): with the L1s' 7.2 misses per 1,000 instructions that costs about 0.007 cycles an instruction, as much as 512 KB gains on these workloads. So it is avoided unless needed.
+3. **Fallback** if 20 ns is not met: 384 KB is not a power of two in sets; the fallback is to stay at 256 KB.
+
+**The plan of step C** (the caches, after the author's choice):
+- **C1** the I$ 128 KB (`OOO_ICACHE` `SETS=256`, its unit bench, the core).
+- **C2** the D$ 64 KB (the arrays, `OOO_LSU4`'s addresses with VA[13:12], `OOO_DMISS2`'s synonym check, `tb_dmiss2`, the core).
+- **C3** the L2 512 KB (`CPU_L2`'s write port registered and the guard, `SIM/L2`'s bench and mutations, `OOO_CPU`'s `L2_SIZE`, the core).
+- **C4** `OOO_CPU` at 20 ns (the author's Vivado run). One run for all three, or one after each if the author prefers to separate the risks.

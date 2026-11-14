@@ -7,7 +7,7 @@ def stats(f):
         m = re.match(r'(L2\$|D\$|I\$) (.+?):\s+([0-9.]+)', l)
         if m: d[(m.group(1), m.group(2))] = float(m.group(3))
     return d
-cfgs = sys.argv[1:] or ['base', 'i16', 'i64', 'i64s', 'i128s', 'd32', 'd32s', 'd64', 'l512', 'l512w8', 'l1m', 'big', 'big2', 'd64s', 'rec']
+cfgs = sys.argv[1:] or ['base', 'i16', 'i64', 'i64s', 'i128s', 'd32', 'd32s', 'd64', 'l512', 'l512w8', 'l1m', 'big', 'big2', 'd64s', 'rec', 'rec512', 'rec1m', 'bbase', 'brec', 'brec512', 'brec1m']
 # penalties (cycles, my estimates for OOO_CPU at 50 MHz): an L1 miss that hits the L2, an L2 miss (the board's DDR3)
 P1, PM = 15, 40
 print('%-7s %8s | %8s %8s %8s %8s | %7s %7s %7s | %s' % ('cfg', 'part', 'insns M', 'I$ mis', 'D$ mis', 'L2 mis', 'I MPKI', 'D MPKI', 'L2MPKI', 'stall/insn'))

@@ -9452,3 +9452,47 @@ The second deferred question is bigger caches; about 236 block RAM tiles are lef
 ```text
 Yes, study caches
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I put the study of the caches' sizes in 29.64. The proposal: **the I$ to 128 KB and the D$ to 64 KB, both grown by sets with their ways kept**, and the L2 kept at 256 KB. The RTL is unchanged. Committed as 537ae3d and pushed to dev; Ref is 0.
+
+**How it was measured**
+- CoreMark fits the caches: the real caches cost it 0.13 %, so no size moves its number. I measured on Linux.
+- The Linux kernel under Spike with its cache models, on OpenSBI and a busybox initramfs. The workload repeats `ls -R`, gzip/gunzip, find/sort, cp/cmp of 4 MB and more, 3 times.
+- The workload is 5.1 billion instructions, from 30 runs.
+- Block RAM: about 206 tiles are free once LiteX's ~30 are taken out.
+
+**The main results** (misses per 1,000 instructions; the stall is my estimate with penalties of 15/40 cycles, an upper bound)
+
+| Configuration | I$ | D$ | L2 | Stall / insn |
+|---|---|---|---|---|
+| Today (I$ 32K, D$ 16K, L2 256K) | 4.04 | 18.6 | 1.23 | 0.389 |
+| I$ 128K (by sets) | 0.17 | | | 0.317 |
+| D$ 64K (by sets) | | 7.06 | | 0.216 |
+| L2 512K | | | 0.76 | 0.370 |
+| **I$ 128K + D$ 64K** | 0.17 | 7.06 | 0.91 | **0.145** |
+
+- The D$ gains most, then the I$. The L2 saves only 0.019 for 68 tiles, the least per tile.
+- Growing by sets came within 3 % of growing by ways, so I choose sets, which leaves the load's hit path alone.
+- At a CPI of 1.0 without misses, the same work would be up to about 18 % faster.
+
+**The cost**
+- **I$ 128 KB**: no more block RAM; the data tiles are 3/4 empty today and hold it. The tags' LUT RAM, about +1.5k LUTs.
+  - The index goes beyond the 4 KB page, so with the MMU a line can sit in more than one set. In the I$ that is harmless: no store writes it and FENCE.I clears it all.
+- **D$ 64 KB**: +36 block RAM tiles, about +1.2k LUTs.
+  - A physical line in 4 sets (synonyms) is handled at the fill: `OOO_DMISS2` looks in the other 3 sets and writes out and invalidates the line if it finds it.
+  - The risk is the load path's output mux; if the timing is tight, 32 KB (+12 tiles).
+- In all, `OOO_CPU` at 164.5 tiles and about 75.8k LUTs (budget 106.5k).
+
+The numbers have limits: Spike's models take one miss at a time, the penalties are estimates, the workload is busybox, not Debian. The comparisons between sizes are sound; read the cycles as an upper bound.
+
+To go ahead: C1 the I$ (the smaller risk), then C2 the D$, each to the 20 ns check.
+<!-- /answer -->
+
+## 237. 2026-11-14 17:59:59 JST
+
+```text
+The I$ and D$ sizes as proposed are OK. For the L2, I want 512 KB with large user applications in mind; is that possible?
+```
