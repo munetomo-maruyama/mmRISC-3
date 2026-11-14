@@ -5733,3 +5733,26 @@ The author's go on 29.69. `OOO_CPU`'s L2 goes from 256 KB to 512 KB (2,048 sets 
 - **Core mutations: 138 of 146 detected (the same 8 undetected as before: 71, 90, 101-103, and 109, 113, 115 behind the L2)** (with `L2KB=4`, as before: most accesses miss the L2).
 
 **The 20 ns check** is the author's Vivado run (`synth_ooo.bat OOO_CPU`). Expected: block RAM 164.5 → **232.5 tiles** (the data 64 → 128, the tags 4 → 8); LUTs about +100 (the pseudo-LRU's LUT RAM 2,048 × 3), flip-flops about +90 (the write register). The risk is the read side: the address to 128 tiles and the data back through the depth mux into the R FIFO. If it fails, the next step is the arrays' output register (+1 cycle on each L2 hit, about 0.007 cycles an instruction), and the fallback is 256 KB.
+
+### 29.71 Step 1.7c C3 at 20 ns, step C done (2026-11-15)
+
+The author's Vivado run of `OOO_CPU` with the L2 at 512 KB (`synth_ooo.bat OOO_CPU`, reports in `FPGA/OOO_OOC/output/OOO_CPU`):
+
+| | C2 (29.69) | C3 |
+|---|---|---|
+| WNS / hold | +0.639 / +0.028 ns | **+0.166 / +0.028 ns** |
+| LUTs (after place and route) | 74,809 | 75,027 (+218) |
+| Flip-flops | 18,925 | 19,060 (+135) |
+| `CPU_L2` | 1,055 (48 LUT RAM), 954 FF | 1,205 (96 LUT RAM), 1,089 FF |
+| `CACHE_DATA_ARRAY` | 417, 0 FF | 341, 160 FF |
+| `L2_TAG_ARRAY` | 130 | 304 |
+| Block RAM tiles | 164.5 | **230.5** (+66) |
+
+- **20 ns met** in one run; the margin is smaller than C2's, but the worst path is not the L2's.
+- **The block RAM**: +66 tiles against the 68 expected. The data 64 → 128 RAMB36 as planned; the tags 4 RAMB36 → 4 RAMB36 + 4 RAMB18, 6 tiles instead of the 8 of 29.70. `OOO_CPU` 230.5 of 365, with LiteX about 260.
+- **The LUTs +218** against about +100. `CPU_L2` +150: the pseudo-LRU's LUT RAM 4 times as deep (48 → 96), `L2_TAG_ARRAY` +174 (the read's mux over its deeper arrays), `CACHE_DATA_ARRAY` −76 (the write port's mux now behind the registers). The core's +65 is synthesis's spread.
+- **The flip-flops +135** against about +90: the write register is 160 flip-flops, not the 87 of its bits (64 data, 11 address, 8 strobes, 4 enables), most likely Vivado's copies of the address and the enables for their fan-out to 128 tiles; the rest of `CPU_L2` −25.
+- **The worst path** (+0.166 ns, 31 levels, 14.5 ns of route) is the core's: ALU 3's write-back register → the bypass into ALU 0's operand → its adder (16 CARRY4) → the result written into the register file (`u_prf` bank 0). The same path was third at C2 (+0.657 ns, 26 levels); only its placement changed. The first 20 are all this one but one: the front end's RAS (`u_fetch/hge_reg` → `u_ras`, +0.301 ns).
+- **The L2's read side**, the risk named in 29.70, is in none of the 100 paths of `timing_paths.rpt`: no output register is needed.
+
+**Step C3 is done, and with it C4**: this run has all three caches together (I$ 128 KB, D$ 64 KB, L2 512 KB) at 20 ns. **Step 1.7c C is done.** The 20 ns margin is now the core's own bypass and write-back path at +0.166 ns.

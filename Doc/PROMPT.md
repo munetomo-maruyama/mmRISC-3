@@ -9632,3 +9632,34 @@ Next is C3: the L2 at 512 KB. Expected 232.5 tiles in `OOO_CPU`, about 262 of 36
 ```text
 Start C3
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+C3 (the L2 at 512 KB) is committed and pushed (486d6ec). Ref/ was not pushed (checked: 0 files). It has not been through Vivado yet, so whether it meets 20 ns is not known.
+
+**Changes**
+- **CACHE_DATA_ARRAY**: a new parameter `WR_REG`. The L2 sets it to 1: a write's address, data, strobes and per-way enables are first held in flip-flops and then written to the block RAMs, so a write lands one cycle later.
+- **CPU_L2**: a read in the cycle the held write lands would return the old word. To avoid it, the read waits one cycle then (`wr_held`). OOO_CPU reads whole lines, so in practice this wait never costs a cycle.
+- **OOO_CPU and build_core.sh**: the L2 at 512 KB (2,048 sets x 4 ways).
+
+**Verification**
+- **tb_L2**: PASS in all 6 configurations.
+  - A directed test makes a read wait while the fill's last word is held, because the random tests alone did not detect mutations L47 and L48.
+  - L2 mutations: 51 of 51 detected (L47-L51 new). L48 hit a g++ crash under load in the full run, so it was rerun alone and detected.
+- **run_core and run_coremark**: both PASS. CoreMark's timed window is unchanged at 8.244 CoreMark/MHz. The reset walk over 2,048 sets adds about 1,000 cycles a run.
+- **Core mutations**: 138 of 146 detected. The 8 undetected (71, 90, 101-103, 109, 113, 115) are the same as before; every NOT line was read.
+
+**Expected in Vivado**
+- 232.5 block RAM tiles (+68).
+- About +100 LUTs and +90 flip-flops.
+- The worry is the read side's path. If it fails, an output register fixes it (+1 cycle a hit, about 0.007 CPI). Failing that, back to 256 KB.
+
+Once `synth_ooo.bat OOO_CPU` has run, I will record it as 29.71 and go on to C4.
+<!-- /answer -->
+
+## 242. 2026-11-15 06:25:05 JST
+
+```text
+I ran Vivado
+```
