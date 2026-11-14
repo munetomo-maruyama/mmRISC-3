@@ -22,6 +22,7 @@ mmRISC-3の検討と作業ファイル。**多くはArty A7-100T向け**(履歴�
 | `trace/` | `trace.sh`(ビルド、Spikeでのトレース、解析)、`capture.py`(Spikeのログから計測区間を切り出す)、`analyze.py`(すべての解析と限界モデル)、`results/`(`<build>.json`、`<build>.limit.txt`)。`work/`は入れない |
 | `model/` | `mktrace.py`(トレース → 32バイトのレコード)、`model.h`、`pred_mm2.h`、`inorder.h`、`tage.h`、`ooo.h`、`model.cpp`、`calib.sh`、`sweep.sh`、`results/`(`calib.txt`、`sweep.txt`)。`work/`(実行ファイル、トレース)は入れない |
 | `reduce/` | `synth.sh`(mmRISC-2のモジュールをパラメータを変えて、sv2v + YosysでArtix-7向けに合成)、`deps.py`、`sweep.sh`、`results/sweep.txt`。`work/`は入れない |
+| `wpol/` | D$の書き込み方式(`OOC_J.md` 29.60): `wpol.sh`(RTLとベンチのコピーで: 書き込みキュー8〜64、部分書き込みに3サイクルで応答するL2、待たないストア)、`tb_core_wp.patch`、`cpu_l2_b3.patch`、`tb_cpu_wp.vlt`、`stset.S` / `stcpy.S`(D$内のmemset、memcpy)、`results/`。`work/`は入れない |
 
 ## リポジトリ外のツール
 

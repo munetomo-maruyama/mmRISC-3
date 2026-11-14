@@ -1,0 +1,20 @@
+--- RTL/CPU/CACHE/CPU_L2/CPU_L2.sv	2026-11-14 00:30:05.000000000 +0900
++++ RTL/CPU/CACHE/CPU_L2/CPU_L2.sv	2026-11-14 10:33:02.992002777 +0900
+@@ -456,7 +456,7 @@
+     //-----------------------------------------------------------------
+     // B towards the slave, W from it
+     //-----------------------------------------------------------------
+-    assign s_axi4_bvalid = (st == M_BRESP);
++    assign s_axi4_bvalid = (st == M_BRESP) || (st == M_WLINE && s_axi4_wvalid && s_axi4_wlast);
+     assign s_axi4_bid    = cur_id;
+     assign s_axi4_bresp  = b_resp;
+     assign s_axi4_wready = (st == M_WLINE) | ((st == M_PW_W) & m_axi4_wready);
+@@ -688,7 +688,7 @@
+                         wcnt <= wcnt + 3'd1;
+                         if (s_axi4_wlast) begin
+                             b_resp <= 2'b00;
+-                            st     <= M_BRESP;
++                            st     <= M_IDLE;     // (scratch: B with the last beat)
+                         end
+                     end
+                 end

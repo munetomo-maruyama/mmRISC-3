@@ -1,0 +1,67 @@
+--- SIM/CORE/tb_core.cpp	2026-11-14 02:28:54.000000000 +0900
++++ SIM/CORE/tb_core.cpp	2026-11-14 10:34:15.334002811 +0900
+@@ -149,6 +149,7 @@
+     Axi4Mem ax(b.mem(), o.seed * 13 + 5, o.mlat);
+     long ic_reqs = 0, ic_misses = 0;                    // (OOO_ICACHE's, from its registers)
+     long wq_full = 0, wq_full_tw = 0;                   // cycles the D$'s write queue is full (in the timed window)
++    struct { long cyc=0, st=0, mw=0, ml=0, tl=0, fw=0, fills=0, l2b=0, occ=0; uint64_t last=0; bool have=false; } X;
+     AxiLite al(b.mem(), o.seed * 17 + 3);
+ #else
+     DMissModel dm(b.mem(), o.seed * 13 + 5, o.dhit >= 100 ? 0 : 12);     // (-dhit 100: fills at once, else up to 12 cycles late)
+@@ -284,7 +285,37 @@
+             if (!d->rootp->OOO_CPU__DOT__u_icache__DOT__s1_hit) ic_misses++;
+         }
+         // the D$'s write queue full: the only time a store waits for it (the LSU raises wt_valid only with wt_ready)
+-        if (d->rootp->OOO_CPU__DOT__u_dmiss__DOT__wq_n == 8) { wq_full++; if (tw_a >= 0 && tw_b < 0) wq_full_tw++; }
++        {
++            auto *r = d->rootp;
++            bool in = tw_a >= 0 && tw_b < 0;
++            bool rdy = r->OOO_CPU__DOT__u_dmiss__DOT__wt_ready, wv = r->OOO_CPU__DOT__u_dmiss__DOT__wt_valid;
++            if (!rdy) { wq_full++; if (in) wq_full_tw++; }
++            if (in) {
++                X.cyc++;
++                if (wv && rdy) {
++                    X.st++;
++                    uint64_t a = r->OOO_CPU__DOT__u_dmiss__DOT__wt_addr;
++                    int nwq = WQN, t = r->OOO_CPU__DOT__u_dmiss__DOT__wq_t, aw = r->OOO_CPU__DOT__u_dmiss__DOT__aw_p;
++                    int h = r->OOO_CPU__DOT__u_dmiss__DOT__wq_h;
++                    bool sw = false, sl = false;
++                    for (int i = aw; i != t; i = (i + 1) & (2 * nwq - 1)) {
++                        uint64_t b = r->OOO_CPU__DOT__u_dmiss__DOT__wq_a[i & (nwq - 1)];
++                        if ((b >> 3) == (a >> 3)) sw = true;
++                        if ((b >> 6) == (a >> 6)) sl = true;
++                    }
++                    if (sw) X.mw++;
++                    if (sl) X.ml++;
++                    if (X.have && (X.last >> 6) == (a >> 6)) X.tl++;
++                    X.last = a; X.have = true;
++                    (void)h;
++                }
++                if (r->OOO_CPU__DOT__u_dmiss__DOT__st == 0 && r->OOO_CPU__DOT__u_dmiss__DOT__aq_n != 0 &&
++                    !r->OOO_CPU__DOT__u_dmiss__DOT__wr_quiet) X.fw++;
++                if (r->OOO_CPU__DOT__u_dmiss__DOT__aq_pop) X.fills++;
++                if (r->OOO_CPU__DOT__u_l2__DOT__st != 1) X.l2b++;
++                X.occ += r->OOO_CPU__DOT__u_dmiss__DOT__wq_n;
++            }
++        }
+ #endif
+ #ifdef CPU_TOP
+         bool arv = d->m_axi4_arvalid, rr = d->m_axi4_rready, awv = d->m_axi4_awvalid, wv = d->m_axi4_wvalid, br = d->m_axi4_bready;
+@@ -318,7 +349,7 @@
+ #else
+         dm.clock(mv, ml, mid, smv, sml, dset, dway, didx, sqd);
+         uc.clock(ucr, ucw, uca, ucd, ucm);
+-        wt_rdy = wt_rng() % 5 != 0;
++        wt_rdy = WT_ALWAYS || wt_rng() % 5 != 0;
+ #endif
+     }
+     if (continue_clock && b.passed()) {
+@@ -376,6 +407,8 @@
+ #ifdef CPU_TOP
+     if (o.verbose)
+         std::printf("    the D$'s write queue full (the only time a store waits for it): %ld cycles (%ld in the timed window)\n", wq_full, wq_full_tw);
++        std::printf("    WP tw %ld stores %ld full %ld | same word pending %ld, same line pending %ld, same line as last %ld | fills %ld waiting writes %ld | L2 busy %ld | avg occ %.2f\n",
++            X.cyc, X.st, wq_full_tw, X.mw, X.ml, X.tl, X.fills, X.fw, X.l2b, X.cyc ? (double)X.occ / X.cyc : 0.0);
+ #endif
+     if (rs_out_f) std::fprintf(rs_out_f, "%s %ld\n", name.c_str(), restores);
+     if (const char* bp = std::getenv("CORE_BYPC")) {

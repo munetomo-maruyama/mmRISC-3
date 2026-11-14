@@ -1,0 +1,10 @@
+g14-o2-zbsc.elf              PASS  exit 0  3146593 insns  3146593 uops  1252322 cycles  IPC 2.513
+    4991 restores (mispredicted branches and jalr), 538 replays, I$ 0 / 875256 missed, D$ 75 lines filled (56 asked by loads, 49 by stores), 0 evicted, uncached 502 reads 503 writes
+    the timed window (start_time to stop_time): 1211530 cycles
+stset.elf                    PASS  exit 0  12826 insns  12826 uops  9879 cycles  IPC 1.298
+    10 restores (mispredicted branches and jalr), 34 replays, I$ 0 / 7298 missed, D$ 128 lines filled (158 asked by loads, 0 by stores), 0 evicted, uncached 0 reads 1 writes
+    the timed window (start_time to stop_time): 8255 cycles
+stcpy.elf                    PASS  exit 0  21018 insns  21018 uops  9890 cycles  IPC 2.125
+    10 restores (mispredicted branches and jalr), 34 replays, I$ 0 / 8304 missed, D$ 128 lines filled (158 asked by loads, 0 by stores), 0 evicted, uncached 0 reads 1 writes
+    the timed window (start_time to stop_time): 8277 cycles
+tb_core: 3 files, 0 failures: PASS

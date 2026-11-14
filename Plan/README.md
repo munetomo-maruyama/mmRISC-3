@@ -24,6 +24,7 @@ findings and measurements stand; the budgets and reductions are history. New: `m
 | `trace/` | `trace.sh` (build, trace on Spike, analyze), `capture.py` (the timed part of Spike's log as a compact trace), `analyze.py` (all the analyses and the limit model), `results/` (`<build>.json`, `<build>.limit.txt`). `work/` is not kept |
 | `model/` | `mktrace.py` (trace → 32-byte records), `model.h`, `pred_mm2.h`, `inorder.h`, `tage.h`, `ooo.h`, `model.cpp`, `calib.sh`, `sweep.sh`, `results/` (`calib.txt`, `sweep.txt`). `work/` (binaries, traces) is not kept |
 | `reduce/` | `synth.sh` (one module of mmRISC-2 with changed parameters, sv2v + Yosys for the Artix-7), `deps.py`, `sweep.sh`, `results/sweep.txt`. `work/` is not kept |
+| `wpol/` | The D$'s write policy (`OOC.md` 29.60): `wpol.sh` (copies of the RTL and the bench: write queues of 8 to 64, an L2 answering part writes in 3 cycles, a store that never waits), `tb_core_wp.patch`, `cpu_l2_b3.patch`, `tb_cpu_wp.vlt`, `stset.S` / `stcpy.S` (memset, memcpy in the D$), `results/`. `work/` is not kept |
 
 ## Tools outside the repository
 

@@ -1,0 +1,16 @@
+g14-o2-zbsc.elf              PASS  exit 0  3146593 insns  3146593 uops  1278206 cycles  IPC 2.462
+    4976 restores (mispredicted branches and jalr), 539 replays, I$ 152 / 870751 missed, memory 218 line reads 0 line writes, uncached 502 reads 503 writes
+    the timed window (start_time to stop_time): 1226719 cycles
+    the D$'s write queue full (the only time a store waits for it): 67097 cycles (64503 in the timed window)
+    WP tw 1226719 stores 144208 full 64503 | same word pending 17262, same line pending 65430, same line as last 58461 | fills 6 waiting writes 433 | L2 busy 434650 | avg occ 1.99
+stset.elf                    PASS  exit 0  12826 insns  12826 uops  40607 cycles  IPC 0.316
+    9 restores (mispredicted branches and jalr), 34 replays, I$ 3 / 7300 missed, memory 131 line reads 0 line writes, uncached 0 reads 1 writes
+    the timed window (start_time to stop_time): 32700 cycles
+    the D$'s write queue full (the only time a store waits for it): 24549 cycles (24513 in the timed window)
+    WP tw 32700 stores 8181 full 24513 | same word pending 0, same line pending 7158, same line as last 7158 | fills 0 waiting writes 0 | L2 busy 24519 | avg occ 7.75
+stcpy.elf                    PASS  exit 0  21018 insns  21018 uops  40656 cycles  IPC 0.517
+    9 restores (mispredicted branches and jalr), 34 replays, I$ 4 / 8280 missed, memory 132 line reads 0 line writes, uncached 0 reads 1 writes
+    the timed window (start_time to stop_time): 32702 cycles
+    the D$'s write queue full (the only time a store waits for it): 24549 cycles (24513 in the timed window)
+    WP tw 32702 stores 8181 full 24513 | same word pending 0, same line pending 7158, same line as last 7158 | fills 0 waiting writes 0 | L2 busy 24519 | avg occ 7.75
+tb_core: 3 files, 0 failures: PASS

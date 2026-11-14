@@ -5371,3 +5371,65 @@ The timed window measured here (1,211,976 on `OOO_CORE`) is 29.53's estimate (1,
 **Step H is done** (29.55–29.59): the real I$ (32 KB) and L2 (256 KB) in `OOO_CPU`, **8.15 CoreMark/MHz** with the board's memory at 50 MHz, about 1.9k LUTs and 100 block RAM tiles. **Gate S1-B is met**: RTL `-O2` ≥ 8.0 with the real caches at 50 MHz (8.15, 20 ns met), the tests clean (`run_core`, `run_coremark`, the unit and L2 benches), the bug injection clean but the 6 mutations known since earlier steps (core 134/140; unit, I$ 42/42, L2 46/46). `OOO_CPU` stands at 72.8k LUTs of the 106.5k budget of gate S1-A, and 124.5 of the XC7A200T's 365 block RAM tiles.
 
 **Next**: the author's two questions put off during H (29.55): the D$'s write policy, where H3 found the cost of the real caches (13.3k of 14.7k cycles are stores waiting for the write queue of 8; 64 entries give 8.24), and bigger caches with the 240 block RAM tiles left. E1c (AMO, LR, SC) is still open.
+
+### 29.60 The D$'s write policy: measured, three ways compared (2026-11-14)
+
+The author's first question put off during H (29.55): the D$ is written through since E2 (29.34), because `OOO_LSU3`'s arrays had no read for a dirty victim's words. Is that still the right choice? Measured on copies of the RTL and the bench (`Plan/wpol/wpol.sh`, results in `Plan/wpol/results`); `RTL/` and `SIM/CORE` are unchanged.
+
+**Where a store goes today.** Every store the D$ takes goes into `OOO_DMISS`'s write queue (8 entries, one 8-byte beat each) and on to the L2 as a part write. The L2 takes one transaction at a time, and a part write that hits costs 4 cycles (accept, compare, the beat, the answer). With the queue full, the LSU's drain sends the store back (`d_back` on `!wt_ready`) and starts again 3 cycles later. A fill waits until every write before it has its answer.
+
+**What was measured.** CoreMark `g14-o2-zbsc` on `OOO_CPU` with the board's memory (`-mlat 25`): the timed window, 10 iterations, so CoreMark/MHz = 10⁷ / cycles. Two small programs that store only into the D$: `stset.S` (memset of 4 KB, 16 times) and `stcpy.S` (memcpy of 4 KB, 16 times), 8,192 stores each. The variants are:
+
+- `n8` … `n64`: the write queue of 8 (today), 16, 32, 64;
+- `l3n8`, `l3n16`: the L2 answering a part write in 3 cycles (B with the beat);
+- `core0`, `core1`: `OOO_CORE` with every D$ load a hit, its write taken 80 % of the cycles (the bench's habit) or every cycle. `core1` is a store that never waits for the bus, which is what a write-back D$ gives a store that hits.
+
+| Variant | CoreMark timed window | CoreMark/MHz | Queue full (cycles) | memset: cycles / store | memcpy: cycles / store |
+|---|---|---|---|---|---|
+| `n8` (today) | 1,226,719 | 8.152 | 64,503 | 3.99 | 3.99 |
+| `n16` | 1,223,101 | 8.176 | 22,755 | 3.99 | 3.99 |
+| `n32` | 1,218,750 | 8.205 | 10,287 | 3.98 | 3.98 |
+| `n64` | 1,213,431 | 8.241 | 3,216 | 3.96 | 3.96 |
+| `l3n8` (L2 3 cycles) | 1,215,693 | 8.226 | 11,896 | 2.99 | 2.99 |
+| `l3n16` | 1,214,376 | 8.235 | 6,866 | 2.99 | 2.99 |
+| `core0` (ideal caches, write 80 %) | 1,211,976 | 8.251 | — | 1.75 | 1.76 |
+| `core1` (a store never waits) | 1,211,530 | **8.254** | — | **1.01** | **1.01** |
+
+What the counters say on CoreMark (`n8`):
+- **144,208 stores** in the timed window, one every 8.5 cycles on average, but in bursts. The L2 is busy 434,650 cycles (35 %), nearly all of it part writes.
+- **The stores repeat lines**: 40 % go to the same line as the store before, 45 % (65,430) to a line already waiting in the queue, 12 % to the same 8-byte word.
+- Fills held for the writes: 433 cycles in all (6 fills in the timed window). The wait of a fill behind the queue costs nothing on CoreMark.
+
+**What it means.**
+1. **For CoreMark the whole prize is 1.2 %** (8.15 → 8.25), and any of the ways below takes most of it. A deeper queue only spreads the bursts over the L2's idle cycles.
+2. **For streams of stores the write-through D$ is held to one store every 4 cycles**: 2 bytes a cycle, 100 MB/s at 50 MHz, with any queue depth (memset, memcpy, clearing a page, copying a buffer: what Linux does). A faster L2 makes it 3 cycles. A store that hits and never waits goes at **1 a cycle, 4 times as fast**.
+
+**Three ways compared.**
+
+| | A. A deeper queue (32 or 64) | B. A queue that gathers lines (write combining) | C. Write-back |
+|---|---|---|---|
+| CoreMark/MHz | 8.21 / 8.24 (measured) | about 8.24 (estimate: half the L2's transactions) | about 8.25 (estimate: `core1`'s 8.254 is its bound) |
+| Stores into the D$, cycles a store | 4 | about 1.4 (8 stores, one 8-beat write of 11 cycles) | about 1 |
+| The L2's traffic | as today | about half | dirty victims only |
+| What changes | `NWQ` (a parameter) | `OOO_DMISS`'s queue: 8 entries of a line (64 bytes, 64 byte strobes), a store merged into its line's entry, the entry sent as a burst | a 3rd copy of the D$'s data (its read for the victim and FENCE.I), a dirty bit per line, the victim read into a buffer of 8 words and written as a line write, FENCE.I cleaning the dirty lines; the write queue and `wt_*` go |
+| LUTs, block RAM (my estimates) | +100 to +250 (LUT RAM) | about +700 (byte lanes in LUT RAM, a compare of 8 lines) | about ±0 (the queue's 900 FF go; the dirty bits, the buffer, the walk come); **+4 tiles** |
+| Timing | nothing new | a compare of 8 lines at the store | the data's writes to 12 tiles, not 8; the drain loses `!wt_ready` from `d_back` |
+| Verification | none new | merging, the order of lines | new races: a store drained into the victim while it is read; FENCE.I with dirty lines; a fill before the victim's write-out; the bench's check after the exit must lay the D$'s dirty lines over memory (as the L2's, 29.58) |
+| FENCE.I | waits for the queue | waits for the queue | walks 256 lines, writes the dirty ones out (256 cycles + about 11 a line), then the I$'s sweep |
+
+**The reason of 29.34 is gone.** `OOO_DCH2` keeps a copy of the data for each load port, because a block RAM has only 2 ports (a read for the load, a write for the drain and the fill). A 3rd copy, written with the other two, gives `OOO_DMISS` a read port of its own for the victim's words and FENCE.I's walk. It costs 4 tiles of the 240 left, and nothing on the loads' paths.
+
+**What write-back asks of the rest** (none of it is a reason against):
+- The I$ fills from the L2: FENCE.I must clean the D$ first (C above).
+- The page table walk (not built, not yet planned in detail): it must read the page tables through the D$, or SFENCE.VMA would have to clean the D$ (costly: Linux runs it often). Through the D$ is the usual way and costs a port of the LSU, not a new path.
+- DMA (LiteX's SD card, Ethernet) writes memory behind the L2, which is write-back already. Whatever Linux will use for that (cache operations, Zicbom) must reach the D$ too under C.
+- AMO, LR, SC (E1c, still open) are simpler in a write-back D$: done on the line in the D$, with no write to send after them.
+
+**My recommendation: C, write-back.** It is the only way that removes the store bandwidth limit (4 times for stores that hit), not just CoreMark's bursts. It gives CoreMark its bound (about 8.25), costs 4 block RAM tiles and about no LUTs, and makes the L2's traffic dirty victims only, which leaves the L2 to the I$'s fills. Its cost is verification: new races, the bench's memory check, a directed test and new mutations. That is the kind of work the lock-step bench and the bug injection were built for. A is the fallback if the author wants the 1 % now with no risk (one parameter: `NWQ = 32`, +0.65 %). B is not recommended: by my estimate it costs more LUTs than C, keeps the 4-cycle part writes for scattered stores, and needs verification of its own (merging, the order of lines).
+
+**If C**, the steps:
+- **W1** `OOO_DCH2`'s 3rd copy and `OOO_DMISS`'s write-back: the dirty bits, the victim's read and line write, the fill waiting only for the victim's answer, FENCE.I's clean, `wt_*` removed. Unit bench (a `tb_dmiss` with a model of the arrays) and its mutations.
+- **W2** In the core and `OOO_CPU`: `tb_core`'s check after the exit with the D$'s dirty lines laid over memory; `b4/dir/dcrace.S` with dirty victims and FENCE.I behind dirty lines; `run_core`, `run_coremark`, the core's mutations (on the 4 KB L2).
+- **W3** `OOO_CPU` at 20 ns (by the author).
+
+**Awaiting the author's choice** (C, A, or neither).

@@ -9265,3 +9265,39 @@ Next is H4: please run `synth_ooo.bat OOO_CPU` at 20 ns. New in it are the I$, `
 ```text
 The OOO_CPU run is done.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+H4 met 20 ns in one run, so step H is done and **gate S1-B is met** (8.15 CoreMark/MHz with the real caches at 50 MHz). Committed as 1c99154 and pushed to dev; Ref is 0 on the remote.
+
+**The Vivado result**
+- WNS +0.644 ns, TNS 0, hold +0.028 ns.
+- 72,783 LUTs, +1,938 from G4.
+- 124.5 block RAM tiles: the core 24.5, the I$ 32, the L2 68.
+
+| Against G4 | G4 | H4 |
+|---|---|---|
+| All LUTs | 70,845 | 72,783 |
+| `OOO_FRONT` | 14,030 | 11,930 |
+| I$ / L2 | — | 3,073 / 1,059 |
+| Block RAM | 24.5 | 124.5 |
+
+- **The front end lost 2.1k LUTs.** `OOO_FDEC2` went from 2,665 to 571, and `OOO_RAS` inside it from 1,256 to 152. I did not chase the cause; my reading is that the I$'s answer now comes from flip-flops inside rather than through a delayed port.
+- **The I$ is 3,073 LUTs in Vivado**, more than Yosys's estimate of about 1.2k.
+- **The worst paths** are of the same kind as before: the ROB's head pointer to the entries' enables. New near the top is the L2's way register to the enables of its 64 data tiles (+0.659 ns): 8.5 ns of routing to tiles spread over the chip.
+
+`OOO_CPU` uses 72.8k of the 106.5k LUT budget and 124.5 of 365 block RAM tiles. Recorded in 29.59, STRATEGY 1.7 and the reports.
+
+It is time for the two deferred questions.
+- **The D$'s write policy**: H3 found that 13.3k of the real caches' 14.7k-cycle cost is stores waiting for the 8-entry write queue. A queue of 64 alone gives 8.24.
+- **Bigger caches**: about 240 block RAM tiles are left.
+
+AMO/LR/SC (E1c) is also still open.
+<!-- /answer -->
+
+## 232. 2026-11-14 10:28:50 JST
+
+```text
+D$ write policy first
+```
