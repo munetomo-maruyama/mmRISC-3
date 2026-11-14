@@ -10,6 +10,9 @@
 //   data  2 copies, one memory per way of 64-bit words, byte write enables (a simple
 //         dual port RAMB36, 512 x 72)
 //   tags  {valid, tag} per set and way, 3 copies: 2 for loads, 1 for the stores that drain
+//   VR=1  a 3rd copy of the data (written as the others), read by OOO_DMISS2 for a dirty
+//         victim's words and FENCE.I's write out (vr_*: the word of vr_way, a cycle later;
+//         the D$ written back, step 1.7b W1, Plan/OOC.md 29.61). 4 tiles more
 //
 // A read in the cycle of a write to the same place returns the old value, as in OOO_DCH.
 //---------------------------------------------------------------------------
@@ -21,7 +24,8 @@ module OOO_DCH2
         parameter int SETS  = 64,
         parameter int WAYS  = 4,
         parameter int WORDS = 8,       // 64-bit words in a line
-        parameter int TW    = 28
+        parameter int TW    = 28,
+        parameter bit VR    = 1'b0     // the victim's copy
     )
     (
         input  logic                                  clk,
@@ -46,10 +50,19 @@ module OOO_DCH2
         input  logic [$clog2(WAYS)-1:0]               dw_way,
         input  logic [$clog2(SETS*WORDS)-1:0]         dw_addr,
         input  logic [63:0]                           dw_data,
-        input  logic [7:0]                            dw_strb
+        input  logic [7:0]                            dw_strb,
+
+        // the victim's copy (VR): a word of a way
+        /* verilator lint_off UNUSEDSIGNAL */      // (VR=0: not read)
+        input  logic [$clog2(SETS*WORDS)-1:0]         vr_addr,
+        /* verilator lint_on UNUSEDSIGNAL */
+        input  logic [$clog2(WAYS)-1:0]               vr_way,
+        output logic [63:0]                           vr_data
     );
 
     localparam int WB = $clog2(WORDS);
+    logic [WAYS-1:0][63:0]     vr_w;
+    logic [$clog2(WAYS)-1:0]   vr_wq;
 
     for (genvar w = 0; w < WAYS; w++) begin : g_way
         for (genvar p = 0; p < 2; p++) begin : g_rd
@@ -86,6 +99,25 @@ module OOO_DCH2
             sq <= tlb[sb_set];
         end
         assign sb_tag[w] = sq;
+        if (VR) begin : g_vr
+            (* ram_style = "block" *) logic [63:0] vm [SETS*WORDS];
+            logic [63:0] vq;
+            initial begin
+                vq = '0;
+                for (int i = 0; i < SETS*WORDS; i++) vm[i] = '0;
+            end
+            always_ff @(posedge clk) begin
+                for (int b = 0; b < 8; b++)
+                    if (dw_en && int'(dw_way) == w && dw_strb[b])
+                        vm[dw_addr][8*b +: 8] <= dw_data[8*b +: 8];
+                vq <= vm[vr_addr];
+            end
+            assign vr_w[w] = vq;
+        end else begin : g_novr
+            assign vr_w[w] = '0;
+        end
     end
+    always_ff @(posedge clk) vr_wq <= vr_way;
+    assign vr_data = vr_w[vr_wq];
 
 endmodule : OOO_DCH2

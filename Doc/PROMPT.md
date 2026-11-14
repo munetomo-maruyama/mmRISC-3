@@ -9301,3 +9301,43 @@ AMO/LR/SC (E1c) is also still open.
 ```text
 D$ write policy first
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I measured the D$'s write policy and compared three ways (29.60). My recommendation is **write-back**. The RTL is unchanged: the measurements ran on copies of the RTL and the bench, and `Plan/wpol/wpol.sh` reproduces them exactly. Committed as d5d5eb9 and pushed to dev; Ref is 0 on the remote.
+
+**The measurements** (CoreMark with the board's memory; memset and memcpy write 4 KB in the D$ 16 times, 8,192 stores)
+
+| Configuration | CoreMark/MHz | memset / memcpy: cycles a store |
+|---|---|---|
+| Today (queue of 8) | 8.152 | 3.99 |
+| Queue of 16 / 32 / 64 | 8.176 / 8.205 / 8.241 | 3.99 / 3.98 / 3.96 |
+| The L2's part write in 3 cycles | 8.226 | 2.99 |
+| A store that never waits for the bus (standing in for write-back) | **8.254** | **1.01** |
+
+- **On CoreMark the whole prize is 1.2 %**, and any of the ways takes most of it.
+- **The real limit is store bandwidth.** With write-through every store becomes a part write to the L2 (4 cycles). Streams of stores are held to one every 4 cycles, 100 MB/s at 50 MHz, at any queue depth. With write-back a store that hits goes at 1 a cycle, 4 times as fast. That bears directly on Linux's memset, memcpy and page clearing.
+- On CoreMark, 45 % of the stores go to a line already waiting in the queue.
+
+**The reason for choosing write-through in 29.34 is gone.** Then there was no port to read a dirty victim. A 3rd copy added to the data copies kept for each load port (`OOO_DCH2`) becomes the read port for the victim and for FENCE.I.
+- Only 4 more block RAM tiles, and nothing added to the loads' paths.
+- The write queue is no longer needed, so by my estimate the LUTs stay about the same.
+
+**The other ways**
+- **A (a queue of 32)**: one parameter, +0.65 %. The fallback if you want it now with no risk.
+- **B (gathering stores by line)**: by my estimate more LUTs than C, and it does nothing for scattered stores, so I don't recommend it.
+
+**What write-back newly needs**
+- Verifying the new races, extending the memory check at the end of the bench, adding to `dcrace.S`, and new mutations.
+- The page table walk, not built yet, must read through the D$.
+- AMO/LR/SC (E1c, not started) becomes simpler with write-back.
+
+If C is chosen, the steps are W1 (the 3rd copy and `OOO_DMISS`'s write-back, a unit bench), W2 (the core and `OOO_CPU`, tests and mutations), W3 (a 20 ns run by the author). Bigger caches come after this decision.
+<!-- /answer -->
+
+## 233. 2026-11-14 10:50:32 JST
+
+```text
+C: write-back (W1)
+```

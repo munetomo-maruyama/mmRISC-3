@@ -381,7 +381,8 @@ module OOO_LSU3
         (.clk(clk), .rd_addr(a_rd), .rd_data(a_d), .rd_tag(a_t),
          .sb_set(d0_set), .sb_tag(s_t),
          .tw_en(tw_en), .tw_way(tw_way), .tw_set(tw_set), .tw_tag(tw_tag),
-         .dw_en(dw_en), .dw_way(dw_way), .dw_addr(dw_addr), .dw_data(dw_data), .dw_strb(dw_strb));
+         .dw_en(dw_en), .dw_way(dw_way), .dw_addr(dw_addr), .dw_data(dw_data), .dw_strb(dw_strb),
+         .vr_addr('0), .vr_way('0), .vr_data());                  // (no victim's copy: written through)
 
     // the SQ's RAMs, written by a store in M; read by the forwards and the drain
     (* ram_style = "distributed" *) logic [63:0]   sd_f [NSQ];

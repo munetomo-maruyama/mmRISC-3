@@ -5432,4 +5432,44 @@ What the counters say on CoreMark (`n8`):
 - **W2** In the core and `OOO_CPU`: `tb_core`'s check after the exit with the D$'s dirty lines laid over memory; `b4/dir/dcrace.S` with dirty victims and FENCE.I behind dirty lines; `run_core`, `run_coremark`, the core's mutations (on the 4 KB L2).
 - **W3** `OOO_CPU` at 20 ns (by the author).
 
-**Awaiting the author's choice** (C, A, or neither).
+**The author chose C** (2026-11-14): step 1.7b W (`Doc/STRATEGY.md`), W1 in 29.61.
+
+### 29.61 Step 1.7b, W1: `OOO_DMISS2`, the D$ written back; `OOO_DCH2`'s victim's copy (2026-11-14)
+
+The author chose C of 29.60. W1 is the miss handler and the arrays, in a unit bench; the core still runs `OOO_DMISS` until W2.
+
+**`OOO_DCH2`, `VR=1`**: a 3rd copy of the data, one RAMB36 a way (4 tiles), written with the other two (the drain's stores, the fills' words), read only by `OOO_DMISS2` (`vr_addr`, `vr_way`; `vr_data` a cycle later, the way chosen after the read). `VR=0` (the default) is the array as before; `OOO_LSU3` and `OOO_LSU4` tie the new ports off until W2.
+
+**`OOO_DMISS2`** (new, `RTL/CPU/OOO/OOO_DMISS2`), `OOO_DMISS` with the write queue replaced:
+
+- **A store** is written into the D$ by the LSU as before; its `dirty_set` (with the way and the set it already gave) now sets the line's **dirty bit**: 256 flip-flops, as a set and a clear may come in one cycle (they never meet at one line: the LSU writes no store in a cycle with a tag written, and OOO_SYS asks for FENCE.I only with the SQ drained). The `wt_*` port and the queue of 8 are gone.
+- **A fill** waits only for the write out before it (not for every store's answer). In S_INV the victim's tag goes invalid as before; if the victim is dirty, its **write out** starts:
+  - its 8 words are read from the victim's copy, one a cycle from the first cycle of AR on, into an evict buffer (8 words, LUT RAM);
+  - AW at once, each beat as soon as its word is in the buffer, then B: **one line write** (8 beats, every byte), which the L2 takes as a line write (into the line if it hits, a new dirty line without reading memory if not);
+  - the dirty bit is cleared.
+
+  The new line's beats need no wait: beat k comes at the earliest k + 1 cycles after AR is taken, and the victim's word k was read k cycles after AR began. A first form held `rready` until the word was read; the bench showed it never acted, so it went (with a line in the header saying why).
+- **A line written out** is in no way of the D$ until asked again, and that fill waits for B: memory has the line before it is read back.
+- **FENCE.I** walks the 256 lines (`fi` = {set, way}; the tags' and dirty bits' read set is the walk's): a dirty one is written out and made clean (it stays in the D$), waiting for the write out before it; done when the walk is over and the last write out has its answer. At least 256 cycles, plus about 10 to 20 a dirty line.
+- **A device** no longer waits for the write out: a dirty line stays in the D$ anyway, so waiting would order nothing. One inconsistency inherited from `OOO_DMISS` fixed: with a device access waiting, S_IDLE could begin FENCE.I without `fl_take`, and OOO_SYS asked again; now the walk begins only with `fl_take`.
+
+**`tb_dmiss2`** (`SIM/OOO_UNIT`, top `DMISS_DC.sv`: `OOO_DCH2` with `VR=1` and `OOO_DMISS2` joined as `OOO_LSU4` joins them). The bench is the LSU, against a reference memory (the program's: every store the D$ took applied):
+- Loads on both ports, checked a cycle later against the reference as it was when read.
+- Stores only into a way that holds the line now (the tags kept as `tw_*` writes them), counted if `st_ok`.
+- Misses of loads (ids) and stores, device reads and writes, FENCE.I now and then (no store from a few cycles before until done, as OOO_SYS).
+- The lines share 4 sets, 10 a set and one of tag 0 in each (the reset leaves every way {invalid, tag 0}; those lines are asked half the time in the first 3,000 cycles), plus 16 anywhere.
+- The memory on AXI4 takes the address at random, sends the first beat 0 to 20 cycles later (now and then 40, in some phases 0 or 1), with gaps, and answers B 1 to 11 cycles later (now and then 31).
+
+It checks:
+- **A fill** reads a line memory has in full (nothing of it left only in the D$), with no write of it out, and of a line the D$ does not hold.
+- **A line written out**: 8 beats from its base, every byte, the last marked, a single one out at a time; its words are the program's (no store lost, no word of the new line); it is a line a store wrote since its fill or its last write out (a clean line written out is an error).
+- **After FENCE.I** the whole memory is the program's.
+- **At a line's end** (`fill_done`) the line in hand is in the D$, and a load's answer goes to an id that asked for it.
+
+One run of 606,000 cycles: 216,038 loads checked, 52,197 stores, 18,938 fills (2,710 while a write out was on), 10,589 dirty victims written out, 2,318 lines cleaned by 96 FENCE.I, 665 dirty victims' fills with the first beat the cycle after AR, 161 stores in the cycle before their line's tag went invalid, 11,568 load answers, 5,360 asks of a tag-0 line while a way of its set was as the reset left it, 1,325 / 1,267 device reads / writes. PASS.
+
+**Bug injection**: M1367–M1402 on `OOO_DMISS2` and the victim's copy, **36 of 36 detected**, every line read. M1397 ("a line held without its valid bit") got through twice. First the bench checked only that some line the id had asked for was in the D$; now it reads the line in hand at `fill_done` (`--public-flat-rw`). Then it still got through, and the run was the same to the cycle: an invalid way whose tag matches exists only during the fill that is writing it (S_INV to S_TAG, when S_LOOK cannot run), or after the reset, with tag 0. The bench had no line of tag 0 (the first 4 KB), and the sets were full before one would have been asked. With those lines, asked often at the start, it is detected: a line in the first 4 KB taken as held after the reset, a real case. Two places a mutation could never reach were simplified away before the campaign: the clear of the dirty bit in S_INV (a dirty victim's write out clears it anyway) and the device's wait for the write out.
+
+`verilator -Wall`: `OOO_DMISS2`, `OOO_DCH2` (`VR` 0 and 1) and `DMISS_DC` clean. `tb_lsu3` and `tb_lsu4` (with `VR=0`) PASS.
+
+**Next, W2**: `OOO_LSU4` with the victim's copy (`VR=1`, the `vr_*` ports out) and without `wt_*` (`dirty_set` no longer waits for `wt_ready`; the drain no longer goes back on it); `OOO_CPU` with `OOO_DMISS2`; `tb_core`'s check after the exit with the D$'s dirty lines laid over memory (as the L2's); `b4/dir/dcrace.S` with dirty victims and FENCE.I behind dirty lines; `run_core`, `run_coremark`, the core's mutations.
