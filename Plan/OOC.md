@@ -5513,3 +5513,24 @@ The real caches now cost 0.13 % on `g14-o2` against ideal caches (1,538 cycles: 
   They stay in the RTL: AXI puts no order between AR and AW, and another memory behind the D$ (the L2's size changed, another interconnect) would open them.
 
 **Next, W3**: `OOO_CPU` at 20 ns (by the author, `synth_ooo.bat OOO_CPU`). New in it: the victim's copy (4 tiles: the drain's and the fills' writes now go to 12 tiles of the D$'s data, not 8), `OOO_DMISS2` (the dirty bits in 256 flip-flops, the evict buffer, the walk) in place of `OOO_DMISS` (its write queue), and the drain's `d_back` without `!wt_ready`.
+
+### 29.63 Step 1.7b, W3: the D$ written back meets 20 ns; step W done (2026-11-14)
+
+**The run** (by the author, `synth_ooo.bat OOO_CPU`, 29.62's RTL): **WNS +0.511 ns, TNS 0, no failing endpoint; hold +0.028 ns; pulse width met. 73,094 LUTs** after place and route (60,990 logic + 12,100 LUT RAM), 19,144 FF after synthesis, 26 DSP, **128.5 tiles of block RAM** (the D$'s data 12 RAMB36 with the victim's copy, from 8). Met in one run.
+
+| Against 29.59 (H4) | H4 | W3 | |
+|---|---|---|---|
+| LUTs, the whole | 72,783 | 73,094 | +311 |
+| `OOO_LSU4` (of which `OOO_DCH2`) | 3,510 (887) | 3,980 (954) | +470 (+67) |
+| `OOO_DMISS` → `OOO_DMISS2` | 611 LUTs, 355 FF | 947 LUTs, 654 FF | +336, +299 FF |
+| `OOO_FRONT` / `OOO_ROB` / `OOO_IQ3` | 11,930 / 9,581 / 9,548 | 11,523 / 9,134 / 9,727 | −407 / −447 / +179 (placement) |
+| FF after synthesis | 18,823 | 19,144 | +321 (the 256 dirty bits) |
+| Block RAM tiles | 124.5 | 128.5 | +4 |
+| WNS (between flip-flops) | +0.644 ns | +0.511 ns (17 levels) | |
+
+- 29.60 estimated "about ±0" LUTs for write-back; it came to +311 (+0.4 %). `OOO_DMISS2`'s dirty bits are in flip-flops (a set and a clear in one cycle) with their 256-to-1 reads; `OOO_LSU4`'s +470 is more than its change (`wt_ready` out, a 3rd copy's write enables) and is partly synthesis's spread, as `OOO_FRONT` and `OOO_ROB` moved by about as much the other way.
+- **The worst paths** are of the kinds seen before: the ROB's head pointer into the issue queue's entries (`rq`, +0.511 ns, 17 levels) and `OOO_CTRL`'s `ns_ok` into them (+0.521 ns). New in the first 20: the ROB's head into `OOO_DMISS2`'s device-data register's enable (`u_d`, +0.727 ns, 14 levels, a fan-out of 111: the uncached store's request at the ROB's head); the same logic was in `OOO_DMISS`, so this is placement. The victim's copy and the evict buffer have no path in the first 20.
+
+**Step W is done** (29.60–29.63): the D$ written back, **8.244 CoreMark/MHz** with the board's memory at 50 MHz (from 8.152; 0.13 % above ideal caches), stores at 1 a cycle (from 1 every 4), 20 ns met, +311 LUTs and +4 block RAM tiles. `OOO_CPU` stands at 73.1k LUTs of the 106.5k budget and 128.5 of 365 block RAM tiles.
+
+**Next**: the author's second question put off during H: bigger caches with the ~236 block RAM tiles left. E1c (AMO, LR, SC) is still open, simpler now with the D$ written back.

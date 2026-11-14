@@ -9374,3 +9374,45 @@ W2 connects the write-back D$ to LSU4 and `OOO_CPU`. With it, `tb_core`'s check 
 ```text
 Yes, start W2
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+W2 is done. `OOO_CPU` runs with the write-back D$ at **8.244 CoreMark/MHz** with the board's memory (8.152 at H3). Committed as e4ea868 and pushed to dev; Ref is 0 on the remote. The 20 ns timing is not checked yet (W3).
+
+**Changes**
+- **`OOO_LSU4`**: gets the victim's copy (`VR=1`) and loses `wt_ready`; a store no longer waits for the bus. `wt_*` stays as the "store written" report the `OOO_CORE` bench's model uses, left open in `OOO_CPU`.
+- **`OOO_CPU`**: switched to `OOO_DMISS2`, and `synth_ooo.tcl` reads `OOO_DMISS2` too.
+- **`tb_core`**: the check after the exit lays the L2's dirty lines over memory and the D$'s dirty lines over those, then compares.
+- **`dcrace.S`**: a part 3 that repeats dirty evictions. Part 2 now also tests FENCE.I behind dirty lines.
+
+**Results**
+
+| `g14-o2`'s timed window | Before | W2 |
+|---|---|---|
+| `OOO_CPU`, the board's memory | 1,226,719 (8.152) | **1,213,068 (8.244)** |
+| `OOO_CORE`, ideal caches | 1,211,976 (8.251) | 1,211,530 (8.254) |
+
+- The real caches' cost went from 1.22 % to 0.13 %; what is left is cold misses. Within 0.1 % of 29.60's prediction (8.254).
+- memset / memcpy went from 3.99 to **1.01 cycles a store**: 400 MB/s at 50 MHz.
+- `run_core` (12 runs) and `run_coremark` pass. The only new `-Wall` output is the 4 `dc_wt_*` pins left open on purpose.
+
+**The core's bug injection detected 136 of 144.** The 8 not detected:
+- 5 are the ones known from before.
+- The other 3 are `OOO_DMISS2`'s, and I checked they cannot happen behind `CPU_L2`: the L2 takes one transaction at a time in the order accepted, so a write out is always ahead of the next read.
+  - a fill before the write out's answer
+  - a beat before its word is in the buffer
+  - FENCE.I done before the last write out's answer
+- The unit bench `tb_dmiss2` detects all 3. AXI gives no order between AR and AW, so they stay in the RTL.
+
+For W3, please do the 20 ns Vivado run. New in it:
+- The victim's copy, which takes the writes to the D$'s data from 8 tiles to 12.
+- `OOO_DMISS2` (the dirty bits, the evict buffer, the walk).
+- The drain without `!wt_ready`.
+<!-- /answer -->
+
+## 235. 2026-11-14 13:17:06 JST
+
+```text
+OOO_CPU run done
+```
