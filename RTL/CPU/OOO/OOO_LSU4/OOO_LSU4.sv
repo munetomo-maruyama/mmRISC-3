@@ -57,6 +57,13 @@
 // goes into a register, and a last try takes it in M as its result. A store that finds one as it
 // drains goes to the device, not to the D$. One access to a device at a time. Not here yet: AMO,
 // LR, SC. The miss handler is outside, by miss_*, st_miss_*, tw_*, rf_*, fill_done.
+//
+// The D$ at 64 KB (step 1.7c C2, Plan/OOC.md 29.68): 256 sets of 4 ways, the set the virtual
+// address's 13:6, read at the end of E as before; the tags are physical (the address's 39:12).
+// So the 2 bits above the page's offset (vx, the virtual 13:12) go with what needs a set: a
+// store's SQ entry (svx) for its drain, and the misses (miss_vx, st_miss_vx), as the line is
+// physical. A physical line in another set of its index (a synonym) is the miss handler's to
+// take out (OOO_DMISS2); here it is a miss.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -137,24 +144,26 @@ module OOO_LSU4
         // ---- the miss handler (outside), from and to registers
         output logic                     miss_valid,
         output logic [PAW-1:6]           miss_line,
+        output logic [1:0]               miss_vx,    // the virtual 13:12: the set's top bits
         output logic [$clog2(NLQ+NSQ)-1:0] miss_id,  // who asks, for done_id
         output logic                     st_miss_valid,
         output logic [PAW-1:6]           st_miss_line,
+        output logic [1:0]               st_miss_vx,
         input  logic                     fill_done,
         input  logic                     done_v,     // with fill_done or tlb_done: it is for this µop
         input  logic [$clog2(NLQ+NSQ)-1:0] done_id,
         input  logic                     tw_en,
         input  logic [1:0]               tw_way,
-        input  logic [5:0]               tw_set,
+        input  logic [7:0]               tw_set,
         input  logic [PAW-12:0]          tw_tag,     // {valid, tag}
         input  logic                     rf_en,      // a word of a fill; a store waits for it
         input  logic [1:0]               rf_way,
-        input  logic [8:0]               rf_addr,
+        input  logic [10:0]              rf_addr,
         input  logic [63:0]              rf_data,
         output logic                     dirty_set,
         output logic [1:0]               dirty_way,
-        output logic [5:0]               dirty_idx,
-        input  logic [8:0]               vr_addr,    // the D$'s victim's copy (written back, step 1.7b W2): {set, word}
+        output logic [7:0]               dirty_idx,
+        input  logic [10:0]              vr_addr,    // the D$'s victim's copy (written back, step 1.7b W2): {set, word}
         input  logic [1:0]               vr_way,
         output logic [63:0]              vr_data,    // a cycle after vr_addr
 
@@ -321,6 +330,7 @@ module OOO_LSU4
     logic [ROBW-1:0] srob [NSQ];             // (its ROB entry)
     logic [NLQ-1:0] lsd;                     // the load waited for a store's data
     logic [8:0]     swa   [NSQ];         // the word's address in the page
+    logic [1:0]     svx   [NSQ];         // the virtual 13:12: its set's top bits in the D$
     logic [7:0]     smask [NSQ];
 
     // what stays of the µop for a try: at its first M
@@ -395,17 +405,17 @@ module OOO_LSU4
     endfunction
 
     // ---- the arrays
-    logic [1:0][8:0]       a_rd;
+    logic [1:0][10:0]      a_rd;
     logic [1:0][3:0][63:0] a_d;
     logic [1:0][3:0][TW:0] a_t;
     logic [3:0][TW:0]      s_t;
-    logic [5:0]            d0_set;
+    logic [7:0]            d0_set;
     logic                  dw_en;
     logic [1:0]            dw_way;
-    logic [8:0]            dw_addr;
+    logic [10:0]           dw_addr;
     logic [63:0]           dw_data;
     logic [7:0]            dw_strb;
-    OOO_DCH2 #(.SETS(64), .WAYS(4), .WORDS(8), .TW(TW), .VR(1'b1)) u_dch
+    OOO_DCH2 #(.SETS(256), .WAYS(4), .WORDS(8), .TW(TW), .VR(1'b1)) u_dch
         (.clk(clk), .rd_addr(a_rd), .rd_data(a_d), .rd_tag(a_t),
          .sb_set(d0_set), .sb_tag(s_t),
          .tw_en(tw_en), .tw_way(tw_way), .tw_set(tw_set), .tw_tag(tw_tag),
@@ -446,7 +456,7 @@ module OOO_LSU4
         logic [IW-1:0]   e_id;
         logic [63:0]     e_a;
         assign e_a     = e_addr[p];
-        assign a_rd[p] = e_a[11:3];
+        assign a_rd[p] = e_a[13:3];
         assign e_live  = e_v && !drop(e_try, e_bm);
         if (p == 0) begin : g_e0
             always_ff @(posedge clk or negedge rst_n) begin
@@ -612,6 +622,7 @@ module OOO_LSU4
                 for (int i = 0; i < NSQ; i++) begin
                     if (m_v && !m_ld && m_sq == SW'(i)) begin
                         swa[i]   <= m_wa;
+                        svx[i]   <= m_a[13:12];
                         smask[i] <= m_lmask;
                     end
                 end
@@ -702,6 +713,7 @@ module OOO_LSU4
                 w_sq         <= m_sq;
                 w_id         <= m_id;
                 miss_line    <= {t_ptag, m_a[11:6]};
+                miss_vx      <= m_a[13:12];
                 tlb_miss_vpn <= m_a[VA-1:12];
             end
             assign miss_valid = w_live && w_miss;
@@ -845,6 +857,7 @@ module OOO_LSU4
     logic          d1_st, d2_st;               // a tag was written since its lookup began
     sptr_t         d1_p, d2_p;
     logic [8:0]    d1_a, d2_a;
+    logic [1:0]    d1_x, d2_x;                 // svx: the set's top bits
     logic [7:0]    d1_m, d2_m;
     logic [3:0]    d_hit;
     logic [1:0]    d2_way;
@@ -853,7 +866,7 @@ module OOO_LSU4
     logic [TW-1:0] d1_tag;
     logic [PAW-1:6] d2_line;
     assign d0_v   = dp != sq_cmt && !d_wait && !d_back;
-    assign d0_set = swa[dp[SW-1:0]][8:3];
+    assign d0_set = {svx[dp[SW-1:0]], swa[dp[SW-1:0]][8:3]};
     always @(*) begin
         d1_tag = st_r[d1_p[SW-1:0]];
         for (int w = 0; w < 4; w++) d_hit[w] = s_t[w][TW] && s_t[w][TW-1:0] == d1_tag;
@@ -863,11 +876,12 @@ module OOO_LSU4
         d_back  = d2_v && (d2_uc ? uc_busy : (!d2_hit || rf_en || tw_en || d2_st));
         dw_en   = rf_en || (d2_v && !d2_uc && d2_hit && !tw_en && !d2_st);
         dw_way  = rf_en ? rf_way : d2_way;
-        dw_addr = rf_en ? rf_addr : d2_a;
+        dw_addr = rf_en ? rf_addr : {d2_x, d2_a};
         dw_data = rf_en ? rf_data : d2_d;
         dw_strb = rf_en ? 8'hff : d2_m;
         st_miss_valid = d2_v && !d2_uc && !d2_hit && !tw_en && !d2_st;
         st_miss_line  = d2_line;
+        st_miss_vx    = d2_x;
         dirty_set = d2_v && !d2_uc && d2_hit && !rf_en && !tw_en && !d2_st;
         wt_valid  = dirty_set;
         wt_addr   = {d2_line, d2_a[2:0], 3'b000};
@@ -877,7 +891,7 @@ module OOO_LSU4
         st_uc_d   = d2_d;
         st_uc_m   = d2_m;
         dirty_way = d2_way;
-        dirty_idx = d2_a[8:3];
+        dirty_idx = {d2_x, d2_a[8:3]};
     end
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -902,9 +916,11 @@ module OOO_LSU4
         d2_st   <= d1_st || tw_en;
         d1_p    <= dp;
         d1_a    <= swa[dp[SW-1:0]];
+        d1_x    <= svx[dp[SW-1:0]];
         d1_m    <= smask[dp[SW-1:0]];
         d2_p    <= d1_p;
         d2_a    <= d1_a;
+        d2_x    <= d1_x;
         d2_m    <= d1_m;
         d2_hit  <= d_hit != 4'd0;
         d2_way  <= d_hit[3] ? 2'd3 : d_hit[2] ? 2'd2 : d_hit[1] ? 2'd1 : 2'd0;

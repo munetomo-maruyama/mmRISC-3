@@ -5654,3 +5654,41 @@ The author's Vivado run of `OOO_CPU` with the I$ at 128 KB (`synth_ooo.bat OOO_C
 - F0 (the deeper tags → the compare → the output reset), the risk named in 29.66, has no path in the first 20.
 
 **Step C1 is done.** Next C2, the D$ at 64 KB.
+
+### 29.68 Step 1.7c C2: the D$ at 64 KB, synonyms at the fill (2026-11-14)
+
+The D$ goes from 64 to 256 sets of 4 ways (64 KB), as 29.64 proposed: the hit path keeps its 4 ways, the new work is in the miss path.
+
+**The address.** The set is the virtual address's 13:6, read at the end of E as before (the arrays are read before the DTLB answers). The tags stay physical (39:12). So a physical line could sit in 4 sets: its index 11:6 with any of 4 values of the virtual 13:12 (*vx*). Linux makes such synonyms (a page mapped at a user address and at the kernel's own). They are kept out at the fill: a line is never in two sets.
+
+**What changed**
+- `OOO_DCH2`: `SETS=256` from `OOO_LSU4` (the module was written for any `SETS`). Each copy of a way is 2,048 words, 4 RAMB36 (as 2K × 18 side by side, so no output mux is needed); the tags stay one RAMB18 each. The arrays go from 18 to 54 tiles (+36).
+- `OOO_LSU4`: the arrays read at `e_a[13:3]`; a store's SQ entry keeps its vx (`svx`) for the drain's set, its write and its dirty bit; `miss_vx` and `st_miss_vx` go with the misses. The forwarding search is unchanged (the page's offset, then the physical tag).
+- `OOO_DMISS2`:
+  - Each line asked for is {physical line, vx}; the queue's "asked twice" compares both.
+  - The tags it keeps are in 4 banks by vx (16 RAMs of 64 × 29 bits, LUT RAM). All 4 banks are read at the line's index, so its own set and its 3 synonyms' sets are looked at in `S_LOOK` at once: no cycle more on a miss.
+  - A synonym found: `S_SINV` makes its tag invalid (a tag write: the LSU sends back a store whose lookup saw it) and starts its write out if dirty; `S_SYW` waits for B; then the fill as before (`S_INV`, `S_AR`...). The fill reads memory after the dirty copy is in it.
+  - The dirty bits (1,024) in LUT RAM with one write port: a store's set and a write out's clear never come in one cycle (no store is written in a tag write's cycle, nor during FENCE.I). 256 flip-flops before.
+  - The last-written way (2 bits a set) 256 deep; FENCE.I walks 1,024 lines.
+- `OOO_CORE`, `OOO_CPU`: `dc_miss_vx`, `dc_st_miss_vx`, the wider set and word addresses.
+
+**Translation is off in the core** (`tr_on` is 0 until step 1.8), so there VA = PA and vx is the physical 13:12: no synonym happens in the core. The synonym logic is tested by the unit benches; step 1.8 will run it in the core.
+
+**The unit benches**
+- `tb_dmiss2` (the bench as the LSU against a reference memory): 256 sets; each access with a vx, its line's own 9 times in 10, else another, as a page mapped twice would. New checks:
+  - a line is never valid in two sets or two ways;
+  - no fill is read while the line is anywhere in the D$ (a dirty synonym written out first);
+  - a line answered is in the set it was asked for in, and someone asked for it there.
+
+  PASS: 500,606 loads checked, 14,449 fills, 6,805 dirty victims written out, **10,038 synonyms taken out (4,284 dirty)**, 79 FENCE.I.
+- **`OOO_DMISS2`'s mutations: 43 of 43 detected.** These are the 33 of before (12 rewritten for the changed lines) and M1408-M1417: a synonym not taken out, a dirty synonym not written out, the fill not waiting for its write out, a synonym taken out in the wrong set or way, a fill without its vx, a tag kept in the wrong bank, a synonym's words or dirty bit read in the line's own set, a store's miss with a load's vx. M1417 was first NOT DETECTED (a wrong vx only fills the wrong set, and the asker asks again); the check "someone asked for it in that set" catches it. A mutation of the last-written way's set was dropped: it only steers the victim's choice.
+- `tb_lsu4`: the miss model places lines by {vx, index} and makes a synonym invalid before a fill. Its physical pages are now 16 KB apart, so that untranslated they still share sets as at 64 sets. Translated, 2 virtual pages of one physical page differ in 13:12: **2,410 synonyms**. PASS.
+- **`OOO_LSU4`'s mutations: 73 of 73 detected** (M1187 rewritten; M1419-M1426 new: a load's set, a load's or a store's miss, a store's kept vx, the drain's tag read, write and dirty bit, each without its vx, and a drained store's vx from the store behind it). `tb_lsu3` PASS (its `OOO_DCH2` stays at 64 sets).
+
+**The core** (`tb_core`: `DMissModel` places lines by {vx, index}; the dirty lines laid over memory after the exit are read from the banks and the LUT RAM; `tb_cpu.vlt`)
+- `run_core` PASS (12 runs), `run_coremark` PASS. **CoreMark unchanged to the cycle** (1,260,547 cycles with the board's memory, timed window 1,213,068, 8.244 CoreMark/MHz): its data fits 16 KB already.
+- **`dcrace.S` adjusted**: its parts 1 and 3 put 6 lines into one D$ set 4 KB apart; at 256 sets they no longer met (dcrace went 308,504 cycles faster in sum: no races). Now 16 KB apart: its cycles are back to those of 64 sets (120,638 on `OOO_CPU`, 116,291 before; the difference is FENCE.I's walk).
+- **FENCE.I costs about 770 cycles more** on `OOO_CPU`: the walk is 1,024 lines (256 before). That is the +2.0 % of `results/core.txt`'s cycles in sum (the arch tests about +1,550 each over their runs). If it matters (Linux runs FENCE.I when it loads code), the walk can skip a set whose 4 dirty bits are clear (they are read at once): 256 cycles then for a clean D$.
+- **Core mutations: 138 of 146 detected** (with 2 new, both detected: a load's or a store's miss with vx 0 in `OOO_CPU`'s wiring); the 8 undetected are those of before (71, 90, 101-103 and the 3 of OOO_DMISS2 the L2 hides).
+
+**The 20 ns check** is the author's Vivado run. Expected: block RAM 128.5 → **164.5 tiles**; LUTs about +1k (`OOO_DMISS2`'s tags 4 times as many, in 16 RAMs; the dirty bits' 1,024 entries in LUT RAM instead of 256 flip-flops and their mux). The risk: the load path out of arrays now 4 tiles a copy (their address fans out 4 times wider; the data out of each tile goes straight to the way's 64 bits). Fallback 128 sets (32 KB, +12 tiles).

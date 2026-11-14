@@ -12,6 +12,10 @@
 // line out and waits for the last answer (from the L2, which keeps it in order with the
 // I$'s fills).
 //
+// The caches' sizes (step 1.7c, Plan/OOC.md 29.64-29.68): the I$ 128 KB (256 sets x 8
+// ways, C1), the D$ 64 KB (256 sets x 4 ways, the set from the virtual 13:6, C2; vx, the
+// virtual 13:12, goes with each miss to OOO_DMISS2, which keeps a line in one set).
+//
 // Simulation (DCACHE_SIM_UC): sim_uc_line names one line not cached (OOO_LSU3's
 // uc_line): the test bench's tohost, which HTIF must see in the memory and set back to
 // 0 there (Plan/CORE.md 5.1 rule 2).
@@ -103,11 +107,12 @@ module OOO_CPU
 
     logic             dc_miss_valid, dc_st_miss_valid, dc_fill_done, dc_done_v, dc_tw_en, dc_rf_en, dc_dirty_set;
     logic [PAW-1:6]   dc_miss_line, dc_st_miss_line;
+    logic [1:0]       dc_miss_vx, dc_st_miss_vx;
     logic [4:0]       dc_miss_id, dc_done_id;
     logic [1:0]       dc_tw_way, dc_rf_way, dc_dirty_way;
-    logic [5:0]       dc_tw_set, dc_dirty_idx;
+    logic [7:0]       dc_tw_set, dc_dirty_idx;
     logic [PAW-12:0]  dc_tw_tag;
-    logic [8:0]       dc_rf_addr;
+    logic [10:0]      dc_rf_addr;
     logic [63:0]      dc_rf_data;
     logic             dc_uc_req, dc_uc_we, dc_uc_done;
     logic [PAW-1:0]   dc_uc_addr;
@@ -117,7 +122,7 @@ module OOO_CPU
     /* verilator lint_on UNUSEDSIGNAL */
     logic [63:0]      dc_uc_wdata, dc_uc_rdata;
     logic [7:0]       dc_uc_wmask;
-    logic [8:0]       dc_vr_addr;
+    logic [10:0]      dc_vr_addr;
     logic [1:0]       dc_vr_way;
     logic [63:0]      dc_vr_data;
     logic             fl_req, fl_take, fl_done;
@@ -128,8 +133,8 @@ module OOO_CPU
         (.clk(clk), .rst_n(rst_n), .boot(boot), .boot_pc(boot_pc),
          .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ready(ic_req_ready),
          .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data),
-         .dc_miss_valid(dc_miss_valid), .dc_miss_line(dc_miss_line), .dc_miss_id(dc_miss_id),
-         .dc_st_miss_valid(dc_st_miss_valid), .dc_st_miss_line(dc_st_miss_line), .dc_fill_done(dc_fill_done),
+         .dc_miss_valid(dc_miss_valid), .dc_miss_line(dc_miss_line), .dc_miss_vx(dc_miss_vx), .dc_miss_id(dc_miss_id),
+         .dc_st_miss_valid(dc_st_miss_valid), .dc_st_miss_line(dc_st_miss_line), .dc_st_miss_vx(dc_st_miss_vx), .dc_fill_done(dc_fill_done),
          .dc_done_v(dc_done_v), .dc_done_id(dc_done_id), .dc_tw_en(dc_tw_en), .dc_tw_way(dc_tw_way), .dc_tw_set(dc_tw_set),
          .dc_tw_tag(dc_tw_tag), .dc_rf_en(dc_rf_en), .dc_rf_way(dc_rf_way), .dc_rf_addr(dc_rf_addr), .dc_rf_data(dc_rf_data),
          .dc_dirty_set(dc_dirty_set), .dc_dirty_way(dc_dirty_way), .dc_dirty_idx(dc_dirty_idx), .dc_sq_drained(dc_sq_drained),
@@ -165,8 +170,8 @@ module OOO_CPU
 
     OOO_DMISS2 #(.PAW(PAW), .IW(5)) u_dmiss
         (.clk(clk), .rst_n(rst_n),
-         .miss_valid(dc_miss_valid), .miss_line(dc_miss_line), .miss_id(dc_miss_id),
-         .st_miss_valid(dc_st_miss_valid), .st_miss_line(dc_st_miss_line), .fill_done(dc_fill_done),
+         .miss_valid(dc_miss_valid), .miss_line(dc_miss_line), .miss_vx(dc_miss_vx), .miss_id(dc_miss_id),
+         .st_miss_valid(dc_st_miss_valid), .st_miss_line(dc_st_miss_line), .st_miss_vx(dc_st_miss_vx), .fill_done(dc_fill_done),
          .done_v(dc_done_v), .done_id(dc_done_id), .tw_en(dc_tw_en), .tw_way(dc_tw_way), .tw_set(dc_tw_set),
          .tw_tag(dc_tw_tag), .rf_en(dc_rf_en), .rf_way(dc_rf_way), .rf_addr(dc_rf_addr), .rf_data(dc_rf_data),
          .dirty_set(dc_dirty_set), .dirty_way(dc_dirty_way), .dirty_idx(dc_dirty_idx),

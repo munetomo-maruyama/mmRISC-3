@@ -44,7 +44,8 @@ typedef VOOO_CPU___024root TopRoot;
 #define CORE(x) OOO_CPU__DOT__u_core__DOT__##x
 #define L2_TAG(w) OOO_CPU__DOT__u_l2__DOT__u_tag__DOT__g_way__BRA__##w##__KET____DOT__mem
 #define L2_DAT(w) OOO_CPU__DOT__u_l2__DOT__u_dat__DOT__g_way__BRA__##w##__KET____DOT__mem
-#define DC_TAG(w) OOO_CPU__DOT__u_dmiss__DOT__g_tag__BRA__##w##__KET____DOT__tagm
+#define DC_TAG(b, w) OOO_CPU__DOT__u_dmiss__DOT__g_bank__BRA__##b##__KET____DOT__g_tag__BRA__##w##__KET____DOT__tagm
+#define DC_DTY(w) OOO_CPU__DOT__u_dmiss__DOT__g_dty__BRA__##w##__KET____DOT__dm
 #define DC_DAT(w) OOO_CPU__DOT__u_core__DOT__u_lsu__DOT__u_dch__DOT__g_way__BRA__##w##__KET____DOT__g_vr__DOT__vm
 #else                           // OOO_CORE: OOO_LSU3's D$ with DMissModel behind it (step 1.3 E1)
 #include "VOOO_CORE.h"
@@ -293,7 +294,7 @@ static bool run(const Opts& o, const std::string& elf)
 #else
         bool mv = d->dc_miss_valid, smv = d->dc_st_miss_valid, dset = d->dc_dirty_set, sqd = d->dc_sq_drained;
         uint64_t ml = d->dc_miss_line, sml = d->dc_st_miss_line;
-        int mid = d->dc_miss_id, dway = d->dc_dirty_way, didx = d->dc_dirty_idx;
+        int mid = d->dc_miss_id, dway = d->dc_dirty_way, didx = d->dc_dirty_idx, mvx = d->dc_miss_vx, smvx = d->dc_st_miss_vx;
         bool ucr = d->dc_uc_req, ucw = d->dc_uc_we;
         uint64_t uca = d->dc_uc_addr, ucd = d->dc_uc_wdata; uint8_t ucm = d->dc_uc_wmask;
         // Memory takes each store as the D$ takes it (dc_wt_*: what a write-back D$ would give back at once, step
@@ -314,7 +315,7 @@ static bool run(const Opts& o, const std::string& elf)
         ax.clock(arv, ara, arl, rr, awv, awa, awl, wv, wd, ws, br);
         al.clock(larv, lara, lrr, lawv, lawa, lwv, lwd, lws, lbr);
 #else
-        dm.clock(mv, ml, mid, smv, sml, dset, dway, didx, sqd);
+        dm.clock(mv, ml, mvx, mid, smv, sml, smvx, dset, dway, didx, sqd);
         uc.clock(ucr, ucw, uca, ucd, ucm);
 #endif
     }
@@ -338,12 +339,19 @@ static bool run(const Opts& o, const std::string& elf)
                         b.mem().write64(a + 8 * k, v, 0xff);
                     }
                 }
-            // the D$'s dirty lines over those (64 sets of 4 ways; {valid, tag} with the tag the address above 4 KB)
+            // the D$'s dirty lines over those (256 sets of 4 ways, step 1.7c C2; {valid, tag} with the tag the address
+            // above 4 KB, kept by OOO_DMISS2 in 4 banks by the set's top 2 bits; the line's 11:6 the set's low 6 bits)
+            auto tagof = [&](int b, int w, int s6) -> uint64_t {
+#define DC_T4(B) (w == 0 ? r->DC_TAG(B, 0)[s6] : w == 1 ? r->DC_TAG(B, 1)[s6] : w == 2 ? r->DC_TAG(B, 2)[s6] : r->DC_TAG(B, 3)[s6])
+                return b == 0 ? DC_T4(0) : b == 1 ? DC_T4(1) : b == 2 ? DC_T4(2) : DC_T4(3);
+#undef DC_T4
+            };
             for (int w = 0; w < 4; w++)
-                for (int s = 0; s < 64; s++) {
-                    if (!((r->OOO_CPU__DOT__u_dmiss__DOT__dty[w] >> s) & 1)) continue;
-                    uint64_t t = w == 0 ? r->DC_TAG(0)[s] : w == 1 ? r->DC_TAG(1)[s] : w == 2 ? r->DC_TAG(2)[s] : r->DC_TAG(3)[s];
-                    uint64_t a = ((t & ((1ull << 28) - 1)) << 12) | ((uint64_t)s << 6);
+                for (int s = 0; s < 256; s++) {
+                    bool dt = w == 0 ? r->DC_DTY(0)[s] : w == 1 ? r->DC_DTY(1)[s] : w == 2 ? r->DC_DTY(2)[s] : r->DC_DTY(3)[s];
+                    if (!dt) continue;
+                    uint64_t t = tagof(s >> 6, w, s & 63);
+                    uint64_t a = ((t & ((1ull << 28) - 1)) << 12) | ((uint64_t)(s & 63) << 6);
                     for (int k = 0; k < 8; k++) {
                         uint64_t v = w == 0 ? r->DC_DAT(0)[s * 8 + k] : w == 1 ? r->DC_DAT(1)[s * 8 + k] :
                                      w == 2 ? r->DC_DAT(2)[s * 8 + k] : r->DC_DAT(3)[s * 8 + k];

@@ -3,7 +3,8 @@
 # Plan/OOC.md 29.58), in lock-step. Correct on any L2; mutate_core.py runs it
 # on OOO_CPU with an L2 of 4 KB (build_core.sh L2KB=4), where the races open.
 #
-# 1. A fill over a valid line: 6 lines of one D$ set (64 sets x 4 ways, the
+# 1. A fill over a valid line: 6 lines of one D$ set (256 sets x 4 ways since
+#    step 1.7c C2, Plan/OOC.md 29.68: the lines 16 KB apart; 4 KB at 64 sets; the
 #    victim at random) loaded round and round, at a word that moves, by loads
 #    that do not wait for each other: a load comes to the victim while its
 #    words are being replaced (its tag must be invalid by then).
@@ -22,12 +23,13 @@
 _start:
     .option push
     .option norvc
-    la      s1, area                # 4 KB aligned: D$ set 0
-    li      s2, 4096
+    la      s1, area                # 16 KB aligned: D$ set 0
+    li      s2, 4096                # (part 2's page)
+    li      s9, 16384               # parts 1 and 3: the D$'s set stride (256 sets of 64 bytes)
 
     # ---- 1. the lines' words: (line << 8) | word
     li      t0, 0                   # line
-1:  mul     t2, t0, s2
+1:  mul     t2, t0, s9
     add     t2, t2, s1
     li      t1, 0                   # word
 2:  slli    t3, t0, 8
@@ -52,15 +54,15 @@ _start:
     slli    t1, t1, 3
     add     t2, s1, t1
     ld      a2, 0(t2)
-    add     t2, t2, s2
+    add     t2, t2, s9
     ld      a3, 0(t2)
-    add     t2, t2, s2
+    add     t2, t2, s9
     ld      a4, 0(t2)
-    add     t2, t2, s2
+    add     t2, t2, s9
     ld      a5, 0(t2)
-    add     t2, t2, s2
+    add     t2, t2, s9
     ld      a6, 0(t2)
-    add     t2, t2, s2
+    add     t2, t2, s9
     ld      a7, 0(t2)
     add     s5, s5, a2
     add     s5, s5, a3
@@ -73,7 +75,7 @@ _start:
 
     # ---- 2. FENCE.I behind slow writes, 8 times
     la      s6, area2               # the 16 lines: area2 + j * 64, D$ sets 0..15
-    la      s7, area3               # the 96: area3 + 1024 + j * 64 and + 4096, D$ sets 16..63
+    la      s7, area3               # the 96: area3 + 1024 + j * 64 and + 4096, D$ sets apart from the 16's
     li      s8, 1                   # the round, the immediate written into `patch`
 4:  # the 16 into the D$
     li      t0, 0
@@ -123,7 +125,7 @@ _start:
     li      t1, 3
     mul     t1, t1, s3
     andi    t1, t1, 7
-    mul     t2, t0, s2
+    mul     t2, t0, s9
     add     t2, t2, s1
     slli    t1, t1, 3
     add     t2, t2, t1
@@ -133,7 +135,7 @@ _start:
     li      t1, 5
     mul     t1, t1, s3
     andi    t1, t1, 7
-    mul     t2, t0, s2
+    mul     t2, t0, s9
     add     t2, t2, s1
     slli    t1, t1, 3
     add     t2, t2, t1
@@ -162,7 +164,7 @@ tohost: .dword 0
 fromhost: .dword 0
 
     .section .data
-    .balign 4096
-area:  .space 6 * 4096
+    .balign 16384
+area:  .space 6 * 16384
 area2: .space 4096
 area3: .space 2 * 4096

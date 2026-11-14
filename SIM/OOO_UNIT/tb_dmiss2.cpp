@@ -13,6 +13,13 @@
 // dirty victims, and one of tag 0 in each: the reset's tags are {invalid, 0})
 // and 16 lie anywhere.
 //
+// Since step 1.7c C2 (Plan/OOC.md 29.68): 256 sets, a line's set {vx, its physical
+// 11:6}. Each access comes with a vx: its line's own (a vx of its own, drawn once) 9
+// times in 10, else another, as a page mapped at two virtual addresses would. So a
+// line is asked for in a set while it sits in another (a synonym, clean or dirty).
+// The bench checks that a line is never in two places, and that no fill is read
+// while the line is anywhere in the D$ (a dirty synonym written out first).
+//
 // The memory on AXI4 (random readiness, the first beat 0 to 20 cycles after the
 // address, now and then 40, gaps between beats; B 0 to 10 cycles, now and then
 // 30) checks what the D$ must keep:
@@ -22,6 +29,7 @@
 //     one marked, and holds the program's words (no store lost, no word of the
 //     next line in it);
 //   - after FENCE.I, the whole memory is the program's.
+// And each line answered is in the set it was asked for in (its vx).
 // The peripheral bus is a device memory of its own (reads checked).
 //---------------------------------------------------------------------------
 #include "VDMISS_DC.h"
@@ -35,7 +43,7 @@
 
 static std::mt19937_64 rng(61);
 static VDMISS_DC d;
-static const int SETS = 64, WAYS = 4;
+static const int SETS = 256, WAYS = 4;
 
 static uint64_t hashw(uint64_t a)          // a word's first value
 {
@@ -71,17 +79,22 @@ int main(int argc, char** argv)
         for (int t = 0; t < 10; t++) pool.push_back(((rng() & ((1ull << 28) - 1)) << 6) | (uint64_t)sets4[s]);
     for (int k = 0; k < 16; k++) pool.push_back(rng() & ((1ull << 34) - 1));
     std::vector<uint64_t> hot(pool.begin(), pool.begin() + 40);
+    std::map<uint64_t, int> home;                   // a line's own vx
     // lines of tag 0 (the first 4 KB): the reset's tags are {invalid, 0}, so such a line must not be taken as held
     // (asked half the time in the first 3,000 cycles, while ways are still as the reset left them)
     std::vector<uint64_t> t0;
     for (int s = 0; s < 4; s++) { pool.push_back((uint64_t)sets4[s]); hot.push_back((uint64_t)sets4[s]); t0.push_back((uint64_t)sets4[s]); }
+    for (auto l : pool) home[l] = (int)(rng() % 4);
     auto pick = [&](long c) { return (c < 3000 && rng() % 2) ? t0[rng() % 4] : rng() % 4 ? hot[rng() % hot.size()] : pool[rng() % pool.size()]; };
+    auto pvx = [&](uint64_t l) { return rng() % 10 ? home[l] : (int)(rng() % 4); };
+    auto sof = [&](uint64_t l, int x) { return (x << 6) | (int)(l & 63); };     // the set
 
     // ---- the tags as written
     struct Tag { bool v = false; uint64_t line = 0; };
     Tag tg[WAYS][SETS];
     std::set<uint64_t> dirty;                       // the lines a store wrote since their fill or write out
-    auto find = [&](uint64_t l) { int s = (int)(l & 63); for (int w = 0; w < WAYS; w++) if (tg[w][s].v && tg[w][s].line == l) return w; return -1; };
+    auto find = [&](uint64_t l, int x) { int s = sof(l, x); for (int w = 0; w < WAYS; w++) if (tg[w][s].v && tg[w][s].line == l) return w; return -1; };
+    auto places = [&](uint64_t l) { int n = 0; for (int x = 0; x < 4; x++) if (find(l, x) >= 0) n++; return n; };
 
     // ---- the memory bus
     bool ar_on = false; uint64_t ar_line = 0; long r_at = 0, r_ar = 0; int r_beat = 0; bool r_v = false, r_tight = false;
@@ -91,13 +104,16 @@ int main(int argc, char** argv)
     // ---- the bench's own
     struct Chk { int p, w; uint64_t exp, a; };
     std::vector<Chk> chk;
-    std::map<int, std::set<uint64_t>> asked;
+    std::map<int, std::set<uint64_t>> asked;            // by id: {line, vx}
+    std::set<uint64_t> pend;                            // every {line, vx} asked for (loads' and stores'; kept: an ask
+                                                        // made while its line is filled is answered again, at once)
     bool uc_wait = false, uc_rd = false; uint64_t uc_exp = 0;
     int fmode = 0; long f_at = 4000, f_quiet = 0;      // FENCE.I: 1 quiet, 2 asked, 3 taken
     int last_st_w = -1, last_st_s = -1;                 // the store of the cycle before (the race with S_INV)
 
     long bad = 0, cyc = 0;
     long n_ld = 0, n_st = 0, n_stmiss = 0, n_fill = 0, n_vict = 0, n_clean = 0, n_fl = 0, n_ucr = 0, n_ucw = 0, n_gate = 0, n_race = 0, n_done = 0, n_wrar = 0, n_t0 = 0;
+    long n_syn = 0, n_syd = 0;
     auto err = [&](const char* m, uint64_t x = 0) { if (bad++ < 12) printf("cycle %ld: %s (%llx)\n", cyc, m, (unsigned long long)x); };
     int pst = 40, pld = 60, lat = 20;
     const long N = 600000;
@@ -113,26 +129,27 @@ int main(int argc, char** argv)
         d.st_en = 0; d.miss_valid = 0; d.st_miss_valid = 0; d.uc_req = 0;
         uint32_t ra = 0;
         chk.clear();
-        uint64_t st_l = 0; int st_w = -1, st_word = 0; uint64_t st_dat = 0; uint8_t st_m = 0;
+        uint64_t st_l = 0; int st_w = -1, st_word = 0, st_s = 0; uint64_t st_dat = 0; uint8_t st_m = 0;
+        auto t0c = [&](uint64_t l, int x) { int s = sof(l, x); if (l < 64 && !(tg[0][s].v && tg[1][s].v && tg[2][s].v && tg[3][s].v)) n_t0++; };
         if (!stores_off && (long)(rng() % 100) < pst) {
             uint64_t l = pick(cyc);
-            int w = find(l);
+            int x = pvx(l), w = find(l, x);
             if (w >= 0) {
-                st_l = l; st_w = w; st_word = rng() % 8; st_dat = rng(); st_m = rng() % 3 ? (uint8_t)(rng() & 0xff) : 0xff;
+                st_l = l; st_w = w; st_s = sof(l, x); st_word = rng() % 8; st_dat = rng(); st_m = rng() % 3 ? (uint8_t)(rng() & 0xff) : 0xff;
                 if (!st_m) st_m = 1;
-                d.st_en = 1; d.st_way = w; d.st_addr = (uint32_t)((l & 63) << 3) | st_word; d.st_data = st_dat; d.st_strb = st_m;
-            } else { d.st_miss_valid = 1; d.st_miss_line = l; n_stmiss++; if (l < 64 && !(tg[0][l].v && tg[1][l].v && tg[2][l].v && tg[3][l].v)) n_t0++; }
+                d.st_en = 1; d.st_way = w; d.st_addr = (uint32_t)(st_s << 3) | st_word; d.st_data = st_dat; d.st_strb = st_m;
+            } else { d.st_miss_valid = 1; d.st_miss_line = l; d.st_miss_vx = x; n_stmiss++; t0c(l, x); pend.insert((l << 2) | x); }
         }
         if (!quiet && (long)(rng() % 100) < pld) {
             for (int p = 0; p < 2; p++) {
                 uint64_t l = pick(cyc);
-                int wd = rng() % 8, w = find(l);
+                int x = pvx(l), wd = rng() % 8, w = find(l, x);
                 if (w >= 0) {
-                    ra |= (uint32_t)(((l & 63) << 3) | wd) << (9 * p);
+                    ra |= (uint32_t)((sof(l, x) << 3) | wd) << (11 * p);
                     chk.push_back({p, w, at(ref, l).w[wd], (l << 6) | (wd << 3)});
                 } else if (p == 0) {
                     int id = rng() % 32;
-                    d.miss_valid = 1; d.miss_line = l; d.miss_id = id; asked[id].insert(l); if (l < 64 && !(tg[0][l].v && tg[1][l].v && tg[2][l].v && tg[3][l].v)) n_t0++;
+                    d.miss_valid = 1; d.miss_line = l; d.miss_vx = x; d.miss_id = id; asked[id].insert((l << 2) | x); t0c(l, x); pend.insert((l << 2) | x);
                 }
             }
         }
@@ -168,7 +185,7 @@ int main(int argc, char** argv)
             L.w[st_word] = o; n_st++; dirty.insert(st_l);
         }
         if (d.tw_en && !((d.tw_tag >> 28) & 1) && last_st_w == (int)d.tw_way && last_st_s == (int)d.tw_set) n_race++;
-        last_st_w = st_ok ? st_w : -1; last_st_s = st_ok ? (int)(st_l & 63) : -1;
+        last_st_w = st_ok ? st_w : -1; last_st_s = st_ok ? st_s : -1;
         // the AXI4 handshakes
         bool arh = d.m_axi4_arvalid && d.m_axi4_arready, rh = d.m_axi4_rvalid && d.m_axi4_rready;
         bool awh = d.m_axi4_awvalid && d.m_axi4_awready, wh = d.m_axi4_wvalid && d.m_axi4_wready, bh = d.m_axi4_bvalid && d.m_axi4_bready;
@@ -177,7 +194,7 @@ int main(int argc, char** argv)
             uint64_t l = d.m_axi4_araddr >> 6;
             if (d.m_axi4_araddr & 63 || d.m_axi4_arlen != 7 || d.m_axi4_arsize != 3 || d.m_axi4_arburst != 1) err("AR: not a line's burst", d.m_axi4_araddr);
             if ((aw_on || b_pend) && aw_line == l) err("a fill read while the line's write out is not answered", l);
-            if (find(l) >= 0) err("a fill of a line the D$ holds", l);
+            if (places(l)) err("a fill of a line the D$ holds (in some set)", l);
             Line &R = at(ref, l), &M = at(mem, l);
             for (int i = 0; i < 8; i++) if (R.w[i] != M.w[i]) { err("a fill reads a line memory does not have", l); break; }
             if (aw_on || b_pend) n_wrar++;
@@ -204,7 +221,7 @@ int main(int argc, char** argv)
                 Line& R = at(ref, aw_line);
                 for (int i = 0; i < 8; i++) if (R.w[i] != w_data.w[i]) { err("a line written out is not the program's", aw_line); break; }
                 at(mem, aw_line) = w_data;
-                if (find(aw_line) >= 0) n_clean++; else n_vict++;
+                if (places(aw_line)) n_clean++; else n_vict++;
                 aw_on = false; b_pend = true; b_at = cyc + 1 + (rng() % 10 == 0 ? 30 : rng() % 11);
             }
         }
@@ -228,8 +245,10 @@ int main(int argc, char** argv)
         // a line's end: the line in hand (OOO_DMISS2's f_line) is in the D$ now, and a load's answer goes to an id that asked
         if (d.fill_done) {
             uint64_t fl = d.rootp->DMISS_DC__DOT__u_dmiss__DOT__f_line;
-            if (find(fl) < 0) err("a line answered that is not in the D$", fl);
-            if (d.done_v) { n_done++; if (!asked[d.done_id].count(fl)) err("a load's answer to an id that did not ask for the line", d.done_id); }
+            int fx = d.rootp->DMISS_DC__DOT__u_dmiss__DOT__f_vx;
+            if (find(fl, fx) < 0) err("a line answered that is not in the D$ (in its set)", fl);
+            if (!pend.count((fl << 2) | fx)) err("a line filled in a set no one asked for it in", fl);
+            if (d.done_v) { n_done++; if (!asked[d.done_id].count((fl << 2) | fx)) err("a load's answer to an id that did not ask for the line", d.done_id); }
         }
         int tww = d.tw_way, tws = d.tw_set; uint32_t twt = d.tw_tag; bool twe = d.tw_en;
 
@@ -241,7 +260,16 @@ int main(int argc, char** argv)
             n_ld++;
         }
         d.clk = 0; d.eval();
-        if (twe) { tg[tww][tws].v = (twt >> 28) & 1; tg[tww][tws].line = ((uint64_t)(twt & ((1u << 28) - 1)) << 6) | (uint64_t)tws; }
+        if (twe) {
+            Tag& T = tg[tww][tws];
+            bool v = (twt >> 28) & 1;
+            uint64_t l = ((uint64_t)(twt & ((1u << 28) - 1)) << 6) | (uint64_t)(tws & 63);
+            int fx = d.rootp->DMISS_DC__DOT__u_dmiss__DOT__f_vx;
+            if (!v && T.v && (tws >> 6) != fx && T.line == d.rootp->DMISS_DC__DOT__u_dmiss__DOT__f_line) { n_syn++; if (dirty.count(T.line)) n_syd++; }
+            T.v = v; T.line = l;
+            if (v && places(l) != 1) err("a line in two sets", l);
+            if (v) { int n = 0; for (int w = 0; w < WAYS; w++) if (tg[w][tws].v && tg[w][tws].line == l) n++; if (n != 1) err("a line in two ways", l); }
+        }
         r_v = (r_v && !rh) || (ar_on && !(rh && r_beat == 8) && cyc + 1 >= r_at && (rng() % 4 != 0) && !hold);
         if (rh) r_at = cyc + 1;
         if (fmode == 2 && took) fmode = 3;
@@ -259,9 +287,11 @@ int main(int argc, char** argv)
     if (uc_wait) err("a device access not answered");
     printf("tb_dmiss2: %ld loads checked, %ld stores (%ld missed), %ld fills (%ld behind a write out), %ld dirty victims written out, "
            "%ld lines cleaned by %ld FENCE.I, %ld dirty victims' fills with the first beat the cycle after AR, %ld stores the cycle before their line's tag went, "
-           "%ld load answers, %ld asks of a tag-0 line with a way of its set as reset left it, %ld/%ld device reads/writes, %ld mismatches: ",
-           n_ld, n_st, n_stmiss, n_fill, n_wrar, n_vict, n_clean, n_fl, n_gate, n_race, n_done, n_t0, n_ucr, n_ucw, bad);
-    bool ok = bad == 0 && n_vict > 1000 && n_clean > 100 && n_fl > 20 && n_gate > 100 && n_race > 50 && n_done > 1000 && n_ucr > 100 && n_wrar > 100 && n_t0 > 100;
+           "%ld load answers, %ld asks of a tag-0 line with a way of its set as reset left it, %ld synonyms taken out (%ld dirty), "
+           "%ld/%ld device reads/writes, %ld mismatches: ",
+           n_ld, n_st, n_stmiss, n_fill, n_wrar, n_vict, n_clean, n_fl, n_gate, n_race, n_done, n_t0, n_syn, n_syd, n_ucr, n_ucw, bad);
+    bool ok = bad == 0 && n_vict > 1000 && n_clean > 100 && n_fl > 20 && n_gate > 100 && n_race > 50 && n_done > 1000 && n_ucr > 100 && n_wrar > 100 && n_t0 > 100 &&
+              n_syn > 500 && n_syd > 200;
     printf("%s\n", ok ? "PASS" : "FAIL");
     return ok ? 0 : 1;
 }

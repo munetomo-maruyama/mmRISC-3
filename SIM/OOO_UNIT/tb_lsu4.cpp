@@ -18,7 +18,11 @@
 //   the commit     in order; a µop with an exception flushes everything
 //   recoveries     branches at random, kills, flushes
 //   the miss       a line evicted (tag invalid), its words, its tag, fill_done;
-//                  memory is what stores have left in the D$, as if written through
+//                  memory is what stores have left in the D$, as if written through.
+//                  Since step 1.7c C2 (Plan/OOC.md 29.68) the D$ has 256 sets, the set
+//                  {vx (the virtual 13:12), the physical 11:6}: a line asked for in one set
+//                  while it is in another (2 virtual pages of one physical page whose
+//                  13:12 differ) is first made invalid there, as OOO_DMISS2 does
 //   the walk       the DTLB refilled after some cycles, flushed now and then
 // Checks: the value of every load that completes, its exception, cmp_ld_rp when it
 // ran more than once, cmp_ld_sd only then and with an older store of that offset whose data
@@ -74,7 +78,7 @@ struct Sim {
     // the miss handler
     std::deque<uint64_t> mq; std::map<uint64_t, int> m_id;     // who asked first
     int m_state = 0, m_i = 0, m_way = 0, m_delay = 0; uint64_t m_line = 0;
-    uint64_t tag_ref[64][4]; bool v_ref[64][4]; int last_way[64] = {0};
+    uint64_t tag_ref[256][4]; bool v_ref[256][4]; int last_way[256] = {0}; long n_syn = 0;
     // the walk
     std::deque<uint64_t> wq; int w_delay = 0; std::map<uint64_t, int> w_id;
     // coverage
@@ -93,7 +97,9 @@ struct Sim {
         // physical pages: few, so that lines meet in sets; 2 virtual ones on one
         // the last differs in the tag's top bit. Virtual: 2 sets of the DTLB, a page 0 (empty
         // entries look like it), one that differs in the top bit
-        static const uint64_t pp[NPG] = {0x80000, 0x80001, 0x80002, 0x80003, 0x80000, 0x80004, 0x80005, 0x8080000};
+        // (the physical pages 16 KB apart: their 13:12 alike, so that untranslated they share the D$'s sets, as at 64
+        // sets; translated, vx is the virtual page's: 0x12340 and 0x12342 on one physical page are synonyms)
+        static const uint64_t pp[NPG] = {0x80000, 0x80004, 0x80008, 0x8000c, 0x80000, 0x80010, 0x80014, 0x8080000};
         static const uint64_t vv[NPG] = {0x12340, 0x12360, 0x12381, 0x123a1, 0x12342, 0x12362, 0x12340 | (1ull << 26), 0};
         for (int i = 0; i < NPG; i++) {
             Pg p; p.vp = tr ? vv[i] : pp[i]; p.pp = pp[i];
@@ -494,8 +500,8 @@ struct Sim {
             }
         }
         if (pair_ld && pair_dat >= 0 && (d.tlb_miss || d.miss_valid || d.tlb_flush)) pair_skip = true;
-        if (d.miss_valid) { n_miss++; ask_line((uint64_t)d.miss_line, d.miss_id); }
-        if (d.st_miss_valid) { n_stm++; ask_line((uint64_t)d.st_miss_line, -1); }
+        if (d.miss_valid) { n_miss++; ask_line(((uint64_t)d.miss_line << 2) | d.miss_vx, d.miss_id); }
+        if (d.st_miss_valid) { n_stm++; ask_line(((uint64_t)d.st_miss_line << 2) | d.st_miss_vx, -1); }
         if (d.tlb_miss) {
             n_walk++;
             uint64_t vp = (uint64_t)d.tlb_miss_vpn;
@@ -517,7 +523,7 @@ struct Sim {
             if (cmt_st.empty()) err("a store written with none committed");
             else {
                 Op* o = cmt_st.front(); cmt_st.pop_front();
-                int set = (int)((o->pa >> 6) & 63);
+                int set = (int)((((o->va >> 12) & 3) << 6) | ((o->pa >> 6) & 63));
                 if (d.dirty_idx != set) err("written in the wrong set");
                 if (!v_ref[set][d.dirty_way] || tag_ref[set][d.dirty_way] != (o->pa >> 12)) err("written in a way without its line");
                 last_way[set] = d.dirty_way;
@@ -559,30 +565,42 @@ struct Sim {
         d.fill_done = 1;
         if (m_id[m_line] >= 0 && !d.done_v) { d.done_v = 1; d.done_id = m_id[m_line]; }
     }
+    // m_line: {the physical line, vx}
+    int mset() { return (int)(((m_line & 3) << 6) | ((m_line >> 2) & 63)); }
     void step_miss() {
         if (m_delay > 0) { m_delay--; return; }
         switch (m_state) {
         case 0:
             if (!mq.empty()) {
                 m_line = mq.front(); mq.pop_front();
-                int set = (int)(m_line & 63);
-                uint64_t tag = m_line >> 6;
+                int set = mset();
+                uint64_t tag = m_line >> 8;
                 bool have = false;
                 for (int w = 0; w < 4; w++) if (v_ref[set][w] && tag_ref[set][w] == tag) have = true;
                 if (have) { say_done(); n_cl++; break; }
-                m_way = rng() % 2 ? last_way[set] : (int)(rng() % 4);
-                if (v_ref[set][m_way]) n_evict++;
-                // (the tag stays, only the valid bit goes)
-                d.tw_en = 1; d.tw_way = m_way; d.tw_set = set; d.tw_tag = (uint32_t)tag_ref[set][m_way];
-                v_ref[set][m_way] = false;
-                m_state = 1; m_i = 0; m_delay = rng() % 2 ? 0 : (int)(rng() % 4);
+                // a synonym: the line in another set of its index, made invalid first
+                for (int x = 0; x < 4; x++) {
+                    int ys = (x << 6) | (set & 63);
+                    if (ys == set) continue;
+                    for (int w = 0; w < 4; w++)
+                        if (v_ref[ys][w] && tag_ref[ys][w] == tag) {
+                            d.tw_en = 1; d.tw_way = w; d.tw_set = ys; d.tw_tag = (uint32_t)tag;
+                            v_ref[ys][w] = false; n_syn++;
+                            m_state = 4; m_delay = rng() % 2;
+                            return;
+                        }
+                }
+                victim();
             }
             break;
+        case 4:
+            victim();
+            break;
         case 1: {
-            int set = (int)(m_line & 63);
+            int set = mset();
             if (rng() % 3 == 0) break;
             uint64_t v = 0;
-            uint64_t a = (m_line << 6) + m_i * 8;
+            uint64_t a = (m_line >> 2 << 6) + m_i * 8;
             // the bytes as they are now: a store already in another way of this line cannot be, there is one line
             for (int b = 0; b < 8; b++) v |= (uint64_t)rd(drained, a + b) << (8 * b);
             d.rf_en = 1; d.rf_way = m_way; d.rf_addr = set * 8 + m_i; d.rf_data = v;
@@ -590,8 +608,8 @@ struct Sim {
             break;
         }
         case 2: {
-            int set = (int)(m_line & 63);
-            uint64_t tag = m_line >> 6;
+            int set = mset();
+            uint64_t tag = m_line >> 8;
             d.tw_en = 1; d.tw_way = m_way; d.tw_set = set; d.tw_tag = (uint32_t)((1u << 28) | tag);
             tag_ref[set][m_way] = tag; v_ref[set][m_way] = true;
             m_state = 3;
@@ -603,6 +621,15 @@ struct Sim {
             m_delay = (int)(rng() % 6);
             break;
         }
+    }
+    void victim() {
+                int set = mset();
+                m_way = rng() % 2 ? last_way[set] : (int)(rng() % 4);
+                if (v_ref[set][m_way]) n_evict++;
+                // (the tag stays, only the valid bit goes)
+                d.tw_en = 1; d.tw_way = m_way; d.tw_set = set; d.tw_tag = (uint32_t)tag_ref[set][m_way];
+                v_ref[set][m_way] = false;
+                m_state = 1; m_i = 0; m_delay = rng() % 2 ? 0 : (int)(rng() % 4);
     }
     void err(const char* s) {
         if (bad < 10) printf("cycle %ld: %s\n", cyc, s);
@@ -622,11 +649,11 @@ int main(int argc, char** argv)
         printf("%s: pairs %ld, timed %ld; misaligned alone after a flush %ld\n", m ? "translated" : "physical", s.n_pair, s.n_pair_chk, s.n_solo_bad);
         printf("%s: loads %ld stores %ld, meeting a store %ld (partly %ld), same offset, another page %ld; tries %ld, replayed %ld; "
                "misses %ld, stores' misses %ld (present by then %ld), evicted %ld; walks %ld, flushes of the DTLB %ld; 2 issued %ld, on port 1 %ld, in one go there %ld; same word, no byte in common %ld; recoveries on a try before a quiet time %ld; "
-               "written %ld; exceptions %ld, recoveries %ld, flushes %ld, queue full %ld\n",
+               "written %ld; exceptions %ld, recoveries %ld, flushes %ld, queue full %ld; synonyms made invalid %ld\n",
                m ? "translated" : "physical", s.n_ld, s.n_st, s.n_fwd, s.n_part, s.n_alias, s.n_try, s.n_rp,
-               s.n_miss, s.n_stm, s.n_cl, s.n_evict, s.n_walk, s.n_tflush, s.n_two, s.n_p1, s.n_p1first, s.n_noov, s.n_recq, s.n_written, s.n_exc, s.n_rest, s.n_fl, s.n_full);
+               s.n_miss, s.n_stm, s.n_cl, s.n_evict, s.n_walk, s.n_tflush, s.n_two, s.n_p1, s.n_p1first, s.n_noov, s.n_recq, s.n_written, s.n_exc, s.n_rest, s.n_fl, s.n_full, s.n_syn);
         if (s.n_fwd < 1000 || s.n_part < 100 || s.n_rp < 1000 || s.n_miss < 100 || s.n_stm < 100 || s.n_evict < 100 || s.n_two < 1000 || s.n_p1first < 1000 || s.n_noov < 100 ||
-            s.n_written < 1000 || s.n_exc < 50 || s.n_dfirst < 1000 || s.n_dlate < 1000 || s.n_zd < 50 || s.n_sdw < 100 || s.n_pair_chk < 100 || s.n_rest < 100 || s.n_fl < 50 || (m == 1 && (s.n_solo_bad < 50 || s.n_remap < 10 || s.n_walk < 100 || s.n_alias < 100 || s.n_tflush < 10))) {
+            s.n_written < 1000 || s.n_exc < 50 || s.n_dfirst < 1000 || s.n_dlate < 1000 || s.n_zd < 50 || s.n_sdw < 100 || s.n_pair_chk < 100 || s.n_rest < 100 || s.n_fl < 50 || (m == 1 && (s.n_syn < 100 || s.n_solo_bad < 50 || s.n_remap < 10 || s.n_walk < 100 || s.n_alias < 100 || s.n_tflush < 10))) {
             printf("the coverage is too low\n");
             bad++;
         }

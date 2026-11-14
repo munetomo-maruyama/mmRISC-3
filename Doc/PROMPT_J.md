@@ -9780,3 +9780,9 @@ Vivadoでの実行をお願いします。ブロックRAMは128.5タイルのま
 ```text
 OOO_CPU実行した。C2に進もう。
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+The docs are written. The core mutation campaign is still running, and I'll finish the C2 commit when it reports.
+<!-- /answer -->

@@ -116,30 +116,32 @@
 115 NOT DETECTED  OOO_DMISS2: FENCE.I done before the last write out is answered
 116 DETECTED      OOO_DMISS2: every word of a fill to the line's first
 117 DETECTED      W2: the victim's copy read in way 0
-118 DETECTED      LSU0: a try takes the address left in EX
-119 DETECTED      LSU: a load takes the store after it as older
-120 DETECTED      LSU: a restore takes the LQ's tail of the group's start
-121 DETECTED      a CSR µop never completes
-122 DETECTED      an illegal CSR access completes without its exception
-123 DETECTED      register file: the MDU's results not written
-124 DETECTED      a CSR µop completes in EX too (twice: the late one may hit the next µop)
-125 DETECTED      bypass: ALU3's result not forwarded
-126 DETECTED      register file: ALU3's results not written
-127 DETECTED      a branch resolved as predicted never completes
-128 DETECTED      a load's exception a cycle before its completion
-129 DETECTED      CSR: an illegal access's tval 0
-130 DETECTED      CSR: fcsr with mstatus.FS off not illegal
-131 DETECTED      G3: a store completes when its data goes on port 1
-132 DETECTED      G3: a store's data never reaches the LSU
-133 DETECTED      G3: every ALU port's µop taken for a store's data
-134 DETECTED      G3: a store's data without the bypass
-135 DETECTED      G3: a store's data into another SQ entry
-136 DETECTED      G3: a store's data not replicated by its size
-137 DETECTED      G3: a store's data never written into the SQ
-138 DETECTED      G3: the wait table never read
-139 DETECTED      G3: the wait table never written
-140 DETECTED      G3: the group's wait bits dropped
-141 DETECTED      H3: the I$'s fills answered to the D$
-142 DETECTED      H3: FENCE.I never reaches the I$
-143 DETECTED      H3: FENCE.I done without the sweep (stale code runs)
-144 mutations, 136 detected
+118 DETECTED      C2: a load's miss filled in the set of vx 0
+119 DETECTED      C2: a store's miss filled in the set of vx 0
+120 DETECTED      LSU0: a try takes the address left in EX
+121 DETECTED      LSU: a load takes the store after it as older
+122 DETECTED      LSU: a restore takes the LQ's tail of the group's start
+123 DETECTED      a CSR µop never completes
+124 DETECTED      an illegal CSR access completes without its exception
+125 DETECTED      register file: the MDU's results not written
+126 DETECTED      a CSR µop completes in EX too (twice: the late one may hit the next µop)
+127 DETECTED      bypass: ALU3's result not forwarded
+128 DETECTED      register file: ALU3's results not written
+129 DETECTED      a branch resolved as predicted never completes
+130 DETECTED      a load's exception a cycle before its completion
+131 DETECTED      CSR: an illegal access's tval 0
+132 DETECTED      CSR: fcsr with mstatus.FS off not illegal
+133 DETECTED      G3: a store completes when its data goes on port 1
+134 DETECTED      G3: a store's data never reaches the LSU
+135 DETECTED      G3: every ALU port's µop taken for a store's data
+136 DETECTED      G3: a store's data without the bypass
+137 DETECTED      G3: a store's data into another SQ entry
+138 DETECTED      G3: a store's data not replicated by its size
+139 DETECTED      G3: a store's data never written into the SQ
+140 DETECTED      G3: the wait table never read
+141 DETECTED      G3: the wait table never written
+142 DETECTED      G3: the group's wait bits dropped
+143 DETECTED      H3: the I$'s fills answered to the D$
+144 DETECTED      H3: FENCE.I never reaches the I$
+145 DETECTED      H3: FENCE.I done without the sweep (stale code runs)
+146 mutations, 138 detected

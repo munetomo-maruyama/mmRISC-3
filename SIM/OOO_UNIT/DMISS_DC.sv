@@ -4,7 +4,9 @@
 // W1, Plan/OOC.md 29.61). The bench is the LSU: its loads read the two ports,
 // its stores come as st_* and are written only when the LSU would write them
 // (no fill's word, no tag written in the cycle: st_ok), which also sets the
-// line dirty. The memory bus and the peripheral bus are the ports.
+// line dirty. The memory bus and the peripheral bus are the ports. Since step 1.7c
+// C2 (Plan/OOC.md 29.68): 256 sets, the set {vx, the physical 11:6}; each miss with
+// its vx.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -19,27 +21,29 @@ module DMISS_DC
         input  logic                  rst_n,
 
         // the bench's loads: the arrays' two ports
-        input  logic [1:0][8:0]       rd_addr,
+        input  logic [1:0][10:0]      rd_addr,
         output logic [1:0][3:0][63:0] rd_data,
         // the bench's store into a way that holds its line
         input  logic                  st_en,
         input  logic [1:0]            st_way,
-        input  logic [8:0]            st_addr,     // {set, word}
+        input  logic [10:0]           st_addr,     // {set, word}
         input  logic [63:0]           st_data,
         input  logic [7:0]            st_strb,
         output logic                  st_ok,
         // OOO_DMISS2's LSU side
         input  logic                  miss_valid,
         input  logic [PAW-1:6]        miss_line,
+        input  logic [1:0]            miss_vx,
         input  logic [4:0]            miss_id,
         input  logic                  st_miss_valid,
         input  logic [PAW-1:6]        st_miss_line,
+        input  logic [1:0]            st_miss_vx,
         output logic                  fill_done,
         output logic                  done_v,
         output logic [4:0]            done_id,
         output logic                  tw_en,
         output logic [1:0]            tw_way,
-        output logic [5:0]            tw_set,
+        output logic [7:0]            tw_set,
         output logic [TW:0]           tw_tag,
         output logic                  rf_en,
         input  logic                  uc_req,
@@ -103,9 +107,9 @@ module DMISS_DC
     );
 
     logic [1:0]  rf_way;
-    logic [8:0]  rf_addr;
+    logic [10:0] rf_addr;
     logic [63:0] rf_data;
-    logic [8:0]  vr_addr;
+    logic [10:0] vr_addr;
     logic [1:0]  vr_way;
     logic [63:0] vr_data;
     /* verilator lint_off UNUSEDSIGNAL */
@@ -116,9 +120,9 @@ module DMISS_DC
     // as OOO_LSU4: a fill's word first; a store not in a cycle with a tag written
     assign st_ok = st_en && !rf_en && !tw_en;
 
-    OOO_DCH2 #(.SETS(64), .WAYS(4), .WORDS(8), .TW(TW), .VR(1'b1)) u_dch
+    OOO_DCH2 #(.SETS(256), .WAYS(4), .WORDS(8), .TW(TW), .VR(1'b1)) u_dch
         (.clk(clk), .rd_addr(rd_addr), .rd_data(rd_data), .rd_tag(rd_tag),
-         .sb_set(6'd0), .sb_tag(sb_tag),
+         .sb_set(8'd0), .sb_tag(sb_tag),
          .tw_en(tw_en), .tw_way(tw_way), .tw_set(tw_set), .tw_tag(tw_tag),
          .dw_en(rf_en || st_ok), .dw_way(rf_en ? rf_way : st_way), .dw_addr(rf_en ? rf_addr : st_addr),
          .dw_data(rf_en ? rf_data : st_data), .dw_strb(rf_en ? 8'hff : st_strb),
@@ -126,12 +130,12 @@ module DMISS_DC
 
     OOO_DMISS2 #(.PAW(PAW), .IW(5)) u_dmiss
         (.clk(clk), .rst_n(rst_n),
-         .miss_valid(miss_valid), .miss_line(miss_line), .miss_id(miss_id),
-         .st_miss_valid(st_miss_valid), .st_miss_line(st_miss_line),
+         .miss_valid(miss_valid), .miss_line(miss_line), .miss_vx(miss_vx), .miss_id(miss_id),
+         .st_miss_valid(st_miss_valid), .st_miss_line(st_miss_line), .st_miss_vx(st_miss_vx),
          .fill_done(fill_done), .done_v(done_v), .done_id(done_id),
          .tw_en(tw_en), .tw_way(tw_way), .tw_set(tw_set), .tw_tag(tw_tag),
          .rf_en(rf_en), .rf_way(rf_way), .rf_addr(rf_addr), .rf_data(rf_data),
-         .dirty_set(st_ok), .dirty_way(st_way), .dirty_idx(st_addr[8:3]),
+         .dirty_set(st_ok), .dirty_way(st_way), .dirty_idx(st_addr[10:3]),
          .vr_addr(vr_addr), .vr_way(vr_way), .vr_data(vr_data),
          .uc_req(uc_req), .uc_we(uc_we), .uc_addr(uc_addr), .uc_wdata(uc_wdata), .uc_wmask(uc_wmask),
          .uc_done(uc_done), .uc_rdata(uc_rdata),

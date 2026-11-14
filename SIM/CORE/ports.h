@@ -88,12 +88,14 @@ public:
                  int done_id = 0, tw_way = 0, tw_set = 0, rf_way = 0, rf_addr = 0; uint64_t tw_tag = 0, rf_data = 0; };
     const Out& out() const { return o; }
     // the clock edge, with what the core gave this cycle
-    void clock(bool miss_v, uint64_t miss_line, int miss_id, bool st_miss_v, uint64_t st_miss_line,
+    // (since step 1.7c C2, Plan/OOC.md 29.68: 256 sets, the set {vx, the line's 11:6}, vx the virtual 13:12 the
+    // core gives with each miss; untranslated, the line's own 13:12. A line is kept as {line, vx})
+    void clock(bool miss_v, uint64_t miss_line, int miss_vx, int miss_id, bool st_miss_v, uint64_t st_miss_line, int st_miss_vx,
                bool dirty_set, int dirty_way, int dirty_idx, bool sq_drained)
     {
-        if (dirty_set) last_way[dirty_idx & 63] = dirty_way;
-        if (miss_v) { asks++; ask(miss_line, miss_id); }
-        if (st_miss_v) { st_asks++; ask(st_miss_line, -1); }
+        if (dirty_set) last_way[dirty_idx & 255] = dirty_way;
+        if (miss_v) { asks++; ask((miss_line << 2) | (uint64_t)miss_vx, miss_id); }
+        if (st_miss_v) { st_asks++; ask((st_miss_line << 2) | (uint64_t)st_miss_vx, -1); }
         o = Out{};
         step(sq_drained);
         cyc++;
@@ -109,7 +111,8 @@ private:
     std::map<uint64_t, int> who;
     int state = 0, way = 0, word = 0, delay = 0;
     uint64_t line = 0;
-    uint64_t tag_ref[64][4]; bool v_ref[64][4]; int last_way[64] = {0};
+    uint64_t tag_ref[256][4]; bool v_ref[256][4]; int last_way[256] = {0};
+    int lset() const { return (int)(((line & 3) << 6) | ((line >> 2) & 63)); }
     void ask(uint64_t l, int id)
     {
         for (auto x : mq) if (x == l) return;
@@ -131,8 +134,8 @@ private:
         case 0:
             if (!mq.empty()) {
                 line = mq.front(); mq.pop_front();
-                int set = (int)(line & 63);
-                uint64_t tag = line >> 6;
+                int set = lset();
+                uint64_t tag = line >> 8;
                 bool have = false;
                 for (int w = 0; w < 4; w++) if (v_ref[set][w] && tag_ref[set][w] == tag) have = true;
                 if (have) { done(); break; }
@@ -145,15 +148,15 @@ private:
             }
             break;
         case 1: {
-            int set = (int)(line & 63);
+            int set = lset();
             if (fill_lat && rng() % 3 == 0) break;
-            o.rf_en = true; o.rf_way = way; o.rf_addr = set * 8 + word; o.rf_data = m.read64((line << 6) + 8 * word);
+            o.rf_en = true; o.rf_way = way; o.rf_addr = set * 8 + word; o.rf_data = m.read64((line >> 2 << 6) + 8 * word);
             if (++word == 8) state = 2;
             break;
         }
         case 2: {
-            int set = (int)(line & 63);
-            uint64_t tag = line >> 6;
+            int set = lset();
+            uint64_t tag = line >> 8;
             o.tw_en = true; o.tw_way = way; o.tw_set = set; o.tw_tag = (1ull << 28) | tag;
             tag_ref[set][way] = tag; v_ref[set][way] = true;
             state = 3;

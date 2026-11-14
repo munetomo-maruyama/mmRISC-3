@@ -5,7 +5,9 @@
 // 29.7): OOO_DCH with a copy of the data and of the tags for each load port. A block RAM
 // has 2 ports, and 2 loads and a write would need 3: with a copy each, a read has its
 // own memory and a write goes to all, so loads, a store that drains and a fill never
-// wait for each other. There are 365 tiles on this device, for 14 here.
+// wait for each other. There are 365 tiles on this device, for 18 here at 64 sets (with the
+// victim's copy), 54 at 256 (the D$ of 64 KB in OOO_LSU4, step 1.7c C2, Plan/OOC.md 29.68: each
+// copy of a way 2,048 words, 4 RAMB36 as 2K x 18 side by side; the tags still one RAMB18 each).
 //
 //   data  2 copies, one memory per way of 64-bit words, byte write enables (a simple
 //         dual port RAMB36, 512 x 72)
