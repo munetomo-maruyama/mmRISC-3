@@ -9571,3 +9571,33 @@ Please run Vivado. I expect the block RAM to stay at 128.5 tiles and the LUTs ab
 ```text
 I ran OOO_CPU. Let's go on to C2.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The core mutation campaign has finished. With it, C2 (the D$ at 64 KB) is fully checked; I committed and pushed it as 2d30daa. Ref was not pushed (0 files). The 20 ns timing is not yet checked in Vivado.
+
+**Core mutations: 138 of 146 detected**
+- The 2 added this time (wiring that gives a load's or a store's miss vx 0) are both detected.
+- The 8 undetected are the same as before: 71, 90, 101-103 and the 3 of `OOO_DMISS2` that the L2 hides.
+- I wrote the result into 29.68 of Plan/OOC(_J).
+
+**The C2 checks**
+- **Unit benches**:
+  - tb_dmiss2: PASS with 10,038 synonyms (4,284 dirty)
+  - tb_lsu4: PASS with 2,410 synonyms
+  - Unit mutations: DMISS2 43/43, LSU4 73/73
+- **run_core**: PASS, but +2.0 % cycles in sum, from FENCE.I walking 1,024 lines each time.
+- **run_coremark**: PASS, the same to the cycle, still 8.244 CoreMark/MHz.
+
+**Vivado**
+- I expect 164.5 block RAM tiles (+36) and about +1k LUTs.
+- The worry is the load's path that reads the 4-tile arrays. If 20 ns is not met, it can go back to 128 sets.
+- Once you run `synth_ooo.bat OOO_CPU`, I will record the result as 29.69 and go on to C3 (the L2 at 512 KB).
+<!-- /answer -->
+
+## 240. 2026-11-14 23:32:15 JST
+
+```text
+I ran Vivado
+```

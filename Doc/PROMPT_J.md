@@ -9784,5 +9784,29 @@ OOO_CPU実行した。C2に進もう。
 <!-- answer -->
 **Claude Codeの回答**
 
-The docs are written. The core mutation campaign is still running, and I'll finish the C2 commit when it reports.
+コアの変異キャンペーンが終わりました。これでC2(D$ 64 KB)は全部の確認が済み、2d30daaとしてコミットとpushをしました。Refはpushされていません(0件)。ただし、20 nsのタイミングはまだVivadoで確かめていません。
+
+**コアの変異の結果: 146個中138個を検出**
+- 今回足した2つ(ロードのミスやストアのミスでvxを0にする配線の誤り)は、どちらも検出できました。
+- 検出されない8つは以前と同じものです。71、90、101〜103と、L2に隠れて見えない`OOO_DMISS2`の3つです。
+- この結果はPlan/OOC(_J)の29.68に書き込みました。
+
+**C2の確認結果**
+- **単体のベンチ**:
+  - tb_dmiss2: シノニム10,038回(うちdirty 4,284回)でPASS
+  - tb_lsu4: シノニム2,410回でPASS
+  - 単体の変異: DMISS2 43/43、LSU4 73/73
+- **run_core**: PASS。ただしサイクルは合計で+2.0 %です。FENCE.Iのたびに1,024ラインを回るのが原因です。
+- **run_coremark**: PASS。サイクルまで同じで、8.244 CoreMark/MHzのままです。
+
+**Vivadoについて**
+- 予想はブロックRAMが164.5タイル(+36)、LUTが約+1kです。
+- 心配なのは、4タイルの配列から読むロードの経路です。20 nsに届かないときは128セットに戻すことができます。
+- `synth_ooo.bat OOO_CPU`を流していただければ、その結果を29.69に記録してC3(L2 512 KB)に進みます。
 <!-- /answer -->
+
+## 240. 2026-11-14 23:32:15 JST
+
+```text
+I ran Vivado
+```

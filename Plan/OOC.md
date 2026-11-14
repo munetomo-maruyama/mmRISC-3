@@ -5692,3 +5692,23 @@ The D$ goes from 64 to 256 sets of 4 ways (64 KB), as 29.64 proposed: the hit pa
 - **Core mutations: 138 of 146 detected** (with 2 new, both detected: a load's or a store's miss with vx 0 in `OOO_CPU`'s wiring); the 8 undetected are those of before (71, 90, 101-103 and the 3 of OOO_DMISS2 the L2 hides).
 
 **The 20 ns check** is the author's Vivado run. Expected: block RAM 128.5 → **164.5 tiles**; LUTs about +1k (`OOO_DMISS2`'s tags 4 times as many, in 16 RAMs; the dirty bits' 1,024 entries in LUT RAM instead of 256 flip-flops and their mux). The risk: the load path out of arrays now 4 tiles a copy (their address fans out 4 times wider; the data out of each tile goes straight to the way's 64 bits). Fallback 128 sets (32 KB, +12 tiles).
+
+### 29.69 Step 1.7c C2 at 20 ns (2026-11-14)
+
+The author's Vivado run of `OOO_CPU` with the D$ at 64 KB (`synth_ooo.bat OOO_CPU`, reports in `FPGA/OOO_OOC/output/OOO_CPU`):
+
+| | C1 (29.67) | C2 |
+|---|---|---|
+| WNS / hold | +0.254 / +0.014 ns | **+0.639 / +0.028 ns** |
+| LUTs (after place and route) | 74,205 | 74,809 (+604) |
+| `OOO_DMISS2` | 949 (208 LUT RAM), 654 FF | 1,485 (556 LUT RAM), 416 FF |
+| `OOO_LSU4` (with `OOO_DCH2`) | 3,979 (`OOO_DCH2` 954) | 3,622 (`OOO_DCH2` 971) |
+| Block RAM tiles | 128.5 | **164.5** (+36) |
+
+- **20 ns met** in one run, with more margin than C1 (place and route's spread: no path of C1's was shortened on purpose).
+- **The block RAM as planned**: +36 tiles, the D$'s data arrays 4 tiles a copy of a way.
+- **The LUTs +604** against the estimate of about +1k. `OOO_DMISS2` +536: its tags' LUT RAM 4 times as deep (16 RAMs) and the dirty bits' 1,024 entries in LUT RAM (LUT RAM 208 → 556); its flip-flops −238, the 256 dirty bits gone from them. `OOO_LSU4` −357 is synthesis's spread (its logic changed only by the 2-bit vx of the SQ and the misses).
+- **The worst paths** are not the caches'. The first (+0.639 ns, 17 levels) is a mispredicted branch's restore: `OOO_PMUL`'s ROB index → the ROB's restore index and its kill → the trap's window (`u_trap/tv_d`). The same start goes on through the LSU's kill of a load (`w_live`) and `dc_miss_valid` into `OOO_DMISS2`'s queue enables (+0.752 ns, 15 levels, 15.8 ns of route): logic that was there before C2, now placed farther. The ALU's write into the register file follows (+0.657 ns), then the front end's F2, again from `u_fdec/c_v_reg` as at W3 (+0.698 ns; C1's start at the I$'s answer register is no longer in the first 20).
+- **The load path out of the 4-tile arrays**, the risk named in 29.68, is not in the first 20: `OOO_LSU4`'s worst into its flip-flops is +1.723 ns, out +1.151 ns.
+
+**Step C2 is done.** Next C3, the L2 at 512 KB (+68 tiles, 232.5 in `OOO_CPU`; about 262 of 365 with LiteX), with its write port registered as 29.65 planned.
