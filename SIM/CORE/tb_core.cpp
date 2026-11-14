@@ -32,8 +32,9 @@
 // model (Axi4Mem) is behind the L2. -mlat n: the memory as the board's (the first
 // beat of a read n to n + 20 cycles after its address, a write's answer n / 2 to
 // n / 2 + 10 after its last beat, the readies up); 0 (the default): 3 to 16 cycles
-// with random readies and stalls, for the tests. After the exit the memory the D$
-// wrote through is compared with the program's with the L2's dirty lines over it.
+// with random readies and stalls, for the tests. After the exit the memory is
+// compared with the program's, with the L2's dirty lines over it and the D$'s over
+// those (the D$ written back, step 1.7b W2, Plan/OOC.md 29.62).
 //---------------------------------------------------------------------------
 #ifdef CPU_TOP                  // OOO_CPU: the core with OOO_DCAD and the D$ on the AXI models (build_core.sh cpu)
 #include "VOOO_CPU.h"
@@ -43,6 +44,8 @@ typedef VOOO_CPU___024root TopRoot;
 #define CORE(x) OOO_CPU__DOT__u_core__DOT__##x
 #define L2_TAG(w) OOO_CPU__DOT__u_l2__DOT__u_tag__DOT__g_way__BRA__##w##__KET____DOT__mem
 #define L2_DAT(w) OOO_CPU__DOT__u_l2__DOT__u_dat__DOT__g_way__BRA__##w##__KET____DOT__mem
+#define DC_TAG(w) OOO_CPU__DOT__u_dmiss__DOT__g_tag__BRA__##w##__KET____DOT__tagm
+#define DC_DAT(w) OOO_CPU__DOT__u_core__DOT__u_lsu__DOT__u_dch__DOT__g_way__BRA__##w##__KET____DOT__g_vr__DOT__vm
 #else                           // OOO_CORE: OOO_LSU3's D$ with DMissModel behind it (step 1.3 E1)
 #include "VOOO_CORE.h"
 #include "VOOO_CORE___024root.h"
@@ -148,14 +151,11 @@ static bool run(const Opts& o, const std::string& elf)
 #ifdef CPU_TOP
     Axi4Mem ax(b.mem(), o.seed * 13 + 5, o.mlat);
     long ic_reqs = 0, ic_misses = 0;                    // (OOO_ICACHE's, from its registers)
-    long wq_full = 0, wq_full_tw = 0;                   // cycles the D$'s write queue is full (in the timed window)
     AxiLite al(b.mem(), o.seed * 17 + 3);
 #else
     DMissModel dm(b.mem(), o.seed * 13 + 5, o.dhit >= 100 ? 0 : 12);     // (-dhit 100: fills at once, else up to 12 cycles late)
     uint64_t tohost_line = b.symbol("tohost") >> 6;
     UcModel uc(b.mem(), o.seed * 19 + 7);                                   // (HTIF's tohost: not cached, step 1.3 E1b)
-    std::mt19937_64 wt_rng(o.seed * 23 + 11);
-    bool wt_rdy = true;
 #endif
     std::unique_ptr<Top> d(new Top);
 #ifdef CPU_TOP
@@ -222,7 +222,7 @@ static bool run(const Opts& o, const std::string& elf)
             d->dc_rf_en = q.rf_en; d->dc_rf_way = q.rf_way; d->dc_rf_addr = q.rf_addr; d->dc_rf_data = q.rf_data;
             d->dc_uc_line_v = 1; d->dc_uc_line = tohost_line;
             d->dc_uc_done = uc.done(); d->dc_uc_rdata = uc.rdata();
-            d->dc_wt_ready = wt_rdy;
+            d->dc_vr_addr = 0; d->dc_vr_way = 0;        // (the model fills from Memory, which has every store)
         }
         d->fl_take = 1; d->fl_done = flq_q;
 #endif
@@ -283,8 +283,6 @@ static bool run(const Opts& o, const std::string& elf)
             ic_reqs++;
             if (!d->rootp->OOO_CPU__DOT__u_icache__DOT__s1_hit) ic_misses++;
         }
-        // the D$'s write queue full: the only time a store waits for it (the LSU raises wt_valid only with wt_ready)
-        if (d->rootp->OOO_CPU__DOT__u_dmiss__DOT__wq_n == 8) { wq_full++; if (tw_a >= 0 && tw_b < 0) wq_full_tw++; }
 #endif
 #ifdef CPU_TOP
         bool arv = d->m_axi4_arvalid, rr = d->m_axi4_rready, awv = d->m_axi4_awvalid, wv = d->m_axi4_wvalid, br = d->m_axi4_bready;
@@ -298,8 +296,8 @@ static bool run(const Opts& o, const std::string& elf)
         int mid = d->dc_miss_id, dway = d->dc_dirty_way, didx = d->dc_dirty_idx;
         bool ucr = d->dc_uc_req, ucw = d->dc_uc_we;
         uint64_t uca = d->dc_uc_addr, ucd = d->dc_uc_wdata; uint8_t ucm = d->dc_uc_wmask;
-        // Memory takes each store as the D$ takes it (written through, step 1.3 E2: dc_wt_*, ready 80 % of the
-        // cycles); a store for a device reaches Memory through UcModel
+        // Memory takes each store as the D$ takes it (dc_wt_*: what a write-back D$ would give back at once, step
+        // 1.7b W2; OOO_CPU has the real write-back); a store for a device reaches Memory through UcModel
         if (d->dc_wt_valid) b.mem().write64(d->dc_wt_addr, d->dc_wt_data, d->dc_wt_mask);
 #endif
         if (drain_left < 0) {
@@ -318,7 +316,6 @@ static bool run(const Opts& o, const std::string& elf)
 #else
         dm.clock(mv, ml, mid, smv, sml, dset, dway, didx, sqd);
         uc.clock(ucr, ucw, uca, ucd, ucm);
-        wt_rdy = wt_rng() % 5 != 0;
 #endif
     }
     if (continue_clock && b.passed()) {
@@ -341,6 +338,18 @@ static bool run(const Opts& o, const std::string& elf)
                         b.mem().write64(a + 8 * k, v, 0xff);
                     }
                 }
+            // the D$'s dirty lines over those (64 sets of 4 ways; {valid, tag} with the tag the address above 4 KB)
+            for (int w = 0; w < 4; w++)
+                for (int s = 0; s < 64; s++) {
+                    if (!((r->OOO_CPU__DOT__u_dmiss__DOT__dty[w] >> s) & 1)) continue;
+                    uint64_t t = w == 0 ? r->DC_TAG(0)[s] : w == 1 ? r->DC_TAG(1)[s] : w == 2 ? r->DC_TAG(2)[s] : r->DC_TAG(3)[s];
+                    uint64_t a = ((t & ((1ull << 28) - 1)) << 12) | ((uint64_t)s << 6);
+                    for (int k = 0; k < 8; k++) {
+                        uint64_t v = w == 0 ? r->DC_DAT(0)[s * 8 + k] : w == 1 ? r->DC_DAT(1)[s * 8 + k] :
+                                     w == 2 ? r->DC_DAT(2)[s * 8 + k] : r->DC_DAT(3)[s * 8 + k];
+                        b.mem().write64(a + 8 * k, v, 0xff);
+                    }
+                }
         }
 #endif
         std::vector<uint64_t> pgs = b.mem().pages(), pa = b.arch().pages();
@@ -352,7 +361,7 @@ static bool run(const Opts& o, const std::string& elf)
                 if ((w >> 6) == th || (w >> 6) == fh) continue;
                 uint64_t x = b.mem().read64(w), y = b.arch().read64(w);
                 if (x != y) {
-                    std::printf("the memory written through: %llx is %016llx, the program's %016llx\n",
+                    std::printf("the memory (with the caches' dirty lines): %llx is %016llx, the program's %016llx\n",
                                 (unsigned long long)w, (unsigned long long)x, (unsigned long long)y);
                     res_bad = true;
                     break;
@@ -373,10 +382,6 @@ static bool run(const Opts& o, const std::string& elf)
 #endif
     if (o.verbose && tw_a >= 0 && tw_b >= 0)
         std::printf("    the timed window (start_time to stop_time): %ld cycles\n", tw_b - tw_a);
-#ifdef CPU_TOP
-    if (o.verbose)
-        std::printf("    the D$'s write queue full (the only time a store waits for it): %ld cycles (%ld in the timed window)\n", wq_full, wq_full_tw);
-#endif
     if (rs_out_f) std::fprintf(rs_out_f, "%s %ld\n", name.c_str(), restores);
     if (const char* bp = std::getenv("CORE_BYPC")) {
         if (FILE* f = std::fopen(bp, "w")) {

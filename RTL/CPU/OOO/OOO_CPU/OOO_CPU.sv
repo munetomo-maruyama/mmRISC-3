@@ -2,14 +2,15 @@
 // OOO_CPU.sv
 //
 // The core with its caches (Plan/CORE.md 1, B3; step 1.3 E2, Plan/OOC.md 29.34; step
-// 1.7 H3, Plan/OOC.md 29.58): OOO_CORE, whose OOO_LSU4 has the D$'s arrays; OOO_DMISS,
-// the D$'s miss handler; OOO_ICACHE, the I$ on OOO_FETCH2's port (FENCE.I's invalidate
-// from OOO_SYS); OOO_MARB, which puts the I$'s fills and OOO_DMISS's fills and writes
-// on one AXI4; and CPU_L2 (mmRISC-2's, 256 KB, write back) behind it. The ports: the
-// L2's memory bus (AXI4) and the D$'s peripheral bus (AXI4-Lite: what is not
-// cacheable). The D$ is written through, into the L2; FENCE.I's FLUSH of the D$
-// (OOO_SYS) goes to OOO_DMISS, which waits for its writes' answers (from the L2, which
-// keeps them in order with the I$'s fills).
+// 1.7 H3, Plan/OOC.md 29.58; step 1.7b W2, 29.62): OOO_CORE, whose OOO_LSU4 has the D$'s
+// arrays (with the victim's copy); OOO_DMISS2, the D$'s miss handler; OOO_ICACHE, the I$
+// on OOO_FETCH2's port (FENCE.I's invalidate from OOO_SYS); OOO_MARB, which puts the
+// I$'s fills and OOO_DMISS2's fills and line writes on one AXI4; and CPU_L2 (mmRISC-2's,
+// 256 KB, write back) behind it. The ports: the L2's memory bus (AXI4) and the D$'s
+// peripheral bus (AXI4-Lite: what is not cacheable). The D$ is written back, into the
+// L2; FENCE.I's FLUSH of the D$ (OOO_SYS) goes to OOO_DMISS2, which writes every dirty
+// line out and waits for the last answer (from the L2, which keeps it in order with the
+// I$'s fills).
 //
 // Simulation (DCACHE_SIM_UC): sim_uc_line names one line not cached (OOO_LSU3's
 // uc_line): the test bench's tohost, which HTIF must see in the memory and set back to
@@ -108,14 +109,17 @@ module OOO_CPU
     logic [PAW-12:0]  dc_tw_tag;
     logic [8:0]       dc_rf_addr;
     logic [63:0]      dc_rf_data;
-    logic             dc_uc_req, dc_uc_we, dc_uc_done, dc_wt_valid, dc_wt_ready;
-    logic [PAW-1:0]   dc_uc_addr, dc_wt_addr;
+    logic             dc_uc_req, dc_uc_we, dc_uc_done;
+    logic [PAW-1:0]   dc_uc_addr;
     /* verilator lint_off UNUSEDSIGNAL */      // (the bus takes the strobes; the SQ's state is OOO_SYS's)
     logic [1:0]       dc_uc_size;
     logic             dc_sq_drained;
     /* verilator lint_on UNUSEDSIGNAL */
-    logic [63:0]      dc_uc_wdata, dc_uc_rdata, dc_wt_data;
-    logic [7:0]       dc_uc_wmask, dc_wt_mask;
+    logic [63:0]      dc_uc_wdata, dc_uc_rdata;
+    logic [7:0]       dc_uc_wmask;
+    logic [8:0]       dc_vr_addr;
+    logic [1:0]       dc_vr_way;
+    logic [63:0]      dc_vr_data;
     logic             fl_req, fl_take, fl_done;
     logic             ic_req_valid, ic_req_ready, ic_resp_valid, ic_flush, ic_done;
     logic [VA-1:1]    ic_req_pc;
@@ -136,8 +140,8 @@ module OOO_CPU
 `endif
          .dc_uc_req(dc_uc_req), .dc_uc_we(dc_uc_we), .dc_uc_addr(dc_uc_addr), .dc_uc_size(dc_uc_size),
          .dc_uc_wdata(dc_uc_wdata), .dc_uc_wmask(dc_uc_wmask), .dc_uc_done(dc_uc_done), .dc_uc_rdata(dc_uc_rdata),
-         .dc_wt_valid(dc_wt_valid), .dc_wt_addr(dc_wt_addr), .dc_wt_data(dc_wt_data), .dc_wt_mask(dc_wt_mask),
-         .dc_wt_ready(dc_wt_ready),
+         .dc_wt_valid(), .dc_wt_addr(), .dc_wt_data(), .dc_wt_mask(),     // (a store written into the D$: the bench's)
+         .dc_vr_addr(dc_vr_addr), .dc_vr_way(dc_vr_way), .dc_vr_data(dc_vr_data),
          .fl_req(fl_req), .fl_take(fl_take), .fl_done(fl_done), .ic_flush(ic_flush), .ic_done(ic_done)
 `ifdef OOO_TRACE
          ,
@@ -159,14 +163,14 @@ module OOO_CPU
                       l_rlast, l_rvalid, l_rready;
     logic [63:0]      d_wdata, d_rdata, i_rdata, l_wdata, l_rdata;
 
-    OOO_DMISS #(.PAW(PAW), .IW(5)) u_dmiss
+    OOO_DMISS2 #(.PAW(PAW), .IW(5)) u_dmiss
         (.clk(clk), .rst_n(rst_n),
          .miss_valid(dc_miss_valid), .miss_line(dc_miss_line), .miss_id(dc_miss_id),
          .st_miss_valid(dc_st_miss_valid), .st_miss_line(dc_st_miss_line), .fill_done(dc_fill_done),
          .done_v(dc_done_v), .done_id(dc_done_id), .tw_en(dc_tw_en), .tw_way(dc_tw_way), .tw_set(dc_tw_set),
          .tw_tag(dc_tw_tag), .rf_en(dc_rf_en), .rf_way(dc_rf_way), .rf_addr(dc_rf_addr), .rf_data(dc_rf_data),
          .dirty_set(dc_dirty_set), .dirty_way(dc_dirty_way), .dirty_idx(dc_dirty_idx),
-         .wt_valid(dc_wt_valid), .wt_addr(dc_wt_addr), .wt_data(dc_wt_data), .wt_mask(dc_wt_mask), .wt_ready(dc_wt_ready),
+         .vr_addr(dc_vr_addr), .vr_way(dc_vr_way), .vr_data(dc_vr_data),
          .uc_req(dc_uc_req), .uc_we(dc_uc_we), .uc_addr(dc_uc_addr), .uc_wdata(dc_uc_wdata), .uc_wmask(dc_uc_wmask),
          .uc_done(dc_uc_done), .uc_rdata(dc_uc_rdata),
          .fl_req(fl_req), .fl_take(fl_take), .fl_done(fl_done),

@@ -33,7 +33,8 @@
 # core's own, with the 30 % I/O delay: only the LUT count is the point.
 #
 # OOO_CPU (B7, Plan/CORE.md 5.17): mmRISC-3's core as it will be in the
-# chip, OOO_CORE (its D$ in OOO_LSU4) with OOO_DMISS (step 1.3 E2), and since step 1.7
+# chip, OOO_CORE (its D$ in OOO_LSU4) with OOO_DMISS (step 1.3 E2; OOO_DMISS2, the D$
+# written back, since step 1.7b W2, Plan/OOC.md 29.62), and since step 1.7
 # H3 (Plan/OOC.md 29.58) OOO_ICACHE, OOO_MARB and CPU_L2; its own ports (the L2's AXI4
 # and the D$'s AXI4-Lite) with the 30 % I/O delay, as
 # MM2_CPU_CORE: a whole core out of context counts as in the chip (Plan/
@@ -100,7 +101,7 @@ read_verilog -sv [list \
     $rtl/OOO_RARE/OOO_RARE.sv $rtl/OOO_DEC/OOO_DEC.sv $rtl/OOO_IQPL/OOO_IQPL.sv $rtl/OOO_IQPL2/OOO_IQPL2.sv $rtl/OOO_DCAD/OOO_DCAD.sv $rtl/OOO_CTRL/OOO_CTRL.sv \
     $rtl/OOO_DSREG/OOO_DSREG.sv $rtl/OOO_FERS/OOO_FERS.sv $rtl/OOO_TRAP/OOO_TRAP.sv $rtl/OOO_SYS/OOO_SYS.sv \
     $rtl/OOO_ALUF/OOO_ALUF.sv $rtl/OOO_ALUR/OOO_ALUR.sv $rtl/OOO_EXU/OOO_EXU.sv $rtl/OOO_PRF2/OOO_PRF2.sv \
-    $rtl/OOO_STAGE/OOO_STAGE.sv $rtl/OOO_CORE/OOO_CORE.sv $rtl/OOO_DMISS/OOO_DMISS.sv $rtl/OOO_ICACHE/OOO_ICACHE.sv $rtl/OOO_MARB/OOO_MARB.sv $rtl/OOO_CPU/OOO_CPU.sv \
+    $rtl/OOO_STAGE/OOO_STAGE.sv $rtl/OOO_CORE/OOO_CORE.sv $rtl/OOO_DMISS2/OOO_DMISS2.sv $rtl/OOO_ICACHE/OOO_ICACHE.sv $rtl/OOO_MARB/OOO_MARB.sv $rtl/OOO_CPU/OOO_CPU.sv \
     $core/CORE_CSR/CORE_CSR.sv $rtl/OOO_CSRU/OOO_CSRU.sv $core/CORE_MDU/CORE_MDU.sv $rtl/OOO_MDUP/OOO_MDUP.sv $rtl/OOO_PMUL/OOO_PMUL.sv \
     $cache/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv $cache/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv \
     $cache/DCACHE/DCACHE.sv $cache/CPU_L2/L2_TAG_ARRAY.sv $cache/CPU_L2/CPU_L2.sv ./rtl/OOC_WRAP.sv]

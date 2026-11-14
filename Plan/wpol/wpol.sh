@@ -17,6 +17,8 @@
 # Programs: CoreMark g14-o2-zbsc (board's memory, -mlat 25), stset.S
 # (memset of 4 KB, 16 times) and stcpy.S (memcpy of 4 KB, 16 times), both
 # in the D$ (their timed window is the 16 passes).
+# Made on the write-through RTL (commit d5d5eb9): the patches do not apply to
+# the write-back D$ of step 1.7b W2 and later (check out d5d5eb9 to rerun).
 #---------------------------------------------------------------------------
 cd "$(dirname "$0")"
 H=$(pwd); ROOT=$(cd ../.. && pwd); W=$H/work

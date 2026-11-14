@@ -116,6 +116,9 @@ module OOO_CORE
         output logic                        dc_dirty_set,
         output logic [1:0]                  dc_dirty_way,
         output logic [5:0]                  dc_dirty_idx,
+        input  logic [8:0]                  dc_vr_addr,     // the D$'s victim's copy (written back, step 1.7b W2)
+        input  logic [1:0]                  dc_vr_way,
+        output logic [63:0]                 dc_vr_data,
         output logic                        dc_sq_drained,
         // what is not cacheable (step 1.3 E1b, Plan/OOC.md 29.33): one access to a device at a time
         input  logic                        dc_uc_line_v,   // a line not cached (simulation: the bench's tohost)
@@ -128,12 +131,12 @@ module OOO_CORE
         output logic [7:0]                  dc_uc_wmask,
         input  logic                        dc_uc_done,
         input  logic [63:0]                 dc_uc_rdata,
-        // the stores written into the D$, on to memory (the D$ written through: step 1.3 E2, Plan/OOC.md 29.34)
+        // the stores written into the D$, told (the D$ written back since step 1.7b W2: tb_core's model keeps its
+        // memory with them; OOO_CPU leaves them open)
         output logic                        dc_wt_valid,
         output logic [PAW-1:0]              dc_wt_addr,
         output logic [63:0]                 dc_wt_data,
         output logic [7:0]                  dc_wt_mask,
-        input  logic                        dc_wt_ready,
         output logic                        fl_req,     // FENCE.I: FLUSH of the D$ (OOO_DCAD)
         input  logic                        fl_take,
         input  logic                        fl_done,
@@ -1136,7 +1139,8 @@ module OOO_CORE
          .uc_line_v(dc_uc_line_v), .uc_line(dc_uc_line), .head_rob(head_rob),
          .uc_req(dc_uc_req), .uc_we(dc_uc_we), .uc_addr(dc_uc_addr), .uc_size(dc_uc_size), .uc_wdata(dc_uc_wdata),
          .uc_wmask(dc_uc_wmask), .uc_done(dc_uc_done), .uc_rdata(dc_uc_rdata),
-         .wt_valid(dc_wt_valid), .wt_addr(dc_wt_addr), .wt_data(dc_wt_data), .wt_mask(dc_wt_mask), .wt_ready(dc_wt_ready));
+         .wt_valid(dc_wt_valid), .wt_addr(dc_wt_addr), .wt_data(dc_wt_data), .wt_mask(dc_wt_mask),
+         .vr_addr(dc_vr_addr), .vr_way(dc_vr_way), .vr_data(dc_vr_data));
     /* verilator lint_on PINCONNECTEMPTY */
     assign dc_sq_drained = sq_drained;
     // the loads' results: the register file at the end of M (whatever the value: a miss's is replaced by its fill, and

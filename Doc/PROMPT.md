@@ -9341,3 +9341,36 @@ If C is chosen, the steps are W1 (the 3rd copy and `OOO_DMISS`'s write-back, a u
 ```text
 C: write-back (W1)
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+W1 is done: the miss handler `OOO_DMISS2`, which writes the D$ back, and `OOO_DCH2`'s victim's copy. The unit bench passes and all 36 mutations are detected. Committed as 8a249f9 and pushed to dev; Ref is 0 on the remote. The core runs today's `OOO_DMISS` until W2, so the CoreMark numbers do not change yet.
+
+**What went in**
+- **`OOO_DCH2`'s 3rd copy** (`VR=1`, 4 tiles): written with the other copies, read only by `OOO_DMISS2`. It is the read port for the victim and for FENCE.I, and adds nothing to the loads' paths. With `VR=0` it is as before.
+- **`OOO_DMISS2`**:
+  - A store only sets its line's dirty bit; the write queue and `wt_*` are gone.
+  - A dirty victim's 8 words are read from the 3rd copy and sent as one line write (8 beats). The next fill waits for that write's answer.
+  - FENCE.I walks the 256 lines and writes the dirty ones out.
+
+**Found and tidied on the way**
+- The gate "hold a beat until the victim's word is read" turned out never to act: the words are read one a cycle from the first cycle of AR, and a beat comes at the earliest the cycle after AR. So I removed it and wrote the reason in the header.
+- With a device access waiting, FENCE.I could begin without `fl_take`. This inconsistency was inherited from today's `OOO_DMISS`; fixed.
+- **M1397** (a line taken as held without looking at the valid bit) got through twice. An invalid way with a matching tag exists only right after reset, with tag 0, and the bench had no line in the first 4 KB. It is a real mistake: taking a line in the first 4 KB as held after reset.
+
+**`tb_dmiss2`**: the bench acts as the LSU and compares against a reference memory. In a run of 606,000 cycles: about 216k loads checked, about 10.6k dirty victims written out, 96 FENCE.I (2,318 lines cleaned), 0 mismatches.
+- It checks that a fill reads only a line memory holds in full.
+- It checks that a line written out is the program's data and a line a store wrote.
+- It checks that after FENCE.I the whole memory matches the program's.
+
+`verilator -Wall` is clean, and `tb_lsu3` and `tb_lsu4` pass.
+
+W2 connects the write-back D$ to LSU4 and `OOO_CPU`. With it, `tb_core`'s check after the exit lays the D$'s dirty lines over memory, and `dcrace.S` gets dirty-victim cases. Last, the core's mutations run.
+<!-- /answer -->
+
+## 234. 2026-11-14 11:12:57 JST
+
+```text
+Yes, start W2
+```

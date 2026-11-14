@@ -5473,3 +5473,43 @@ One run of 606,000 cycles: 216,038 loads checked, 52,197 stores, 18,938 fills (2
 `verilator -Wall`: `OOO_DMISS2`, `OOO_DCH2` (`VR` 0 and 1) and `DMISS_DC` clean. `tb_lsu3` and `tb_lsu4` (with `VR=0`) PASS.
 
 **Next, W2**: `OOO_LSU4` with the victim's copy (`VR=1`, the `vr_*` ports out) and without `wt_*` (`dirty_set` no longer waits for `wt_ready`; the drain no longer goes back on it); `OOO_CPU` with `OOO_DMISS2`; `tb_core`'s check after the exit with the D$'s dirty lines laid over memory (as the L2's); `b4/dir/dcrace.S` with dirty victims and FENCE.I behind dirty lines; `run_core`, `run_coremark`, the core's mutations.
+
+### 29.62 Step 1.7b, W2: the D$ written back in the core and `OOO_CPU` (2026-11-14)
+
+**The RTL**:
+- **`OOO_LSU4`**: `OOO_DCH2` with the victim's copy (`VR=1`), its `vr_*` port out. `wt_ready` is gone: a store that hits is written whenever no fill's word and no tag write is in its way (`d_back` and `dirty_set` no longer wait for the bus). `wt_valid`, `wt_addr`, `wt_data`, `wt_mask` stay as a report of the store written: `tb_core`'s model of `OOO_CORE` keeps its memory with it, and `OOO_CPU` leaves it open.
+- **`OOO_CORE`**: `dc_vr_*` through, `dc_wt_ready` gone.
+- **`OOO_CPU`**: `OOO_DMISS2` in place of `OOO_DMISS`, the `vr_*` between it and the core.
+- **`build_core.sh`, `synth_ooo.tcl`** read `OOO_DMISS2`. `OOO_MARB` is unchanged (comments only): the D$'s writes are now line writes of 8 beats, which the L2 takes as line writes.
+
+**The bench**:
+- `tb_core` on `OOO_CPU`: after the exit, memory is compared with the program's with the L2's dirty lines over it and **the D$'s dirty lines over those** (`OOO_DMISS2`'s dirty bits and tags, the victim's copy's words; `tb_cpu.vlt` keeps them). The write queue's counter went with the queue.
+- On `OOO_CORE`: the model's memory takes every store as the D$ writes it (what a write-back D$ gives back at once); the 80 % readiness of the write-through went with `wt_ready`.
+- `b4/dir/dcrace.S`, part 3: the 6 lines of one set, each iteration a store into one and a load from another three lines on, so that victims are dirty, written out and read back. Part 2 now also tests FENCE.I behind dirty lines: the stores to the 16 lines and the rewritten instruction are dirty in the D$, and FENCE.I must write them out before the I$ fills. On the 4 KB L2: 1,388 line reads, 510 line writes to memory.
+
+**CoreMark** (the timed window, 10 iterations; CoreMark/MHz = 10⁷ / cycles):
+
+| | Before (29.58) | W2 | |
+|---|---|---|---|
+| `g14-o2`, `OOO_CORE`, ideal caches | 1,211,976 (8.251) | 1,211,530 (8.254) | the model's write never waits now |
+| `g14-o2`, `OOO_CPU`, the tests' memory | 1,225,683 (8.159) | 1,211,991 (8.251) | −1.12 % |
+| `g14-o2`, `OOO_CPU`, **the board's memory** | 1,226,719 (8.152) | **1,213,068 (8.244)** | −1.11 % |
+| `g13-o2`, `OOO_CPU`, the board's memory | 1,290,515 (7.749) | 1,276,322 (7.835) | −1.10 % |
+| `g14-sflto`, `OOO_CPU`, the board's memory (whole run) | 1,218,113 | 1,192,785 | −2.08 % |
+
+The real caches now cost 0.13 % on `g14-o2` against ideal caches (1,538 cycles: the cold misses), down from 1.22 %. As 29.60 measured with a store that never waits (8.254), within 0.1 %.
+
+**Store bandwidth** (`Plan/wpol`'s `stset`, `stcpy` on `OOO_CPU`, the board's memory): 8,255 and 8,277 cycles for 8,192 stores, **1.01 cycles a store**, from 3.99. That is 8 bytes a cycle, 400 MB/s at 50 MHz, as `core1` of 29.60.
+
+`run_core.sh`: 0 failures in all 12 runs. `run_coremark.sh` PASS. `tb_lsu4` (no `wt_ready`, `vr_*` tied) PASS. `verilator -Wall` on `OOO_CPU`: nothing new but the 4 empty pins of `dc_wt_*` (the bench's report, open on purpose).
+
+**Bug injection, the core** (`mutate_core.py`, the whole campaign again, as `OOO_LSU4` changed for `OOO_CORE`'s runs too): `OOO_DMISS`'s 7 replaced by 10 on `OOO_DMISS2`, plus "the victim's copy read in way 0" in `OOO_CPU`'s wiring, run on `OOO_CPU` with the 4 KB L2. **144 mutations, 136 detected**, every line read. Not detected:
+- the 5 known since earlier steps (71, 90, 101, 102, 103: 29.32, 29.33; the 6th of before was `OOO_DMISS`'s, now replaced);
+- 3 of `OOO_DMISS2`'s, all detected by `tb_dmiss2` (29.61), and none reachable behind `CPU_L2`, which takes one transaction at a time in the order it accepted them:
+  - 109, "a fill before the write out has its answer": the write out's AW goes out at the victim's S_INV, and the L2 takes it at the latest when the current fill is over. The next fill's AR comes only after S_DONE, so the write is always ahead of it.
+  - 113, "a beat before its word is in the buffer": after AW the L2 takes 2 cycles (compare, then the line write's state) before it takes a beat, so beat k comes at the earliest 3 + k cycles after the write out began, and word k is in the buffer by then.
+  - 115, "FENCE.I done before the last write out is answered": the walk starts the last write out with the L2 idle, so its AW is taken at once. The I$'s first fill comes only after its sweep of 64 cycles.
+
+  They stay in the RTL: AXI puts no order between AR and AW, and another memory behind the D$ (the L2's size changed, another interconnect) would open them.
+
+**Next, W3**: `OOO_CPU` at 20 ns (by the author, `synth_ooo.bat OOO_CPU`). New in it: the victim's copy (4 tiles: the drain's and the fills' writes now go to 12 tiles of the D$'s data, not 8), `OOO_DMISS2` (the dirty bits in 256 flip-flops, the evict buffer, the walk) in place of `OOO_DMISS` (its write queue), and the drain's `d_back` without `!wt_ready`.

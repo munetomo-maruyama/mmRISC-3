@@ -154,6 +154,9 @@ module OOO_LSU4
         output logic                     dirty_set,
         output logic [1:0]               dirty_way,
         output logic [5:0]               dirty_idx,
+        input  logic [8:0]               vr_addr,    // the D$'s victim's copy (written back, step 1.7b W2): {set, word}
+        input  logic [1:0]               vr_way,
+        output logic [63:0]              vr_data,    // a cycle after vr_addr
 
         // ---- the walk (outside)
         output logic                     tlb_miss,
@@ -181,12 +184,12 @@ module OOO_LSU4
         input  logic                     uc_done,    // the answer (a load's: uc_rdata, the 8-byte word)
         input  logic [63:0]              uc_rdata,
 
-        // ---- a store written into the D$ goes on to memory too (the D$ written through: step 1.3 E2, Plan/OOC.md 29.34)
+        // ---- a store written into the D$, told (the D$ written back since step 1.7b W2, Plan/OOC.md 29.62: nothing
+        // waits for it; tb_core's model of OOO_CORE keeps its memory with it, OOO_CPU leaves it open)
         output logic                     wt_valid,
         output logic [PAW-1:0]           wt_addr,    // the 8-byte word's address
         output logic [63:0]              wt_data,    // its bytes in their places
-        output logic [7:0]               wt_mask,
-        input  logic                     wt_ready    // the handler takes it; else the store waits in the drain
+        output logic [7:0]               wt_mask
     );
 
     localparam int LW = $clog2(NLQ);
@@ -402,12 +405,12 @@ module OOO_LSU4
     logic [8:0]            dw_addr;
     logic [63:0]           dw_data;
     logic [7:0]            dw_strb;
-    OOO_DCH2 #(.SETS(64), .WAYS(4), .WORDS(8), .TW(TW)) u_dch
+    OOO_DCH2 #(.SETS(64), .WAYS(4), .WORDS(8), .TW(TW), .VR(1'b1)) u_dch
         (.clk(clk), .rd_addr(a_rd), .rd_data(a_d), .rd_tag(a_t),
          .sb_set(d0_set), .sb_tag(s_t),
          .tw_en(tw_en), .tw_way(tw_way), .tw_set(tw_set), .tw_tag(tw_tag),
          .dw_en(dw_en), .dw_way(dw_way), .dw_addr(dw_addr), .dw_data(dw_data), .dw_strb(dw_strb),
-         .vr_addr('0), .vr_way('0), .vr_data());                  // (no victim's copy: written through)
+         .vr_addr(vr_addr), .vr_way(vr_way), .vr_data(vr_data));
 
     // the SQ's RAMs, written by a store in M (sd_f by the data's port); read by the forwards and the drain
     (* ram_style = "distributed" *) logic [63:0]   sd_f [NSQ];
@@ -857,15 +860,15 @@ module OOO_LSU4
         // a fill's word first; a tag written since the lookup began sends the store back; a store for a
         // device goes to it when no access to a device is out, else it goes back
         st_uc_go = d2_v && d2_uc && !uc_busy;
-        d_back  = d2_v && (d2_uc ? uc_busy : (!d2_hit || rf_en || tw_en || d2_st || !wt_ready));
-        dw_en   = rf_en || (d2_v && !d2_uc && d2_hit && !tw_en && !d2_st && wt_ready);
+        d_back  = d2_v && (d2_uc ? uc_busy : (!d2_hit || rf_en || tw_en || d2_st));
+        dw_en   = rf_en || (d2_v && !d2_uc && d2_hit && !tw_en && !d2_st);
         dw_way  = rf_en ? rf_way : d2_way;
         dw_addr = rf_en ? rf_addr : d2_a;
         dw_data = rf_en ? rf_data : d2_d;
         dw_strb = rf_en ? 8'hff : d2_m;
         st_miss_valid = d2_v && !d2_uc && !d2_hit && !tw_en && !d2_st;
         st_miss_line  = d2_line;
-        dirty_set = d2_v && !d2_uc && d2_hit && !rf_en && !tw_en && !d2_st && wt_ready;
+        dirty_set = d2_v && !d2_uc && d2_hit && !rf_en && !tw_en && !d2_st;
         wt_valid  = dirty_set;
         wt_addr   = {d2_line, d2_a[2:0], 3'b000};
         wt_data   = d2_d;

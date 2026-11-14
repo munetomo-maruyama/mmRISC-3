@@ -2,8 +2,8 @@
 // OOO_MARB.sv
 //
 // The memory bus's arbiter in front of the L2 (step 1.7 H2, Plan/OOC.md 29.57): the
-// I$'s fills (OOO_ICACHE, reads only, ID IC_ID) and OOO_DMISS (the D$'s fills, its
-// writes through, other IDs) on one AXI4 into CPU_L2.
+// I$'s fills (OOO_ICACHE, reads only, ID IC_ID) and OOO_DMISS2 (the D$'s fills and
+// its dirty lines' line writes since step 1.7b W2; other IDs) on one AXI4 into CPU_L2.
 //
 //   AR  the two in turn when both ask (the one not served last first); the choice
 //       is held while its AR waits for arready, so an AR never changes under
@@ -38,7 +38,7 @@ module OOO_MARB
         output logic                  i_rvalid,
         input  logic                  i_rready,
 
-        // ---- the D$ (OOO_DMISS)
+        // ---- the D$ (OOO_DMISS2)
         input  logic [3:0]            d_awid,
         input  logic [PAW-1:0]        d_awaddr,
         input  logic [7:0]            d_awlen,

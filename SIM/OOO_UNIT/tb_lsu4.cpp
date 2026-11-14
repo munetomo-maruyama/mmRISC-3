@@ -104,7 +104,7 @@ struct Sim {
     }
     void zero() {
         d.done_v = 0; d.tr_on = tr; d.lq_alloc = d.sq_alloc = 0; d.rr_valid = 0; d.lq_commit = d.sq_commit = 0;
-        d.restore = 0; d.kill = 0; d.flush_all = 0; d.fill_done = 0; d.tw_en = 0; d.rf_en = 0; d.tlb_done = 0; d.tlb_we = 0; d.tlb_flush = 0; d.wt_ready = 1;
+        d.restore = 0; d.kill = 0; d.flush_all = 0; d.fill_done = 0; d.tw_en = 0; d.rf_en = 0; d.tlb_done = 0; d.tlb_we = 0; d.tlb_flush = 0; d.vr_addr = 0; d.vr_way = 0;
         d.uc_done = 0;                      // (no device here: an input left alone starts at anything, and made ev 1 for ever)
     }
     uint8_t mem0(uint64_t a) { return (uint8_t)((a * 0x9E3779B97F4A7C15ull) >> 56); }
@@ -537,7 +537,6 @@ struct Sim {
         if (!d.rt_v && try_left > 0) try_left--;
         d.clk = 1; d.eval(); d.clk = 0;
         for (int p = 0; p < 2; p++) { d.e_addr[2 * p] = (uint32_t)base_next[p]; d.e_addr[2 * p + 1] = (uint32_t)(base_next[p] >> 32); }
-        d.wt_ready = rng() % 5 != 0;            // the write-through's handler, busy now and then (step 1.3 E2)
         d.eval();
         cyc++;
         return bad == 0;

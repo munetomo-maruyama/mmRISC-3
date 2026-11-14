@@ -78,7 +78,7 @@ CS = 'OOO_CSRU/OOO_CSRU.sv'
 
 C = 'OOO_CORE/OOO_CORE.sv'
 L3 = 'OOO_LSU4/OOO_LSU4.sv'   # (OOO_LSU3's lines, in OOO_LSU4 since step 1.5b G3)
-DM = 'OOO_DMISS/OOO_DMISS.sv'   # (on OOO_CPU: the runs take VOOO_CPU)
+DM = 'OOO_DMISS2/OOO_DMISS2.sv' # (on OOO_CPU: the runs take VOOO_CPU; the D$ written back since step 1.7b W2)
 CP = 'OOO_CPU/OOO_CPU.sv'       # (the same, step 1.7 H3)
 IC = 'OOO_ICACHE/OOO_ICACHE.sv' # (the same)
 MUT = [
@@ -209,13 +209,17 @@ MUT = [
     (L3, "d_back  = d2_v && (d2_uc ? uc_busy : ", "d_back  = d2_v && (d2_uc ? 1'b0 : ", 'uncached: a store for a device lost while another access is out'),
     (L3, "st_uc_go = d2_v && d2_uc && !uc_busy;", "st_uc_go = d2_v && d2_uc;", 'uncached: two accesses to devices at once'),
     (L3, "m_ucd  = p == 0 && m_ld && m_try && !m_id[LW] && lucd[m_id[LW-1:0]];", "m_ucd  = 1'b0;", 'uncached: the device\'s word never taken'),
-    (DM, "if (miss_valid && !asked(miss_line, aq_n) && n != (QW + 1)'(NAQ)) begin", "if (1'b0) begin", 'OOO_DMISS: a load\'s miss never filled'),
-    (DM, "tw_en   = st == S_INV || st == S_TAG;", "tw_en   = st == S_TAG;", 'OOO_DMISS: the victim\'s tag valid while its words are replaced'),
-    (DM, "assign aq_pop = st == S_IDLE && !u_pend && !fl_req && aq_n != '0 && wr_quiet;", "assign aq_pop = st == S_IDLE && !u_pend && !fl_req && aq_n != '0;", 'OOO_DMISS: a fill before the writes are in memory'),
-    (DM, "assign m_axi4_wstrb   = wq_m[w_p[WW-1:0]];", "assign m_axi4_wstrb   = 8'hff;", 'OOO_DMISS: a write\'s strobes all on'),
-    (DM, "assign fl_done = st == S_FL && wr_quiet;", "assign fl_done = st == S_FL;", 'OOO_DMISS: FENCE.I done before the writes are in memory'),
-    (DM, "rf_addr = {f_line[11:6], f_beat};", "rf_addr = {f_line[11:6], 3'd0};", 'OOO_DMISS: every word of a fill to the line\'s first'),
-    (DM, "assign wt_ready = wq_n != (WW + 1)'(NWQ);", "assign wt_ready = 1'b1;", 'OOO_DMISS: a write taken into a full queue'),
+    (DM, "if (miss_valid && !asked(miss_line, aq_n) && n != (QW + 1)'(NAQ)) begin", "if (1'b0) begin", 'OOO_DMISS2: a load\'s miss never filled'),
+    (DM, "tw_en   = st == S_INV || st == S_TAG;", "tw_en   = st == S_TAG;", 'OOO_DMISS2: the victim\'s tag valid while its words are replaced'),
+    (DM, "assign aq_pop = st == S_IDLE && !u_pend && !fl_req && aq_n != '0 && wr_quiet;", "assign aq_pop = st == S_IDLE && !u_pend && !fl_req && aq_n != '0;", 'OOO_DMISS2: a fill before the write out has its answer'),
+    (DM, "if (dirty_set) dty[dirty_way][dirty_idx] <= 1'b1;", "if (1'b0) dty[dirty_way][dirty_idx] <= 1'b1;", 'OOO_DMISS2: a store never makes its line dirty'),
+    (DM, "assign ev_go  = (st == S_INV && ev_dirty) ||", "assign ev_go  = (st == S_INV && 1'b0) ||", 'OOO_DMISS2: a dirty victim not written out'),
+    (DM, "e_line <= {tagr[ev_way][TW-1:0], t_set};", "e_line <= {f_line[PAW-1:12], t_set};", 'OOO_DMISS2: a victim written out at the new line\'s address'),
+    (DM, "assign m_axi4_wvalid  = e_on && e_aw && e_w < e_c;", "assign m_axi4_wvalid  = e_on && e_aw;", 'OOO_DMISS2: a beat before its word is in the buffer'),
+    (DM, "S_FL:   if (!ev_dirty || !e_on) begin", "S_FL:   if (1'b1) begin", 'OOO_DMISS2: FENCE.I\'s walk passes a dirty line'),
+    (DM, "assign fl_done = st == S_FLW && wr_quiet;", "assign fl_done = st == S_FLW;", 'OOO_DMISS2: FENCE.I done before the last write out is answered'),
+    (DM, "rf_addr = {f_line[11:6], f_beat};", "rf_addr = {f_line[11:6], 3'd0};", 'OOO_DMISS2: every word of a fill to the line\'s first'),
+    (CP, ".dc_vr_way(dc_vr_way)", ".dc_vr_way(2'd0)", 'W2: the victim\'s copy read in way 0'),
     (C, ".e_addr({m_ea[1], rt_q ? 64'(rt_bq) : m_ea[0]})", ".e_addr({m_ea[1], m_ea[0]})", 'LSU0: a try takes the address left in EX'),
     (C, "            disp_st[k] = st;", "            disp_st[k] = st + 5'd1;", 'LSU: a load takes the store after it as older'),
     (C, "            ck_lq_tail[k] = lt;", "            ck_lq_tail[k] = l3_lq_tail;", 'LSU: a restore takes the LQ\'s tail of the group\'s start'),
@@ -276,9 +280,9 @@ def run(i, m):
     shutil.rmtree(d, ignore_errors=True)
     shutil.copytree(OOO, os.path.join(d, 'OOO'))
     open(os.path.join(d, 'OOO', f), 'w').write(src.replace(old, new))
-    cpu = f in (DM, CP, IC)             # OOO_DMISS, OOO_CPU's wiring and OOO_ICACHE run in OOO_CPU only,
+    cpu = f in (DM, CP, IC)             # OOO_DMISS2, OOO_CPU's wiring and OOO_ICACHE run in OOO_CPU only,
                                         # with an L2 of 4 KB (step 1.7 H3, Plan/OOC.md 29.58): most accesses
-                                        # miss it, so memory's stalls reach the D$ and its writes go to memory
+                                        # miss it, so memory's stalls reach the D$ and its dirty lines go to memory
     env = dict(os.environ, OOO_RTL=os.path.join(d, 'OOO'), OBJ=os.path.join(d, 'obj'), L2KB='4' if cpu else '256')
     if subprocess.run([os.path.join(HERE, 'build_core.sh')] + (['cpu'] if cpu else []), env=env, capture_output=True).returncode:
         return i, 'BUILD FAILED', desc

@@ -9,10 +9,13 @@
 #    words are being replaced (its tag must be invalid by then).
 # 2. FENCE.I behind slow writes: 16 lines held by the D$ (sets 0..15), the L2
 #    emptied of them by 96 other lines (D$ sets 16..63: they stay in the D$);
-#    stores to the 16 (written through: they miss the L2 and go on to memory,
-#    one at a time), then a store that rewrites an instruction, FENCE.I, and
-#    the instruction called. FENCE.I must wait for every write to be in
-#    memory: the I$'s sweep (64 cycles) is shorter than the writes ahead.
+#    stores to the 16 (dirty in the D$ since step 1.7b W2: FENCE.I writes them
+#    out, and they miss the L2), then a store that rewrites an instruction,
+#    FENCE.I, and the instruction called. FENCE.I must write every dirty line
+#    out and wait for it to be in memory before the I$ fills again.
+# 3. Dirty victims (step 1.7b W2, Plan/OOC.md 29.62): the 6 lines of part 1,
+#    each iteration a store into one, then a load from another three lines on:
+#    victims are dirty, written out and read back.
 #---------------------------------------------------------------------------
     .section .text.init
     .globl _start
@@ -111,6 +114,33 @@ _start:
     addi    s8, s8, 1
     li      t5, 9
     bne     s8, t5, 4b
+
+    # ---- 3. dirty victims: store into line i % 6, word (i * 3) & 7; load line (i + 3) % 6, word (i * 5) & 7
+    li      s3, 0                   # i
+    li      s4, 600
+9:  li      t5, 6
+    remu    t0, s3, t5              # the line stored
+    li      t1, 3
+    mul     t1, t1, s3
+    andi    t1, t1, 7
+    mul     t2, t0, s2
+    add     t2, t2, s1
+    slli    t1, t1, 3
+    add     t2, t2, t1
+    sd      s3, 0(t2)
+    addi    t0, s3, 3
+    remu    t0, t0, t5              # the line loaded
+    li      t1, 5
+    mul     t1, t1, s3
+    andi    t1, t1, 7
+    mul     t2, t0, s2
+    add     t2, t2, s1
+    slli    t1, t1, 3
+    add     t2, t2, t1
+    ld      a2, 0(t2)
+    add     s5, s5, a2
+    addi    s3, s3, 1
+    bne     s3, s4, 9b
 
     li      t0, 1
     la      t1, tohost
