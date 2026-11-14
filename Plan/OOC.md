@@ -5349,3 +5349,25 @@ The timed window measured here (1,211,976 on `OOO_CORE`) is 29.53's estimate (1,
 **Bug injection** (`mutate_core.py`; `OOO_DMISS`, `OOO_CPU`'s wiring and `OOO_ICACHE` on `OOO_CPU`, **with an L2 of 4 KB**): **140 mutations, 134 detected**: the 3 new ones detected, the 6 not detected those of before (71, 90, 101–103, 109). With the L2 of 256 KB the first run missed 3 of `OOO_DMISS`'s that were detected before: the L2 answers the D$ at once and takes its writes in 4 cycles, so the races they open close (108, a load to the victim while its words are replaced; 111, FENCE.I done before the writes are in memory, which is now behind the I$'s sweep of 64 cycles), and 113 (`wt_ready` always 1) did not build (the bench read `wq_n`, then optimized away). So the campaign builds `OOO_CPU` with an L2 of 4 KB (`L2KB=4`: most accesses miss it, so the memory's stalls reach the D$ and its writes go on to memory), `tb_cpu.vlt` keeps `wq_n`, and `dcrace.S` opens both races on purpose: 6 lines of one D$ set loaded round and round by loads that do not wait for each other; stores that hit the D$ and miss the L2 ahead of a store that rewrites an instruction, FENCE.I and a call to it, 8 times. All three detected again (the 10 mutations on `OOO_CPU` rerun, merged into `results/mutate_core.txt`). On the 4 KB L2 every test and CoreMark pass (the window 1,585,873 cycles: 80k writes go on to memory).
 
 **Next**: H4, `OOO_CPU` at 20 ns (by the author): the I$ (F0's LUT RAM tags and compare into the block RAMs' output reset, F1's OR of 8 ways), `OOO_MARB`, the L2 (68 tiles) are new in it.
+
+### 29.59 Step 1.7, H4: the real caches meet 20 ns; step H done (2026-11-14)
+
+**The run** (by the author, `synth_ooo.bat OOO_CPU`, 29.58's RTL): **WNS +0.644 ns, TNS 0, no failing endpoint; hold +0.028 ns; pulse width met. 72,783 LUTs** after place and route (60,691 logic + 12,088 LUT RAM), 18,823 FF after synthesis, 26 DSP, **124.5 tiles of block RAM** (the core 24.5, the I$ 32, the L2 68). Met in one run.
+
+| Against 29.54 (G4) | G4 | H4 | |
+|---|---|---|---|
+| LUTs, the whole | 70,845 | 72,783 | +1,938 |
+| `OOO_CORE` | 70,167 | 68,052 | −2,115 |
+| of which `OOO_FRONT` | 14,030 | 11,930 | −2,100 |
+| `OOO_ICACHE` / `CPU_L2` / `OOO_DMISS` | — / — / 679 | 3,073 / 1,059 / 611 | +4,132 / −68 |
+| FF after synthesis | 17,483 | 18,823 | +1,340 (the L2 970, the I$ 370) |
+| Block RAM tiles | 24.5 | 124.5 | +100 |
+| WNS (between flip-flops) | +0.411 ns (+0.606 ns) | +0.644 ns (+0.644 ns) | |
+
+- **The new blocks**: the I$ 3,073 LUTs in Vivado (Yosys counted about 1.2k, 29.56: its 8 ways' compare and OR of 256 bits), the L2 1,059 (as on mmRISC-2), `OOO_MARB` dissolved into the top (no instance left).
+- **The front end lost 2.1k LUTs**: `OOO_FDEC2` 2,665 → 571 (its `OOO_RAS` 1,256 → 152). Until G4 the I$'s answer came in on a port with the 6 ns input delay plus 1.5 ns (`synth_ooo.tcl`); now it comes from the I$'s flip-flops inside, and synthesis no longer builds the predecode for a late input. Not traced further: the number is what counts.
+- **The worst paths** are the ROB's: from the head's pointer to an entry's cause and exception enables (+0.644 ns, 16 levels), as at earlier runs; the front end's flush into the fetch buffer (+0.917 ns). The one new path near the top: **the L2's way register into the 64 data tiles' enables** (+0.659 ns, 1 level, 8.5 ns of route with a fan-out of 138: the L2's 68 tiles are spread over the chip). The I$ has no path in the first 20.
+
+**Step H is done** (29.55–29.59): the real I$ (32 KB) and L2 (256 KB) in `OOO_CPU`, **8.15 CoreMark/MHz** with the board's memory at 50 MHz, about 1.9k LUTs and 100 block RAM tiles. **Gate S1-B is met**: RTL `-O2` ≥ 8.0 with the real caches at 50 MHz (8.15, 20 ns met), the tests clean (`run_core`, `run_coremark`, the unit and L2 benches), the bug injection clean but the 6 mutations known since earlier steps (core 134/140; unit, I$ 42/42, L2 46/46). `OOO_CPU` stands at 72.8k LUTs of the 106.5k budget of gate S1-A, and 124.5 of the XC7A200T's 365 block RAM tiles.
+
+**Next**: the author's two questions put off during H (29.55): the D$'s write policy, where H3 found the cost of the real caches (13.3k of 14.7k cycles are stores waiting for the write queue of 8; 64 entries give 8.24), and bigger caches with the 240 block RAM tiles left. E1c (AMO, LR, SC) is still open.

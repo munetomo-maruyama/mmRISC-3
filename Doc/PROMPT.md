@@ -9229,3 +9229,39 @@ It is recorded in Plan/OOC(_J).md 29.57, STRATEGY 1.7 and the READMEs.
 ```text
 Yes, start H3
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+H3 is done. It is committed as 4c1d4fb and pushed to dev; Ref is 0 on the remote.
+
+**CoreMark** (the timed window of `g14-o2`, 10 iterations)
+
+| Configuration | Timed window (cycles) | CoreMark/MHz |
+|---|---|---|
+| Ideal caches | 1,211,976 | 8.25 |
+| Real caches, the tests' memory | 1,225,683 | 8.16 |
+| Real caches, the board's memory (`-mlat 25`) | 1,226,719 | **8.15** |
+
+Gate S1-B (8.0 or more) is met if H4 meets 20 ns.
+
+**A correction found on the way.** The bench counted wrongly and reported "0 cycles" for stores waiting on the write queue. The LSU raises `wt_valid` only when `wt_ready` is up, so that count could never fire. Counting the cycles the queue is full instead showed:
+- The D$'s write queue (8 entries) is full 5.3 % of the timed window (64,503 cycles). The L2 takes 4 cycles a part write, and CoreMark's stores come in faster bursts.
+- With a queue of 64 entries (on a copy of the RTL) the timed window is 1,213,431 cycles, 8.24 CoreMark/MHz. 13.3k of the real caches' 14.7k-cycle cost is this wait.
+- This bears directly on the deferred D$ write-policy question, so I left the RTL as it is and recorded it in 29.58 and in memory.
+
+**Bug injection detected 134 of 140**; the 6 missed are the ones from before.
+- With the 256 KB L2, 3 of `OOO_DMISS`'s that were detected before were missed. 108 and 111: the fast L2 closes their race windows. 113: the `wq_n` the bench reads was optimized away, so it did not build.
+- Three fixes: the campaign builds `OOO_CPU` with a 4 KB L2 (`L2KB=4`); `tb_cpu.vlt` keeps `wq_n`; a directed test `b4/dir/dcrace.S` opens the races on purpose. All 3 are detected again.
+- Only the 10 mutations that run on `OOO_CPU` were rerun, not the whole campaign; the results are merged into `results/mutate_core.txt`.
+
+`run_core` (12 runs, B4 now 187 programs) and `run_coremark` PASS.
+
+Next is H4: please run `synth_ooo.bat OOO_CPU` at 20 ns. New in it are the I$, `OOO_MARB` and the L2 (68 tiles).
+<!-- /answer -->
+
+## 231. 2026-11-14 09:23:08 JST
+
+```text
+The OOO_CPU run is done.
+```
