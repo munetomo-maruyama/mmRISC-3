@@ -9869,3 +9869,43 @@ To go ahead, as step 1.7c C5: the RTL and the benches, the mutation tests and th
 ```text
 Start C5
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+C5 is done. The D$ is now 128 KB with 8 ways (256 sets × 8 ways), like the I$; it is pushed to dev as dea267f. I checked that the remote has no Ref/ (0 files).
+
+**The changes**
+- **The number of ways**: 8 ways through OOO_CPU, OOO_CORE, OOO_LSU4 and OOO_DMISS2.
+  - The set is still VA 13:6 and the tags are physical.
+  - In OOO_DMISS2 each of the 4 tag banks (one per vx) now has 8 ways.
+  - The victim is chosen as before (a free way if any, else random but not the way last written).
+  - FENCE.I walks 2,048 lines, 2,048 cycles longer each time.
+- **OOO_DCH2**: already parameterized; only its comments changed.
+- **dcrace.S**: parts 1 and 3 now use 12 lines of a set (6 before).
+  - With 8 ways the 6 lines all stayed in the D$, so the races it is meant to check (a load to a victim being filled, a dirty victim written out) no longer happened.
+  - It now runs 172k-187k cycles.
+
+**The results**
+- **Unit benches**: tb_lsu4 and tb_dmiss2 PASS at 8 ways.
+- **Unit mutations**: all 131 detected.
+  - M1427-M1433 are the 7 new ones.
+  - The old M1013 had never been applied since W1, because its target line appeared twice. Its target is now unique, and it is detected.
+  - The first M1430 was an equivalent mutant (taking a free way 4-7 as 0-3 is no fault), so it was replaced by "a store in ways 4-7 leaves its line clean".
+- **run_core**: PASS (127 files).
+- **run_coremark**: PASS, unchanged to the cycle at 8.244 CoreMark/MHz. CoreMark's data fit in 64 KB, so no change was expected.
+- **Core mutations**: 138 of 146 detected. The 8 undetected are the same as at C2 (71, 90, 101, 102, 103, 109, 113, 115); none is new.
+
+**What I expect from Vivado**
+- **Block RAM**: 230.5 → 284.5 tiles (the D$ 54 → 108); about 314 of 365 with LiteX.
+- **LUTs**: about 3k more.
+- **Timing**: the risk is the load's hit path in M: an OR of 9 instead of 5, and 32 block RAMs on each port.
+
+When you have run `synth_ooo.bat OOO_CPU`, I will record the result in 29.73 and go on to E1c (AMO/LR/SC).
+<!-- /answer -->
+
+## 247. 2026-11-15 12:45:12 JST
+
+```text
+I ran Vivado
+```

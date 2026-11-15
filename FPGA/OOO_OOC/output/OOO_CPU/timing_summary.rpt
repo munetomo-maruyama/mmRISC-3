@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Sun Nov 15 03:03:39 2026
+| Date         : Sun Nov 15 12:34:41 2026
 | Host         : ARM-Windows running 64-bit major release  (build 9200)
 | Command      : report_timing_summary -file ./output/OOO_CPU/timing_summary.rpt
 | Design       : OOO_CPU
@@ -138,7 +138,7 @@ Table of Contents
 
     WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
     -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
-      0.166        0.000                      0               171219        0.028        0.000                      0               171219        8.750        0.000                       0                 39214  
+      0.477        0.000                      0               175934        0.028        0.000                      0               175934        8.750        0.000                       0                 39874  
 
 
 All user specified timing constraints are met.
@@ -161,7 +161,7 @@ clk    {0.000 10.000}     20.000          50.000
 
 Clock             WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
 -----             -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
-clk                 0.166        0.000                      0               171219        0.028        0.000                      0               171219        8.750        0.000                       0                 39214  
+clk                 0.477        0.000                      0               175934        0.028        0.000                      0               175934        8.750        0.000                       0                 39874  
 
 
 ------------------------------------------------------------------------------------------------
@@ -192,7 +192,7 @@ Path Group    From Clock    To Clock          WNS(ns)      TNS(ns)  TNS Failing 
 From Clock:  clk
   To Clock:  clk
 
-Setup :            0  Failing Endpoints,  Worst Slack        0.166ns,  Total Violation        0.000ns
+Setup :            0  Failing Endpoints,  Worst Slack        0.477ns,  Total Violation        0.000ns
 Hold  :            0  Failing Endpoints,  Worst Slack        0.028ns,  Total Violation        0.000ns
 PW    :            0  Failing Endpoints,  Worst Slack        8.750ns,  Total Violation        0.000ns
 ---------------------------------------------------------------------------------------------------
@@ -200,16 +200,16 @@ PW    :            0  Failing Endpoints,  Worst Slack        8.750ns,  Total Vio
 
 Max Delay Paths
 --------------------------------------------------------------------------------------
-Slack (MET) :             0.166ns  (required time - arrival time)
-  Source:                 u_core/g_alu[3].u_wb/out_data_reg[67]/C
+Slack (MET) :             0.477ns  (required time - arrival time)
+  Source:                 u_core/u_front/u_fetch/u_fdec/c_v_reg/C
+                            (rising edge-triggered cell FDCE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            u_core/u_front/u_fbuf/hj_reg[0][1]/R
                             (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            u_core/u_prf/g_bank[0].g_two.lo_reg_r1_0_63_60_62/RAMC/I
-                            (rising edge-triggered cell RAMD64E clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Setup (Max at Slow Process Corner)
   Requirement:            20.000ns  (clk rise@20.000ns - clk rise@0.000ns)
-  Data Path Delay:        19.419ns  (logic 4.968ns (25.584%)  route 14.451ns (74.416%))
-  Logic Levels:           31  (CARRY4=16 LUT3=1 LUT5=5 LUT6=9)
+  Data Path Delay:        19.010ns  (logic 4.066ns (21.389%)  route 14.944ns (78.611%))
+  Logic Levels:           20  (CARRY4=1 LUT2=1 LUT4=6 LUT5=4 LUT6=8)
   Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
     Destination Clock Delay (DCD):    0.924ns = ( 20.924 - 20.000 ) 
     Source Clock Delay      (SCD):    0.973ns
@@ -224,105 +224,67 @@ Slack (MET) :             0.166ns  (required time - arrival time)
   -------------------------------------------------------------------    -------------------
                          (clock clk rise edge)        0.000     0.000 r  
                                                       0.000     0.000 r  clk (IN)
-                         net (fo=39213, unset)        0.973     0.973    u_core/g_alu[3].u_wb/clk
-    SLICE_X77Y139        FDRE                                         r  u_core/g_alu[3].u_wb/out_data_reg[67]/C
+                         net (fo=39873, unset)        0.973     0.973    u_core/u_front/u_fetch/u_fdec/clk
+    SLICE_X35Y73         FDCE                                         r  u_core/u_front/u_fetch/u_fdec/c_v_reg/C
   -------------------------------------------------------------------    -------------------
-    SLICE_X77Y139        FDRE (Prop_fdre_C_Q)         0.419     1.392 r  u_core/g_alu[3].u_wb/out_data_reg[67]/Q
-                         net (fo=10, routed)          1.232     2.624    u_core/g_alu[3].u_wb/wb_d[3]__0[67]
-    SLICE_X78Y139        LUT6 (Prop_lut6_I0_O)        0.299     2.923 r  u_core/g_alu[3].u_wb/p_hl0_i_119/O
-                         net (fo=1, routed)           0.743     3.667    u_core/g_alu[3].u_wb/p_hl0_i_119_n_0
-    SLICE_X66Y139        LUT5 (Prop_lut5_I1_O)        0.124     3.791 r  u_core/g_alu[3].u_wb/p_hl0_i_92/O
-                         net (fo=192, routed)         1.812     5.603    u_core/g_alu[3].u_wb/out_data_reg[213]
-    SLICE_X53Y129        LUT3 (Prop_lut3_I1_O)        0.124     5.727 r  u_core/g_alu[3].u_wb/out_data[6]_i_69/O
-                         net (fo=1, routed)           0.624     6.352    u_core/g_alu[3].u_wb/out_data[6]_i_69_n_0
-    SLICE_X53Y131        LUT6 (Prop_lut6_I0_O)        0.124     6.476 r  u_core/g_alu[3].u_wb/out_data[6]_i_46/O
-                         net (fo=2, routed)           0.726     7.202    u_core/g_alu[0].u_ex/out_data[6]_i_32_0
-    SLICE_X50Y135        LUT6 (Prop_lut6_I2_O)        0.124     7.326 r  u_core/g_alu[0].u_ex/out_data[6]_i_29/O
-                         net (fo=19, routed)          1.669     8.995    u_core/g_alu[0].u_ex/g_alu[0].u_alu/a1[6]
-    SLICE_X19Y138        LUT6 (Prop_lut6_I5_O)        0.124     9.119 r  u_core/g_alu[0].u_ex/out_data[7]_i_47/O
-                         net (fo=2, routed)           0.716     9.834    u_core/g_alu[0].u_ex/out_data[7]_i_47_n_0
-    SLICE_X23Y139        LUT5 (Prop_lut5_I0_O)        0.124     9.958 r  u_core/g_alu[0].u_ex/out_data[7]_i_51/O
-                         net (fo=1, routed)           0.000     9.958    u_core/g_alu[0].u_ex/out_data[7]_i_51_n_0
-    SLICE_X23Y139        CARRY4 (Prop_carry4_S[2]_CO[3])
-                                                      0.398    10.356 r  u_core/g_alu[0].u_ex/out_data_reg[7]_i_35/CO[3]
-                         net (fo=1, routed)           0.000    10.356    u_core/g_alu[0].u_ex/out_data_reg[7]_i_35_n_0
-    SLICE_X23Y140        CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.114    10.470 r  u_core/g_alu[0].u_ex/out_data_reg[11]_i_38/CO[3]
-                         net (fo=1, routed)           0.000    10.470    u_core/g_alu[0].u_ex/out_data_reg[11]_i_38_n_0
-    SLICE_X23Y141        CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.114    10.584 r  u_core/g_alu[0].u_ex/out_data_reg[14]_i_24/CO[3]
-                         net (fo=1, routed)           0.000    10.584    u_core/g_alu[0].u_ex/out_data_reg[14]_i_24_n_0
-    SLICE_X23Y142        CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.114    10.698 r  u_core/g_alu[0].u_ex/out_data_reg[19]_i_38/CO[3]
-                         net (fo=1, routed)           0.000    10.698    u_core/g_alu[0].u_ex/out_data_reg[19]_i_38_n_0
-    SLICE_X23Y143        CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.114    10.812 r  u_core/g_alu[0].u_ex/out_data_reg[20]_i_33/CO[3]
-                         net (fo=1, routed)           0.000    10.812    u_core/g_alu[0].u_ex/out_data_reg[20]_i_33_n_0
-    SLICE_X23Y144        CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.114    10.926 r  u_core/g_alu[0].u_ex/out_data_reg[27]_i_44/CO[3]
-                         net (fo=1, routed)           0.000    10.926    u_core/g_alu[0].u_ex/out_data_reg[27]_i_44_n_0
-    SLICE_X23Y145        CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.114    11.040 r  u_core/g_alu[0].u_ex/out_data_reg[31]_i_60/CO[3]
-                         net (fo=1, routed)           0.000    11.040    u_core/g_alu[0].u_ex/out_data_reg[31]_i_60_n_0
-    SLICE_X23Y146        CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.114    11.154 r  u_core/g_alu[0].u_ex/out_data_reg[33]_i_23/CO[3]
-                         net (fo=1, routed)           0.000    11.154    u_core/g_alu[0].u_ex/out_data_reg[33]_i_23_n_0
-    SLICE_X23Y147        CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.114    11.268 r  u_core/g_alu[0].u_ex/out_data_reg[39]_i_43/CO[3]
-                         net (fo=1, routed)           0.000    11.268    u_core/g_alu[0].u_ex/out_data_reg[39]_i_43_n_0
-    SLICE_X23Y148        CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.114    11.382 r  u_core/g_alu[0].u_ex/out_data_reg[43]_i_36/CO[3]
-                         net (fo=1, routed)           0.000    11.382    u_core/g_alu[0].u_ex/out_data_reg[43]_i_36_n_0
-    SLICE_X23Y149        CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.114    11.496 r  u_core/g_alu[0].u_ex/out_data_reg[47]_i_48/CO[3]
-                         net (fo=1, routed)           0.001    11.497    u_core/g_alu[0].u_ex/out_data_reg[47]_i_48_n_0
-    SLICE_X23Y150        CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.114    11.611 r  u_core/g_alu[0].u_ex/out_data_reg[51]_i_38/CO[3]
-                         net (fo=1, routed)           0.000    11.611    u_core/g_alu[0].u_ex/out_data_reg[51]_i_38_n_0
-    SLICE_X23Y151        CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.114    11.725 r  u_core/g_alu[0].u_ex/out_data_reg[55]_i_39/CO[3]
-                         net (fo=1, routed)           0.000    11.725    u_core/g_alu[0].u_ex/out_data_reg[55]_i_39_n_0
-    SLICE_X23Y152        CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.114    11.839 r  u_core/g_alu[0].u_ex/out_data_reg[63]_i_143/CO[3]
-                         net (fo=1, routed)           0.000    11.839    u_core/g_alu[0].u_ex/out_data_reg[63]_i_143_n_0
-    SLICE_X23Y153        CARRY4 (Prop_carry4_CI_CO[3])
-                                                      0.114    11.953 r  u_core/g_alu[0].u_ex/out_data_reg[63]_i_72/CO[3]
-                         net (fo=1, routed)           0.000    11.953    u_core/g_alu[0].u_ex/out_data_reg[63]_i_72_n_0
-    SLICE_X23Y154        CARRY4 (Prop_carry4_CI_CO[0])
-                                                      0.271    12.224 r  u_core/g_alu[0].u_ex/out_data_reg[63]_i_79/CO[0]
-                         net (fo=4, routed)           0.513    12.737    u_core/g_alu[0].u_ex/out_data_reg[63]_i_79_n_3
-    SLICE_X20Y152        LUT5 (Prop_lut5_I4_O)        0.373    13.110 r  u_core/g_alu[0].u_ex/out_data[63]_i_76/O
-                         net (fo=4, routed)           0.664    13.774    u_core/g_alu[0].u_ex/out_data[63]_i_76_n_0
-    SLICE_X19Y149        LUT6 (Prop_lut6_I1_O)        0.124    13.898 r  u_core/g_alu[0].u_ex/out_data[63]_i_81/O
-                         net (fo=1, routed)           0.292    14.190    u_core/g_alu[0].u_ex/out_data[63]_i_81_n_0
-    SLICE_X19Y148        LUT6 (Prop_lut6_I5_O)        0.124    14.314 f  u_core/g_alu[0].u_ex/out_data[63]_i_35/O
-                         net (fo=64, routed)          0.957    15.271    u_core/g_alu[0].u_ex/out_data[63]_i_35_n_0
-    SLICE_X20Y145        LUT6 (Prop_lut6_I0_O)        0.124    15.395 r  u_core/g_alu[0].u_ex/out_data[31]_i_26/O
-                         net (fo=1, routed)           0.315    15.711    u_core/g_alu[0].u_ex/out_data[31]_i_26_n_0
-    SLICE_X20Y143        LUT5 (Prop_lut5_I0_O)        0.124    15.835 r  u_core/g_alu[0].u_ex/out_data[31]_i_12/O
-                         net (fo=1, routed)           0.423    16.258    u_core/g_alu[0].u_ex/out_data[31]_i_12_n_0
-    SLICE_X20Y141        LUT5 (Prop_lut5_I2_O)        0.124    16.382 r  u_core/g_alu[0].u_ex/out_data[31]_i_4/O
-                         net (fo=33, routed)          1.298    17.680    u_core/g_alu[0].u_ex/ex_res[0]_656[31]
-    SLICE_X37Y147        LUT6 (Prop_lut6_I0_O)        0.124    17.804 r  u_core/g_alu[0].u_ex/out_data[62]_i_4/O
-                         net (fo=1, routed)           0.903    18.707    u_core/g_alu[0].u_ex/ex_res[0]_656[62]
-    SLICE_X49Y152        LUT6 (Prop_lut6_I5_O)        0.124    18.831 r  u_core/g_alu[0].u_ex/out_data[62]_i_1__2/O
-                         net (fo=21, routed)          1.561    20.392    u_core/u_prf/g_bank[0].g_two.lo_reg_r1_0_63_60_62/DIC
-    SLICE_X64Y163        RAMD64E                                      r  u_core/u_prf/g_bank[0].g_two.lo_reg_r1_0_63_60_62/RAMC/I
+    SLICE_X35Y73         FDCE (Prop_fdce_C_Q)         0.456     1.429 r  u_core/u_front/u_fetch/u_fdec/c_v_reg/Q
+                         net (fo=57, routed)          0.847     2.276    u_icache/ub_tgt[20]_i_90
+    SLICE_X33Y73         LUT4 (Prop_lut4_I3_O)        0.154     2.430 r  u_icache/mem_reg_0_7_270_275_i_29/O
+                         net (fo=46, routed)          0.573     3.003    u_icache/ic_resp_data_reg[0]_0
+    SLICE_X37Y69         LUT5 (Prop_lut5_I4_O)        0.327     3.330 r  u_icache/mem_reg_0_7_270_275_i_28/O
+                         net (fo=19, routed)          0.355     3.685    u_icache/hge_reg[2]
+    SLICE_X38Y69         LUT6 (Prop_lut6_I0_O)        0.124     3.809 f  u_icache/mem_reg_0_7_282_287_i_33/O
+                         net (fo=50, routed)          0.546     4.355    u_icache/ic_resp_data_reg[32]_1
+    SLICE_X37Y67         LUT6 (Prop_lut6_I1_O)        0.124     4.479 r  u_icache/mem_reg_0_7_270_275_i_31/O
+                         net (fo=45, routed)          0.567     5.047    u_icache/hge_reg[4]_2
+    SLICE_X33Y63         LUT4 (Prop_lut4_I0_O)        0.124     5.171 r  u_icache/mem_reg_0_7_288_293_i_29/O
+                         net (fo=47, routed)          0.646     5.817    u_icache/ub_tgt[4]_i_118_n_0
+    SLICE_X32Y60         LUT4 (Prop_lut4_I0_O)        0.120     5.937 r  u_icache/mem_reg_0_7_282_287_i_32/O
+                         net (fo=38, routed)          0.894     6.830    u_icache/mem_reg_0_7_282_287_i_32_n_0
+    SLICE_X28Y54         LUT4 (Prop_lut4_I0_O)        0.327     7.157 r  u_icache/first_s_inferred_i_149/O
+                         net (fo=51, routed)          0.479     7.636    u_icache/ub_tgt[4]_i_80_n_0
+    SLICE_X30Y55         LUT6 (Prop_lut6_I0_O)        0.124     7.760 f  u_icache/mem_reg_0_7_270_275_i_40/O
+                         net (fo=60, routed)          1.279     9.039    u_icache/hge_reg[9]
+    SLICE_X14Y46         LUT4 (Prop_lut4_I0_O)        0.124     9.163 f  u_icache/mem_reg_0_7_276_281_i_32/O
+                         net (fo=47, routed)          0.699     9.862    u_icache/ub_tgt[4]_i_59_n_0
+    SLICE_X13Y45         LUT4 (Prop_lut4_I0_O)        0.124     9.986 r  u_icache/first_s_inferred_i_81/O
+                         net (fo=3, routed)           0.632    10.618    u_icache/first_s_inferred_i_81_n_0
+    SLICE_X16Y51         LUT6 (Prop_lut6_I5_O)        0.124    10.742 r  u_icache/first_s_inferred_i_24/O
+                         net (fo=23, routed)          1.293    12.035    u_icache/first_s_inferred_i_24_n_0
+    SLICE_X25Y54         LUT2 (Prop_lut2_I0_O)        0.124    12.159 r  u_icache/pb_q[0]_i_9/O
+                         net (fo=7, routed)           0.858    13.018    u_icache/ic_resp_data_reg[207]_2
+    SLICE_X26Y54         LUT5 (Prop_lut5_I2_O)        0.124    13.142 r  u_icache/first_s_inferred_i_73/O
+                         net (fo=7, routed)           0.739    13.881    u_core/u_front/u_fetch/u_tage/c_v_i_2__0_0
+    SLICE_X25Y52         LUT6 (Prop_lut6_I5_O)        0.124    14.005 r  u_core/u_front/u_fetch/u_tage/first_s_inferred_i_57/O
+                         net (fo=1, routed)           0.000    14.005    u_icache/first_s_inferred_i_4_2[0]
+    SLICE_X25Y52         CARRY4 (Prop_carry4_S[1]_O[3])
+                                                      0.640    14.645 f  u_icache/first_s_inferred_i_17/O[3]
+                         net (fo=1, routed)           0.868    15.513    u_icache/first_s_inferred_i_17_n_4
+    SLICE_X25Y46         LUT6 (Prop_lut6_I0_O)        0.306    15.819 f  u_icache/first_s_inferred_i_1/O
+                         net (fo=83, routed)          0.956    16.775    u_icache/out_first[15]
+    SLICE_X24Y45         LUT6 (Prop_lut6_I2_O)        0.124    16.899 r  u_icache/mem_reg_0_7_348_353_i_4/O
+                         net (fo=7, routed)           0.787    17.687    u_icache/mem_reg_0_7_348_353_i_4_n_0
+    SLICE_X29Y41         LUT5 (Prop_lut5_I0_O)        0.124    17.811 f  u_icache/n1[1]_i_1/O
+                         net (fo=2, routed)           0.584    18.394    u_core/u_front/u_fbuf/n1_reg[4]_0[1]
+    SLICE_X35Y39         LUT6 (Prop_lut6_I3_O)        0.124    18.518 f  u_core/u_front/u_fbuf/rem[1]_i_1/O
+                         net (fo=13, routed)          0.703    19.221    u_core/u_front/u_fbuf/rem_n[1]
+    SLICE_X35Y39         LUT5 (Prop_lut5_I4_O)        0.124    19.345 r  u_core/u_front/u_fbuf/sn[0]_i_1/O
+                         net (fo=5, routed)           0.637    19.983    u_core/u_front/u_fbuf/sn[0]_i_1_n_0
+    SLICE_X35Y39         FDRE                                         r  u_core/u_front/u_fbuf/hj_reg[0][1]/R
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)       20.000    20.000 r  
                                                       0.000    20.000 r  clk (IN)
-                         net (fo=39213, unset)        0.924    20.924    u_core/u_prf/g_bank[0].g_two.lo_reg_r1_0_63_60_62/WCLK
-    SLICE_X64Y163        RAMD64E                                      r  u_core/u_prf/g_bank[0].g_two.lo_reg_r1_0_63_60_62/RAMC/CLK
+                         net (fo=39873, unset)        0.924    20.924    u_core/u_front/u_fbuf/clk
+    SLICE_X35Y39         FDRE                                         r  u_core/u_front/u_fbuf/hj_reg[0][1]/C
                          clock pessimism              0.000    20.924    
                          clock uncertainty           -0.035    20.889    
-    SLICE_X64Y163        RAMD64E (Setup_ramd64e_CLK_I)
-                                                     -0.331    20.558    u_core/u_prf/g_bank[0].g_two.lo_reg_r1_0_63_60_62/RAMC
+    SLICE_X35Y39         FDRE (Setup_fdre_C_R)       -0.429    20.460    u_core/u_front/u_fbuf/hj_reg[0][1]
   -------------------------------------------------------------------
-                         required time                         20.558    
-                         arrival time                         -20.392    
+                         required time                         20.460    
+                         arrival time                         -19.983    
   -------------------------------------------------------------------
-                         slack                                  0.166    
+                         slack                                  0.477    
 
 
 
@@ -331,9 +293,9 @@ Slack (MET) :             0.166ns  (required time - arrival time)
 Min Delay Paths
 --------------------------------------------------------------------------------------
 Slack (MET) :             0.028ns  (arrival time - required time)
-  Source:                 u_core/u_front/u_fetch/u_tage/tag2_reg[3][3]/C
+  Source:                 u_core/u_front/u_fetch/u_tage/tag2_reg[1][1]/C
                             (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
-  Destination:            u_core/u_front/u_ftq/mem_reg_r4_0_31_144_149/RAMA/I
+  Destination:            u_core/u_front/u_ftq/mem_reg_r4_0_31_120_125/RAMA/I
                             (rising edge-triggered cell RAMD32 clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
   Path Group:             clk
   Path Type:              Hold (Min at Fast Process Corner)
@@ -349,21 +311,21 @@ Slack (MET) :             0.028ns  (arrival time - required time)
   -------------------------------------------------------------------    -------------------
                          (clock clk rise edge)        0.000     0.000 r  
                                                       0.000     0.000 r  clk (IN)
-                         net (fo=39213, unset)        0.410     0.410    u_core/u_front/u_fetch/u_tage/clk
-    SLICE_X137Y14        FDRE                                         r  u_core/u_front/u_fetch/u_tage/tag2_reg[3][3]/C
+                         net (fo=39873, unset)        0.410     0.410    u_core/u_front/u_fetch/u_tage/clk
+    SLICE_X15Y23         FDRE                                         r  u_core/u_front/u_fetch/u_tage/tag2_reg[1][1]/C
   -------------------------------------------------------------------    -------------------
-    SLICE_X137Y14        FDRE (Prop_fdre_C_Q)         0.141     0.551 r  u_core/u_front/u_fetch/u_tage/tag2_reg[3][3]/Q
-                         net (fo=1, routed)           0.056     0.607    u_core/u_front/u_ftq/mem_reg_r4_0_31_144_149/DIA0
-    SLICE_X136Y14        RAMD32                                       r  u_core/u_front/u_ftq/mem_reg_r4_0_31_144_149/RAMA/I
+    SLICE_X15Y23         FDRE (Prop_fdre_C_Q)         0.141     0.551 r  u_core/u_front/u_fetch/u_tage/tag2_reg[1][1]/Q
+                         net (fo=1, routed)           0.056     0.607    u_core/u_front/u_ftq/mem_reg_r4_0_31_120_125/DIA0
+    SLICE_X14Y23         RAMD32                                       r  u_core/u_front/u_ftq/mem_reg_r4_0_31_120_125/RAMA/I
   -------------------------------------------------------------------    -------------------
 
                          (clock clk rise edge)        0.000     0.000 r  
                                                       0.000     0.000 r  clk (IN)
-                         net (fo=39213, unset)        0.432     0.432    u_core/u_front/u_ftq/mem_reg_r4_0_31_144_149/WCLK
-    SLICE_X136Y14        RAMD32                                       r  u_core/u_front/u_ftq/mem_reg_r4_0_31_144_149/RAMA/CLK
+                         net (fo=39873, unset)        0.432     0.432    u_core/u_front/u_ftq/mem_reg_r4_0_31_120_125/WCLK
+    SLICE_X14Y23         RAMD32                                       r  u_core/u_front/u_ftq/mem_reg_r4_0_31_120_125/RAMA/CLK
                          clock pessimism              0.000     0.432    
-    SLICE_X136Y14        RAMD32 (Hold_ramd32_CLK_I)
-                                                      0.147     0.579    u_core/u_front/u_ftq/mem_reg_r4_0_31_144_149/RAMA
+    SLICE_X14Y23         RAMD32 (Hold_ramd32_CLK_I)
+                                                      0.147     0.579    u_core/u_front/u_ftq/mem_reg_r4_0_31_120_125/RAMA
   -------------------------------------------------------------------
                          required time                         -0.579    
                          arrival time                           0.607    
@@ -381,10 +343,10 @@ Waveform(ns):       { 0.000 10.000 }
 Period(ns):         20.000
 Sources:            { clk }
 
-Check Type        Corner  Lib Pin             Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location       Pin
-Min Period        n/a     RAMB36E1/CLKARDCLK  n/a            2.944         20.000      17.056     RAMB36_X5Y18   u_core/u_front/u_fetch/u_btb/mem_reg/CLKARDCLK
-Low Pulse Width   Slow    RAMD64E/CLK         n/a            1.250         10.000      8.750      SLICE_X108Y77  u_core/g_wt[0].wt_ram_reg_0_127_0_0/DP.HIGH/CLK
-High Pulse Width  Slow    RAMD64E/CLK         n/a            1.250         10.000      8.750      SLICE_X108Y77  u_core/g_wt[0].wt_ram_reg_0_127_0_0/DP.HIGH/CLK
+Check Type        Corner  Lib Pin             Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location      Pin
+Min Period        n/a     RAMB36E1/CLKARDCLK  n/a            2.944         20.000      17.056     RAMB36_X2Y15  u_core/u_front/u_fetch/u_btb/mem_reg/CLKARDCLK
+Low Pulse Width   Slow    RAMD64E/CLK         n/a            1.250         10.000      8.750      SLICE_X84Y52  u_core/g_wt[0].wt_ram_reg_0_127_0_0/DP.HIGH/CLK
+High Pulse Width  Slow    RAMD64E/CLK         n/a            1.250         10.000      8.750      SLICE_X84Y52  u_core/g_wt[0].wt_ram_reg_0_127_0_0/DP.HIGH/CLK
 
 
 

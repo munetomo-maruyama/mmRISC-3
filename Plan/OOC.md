@@ -5777,3 +5777,24 @@ The author's choice (Doc/PROMPT.md 245, 246): the D$ like the I$, 128 KB of 8 wa
 **The core**: run_core PASS (127 files, with the 3 restores; `dcrace` 28,711 → 36,331 instructions: parts 1 and 3 on 12 lines of a set, 6 before (with 8 ways 6 lines all stayed in the D$ and the races closed: the run was 78k-116k cycles shorter), 184,244 / 187,331 / 172,156 cycles); run_coremark PASS, `results/coremark.txt` unchanged to the cycle (8.244 CoreMark/MHz: CoreMark's data fit in 64 KB). Each FENCE.I's walk is 2,048 cycles longer (`rv64ui-p-fence_i` +2,048, `Zifencei-fence.i-00` +6,112). **Core mutations: 138/146 detected (`mutate_core.py`, OOO_CPU with an L2 of 4 KB), the same 8 undetected as at C2 (71, 90, 101, 102, 103, 109, 113, 115); no internal compiler error**.
 
 **Expected in Vivado** (`synth_ooo.bat OOO_CPU`): block RAM 230.5 → **284.5 tiles** (`OOO_DCH2` 54 → 108: data 3 copies × 8 ways × 4 RAMB36 = 96, tags 3 × 8 RAMB18 = 12 tiles); with LiteX about 314 of 365. LUTs about +3k (the alignment of 4 more ways on 2 ports, the arrays' depth mux, `OOO_DMISS2`'s LUT RAM twice). The risk is the load's hit path in M: the OR of 9 instead of 5, about a LUT level more, and 32 block RAMs a port instead of 16, placed wider (29.64 judged 8 ways on this path risky; at C2 `OOO_LSU4`'s worst into its flip-flops was +1.723 ns). If it fails: a smarter choice of the hit's word, or the victim's copy dropped (read from port 1's copy; 32 tiles fewer, port 1's loads waiting during an eviction).
+
+### 29.73 Step 1.7c C5 at 20 ns (2026-11-15)
+
+The author's Vivado run of `OOO_CPU` with the D$ at 128 KB, 8 ways (`synth_ooo.bat OOO_CPU`, reports in `FPGA/OOO_OOC/output/OOO_CPU`):
+
+| | C3 (29.71) | C5 |
+|---|---|---|
+| WNS / hold | +0.166 / +0.028 ns | **+0.477 / +0.028 ns** |
+| LUTs (after place and route) | 75,027 | 76,672 (+1,645) |
+| Flip-flops | 19,060 | 19,104 (+44) |
+| `OOO_LSU4` (with `OOO_DCH2`) | 3,626 (`OOO_DCH2` 972) | 4,558 (`OOO_DCH2` 1,879) |
+| `OOO_DMISS2` | 1,479 (556 LUT RAM), 416 FF | 2,861 (1,052 LUT RAM), 430 FF |
+| Block RAM tiles | 230.5 | **284.5** (+54) |
+
+- **20 ns met** in one run, with more margin than C3 (place and route's spread: no path of C3's was shortened on purpose).
+- **The block RAM as planned**: +54 tiles (RAMB36 219 → 267, RAMB18 23 → 35): the D$'s data 48 RAMB36 more, its tags 12 RAMB18 more. `OOO_CPU` 284.5 of 365, with LiteX about 314.
+- **The LUTs +1,645** against about +3k. `OOO_DCH2` +907 (the depth mux and each way's load alignment over 8 ways), `OOO_DMISS2` +1,382 (its tags' and dirty bits' LUT RAM twice, 556 → 1,052, and the synonym search over 8 ways), the rest of `OOO_LSU4` +25; the rest of the core −604 is synthesis's spread.
+- **The worst paths** are not the caches'. The first (+0.477 ns, 20 levels, 14.9 ns of route) is the front end's: `OOO_FDEC2`'s `c_v` → `OOO_FBUF3`'s `hj` (its reset), and the same start into `OOO_UBTB2`'s `pi_q`/`pc_q` (+0.601 ns on). C3's worst, ALU 2's write-back → the bypass → the adder → the register file, is now +0.626 ns (31 levels); a mispredicted branch's restore into the ROB (`OOO_PMUL`'s `m_rob` → `cause`/`exc` enables) +0.667 ns.
+- **The load's hit path**, the risk named in 29.72, is in none of the 100 paths of `timing_paths.rpt`: `OOO_LSU4`'s worst into its flip-flops is +1.626 ns (2 levels, the L2's fill), out +2.257 ns (13 levels, the load's data into the register file). The OR of 9 and 32 block RAMs a port fit; neither fallback of 29.72 is needed.
+
+**Step C5 is done**: the I$ and the D$ both 128 KB, 256 sets × 8 ways, the L2 512 KB, at 20 ns. Next E1c (AMO/LR/SC).
