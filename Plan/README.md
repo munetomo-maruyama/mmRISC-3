@@ -10,7 +10,7 @@ findings and measurements stand; the budgets and reductions are history. New: `m
 |---|---|
 | [`STRATEGY_A100T.md`](STRATEGY_A100T.md) / [`_J`](STRATEGY_A100T_J.md) | The strategy for the Arty A7-100T (history): 2-wide, fusion, the phases and gates G0 to G4 that the other documents refer to |
 | [`MODEL.md`](MODEL.md) / [`_J`](MODEL_J.md) | Phase 0-3: the trace-driven C++ cycle model; (1) framework and calibration against mmRISC-2 (5 points within ±0.3 %); (2) the 2-wide out-of-order core: 6.07 / 6.57 CoreMark/MHz without fusion, 7.06 / 7.59 with it |
-| [`OOC.md`](OOC.md) / [`_J`](OOC_J.md) | Phase 0-4: RTL blocks of the fusion configuration (RTL/CPU/OOO), their tests and bug injection, Yosys estimates, register-file ports against performance, the Vivado OOC runs |
+| [`OOC.md`](OOC.md) / [`_J`](OOC_J.md) | Phase 0-4: RTL blocks of the fusion configuration (RTL/CPU/OOO), their tests and bug injection, Yosys estimates, register-file ports against performance, the Vivado OOC runs; **section 29: Phase 1's steps of the 4-wide core, each with its tests and its Vivado run, up to `OOO_CPU` as built (`Doc/UARCH.md` A)** |
 | [`PRESTUDY_MMRISC2.md`](PRESTUDY_MMRISC2.md) / [`_J`](PRESTUDY_MMRISC2_J.md) | The study memo made during mmRISC-2 (2026-10-13): an out-of-order RV64GC on the Arty A7-100T; resources, NaxRiscv, Linux and non-speculative execution, compromises |
 | [`ICOUNT.md`](ICOUNT.md) / [`_J`](ICOUNT_J.md) | Phase 0-1: CoreMark instructions per iteration by compiler, options and ISA extensions; the IPC the goals need |
 | [`CORE.md`](CORE.md) / [`_J`](CORE_J.md) | Phase 1 step 4: putting the integer core together to G1: the top, the formats between the blocks, the glue still to write, decisions on the way, the bring-up order, what G1 measures |

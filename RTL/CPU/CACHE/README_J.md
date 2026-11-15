@@ -4,6 +4,8 @@
 
 mmRISC-2 Rev.02のL1データキャッシュを、mmRISC-3のために持ってきたもの(`Doc/UARCH_J.md` 3.7: D$はmmRISC-2のものをアダプタの後ろに置く)、とそのL2(手順1.7 H2、`Plan/OOC_J.md` 29.57。仕様はmmRISC-2の`RTL/CPU/CPU_L2/CPU_L2_SPEC_J.md`)。仕様はmmRISC-2の`RTL/CPU/CPU_CACHE/CPU_CACHE_SPEC_J.md`。各ファイルには、どこから来たかを書いた行をヘッダに加えた。
 
+**`OOO_CPU`の中**(2026-11-15): `CPU_L2`と、その`CACHE_DATA_ARRAY`、`L2_TAG_ARRAY`だけ。`DCACHE`と`CACHE_TAG_ARRAY`は手順1.3のE2までD$だった(`Plan/OOC_J.md` 29.34)。それからD$はコア自身のもので(配列は`OOO_LSU4`の中の`OOO_DCH2`、ミスは`OOO_DMISS2`: `Doc/UARCH_J.md` A.6、A.7)、これらは`tb_dcad`のために残す。
+
 | ブロック | 内容 | mmRISC-2からの変更 |
 |---|---|---|
 | `DCACHE` | 物理インデックス・物理タグ、4ウェイ × 64セット × 64バイト、ライトバック + ライトアロケート、MSHR 2(ノンブロッキング)、ライトバックバッファ2、要求の順に答える、AXI4のメモリバスとAXI4-Liteの周辺バス | **出力を1つ加えた**: `d_hit_now` / `d_hit_now_data`、ステージ1でのロードのヒットを見つけたそのサイクルに出す(ミスの下でも)。`OOO_DCAD`がLSUのMに渡す(`Plan/OOC_J.md` 17.2)。答えは今までどおり`d_resp_*`にも順に出る。**シミュレーションのため**(`DCACHE_SIM_UC`): `sim_uc_line`、キャッシュしないライン1つ(MEM_BASEより下と同じ)、テストベンチの`tohost`(`Plan/CORE_J.md` 5.5、B3-6) |

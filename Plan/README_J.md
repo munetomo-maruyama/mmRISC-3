@@ -8,7 +8,7 @@ mmRISC-3の検討と作業ファイル。**多くはArty A7-100T向け**(履歴�
 |---|---|
 | [`STRATEGY_A100T_J.md`](STRATEGY_A100T_J.md) / [英語版](STRATEGY_A100T.md) | Arty A7-100T向けの戦略(履歴): 2命令幅、融合、ほかの文書が指すフェーズと関門G0〜G4 |
 | [`MODEL_J.md`](MODEL_J.md) / [英語版](MODEL.md) | Phase 0-3: トレース駆動のC++サイクルモデル。(1) 枠組みとmmRISC-2による校正(5点で±0.3%以内)、(2) OoO 2幅: 融合なしで6.07 / 6.57、融合込みで7.06 / 7.59 CoreMark/MHz |
-| [`OOC_J.md`](OOC_J.md) / [英語版](OOC.md) | Phase 0-4: 融合構成のRTLブロック(RTL/CPU/OOO)、単体テストとバグ注入、Yosysの見積り、レジスタファイルのポートと性能、VivadoのOOC合成 |
+| [`OOC_J.md`](OOC_J.md) / [英語版](OOC.md) | Phase 0-4: 融合構成のRTLブロック(RTL/CPU/OOO)、単体テストとバグ注入、Yosysの見積り、レジスタファイルのポートと性能、VivadoのOOC合成。**29章: Phase 1の4命令幅のコアの手順、それぞれのテストとVivadoの実行、作った`OOO_CPU`まで(`Doc/UARCH_J.md` A)** |
 | [`PRESTUDY_MMRISC2_J.md`](PRESTUDY_MMRISC2_J.md) / [英語版](PRESTUDY_MMRISC2.md) | mmRISC-2開発時の事前検討メモ(2026-10-13): Arty A7-100TでのOoO RV64GC。資源、NaxRiscv、Linuxと非投機化、妥協案 |
 | [`ICOUNT_J.md`](ICOUNT_J.md) / [英語版](ICOUNT.md) | Phase 0-1: CoreMark 1回あたりの命令数(コンパイラ・オプション・拡張命令別)と、目標に必要なIPC |
 | [`CORE_J.md`](CORE_J.md) / [英語版](CORE.md) | Phase 1のステップ4: G1までの整数コアの組み立て: トップ、ブロックのあいだの形式、まだ書くつなぎ、途中で決めること、立ち上げの順、G1で測るもの |

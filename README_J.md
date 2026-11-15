@@ -21,20 +21,33 @@ Pmod JA の JTAG / cJTAG も使う。周辺回路は LiteX から持ってきて
 
 実機の Linux 上で、Linux を動かすのと同じビットストリームで測る。
 
-## 現状(2026-11-05)
+## 現状(2026-11-15)
 
-**対象を Arty A7-100T から Nexys Video に変えた**(作者の決定、2026-11-02): 小さなデバイスに入れるための削減が性能を削っていた。
-2 命令幅のコアが `RTL/CPU/OOO` にある: riscv-arch-test と CoreMark を Spike とのロックステップで通し(`-O2` で 5.50 CoreMark/MHz)、
-単体合成で 50 MHz を満たす。**2026-11-05 に 100 MHz は断念した**(コア全体で約 18.8 ns、深いパイプラインは CoreMark/MHz を下げる)。提案: **リネーム 4、デコード 6、ALU 4 + LSU 2、6 発行、今と同じ段数、50 MHz**。モデルで 8.68、アウトオブオーダの部分は約 66k LUT、デバイスの約 79 % で上限の 80 % のわずかに下。
-決め手になるループを作り直しの前に 20 ns で測る。作業の順序は [`Doc/STRATEGY_J.md`](Doc/STRATEGY_J.md) 5 章: コア、ボード(まず LiteX 自身の SoC と mmRISC-2 で立ち上げる)、Linux。
+**4 命令幅のコアが Spike とのロックステップで動き、単体合成で 50 MHz を満たす。** `OOO_CPU`(`RTL/CPU/OOO`)がキャッシュ込みのコアで、
+仕様は [`Doc/UARCH_J.md`](Doc/UARCH_J.md) の A 章:
+
+| 項目 | 作ったもの |
+|---|---|
+| コア | アウトオブオーダ、フェッチ 32 バイト、デコード / リネーム / ディスパッチ / コミット 4、**6 発行**(ALU 4 + ロード / ストアポート 2)、ROB 48、発行キュー 24(統合)、LQ / SQ 16、物理レジスタ 80、チェックポイント 12、ロードユース 2、ストア分割 |
+| 予測 | uBTB 96、32 バイトのブロックごとの TAGE-M、BTB 256、RAS 16、FTQ 32 |
+| キャッシュ | I$ 128 KB と D$ 128 KB(どちらも 8 ウェイ。D$ はライトバック、ロードポート 2)、L2 512 KB |
+| 今の ISA | RV64IMAC + Zba / Zbb / Zbc / Zbs / Zicond / Zicsr / Zifencei / Zicntr、M / S / U モード |
+| CoreMark/MHz | **8.244**(`-O2`、計測区間、実機のメモリのレイテンシで。作業上の目標 8.0 を満たす) |
+| 資源、タイミング | LUT 78,156(58 %)、ブロック RAM タイル 284.5(78 %)。20 ns で WNS +0.470 ns |
+
+**次は手順 1.8**: 割り込み、MMU(Sv39)、FPU、デバッグ、PMU、そしてシミュレーションで Linux(関門 S1-C)。その後 LiteX でボードへ
+(手順 2)、その上で Linux(手順 3)。作業の順序は [`Doc/STRATEGY_J.md`](Doc/STRATEGY_J.md) 5 章、ここまでの手順は
+[`Plan/OOC_J.md`](Plan/OOC_J.md) 29 にある。
+
+途中の経緯: 対象を Arty A7-100T から Nexys Video に変え(2026-11-02)、100 MHz をやめて 50 MHz で幅を広げた(2026-11-05)。
 
 ## 文書
 
 | ファイル | 内容 |
 |---|---|
-| [`Doc/STRATEGY_J.md`](Doc/STRATEGY_J.md) / [英語版](Doc/STRATEGY.md) | **ここから読む**: 目標、資源、提案するマイクロアーキテクチャ、作業の順序、リスク |
+| [`Doc/STRATEGY_J.md`](Doc/STRATEGY_J.md) / [英語版](Doc/STRATEGY.md) | **ここから読む**: 目標、資源、選んだマイクロアーキテクチャと作ったもの、作業の順序、リスク |
 | [`Doc/BOARD_J.md`](Doc/BOARD_J.md) / [英語版](Doc/BOARD.md) | Nexys Video: DDR3、microSD、Ethernet、JTAG、スイッチと LED、発注前の懸念点 |
-| [`Doc/UARCH_J.md`](Doc/UARCH_J.md) / [英語版](Doc/UARCH.md) | マイクロアーキテクチャ仕様書: 0 章が改訂。ほかは今の RTL である 2 命令幅のコア |
+| [`Doc/UARCH_J.md`](Doc/UARCH_J.md) / [英語版](Doc/UARCH.md) | マイクロアーキテクチャ仕様書: **A 章が作った `OOO_CPU`**。0〜9 章は 2 命令幅のコアの G0 の仕様で履歴 |
 | [`Doc/PROMPT_J.md`](Doc/PROMPT_J.md) / [英語版](Doc/PROMPT.md) | 作者が Claude Code に入力したプロンプトと、Claude Code の回答の全記録(日時つき。日本語の原文とその翻訳) |
 | [`Plan/`](Plan/README_J.md) | 検討と作業ファイル: 性能モデル、コアの立ち上げ([`Plan/CORE_J.md`](Plan/CORE_J.md))、Vivado の実行([`Plan/OOC_J.md`](Plan/OOC_J.md))、履歴としての Arty 向け戦略([`Plan/STRATEGY_A100T_J.md`](Plan/STRATEGY_A100T_J.md)) |
 

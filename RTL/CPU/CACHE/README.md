@@ -6,6 +6,8 @@ mmRISC-2 Rev.02's L1 data cache, taken for mmRISC-3 (`Doc/UARCH.md` 3.7: the D$ 
 Its specification is mmRISC-2's `RTL/CPU/CPU_CACHE/CPU_CACHE_SPEC.md`. Each file has a line added to its header to say
 where it comes from.
 
+**In `OOO_CPU` (2026-11-15)**: only `CPU_L2`, with `CACHE_DATA_ARRAY` and `L2_TAG_ARRAY`. `DCACHE` and `CACHE_TAG_ARRAY` were the D$ until step 1.3 E2 (`Plan/OOC.md` 29.34); since then the D$ is the core's own (its arrays in `OOO_DCH2` inside `OOO_LSU4`, its misses in `OOO_DMISS2`: `Doc/UARCH.md` A.6, A.7), and they stay for `tb_dcad`.
+
 | Block | What it is | Change from mmRISC-2 |
 |---|---|---|
 | `DCACHE` | Physically indexed and tagged, 4 ways × 64 sets × 64 bytes, write back + write allocate, 2 MSHRs (non-blocking), 2 write-back buffers, answers in request order, AXI4 memory bus and AXI4-Lite peripheral bus | **One output added**: `d_hit_now` / `d_hit_now_data`, a load hit in stage 1 in the cycle it is found (also under a miss), for `OOO_DCAD`, which gives it to the LSU's M (`Plan/OOC.md` 17.2). The answer still goes out in order on `d_resp_*`. **For simulation** (`DCACHE_SIM_UC`): `sim_uc_line`, one line not cached (as below MEM_BASE), the test bench's `tohost` (`Plan/CORE.md` 5.5, B3-6) |

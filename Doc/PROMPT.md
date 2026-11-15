@@ -9977,3 +9977,37 @@ Expected in Vivado: about +1k LUTs and +300 flip-flops, no more block RAM.
 ```text
 Ran Vivado
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+OOO_CPU with E1c meets 20 ns in one run. The results are in Plan/OOC 29.75 and STRATEGY, pushed to dev as e3eb03b (Ref/ on the remote is still 0 files).
+
+| | C5 | E1c |
+|---|---|---|
+| WNS / hold | +0.477 / +0.028 ns | **+0.470 / +0.028 ns** |
+| LUTs | 76,672 | 78,156 (+1,484) |
+| Flip-flops | 19,104 | 19,316 (+212) |
+| Block RAM tiles | 284.5 | 284.5 (no more) |
+
+**How the LUTs grew**
+- **OOO_LSU4 +914, as expected**: `amo_calc`, the reservation's compare, the result's mux and so on.
+- **OOO_BUSY +656 was not expected.** The IQ's external port 1 was a constant 0 before E1c and pruned by synthesis. It is now the atomics' wakeup, a 9th wakeup bus over the 80 busy bits.
+- The total is above the estimate (about +1k). The flip-flops, +212, are below it (about +300).
+
+**Timing**
+- **The worst path (+0.470 ns)** is C3's family: ALU0's result → the bypass → the adder → the register file.
+- **The second (+0.545 ns) is new with E1c**: a branch's kill → whether port 0's W is alive → the atomic's access-fault tval → OOO_TRAP's `tv_d`.
+  - An atomic at W is the ROB's oldest, so no branch can kill it.
+  - So `at_tv_v` could be `w_v && w_af`, which cuts it. 20 ns is met, so nothing is changed now; it is noted in 29.75.
+- **The load's hit path** is in none of the worst 100 paths.
+
+Step 1.4 E1c is done. Next in STRATEGY is 1.8 (interrupts, MMU Sv39, FPU, debug, PMU, Linux on the simulator).
+<!-- /answer -->
+
+## 250. 2026-11-15 22:12:23 JST
+
+```text
+Reflect the current specification and structure of OOO_CPU (4 issues, OoO, caches, etc.) in the whole set of md documents.
+Then go on to Step 1.8.
+```

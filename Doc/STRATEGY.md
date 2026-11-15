@@ -20,6 +20,10 @@
 4. **The half-rate islands go**: the whole CPU is on one clock, and the L1 hit paths stay as they are in mmRISC-2.
 5. **Not measured yet**: this width at 20 ns, and the LUTs, estimated at about 106k, 79 %, just under the ceiling. **Six loops are
    measured first** (section 4.5), as for 100 MHz; each has a fallback with its price.
+6. **Where it stands (2026-11-15)**: the configuration is built and measured. `OOO_CPU`, the core with its caches (I$ and D$ 128 KB,
+   L2 512 KB), is in lock-step with Spike, gives **8.244 CoreMark/MHz** (`-O2`, the timed part, the board's memory latency) and meets
+   20 ns with +0.470 ns in **78,156 LUTs (58 %)** and 284.5 block RAM tiles: the six loops closed without a fallback. Its specification
+   is `Doc/UARCH.md` section A; next is step 1.8 (section 5).
 
 ---
 
@@ -103,27 +107,30 @@ and resolution 7.5k, measured**, **2 LSU ports 3.3k measured** and their miss lo
 Vivado stops once a target is met, so the blocks' results at 20 ns are upper bounds: at a 10 ns target they reach 9 to 15 ns
 (`Plan/OOC.md` 28.1).
 
+**As built** (2026-11-15): the 4-wide `OOO_CPU` meets 20 ns with **+0.470 ns** (`Plan/OOC.md` 29.75).
+
 ### 4.2 The configuration
 
 **Frozen at gate S1-A, 2026-11-06.**
 
-| Item | Today | **Proposal** | Why |
-|---|---|---|---|
-| Fetch | 16 B, 3 stages | **32 B, 3 stages** | With 6 decoded +9.5 % |
-| Decode | 4 | **6** | From 2 fetch blocks: one block a cycle costs −2.1 %, 2 cost nothing |
-| Between decode and rename | group register | **decoded-instruction queue** | Takes 6, gives 4 |
-| **Rename, dispatch, commit** | 2 | **4**, 2 checkpoints a cycle (`OOO_RENAME2`) | 2 a cycle cost nothing in the model |
-| **Issue queue** | unified 10, 3 issues | **unified 24, 6 issues** | Distributed −2.4 %, the fallback (`OOO_SCHED`) |
-| ALUs | 1 full, 1 limited | **4**: 3 of `OOO_ALUF` and 1 full | 3 ALUs −3.5 %. The slow operations on one port: not yet modelled here; at 100 MHz −0.1 % in CoreMark |
-| LSU ports | 1 | **2** | 1 port −8.0 % |
-| Branch | compare and act in EX + 1 | **The same** | |
-| Load-use | 2 | **2** | 3 costs −12.7 %: **this is what sets the clock** |
-| Multiply | 2 | **2, pipelined** (`OOO_PMUL`) | |
-| Stores | one µop, with data | **The same** | Split with replays −8.4 %; the +2.6 % without them cannot be had (`Plan/OOC.md` 29) |
-| ROB / LQ, SQ / checkpoints | 24 / 8 / 6 | **48 / 16 / 12**, registers **80** | |
-| Register file | 3 writes, 6 reads | **6 writes, 11 reads** | The largest unknown in LUTs |
-| Predictor | TAGE S, uBTB 8 | **TAGE M, uBTB 96** (`OOO_UBTB2`) | |
-| Fusion | off | **off** | +0.7 %: a lever after S1-B |
+| Item | Today (2026-11-05) | **Proposal** | **As built (2026-11-15)** | Why |
+|---|---|---|---|---|
+| Fetch | 16 B, 3 stages | **32 B, 3 stages** | 32 B, 3 stages | With 6 decoded +9.5 % |
+| Decode | 4 | **6** | **4** (6 dropped: worth nothing in the model, `Plan/OOC.md` 29.37) | From 2 fetch blocks: one block a cycle costs −2.1 %, 2 cost nothing |
+| Between decode and rename | group register | **decoded-instruction queue** | the group register (the queue dropped with 6) | Takes 6, gives 4 |
+| **Rename, dispatch, commit** | 2 | **4**, 2 checkpoints a cycle (`OOO_RENAME2`) | 4, 2 checkpoints a group | 2 a cycle cost nothing in the model |
+| **Issue queue** | unified 10, 3 issues | **unified 24, 6 issues** | unified 24, 6 issues (`OOO_IQ3`) | Distributed −2.4 %, the fallback (`OOO_SCHED`) |
+| ALUs | 1 full, 1 limited | **4**: 3 of `OOO_ALUF` and 1 full | 4: ALU0 full (and branches, jumps, the pc); ALU1..3 `OOO_ALU` `MID` (29.27) | 3 ALUs −3.5 %. The slow operations on one port: not yet modelled here; at 100 MHz −0.1 % in CoreMark |
+| LSU ports | 1 | **2** | 2 (`OOO_LSU4`) | 1 port −8.0 % |
+| Branch | compare and act in EX + 1 | **The same** | the same, on ALU0 | |
+| Load-use | 2 | **2** | **2** | 3 costs −12.7 %: **this is what sets the clock** |
+| Multiply | 2 | **2, pipelined** (`OOO_PMUL`) | 2, pipelined | |
+| Stores | one µop, with data | **The same** | **split** (step G, 29.50 to 29.54: −3.18 % cycles; a wait table by pc, not a replay each time) | Split with replays −8.4 %; the +2.6 % without them cannot be had (`Plan/OOC.md` 29) |
+| ROB / LQ, SQ / checkpoints | 24 / 8 / 6 | **48 / 16 / 12**, registers **80** | 48 / 16 / 12, registers 80 | |
+| Register file | 3 writes, 6 reads | **6 writes, 11 reads** | 6 writes, **10 reads** | The largest unknown in LUTs |
+| Predictor | TAGE S, uBTB 8 | **TAGE M, uBTB 96** (`OOO_UBTB2`) | TAGE M, uBTB 96; FTQ 32 | |
+| Fusion | off | **off** | off | +0.7 %: a lever after S1-B |
+| Caches | — | — | I$ 128 KB, D$ 128 KB written back (8 ways each), L2 512 KB (steps 1.7, 1.7b, 1.7c) | The author's choice after the study of Linux's working sets (`Plan/OOC.md` 29.64, 29.65) |
 
 ### 4.3 The pipeline
 
@@ -144,6 +151,8 @@ Times are today's blocks alone at a 10 ns target (at a 20 ns target).
 | EX | **Bypass, ALU, compare; a load's or store's address and block RAM** | 10.6 ns without the fused compare (14.3 to 18.5 with it) |
 | M | **Tags, way, forward, align; result** | 12.6 ns (18.7) |
 | WB, CM | Register file write; commit 4 | |
+
+**As built** (2026-11-15): F0, F1, F2, D1a (the fetch buffer, 4 a cycle), D1b (decode), D2 (rename's first stage), DS, IS, RR, EX, M, WB, commit: the fetch buffer and decode each have a cycle, the decoded queue gone (`Doc/UARCH.md` A.2). Each block's time at 20 ns is in `Plan/OOC.md` 29.
 
 ### 4.4 The clock of each block
 

@@ -1,5 +1,6 @@
-# mmRISC-3 micro-architecture specification (G0)
+# mmRISC-3 micro-architecture specification
 
+- **Revised 2026-11-15: section A is `OOO_CPU` as built (4-wide, 6 issues, out of order, the caches), the specification of today. Sections 0 to 9 are the G0 specification of 2026-10-24 for the 2-wide core and its revisions, kept as history: the Plan documents cite them.**
 - **Revised 2026-11-05: 100 MHz is given up, and section 0 and 4.5 below are history; the configuration is `Doc/STRATEGY.md` 4.** Revised 2026-11-02: read section 0 first. The target is now the XC7A200T
 - Date: 2026-10-24
 - Status: the G0 specification of `Plan/STRATEGY_A100T.md` section 7 (step 5 of `Plan/ISSUES.md` section 5): the
@@ -8,6 +9,179 @@
 - Basis: the cycle model (`Plan/MODEL.md`, `Plan/model/g0.sh` → `Plan/model/results/g0.txt`), the RTL blocks and
   their Vivado runs (`Plan/OOC.md`), mmRISC-2 Rev.02 measured by hierarchy (`Plan/ISSUES.md` section 2), the reduction
   options (`Plan/REDUCE.md`).
+
+---
+
+## A. OOO_CPU as built (2026-11-15)
+
+What the RTL is at the end of step 1.7c and step 1.4 E1c (`Doc/STRATEGY.md` 5): `OOO_CPU` (`RTL/CPU/OOO/OOO_CPU`), the
+core with its caches, in lock-step with Spike, meeting 20 ns out of context. The blocks are listed in
+[`RTL/CPU/OOO/README.md`](../RTL/CPU/OOO/README.md); how each was reached is in `Plan/OOC.md` 29.
+
+### A.1 In one table
+
+| Item | As built |
+|---|---|
+| ISA | RV64IMAC + Zba / Zbb / Zbc / Zbs / Zicond / Zicsr / Zifencei / Zicntr (Zaamo, Zalrsc); M / S / U modes (mmRISC-2's `CORE_CSR`). No F / D yet: every FP instruction traps as illegal |
+| Clock | **50 MHz** (20 ns), one clock for the whole CPU |
+| Width | fetch 32 bytes, decode 4, rename / dispatch / commit **4**, **6 issues** (4 ALU ports + 2 memory ports) |
+| Pipeline | F0 F1 F2, D1a D1b D2, DS, IS, RR, EX (M for memory), WB, commit (A.2) |
+| Branch prediction | uBTB 32 sets × 3 ways (F0), TAGE-M 6 tables × 2,048 rows with histories 4 to 200 per 32-byte block (F1, F2), BTB of 256 rows for indirect jumps, RAS 16, the override at F2; FTQ 32 blocks |
+| Renaming | 80 physical registers, RAT in flip-flops, **12 checkpoints** (at most 2 a group), busy bits beside it |
+| Window | **ROB 48**, unified issue queue **24** (4 banks, oldest first by an age matrix, wakeup and select in one cycle), LQ 16, SQ 16 |
+| Register file | 80 × 64 bits, **6 writes, 10 reads**, LUT RAM banks with a live value table |
+| ALUs | ALU0 full (and branches, jumps, the pc; CSR, system, multiply, divide behind it); ALU1..3 `OOO_ALU` `MID` (add / sub, compare, logic, shifts, Zba, andn / orn / xnor, sext / zext.h, czero) |
+| Latencies | ALU 1, **load-use 2**, multiply 2 (pipelined, DSP), mulh* / div / clmul from `CORE_MDU` (one at a time) |
+| Stores | **split**: the address on memory port 0, the data on ALU port 1 into the SQ; a wait table of 256 bits by pc for loads that met a store without its data |
+| L1 I$ | **128 KB**, 256 sets × 8 ways × 64 bytes, 32 bytes a cycle, one miss at a time |
+| L1 D$ | **128 KB**, 256 sets × 8 ways × 64 bytes, set by the virtual address 13:6, physical tags (synonyms resolved at the miss), **write back**, 2 load ports (load-use 2), FENCE.I writes every dirty line out |
+| L2 | **512 KB**, 2,048 sets × 4 ways × 64 bytes, write back, pseudo LRU, non-inclusive (mmRISC-2's `CPU_L2`) |
+| Buses | the L2's AXI4 memory bus; the D$'s AXI4-Lite peripheral bus for what is not cacheable (outside [0x8000_0000, 0x1_0000_0000)) |
+| Not yet | interrupt sources (CLINT, PLIC), translation (the DTLBs are in place and grant all; no PTW, no ITLB), PMP checks (the CSRs exist), FPU, debug: **step 1.8** |
+| CoreMark/MHz | **8.244** (`-O2`, GCC 14, Zba / Zbb / Zbs / Zbc, the timed part on `OOO_CPU` with the board's memory latency); 7.835 with GCC 13 (`SIM/CORE/results/coremark.txt`) |
+| Resources | **78,156 LUTs** (58 % of 133,800; 13,902 of them LUT RAM), 19,316 flip-flops, **284.5 block RAM tiles** (of 365), 26 DSP |
+| Timing | **WNS +0.470 ns, hold +0.028 ns** at 20 ns (`Plan/OOC.md` 29.75) |
+
+### A.2 Pipeline
+
+```mermaid
+flowchart LR
+  subgraph FE[front end]
+    F0[F0 uBTB] --> F1[F1 I$, TAGE, BTB] --> F2[F2 predecode, override] --> D1a[D1a fetch buffer] --> D1b[D1b decode] --> D2[D2 rotate, rename R1]
+  end
+  D2 --> DS[DS rename R2, busy, dispatch]
+  DS --> ROB[(ROB 48)]
+  DS --> IQ[(IQ 24)]
+  DS --> LSQ[(LQ / SQ 16)]
+  IQ --> P0[port 0: ALU0, CSR, SYS, MUL, MDU]
+  IQ --> P13[ports 1..3: ALU1..3, store data on 1]
+  IQ --> P4[port 4: loads, stores, atomics]
+  IQ --> P5[port 5: loads]
+  P0 & P13 --> PRF[(PRF 80, 6W 10R)]
+  P4 & P5 --> DC[(D$ 128 KB)]
+  DC --> PRF
+  ROB --> CM[commit 4]
+```
+
+| Stage | Work |
+|---|---|
+| F0 | next fetch address from the uBTB (32 × 3) |
+| F1 | the I$, TAGE and the BTB read; tags compared, the way chosen |
+| F2 | from registers: predecode of 16 parcels, TAGE's decision, the override of the uBTB, the RAS; the block into the fetch buffer (8 blocks) and the FTQ (32) |
+| D1a | `OOO_FBUF3`: up to 4 instructions from up to 2 blocks, raw |
+| D1b | `OOO_DEC`: 4 decoders (`CORE_DECOMP` + `CORE_DEC`); the rare classes (FP, AMO, MISC-MEM, SYSTEM) in slot 0 only |
+| D2 | the group rotated to its oldest slot; `OOO_RENAME2`'s first stage; the control's go (a checkpoint free) |
+| DS | `OOO_RENAME2`'s second stage, `OOO_BUSY`; the ROB, the issue queue, its payload (`OOO_IQPL2`) and the LQ / SQ written |
+| IS | wakeup and select in one cycle, 6 ports; a load's dependents woken 2 cycles after it |
+| RR | the register file and the payload read |
+| EX | the bypass from the write-back registers, the ALU, a branch resolved against its prediction; a memory µop's address, the D$'s arrays read |
+| M | (memory) tags, way, the SQ searched, aligned: the result |
+| WB | the bypass source of the next cycle; the register file written as the result enters it |
+| commit | 4 a cycle: the committed rename state, the free list, the LQ / SQ, the FTQ pops (one TAGE update a cycle), traps |
+
+A mispredicted branch restores, kills and redirects a cycle after its EX; `OOO_FERS` restarts fetch the cycle after
+that, with the history and the RAS put back.
+
+### A.3 Front end
+
+- **Blocks of 32 bytes** (`OOO_FETCH2`): the uBTB gives the next block in one cycle; at F2 the predecode (`OOO_FDEC2`)
+  finds the instructions and transfers of the block, and TAGE (`OOO_TAGE2`, per block, the history lagging 2 blocks)
+  decides up to 3 conditional branches of it, the rest by their base counters; jal and the targets of branches are
+  right at F2; an indirect jump's target from the BTB, a return's from the RAS.
+- **The FTQ** keeps each block's address, next address and 573 bits of predictor state (TAGE's 531, the RAS
+  snapshot's 42), for the pc of each instruction, the restore and TAGE's update at commit.
+- **The fetch buffer** (`OOO_FBUF3`, 8 blocks) gives up to 4 instructions a cycle from 2 blocks (RVC and 32-bit,
+  across blocks). Fetch asks only while the buffer and the FTQ have room. 6 decoded and a decoded queue were dropped:
+  worth nothing in the model (`Plan/OOC.md` 29.37).
+
+### A.4 Rename, dispatch, issue
+
+- **4 µops a cycle, one instruction each** (no fusion: off since `Plan/CORE.md` 5.21, `Plan/OOC.md` 27.5). A
+  conditional branch and a jalr take a checkpoint, at most 2 a group.
+- **The issue queue** (`OOO_IQ3`) is unified: 24 entries in 4 banks, 4 written a cycle, 6 ports: port 0 ALU0 and the
+  units behind it; ports 1 to 3 ALU1..3, port 1 also a store's data; port 4 loads, stores' addresses, atomics; port 5
+  loads. Non-speculative µops issue only at the ROB head. A load issues only after every older store's address (a
+  cycle before at least), and, if the wait table marks it, after their data too.
+- **No cancel**: a load's dependents are woken at its issue + 2 whatever it finds; if it misses (or meets a store
+  without its data), it completes late, marked, and the ROB replays from it after its commit.
+
+### A.5 Execution
+
+- **ALU0** (`OOO_ALU2` full): every integer operation, conditional branches, jal / jalr (the link from the pc array),
+  auipc. Beside it on port 0: `OOO_CSRU` (CSR µops at the ROB head), `OOO_SYS` (FENCE, FENCE.I, SFENCE.VMA, MRET / SRET,
+  WFI), `OOO_PMUL` (mul / mulw, latency 2, one a cycle), `OOO_MDUP` (`CORE_MDU`: mulh*, clmul*, divides; its result
+  written when port 0's write slot is free, with an external wakeup).
+- **ALU1..3** (`OOO_ALU` `MID`): what CoreMark executes but branches and the rarest operations.
+- **The bypass** from the write-back registers of the ALU ports and the memory ports; the register file is written
+  at the edge a result enters its write-back register.
+
+### A.6 Load / store unit and D$
+
+- **`OOO_LSU4`**: 2 ports, load-use 2 (E: the address, the arrays read at the end; M: tags of 8 ways compared, each way
+  aligned with the SQ's word as a ninth, the result). Each port has its copy of the arrays (`OOO_DCH2`) and a DTLB
+  (`OOO_DTLB2`, 32 sets; translation off in Phase 1). Only port 0 asks for a line: a port-1 load that misses goes to
+  port 0.
+- **Waiting and tries**: a µop that cannot finish (a miss, a store without its data, a device) waits in its LQ / SQ
+  entry and is tried again at the event that may have changed it (a fill, a store's data, the head).
+- **Stores** complete when they have both address and data; after commit they drain on their own pipeline with their
+  own copy of the tags: a hit is written, a miss filled first (write allocate). Forwarding from the youngest older
+  store, its page offset searched, the rest checked for the store chosen.
+- **The D$** is virtually indexed and physically tagged: 256 sets by the virtual 13:6, so the 2 bits above the page
+  (vx) go with each miss and SQ entry; `OOO_DMISS2` searches the line's 3 other sets and makes a synonym invalid (writing
+  it out if dirty) before the fill. Dirty lines are written out as one line write; FENCE.I walks the 2,048 lines.
+- **What is not cacheable** (outside [CBASE, CTOP) = [0x8000_0000, 0x1_0000_0000)): loads at the ROB head with the SQ
+  drained, through the AXI4-Lite port, one access at a time; stores as they drain.
+- **Atomics** (step 1.4 E1c, `Plan/OOC.md` 29.74): at the ROB head, one at a time, on port 0. LR a load that sets the
+  reservation (the physical address); SC a store decided at its W (Spike's rule: only SC clears the reservation); an
+  AMO a load and a store, its new value written over rs2 in its SQ entry, drained as a store. An atomic outside the
+  cacheable memory is an access fault.
+
+### A.7 Memory system
+
+```mermaid
+flowchart LR
+  CORE[OOO_CORE: LSU4 with the D$ arrays] -- misses, line writes --> DMISS[OOO_DMISS2]
+  FRONT[OOO_FRONT] -- 32 B a cycle --> IC[OOO_ICACHE 128 KB]
+  IC -- fills --> MARB[OOO_MARB]
+  DMISS -- fills, line writes --> MARB
+  MARB -- AXI4 --> L2[CPU_L2 512 KB] -- AXI4 --> MEM[(memory)]
+  DMISS -- AXI4-Lite --> DEV[(devices)]
+```
+
+- **`OOO_ICACHE`**: 256 sets × 8 ways, {valid, tag} in LUT RAM, the data in block RAM (32 data tiles), the answer at
+  F2 from flip-flops; one miss at a time on AXI4; FENCE.I and reset by a sweep of 64 cycles.
+- **`OOO_DMISS2`**: the D$'s miss handler: line fills by AXI4 bursts, a dirty victim read from the arrays' victim copy
+  and written out (the next fill waits for its answer), the dirty bits and tags (4 banks by vx) in LUT RAM.
+- **`OOO_MARB`**: the I$'s and the D$'s requests on one AXI4, reads in turn, R back by ID.
+- **`CPU_L2`**: one transaction at a time, a one-line evict buffer, its data array's write port registered (step 1.7c
+  C3). Since step 1.7b W the D$ sends it only line reads and line writes.
+
+### A.8 Commit, exceptions, what runs at the head
+
+- **The ROB** (`OOO_ROB`): 48 entries in 4 banks, 4 in and 4 committed a cycle, 12 completion ports; the oldest
+  misprediction of a cycle restores; traps at the head; a marked load replays after its commit.
+- **`OOO_TRAP`**: exceptions at the head (mepc / mcause / mtval of the oldest), the vector, MRET's replay; interrupts
+  at a µop boundary, not under an issued non-speculative µop (no source is connected yet).
+- **At the ROB head only** (non-speculative): CSR µops, FENCE, FENCE.I, SFENCE.VMA, MRET / SRET, WFI, loads from
+  devices, AMO / LR / SC. ECALL, EBREAK and illegal instructions trap at decode. No interrupt is taken from such a µop's
+  issue to its commit (`ns_busy`).
+
+### A.9 Verification
+
+- **Lock-step with Spike** at every instruction (`SIM/CORE/tb_core`, `SIM/LOCKSTEP`): B2 (ALU, branches, loads /
+  stores), B3 (riscv-tests, the console), B4 (riscv-arch-test, 209 tests, and the directed `illegal.S`, `dcrace.S`,
+  `atomic.S`), riscv-tests' -p- (146), CoreMark (3 builds), on `OOO_CORE` with a D$ model and on `OOO_CPU` with the real
+  caches (`run_core.sh`, 12 runs; `run_coremark.sh`).
+- **Unit benches** (`SIM/OOO_UNIT`): each block against a reference; `SIM/L2` for the L2 and `OOO_MARB`.
+- **Bug injection**: the unit benches (`SIM/OOO_UNIT/mutate.py`: 1,315 mutations over the blocks; each campaign's lines
+  read, the last, on the blocks E1c changed, 194 of 194), the core (`SIM/CORE/mutate_core.py`: 166 of 174, the 8 undetected listed and argued in `Plan/OOC.md`), the
+  front end (52 of 52), the L2 (51 of 51).
+
+### A.10 What comes next
+
+Step 1.8 (`Doc/STRATEGY.md` 5): interrupts (CLINT, PLIC), the MMU (Sv39: the PTW, an ITLB, the DTLBs on), PMP checks,
+the FPU (mmRISC-2's), debug, the PMU's events; the arch tests of F / D / S; Linux to its prompt in simulation (gate
+S1-C). Then step 2, the board with LiteX.
 
 ---
 

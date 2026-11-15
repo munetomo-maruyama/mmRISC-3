@@ -2,9 +2,26 @@
 
 [日本語](README_J.md)
 
-> **2026-11-06**: the core here is the 2-wide one of `Plan/CORE.md` 5.22, with the frozen sizes of ROB, LQ / SQ and checkpoints, `OOO_RENAME2` and `OOO_BUSY` in place of `OOO_RENAME` and `OOO_DSREG`, `OOO_IQ2` in place of `OOO_IQ`, and since step 1.2 C 4 µops renamed, dispatched and committed a cycle (`OOO_IQPL2`); it is becoming 4-wide with 6 issues at 50 MHz on the XC7A200T, a piece at a time (`Doc/STRATEGY.md` 4, 5; `Plan/OOC.md` 29.16). The blocks built for 100 MHz stay here, with their benches: which are used is in `Doc/STRATEGY.md` 4.6.
+> **2026-11-15**: the core here is the 4-wide one of [`Doc/UARCH.md`](../../../Doc/UARCH.md) section A: `OOO_CPU`, the core with its caches, around `OOO_CORE`: 4 µops renamed, dispatched and committed a cycle, 6 issues, at 50 MHz on the XC7A200T. The blocks it uses are below; the others in the table (the 2-wide core's, and those built for 100 MHz) stay with their benches, as history or as the starting points of the blocks used (`Doc/STRATEGY.md` 4.6).
 
-The first blocks of mmRISC-3's out-of-order core in the **fusion configuration** (`Plan/STRATEGY_A100T.md` section 4): the
+**In `OOO_CPU`** (2026-11-15):
+
+```
+OOO_CPU
+├─ OOO_CORE
+│  ├─ OOO_FRONT: OOO_FETCH2 (OOO_UBTB2, OOO_FDEC2 with OOO_RAS, OOO_TAGE2, OOO_BTB), OOO_FTQ, OOO_FERS,
+│  │             OOO_FBUF3 (OOO_RARE), OOO_DEC (CORE_DECOMP, CORE_DEC, OOO_RARE)
+│  ├─ OOO_RENAME2, OOO_BUSY, OOO_CTRL, OOO_ROB, OOO_IQ3, OOO_IQPL2, OOO_PRF
+│  ├─ 4 ALU ports: OOO_STAGE (RR, EX, WB), OOO_ALU2 (OOO_ALU)
+│  ├─ port 0: OOO_CSRU (CORE_CSR), OOO_SYS, OOO_PMUL, OOO_MDUP (CORE_MDU); OOO_TRAP
+│  └─ OOO_LSU4: OOO_DCH2, OOO_DTLB2 a port
+├─ OOO_DMISS2
+├─ OOO_ICACHE
+├─ OOO_MARB
+└─ CPU_L2 (CACHE_DATA_ARRAY, L2_TAG_ARRAY: RTL/CPU/CACHE)
+```
+
+The table lists every block, in the order they were made. The first were the blocks of mmRISC-3's out-of-order core in the **fusion configuration** (`Plan/STRATEGY_A100T.md` section 4): the
 loops that have to close in one cycle at 50 MHz and the parts whose cost decides the configuration. They are written
 to be used as they are in Phase 1, and are measured alone first (Phase 0, step 3 of `Plan/ISSUES.md`; results in
 `Plan/OOC.md`).
@@ -33,23 +50,23 @@ to be used as they are in Phase 1, and are measured alone first (Phase 0, step 3
 | `OOO_FETCH` | The front end F0–F2 around `OOO_UBTB`, `OOO_PREDEC`, `OOO_TAGE`, `OOO_BTB` and `OOO_RAS`: I$ requests and answers, the first transfer predicted taken ends the block, F2 overrides the uBTB (2 cycles) and trains it a cycle later from a register (`Plan/OOC.md` 26.14 B), recovery from the back end (`be_stop` in the cycle of the back end's redirect, the restart a cycle later from `OOO_FERS`), credit from the fetch buffer and the FTQ | `tb_fetch`: a random program through an I$ with misses, a back end on the true path; every fetch address and every block against mirrors of the predictors, 11 programs |
 | `OOO_FETCH2` | **The 50 MHz core's** front end F0–F2 for blocks of 32 bytes (step 1.5, F1a, `Plan/OOC.md` 29.38): `OOO_UBTB2`, `OOO_FDEC2` (with the RAS), `OOO_TAGE2`, `OOO_BTB` at 32 bytes, the I$ 32 bytes wide; requests, credit, recovery as `OOO_FETCH`; the block with its starts and its ending transfer for `OOO_FBUF3`; in `OOO_FRONT` since F1b (29.39) | `tb_fetch2`: `tb_fetch`'s bench at 32 bytes, with the uBTB's mirror of 32 × 3 and `TageRef2`; 6 seeds |
 | `OOO_FUSE` | Fusion: 4 decoded instructions → the next 2 µops (lui + addi, auipc + x, slli + srli, ALU + load, load / store pairs, ALU + branch: level 2); a pair reads at most 2 sources and writes at most 1 register; `KINDS` keeps some kinds (the core: ALU + branch) | `tb_fuse`: random against the rules; on the CoreMark stream exactly the model's pairs |
-| `OOO_BUSY` | **The 50 MHz core's** busy bits: set as a µop goes from R to the DS register, cleared by the wakeup tags, read in dispatch; not in the core yet (`Plan/OOC.md` 29.13) | `tb_busy`: against an array |
+| `OOO_BUSY` | **The 50 MHz core's** busy bits: set as a µop goes from R to the DS register, cleared by the wakeup tags, read in dispatch; in the core since step 1.2 B (`Plan/OOC.md` 29.13, 29.16) | `tb_busy`: against an array |
 | `OOO_FBUF3` | **The 50 MHz core's** fetch buffer: up to `NO` (6) instructions a cycle out of 2 blocks; in `OOO_FRONT` with `NO` = 4 (`Plan/OOC.md` 29.11, 29.39) | `tb_fbuf3`: against the program, slot by slot, and the number given |
 | `OOO_FDEC2` | **The 50 MHz core's** F2: predecode of 32 bytes, the choice and the override in one stage, from registers; the slots it decided to TAGE in the same cycle, the uBTB trained as `OOO_FETCH` does (29.38); a target's form from the boundaries and a branch past the slots by its base counter (29.39); in `OOO_FETCH2` (`Plan/OOC.md` 29.9) | `tb_fdec2`: against a walk of each block written apart |
 | `OOO_LSU4` | `OOO_LSU3` with stores split (step 1.5b G1, `Plan/OOC.md` 29.51): a store's address on port 0, its data on its own port into the SQ with a valid bit; a load that meets a store without its data waits and is replayed (`cmp_ld_sd`); in the core since G3 (29.53); the D$'s ways `DWAYS`, 8 since step 1.7c C5 (29.72, 128 KB): the hit's word chosen among 8 (and the SQ's), the drain's hit over 8; the atomics since step 1.4 E1c (29.74): LR a load that sets the reservation, SC a store decided at its W, an AMO a load and a store (its new value over rs2 in its SQ entry), at the ROB head on port 0; the result through port 0's M with the issue queue's external wakeup; an access fault outside the cacheable memory | `tb_lsu4`: `tb_lsu3`'s program with each store's data at its own time, pairs of a late store and its load; the D$ at 256 sets since step 1.7c C2 (29.68): the set from the virtual 13:6, vx kept in each SQ entry for the drain and given with the misses; 8 ways since C5 (29.72), the stores written into each way counted (at least 50 each); no atomic (`rr_at` 0: the atomics are checked in the core, `SIM/CORE`, in lock-step) |
-| `OOO_LSU3`, `OOO_DCH2` | **The 50 MHz core's** memory ports: load-use 2, port 0 loads, stores and tries, port 1 loads; a copy of the D$'s arrays for each; not in the core yet (`Plan/OOC.md` 29.7) | `tb_lsu3`: a random program against its order, with a miss handler and a walk around the block |
-| `OOO_EXU2` | **The 50 MHz core's** stages RR, EX: 4 ALU ports and 2 memory ports, one bypass, results written into `OOO_PRF` as they go into their register; not in the core yet (`Plan/OOC.md` 29.4) | `tb_exu2`: against a reference written from the RISC-V specification |
+| `OOO_LSU3`, `OOO_DCH2` | **The 50 MHz core's** memory ports: load-use 2, port 0 loads, stores and tries, port 1 loads; a copy of the D$'s arrays for each; `OOO_LSU3` in the core from step 1.3 E1 (29.32) until `OOO_LSU4` took its place at step 1.5b G3; `OOO_DCH2` in it (`Plan/OOC.md` 29.7) | `tb_lsu3`: a random program against its order, with a miss handler and a walk around the block |
+| `OOO_EXU2` | **The 50 MHz core's** stages RR, EX: 4 ALU ports and 2 memory ports, one bypass, results written into `OOO_PRF` as they go into their register; not used as a block: the core's own port code took its parts (`Plan/OOC.md` 29.4, 29.27) | `tb_exu2`: against a reference written from the RISC-V specification |
 | `OOO_IQ3` | `OOO_IQ2` with stores split (step 1.5b G2, `Plan/OOC.md` 29.52): a store's address on port 4, its data on port 1 (`iss_sd`), the entry leaving when both have gone; loads wait for older stores' addresses, those the wait table marks for their data too; 4-wide only; in the core since G3 (29.53); a non-speculative store (an AMO or SC) split too since step 1.4 E1c (29.74), its address at the ROB head | `tb_iq3`: `tb_iq2`'s account with the two issues and the waits |
-| `OOO_IQ2` | **The 50 MHz core's** issue queue: unified, 24 entries in 4 banks, 4 µops in, 6 ports; in the core since step 1.2 C0 with 2 ALU ports (`Plan/OOC.md` 29.1, 29.18) | `tb_iq2`: against an account of when every value can be used; `disp_entry`, ports, ages, waits, wakeups |
-| `OOO_SCHED` | **The new core's** distributed schedulers, 3 ALU queues of 8 and a memory queue of 12, dependency matrix for 100 MHz; not in the core yet (`Plan/OOC.md` 28.2 to 28.4) |
+| `OOO_IQ2` | **The 50 MHz core's** issue queue: unified, 24 entries in 4 banks, 4 µops in, 6 ports; in the core from step 1.2 C0 with 2 ALU ports (`Plan/OOC.md` 29.1, 29.18) until `OOO_IQ3` took its place at step 1.5b G3 | `tb_iq2`: against an account of when every value can be used; `disp_entry`, ports, ages, waits, wakeups |
+| `OOO_SCHED` | **The new core's** distributed schedulers, 3 ALU queues of 8 and a memory queue of 12, dependency matrix for 100 MHz; not used: the fallback of loop 1, not needed (`Plan/OOC.md` 28.2 to 28.4) |
 | `OOO_SDISP` | `OOO_SCHED`'s dispatch, in 2 phases: banks, free entries in registers, the tag compare (`Plan/OOC.md` 28.4) |
-| `OOO_EXU` | **The new core's** RR2, EX and results, 3 ALU ports and the memory port: bypass, operands, the shared write of port 0; not in the core yet (`Plan/OOC.md` 28.6) |
+| `OOO_EXU` | **The new core's** RR2, EX and results, 3 ALU ports and the memory port: bypass, operands, the shared write of port 0; not used (`Plan/OOC.md` 28.6; `Doc/STRATEGY.md` 4.6) |
 | `OOO_ALUF` | `OOO_EXU`'s ALU of 1 cycle: what CoreMark executes; the rest is `OOO_ALUR`'s (`Plan/OOC.md` 28.6, 28.8) |
-| `OOO_UBTB2` | The new core's next-line predictor: 32 sets of 3 ways in LUT RAM, 32-byte blocks; not in the core yet (`Plan/OOC.md` 28.11) |
-| `OOO_LSU2` | The new core's memory port: E, M1, M2, M3 at load-use 3, LQ and SQ of 16, a try through RR2, a drain of its own; not in the core yet (`Plan/OOC.md` 28.13) |
-| `OOO_RENAME2` | The new core's renaming: 4 µops, 2 stages, RAT in flip-flops, free list and checkpoints in LUT RAM; not in the core yet (`Plan/OOC.md` 28.16) |
-| `OOO_FBUF2` | The new core's fetch buffer: 32-byte blocks in, 6 instructions out, one block a cycle, the head an instruction; not in the core yet (`Plan/OOC.md` 28.19) |
-| `OOO_FDEC` | The new core's F3 and F4: predecode of 32 bytes, the decision, the override, the stack; not in the core yet (`Plan/OOC.md` 28.21) |
+| `OOO_UBTB2` | The new core's next-line predictor: 32 sets of 3 ways in LUT RAM, 32-byte blocks; in `OOO_FETCH2` since step 1.5 F1a (`Plan/OOC.md` 28.11, 29.38) |
+| `OOO_LSU2` | The new core's memory port: E, M1, M2, M3 at load-use 3, LQ and SQ of 16, a try through RR2, a drain of its own; not used: the starting point of `OOO_LSU3` (`Plan/OOC.md` 28.13) |
+| `OOO_RENAME2` | The new core's renaming: 4 µops, 2 stages, RAT in flip-flops, free list and checkpoints in LUT RAM; in the core since step 1.2 B (`Plan/OOC.md` 28.16, 29.16) |
+| `OOO_FBUF2` | The new core's fetch buffer: 32-byte blocks in, 6 instructions out, one block a cycle, the head an instruction; not used: the starting point of `OOO_FBUF3` (`Plan/OOC.md` 28.19) |
+| `OOO_FDEC` | The new core's F3 and F4: predecode of 32 bytes, the decision, the override, the stack; not used: the starting point of `OOO_FDEC2` (`Plan/OOC.md` 28.21) |
 | `OOO_DCH` | The D$'s arrays for `OOO_LSU2`: block RAM, data and 2 copies of the tags |
 | `OOO_DTLB2` | The DTLB for `OOO_LSU2`: 32 sets of 2 ways of 4 KB in LUT RAM |
 | `OOO_ALUR` | `OOO_EXU`'s slow operations, queue 0, in 2 stages, latency 3 (`Plan/OOC.md` 28.8) |
@@ -74,5 +91,5 @@ to be used as they are in Phase 1, and are measured alone first (Phase 0, step 3
 
 - Coding follows mmRISC-2 (`logic`, `always_ff` with active-low asynchronous reset, comments on what and why).
 - Every block is linted by Verilator (`-Wall`); the unit tests start everything that has no reset at random values.
-- `SIM/OOO_UNIT/mutate.py` breaks the RTL on purpose (293 mutations); all are detected.
+- `SIM/OOO_UNIT/mutate.py` breaks the RTL on purpose: 1,315 mutations over the blocks; every line of each campaign is read (the last, on the blocks step 1.4 E1c changed: 194 of 194). The core's own campaign is `SIM/CORE/mutate_core.py`.
 - Out-of-context synthesis in Vivado: `FPGA/OOO_OOC` (`synth_ooo.bat`), run by the author.
