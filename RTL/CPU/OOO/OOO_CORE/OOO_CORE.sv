@@ -72,6 +72,13 @@
 //     µop's block, of its last half, less one when it crosses a line) and
 //     the first half's parcel.
 //
+// The atomics (step 1.4 E1c, Plan/OOC.md 29.74), non-speculative, slot 0
+// only: LR a load (an LQ entry, woken as a load), SC a store (an SQ entry,
+// its data split on port 1 as a store's), an AMO both; the µop of port 2
+// carries CORE_DEC's command in xop. SC and an AMO are answered from outside:
+// OOO_LSU4 writes the result through its port 0 and wakes the issue queue
+// (ext port 1, at_wk_*); its access fault (5 LR, 7 SC / AMO) and tval.
+//
 // The commit trace (OOO_TRACE, simulation only): per ROB entry the
 // instruction bits (written at dispatch) and the value written (at
 // completion); at commit with the ROB's pc and destination.
@@ -187,7 +194,9 @@ module OOO_CORE
     localparam logic [1:0] K_ALU = 2'd0, K_MDU = 2'd1, K_CSR = 2'd2, K_SYS = 2'd3;
     typedef struct packed {
         logic [1:0]      kind;                  // port 0's units: K_ALU (and branches, jumps), K_MDU, K_CSR, K_SYS
-        logic [3:0]      xop;                   // an MDU µop's CORE_MDU op (0: mul / mulw, OOO_PMUL); a system µop's OOO_SYS op
+        logic [3:0]      xop;                   // an MDU µop's CORE_MDU op (0: mul / mulw, OOO_PMUL); a system µop's OOO_SYS op;
+                                                // a µop of port 2: 0 a load or store, else an atomic's CORE_DEC command
+                                                // (2 LR, 3 SC, 4..12 the AMOs; step 1.4 E1c, Plan/OOC.md 29.74)
         logic [3:0]      lq;                    // a load's LQ entry, a store's SQ entry (OOO_LSU)
         logic [3:0]      sq;
         logic [4:0]      st;                    // a load's: the SQ's tail at its dispatch (OOO_LSU3 rr_st)
@@ -376,7 +385,7 @@ module OOO_CORE
     end
     always @(*) begin
         logic [1:0] s;
-        logic       jmp, link_rd, link_rs1, sysop_v;
+        logic       jmp, link_rd, link_rs1, sysop_v, at;
         logic [2:0] sysop;
         for (int j = 0; j < ND; j++) begin
             s        = rs[j];
@@ -388,6 +397,8 @@ module OOO_CORE
             jmp      = g_is_jal[s] || g_is_jalr[s];
             link_rd  = g_rd[s] == 5'd1 || g_rd[s] == 5'd5;
             link_rs1 = g_rs1[s] == 5'd1 || g_rs1[s] == 5'd5;
+            // an atomic (step 1.4 E1c, slot 0 only): LR a load, SC a store, an AMO both (an LQ entry and an SQ entry)
+            at       = g_port[s] == 2'd2 && g_mem_cmd[s] >= 5'd2 && g_mem_cmd[s] <= 5'd12 && !g_is_fp[s] && !g_illegal[s];
             d2[j]                = '0;
             d2[j].rec.pred_taken = g_taken[s];
             d2[j].rec.call       = g_is_jalr[s] && link_rd;
@@ -413,14 +424,14 @@ module OOO_CORE
             d2[j].rec.ftq        = g_ftq[s];
             d2[j].rec.msize      = g_mem_size[s];
             d2[j].rec.uns        = !g_mem_signed[s];
-            d2[j].rec.is_ld      = g_cls[s] == 3'd4;
-            d2[j].ld             = g_cls[s] == 3'd4;
-            d2[j].st             = g_cls[s] == 3'd5;
+            d2[j].rec.is_ld      = g_cls[s] == 3'd4 || (at && g_mem_cmd[s] != 5'd3);
+            d2[j].ld             = g_cls[s] == 3'd4 || (at && g_mem_cmd[s] != 5'd3);
+            d2[j].st             = g_cls[s] == 3'd5 || (at && g_mem_cmd[s] != 5'd2);
             d2[j].pc             = g_pc[s];
             d2[j].wr             = ren_wr[j];
             d2[j].arch           = g_rd[s];
             d2[j].rec.kind       = g_cls[s] == 3'd6 ? K_MDU : g_is_csr[s] ? K_CSR : sysop_v ? K_SYS : K_ALU;
-            d2[j].rec.xop        = g_cls[s] == 3'd6 ? g_mdu_op[s] : {1'b0, sysop};
+            d2[j].rec.xop        = g_cls[s] == 3'd6 ? g_mdu_op[s] : at ? g_mem_cmd[s][3:0] : {1'b0, sysop};
             // illegal (and in Phase 1 an FP instruction: no FPU), EBREAK, ECALL
             d2[j].exc            = g_illegal[s] || g_is_fp[s] || g_sys[s][4] || g_sys[s][3];
             d2[j].cause          = (g_illegal[s] || g_is_fp[s]) ? 5'd2 : g_sys[s][4] ? 5'd3 : (5'd8 | 5'(priv));
@@ -665,6 +676,8 @@ module OOO_CORE
     /* verilator lint_on UNUSEDSIGNAL */
     logic                      iss_md, iss_sd, mdu_ok, p0_hold, md_ext_v;
     logic [TAGW-1:0]           md_ext_t;
+    logic                      at_wk_v;                 // an AMO's or SC's result written (OOO_LSU4, step 1.4 E1c): its wakeup
+    logic [TAGW-1:0]           at_wk_t;
     assign iq_disp = d_go & ~dv_exc;
     assign iq_cand = ds_valid & ~dv_exc;              // (iq_disp is these or none: the banks need not wait for the go)
     // OOO_IQ3: ALU ports 0..3 (port 1 also a store's data, iss_sd), LSU0 (port 4: loads, stores' addresses) and
@@ -682,7 +695,7 @@ module OOO_CORE
          .disp_port(dv_port), .disp_use(ds_use), .disp_src(ds_src), .disp_rdy(ds_rdy),
          .disp_wr(dv_iqwr), .disp_dst(dv_dst), .disp_lat2(dv_lat2), .disp_bm(d_bmask), .disp_ns(dv_ns),
          .disp_md(dv_md), .disp_st(dv_st), .disp_wt(dv_wt),
-         .ext_valid({1'b0, md_ext_v}), .ext_tag({TAGW'(0), md_ext_t}),
+         .ext_valid({at_wk_v, md_ext_v}), .ext_tag({at_wk_t, md_ext_t}),
          .iss_valid(q_valid), .iss_entry(q_ientry), .iss_src(q_src), .iss_wr(q_wr), .iss_dst(q_dst),
          .iss_bm(q_bm), .iss_ns(iss_ns), .iss_md(iss_md), .iss_sd(iss_sd), .wk_valid(wk_valid), .wk_tag(wk_tag));
     assign iq_ready   = q_ready;
@@ -1114,6 +1127,15 @@ module OOO_CORE
     logic [1:0]      cmp_ld_v, cmp_ld_e, cmp_ld_rp, cmp_ld_sd;
     logic [1:0][ROBW-1:0] cmp_ld_rob;
     logic            cmp_st_v, cmp_st_e;
+    logic            cmp_ld_af, cmp_st_af;              // an atomic outside the cacheable memory: an access fault
+    logic            at_tv_v;                           // ... its tval
+    logic [ROBW-1:0] at_tv_rob;
+    logic [63:0]     at_tv_va;
+    /* verilator lint_off UNUSEDSIGNAL */      // (the commit trace's)
+    logic [ROBW-1:0] at_wk_rob;
+    logic [63:0]     at_wk_d, at_nd;
+    logic            at_st, at_amo;
+    /* verilator lint_on UNUSEDSIGNAL */
     logic [ROBW-1:0] cmp_st_rob;
     /* verilator lint_off PINCONNECTEMPTY */   // (translation: step 1.8)
     OOO_LSU4 #(.NLQ(16), .NSQ(16), .PAW(PAW), .VA(VA), .TAGW(TAGW), .ROBW(ROBW), .NCK(NCKPT), .DWAYS(DWAYS)) u_lsu
@@ -1123,12 +1145,15 @@ module OOO_CORE
          .rr_valid(m_rr_v), .rr_ld(rr_rec[NAP].is_ld), .rr_lq({rr_rec[NAP+1].lq, rr_rec[NAP].lq}), .rr_sq(rr_rec[NAP].sq),
          .rr_st({rr_rec[NAP+1].st, rr_rec[NAP].st}), .rr_size({rr_rec[NAP+1].msize, rr_rec[NAP].msize}),
          .rr_uns({rr_rec[NAP+1].uns, rr_rec[NAP].uns}), .rr_dst(m_rr_dst), .rr_rob({rr_rec[NAP+1].rob, rr_rec[NAP].rob}),
-         .rr_bm(m_rr_bm), .rt_v(rt_v), .rt_base(rt_base),
+         .rr_bm(m_rr_bm), .rr_at(rr_rec[NAP].xop), .rt_v(rt_v), .rt_base(rt_base),
          .e_addr({m_ea[1], rt_q ? 64'(rt_bq) : m_ea[0]}),
          .sd_v(sd_v), .sd_sq(sd_sq), .sd_size(sd_size), .sd_data(sd_data),
          .ld_nv(ld_nv), .ld_nt(ld_nt), .ld_d(ld_d),
          .cmp_ld_valid(cmp_ld_v), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_e), .cmp_ld_rp(cmp_ld_rp), .cmp_ld_sd(cmp_ld_sd),
          .cmp_st_valid(cmp_st_v), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_e),
+         .cmp_ld_af(cmp_ld_af), .cmp_st_af(cmp_st_af), .at_tv_v(at_tv_v), .at_tv_rob(at_tv_rob), .at_tv_va(at_tv_va),
+         .at_wk_v(at_wk_v), .at_wk_t(at_wk_t), .at_wk_rob(at_wk_rob), .at_wk_d(at_wk_d), .at_st(at_st), .at_amo(at_amo),
+         .at_nd(at_nd),
          .lq_commit(lq_commit), .sq_commit(sq_commit), .restore(restore_k), .kill(kill),
          .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all(flush_all),
          .sq_drained(sq_drained),
@@ -1172,6 +1197,7 @@ module OOO_CORE
     // completion of a µop killed or flushed meanwhile is harmless: its entry is out of the ROB, and an
     // entry given out again in that cycle takes its new state first (OOO_ROB's status writes)
     logic [1:0]      ld_cv, ld_ce, ld_crp;
+    logic            ld_caf;                            // port 0's: an LR's access fault
     logic [1:0][ROBW-1:0] ld_crob;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) ld_cv <= '0;
@@ -1181,6 +1207,7 @@ module OOO_CORE
         ld_crob <= cmp_ld_rob;
         ld_ce   <= cmp_ld_e;
         ld_crp  <= cmp_ld_rp;
+        ld_caf  <= cmp_ld_af;
     end
     // the wait table's write: a load that waited for a store's data is marked by its ROB entry when it completes
     // (cmp_ld_sd comes with its replay), and its pc goes to the table at its commit, as the last µop of the cycle
@@ -1234,20 +1261,23 @@ module OOO_CORE
     always @(*) begin
         cmp_exc   = {csr_ce, 2'b00, sys_exc, 1'b0, cmp_st_e, ld_ce, (NAP)'(0)};
         cmp_rp    = {csr_crp, 2'b00, sys_rp, 1'b0, 1'b0, ld_crp, (NAP)'(0)};
-        cmp_cause = {5'd2, 5'd0, 5'd0, 5'd2, 5'd0, 5'd6, 5'd4, 5'd4, (5 * NAP)'(0)};
+        // the LSU's: misaligned (4 a load, 6 a store or AMO), or an atomic's access fault (5 LR, 7 SC or AMO)
+        cmp_cause = {5'd2, 5'd0, 5'd0, 5'd2, 5'd0, cmp_st_af ? 5'd7 : 5'd6, 5'd4, ld_caf ? 5'd5 : 5'd4, (5 * NAP)'(0)};
     end
     assign cmp_valid[NCMP-1:NAP] = {csr_cv, br_valid, sys_cv, pm_v || md_v, cmp_st_v, ld_cv};
     assign cmp_rob[NCMP-1:NAP]   = {csr_crob, br_rob, sys_rob, pm_v ? pm_rob : md_rob, cmp_st_rob, ld_crob};
 
-    // tval: a misaligned access of LSU0 or LSU1 (its address), the CSR unit or the system unit (one at a time at the head)
+    // tval: a misaligned access of LSU0 or LSU1 (its address), the CSR unit or the system unit (one at a time at the head);
+    // an atomic's access fault (OOO_LSU4's W, step 1.4 E1c) on LSU0's port: it is at the ROB head, and what is younger in
+    // EX now dies with its trap
     always @(*) begin
         logic [1:0] mis;
         for (int m = 0; m < 2; m++)
             mis[m] = (m_ex[m].rec.msize == 2'd1 && m_ea[m][0]) || (m_ex[m].rec.msize == 2'd2 && m_ea[m][1:0] != 2'd0) ||
                      (m_ex[m].rec.msize == 2'd3 && m_ea[m][2:0] != 3'd0);
-        tv_valid[ND]     = m_ex_v[0] && mis[0];
-        tv_rob[ND]       = m_ex[0].rec.rob;
-        tv_val[ND]       = m_ea[0];
+        tv_valid[ND]     = (m_ex_v[0] && mis[0]) || at_tv_v;
+        tv_rob[ND]       = at_tv_v ? at_tv_rob : m_ex[0].rec.rob;
+        tv_val[ND]       = at_tv_v ? at_tv_va : m_ea[0];
         tv_valid[ND + 1] = csr_tvq || sys_tv_v;                // (the CSR's a cycle late: never with the system unit's,
         tv_rob[ND + 1]   = sys_tv_v ? sys_tv_rob : csr_tvq_rob;  //  as both run at the ROB head and complete first)
         tv_val[ND + 1]   = sys_tv_v ? sys_tv : csr_tvq_val;
@@ -1335,12 +1365,18 @@ module OOO_CORE
         if (pm_v) sh_val[pm_rob] <= pm_d;                                         // the multiplier's and the MDU's
         if (md_v) sh_val[md_rob] <= md_d;
         if (x_csr) sh_val[ex[0].rec.rob] <= csr_res;                              // a CSR µop's old value
-        if (m_ex_v[0] && !m_ex[0].rec.is_ld) begin                                // a store's address in EX (OOO_LSU4's E)
+        // a store's address in EX (OOO_LSU4's E), an AMO's too
+        if (m_ex_v[0] && (!m_ex[0].rec.is_ld || m_ex[0].rec.xop[3:2] != 2'd0)) begin
             sh_st[m_ex[0].rec.rob] <= 1'b1;
             sh_sa[m_ex[0].rec.rob] <= m_ea[0];
             sh_ss[m_ex[0].rec.rob] <= m_ex[0].rec.msize;
         end
         if (ex_v[1] && ex[1].sd) sh_sd[ex[1].rec.rob] <= ex_b[1];                  // its data in port 1's EX
+        if (at_wk_v) begin                                                        // an AMO's or SC's result (step 1.4 E1c):
+            sh_val[at_wk_rob] <= at_wk_d;                                         // its value; a store if an AMO or an SC
+            sh_st[at_wk_rob]  <= at_st;                                           // that succeeds, with an AMO's new data
+            if (at_amo) sh_sd[at_wk_rob] <= at_nd;
+        end
     end
     always @(*) begin
         logic [ROBW-1:0] ik;

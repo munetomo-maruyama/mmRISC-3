@@ -22,14 +22,17 @@
 // no such µop is older than it. A µop a write slot holds back keeps its rank: its port
 // idles for that cycle, and a younger one does not pass it to that port.
 //
-// Stores split: a store (st, not non-speculative) issues twice from one entry: its address
+// Stores split: a store (st) issues twice from one entry: its address
 // (source 0) on port 4 when its base is ready, its data (source 1) on port 1 when the data
 // is ready, the oldest such store first (iss_sd: OOO_LSU4's data port, through ALU1, which
 // writes no register). The entry leaves when both have gone, in one cycle or two. The data
 // takes port 1 before the any-ALU µop of rank 2, which waits a cycle: port 1 is filled third
 // (rank 0 goes to port 3), so it is the any-ALU port least often in use, and the data needs
-// no rank (an OR of the stores' requests, apart from the rank's tree). A non-speculative µop
-// of the store class (AMO, CBO) is not split: it goes once on port 4 with both.
+// no rank (an OR of the stores' requests, apart from the rank's tree). A non-speculative store
+// (an AMO or SC, step 1.4 E1c, Plan/OOC.md 29.74) is split too: its address at the ROB head
+// (ns_ok), its data at any time into its SQ entry; iss_ns and the wait of a younger
+// non-speculative µop go by its address, not its data (it was not split before E1c, and port 4
+// reads one source since G3: an AMO's rs2 had no way to the LSU).
 // A load waits while an older store's address is in the queue (sw); one that the core's wait
 // table marks (disp_wt) also while an older store's data is (wd). Both are registers, as
 // before, off the wakeup-select loop: they end a cycle after the issue they wait for.
@@ -184,7 +187,7 @@ module OOO_IQ3
     always @(*) begin
         for (int i = 0; i < N; i++) begin
             automatic logic [1:0] ok = rdy[i] | ~use_s[i];
-            split[i] = st[i] && !ns[i];
+            split[i] = st[i];
             // (the waits for older entries are registers, off the
             // wakeup-select loop); a store split: its address alone
             ready_all[i] = v[i] && (split[i] ? ok[0] && !sa[i] : ok == 2'b11) &&
@@ -241,12 +244,12 @@ module OOO_IQ3
 
     logic [N-1:0] issued, a_now, d_now, left;
     assign issued = g[0] | g[1] | g[2] | g[3] | g[4] | g[5];
-    assign iss_ns = (issued & ns) != '0;
+    assign iss_ns = (((issued & ~st) | a_now) & ns) != '0;    // (a store's data alone is not its issue)
     assign iss_md = (g[0] & md) != '0;
     assign iss_sd = sd_any;
-    // a store's address goes now (a store not split: all of it); its data goes now; the entry leaves
+    // a store's address goes now; its data goes now; the entry leaves
     assign a_now = g[4] & st;
-    assign d_now = gsd | (g[4] & st & ns);
+    assign d_now = gsd;
     assign left  = (issued & ~st) | (st & (sa | a_now) & (sd | d_now));
 
     // ---- wakeup tags: the µops issued now with latency 1, those issued one
@@ -372,7 +375,7 @@ module OOO_IQ3
         // and nothing is dispatched in a kill cycle (OOO_CTRL's d_ok)
         st_stay = v & st & ~sa & ~a_now;
         sd_stay = v & st & ~sd & ~d_now;
-        ns_stay = v & ns & ~issued;
+        ns_stay = v & ns & ~left;
     end
 
     // the fields of a bank's slot, on one bus for its entries

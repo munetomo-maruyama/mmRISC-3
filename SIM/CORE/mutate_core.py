@@ -14,8 +14,8 @@
 # to their HTIF exit) on OOO_CORE with the D$ model, with
 # a budget of restores (-restores-max: a fault in what only steers the
 # predictors costs mispredictions, not values); then on B4's (b4/work:
-# riscv-arch-test, 185; riscv-tests' -p- programs as run_core.sh runs
-# them), last on CoreMark (g14 sf + -flto; at most 2,000 replays: about
+# riscv-arch-test, 209 since E1c, illegal.S, dcrace.S, atomic.S;
+# riscv-tests' -p- programs as run_core.sh runs them, 146 with rv64ua), last on CoreMark (g14 sf + -flto; at most 2,000 replays: about
 # 250 now, 21,000 with loads issued past older stores). DETECTED when a run
 # fails.
 # Every line of the result is to be read: grep NOT.
@@ -55,6 +55,14 @@
 #     mispredicted in that very cycle, that µop is younger than it, and a
 #     consumer of the multiply older than the branch takes the bypass next:
 #     no program makes it. Not equivalent: the guard stays.
+#   - (step 1.4 E1c) an AMO's load part without the write permission (m_perm): no
+#     translation in Phase 1 (tr_on 0), so the DTLB grants both; for step 1.8.
+#   - (step 1.4 E1c) an AMO's new value computed without its rs2 there (at_sdw without
+#     sdv[at_sq]): equivalent in time. rs2's producer is older, so it has woken the data
+#     by the time the AMO is the ROB's head; IQ3 sends store data oldest first, so the
+#     AMO's goes the next cycle (issue, RR, sd_w), while its address part issues at the
+#     head at the earliest and reaches A_DATA after E, M, W and its load's answer. The
+#     guard stays.
 #---------------------------------------------------------------------------
 import glob, os, shutil, subprocess, sys
 from concurrent.futures import ThreadPoolExecutor
@@ -72,8 +80,8 @@ APROGS = sorted(glob.glob(os.path.join(HERE, 'b4/work/*/*.elf')))
 CM = [os.path.join(HERE, '../../Plan/trace/work/g14-sflto-zbsc.elf')]     # CoreMark, the last stage
 RV = os.environ.get('RVTESTS', os.path.join(HERE, '../../../mmRISC-2/SIM/SIM_CORE/rvtests'))
 RPROGS = sorted(os.path.join(RV, t) for t in os.listdir(RV)
-                if __import__('re').fullmatch(r'rv64(ui|um|uc|uzba|uzbb|uzbc|uzbs|uzicond|mi|si)-p-[a-z0-9_]+', t) and
-                t not in ('rv64mi-p-breakpoint', 'rv64mi-p-csr', 'rv64si-p-dirty'))
+                if __import__('re').fullmatch(r'rv64(ui|um|ua|uc|uzba|uzbb|uzbc|uzbs|uzicond|mi|si)-p-[a-z0-9_]+', t) and
+                t not in ('rv64mi-p-breakpoint', 'rv64mi-p-csr', 'rv64si-p-dirty') and not t.startswith('rv64ua-p-amocas_'))
 CS = 'OOO_CSRU/OOO_CSRU.sv'
 
 C = 'OOO_CORE/OOO_CORE.sv'
@@ -81,6 +89,8 @@ L3 = 'OOO_LSU4/OOO_LSU4.sv'   # (OOO_LSU3's lines, in OOO_LSU4 since step 1.5b G
 DM = 'OOO_DMISS2/OOO_DMISS2.sv' # (on OOO_CPU: the runs take VOOO_CPU; the D$ written back since step 1.7b W2)
 CP = 'OOO_CPU/OOO_CPU.sv'       # (the same, step 1.7 H3)
 IC = 'OOO_ICACHE/OOO_ICACHE.sv' # (the same)
+DE = 'OOO_DEC/OOO_DEC.sv'
+IQ = 'OOO_IQ3/OOO_IQ3.sv'
 MUT = [
     # D2
     (C, "hd = g_valid[0] ? 2'd0 : g_valid[1] ? 2'd1 : g_valid[2] ? 2'd2 : 2'd3;", "hd = 2'd0;", 'D2: the group not rotated'),
@@ -117,7 +127,7 @@ MUT = [
     (C, "assign ta_idx[p] = rr_rec[p].ftq;", "assign ta_idx[p] = rr_rec[p].ftq + FTQW'(1);", 'jalr: the next block\'s predicted target'),
     (C, "rx.v2   = prf_rd[2*p+1];", "rx.v2   = prf_rd[2*p];", 'RR: the second source from the first read'),
     # port 2 and the LSU (B3)
-    (C, "d2[j].rec.is_ld      = g_cls[s] == 3'd4;", "d2[j].rec.is_ld      = 1'b1;", 'every µop of port 2 a load'),
+    (C, "d2[j].rec.is_ld      = g_cls[s] == 3'd4 || (at && g_mem_cmd[s] != 5'd3);", "d2[j].rec.is_ld      = 1'b1;", 'every µop of port 2 a load'),
     (C, "d2[j].rec.uns        = !g_mem_signed[s];", "d2[j].rec.uns        = g_mem_signed[s];", 'loads sign- and zero-extended the other way'),
     (C, "wrec[j].lq  = disp_lq[j];", "wrec[j].lq  = disp_lq[0];", 'the record: µop 1 with µop 0\'s LQ entry'),
     (C, "wrec[j].sq  = disp_sq[j];", "wrec[j].sq  = disp_sq[0];", 'the record: µop 1 with µop 0\'s SQ entry'),
@@ -187,7 +197,7 @@ MUT = [
     (C, "cmp_exc   = {csr_ce, 2'b00,", "cmp_exc   = {1'b0, 2'b00,", 'CSR: an illegal access completes'),
     (C, "cmp_rp    = {csr_crp, 2'b00,", "cmp_rp    = {1'b0, 2'b00,", 'CSR: no replay after a write'),
     (C, "sys_rob, pm_v ? pm_rob : md_rob,", "sys_rob, md_rob,", 'the multiply completes the MDU\'s entry'),
-    (C, 'tv_valid[ND]     = m_ex_v[0] && mis[0];', "tv_valid[ND]     = 1'b0;", 'tval: a misaligned address not given'),
+    (C, 'tv_valid[ND]     = (m_ex_v[0] && mis[0]) || at_tv_v;', "tv_valid[ND]     = at_tv_v;", 'tval: a misaligned address not given'),
     (C, "tv_valid[ND + 1] = csr_tvq || sys_tv_v;", "tv_valid[ND + 1] = sys_tv_v;", "tval: an illegal CSR access's not given"),
     (C, "for (int j = 0; j < ND; j++) if (disp_go[j]) rob_insn[disp_rob[j]] <= ds[j].insn;", "for (int j = 0; j < 2; j++) if (disp_go[j]) rob_insn[disp_rob[j]] <= ds[j].insn;", '4 wide: slots 2 and 3 leave rob_insn unwritten (a CSR µop reads a stale one)'),
     (C, "assign g_take = r_go[3] ? 3'd4 :", "assign g_take = r_go[3] ? 3'd3 :", '4 wide: four go, three taken (one runs twice)'),
@@ -250,6 +260,35 @@ MUT = [
     (CP, ".AXI_ID(4'd2)) u_icache", ".AXI_ID(4'd0)) u_icache", "H3: the I$'s fills answered to the D$"),
     (CP, ".ic_resp_data(ic_resp_data), .ic_flush(ic_flush)", ".ic_resp_data(ic_resp_data), .ic_flush(1'b0)", 'H3: FENCE.I never reaches the I$'),
     (IC, "if (ic_flush && !ic_done && !cl && !busy && !s1_miss) cl <= 1'b1;", "if (ic_flush && !ic_done && !cl && !busy && !s1_miss) ic_done <= 1'b1;", 'H3: FENCE.I done without the sweep (stale code runs)'),
+    # step 1.4 E1c (Plan/OOC.md 29.74): the atomics (Zaamo, Zalrsc, their Exceptions tests, rv64ua, b4/dir/atomic.S)
+    (C, "g_mem_cmd[s] <= 5'd12 && !g_is_fp[s]", "g_mem_cmd[s] <= 5'd11 && !g_is_fp[s]", 'E1c: AMOMAXU not an atomic'),
+    (C, "d2[j].st             = g_cls[s] == 3'd5 || (at && g_mem_cmd[s] != 5'd2);", "d2[j].st             = g_cls[s] == 3'd5 || (at && g_mem_cmd[s] == 5'd3);", 'E1c: an AMO without an SQ entry'),
+    (C, ".ext_valid({at_wk_v, md_ext_v})", ".ext_valid({1'b0, md_ext_v})", "E1c: an atomic's result wakes nothing"),
+    (C, "cmp_st_af ? 5'd7 : 5'd6", "5'd6", "E1c: an AMO's access fault reported as misaligned"),
+    (C, "ld_caf ? 5'd5 : 5'd4", "5'd4", "E1c: an LR's access fault reported as misaligned"),
+    (C, 'tv_valid[ND]     = (m_ex_v[0] && mis[0]) || at_tv_v;', 'tv_valid[ND]     = m_ex_v[0] && mis[0];', "E1c: an access fault's tval not given"),
+    (DE, "lr   = amo && l_mem_cmd == CMD_LR;", "lr   = 1'b0;", 'E1c: LR answered from outside, as an AMO'),
+    (IQ, "split[i] = st[i];", "split[i] = st[i] && !ns[i];", "E1c: an AMO's or SC's data never goes (not split, as before E1c)"),
+    (IQ, "assign iss_ns = (((issued & ~st) | a_now) & ns) != '0;", "assign iss_ns = (issued & ns) != '0;", "E1c: an AMO's data counts as its issue"),
+    (L3, "if (w_live && w_lr && w_ok) resv_v <= 1'b1;", "if (1'b0) resv_v <= 1'b1;", 'E1c: LR sets no reservation (every SC fails)'),
+    (L3, "w_lr   <= m_at == 4'd2;", "w_lr   <= m_at == 4'd2 && !m_try;", 'E1c: an LR that waited (a miss) sets no reservation'),
+    (L3, "else if (sc_dec) resv_v <= 1'b0;", "else if (1'b0) resv_v <= 1'b0;", 'E1c: SC keeps the reservation'),
+    (L3, "assign sc_fail = !(resv_v && resv_a == w_a);", "assign sc_fail = !resv_v;", 'E1c: SC succeeds at any address'),
+    (L3, "if (sc_dec && sc_fail && sc_sq == SW'(i)) smask[i] <= 8'd0;", '', 'E1c: an SC that fails stores'),
+    (L3, "at_res <= sc_fail;", "at_res <= 1'b0;", "E1c: an SC's result always 0"),
+    (L3, "(m_atw ? (at_sc ? {63'd0, at_res} : at_old) : m_u)", "(m_atw ? at_old : m_u)", "E1c: an SC's result is an AMO's register"),
+    (L3, "assign ld_nt[p] = m_atw ? at_dst : m_dst;", "assign ld_nt[p] = m_dst;", "E1c: an atomic's result into another register"),
+    (L3, "else        m_atw <= at_ph == A_INJ && !m_atw && !(e_v && e_ld) && !flush_all;", "else        m_atw <= at_ph == A_INJ && !m_atw && !flush_all;", "E1c: an atomic's result over a load's in M"),
+    (L3, "&& sp[f_idx] && !sat[f_idx] && st_r[f_idx]", "&& sp[f_idx] && st_r[f_idx]", "E1c: a younger load forwards from an AMO or SC not decided"),
+    (L3, "e_sq   <= rr_valid[0] ? rr_sq : r_at[3:2] != 2'd0 ? at_sq : r_id[SW-1:0];", "e_sq   <= rr_valid[0] ? rr_sq : r_id[SW-1:0];", "E1c: an AMO's try writes another SQ entry"),
+    (L3, "if (m_amo) at_old <= ld_d[p];", "if (m_amo && !m_try) at_old <= ld_d[p];", "E1c: an AMO's old value from its first M (a miss's)"),
+    (L3, "if (at_w) at_new = {2{at_new[31:0]}};", '', "E1c: an AMO.W's new value not replicated (its upper half)"),
+    (L3, "ltu = w ? a[31:0] < b[31:0] : a < b;", "ltu = a < b;", 'E1c: AMOMINU.W / AMOMAXU.W compare 64 bits'),
+    (L3, "4'd9:    return lt  ? x : y;", "4'd9:    return ltu ? x : y;", 'E1c: AMOMIN unsigned'),
+    (L3, "assign at_sdw = at_ph == A_DATA && sdv[at_sq] && !sd_v;", "assign at_sdw = at_ph == A_DATA && sdv[at_sq];", "E1c: an AMO's new value lost to a store's data written then"),
+    (L3, "assign cmp_ld_valid[p] = w_live && w_ld && (w_ok || w_exc) && !w_amo;", "assign cmp_ld_valid[p] = w_live && w_ld && (w_ok || w_exc);", 'E1c: an AMO completes with its load part'),
+    (L3, "at_go        = at_ph == A_CMP && (!at_sc || at_exc || sdv[at_sq])", "at_go        = at_ph == A_CMP && (!at_sc || at_exc)", 'E1c: an SC completes before its data is there'),
+    (L3, "assign at_uc  = m_at != 4'd0 && m_uc;", "assign at_uc  = 1'b0;", 'E1c: an atomic outside the memory goes on'),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),

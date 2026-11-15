@@ -55,8 +55,24 @@
 // the SQ has (a device's register is read, not forwarded); when it is the ROB's head (head_rob) and
 // the SQ is drained, a try of it goes, and that try's W asks the device (uc_*); the answer's word
 // goes into a register, and a last try takes it in M as its result. A store that finds one as it
-// drains goes to the device, not to the D$. One access to a device at a time. Not here yet: AMO,
-// LR, SC. The miss handler is outside, by miss_*, st_miss_*, tw_*, rf_*, fill_done.
+// drains goes to the device, not to the D$. One access to a device at a time. The miss handler is
+// outside, by miss_*, st_miss_*, tw_*, rf_*, fill_done.
+//
+// The atomics (step 1.4 E1c, Plan/OOC.md 29.74), non-speculative: port 0 only, at the ROB head, one at a
+// time (rr_at, CORE_DEC's command; kept for a try with the rest). LR is a load that sets the reservation
+// (resv_*, the physical address) as it completes. SC is a store (its data split as any store's); its W
+// decides: it succeeds if the reservation is set and is its address (Spike's rule: only SC clears it,
+// a trap does not), else its SQ entry's mask goes to 0 and it stores nothing; the reservation goes.
+// An AMO is a load and a store: an LQ entry and an SQ entry. Its load part runs as a load (a miss, a
+// try, a forward from the older stores, committed then); its first M writes its SQ entry's address as a
+// store's would; its data (rs2) comes into the entry as a store's. When its load part has its word and
+// its rs2 is there, the new value is written over rs2 in the entry (the sd_f write port, in a cycle the
+// data's port leaves it), and the entry drains after its commit as any store. While an AMO or SC is not
+// decided (sat), a younger load that finds its entry waits. The result (an AMO's old value, an SC's 0 / 1)
+// is written into the register file through port 0's M in a cycle with no load there, with the issue
+// queue's external wakeup (at_wk_*); then the µop completes through the store's completion port, the
+// last in turn. An atomic outside the cacheable memory is an access fault (cmp_*_af; at_tv_* its tval);
+// misaligned, as a store's (an LR as a load's). A failed SC's entry drains as a store of no byte.
 //
 // The D$ at 64 KB (step 1.7c C2, Plan/OOC.md 29.68): 256 sets of 4 ways, the set the virtual
 // address's 13:6, read at the end of E as before; the tags are physical (the address's 39:12).
@@ -106,6 +122,7 @@ module OOO_LSU4
         input  logic [1:0][TAGW-1:0]     rr_dst,
         input  logic [1:0][ROBW-1:0]     rr_rob,
         input  logic [1:0][NCK-1:0]      rr_bm,
+        input  logic [3:0]               rr_at,      // port 0's: 0, or an atomic (2 LR, 3 SC, 4..12 an AMO; CORE_DEC's command)
         output logic                     rt_v,       // a try goes in port 0's RR: the operand takes rt_base, offset 0
         output logic [PAW-1:0]           rt_base,
 
@@ -132,6 +149,21 @@ module OOO_LSU4
         output logic                     cmp_st_valid,  // a store: translated, with its data
         output logic [ROBW-1:0]          cmp_st_rob,
         output logic                     cmp_st_exc,
+        output logic                     cmp_ld_af,  // port 0's load: an LR outside the cacheable memory (else misaligned)
+        output logic                     cmp_st_af,  // an AMO or SC so (else misaligned)
+        output logic                     at_tv_v,    // ... its tval, the virtual address
+        output logic [ROBW-1:0]          at_tv_rob,
+        output logic [63:0]              at_tv_va,
+
+        // ---- an AMO's or SC's result, written now through port 0's M: the issue queue's external wakeup, and
+        // what the commit trace takes (its value; it stores; an AMO's new data)
+        output logic                     at_wk_v,
+        output logic [TAGW-1:0]          at_wk_t,
+        output logic [ROBW-1:0]          at_wk_rob,
+        output logic [63:0]              at_wk_d,
+        output logic                     at_st,
+        output logic                     at_amo,
+        output logic [63:0]              at_nd,
 
         // ---- commit and recovery
         input  logic [2:0]               lq_commit,
@@ -288,6 +320,27 @@ module OOO_LSU4
         return r;
     endfunction
 
+    // an AMO's new value (CORE_DEC's command): a the old value (a word sign extended), b rs2 (a word in its low half)
+    function automatic logic [63:0] amo_calc(input logic [3:0] cmd, input logic w, input logic [63:0] a, input logic [63:0] b);
+        logic [63:0] x, y;
+        logic        lt, ltu;
+        x   = w ? {{32{a[31]}}, a[31:0]} : a;
+        y   = w ? {{32{b[31]}}, b[31:0]} : b;
+        lt  = $signed(x) < $signed(y);
+        ltu = w ? a[31:0] < b[31:0] : a < b;
+        case (cmd)
+            4'd4:    return y;                  // AMOSWAP
+            4'd5:    return x + y;              // AMOADD
+            4'd6:    return x ^ y;              // AMOXOR
+            4'd7:    return x & y;              // AMOAND
+            4'd8:    return x | y;              // AMOOR
+            4'd9:    return lt  ? x : y;        // AMOMIN
+            4'd10:   return lt  ? y : x;        // AMOMAX
+            4'd11:   return ltu ? x : y;        // AMOMINU
+            default: return ltu ? y : x;        // AMOMAXU
+        endcase
+    endfunction
+
     // ---- pointers
     lptr_t lq_head, lq_tail_q, lq_head_n, lq_tail_n;
     sptr_t sq_head, sq_cmt, sq_tail_q, sq_head_n, sq_cmt_n, sq_tail_n;
@@ -332,12 +385,13 @@ module OOO_LSU4
     logic [NSQ-1:0] sdone;                   // translated, its completion waiting for the data
     logic [ROBW-1:0] srob [NSQ];             // (its ROB entry)
     logic [NLQ-1:0] lsd;                     // the load waited for a store's data
+    logic [NSQ-1:0] sat;                     // an AMO's or SC's entry, not decided yet: a load that finds it waits
     logic [8:0]     swa   [NSQ];         // the word's address in the page
     logic [1:0]     svx   [NSQ];         // the virtual 13:12: its set's top bits in the D$
     logic [7:0]     smask [NSQ];
 
     // what stays of the µop for a try: at its first M
-    localparam int KW = PAW + 2 + 1 + TAGW + ROBW + (SW + 1);
+    localparam int KW = PAW + 2 + 1 + TAGW + ROBW + (SW + 1) + 4;
     (* ram_style = "distributed" *) logic [KW-1:0] kp0 [NLQ + NSQ];
     (* ram_style = "distributed" *) logic [KW-1:0] kp1 [NLQ];
 
@@ -370,7 +424,8 @@ module OOO_LSU4
     logic [TAGW-1:0] r_dst;
     logic [ROBW-1:0] r_rob;
     logic [SW:0]    r_st;
-    assign {r_va, r_size, r_uns, r_dst, r_rob, r_st} = r_d;
+    logic [3:0]     r_at;
+    assign {r_va, r_size, r_uns, r_dst, r_rob, r_st, r_at} = r_d;
     assign rt_base = r_va;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -407,6 +462,26 @@ module OOO_LSU4
         return flush_all || (tr ? restore : (bm & kill) != '0);
     endfunction
 
+    // ---- the atomic of the ROB head (an AMO or SC; one at a time): from its first M to its completion
+    localparam logic [2:0] A_IDLE = 3'd0, A_RUN = 3'd1, A_DATA = 3'd2, A_INJ = 3'd3, A_CMP = 3'd4;
+    logic [2:0]      at_ph;
+    logic            at_sc, at_w, at_exc, at_af, at_res;    // an SC (else an AMO); a word; its completion's exception
+    logic [3:0]      at_cmd;
+    logic [SW-1:0]   at_sq;
+    logic [TAGW-1:0] at_dst;
+    logic [ROBW-1:0] at_rob;
+    logic [63:0]     at_old, at_new;                        // an AMO's old value (its result), its new one
+    logic            at_sdw;                                // the new value written over rs2 now
+    logic            resv_v;                                // the reservation (LR / SC)
+    logic [PAW-1:0]  resv_a;
+    logic            m_atw;                                 // port 0's M writes the atomic's result now
+    logic            at_go;                                 // ... it completes now
+    logic [63:0]     at_rs2, at_ndq;                        // an AMO's rs2 (its entry's data); its new value, kept
+    logic            at_mset;                               // port 0's M: an AMO's or SC's entry, not decided
+    logic [SW-1:0]   at_msq;
+    logic            sc_dec, sc_fail;                       // port 0's W: an SC decides now; it fails
+    logic [SW-1:0]   sc_sq;
+
     // ---- the arrays
     logic [1:0][10:0]      a_rd;
     logic [1:0][DWAYS-1:0][63:0] a_d;
@@ -429,6 +504,23 @@ module OOO_LSU4
     (* ram_style = "distributed" *) logic [63:0]   sd_f [NSQ];
     (* ram_style = "distributed" *) logic [TW-1:0] st_r [NSQ];
     (* ram_style = "distributed" *) logic [7:0]    sm_f [NSQ];
+
+    // an AMO's new value, from its old one and its rs2, written over rs2 in its entry when the data's port leaves the
+    // write port free
+    assign at_rs2 = sd_f[at_sq];
+    assign at_sdw = at_ph == A_DATA && sdv[at_sq] && !sd_v;
+    always @(*) begin
+        at_new = amo_calc(at_cmd, at_w, at_old, at_rs2);
+        if (at_w) at_new = {2{at_new[31:0]}};              // (the entry's data is replicated by size)
+    end
+    always_ff @(posedge clk) if (at_sdw) at_ndq <= at_new;
+    assign at_wk_v   = m_atw;
+    assign at_wk_t   = at_dst;
+    assign at_wk_rob = at_rob;
+    assign at_wk_d   = at_sc ? {63'd0, at_res} : at_old;
+    assign at_st     = !at_sc || !at_res;
+    assign at_amo    = !at_sc;
+    assign at_nd     = at_ndq;
 
     // ---- what the ports have in M and W, for the state below
     logic [1:0]           w_lives, w_oks, w_excs, w_sds;
@@ -457,6 +549,7 @@ module OOO_LSU4
         logic [ROBW-1:0] e_rob;
         logic [NCK-1:0]  e_bm;
         logic [IW-1:0]   e_id;
+        logic [3:0]      e_at;
         logic [63:0]     e_a;
         assign e_a     = e_addr[p];
         assign a_rd[p] = e_a[13:3];
@@ -471,7 +564,8 @@ module OOO_LSU4
                 e_ld   <= rr_valid[0] ? rr_ld : !r_id[LW];
                 e_id   <= rr_valid[0] ? (rr_ld ? {1'b0, rr_lq[0]} : {1'b1, rr_sq}) : r_id;
                 e_lq   <= rr_valid[0] ? rr_lq[0] : r_id[LW-1:0];
-                e_sq   <= rr_valid[0] ? rr_sq : r_id[SW-1:0];
+                e_sq   <= rr_valid[0] ? rr_sq : r_at[3:2] != 2'd0 ? at_sq : r_id[SW-1:0];   // (an AMO's try: its entry)
+                e_at   <= rr_valid[0] ? rr_at : r_at;
                 e_st   <= rr_valid[0] ? rr_st[0] : r_st;
                 e_size <= rr_valid[0] ? rr_size[0] : r_size;
                 e_uns  <= rr_valid[0] ? rr_uns[0] : r_uns;
@@ -487,6 +581,7 @@ module OOO_LSU4
             assign e_try = 1'b0;
             assign e_ld  = 1'b1;
             assign e_sq  = '0;
+            assign e_at  = '0;
             always_ff @(posedge clk) begin
                 e_id   <= {1'b0, rr_lq[1]};
                 e_lq   <= rr_lq[1];
@@ -511,6 +606,11 @@ module OOO_LSU4
         logic [NCK-1:0]  m_bm;
         logic [1:0]      m_size;
         logic [IW-1:0]   m_id;
+        logic [3:0]      m_at;
+        logic            m_amo, m_sc;
+        /* verilator lint_off UNUSEDSIGNAL */      // (port 0's)
+        logic            m_sw;
+        /* verilator lint_on UNUSEDSIGNAL */
         logic [PAW-1:0]  m_a;                  // the address as far as it is used
         logic [63:VA-1]  m_hi;                 // Sv39: all the same
         logic            m_mis;
@@ -535,6 +635,7 @@ module OOO_LSU4
             m_bm    <= e_bm;
             m_size  <= e_size;
             m_id    <= e_id;
+            m_at    <= e_at;
             m_a     <= e_a[PAW-1:0];
             m_hi    <= e_a[63:VA-1];
             m_mis   <= misal(e_size, e_a[2:0]);
@@ -555,9 +656,12 @@ module OOO_LSU4
         end
         assign m_live = m_v && !drop(m_try, m_bm);
         assign m_ids[p] = m_id;
+        assign m_amo  = m_v && m_at[3:2] != 2'd0;
+        assign m_sc   = m_v && m_at == 4'd3;
+        assign m_sw   = m_v && (!m_ld || m_amo);   // a store's (an AMO's) SQ entry written
         // the first M keeps what a try needs
         assign m_kpw[p] = m_v && !m_try;
-        assign m_kp[p]  = {m_a, m_size, m_uns, m_dst, m_rob, m_st};
+        assign m_kp[p]  = {m_a, m_size, m_uns, m_dst, m_rob, m_st, m_at};
 
         // the DTLB
         logic            t_hit, t_r, t_w;
@@ -604,39 +708,55 @@ module OOO_LSU4
             end
             m_f    = align(sd_f[f_idx], m_off, m_spos, m_s0, m_s01, m_s3, m_sen);
             m_hit  = hit != '0;
-            f_cv   = (sm_f[f_idx] & m_lmask) == m_lmask && sp[f_idx] && st_r[f_idx] == t_ptag;   // it can forward
+            f_cv   = (sm_f[f_idx] & m_lmask) == m_lmask && sp[f_idx] && !sat[f_idx] && st_r[f_idx] == t_ptag;   // it can forward
             f_ok   = f_cv && sdv[f_idx];                                                          // ... with its data
             m_bad  = m_mis || (tr_on && !(&m_hi || !(|m_hi)));
-            m_perm = m_ld ? t_r : t_w;
+            m_perm = m_ld ? t_r && (!m_amo || t_w) : t_w;
             m_uc   = uncached({t_ptag, m_a[11:0]});
             m_ucd  = p == 0 && m_ld && m_try && !m_id[LW] && lucd[m_id[LW-1:0]];
             m_u    = align(uc_q, m_off, m_spos, m_s0, m_s01, m_s3, m_sen);
         end
-        assign ld_nv[p] = m_v && m_ld;
-        assign ld_nt[p] = m_dst;
-        assign ld_d[p]  = m_ucd ? m_u : m_dw | ({64{f_any}} & m_f);
+        if (p == 0) begin : g_ld0
+            // an atomic's result in a cycle with no load in M (m_atw), on the device's word's mux (both are early)
+            assign ld_nv[p] = (m_v && m_ld) || m_atw;
+            assign ld_nt[p] = m_atw ? at_dst : m_dst;
+            assign ld_d[p]  = (m_ucd || m_atw) ? (m_atw ? (at_sc ? {63'd0, at_res} : at_old) : m_u) :
+                              m_dw | ({64{f_any}} & m_f);
+            always_ff @(posedge clk or negedge rst_n) begin
+                if (!rst_n) m_atw <= 1'b0;
+                else        m_atw <= at_ph == A_INJ && !m_atw && !(e_v && e_ld) && !flush_all;
+            end
+            always_ff @(posedge clk) if (m_amo) at_old <= ld_d[p];     // (the load part's word of its last M)
+        end else begin : g_ld1
+            assign ld_nv[p] = m_v && m_ld;
+            assign ld_nt[p] = m_dst;
+            assign ld_d[p]  = m_ucd ? m_u : m_dw | ({64{f_any}} & m_f);
+        end
 
         // a store, port 0 alone
         if (p == 0) begin : g_st
             always_ff @(posedge clk) begin
-                if (m_v && !m_ld) begin
+                if (m_sw) begin
                     sm_f[m_sq] <= m_lmask;
                     st_r[m_sq] <= t_ptag;
                 end
                 for (int i = 0; i < NSQ; i++) begin
-                    if (m_v && !m_ld && m_sq == SW'(i)) begin
+                    if (m_sw && m_sq == SW'(i)) begin
                         swa[i]   <= m_wa;
                         svx[i]   <= m_a[13:12];
                         smask[i] <= m_lmask;
                     end
+                    if (sc_dec && sc_fail && sc_sq == SW'(i)) smask[i] <= 8'd0;    // an SC that fails stores no byte
                 end
             end
+            assign at_mset = m_v && (m_amo || m_sc);
+            assign at_msq  = m_sq;
             always_ff @(posedge clk or negedge rst_n) begin
                 if (!rst_n) sp <= '0;
                 else begin
                     for (int i = 0; i < NSQ; i++) begin
                         if (!sv[i]) sp[i] <= 1'b0;
-                        else if (m_v && !m_ld && m_sq == SW'(i)) sp[i] <= t_hit && t_w;
+                        else if (m_sw && m_sq == SW'(i)) sp[i] <= t_hit && t_w;
                     end
                 end
             end
@@ -644,6 +764,12 @@ module OOO_LSU4
 
         // ---- W
         logic            w_v, w_ld, w_try, w_ok, w_exc, w_miss, w_walk, w_live, w_uc, w_sd;
+        logic            w_amo;
+        logic            at_uc;
+        /* verilator lint_off UNUSEDSIGNAL */      // (port 0's: an atomic outside the cacheable memory, its tval; which atomic)
+        logic            w_af, w_sc, w_lr;
+        logic [63:0]     w_va;
+        /* verilator lint_on UNUSEDSIGNAL */
         /* verilator lint_off UNUSEDSIGNAL */      // (port 0's: the device's address and size)
         logic [PAW-1:0]  w_a;
         logic [1:0]      w_size;
@@ -661,16 +787,22 @@ module OOO_LSU4
             w_rob  <= m_rob;
             w_bm   <= m_bm;
             w_lq   <= m_lq;
-            w_exc  <= m_bad || (t_hit && !m_perm);
+            w_exc  <= m_bad || (t_hit && !m_perm) || (t_hit && at_uc);
+            w_af   <= !m_bad && t_hit && m_perm && at_uc;
+            w_amo  <= m_amo;
+            w_sc   <= m_sc;
+            w_lr   <= m_at == 4'd2;
+            w_va   <= {m_hi, m_a[VA-2:0]};
             w_walk <= !m_bad && !t_hit;
             // a store is done with its translation; a load for a device waits for its turn, then takes uc_q
-            w_ok   <= m_ucd || (t_hit && m_perm && !m_bad && (!m_ld || (!m_uc && (f_any ? f_ok : m_hit))));
+            w_ok   <= m_ucd || (t_hit && m_perm && !m_bad && !at_uc && (!m_ld || (!m_uc && (f_any ? f_ok : m_hit))));
             w_miss <= m_ld && t_hit && m_perm && !m_bad && !f_any && !m_hit && !m_uc;
-            w_uc   <= m_ld && t_hit && m_perm && !m_bad && m_uc && !m_ucd;
+            w_uc   <= m_ld && t_hit && m_perm && !m_bad && m_uc && !m_ucd && m_at == 4'd0;
             w_sd   <= m_ld && t_hit && m_perm && !m_bad && !m_uc && f_any && f_cv;     // (it waits only if no data)
             w_a    <= {t_ptag, m_a[11:0]};
             w_size <= m_size;
         end
+        assign at_uc  = m_at != 4'd0 && m_uc;    // an atomic outside the cacheable memory
         assign w_live = w_v && !drop(w_try, w_bm);
         assign w_lives[p] = w_live && w_ld;
         assign w_oks[p]   = w_ok;
@@ -679,7 +811,7 @@ module OOO_LSU4
         assign w_lqs[p]   = w_lq;
         assign w_ucs[p]   = w_live && w_ld && w_uc;
         assign w_robs[p]  = w_rob;
-        assign cmp_ld_valid[p] = w_live && w_ld && (w_ok || w_exc);
+        assign cmp_ld_valid[p] = w_live && w_ld && (w_ok || w_exc) && !w_amo;   // (an AMO completes as a store)
         assign cmp_ld_rob[p]   = w_rob;
         assign cmp_ld_exc[p]   = w_exc;
         assign cmp_ld_rp[p]    = w_try;
@@ -690,16 +822,63 @@ module OOO_LSU4
             // a store completes now with its data, or with an exception; else later, from sdone
             logic          st_now, st_late, p_any;
             logic [SW-1:0] p_idx;
+            // (an SC completes through the atomic's state, below)
             always @(*) begin
-                st_now  = w_live && !w_ld && (w_exc || (w_ok && sdv[w_sq]));
-                st_late = w_live && !w_ld && !w_exc && w_ok && !sdv[w_sq];
+                st_now  = w_live && !w_ld && !w_sc && (w_exc || (w_ok && sdv[w_sq]));
+                st_late = w_live && !w_ld && !w_sc && !w_exc && w_ok && !sdv[w_sq];
                 p_any   = 1'b0;
                 p_idx   = '0;
                 for (int i = NSQ - 1; i >= 0; i--) if (sdone[i] && sdv[i]) begin p_any = 1'b1; p_idx = SW'(i); end
             end
-            assign cmp_st_valid = st_now || (p_any && !rec);
-            assign cmp_st_rob   = st_now ? w_rob : srob[p_idx];
-            assign cmp_st_exc   = st_now && w_exc;
+            assign sc_dec  = at_ph == A_RUN && w_live && w_sc && w_ok;
+            assign sc_fail = !(resv_v && resv_a == w_a);
+            assign sc_sq   = w_sq;
+            // an atomic's completion, the last in turn
+            assign at_go        = at_ph == A_CMP && (!at_sc || at_exc || sdv[at_sq]) && !st_now && !p_any && !rec;
+            assign cmp_st_valid = st_now || (p_any && !rec) || at_go;
+            assign cmp_st_rob   = st_now ? w_rob : p_any ? srob[p_idx] : at_rob;
+            assign cmp_st_exc   = (st_now && w_exc) || (!st_now && !p_any && at_exc);
+            assign cmp_st_af    = !st_now && !p_any && at_af;
+            assign cmp_ld_af    = w_af;
+            assign at_tv_v      = w_live && w_af;
+            assign at_tv_rob    = w_rob;
+            assign at_tv_va     = w_va;
+            // the atomic's state
+            always_ff @(posedge clk or negedge rst_n) begin
+                if (!rst_n) begin
+                    at_ph  <= A_IDLE;
+                    resv_v <= 1'b0;
+                end else begin
+                    if (flush_all) at_ph <= A_IDLE;
+                    else case (at_ph)
+                        A_IDLE:  if (m_v && !m_try && (m_amo || m_sc)) at_ph <= A_RUN;
+                        A_RUN:   if (w_live && (w_amo || w_sc) && (w_ok || w_exc))
+                                     at_ph <= w_exc ? A_CMP : w_amo ? A_DATA : A_INJ;
+                        A_DATA:  if (at_sdw) at_ph <= A_INJ;
+                        A_INJ:   if (m_atw) at_ph <= A_CMP;
+                        default: if (at_go) at_ph <= A_IDLE;
+                    endcase
+                    // LR sets the reservation as it completes; SC clears it as it decides (not on an exception)
+                    if (w_live && w_lr && w_ok) resv_v <= 1'b1;
+                    else if (sc_dec) resv_v <= 1'b0;
+                end
+            end
+            always_ff @(posedge clk) begin
+                if (m_v && !m_try && (m_amo || m_sc)) begin
+                    at_sc  <= m_sc;
+                    at_w   <= m_size == 2'd2;
+                    at_cmd <= m_at;
+                    at_sq  <= m_sq;
+                    at_dst <= m_dst;
+                    at_rob <= m_rob;
+                end
+                if (w_live && w_lr && w_ok) resv_a <= w_a;
+                if (at_ph == A_RUN && w_live && (w_amo || w_sc) && (w_ok || w_exc)) begin
+                    at_exc <= w_exc;
+                    at_af  <= w_af;
+                    at_res <= sc_fail;                             // an SC's result: 0 it stores, 1 it fails
+                end
+            end
             always_ff @(posedge clk) if (st_late) srob[w_sq] <= w_rob;
             always_ff @(posedge clk or negedge rst_n) begin
                 if (!rst_n) sdone <= '0;
@@ -768,7 +947,7 @@ module OOO_LSU4
             default: sd_rep = sd_data;
         endcase
     end
-    always_ff @(posedge clk) if (sd_w) sd_f[sd_sq] <= sd_rep;
+    always_ff @(posedge clk) if (sd_w || at_sdw) sd_f[sd_w ? sd_sq : at_sq] <= sd_w ? sd_rep : at_new;
     // the bit goes when the entry is given out, not when its store leaves: a load that searches
     // as the store drains may still find it, and its data is right (nothing is given out in a
     // recovery's cycle)
@@ -784,9 +963,21 @@ module OOO_LSU4
         end
     end
 
+    // an AMO's or SC's entry from its first M until it is decided (an SC's W, an AMO's new value): a load waits
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) sat <= '0;
+        else begin
+            for (int i = 0; i < NSQ; i++) begin
+                if (!sv[i])                                                       sat[i] <= 1'b0;
+                else if (at_mset && at_msq == SW'(i))                             sat[i] <= 1'b1;
+                else if ((sc_dec && sc_sq == SW'(i)) || (at_sdw && at_sq == SW'(i))) sat[i] <= 1'b0;
+            end
+        end
+    end
+
     // ---- what may let a waiting µop go. A try that a recovery dropped goes again
     logic ev;
-    assign ev = m_st0 || w_ask1 || d3_v || fill_done || tlb_done || rec || uc_done || sd_w;
+    assign ev = m_st0 || w_ask1 || d3_v || fill_done || tlb_done || rec || uc_done || sd_w || sc_dec || at_sdw;
     logic launch_l, launch_s;
     assign launch_l = rt_v && !r_id[LW];
     assign launch_s = rt_v &&  r_id[LW];

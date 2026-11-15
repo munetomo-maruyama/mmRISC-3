@@ -25,11 +25,13 @@
 // ns_ok and no older one queued. A load: ready only with no older store's address queued,
 // and, marked by the wait table (disp_wt), no older store's data queued.
 //
-// Stores split (step 1.5b G2): a store not non-speculative issues its address on port 4 when
-// source 0 is usable and its data on port 1 when source 1 is (the oldest such store first,
-// before the any-ALU µop of rank 2, which then goes nowhere), in either order or together,
-// and leaves when both have gone; iss_sd says port 1 has a store's data. A non-speculative
-// store goes once on port 4 with both, as before.
+// Stores split (step 1.5b G2): a store issues its address on port 4 when source 0 is usable
+// and its data on port 1 when source 1 is (the oldest such store first, before the any-ALU
+// µop of rank 2, which then goes nowhere), in either order or together, and leaves when both
+// have gone; iss_sd says port 1 has a store's data. A non-speculative store (an AMO or SC,
+// step 1.4 E1c) is split too: its address with ns_ok (and no older non-speculative µop
+// queued), its data at any time; iss_ns by its address alone (it went once on port 4 with
+// both before E1c).
 //
 // In some phases the external answers are held back, and more µops read what is not
 // answered, so that the queue fills and the banks run out.
@@ -240,7 +242,7 @@ int main(int argc, char** argv)
         }
 
         // ---- what must issue now
-        auto split = [](const Uop& x) { return x.st && !x.ns; };
+        auto split = [](const Uop& x) { return x.st; };
         auto ready = [&](const Uop& x) {           // a µop, or a store split's address
             if (x.disp >= cyc) return false;
             if (x.ns) {                             // only at the head: ns_ok, and no older one queued

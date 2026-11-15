@@ -9909,3 +9909,36 @@ When you have run `synth_ooo.bat OOO_CPU`, I will record the result in 29.73 and
 ```text
 I ran Vivado
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+C5 met 20 ns in one run, and the load's hit path, the worry, was no problem. The result is recorded in Plan/OOC 29.73 and STRATEGY 1.7c, and pushed to dev as c4935f1 (Ref/ on the remote: 0 files).
+
+| | C3 | C5 |
+|---|---|---|
+| WNS / hold | +0.166 / +0.028 ns | **+0.477 / +0.028 ns** |
+| LUTs (after place and route) | 75,027 | 76,672 (+1,645) |
+| Flip-flops | 19,060 | 19,104 (+44) |
+| Block RAM | 230.5 | **284.5 tiles** (+54) |
+
+- **Block RAM**: +54 tiles, as expected: the D$'s data 48 RAMB36 more, its tags 12 RAMB18 more. About 314 of 365 tiles with LiteX.
+- **LUTs**: +1,645, fewer than the expected +3k.
+  - OOO_DCH2 +907.
+  - OOO_DMISS2 +1,382 (its tags' and dirty bits' LUT RAM twice, 556 → 1,052).
+  - The rest of the core −604, synthesis's spread.
+- **The load's hit path**: in none of the worst 100 paths.
+  - OOO_LSU4's margin is +1.626 ns in (the L2's fill) and +2.257 ns out (the load's data into the register file).
+  - The OR of 9 inputs and 32 block RAMs a port both fit, so neither of the 2 fallbacks is used.
+- **The worst path**: the front end's, not the caches' (OOO_FDEC2's `c_v` → OOO_FBUF3's `hj`, 20 levels, +0.477 ns).
+  - C3's worst, the ALU's write-back → the bypass → the register file, is now +0.626 ns.
+  - The larger margin than C3 is place and route's spread; no path was shortened on purpose.
+
+So the I$ and the D$ are both 128 KB, 8 ways, and the L2 512 KB, running at 50 MHz. Next is E1c (AMO/LR/SC).
+<!-- /answer -->
+
+## 248. 2026-11-15 13:03:52 JST
+
+```text
+Start E1c
+```

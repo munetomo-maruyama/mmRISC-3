@@ -177,7 +177,9 @@ static R decode32(uint32_t x)
                                                     {0x08, 8}, {0x10, 9}, {0x14, 10}, {0x18, 11}, {0x1c, 12}};
         auto it = cmd.find(bits(x, 31, 27));
         if (it == cmd.end() || (it->second == 2 && rs2 != 0)) break;
-        r.legal = true; r.port = 2; r.ext = 1; r.nonspec = 1; r.mem = true; r.cmd = it->second; r.size = f3 & 3;
+        // LR a load at the head (latency 2); SC and the AMOs answered from outside (step 1.4 E1c)
+        r.legal = true; r.port = 2; r.ext = it->second != 2; r.lat2 = it->second == 2; r.nonspec = 1; r.mem = true;
+        r.cmd = it->second; r.size = f3 & 3;
         r.use1 = 1; r.use2 = it->second != 2; we = 1;
         break;
     }

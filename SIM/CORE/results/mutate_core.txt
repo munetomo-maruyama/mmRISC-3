@@ -144,4 +144,32 @@
 143 DETECTED      H3: the I$'s fills answered to the D$
 144 DETECTED      H3: FENCE.I never reaches the I$
 145 DETECTED      H3: FENCE.I done without the sweep (stale code runs)
-146 mutations, 138 detected
+146 DETECTED      E1c: AMOMAXU not an atomic
+147 DETECTED      E1c: an AMO without an SQ entry
+148 DETECTED      E1c: an atomic's result wakes nothing
+149 DETECTED      E1c: an AMO's access fault reported as misaligned
+150 DETECTED      E1c: an LR's access fault reported as misaligned
+151 DETECTED      E1c: an access fault's tval not given
+152 DETECTED      E1c: LR answered from outside, as an AMO
+153 DETECTED      E1c: an AMO's or SC's data never goes (not split, as before E1c)
+154 DETECTED      E1c: an AMO's data counts as its issue
+155 DETECTED      E1c: LR sets no reservation (every SC fails)
+156 DETECTED      E1c: an LR that waited (a miss) sets no reservation
+157 DETECTED      E1c: SC keeps the reservation
+158 DETECTED      E1c: SC succeeds at any address
+159 DETECTED      E1c: an SC that fails stores
+160 DETECTED      E1c: an SC's result always 0
+161 DETECTED      E1c: an SC's result is an AMO's register
+162 DETECTED      E1c: an atomic's result into another register
+163 DETECTED      E1c: an atomic's result over a load's in M
+164 DETECTED      E1c: a younger load forwards from an AMO or SC not decided
+165 DETECTED      E1c: an AMO's try writes another SQ entry
+166 DETECTED      E1c: an AMO's old value from its first M (a miss's)
+167 DETECTED      E1c: an AMO.W's new value not replicated (its upper half)
+168 DETECTED      E1c: AMOMINU.W / AMOMAXU.W compare 64 bits
+169 DETECTED      E1c: AMOMIN unsigned
+170 DETECTED      E1c: an AMO's new value lost to a store's data written then
+171 DETECTED      E1c: an AMO completes with its load part
+172 DETECTED      E1c: an SC completes before its data is there
+173 DETECTED      E1c: an atomic outside the memory goes on
+174 mutations, 166 detected

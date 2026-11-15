@@ -112,7 +112,7 @@ struct Sim {
         d.clk = 0; d.rst_n = 1; zero(); d.eval(); d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
     }
     void zero() {
-        d.done_v = 0; d.tr_on = tr; d.lq_alloc = d.sq_alloc = 0; d.rr_valid = 0; d.lq_commit = d.sq_commit = 0;
+        d.done_v = 0; d.tr_on = tr; d.lq_alloc = d.sq_alloc = 0; d.rr_valid = 0; d.rr_at = 0; d.lq_commit = d.sq_commit = 0;
         d.restore = 0; d.kill = 0; d.flush_all = 0; d.fill_done = 0; d.tw_en = 0; d.rf_en = 0; d.tlb_done = 0; d.tlb_we = 0; d.tlb_flush = 0; d.vr_addr = 0; d.vr_way = 0;
         d.uc_done = 0;                      // (no device here: an input left alone starts at anything, and made ev 1 for ever)
     }
@@ -381,7 +381,7 @@ struct Sim {
                 lqs |= o->lq << (4 * p); sts |= o->st << (5 * p); dsts |= o->dst << (7 * p); robs |= o->rob << (6 * p);
                 bms |= (uint64_t)o->bm << (12 * p);
             }
-            d.rr_valid = v; d.rr_size = size; d.rr_uns = uns; d.rr_lq = lqs; d.rr_st = sts; d.rr_dst = dsts; d.rr_rob = robs; d.rr_bm = bms;
+            d.rr_valid = v; d.rr_at = 0; d.rr_size = size; d.rr_uns = uns; d.rr_lq = lqs; d.rr_st = sts; d.rr_dst = dsts; d.rr_rob = robs; d.rr_bm = bms;
             if (is[0]) { d.rr_ld = is[0]->ld; d.rr_sq = is[0]->sq; }
         }
         // ---- a store's data: any store that has none yet, a few cycles after its dispatch;

@@ -28,11 +28,12 @@
 //             not have, G0b L7: everything but add / sub, slt / sltu and
 //             the logic operations, so shifts, Zba, Zbb, Zbs, Zicond), 2
 //             LSU, 3 FPU (Doc/UARCH.md 3.5)
-//   lat2      the result comes 2 cycles after issue (mul / mulw, a load)
+//   lat2      the result comes 2 cycles after issue (mul / mulw, a load; LR,
+//             a load at the head, step 1.4 E1c, Plan/OOC.md 29.74)
 //   ext_ans   the result comes from outside, woken on ext_* (the other MDU
 //             operations: mulh*, clmul*, divides, which mmRISC-2's CORE_MDU
-//             takes more than one cycle for, OOO_MDUP; AMO, LR, SC from the
-//             LSU at the head)
+//             takes more than one cycle for, OOO_MDUP; an AMO and SC from the
+//             LSU at the head, after their write, step 1.4 E1c)
 //   nonspec   runs only at the ROB head (Doc/UARCH.md 3.9: CSR, ECALL,
 //             EBREAK, MRET, SRET, WFI, FENCE, FENCE.I, SFENCE.VMA, AMO, LR,
 //             SC, cbo.zero)
@@ -111,7 +112,7 @@ module OOO_DEC
     localparam logic [5:0] ALU_ADD = 6'd0, ALU_SLL = 6'd2, ALU_SRL = 6'd6, ALU_SRA = 6'd7,
                            ALU_XNOR = 6'd12, ALU_SEXTB = 6'd22, ALU_ZEXTH = 6'd24,
                            ALU_CZEQZ = 6'd27, ALU_CZNEZ = 6'd28;
-    localparam logic [4:0] CMD_LOAD = 5'd0, CMD_STORE = 5'd1;
+    localparam logic [4:0] CMD_LOAD = 5'd0, CMD_STORE = 5'd1, CMD_LR = 5'd2;
 
     // the rare classes, from the first parcel (OOO_RARE)
     logic [3:0] rare;
@@ -180,12 +181,13 @@ module OOO_DEC
         assign mem_cmd[k]      = S0 ? l_mem_cmd : {4'd0, is_store};
 
         always @(*) begin
-            logic ill, ld, st, amo, alu, sysm, simple;
+            logic ill, ld, st, amo, lr, alu, sysm, simple;
             ill  = d_ill || (in_rvc[k] && c_ill);
             // integer loads and stores; AMO / LR / SC have both or a command of their own
             ld   = is_load  && !is_store && l_mem_cmd == CMD_LOAD  && !is_fp_load;
             st   = is_store && !is_load  && l_mem_cmd == CMD_STORE && !is_fp_store;
             amo  = is_load && (is_store || l_mem_cmd != CMD_LOAD);
+            lr   = amo && l_mem_cmd == CMD_LR;
             sysm = l_csr || fe || fei || ecall || ebreak || mret || sret || wfi || l_sfence;
             alu  = !ill && !is_branch[k] && !is_jal[k] && !is_jalr[k] && !is_load && !is_store && !is_mdu &&
                    !sysm && !l_fp;
@@ -226,8 +228,8 @@ module OOO_DEC
             else if (is_branch[k] || is_jal[k] || is_jalr[k] || (alu && a_sel[k] == 2'd1))
                                                 port[k] = 2'd1;    // ALU0 only: what needs the pc (Plan/OOC.md 29.27)
             else                                port[k] = 2'd0;
-            lat2[k]    = !ill && ((is_mdu && mdu_op[k] == 4'd0) || ld);
-            ext_ans[k] = !ill && ((is_mdu && mdu_op[k] != 4'd0) || (amo && S0));
+            lat2[k]    = !ill && ((is_mdu && mdu_op[k] == 4'd0) || ld || (lr && S0));
+            ext_ans[k] = !ill && ((is_mdu && mdu_op[k] != 4'd0) || (amo && !lr && S0));
             nonspec[k] = S0 && !ill && (sysm || amo || cbo);
         end
     end

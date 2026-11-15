@@ -256,3 +256,17 @@ replays (the CoreMark stage of `mutate_core.py`). Since 5.11 (D-17, TAGE read wi
 1.71 to 1.96 million cycles, 9 % to 12 % behind the model. Since 5.13 (the multiply writes through port 1): 1.70 to
 1.91 million cycles, 7.7 % to 9.4 % behind. Since 5.14 (a load completes in M): 1.68 to 1.87 million, 6.5 % to
 8.1 % behind.
+
+## The atomics (step 1.4 E1c, 2026-11-15)
+
+`Plan/OOC.md` 29.74. `b4/build.sh` builds riscv-arch-test's Zaamo (18) and Zalrsc (4) and the generated
+Exceptions_Zaamo / Exceptions_Zalrsc (`FIT` takes Zaamo and Zalrsc; `rvtest_config.h` lists them): 209 tests now.
+`run_core.sh` and `mutate_core.py` take riscv-tests' rv64ua -p- (18 AMOs and lrsc; not amocas, Zacas): 146 now.
+`b4/dir/atomic.S`: AMOs right behind stores to their word with a load and a store right after, every operation, both
+sizes and halves; a chain of AMOs; AMOs that miss on 12 lines of one D$ set; LR / SC by Spike's rule (the reservation
+is the LR's address; only SC clears it, not a trap, not a store); misaligned atomics and atomics at 0x1000_0000 (an
+access fault in the core and in Spike, which has memory only at 0x8000_0000); AMOs that miss with younger stores
+behind them, their addresses in the SQ before the AMO goes again. All pass on both tops; CoreMark unchanged
+to the cycle. Core mutations: 29 new, **166 of 174 detected**, the 8 undetected the old ones. An AMO's try writing
+another SQ entry was caught only after `atomic.S`'s part 6 (the AMOs that miss among younger stores); an AMO computing
+before its rs2 is there is equivalent in time and left out (the header of `mutate_core.py`).
