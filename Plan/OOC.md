@@ -5835,3 +5835,24 @@ Proposed at E1b (29.33) and left open since; what Linux needs, not CoreMark. Dec
 `results/mutate_core.txt` is the first run with 165's line from its run alone and 171's line taken out (the later ones renumbered).
 
 **Expected in Vivado** (`synth_ooo.bat OOO_CPU`): about +1k LUTs and +300 flip-flops (`amo_calc`'s adder and comparators, `sd_f`'s third read port, the reservation's compare, the atomic's registers, the result's mux on port 0, the tval mux), no block RAM. Not on the load's hit path: the result's mux is on the device word's side, chosen by registers; the hit's `f_cv` takes `!sat[f_idx]` beside `sp[f_idx]`.
+
+### 29.75 Step 1.4 E1c at 20 ns (2026-11-15)
+
+The author's Vivado run of `OOO_CPU` with the atomics (`synth_ooo.bat OOO_CPU`, reports in `FPGA/OOO_OOC/output/OOO_CPU`):
+
+| | C5 (29.73) | E1c |
+|---|---|---|
+| WNS / hold | +0.477 / +0.028 ns | **+0.470 / +0.028 ns** |
+| LUTs (after place and route) | 76,672 | 78,156 (+1,484) |
+| Flip-flops | 19,104 | 19,316 (+212) |
+| `OOO_LSU4` (with `OOO_DCH2`) | 4,558, 1,430 FF | 5,472 (+914), 1,632 FF (+202) |
+| `OOO_BUSY` | 208 | 864 (+656) |
+| Block RAM tiles | 284.5 | 284.5 |
+
+- **20 ns met** in one run; the margin as at C5.
+- **The LUTs +1,484** against about +1k, the flip-flops +212 against about +300. `OOO_LSU4` +914 as expected (`amo_calc`, `sd_f`'s third read, the reservation's compare, the atomic's registers and the result's mux; `OOO_DCH2` +5). `OOO_BUSY` +656 was not foreseen: the queue's external port 1, a constant 0 before E1c and pruned, is now the atomic's wakeup, a 9th live wakeup bus over the 80 busy bits. The rest: `OOO_ROB` +398, `OOO_CTRL` +263, `OOO_FRONT` +255, `OOO_PRF` +183, `OOO_IQ3` +42; `OOO_RENAME2` −301, `OOO_CSRU` −206 (synthesis's spread).
+- **The worst path** (+0.470 ns, 30 levels) is C3's family again: ALU 0's result → the bypass (through ALU 3's write-back's mux) → ALU 0's adder → the register file (+0.626 ns at C5: place and route's spread).
+- **A new path from E1c**, second (+0.545 ns, 20 levels): a mispredicted branch (`br_rob`) → the ROB's kill mask → port 0's W alive (`w_live`'s drop) → the atomic's access fault's tval (`at_tv_v = w_live && w_af`) → the ROB's tval choice → `OOO_TRAP`'s `tv_d` enable. Before E1c that port took only the misaligned µop of port 0's M. A cut if it is ever needed: an atomic at W is the ROB's oldest, so no branch can kill it, and `at_tv_v` can be `w_v && w_af` (a flush clears `w_v`). Not done: 20 ns is met.
+- **The load's hit path** is in none of the 100 paths: `OOO_LSU4`'s worst into its flip-flops +2.114 ns (2 levels, the L2's fill), out +1.495 ns (12 levels, the load's data into the register file); the result's mux on port 0 is on the device word's side, as planned.
+
+**Step E1c is done** at 20 ns: AMO / LR / SC on `OOO_CPU`, 78,156 LUTs, 284.5 block RAM tiles.

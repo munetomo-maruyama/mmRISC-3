@@ -9942,3 +9942,38 @@ So the I$ and the D$ are both 128 KB, 8 ways, and the L2 512 KB, running at 50 M
 ```text
 Start E1c
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+E1c (AMO / LR / SC) is done and pushed to dev as 137c7b5. Ref/ is not on the remote (0 files). Timing at 20 ns is not checked yet.
+
+**The design (everything at the ROB head, one at a time)**
+- **LR**: a load; it sets the reservation (the physical address) at W.
+- **SC**: a store decided at W. The reservation follows Spike's rule: only SC clears it. A failed SC stores nothing.
+- **AMO**: its load part reads the old value, and the new value is written over rs2 in its SQ entry. The result goes in through port 0's M and wakes its consumers on the IQ's external port 1.
+- **Access faults**: an atomic outside the memory raises cause 5 for LR, cause 7 for SC and AMO.
+- **OOO_IQ3**: non-speculative stores are now split into address and data too.
+
+**Verification**
+- run_core passes all 12 runs: B4 212 programs (arch-test 209), riscv-tests -p- 146.
+- CoreMark is unchanged to the cycle: 8.244 CoreMark/MHz.
+- Unit mutations: 194 of 194 detected.
+
+**Core mutation campaign (166 of 174 detected)**
+
+The 8 undetected are all old ones, still undetected when each is run again alone with the final atomic.S. The first run had 2 new undetected ones, handled as follows:
+
+- **165 (an AMO's try writes another SQ entry)**: atomic.S had no younger store whose address was in the SQ while an AMO waited on a miss. Part 6 (5 stores behind an AMO that misses) was added, and it is now detected.
+- **171 (an AMO computes before its rs2 is there)**: it cannot happen in time, so it is left out as equivalent. IQ3 sends store data oldest first, so rs2 is always written before the AMO reaches A_DATA. The guard stays in the RTL.
+
+`results/mutate_core.txt` is the first run with 165 from its run alone and 171's line removed; Plan/OOC 29.74 says so.
+
+Expected in Vivado: about +1k LUTs and +300 flip-flops, no more block RAM.
+<!-- /answer -->
+
+## 249. 2026-11-15 21:22:52 JST
+
+```text
+Ran Vivado
+```
