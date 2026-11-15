@@ -9663,3 +9663,133 @@ Once `synth_ooo.bat OOO_CPU` has run, I will record it as 29.71 and go on to C4.
 ```text
 I ran Vivado
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+C3 (the L2 at 512 KB) met 20 ns in one run. This Vivado run has all three together (I$ 128 KB, D$ 64 KB, L2 512 KB), so C4 is met as well and step 1.7c C is done. I recorded it in 29.71 of Plan/OOC(_J) and row 1.7c of STRATEGY, and committed and pushed it as 7b51b44. Ref/ was not pushed (0 files).
+
+| | C2 | C3 |
+|---|---|---|
+| WNS / hold | +0.639 / +0.028 ns | **+0.166 / +0.028 ns** |
+| LUTs (after place and route) | 74,809 | 75,027 (+218) |
+| Flip-flops | 18,925 | 19,060 (+135) |
+| Block RAM tiles | 164.5 | **230.5** (+66) |
+
+- **Block RAM**: +66 tiles, 2 fewer than the +68 expected. The data is 128 RAMB36 as planned. The tags are 4 RAMB36 and 4 RAMB18, 6 tiles, fewer than the 8 expected. With LiteX, about 260 of 365 tiles.
+- **LUTs**: +218 against an estimate of about +100.
+  - `CPU_L2` +150: the pseudo-LRU's LUT RAM 4 times as deep, and the tag array's read mux grew.
+  - `CACHE_DATA_ARRAY` −76.
+- **Flip-flops**: the write register is 160 flip-flops, not the 87 of its bits; most likely Vivado copied the address and the enables for their fan-out to 128 tiles.
+- **The worst path is the core's** (+0.166 ns, 31 levels).
+  - ALU 3's write-back register, the bypass into ALU 0's operand, its adder, and the write into the register file. It was third at C2 too; only its placement changed.
+  - The worry, the L2's read side, is in none of the first 100 paths of `timing_paths.rpt`. No output register is needed.
+
+With the 20 ns margin down to +0.166 ns, this bypass and write-back path is the first constraint the next time the core is changed.
+<!-- /answer -->
+
+## 243. 2026-11-15 09:31:30 JST
+
+```text
+Summarize for me the current specifications and methods of the caches: I$, D$ and L2.
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The caches of `OOO_CPU` as they stand after step 1.7c C (2026-11-15). Summarized from the headers of the RTL modules and this run's Vivado reports (`FPGA/OOO_OOC/output/OOO_CPU`).
+
+## Overall structure
+
+```
+OOO_FETCH2 ── OOO_ICACHE (I$ 128 KB) ─────────┐
+                                              ├─ OOO_MARB ── CPU_L2 (512 KB) ── AXI4 → memory
+OOO_LSU4 (the D$'s arrays OOO_DCH2) ── OOO_DMISS2 ┘
+                                └─ AXI4-Lite → devices (what is not cacheable)
+```
+
+- All three have 64-byte lines. The bus to memory is AXI4, a line a burst of 8 beats.
+- The cacheable range is physical [0x8000_0000, 0x1_0000_0000). Anything else bypasses the D$ and goes to the devices one access at a time on AXI4-Lite.
+- The hardware keeps no coherence between the I$ and the D$. FENCE.I writes every dirty D$ line into the L2 and invalidates the whole I$.
+
+## At a glance
+
+| | I$ | D$ | L2 |
+|---|---|---|---|
+| Module | `OOO_ICACHE` | `OOO_DCH2` (arrays) and `OOO_DMISS2` (misses), in `OOO_LSU4` | `CPU_L2` (taken from mmRISC-2 Rev.02) |
+| Size | **128 KB** | **64 KB** | **512 KB** |
+| Organization | 256 sets × 8 ways | 256 sets × 4 ways | 2,048 sets × 4 ways |
+| Index | fetch address 13:6 | virtual address 13:6 | physical address |
+| Tag | fetch address (no translation yet) | physical (39:12), looked up beside the DTLB | physical |
+| Writes | none | write back, write allocate | write back |
+| Replacement | a free way, else a rotating counter | a free way, else random (not the last written) | tree pseudo LRU |
+| Hit | 32 bytes a cycle: F0 look up, F1 compare, F2 answer | load-use 2 cycles, 2 load ports | first beat 2 cycles after the request, then a word a cycle |
+| Miss | one at a time (stalls meanwhile) | a queue of 4 lines asked for, one fill at a time; loads that hit go on | one at a time; a one-line evict buffer written out beside |
+| Block RAM | 32 tiles | 54 tiles | 134 tiles |
+| LUTs (after place and route) | 4,199 | `OOO_DCH2` 972 and `OOO_DMISS2` 1,479 | 1,205 |
+
+All of `OOO_CPU` takes 230.5 block RAM tiles: about 260 of the XC7A200T's 365 with LiteX.
+
+## I$ (`OOO_ICACHE`)
+
+- **Pipeline**
+  - F0: the tags (LUT RAM) read and compared at once; the data (block RAM) read at the same time.
+  - F1: the hit way's 32 bytes chosen. A way that does not hit gives zeros from its block RAM, so the ways' OR is enough.
+  - F2: the answer from flip-flops. A request every cycle while they hit.
+- **Data arrays**: each way in 4 columns of 64 bits, 32 RAMB36 in all. With 4 times the sets (C1) the depth still fits, so no tile was added.
+- **Misses**: one at a time. Each of the 8 beats is written into the arrays as it comes, the tag and valid bit at the last beat; the request is then looked up again and answered as a hit. A way whose beats carried an error answer stays invalid.
+- **Invalidation**: the valid bits are in the tags' LUT RAM. After the reset and for FENCE.I they are cleared one set a cycle, 256 cycles.
+- **Open point**: the index uses bits 13:12, outside a 4 KB page. Once the ITLB comes in step 1.8, one physical line could sit in up to 4 sets. No store writes the I$ and FENCE.I clears every set, so it does no harm.
+
+## D$ (`OOO_LSU4`, `OOO_DCH2`, `OOO_DMISS2`)
+
+- **Ports**
+  - Port 0 takes loads and stores, port 1 loads only.
+  - Each port has its own copy of the data and the tags, and a write goes to every copy, so the 2 loads, the stores from the SQ and the fills never wait for each other.
+  - Block RAM:
+    - data: 2 copies for the loads and 1 for reading victims × 4 ways × 4 RAMB36 = 48;
+    - tags: 3 copies (the 2 load ports and the stores) × 4 ways = 12 RAMB18.
+- **Load pipeline**: RR → E (address, arrays read) → M (tags compared, DTLB, SQ searched, result chosen) → W.
+  - Dependents are woken 2 cycles after issue without waiting for the hit.
+  - On a miss, the load replays at its commit and undoes its dependents.
+- **Stores**: an SQ of 16 entries; address and data arrive separately. After commit a store is written into the D$ through its own pipeline and copy of the tags, and its line becomes dirty.
+- **Dirty bits**: one a line, in LUT RAM.
+- **VIPT and synonyms** (one physical line in several sets)
+  - The set comes from virtual 13:6 and the tag is physical.
+  - So each miss passes vx (virtual 13:12) to `OOO_DMISS2`.
+  - `OOO_DMISS2` keeps the tags in 4 banks by vx, so the 4 sets a physical line could be in are checked at once.
+  - If another set already holds the line, it is invalidated before the fill (written out first if dirty). So no line is ever in two sets.
+- **Misses (`OOO_DMISS2`)**
+  - The lines asked for go into a queue (4); the same line asked twice is kept once.
+  - If the victim way is dirty, its 8 words are read from the victim's copy into the evict buffer and written out as an 8-beat line write, beside the new line's read.
+  - One line write at a time. A fill of a line just written out waits for that write's answer (B).
+- **FENCE.I**: once the SQ is empty, the 1,024 lines are walked, each dirty one written out and made clean (it stays in the D$). Done at the last write out's answer.
+- **What is not cacheable**: a load waits until it is the ROB's head and the SQ is empty, then makes one access on AXI4-Lite.
+- **Not yet**: AMO / LR / SC (open as E1c).
+
+## L2 (`CPU_L2`)
+
+- **Front**: `OOO_MARB` puts the I$'s fills and the D$'s fills and line writes on one AXI4. Read requests are taken in turn; answers go back to the I$ or the D$ by their ID.
+- **Transactions**: one at a time.
+  - Line read: a hit is answered from the data array. A miss chooses a victim, reads memory, and passes the line up while writing it into the array.
+  - Line write: a hit is written into the line, which becomes dirty. A miss is allocated without reading memory, dirty.
+  - Part write: a hit is written into the line; a miss goes through to memory. With the D$ written back, `OOO_CPU` no longer uses it.
+- **Eviction**: a one-line evict buffer, written out in the background by its own logic. A transaction that needs memory or the buffer waits until the buffer is empty, which keeps the accesses to one line in order.
+- **Inclusion**: non-inclusive. A line in an L1 need not be in the L2.
+- **Arrays**: data 128 RAMB36, tags (valid, dirty, tag) 6 tiles; the pseudo-LRU bits in LUT RAM.
+- **Changed in C3**: the data array's write port is registered (`WR_REG`), so a write lands a cycle later.
+  - A read waits one cycle when the held write lands.
+  - It happens only right after a fill's last beat, and `OOO_CPU` reads whole lines, so it costs nothing.
+- **After reset**: the 2,048 sets are walked before anything is accepted.
+- **PMU**: a pulse for each read and each miss (`ev_read` / `ev_miss`).
+
+## Two stale descriptions
+
+The header of `CPU_L2.sv` and the CPU_L2 row of `RTL/CPU/CACHE/README(_J).md` still say "the D$ is written through, so every store comes as a part write". Since step W the D$ is written back, so that no longer matches.
+<!-- /answer -->
+
+## 244. 2026-11-15 09:57:47 JST
+
+```text
+Yes, fix them
+```

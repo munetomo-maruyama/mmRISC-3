@@ -6,8 +6,10 @@
 // (mmRISC-3: taken from mmRISC-2 Rev.02, RTL/CPU/CACHE/README.md; step 1.7 H2,
 // Plan/OOC.md 29.57. One change: a part write that hits is written into the
 // line, which becomes dirty, and answered without memory, as a line write is:
-// mmRISC-3's D$ is written through (Plan/OOC.md 29.34), so every store comes here
-// as a part write; passed through, each would wait for memory's answer.
+// the D$ was written through then (Plan/OOC.md 29.34), so every store came here
+// as a part write; passed through, each would have waited for memory's answer.
+// Since step 1.7b W (Plan/OOC.md 29.61, 29.62) the D$ is written back, and OOO_CPU
+// sends only line reads and line writes: the part write stays (tb_L2 tests it).
 // Step 1.7c C3, Plan/OOC.md 29.70: OOO_CPU takes it at 512 KB, and the data
 // array's write port is registered (CACHE_DATA_ARRAY's WR_REG): a write lands a
 // cycle later, see "accepting a transaction".)
@@ -19,7 +21,9 @@
 //     line read    AR, INCR, 8 beats from the line base   I$ / D$ fill
 //     line write   AW, INCR, 8 beats, every byte          D$ write back
 //     part write   AW, 1 beat with strobes                the D$'s write
-//                                                         through (mmRISC-3)
+//                                                         through (none from
+//                                                         OOO_CPU since step
+//                                                         1.7b W)
 //   A write of 8 beats from the line base is taken as a line write (all
 //   strobes set, as the D$ always sends them); any other write as a part
 //   write. A read may be any INCR burst inside one line.
