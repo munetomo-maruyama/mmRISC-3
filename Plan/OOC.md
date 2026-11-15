@@ -5756,3 +5756,24 @@ The author's Vivado run of `OOO_CPU` with the L2 at 512 KB (`synth_ooo.bat OOO_C
 - **The L2's read side**, the risk named in 29.70, is in none of the 100 paths of `timing_paths.rpt`: no output register is needed.
 
 **Step C3 is done, and with it C4**: this run has all three caches together (I$ 128 KB, D$ 64 KB, L2 512 KB) at 20 ns. **Step 1.7c C is done.** The 20 ns margin is now the core's own bypass and write-back path at +0.166 ns.
+
+### 29.72 Step 1.7c C5: the D$ at 128 KB, 8 ways (2026-11-15)
+
+The author's choice (Doc/PROMPT.md 245, 246): the D$ like the I$, 128 KB of 8 ways, before AMO / LR / SC; "more for how the external specification looks than for a technical need". **256 sets × 8 ways**: the sets stay, so the index stays the virtual 13:6 and synonyms are handled as at C2 (vx 2 bits, the 3 other sets searched), now over 8 ways. 512 sets × 4 ways would also be 128 KB, but its index would reach bit 14 and it would not be 8 ways.
+
+**The RTL** (the ways a parameter where 4 was written; nothing else changes):
+- `OOO_LSU4`: `DWAYS` (8). The arrays `[DWAYS]`; in M the hit's word chosen among 8 ways (an AND-OR as before, now 8 and the SQ's word), the drain's hit and way among 8; the way ports 3 bits.
+- `OOO_DMISS2`: `WAYS` (8). The tags' LUT RAM a way in each of the 4 banks (32), the dirty bits' LUT RAM a way (8), the last written way of a set 3 bits; a free way, else at random of 8 but the set's last written; a synonym searched over 3 × 8 ways; FENCE.I's walk {set, way} 11 bits, 2,048 lines.
+- `OOO_DCH2` already takes `WAYS`. `OOO_CORE` and `OOO_CPU` pass `DWAYS` (8).
+
+**The benches**:
+- `tb_lsu4`: 8 ways (its miss model's victim, as before, a way at random, half the time the set's last written, free or not); it now counts the stores written into each way and asks at least 50 each (physical 3,562 to 6,857, translated 2,442 to 3,299). PASS.
+- `tb_dmiss2` (top `DMISS_DC.sv` at 8 ways): 16 lines an index instead of 10, their own vx 0 three times in 4, so that set of 8 ways overflows (40 lines an index left too few stores hitting); FENCE.I walks 2,048 lines, so the run's tail is 20,000 cycles (6,000 left the last FENCE.I unfinished). PASS: 7,601 dirty victims written out (6,805 at C2), 5,002 synonyms taken out (1,801 dirty; 10,038 and 4,284 at C2, still far above the 500 and 200 asked), 67,232 stores written and 61,926 missed (91,556 and 42,480 at C2: the longer FENCE.I keeps stores off longer).
+- `tb_core`: `DMissModel` (ports.h) at 8 ways; after the exit the D$'s dirty lines over the memory read from 8 ways.
+- `dcrace.S`: parts 1 and 3 on 12 lines of one set instead of 6 (6 lines fit in 8 ways: no victim, and the run was 78k to 116k cycles shorter).
+
+**Mutations** (`SIM/OOO_UNIT/mutate.py`): `tb_lsu4` 76/76 (M1427-M1429 new: a hit in ways 4-7 answers zeros, a drained store into ways 0-3, a load misses in ways 4-7), `tb_dmiss2` 50/50 (M1430-M1433 new: a store in ways 4-7 leaves its line clean, a synonym in ways 4-7 taken out in its way 0-3, FENCE.I's walk over ways 0-3, a line in ways 4-7 filled again), `tb_lsu3`'s `OOO_DCH2` 5/5. Retargeted: M1203 (the result's OR), M1374, M1390, M1391 (the walk's bits). M1013 was NOT APPLIED since W1 (its line twice, the victim's copy has it too): its target now takes the next line. A first M1430 (a free way 4-7 taken as its way 0-3) was not detected and is no fault: every victim, free or not, is made invalid and written out if dirty in S_INV, so only a line is lost; replaced.
+
+**The core**: run_core PASS (127 files, with the 3 restores; `dcrace` 28,711 → 36,331 instructions: parts 1 and 3 on 12 lines of a set, 6 before (with 8 ways 6 lines all stayed in the D$ and the races closed: the run was 78k-116k cycles shorter), 184,244 / 187,331 / 172,156 cycles); run_coremark PASS, `results/coremark.txt` unchanged to the cycle (8.244 CoreMark/MHz: CoreMark's data fit in 64 KB). Each FENCE.I's walk is 2,048 cycles longer (`rv64ui-p-fence_i` +2,048, `Zifencei-fence.i-00` +6,112). **Core mutations: 138/146 detected (`mutate_core.py`, OOO_CPU with an L2 of 4 KB), the same 8 undetected as at C2 (71, 90, 101, 102, 103, 109, 113, 115); no internal compiler error**.
+
+**Expected in Vivado** (`synth_ooo.bat OOO_CPU`): block RAM 230.5 → **284.5 tiles** (`OOO_DCH2` 54 → 108: data 3 copies × 8 ways × 4 RAMB36 = 96, tags 3 × 8 RAMB18 = 12 tiles); with LiteX about 314 of 365. LUTs about +3k (the alignment of 4 more ways on 2 ports, the arrays' depth mux, `OOO_DMISS2`'s LUT RAM twice). The risk is the load's hit path in M: the OR of 9 instead of 5, about a LUT level more, and 32 block RAMs a port instead of 16, placed wider (29.64 judged 8 ways on this path risky; at C2 `OOO_LSU4`'s worst into its flip-flops was +1.723 ns). If it fails: a smarter choice of the hit's word, or the victim's copy dropped (read from port 1's copy; 32 tiles fewer, port 1's loads waiting during an eviction).

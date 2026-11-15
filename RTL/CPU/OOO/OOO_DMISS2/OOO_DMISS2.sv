@@ -4,7 +4,7 @@
 // The D$'s miss handler, the D$ written back (step 1.7b W1, Plan/OOC.md 29.61):
 // OOO_DMISS (29.34) with the write-through's queue replaced by dirty lines and
 // their write out. Since step 1.7c C2 (Plan/OOC.md 29.68) the D$ has 256 sets of
-// 4 ways (64 KB): the set is the virtual address's 13:6, so each line asked for
+// 4 ways (64 KB), of WAYS ways since C5 (29.72: 8, 128 KB): the set is the virtual address's 13:6, so each line asked for
 // comes with its vx (the virtual address's 13:12; the line itself is physical), and
 // a physical line could sit in 4 sets (synonyms, once pages are translated). It is
 // kept in one: see "a synonym" below. What OOO_LSU4 has outside it, on the D$'s memory bus (AXI4)
@@ -44,7 +44,7 @@
 //   a device   what is not cacheable (uc_*, one at a time): one beat on AXI4-Lite
 //              (a write out may go on beside it: a dirty line stays in the D$ anyway,
 //              so waiting for it would order nothing).
-//   FENCE.I    FLUSH (fl_*): the 1,024 lines walked, set by set, each dirty one
+//   FENCE.I    FLUSH (fl_*): the 256 x WAYS lines walked (2,048), set by set, each dirty one
 //              written out and clean (it stays in the D$); done when the last
 //              write out has its answer. OOO_SYS asks only with the SQ drained, so
 //              no store makes a line dirty meanwhile.
@@ -56,7 +56,8 @@ module OOO_DMISS2
     #(
         parameter int PAW = 40,
         parameter int IW  = 5,          // the askers' ids (OOO_LSU4's LQ and SQ entries)
-        parameter int NAQ = 4           // lines asked for
+        parameter int NAQ = 4,          // lines asked for
+        parameter int WAYS = 8          // the D$'s ways (256 sets: 8 since step 1.7c C5, 4 before)
     )
     (
         input  logic                  clk,
@@ -74,18 +75,18 @@ module OOO_DMISS2
         output logic                  done_v,
         output logic [IW-1:0]         done_id,
         output logic                  tw_en,
-        output logic [1:0]            tw_way,
+        output logic [$clog2(WAYS)-1:0] tw_way,
         output logic [7:0]            tw_set,
         output logic [PAW-12:0]       tw_tag,       // {valid, tag}
         output logic                  rf_en,
-        output logic [1:0]            rf_way,
+        output logic [$clog2(WAYS)-1:0] rf_way,
         output logic [10:0]           rf_addr,      // {set, word}
         output logic [63:0]           rf_data,
         input  logic                  dirty_set,    // a store written into the D$
-        input  logic [1:0]            dirty_way,
+        input  logic [$clog2(WAYS)-1:0] dirty_way,
         input  logic [7:0]            dirty_idx,
         output logic [10:0]           vr_addr,      // the victim's words: {set, word}
-        output logic [1:0]            vr_way,
+        output logic [$clog2(WAYS)-1:0] vr_way,
         input  logic [63:0]           vr_data,      // (a cycle after vr_addr)
         input  logic                  uc_req,
         input  logic                  uc_we,
@@ -158,34 +159,37 @@ module OOO_DMISS2
     );
 
     localparam int TW = PAW - 12;       // a tag
+    localparam int WB = $clog2(WAYS);   // a way
+    localparam int FW = 8 + WB;         // the walk: {set, way}
     localparam int QW = $clog2(NAQ);
 
     typedef enum logic [3:0] { S_IDLE, S_LOOK, S_SINV, S_SYW, S_INV, S_AR, S_R, S_TAG, S_DONE, S_UAW, S_UW, S_UB, S_UAR, S_UR, S_FL, S_FLW } st_t;
     st_t            st;
-    logic [9:0]     fi;                 // FENCE.I's walk: {set, way}
+    logic [FW-1:0]  fi;                 // FENCE.I's walk: {set, way}
 
     // ---- the tags as written, a free way, the last written way of a set
     // (a RAM a way and a bank, one write, one read: LUT RAM, Plan/OOC.md 29.35). A bank holds the sets of one vx, all
     // read at the index in hand: the line's (its own set and its 3 synonyms' sets), or the walk's
-    logic [TW:0]  tagb [4][4];          // [bank][way]
-    logic [TW:0]  tagr [4];             // the bank in hand's (t_set)
-    logic [1:0]   lastr;
+    logic [TW:0]  tagb [4][WAYS];       // [bank][way]
+    logic [TW:0]  tagr [WAYS];          // the bank in hand's (t_set)
+    logic [WB-1:0] lastr;
     logic [15:0]  lfsr;
     logic [PAW-1:6] f_line;
     logic [1:0]   f_vx;
-    logic [1:0]   y_vx, y_way;          // a synonym: its set's vx, its way
+    logic [1:0]   y_vx;                 // a synonym: its set's vx, its way
+    logic [WB-1:0] y_way;
     logic [7:0]   t_set;                // the set in hand: the walk's, a synonym's, the line's
-    assign t_set = st == S_FL ? fi[9:2] : {st == S_SINV ? y_vx : f_vx, f_line[11:6]};
+    assign t_set = st == S_FL ? fi[FW-1:WB] : {st == S_SINV ? y_vx : f_vx, f_line[11:6]};
     for (genvar b = 0; b < 4; b++) begin : g_bank
-        for (genvar w = 0; w < 4; w++) begin : g_tag
+        for (genvar w = 0; w < WAYS; w++) begin : g_tag
             (* ram_style = "distributed" *) logic [TW:0] tagm [64];
             initial for (int s = 0; s < 64; s++) tagm[s] = '0;
             always_ff @(posedge clk) if (tw_en && int'(tw_way) == w && int'(tw_set[7:6]) == b) tagm[tw_set[5:0]] <= tw_tag;
             assign tagb[b][w] = tagm[t_set[5:0]];
         end
     end
-    always @(*) for (int w = 0; w < 4; w++) tagr[w] = tagb[t_set[7:6]][w];
-    (* ram_style = "distributed" *) logic [1:0] lastw [256];
+    always @(*) for (int w = 0; w < WAYS; w++) tagr[w] = tagb[t_set[7:6]][w];
+    (* ram_style = "distributed" *) logic [WB-1:0] lastw [256];
     initial for (int s = 0; s < 256; s++) lastw[s] = '0;
     always_ff @(posedge clk) if (dirty_set) lastw[dirty_idx] <= dirty_way;
     assign lastr = lastw[{f_vx, f_line[11:6]}];
@@ -240,12 +244,12 @@ module OOO_DMISS2
     // Never both in one cycle: no store is written in the cycle of a tag's write (S_INV, S_SINV), nor during the walk.
     // So one write port: a RAM a way (LUT RAM; at 256 sets, 1,024 flip-flops and their mux before)
     logic        ev_go;                 // a dirty line's write out begins: the victim's, a synonym's, or the walk's
-    logic [1:0]  ev_way;
+    logic [WB-1:0] ev_way;
     logic        ev_dirty;              // the line in hand (ev_way of t_set) is dirty
-    logic [3:0]  dtyr;                  // the ways' bits at t_set
-    assign ev_way   = st == S_FL ? fi[1:0] : st == S_SINV ? y_way : f_way;
+    logic [WAYS-1:0] dtyr;              // the ways' bits at t_set
+    assign ev_way   = st == S_FL ? fi[WB-1:0] : st == S_SINV ? y_way : f_way;
     assign ev_dirty = dtyr[ev_way];
-    for (genvar w = 0; w < 4; w++) begin : g_dty
+    for (genvar w = 0; w < WAYS; w++) begin : g_dty
         (* ram_style = "distributed" *) logic dm [256];
         initial for (int s = 0; s < 256; s++) dm[s] = 1'b0;
         always_ff @(posedge clk)
@@ -263,7 +267,7 @@ module OOO_DMISS2
     logic           e_rq;               // a word asked last cycle: in now
     logic [PAW-1:6] e_line;
     logic [7:0]     e_set;              // where it is in the D$ (its vx and its index)
-    logic [1:0]     e_way;
+    logic [WB-1:0]  e_way;
     (* ram_style = "distributed" *) logic [63:0] eb [8];
     always_ff @(posedge clk) begin
         if (e_rq) eb[e_c[2:0]] <= vr_data;
@@ -307,7 +311,7 @@ module OOO_DMISS2
 
     // ---- the one thing at a time: a line, a device, FENCE.I
     logic [IW:0]    f_id;
-    logic [1:0]     f_way;
+    logic [WB-1:0]  f_way;
     logic [2:0]     f_beat;
     logic           u_pend, u_we;       // a device access asked for, not begun
     /* verilator lint_off UNUSEDSIGNAL */      // (the bus takes the 8-byte word's address, the strobes the bytes)
@@ -316,21 +320,22 @@ module OOO_DMISS2
     logic [63:0]    u_d;
     logic [7:0]     u_m;
     logic           f_have;
-    logic [1:0]     f_free;
+    logic [WB-1:0]  f_free;
     logic           f_any;
     logic           y_any;              // the line in a synonym's set (one at most)
-    logic [1:0]     y_b, y_w;
+    logic [1:0]     y_b;
+    logic [WB-1:0]  y_w;
     always @(*) begin
         f_have = 1'b0; f_any = 1'b0; f_free = '0;
-        for (int w = 3; w >= 0; w--) begin
+        for (int w = WAYS - 1; w >= 0; w--) begin
             if (tagr[w][TW] && tagr[w][TW-1:0] == f_line[PAW-1:12]) f_have = 1'b1;
-            if (!tagr[w][TW]) begin f_any = 1'b1; f_free = 2'(w); end
+            if (!tagr[w][TW]) begin f_any = 1'b1; f_free = WB'(w); end
         end
         y_any = 1'b0; y_b = '0; y_w = '0;
         for (int b = 0; b < 4; b++)
-            for (int w = 0; w < 4; w++)
+            for (int w = 0; w < WAYS; w++)
                 if (2'(b) != f_vx && tagb[b][w][TW] && tagb[b][w][TW-1:0] == f_line[PAW-1:12]) begin
-                    y_any = 1'b1; y_b = 2'(b); y_w = 2'(w);
+                    y_any = 1'b1; y_b = 2'(b); y_w = WB'(w);
                 end
     end
     assign aq_pop = st == S_IDLE && !u_pend && !fl_req && aq_n != '0 && wr_quiet;
@@ -360,7 +365,7 @@ module OOO_DMISS2
                 // a dirty line waits for the write out before it; a clean one is passed
                 S_FL:   if (!ev_dirty || !e_on) begin
                             fi <= fi + 1'b1;
-                            if (fi == 10'h3ff) st <= S_FLW;
+                            if (&fi) st <= S_FLW;
                         end
                 S_FLW:  if (wr_quiet) st <= S_IDLE;
                 default: st <= S_IDLE;
@@ -376,7 +381,7 @@ module OOO_DMISS2
         if (st == S_LOOK) begin
             y_vx   <= y_b;
             y_way  <= y_w;
-            f_way  <= f_any ? f_free : (lfsr[1:0] == lastr ? lfsr[1:0] + 2'd1 : lfsr[1:0]);
+            f_way  <= f_any ? f_free : (lfsr[WB-1:0] == lastr ? lfsr[WB-1:0] + 1'b1 : lfsr[WB-1:0]);
             f_beat <= '0;
         end
         if (m_axi4_rvalid && m_axi4_rready) f_beat <= f_beat + 3'd1;

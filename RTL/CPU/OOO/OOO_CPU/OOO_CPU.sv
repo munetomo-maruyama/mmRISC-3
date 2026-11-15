@@ -13,7 +13,8 @@
 // I$'s fills).
 //
 // The caches' sizes (step 1.7c, Plan/OOC.md 29.64-29.68): the I$ 128 KB (256 sets x 8
-// ways, C1), the D$ 64 KB (256 sets x 4 ways, the set from the virtual 13:6, C2; vx, the
+// ways, C1), the D$ 64 KB (256 sets x 4 ways, the set from the virtual 13:6, C2; 128 KB at
+// 256 x 8 since C5, Plan/OOC.md 29.72, DWAYS; vx, the
 // virtual 13:12, goes with each miss to OOO_DMISS2, which keeps a line in one set), the
 // L2 512 KB (2,048 sets x 4 ways, C3, Plan/OOC.md 29.70; its data array's write port
 // registered).
@@ -29,7 +30,8 @@ module OOO_CPU
     #(
         parameter int VA      = 39,
         parameter int PAW     = 40,
-        parameter int L2_SIZE = 512 * 1024
+        parameter int L2_SIZE = 512 * 1024,
+        parameter int DWAYS   = 8           // the D$'s ways (256 sets: 128 KB since step 1.7c C5)
     )
     (
         input  logic                        clk,
@@ -111,7 +113,7 @@ module OOO_CPU
     logic [PAW-1:6]   dc_miss_line, dc_st_miss_line;
     logic [1:0]       dc_miss_vx, dc_st_miss_vx;
     logic [4:0]       dc_miss_id, dc_done_id;
-    logic [1:0]       dc_tw_way, dc_rf_way, dc_dirty_way;
+    logic [$clog2(DWAYS)-1:0] dc_tw_way, dc_rf_way, dc_dirty_way;
     logic [7:0]       dc_tw_set, dc_dirty_idx;
     logic [PAW-12:0]  dc_tw_tag;
     logic [10:0]      dc_rf_addr;
@@ -125,13 +127,13 @@ module OOO_CPU
     logic [63:0]      dc_uc_wdata, dc_uc_rdata;
     logic [7:0]       dc_uc_wmask;
     logic [10:0]      dc_vr_addr;
-    logic [1:0]       dc_vr_way;
+    logic [$clog2(DWAYS)-1:0] dc_vr_way;
     logic [63:0]      dc_vr_data;
     logic             fl_req, fl_take, fl_done;
     logic             ic_req_valid, ic_req_ready, ic_resp_valid, ic_flush, ic_done;
     logic [VA-1:1]    ic_req_pc;
     logic [255:0]     ic_resp_data;
-    OOO_CORE #(.VA(VA), .PAW(PAW)) u_core
+    OOO_CORE #(.VA(VA), .PAW(PAW), .DWAYS(DWAYS)) u_core
         (.clk(clk), .rst_n(rst_n), .boot(boot), .boot_pc(boot_pc),
          .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ready(ic_req_ready),
          .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data),
@@ -170,7 +172,7 @@ module OOO_CPU
                       l_rlast, l_rvalid, l_rready;
     logic [63:0]      d_wdata, d_rdata, i_rdata, l_wdata, l_rdata;
 
-    OOO_DMISS2 #(.PAW(PAW), .IW(5)) u_dmiss
+    OOO_DMISS2 #(.PAW(PAW), .IW(5), .WAYS(DWAYS)) u_dmiss
         (.clk(clk), .rst_n(rst_n),
          .miss_valid(dc_miss_valid), .miss_line(dc_miss_line), .miss_vx(dc_miss_vx), .miss_id(dc_miss_id),
          .st_miss_valid(dc_st_miss_valid), .st_miss_line(dc_st_miss_line), .st_miss_vx(dc_st_miss_vx), .fill_done(dc_fill_done),

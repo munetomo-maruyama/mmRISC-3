@@ -63,7 +63,8 @@
 // So the 2 bits above the page's offset (vx, the virtual 13:12) go with what needs a set: a
 // store's SQ entry (svx) for its drain, and the misses (miss_vx, st_miss_vx), as the line is
 // physical. A physical line in another set of its index (a synonym) is the miss handler's to
-// take out (OOO_DMISS2); here it is a miss.
+// take out (OOO_DMISS2); here it is a miss. Since step 1.7c C5 (Plan/OOC.md 29.72) DWAYS ways, 8 (128 KB):
+// the hit's word chosen among 8 and the SQ's, the drain's hit among 8; nothing else changes.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -77,6 +78,7 @@ module OOO_LSU4
         parameter int TAGW = 7,
         parameter int ROBW = 6,
         parameter int NCK  = 12,
+        parameter int DWAYS = 8,         // the D$'s ways (256 sets: 8 since step 1.7c C5, 4 before)
         parameter logic [PAW-1:0] CBASE = 40'h00_8000_0000,  // the cacheable memory: [CBASE, CTOP)
         parameter logic [PAW-1:0] CTOP  = 40'h01_0000_0000
     )
@@ -153,18 +155,18 @@ module OOO_LSU4
         input  logic                     done_v,     // with fill_done or tlb_done: it is for this µop
         input  logic [$clog2(NLQ+NSQ)-1:0] done_id,
         input  logic                     tw_en,
-        input  logic [1:0]               tw_way,
+        input  logic [$clog2(DWAYS)-1:0] tw_way,
         input  logic [7:0]               tw_set,
         input  logic [PAW-12:0]          tw_tag,     // {valid, tag}
         input  logic                     rf_en,      // a word of a fill; a store waits for it
-        input  logic [1:0]               rf_way,
+        input  logic [$clog2(DWAYS)-1:0] rf_way,
         input  logic [10:0]              rf_addr,
         input  logic [63:0]              rf_data,
         output logic                     dirty_set,
-        output logic [1:0]               dirty_way,
+        output logic [$clog2(DWAYS)-1:0] dirty_way,
         output logic [7:0]               dirty_idx,
         input  logic [10:0]              vr_addr,    // the D$'s victim's copy (written back, step 1.7b W2): {set, word}
-        input  logic [1:0]               vr_way,
+        input  logic [$clog2(DWAYS)-1:0] vr_way,
         output logic [63:0]              vr_data,    // a cycle after vr_addr
 
         // ---- the walk (outside)
@@ -204,6 +206,7 @@ module OOO_LSU4
     localparam int LW = $clog2(NLQ);
     localparam int SW = $clog2(NSQ);
     localparam int TW = PAW - 12;
+    localparam int DB = $clog2(DWAYS);
     localparam int IW = $clog2(NLQ + NSQ);
 
     typedef logic [SW:0] sptr_t;
@@ -406,16 +409,16 @@ module OOO_LSU4
 
     // ---- the arrays
     logic [1:0][10:0]      a_rd;
-    logic [1:0][3:0][63:0] a_d;
-    logic [1:0][3:0][TW:0] a_t;
-    logic [3:0][TW:0]      s_t;
+    logic [1:0][DWAYS-1:0][63:0] a_d;
+    logic [1:0][DWAYS-1:0][TW:0] a_t;
+    logic [DWAYS-1:0][TW:0]      s_t;
     logic [7:0]            d0_set;
     logic                  dw_en;
-    logic [1:0]            dw_way;
+    logic [DB-1:0]         dw_way;
     logic [10:0]           dw_addr;
     logic [63:0]           dw_data;
     logic [7:0]            dw_strb;
-    OOO_DCH2 #(.SETS(256), .WAYS(4), .WORDS(8), .TW(TW), .VR(1'b1)) u_dch
+    OOO_DCH2 #(.SETS(256), .WAYS(DWAYS), .WORDS(8), .TW(TW), .VR(1'b1)) u_dch
         (.clk(clk), .rd_addr(a_rd), .rd_data(a_d), .rd_tag(a_t),
          .sb_set(d0_set), .sb_tag(s_t),
          .tw_en(tw_en), .tw_way(tw_way), .tw_set(tw_set), .tw_tag(tw_tag),
@@ -584,20 +587,23 @@ module OOO_LSU4
         end
 
         // the result
-        logic [3:0]  hit, sel;
-        logic [63:0] m_f, m_w [4];
+        logic [DWAYS-1:0] hit, sel;
+        logic [63:0] m_f, m_w [DWAYS];
+        logic [63:0] m_dw;                  // the hit way's word
         logic        f_cv, f_ok, m_hit;
         logic        m_bad, m_perm;
         logic        m_uc, m_ucd;           // for a device; the last try of one, with its word in uc_q
         logic [63:0] m_u;
         always @(*) begin
-            for (int w = 0; w < 4; w++) begin
+            m_dw = '0;
+            for (int w = 0; w < DWAYS; w++) begin
                 m_w[w] = align(a_d[p][w], m_off, m_spos, m_s0, m_s01, m_s3, m_sen);
                 hit[w] = a_t[p][w][TW] && a_t[p][w][TW-1:0] == t_ptag;
                 sel[w] = hit[w] && !f_any;
+                m_dw   = m_dw | ({64{sel[w]}} & m_w[w]);
             end
             m_f    = align(sd_f[f_idx], m_off, m_spos, m_s0, m_s01, m_s3, m_sen);
-            m_hit  = hit != 4'd0;
+            m_hit  = hit != '0;
             f_cv   = (sm_f[f_idx] & m_lmask) == m_lmask && sp[f_idx] && st_r[f_idx] == t_ptag;   // it can forward
             f_ok   = f_cv && sdv[f_idx];                                                          // ... with its data
             m_bad  = m_mis || (tr_on && !(&m_hi || !(|m_hi)));
@@ -608,9 +614,7 @@ module OOO_LSU4
         end
         assign ld_nv[p] = m_v && m_ld;
         assign ld_nt[p] = m_dst;
-        assign ld_d[p]  = m_ucd ? m_u :
-                          ({64{sel[0]}} & m_w[0]) | ({64{sel[1]}} & m_w[1]) | ({64{sel[2]}} & m_w[2]) |
-                          ({64{sel[3]}} & m_w[3]) | ({64{f_any}} & m_f);
+        assign ld_d[p]  = m_ucd ? m_u : m_dw | ({64{f_any}} & m_f);
 
         // a store, port 0 alone
         if (p == 0) begin : g_st
@@ -859,8 +863,8 @@ module OOO_LSU4
     logic [8:0]    d1_a, d2_a;
     logic [1:0]    d1_x, d2_x;                 // svx: the set's top bits
     logic [7:0]    d1_m, d2_m;
-    logic [3:0]    d_hit;
-    logic [1:0]    d2_way;
+    logic [DWAYS-1:0] d_hit;
+    logic [DB-1:0] d2_way, d1_way;
     logic          d2_hit, d2_uc;              // (a store for a device: to it, not to the D$)
     logic [63:0]   d2_d;
     logic [TW-1:0] d1_tag;
@@ -869,7 +873,11 @@ module OOO_LSU4
     assign d0_set = {svx[dp[SW-1:0]], swa[dp[SW-1:0]][8:3]};
     always @(*) begin
         d1_tag = st_r[d1_p[SW-1:0]];
-        for (int w = 0; w < 4; w++) d_hit[w] = s_t[w][TW] && s_t[w][TW-1:0] == d1_tag;
+        d1_way = '0;
+        for (int w = 0; w < DWAYS; w++) begin
+            d_hit[w] = s_t[w][TW] && s_t[w][TW-1:0] == d1_tag;
+            if (d_hit[w]) d1_way = DB'(w);
+        end
         // a fill's word first; a tag written since the lookup began sends the store back; a store for a
         // device goes to it when no access to a device is out, else it goes back
         st_uc_go = d2_v && d2_uc && !uc_busy;
@@ -922,8 +930,8 @@ module OOO_LSU4
         d2_a    <= d1_a;
         d2_x    <= d1_x;
         d2_m    <= d1_m;
-        d2_hit  <= d_hit != 4'd0;
-        d2_way  <= d_hit[3] ? 2'd3 : d_hit[2] ? 2'd2 : d_hit[1] ? 2'd1 : 2'd0;
+        d2_hit  <= d_hit != '0;
+        d2_way  <= d1_way;
         d2_d    <= sd_f[d1_p[SW-1:0]];
         d2_line <= {d1_tag, d1_a[8:3]};
         d2_uc   <= uncached({d1_tag, d1_a, 3'b000});

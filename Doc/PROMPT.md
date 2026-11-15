@@ -9793,3 +9793,79 @@ The header of `CPU_L2.sv` and the CPU_L2 row of `RTL/CPU/CACHE/README(_J).md` st
 ```text
 Yes, fix them
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I fixed the old notes that called the D$ "write-through", and committed and pushed it as a3ee0cc. Ref/ was not pushed (0 files).
+
+- **The header of `CPU_L2.sv`**, rewritten as follows:
+  - A part write that hits was made to write into the line because the D$ was written through at the time (step 1.7 H2).
+  - Since step 1.7b W the D$ is written back, and `OOO_CPU` sends the L2 only line reads and line writes.
+  - The part write's handling stays and is tested by tb_L2.
+  - The part write's row in the list of transactions also says "none from `OOO_CPU` since step 1.7b W".
+- **`RTL/CPU/CACHE/README.md` and `README_J.md`**: the CPU_L2 row says the same.
+
+Only comments and docs changed, so no simulation was rerun. The diff shows no RTL line outside the comments changed.
+<!-- /answer -->
+
+## 245. 2026-11-15 10:06:23 JST
+
+```text
+Before AMO/LR/SC, I want to change the D$'s size and organization to 128 KB, 8 ways, like the I$. I am thinking of it more as how the external specification looks than as a technical necessity. Is it possible?
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+It is possible. With 256 sets × 8 ways most of today's D$ stays as it is. In exchange it takes 54 more block RAM tiles, and the load's timing gets somewhat tighter.
+
+## Organization: 256 sets × 8 ways = 128 KB
+
+- The sets stay at 256; only the ways double. The index stays virtual address 13:6.
+- So synonyms (one physical line in several sets) are handled as today: vx stays 2 bits and `OOO_DMISS2` still looks in the other 3 sets, only over 8 ways instead of 4.
+- 512 sets × 4 ways is also 128 KB, but the index would reach bit 14 and synonyms get heavier. Nor would it look like 8 ways.
+
+## Cost
+
+| | Today (64 KB, 4 ways) | 128 KB, 8 ways |
+|---|---|---|
+| The D$'s block RAM | 54 tiles | **108 tiles** (+54) |
+| All of `OOO_CPU` | 230.5 tiles | **about 284.5 tiles** |
+| With LiteX (of 365) | about 260 | **about 314 (86 %)** |
+| LUTs | | about +3-4k (estimate) |
+
+- **Block RAM**
+  - Data: 2 copies for the loads and 1 for victims × 8 ways × 4 RAMB36 = 96 (+48).
+  - Tags: 3 copies × 8 ways = 24 RAMB18 (+6 tiles).
+- **Margin**: it fits, but about 50 tiles remain. Little room is left to grow the branch predictors or TLBs in block RAM later.
+- **Where the LUTs grow**
+  - Each way's load alignment (for 2 ports) and tag compare double.
+  - `OOO_DCH2`'s depth mux doubles.
+  - `OOO_DMISS2`'s tags (LUT RAM) and dirty bits double, and the synonym search's comparators go from 12 to 24.
+- **FENCE.I**: 2,048 lines walked instead of 1,024, about 1,000 cycles more each time (rare).
+
+## The timing worry
+
+- On the load's hit path the tag compare picks the way, and the result is an OR of 5 candidates (4 ways and the SQ's forward). With 8 ways there are 9, about one more LUT level.
+- Each load port also reads 32 block RAMs instead of 16, so the placement spreads and the routes get longer.
+- The study of 29.64 avoided 8 ways on this path as risky for timing.
+- On the other hand, at C2 this path was not in the first 20 and `OOO_LSU4` had about +1.7 ns of margin. It will likely fit, but that is not certain.
+- If it fails, two fixes:
+  - a smarter choice of the hit way;
+  - dropping the victim's copy and reading victims from port 1's copy: 32 tiles fewer, but port 1's loads stop during an eviction.
+
+## Performance
+
+- CoreMark fits in 64 KB, so it does not change.
+- On Linux's busybox the D$'s misses should drop, but the gain of 64 KB → 128 KB has not been measured. Plan/csize can measure it if wanted.
+- Today's D$ assumes 4 ways in a dozen or so places in `OOO_LSU4` and `OOO_DMISS2`, and the benches (tb_lsu4, tb_dmiss2) assume 4 ways too. The changes are mechanical, about the size of C2.
+
+To go ahead, as step 1.7c C5: the RTL and the benches, the mutation tests and the CoreMark check, then a request for your Vivado run.
+<!-- /answer -->
+
+## 246. 2026-11-15 10:09:48 JST
+
+```text
+Start C5
+```

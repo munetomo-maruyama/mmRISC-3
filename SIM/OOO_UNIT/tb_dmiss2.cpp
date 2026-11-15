@@ -9,9 +9,12 @@
 // done). It keeps the tags as OOO_DMISS2 writes them (tw_*), so it knows a hit:
 // a store is given only into a way that holds its line in this cycle, and it
 // counts only if st_ok; a hit's load is checked a cycle later against the
-// reference as it was when read. The lines share 4 sets (10 a set: evictions,
-// dirty victims, and one of tag 0 in each: the reset's tags are {invalid, 0})
-// and 16 lie anywhere.
+// reference as it was when read. The lines share 4 indexes (LPS an index:
+// evictions, dirty victims, and one of tag 0 in each: the reset's tags are
+// {invalid, 0}) and 16 lie anywhere. Since step 1.7c C5 (Plan/OOC.md 29.72) 8 ways
+// (WAYS), 16 lines an index (10 before), whose own vx is 0 three times in 4, so
+// that set of 8 ways overflows; FENCE.I walks 2,048 lines, so the run's tail is
+// 20,000 cycles (6,000 before).
 //
 // Since step 1.7c C2 (Plan/OOC.md 29.68): 256 sets, a line's set {vx, its physical
 // 11:6}. Each access comes with a vx: its line's own (a vx of its own, drawn once) 9
@@ -43,7 +46,7 @@
 
 static std::mt19937_64 rng(61);
 static VDMISS_DC d;
-static const int SETS = 256, WAYS = 4;
+static const int SETS = 256, WAYS = 8, LPS = 16;
 
 static uint64_t hashw(uint64_t a)          // a word's first value
 {
@@ -63,7 +66,7 @@ static std::map<uint64_t, uint64_t> dev;    // the device's words
 
 static uint64_t rd_word(int p, int w)
 {
-    int k = (p * 4 + w) * 2;
+    int k = (p * WAYS + w) * 2;
     return (uint64_t)d.rd_data[k] | ((uint64_t)d.rd_data[k + 1] << 32);
 }
 
@@ -76,15 +79,15 @@ int main(int argc, char** argv)
     std::vector<uint64_t> pool;
     int sets4[4] = {0, 9, 33, 63};
     for (int s = 0; s < 4; s++)
-        for (int t = 0; t < 10; t++) pool.push_back(((rng() & ((1ull << 28) - 1)) << 6) | (uint64_t)sets4[s]);
+        for (int t = 0; t < LPS; t++) pool.push_back(((rng() & ((1ull << 28) - 1)) << 6) | (uint64_t)sets4[s]);
     for (int k = 0; k < 16; k++) pool.push_back(rng() & ((1ull << 34) - 1));
-    std::vector<uint64_t> hot(pool.begin(), pool.begin() + 40);
+    std::vector<uint64_t> hot(pool.begin(), pool.begin() + 4 * LPS);
     std::map<uint64_t, int> home;                   // a line's own vx
     // lines of tag 0 (the first 4 KB): the reset's tags are {invalid, 0}, so such a line must not be taken as held
     // (asked half the time in the first 3,000 cycles, while ways are still as the reset left them)
     std::vector<uint64_t> t0;
     for (int s = 0; s < 4; s++) { pool.push_back((uint64_t)sets4[s]); hot.push_back((uint64_t)sets4[s]); t0.push_back((uint64_t)sets4[s]); }
-    for (auto l : pool) home[l] = (int)(rng() % 4);
+    for (auto l : pool) home[l] = rng() % 4 ? 0 : (int)(rng() % 4);
     auto pick = [&](long c) { return (c < 3000 && rng() % 2) ? t0[rng() % 4] : rng() % 4 ? hot[rng() % hot.size()] : pool[rng() % pool.size()]; };
     auto pvx = [&](uint64_t l) { return rng() % 10 ? home[l] : (int)(rng() % 4); };
     auto sof = [&](uint64_t l, int x) { return (x << 6) | (int)(l & 63); };     // the set
@@ -117,7 +120,7 @@ int main(int argc, char** argv)
     auto err = [&](const char* m, uint64_t x = 0) { if (bad++ < 12) printf("cycle %ld: %s (%llx)\n", cyc, m, (unsigned long long)x); };
     int pst = 40, pld = 60, lat = 20;
     const long N = 600000;
-    for (cyc = 0; cyc < N + 6000; cyc++) {
+    for (cyc = 0; cyc < N + 20000; cyc++) {
         bool quiet = cyc >= N;
         if (cyc % 20000 == 0) { pst = 5 + rng() % 70; pld = 10 + rng() % 80; lat = (rng() % 3 == 0) ? 1 : 20; }
         // ---- FENCE.I: quiet (no store) a few cycles, ask until taken, wait for done
@@ -130,7 +133,7 @@ int main(int argc, char** argv)
         uint32_t ra = 0;
         chk.clear();
         uint64_t st_l = 0; int st_w = -1, st_word = 0, st_s = 0; uint64_t st_dat = 0; uint8_t st_m = 0;
-        auto t0c = [&](uint64_t l, int x) { int s = sof(l, x); if (l < 64 && !(tg[0][s].v && tg[1][s].v && tg[2][s].v && tg[3][s].v)) n_t0++; };
+        auto t0c = [&](uint64_t l, int x) { int s = sof(l, x); bool all = true; for (int w = 0; w < WAYS; w++) all = all && tg[w][s].v; if (l < 64 && !all) n_t0++; };
         if (!stores_off && (long)(rng() % 100) < pst) {
             uint64_t l = pick(cyc);
             int x = pvx(l), w = find(l, x);

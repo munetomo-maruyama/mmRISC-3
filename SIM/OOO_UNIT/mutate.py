@@ -976,7 +976,7 @@ M = [
     ('M1010', 'OOO_LSU3/OOO_LSU3.sv', 'lsu3', 'd2_d    <= sd_f[d1_p[SW-1:0]];', "d2_d    <= sd_f[d1_p[SW-1:0] + 1'b1];", "the drain's data from the next store"),
     ('M1011', 'OOO_DCH2/OOO_DCH2.sv', 'lsu3', 'dq <= mem[rd_addr[p]];', 'dq <= mem[rd_addr[0]];', 'port 1 reads port 0\'s word'),
     ('M1012', 'OOO_DCH2/OOO_DCH2.sv', 'lsu3', 'lq <= tl[rd_addr[p][$clog2(SETS*WORDS)-1:WB]];', 'lq <= tl[rd_addr[0][$clog2(SETS*WORDS)-1:WB]];', 'port 1 reads port 0\'s tags'),
-    ('M1013', 'OOO_DCH2/OOO_DCH2.sv', 'lsu3', 'if (dw_en && int\'(dw_way) == w && dw_strb[b])', 'if (p == 0 && dw_en && int\'(dw_way) == w && dw_strb[b])', 'the second copy not written'),
+    ('M1013', 'OOO_DCH2/OOO_DCH2.sv', 'lsu3', 'if (dw_en && int\'(dw_way) == w && dw_strb[b])\n                        mem[', 'if (p == 0 && dw_en && int\'(dw_way) == w && dw_strb[b])\n                        mem[', 'the second copy not written'),
     ('M1014', 'OOO_DCH2/OOO_DCH2.sv', 'lsu3', 'if (tw_en && int\'(tw_way) == w) tl[tw_set] <= tw_tag;', 'if (p == 0 && tw_en && int\'(tw_way) == w) tl[tw_set] <= tw_tag;', 'the second copy of the tags not written'),
     ('M1015', 'OOO_DCH2/OOO_DCH2.sv', 'lsu3', 'if (tw_en && int\'(tw_way) == w) tlb[tw_set] <= tw_tag;', '', 'the stores\' tags not written'),
     ('M1016', 'OOO_LSU3/OOO_LSU3.sv', 'lsu3', 'assign ev = m_st0 || w_ask1 || d3_v || fill_done || tlb_done || rec || uc_done;', 'assign ev = m_st0 || d3_v || fill_done || tlb_done || rec || uc_done;', 'port 1\'s need of a line lets nobody go'),
@@ -1145,7 +1145,7 @@ M = [
     ('M1200', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', 'm_bad  = m_mis || (tr_on && !(&m_hi || !(|m_hi)));', 'm_bad  = m_mis;', 'not canonical, no exception (as M984)'),
     ('M1201', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', 'm_perm = m_ld ? t_r : t_w;', 'm_perm = t_r;', 'a store with read permission only (as M985)'),
     ('M1202', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', 'assign ld_nv[p] = m_v && m_ld;', 'assign ld_nv[p] = m_v;', 'a store writes a register (as M986)'),
-    ('M1203', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', '({64{sel[3]}} & m_w[3]) | ({64{f_any}} & m_f);', '({64{sel[3]}} & m_w[3]);', 'no forward in the result (as M987)'),
+    ('M1203', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', 'assign ld_d[p]  = m_ucd ? m_u : m_dw | ({64{f_any}} & m_f);', 'assign ld_d[p]  = m_ucd ? m_u : m_dw;', 'no forward in the result (as M987)'),
     ('M1204', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', 'sm_f[m_sq] <= m_lmask;', '', "the forward's mask not written (as M989)"),
     ('M1205', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', 'st_r[m_sq] <= t_ptag;', '', "the store's tag not written (as M990)"),
     ('M1206', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "2'd1:    sd_rep = {4{sd_data[15:0]}};", "2'd1:    sd_rep = sd_data;", 'a half not in its lane (as M991)'),
@@ -1323,7 +1323,7 @@ M = [
     ('M1371', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', '(st == S_FL && ev_dirty && !e_on);', '(st == S_FL && ev_dirty);', 'the walk starts a write out over one going on'),
     ('M1372', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', '(st == S_FL && ev_dirty && !e_on);', '(st == S_FL && !e_on);', 'the walk writes clean lines out too'),
     ('M1373', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', 'assign ev_dirty = dtyr[ev_way];', 'assign ev_dirty = dtyr[f_way];', "the walk looks at the fill's way"),
-    ('M1374', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', 'assign t_set = st == S_FL ? fi[9:2] :', 'assign t_set = st == S_FL ? fi[7:0] :', "the walk's set from the wrong bits"),
+    ('M1374', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', 'assign t_set = st == S_FL ? fi[FW-1:WB] :', 'assign t_set = st == S_FL ? fi[7:0] :', "the walk's set from the wrong bits"),
     ('M1375', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', 'e_line <= {tagr[ev_way][TW-1:0], t_set[5:0]};', 'e_line <= {f_line[PAW-1:12], t_set[5:0]};', "a victim written out at the new line's address"),
     ('M1376', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', 'e_way  <= ev_way;', 'e_way  <= f_way;', "the walk reads the fill's way"),
     ('M1377', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', 'if (e_rq) eb[e_c[2:0]] <= vr_data;', 'if (e_rq) eb[e_k[2:0]] <= vr_data;', "a victim's word into the buffer a place late"),
@@ -1339,8 +1339,8 @@ M = [
     ('M1387', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', 'assign m_axi4_wvalid  = e_on && e_aw && e_w < e_c;', 'assign m_axi4_wvalid  = e_on && e_aw;', 'a beat before its word is in the buffer'),
     ('M1388', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', "assign aq_pop = st == S_IDLE && !u_pend && !fl_req && aq_n != '0 && wr_quiet;", "assign aq_pop = st == S_IDLE && !u_pend && !fl_req && aq_n != '0;", 'a fill before the write out has its answer'),
     ('M1389', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', 'S_FL:   if (!ev_dirty || !e_on) begin', "S_FL:   if (1'b1) begin", 'the walk passes a dirty line while a write out goes on'),
-    ('M1390', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', "if (fi == 10'h3ff) st <= S_FLW;", "if (fi == 10'h1ff) st <= S_FLW;", 'the walk stops at half the sets'),
-    ('M1391', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', "else if (fl_req && !u_pend) begin fi <= '0; st <= S_FL; end", "else if (fl_req && !u_pend) begin fi <= 8'd4; st <= S_FL; end", 'the walk begins at set 1'),
+    ('M1390', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', "if (&fi) st <= S_FLW;", "if (&fi[FW-2:0]) st <= S_FLW;", 'the walk stops at half the sets'),
+    ('M1391', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', "else if (fl_req && !u_pend) begin fi <= '0; st <= S_FL; end", "else if (fl_req && !u_pend) begin fi <= FW'(WAYS); st <= S_FL; end", 'the walk begins at set 1'),
     ('M1392', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', 'assign fl_done = st == S_FLW && wr_quiet;', 'assign fl_done = st == S_FLW;', 'FENCE.I done before the last write out is answered'),
     ('M1393', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', 'S_LOOK: st <= f_have ? S_DONE : y_any ? S_SINV : S_INV;', 'S_LOOK: st <= y_any ? S_SINV : S_INV;', 'a line held filled again'),
     ('M1394', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', 'tw_en   = st == S_SINV || st == S_INV || st == S_TAG;', 'tw_en   = st == S_SINV || st == S_TAG;', "the victim's tag never made invalid"),
@@ -1372,6 +1372,16 @@ M = [
     ('M1424', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', 'st_miss_vx    = d2_x;', "st_miss_vx    = 2'd0;", "a store's miss without its vx"),
     ('M1425', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', 'dirty_idx = {d2_x, d2_a[8:3]};', "dirty_idx = {2'd0, d2_a[8:3]};", "a store's line made dirty without its vx"),
     ('M1426', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', 'd2_x    <= d1_x;', "d2_x    <= svx[dp[SW-1:0]];", "a drained store's vx from the store behind it"),
+    # step 1.7c C5 (Plan/OOC.md 29.72): the D$ at 8 ways (ways 4-7 left out, one at a time where each way is chosen)
+    ('M1427', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', 'm_dw   = m_dw | ({64{sel[w]}} & m_w[w]);', "m_dw   = m_dw | ({64{sel[w] && w < 4}} & m_w[w]);", "a load's hit in ways 4-7 answers zeros"),
+    ('M1428', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "if (d_hit[w]) d1_way = DB'(w);", "if (d_hit[w]) d1_way = DB'(w & 3);", "a drained store written into ways 0-3 only"),
+    ('M1429', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', 'hit[w] = a_t[p][w][TW] && a_t[p][w][TW-1:0] == t_ptag;', "hit[w] = a_t[p][w][TW] && a_t[p][w][TW-1:0] == t_ptag && w < 4;", "a load misses in ways 4-7"),
+    # (a free way 4-7 taken as its way 0-3 is no fault: every victim, free or not, is made invalid and written out if
+    # dirty in S_INV; only a line is lost)
+    ('M1430', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', "if (ev_go ? int'(ev_way) == w : dirty_set && int'(dirty_way) == w)", "if (ev_go ? int'(ev_way) == w : dirty_set && int'(dirty_way) == w && w < 4)", "a store in ways 4-7 leaves its line clean"),
+    ('M1431', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', "y_any = 1'b1; y_b = 2'(b); y_w = WB'(w);", "y_any = 1'b1; y_b = 2'(b); y_w = WB'(w & 3);", "a synonym in ways 4-7 taken out in its way 0-3"),
+    ('M1432', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', 'assign ev_way   = st == S_FL ? fi[WB-1:0] :', "assign ev_way   = st == S_FL ? {1'b0, fi[1:0]} :", "FENCE.I's walk looks at ways 0-3 only"),
+    ('M1433', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', "if (tagr[w][TW] && tagr[w][TW-1:0] == f_line[PAW-1:12]) f_have = 1'b1;", "if (tagr[w][TW] && tagr[w][TW-1:0] == f_line[PAW-1:12] && w < 4) f_have = 1'b1;", "a line held in ways 4-7 filled again"),
 ]
 
 

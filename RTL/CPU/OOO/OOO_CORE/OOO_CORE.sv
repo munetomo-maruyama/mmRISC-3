@@ -82,7 +82,8 @@
 module OOO_CORE
     #(
         parameter int VA  = 39,
-        parameter int PAW = 40          // physical address bits (Phase 1: the address as it is)
+        parameter int PAW = 40,         // physical address bits (Phase 1: the address as it is)
+        parameter int DWAYS = 8         // the D$'s ways (256 sets: 8 since step 1.7c C5, Plan/OOC.md 29.72)
     )
     (
         input  logic                        clk,
@@ -108,18 +109,18 @@ module OOO_CORE
         input  logic                        dc_done_v,
         input  logic [4:0]                  dc_done_id,
         input  logic                        dc_tw_en,
-        input  logic [1:0]                  dc_tw_way,
+        input  logic [$clog2(DWAYS)-1:0]   dc_tw_way,
         input  logic [7:0]                  dc_tw_set,
         input  logic [PAW-12:0]             dc_tw_tag,
         input  logic                        dc_rf_en,
-        input  logic [1:0]                  dc_rf_way,
+        input  logic [$clog2(DWAYS)-1:0]   dc_rf_way,
         input  logic [10:0]                 dc_rf_addr,
         input  logic [63:0]                 dc_rf_data,
         output logic                        dc_dirty_set,
-        output logic [1:0]                  dc_dirty_way,
+        output logic [$clog2(DWAYS)-1:0]   dc_dirty_way,
         output logic [7:0]                  dc_dirty_idx,
         input  logic [10:0]                 dc_vr_addr,     // the D$'s victim's copy (written back, step 1.7b W2)
-        input  logic [1:0]                  dc_vr_way,
+        input  logic [$clog2(DWAYS)-1:0]   dc_vr_way,
         output logic [63:0]                 dc_vr_data,
         output logic                        dc_sq_drained,
         // what is not cacheable (step 1.3 E1b, Plan/OOC.md 29.33): one access to a device at a time
@@ -1115,7 +1116,7 @@ module OOO_CORE
     logic            cmp_st_v, cmp_st_e;
     logic [ROBW-1:0] cmp_st_rob;
     /* verilator lint_off PINCONNECTEMPTY */   // (translation: step 1.8)
-    OOO_LSU4 #(.NLQ(16), .NSQ(16), .PAW(PAW), .VA(VA), .TAGW(TAGW), .ROBW(ROBW), .NCK(NCKPT)) u_lsu
+    OOO_LSU4 #(.NLQ(16), .NSQ(16), .PAW(PAW), .VA(VA), .TAGW(TAGW), .ROBW(ROBW), .NCK(NCKPT), .DWAYS(DWAYS)) u_lsu
         (.clk(clk), .rst_n(rst_n), .tr_on(1'b0),
          .lq_alloc(lq_alloc), .sq_alloc(sq_alloc), .lq_tail(l3_lq_tail), .sq_tail(l3_sq_tail),
          .lq_free(l3_lq_free), .sq_free(l3_sq_free),

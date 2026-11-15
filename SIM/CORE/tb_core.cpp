@@ -339,25 +339,34 @@ static bool run(const Opts& o, const std::string& elf)
                         b.mem().write64(a + 8 * k, v, 0xff);
                     }
                 }
-            // the D$'s dirty lines over those (256 sets of 4 ways, step 1.7c C2; {valid, tag} with the tag the address
-            // above 4 KB, kept by OOO_DMISS2 in 4 banks by the set's top 2 bits; the line's 11:6 the set's low 6 bits)
+            // the D$'s dirty lines over those (256 sets of 8 ways since step 1.7c C5, Plan/OOC.md 29.72; {valid, tag}
+            // with the tag the address above 4 KB, kept by OOO_DMISS2 in 4 banks by the set's top 2 bits; the line's 11:6
+            // the set's low 6 bits)
+#define DC_W8(M, ...) (w == 0 ? M(__VA_ARGS__, 0) : w == 1 ? M(__VA_ARGS__, 1) : w == 2 ? M(__VA_ARGS__, 2) : \
+                       w == 3 ? M(__VA_ARGS__, 3) : w == 4 ? M(__VA_ARGS__, 4) : w == 5 ? M(__VA_ARGS__, 5) : \
+                       w == 6 ? M(__VA_ARGS__, 6) : M(__VA_ARGS__, 7))
+#define DC_TAGX(B, s6, W) r->DC_TAG(B, W)[s6]
+#define DC_DTYX(s, W) r->DC_DTY(W)[s]
+#define DC_DATX(i, W) r->DC_DAT(W)[i]
             auto tagof = [&](int b, int w, int s6) -> uint64_t {
-#define DC_T4(B) (w == 0 ? r->DC_TAG(B, 0)[s6] : w == 1 ? r->DC_TAG(B, 1)[s6] : w == 2 ? r->DC_TAG(B, 2)[s6] : r->DC_TAG(B, 3)[s6])
-                return b == 0 ? DC_T4(0) : b == 1 ? DC_T4(1) : b == 2 ? DC_T4(2) : DC_T4(3);
-#undef DC_T4
+                return b == 0 ? DC_W8(DC_TAGX, 0, s6) : b == 1 ? DC_W8(DC_TAGX, 1, s6) :
+                       b == 2 ? DC_W8(DC_TAGX, 2, s6) : DC_W8(DC_TAGX, 3, s6);
             };
-            for (int w = 0; w < 4; w++)
+            for (int w = 0; w < 8; w++)
                 for (int s = 0; s < 256; s++) {
-                    bool dt = w == 0 ? r->DC_DTY(0)[s] : w == 1 ? r->DC_DTY(1)[s] : w == 2 ? r->DC_DTY(2)[s] : r->DC_DTY(3)[s];
+                    bool dt = DC_W8(DC_DTYX, s);
                     if (!dt) continue;
                     uint64_t t = tagof(s >> 6, w, s & 63);
                     uint64_t a = ((t & ((1ull << 28) - 1)) << 12) | ((uint64_t)(s & 63) << 6);
                     for (int k = 0; k < 8; k++) {
-                        uint64_t v = w == 0 ? r->DC_DAT(0)[s * 8 + k] : w == 1 ? r->DC_DAT(1)[s * 8 + k] :
-                                     w == 2 ? r->DC_DAT(2)[s * 8 + k] : r->DC_DAT(3)[s * 8 + k];
+                        uint64_t v = DC_W8(DC_DATX, s * 8 + k);
                         b.mem().write64(a + 8 * k, v, 0xff);
                     }
                 }
+#undef DC_W8
+#undef DC_TAGX
+#undef DC_DTYX
+#undef DC_DATX
         }
 #endif
         std::vector<uint64_t> pgs = b.mem().pages(), pa = b.arch().pages();

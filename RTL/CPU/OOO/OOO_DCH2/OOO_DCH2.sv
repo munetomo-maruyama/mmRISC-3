@@ -7,7 +7,8 @@
 // own memory and a write goes to all, so loads, a store that drains and a fill never
 // wait for each other. There are 365 tiles on this device, for 18 here at 64 sets (with the
 // victim's copy), 54 at 256 (the D$ of 64 KB in OOO_LSU4, step 1.7c C2, Plan/OOC.md 29.68: each
-// copy of a way 2,048 words, 4 RAMB36 as 2K x 18 side by side; the tags still one RAMB18 each).
+// copy of a way 2,048 words, 4 RAMB36 as 2K x 18 side by side; the tags still one RAMB18 each), 108 at
+// 256 sets of 8 ways (the D$ of 128 KB, step 1.7c C5, Plan/OOC.md 29.72).
 //
 //   data  2 copies, one memory per way of 64-bit words, byte write enables (a simple
 //         dual port RAMB36, 512 x 72)

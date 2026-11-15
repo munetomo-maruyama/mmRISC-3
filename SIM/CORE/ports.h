@@ -89,7 +89,9 @@ public:
     const Out& out() const { return o; }
     // the clock edge, with what the core gave this cycle
     // (since step 1.7c C2, Plan/OOC.md 29.68: 256 sets, the set {vx, the line's 11:6}, vx the virtual 13:12 the
-    // core gives with each miss; untranslated, the line's own 13:12. A line is kept as {line, vx})
+    // core gives with each miss; untranslated, the line's own 13:12. A line is kept as {line, vx}. WAYS ways: 8 since
+    // step 1.7c C5, Plan/OOC.md 29.72)
+    static const int WAYS = 8;
     void clock(bool miss_v, uint64_t miss_line, int miss_vx, int miss_id, bool st_miss_v, uint64_t st_miss_line, int st_miss_vx,
                bool dirty_set, int dirty_way, int dirty_idx, bool sq_drained)
     {
@@ -111,7 +113,7 @@ private:
     std::map<uint64_t, int> who;
     int state = 0, way = 0, word = 0, delay = 0;
     uint64_t line = 0;
-    uint64_t tag_ref[256][4]; bool v_ref[256][4]; int last_way[256] = {0};
+    uint64_t tag_ref[256][WAYS]; bool v_ref[256][WAYS]; int last_way[256] = {0};
     int lset() const { return (int)(((line & 3) << 6) | ((line >> 2) & 63)); }
     void ask(uint64_t l, int id)
     {
@@ -137,11 +139,11 @@ private:
                 int set = lset();
                 uint64_t tag = line >> 8;
                 bool have = false;
-                for (int w = 0; w < 4; w++) if (v_ref[set][w] && tag_ref[set][w] == tag) have = true;
+                for (int w = 0; w < WAYS; w++) if (v_ref[set][w] && tag_ref[set][w] == tag) have = true;
                 if (have) { done(); break; }
                 way = -1;
-                for (int w = 0; w < 4 && way < 0; w++) if (!v_ref[set][w]) way = w;
-                if (way < 0) { way = (int)(rng() % 4); if (way == last_way[set]) way = (way + 1) % 4; evicts++; }
+                for (int w = 0; w < WAYS && way < 0; w++) if (!v_ref[set][w]) way = w;
+                if (way < 0) { way = (int)(rng() % WAYS); if (way == last_way[set]) way = (way + 1) % WAYS; evicts++; }
                 o.tw_en = true; o.tw_way = way; o.tw_set = set; o.tw_tag = tag_ref[set][way];   // (the valid bit goes)
                 v_ref[set][way] = false;
                 state = 1; word = 0; delay = fill_lat ? (int)(rng() % fill_lat) : 0;

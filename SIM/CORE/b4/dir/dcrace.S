@@ -3,19 +3,20 @@
 # Plan/OOC.md 29.58), in lock-step. Correct on any L2; mutate_core.py runs it
 # on OOO_CPU with an L2 of 4 KB (build_core.sh L2KB=4), where the races open.
 #
-# 1. A fill over a valid line: 6 lines of one D$ set (256 sets x 4 ways since
-#    step 1.7c C2, Plan/OOC.md 29.68: the lines 16 KB apart; 4 KB at 64 sets; the
-#    victim at random) loaded round and round, at a word that moves, by loads
-#    that do not wait for each other: a load comes to the victim while its
-#    words are being replaced (its tag must be invalid by then).
+# 1. A fill over a valid line: 12 lines of one D$ set (256 sets x 8 ways since
+#    step 1.7c C5, Plan/OOC.md 29.72, 6 lines at 4 ways: more lines than ways; the
+#    lines 16 KB apart since C2, 4 KB at 64 sets; the victim at random) loaded
+#    round and round, at a word that moves, by loads that do not wait for each
+#    other: a load comes to the victim while its words are being replaced (its
+#    tag must be invalid by then).
 # 2. FENCE.I behind slow writes: 16 lines held by the D$ (sets 0..15), the L2
 #    emptied of them by 96 other lines (D$ sets 16..63: they stay in the D$);
 #    stores to the 16 (dirty in the D$ since step 1.7b W2: FENCE.I writes them
 #    out, and they miss the L2), then a store that rewrites an instruction,
 #    FENCE.I, and the instruction called. FENCE.I must write every dirty line
 #    out and wait for it to be in memory before the I$ fills again.
-# 3. Dirty victims (step 1.7b W2, Plan/OOC.md 29.62): the 6 lines of part 1,
-#    each iteration a store into one, then a load from another three lines on:
+# 3. Dirty victims (step 1.7b W2, Plan/OOC.md 29.62): the 12 lines of part 1,
+#    each iteration a store into one, then a load from another six lines on:
 #    victims are dirty, written out and read back.
 #---------------------------------------------------------------------------
     .section .text.init
@@ -41,10 +42,10 @@ _start:
     li      t5, 8
     bne     t1, t5, 2b
     addi    t0, t0, 1
-    li      t5, 6
+    li      t5, 12
     bne     t0, t5, 1b
 
-    # ---- 1. round and round: 6 loads an iteration, the word (i * 3) & 7
+    # ---- 1. round and round: 12 loads an iteration, the word (i * 3) & 7
     li      s3, 0                   # i
     li      s4, 400
     li      s5, 0                   # the sum (lock-step compares each load anyway)
@@ -64,12 +65,30 @@ _start:
     ld      a6, 0(t2)
     add     t2, t2, s9
     ld      a7, 0(t2)
+    add     t2, t2, s9
+    ld      a1, 0(t2)
+    add     t2, t2, s9
+    ld      s10, 0(t2)
+    add     t2, t2, s9
+    ld      s11, 0(t2)
+    add     t2, t2, s9
+    ld      t3, 0(t2)
+    add     t2, t2, s9
+    ld      t4, 0(t2)
+    add     t2, t2, s9
+    ld      t6, 0(t2)
     add     s5, s5, a2
     add     s5, s5, a3
     add     s5, s5, a4
     add     s5, s5, a5
     add     s5, s5, a6
     add     s5, s5, a7
+    add     s5, s5, a1
+    add     s5, s5, s10
+    add     s5, s5, s11
+    add     s5, s5, t3
+    add     s5, s5, t4
+    add     s5, s5, t6
     addi    s3, s3, 1
     bne     s3, s4, 3b
 
@@ -117,10 +136,10 @@ _start:
     li      t5, 9
     bne     s8, t5, 4b
 
-    # ---- 3. dirty victims: store into line i % 6, word (i * 3) & 7; load line (i + 3) % 6, word (i * 5) & 7
+    # ---- 3. dirty victims: store into line i % 12, word (i * 3) & 7; load line (i + 6) % 12, word (i * 5) & 7
     li      s3, 0                   # i
     li      s4, 600
-9:  li      t5, 6
+9:  li      t5, 12
     remu    t0, s3, t5              # the line stored
     li      t1, 3
     mul     t1, t1, s3
@@ -130,7 +149,7 @@ _start:
     slli    t1, t1, 3
     add     t2, t2, t1
     sd      s3, 0(t2)
-    addi    t0, s3, 3
+    addi    t0, s3, 6
     remu    t0, t0, t5              # the line loaded
     li      t1, 5
     mul     t1, t1, s3
@@ -165,6 +184,6 @@ fromhost: .dword 0
 
     .section .data
     .balign 16384
-area:  .space 6 * 16384
+area:  .space 12 * 16384
 area2: .space 4096
 area3: .space 2 * 4096

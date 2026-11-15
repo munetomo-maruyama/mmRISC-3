@@ -22,7 +22,9 @@
 //                  Since step 1.7c C2 (Plan/OOC.md 29.68) the D$ has 256 sets, the set
 //                  {vx (the virtual 13:12), the physical 11:6}: a line asked for in one set
 //                  while it is in another (2 virtual pages of one physical page whose
-//                  13:12 differ) is first made invalid there, as OOO_DMISS2 does
+//                  13:12 differ) is first made invalid there, as OOO_DMISS2 does. Since step
+//                  1.7c C5 (Plan/OOC.md 29.72) 8 ways a set (WAYS); the victim, as before, a
+//                  way at random (half the time the set's last written), free or not
 //   the walk       the DTLB refilled after some cycles, flushed now and then
 // Checks: the value of every load that completes, its exception, cmp_ld_rp when it
 // ran more than once, cmp_ld_sd only then and with an older store of that offset whose data
@@ -57,6 +59,7 @@ struct Op {
 struct Ck { int bit, lt, st; long seq; };
 
 static const int NPG = 8;
+static const int WAYS = 8;            // the D$'s ways (OOO_LSU4's DWAYS)
 struct Pg { uint64_t vp, pp; bool r, w; };
 
 struct Sim {
@@ -78,12 +81,12 @@ struct Sim {
     // the miss handler
     std::deque<uint64_t> mq; std::map<uint64_t, int> m_id;     // who asked first
     int m_state = 0, m_i = 0, m_way = 0, m_delay = 0; uint64_t m_line = 0;
-    uint64_t tag_ref[256][4]; bool v_ref[256][4]; int last_way[256] = {0}; long n_syn = 0;
+    uint64_t tag_ref[256][WAYS]; bool v_ref[256][WAYS]; int last_way[256] = {0}; long n_syn = 0;
     // the walk
     std::deque<uint64_t> wq; int w_delay = 0; std::map<uint64_t, int> w_id;
     // coverage
     long n_ld = 0, n_st = 0, n_fwd = 0, n_part = 0, n_alias = 0, n_rp = 0, n_miss = 0, n_stm = 0, n_walk = 0, n_two = 0, n_p1 = 0, n_p1first = 0, n_noov = 0, n_recq = 0,
-         n_exc = 0, n_rest = 0, n_fl = 0, n_evict = 0, n_cl = 0, n_written = 0, n_try = 0, n_full = 0, n_tflush = 0, n_remap = 0;
+         n_wway[WAYS] = {0}, n_exc = 0, n_rest = 0, n_fl = 0, n_evict = 0, n_cl = 0, n_written = 0, n_try = 0, n_full = 0, n_tflush = 0, n_remap = 0;
     uint64_t base_next[2] = {0, 0};
     Op zombie; bool have_z = false;
     Op zd; bool have_zd = false;          // a store's data in the cycle a recovery kills the store
@@ -527,6 +530,7 @@ struct Sim {
                 if (d.dirty_idx != set) err("written in the wrong set");
                 if (!v_ref[set][d.dirty_way] || tag_ref[set][d.dirty_way] != (o->pa >> 12)) err("written in a way without its line");
                 last_way[set] = d.dirty_way;
+                n_wway[d.dirty_way & (WAYS - 1)]++;
                 apply(o, drained);
                 delete o;
             }
@@ -576,13 +580,13 @@ struct Sim {
                 int set = mset();
                 uint64_t tag = m_line >> 8;
                 bool have = false;
-                for (int w = 0; w < 4; w++) if (v_ref[set][w] && tag_ref[set][w] == tag) have = true;
+                for (int w = 0; w < WAYS; w++) if (v_ref[set][w] && tag_ref[set][w] == tag) have = true;
                 if (have) { say_done(); n_cl++; break; }
                 // a synonym: the line in another set of its index, made invalid first
                 for (int x = 0; x < 4; x++) {
                     int ys = (x << 6) | (set & 63);
                     if (ys == set) continue;
-                    for (int w = 0; w < 4; w++)
+                    for (int w = 0; w < WAYS; w++)
                         if (v_ref[ys][w] && tag_ref[ys][w] == tag) {
                             d.tw_en = 1; d.tw_way = w; d.tw_set = ys; d.tw_tag = (uint32_t)tag;
                             v_ref[ys][w] = false; n_syn++;
@@ -624,7 +628,7 @@ struct Sim {
     }
     void victim() {
                 int set = mset();
-                m_way = rng() % 2 ? last_way[set] : (int)(rng() % 4);
+                m_way = rng() % 2 ? last_way[set] : (int)(rng() % WAYS);
                 if (v_ref[set][m_way]) n_evict++;
                 // (the tag stays, only the valid bit goes)
                 d.tw_en = 1; d.tw_way = m_way; d.tw_set = set; d.tw_tag = (uint32_t)tag_ref[set][m_way];
@@ -652,7 +656,12 @@ int main(int argc, char** argv)
                "written %ld; exceptions %ld, recoveries %ld, flushes %ld, queue full %ld; synonyms made invalid %ld\n",
                m ? "translated" : "physical", s.n_ld, s.n_st, s.n_fwd, s.n_part, s.n_alias, s.n_try, s.n_rp,
                s.n_miss, s.n_stm, s.n_cl, s.n_evict, s.n_walk, s.n_tflush, s.n_two, s.n_p1, s.n_p1first, s.n_noov, s.n_recq, s.n_written, s.n_exc, s.n_rest, s.n_fl, s.n_full, s.n_syn);
-        if (s.n_fwd < 1000 || s.n_part < 100 || s.n_rp < 1000 || s.n_miss < 100 || s.n_stm < 100 || s.n_evict < 100 || s.n_two < 1000 || s.n_p1first < 1000 || s.n_noov < 100 ||
+        printf("%s: stores written into each way:", m ? "translated" : "physical");
+        long wmin = s.n_wway[0];
+        for (int w = 0; w < WAYS; w++) { printf(" %ld", s.n_wway[w]); if (s.n_wway[w] < wmin) wmin = s.n_wway[w]; }
+        printf("\n");
+        if (wmin < 50 ||
+            s.n_fwd < 1000 || s.n_part < 100 || s.n_rp < 1000 || s.n_miss < 100 || s.n_stm < 100 || s.n_evict < 100 || s.n_two < 1000 || s.n_p1first < 1000 || s.n_noov < 100 ||
             s.n_written < 1000 || s.n_exc < 50 || s.n_dfirst < 1000 || s.n_dlate < 1000 || s.n_zd < 50 || s.n_sdw < 100 || s.n_pair_chk < 100 || s.n_rest < 100 || s.n_fl < 50 || (m == 1 && (s.n_syn < 100 || s.n_solo_bad < 50 || s.n_remap < 10 || s.n_walk < 100 || s.n_alias < 100 || s.n_tflush < 10))) {
             printf("the coverage is too low\n");
             bad++;

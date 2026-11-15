@@ -6,15 +6,16 @@
 // (no fill's word, no tag written in the cycle: st_ok), which also sets the
 // line dirty. The memory bus and the peripheral bus are the ports. Since step 1.7c
 // C2 (Plan/OOC.md 29.68): 256 sets, the set {vx, the physical 11:6}; each miss with
-// its vx.
+// its vx. Since step 1.7c C5 (Plan/OOC.md 29.72): WAYS ways, 8.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
 
 module DMISS_DC
     #(
-        parameter int PAW = 40,
-        parameter int TW  = PAW - 12
+        parameter int PAW  = 40,
+        parameter int TW   = PAW - 12,
+        parameter int WAYS = 8
     )
     (
         input  logic                  clk,
@@ -22,10 +23,10 @@ module DMISS_DC
 
         // the bench's loads: the arrays' two ports
         input  logic [1:0][10:0]      rd_addr,
-        output logic [1:0][3:0][63:0] rd_data,
+        output logic [1:0][WAYS-1:0][63:0] rd_data,
         // the bench's store into a way that holds its line
         input  logic                  st_en,
-        input  logic [1:0]            st_way,
+        input  logic [$clog2(WAYS)-1:0] st_way,
         input  logic [10:0]           st_addr,     // {set, word}
         input  logic [63:0]           st_data,
         input  logic [7:0]            st_strb,
@@ -42,7 +43,7 @@ module DMISS_DC
         output logic                  done_v,
         output logic [4:0]            done_id,
         output logic                  tw_en,
-        output logic [1:0]            tw_way,
+        output logic [$clog2(WAYS)-1:0] tw_way,
         output logic [7:0]            tw_set,
         output logic [TW:0]           tw_tag,
         output logic                  rf_en,
@@ -106,21 +107,21 @@ module DMISS_DC
         output logic                  m_axil_rready
     );
 
-    logic [1:0]  rf_way;
+    logic [$clog2(WAYS)-1:0] rf_way;
     logic [10:0] rf_addr;
     logic [63:0] rf_data;
     logic [10:0] vr_addr;
-    logic [1:0]  vr_way;
+    logic [$clog2(WAYS)-1:0] vr_way;
     logic [63:0] vr_data;
     /* verilator lint_off UNUSEDSIGNAL */
-    logic [1:0][3:0][TW:0] rd_tag;
-    logic [3:0][TW:0]      sb_tag;
+    logic [1:0][WAYS-1:0][TW:0] rd_tag;
+    logic [WAYS-1:0][TW:0]      sb_tag;
     /* verilator lint_on UNUSEDSIGNAL */
 
     // as OOO_LSU4: a fill's word first; a store not in a cycle with a tag written
     assign st_ok = st_en && !rf_en && !tw_en;
 
-    OOO_DCH2 #(.SETS(256), .WAYS(4), .WORDS(8), .TW(TW), .VR(1'b1)) u_dch
+    OOO_DCH2 #(.SETS(256), .WAYS(WAYS), .WORDS(8), .TW(TW), .VR(1'b1)) u_dch
         (.clk(clk), .rd_addr(rd_addr), .rd_data(rd_data), .rd_tag(rd_tag),
          .sb_set(8'd0), .sb_tag(sb_tag),
          .tw_en(tw_en), .tw_way(tw_way), .tw_set(tw_set), .tw_tag(tw_tag),
@@ -128,7 +129,7 @@ module DMISS_DC
          .dw_data(rf_en ? rf_data : st_data), .dw_strb(rf_en ? 8'hff : st_strb),
          .vr_addr(vr_addr), .vr_way(vr_way), .vr_data(vr_data));
 
-    OOO_DMISS2 #(.PAW(PAW), .IW(5)) u_dmiss
+    OOO_DMISS2 #(.PAW(PAW), .IW(5), .WAYS(WAYS)) u_dmiss
         (.clk(clk), .rst_n(rst_n),
          .miss_valid(miss_valid), .miss_line(miss_line), .miss_vx(miss_vx), .miss_id(miss_id),
          .st_miss_valid(st_miss_valid), .st_miss_line(st_miss_line), .st_miss_vx(st_miss_vx),
