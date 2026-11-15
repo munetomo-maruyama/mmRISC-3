@@ -10011,3 +10011,65 @@ Step 1.4 E1c is done. Next in STRATEGY is 1.8 (interrupts, MMU Sv39, FPU, debug,
 Reflect the current specification and structure of OOO_CPU (4 issues, OoO, caches, etc.) in the whole set of md documents.
 Then go on to Step 1.8.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I have reflected the current specification and structure of OOO_CPU in the whole set of documents, then planned step 1.8. Both are pushed to dev (2dcc8b7, ac26a2f), and Ref/ on the remote is still 0 files. No RTL of 1.8 is written yet.
+
+## The documents (English and Japanese both)
+
+- **Doc/UARCH.md:** a new **section A, "OOO_CPU as built (2026-11-15)"**, at its head, now the body of the specification. Sections 0 to 9 (the 2-wide G0 specification) stay as history, since the Plan documents cite them. Section A holds:
+  - a table of the specification;
+  - the pipeline with a diagram and each stage's work;
+  - the front end; rename, dispatch and issue; execution;
+  - the LSU and the D$;
+  - the memory system with a diagram (I$, D$, L2, MARB, buses);
+  - commit, exceptions, and what runs only at the ROB head;
+  - verification, and what comes next.
+- **README.md:** the status rewritten for 2026-11-15 (configuration, caches, ISA, CoreMark 8.244, 78,156 LUTs, WNS +0.470 ns).
+- **Doc/STRATEGY.md:**
+  - "where it stands" added to section 0;
+  - an "as built" column and a caches row added to the configuration table in 4.2;
+  - as-built notes added to 4.1 and 4.3.
+- **RTL/CPU/OOO/README.md:**
+  - a new preface, with the hierarchy inside OOO_CPU;
+  - each block marked "not in the core yet" corrected to where it stands (in the core / replaced / not used);
+  - the unit mutation count set to 1,315.
+- **RTL/CPU/CACHE/README.md:** OOO_CPU uses only CPU_L2; DCACHE was used until E2.
+- **Plan/README.md:** OOC.md's section 29 is the record of the steps.
+
+## The plan of step 1.8 (Plan/OOC 29.76)
+
+mmRISC-2's blocks are reused; the core's side of each is new.
+
+| Order | Steps | Content |
+|---|---|---|
+| 1 | I1, I2 | Interrupts: the CLINT and the PLIC in OOO_CPU; Spike is made to take the interrupt the core took, at the same commit |
+| 2 | V1, V2, P1, V3 | Sv39: the walker on OOO_LSU4's walk port, the DTLBs on; an ITLB at F1 and the I$'s tags made physical; PMP. Tests: riscv-tests -v- (about 158) and arch-test's Sv / PMP |
+| 3 | U1, U2 | The FPU: arch-test F (84) and D (116) |
+| 4 | K1 | The PMU's events |
+| 5 | L1 | Linux in lock-step to its prompt (**gate S1-C**) |
+| 6 | J1, J2 | Debug, after S1-C: Linux does not need it |
+
+At the end of 1.8 about 96.6k LUTs (72 %) are expected, about 102k (76 %) with LiteX: under the ceiling of 107.7k.
+
+## The FPU's structure (your decision, please)
+
+- **(a) At the ROB head, not renamed (recommended):**
+  - an FP register file beside mmRISC-2's FPU_PIPE, nothing more;
+  - about +10k LUTs: the smallest, and the quickest to get right;
+  - an FP operation costs about 10 to 15 cycles. CoreMark has no FP, and Linux uses FP for its context switch and little else.
+- **(b) Renamed:**
+  - FP code runs out of order;
+  - several k LUTs more than (a), and the longest work;
+  - (a) can be replaced by (b) after S1-C.
+
+If (a) is fine, I will go on and start with I1 (interrupts).
+<!-- /answer -->
+
+## 251. 2026-11-15 22:33:31 JST
+
+```text
+I want the FPU's performance up, as it may also be written in assembler for DSP work. I want the FPU designed as (b), renamed.
+```

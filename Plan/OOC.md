@@ -5889,3 +5889,36 @@ What `Doc/STRATEGY.md` 5 asks of 1.8: interrupts, the MMU (Sv39), the FPU, debug
 **The LUTs**: 78,156 now; about +0.6k (CLINT, PLIC), +2k (walker, ITLB), +2.5k (3 PMP checkers), +10k (FPU (a)), +0.3k (events), +3k (debug): **about 96.6k, 72 %**; with LiteX's SoC (5.3k, `Doc/STRATEGY.md` 3) about 102k, 76 %, under the ceiling of 107.7k. **The timing risks**: the ITLB's compare beside the I$'s tags at F1 (F1 has the arrays' data and the way), the PMP's compare on the LSU's M (the load's hit path), the FPU's results on port 0's write mux.
 
 **Next**: I1, once the author agrees with the plan and the FPU's structure.
+
+### 29.77 The FPU renamed: the author's choice, its outline and the order (2026-11-15)
+
+**The author's choice** (`Doc/PROMPT.md` 251): the FPU is to perform, as it may also run DSP work written in assembler (FIR, dot products, matrix products), so it is **(b), renamed**, not (a) at the ROB head. This replaces 29.76's U1 and U2.
+
+**What `FPU_PIPE` gives** (mmRISC-2, `RTL/CPU/CPU_FPU/FPU_PIPE`): one operation a cycle, **the same latency for every one (9)**, results in the order they went in, a tag carried along; P0 and P1 can be held and killed, from P2 on an operation runs to its end; divide and square root take the iterative engine at P1 and hold the unit (`in_ready` low) until their answer is out. A fixed latency is what an out-of-order wakeup wants: an FP µop's dependents can be woken at its issue + 9 with no cancel, as a load's are at + 2.
+
+**The outline** (to be settled in U0):
+- **FP in every slot**: FP instructions leave `OOO_RARE`'s rare classes (FP arithmetic, FP loads and stores, moves and conversions; the FP CSRs stay at the head), so 4 can be decoded, renamed and dispatched a cycle as integer ones.
+- **FP renaming**: an FP map of its own, 32 architectural registers onto **64 FP physical ones** (32 for what is in flight: the FPU's 9 stages and the loads ahead of them), a free list, a copy at each of the 12 checkpoints, busy bits; a µop has FP and integer sources and destinations by type.
+- **An FP issue queue** apart from `OOO_IQ3` (the integer queue keeps its size and timing): about 16 entries, 3 FP sources (FMA's rs3) or an integer one (fmv.d.x, fcvt from an integer), oldest first, 1 issue a cycle to the FPU (not while a divide or a square root holds it) and FP store data.
+- **An FP register file**: 64 × 64 bits, 4 reads (3 sources and a store's data), 3 writes (the FPU, the 2 load ports), LUT RAM banks with a live value table as `OOO_PRF`.
+- **Loads and stores**: an FP load is a load of `OOO_LSU4` with an FP destination (NaN-boxed for flw), written into the FP file and waking the FP queue at its issue + 2 (no cancel, replayed after its commit as an integer load); an FP store's data comes from the FP file into its SQ entry through the store-data port, beside the integer data of port 1.
+- **Results for integer registers** (fmv.x.*, compares, fclass, conversions to integers): through a write port of the integer file with a wakeup, as `OOO_MDUP`'s.
+- **Kills**: an FP µop past P1 is not taken back; its branch mask goes along beside the tag and a killed result is not written (nor woken).
+- **fcsr**: each FP µop's flags into its ROB entry, ORed into fflags at its commit, mstatus.FS made dirty there; the rounding mode read at issue (a write of frm / fcsr is a CSR µop at the head, which replays what follows it).
+
+**DSP kernels as the measure**: FIR, a dot product, a matrix product, a biquad, written in assembler (single and double), in lock-step; the goal is the FPU's rate, **one FMA a cycle** on code with enough independent chains (9 for the latency), with 2 FP loads a cycle from the 2 ports.
+
+**The LUTs**: about +18k for (b) against +10k for (a): `FPU_PIPE` 9.1k, the FP register file about 2.5k, the FP map with its checkpoints, free list and busy bits about 2.5k, the FP queue about 2.5k, the glue (decode in every slot, the LSU's FP data, the ROB's flags, the integer write) about 1.5k. **Step 1.8 at its end about 104.6k (78 %), about 110k with LiteX's SoC: above the ceiling of 107.7k by about 2k.** The ceiling is the Arty's experience at 50 MHz, not a measured limit here; what gives LUTs back if it must: the FP physical registers 48, the FP queue 12, one PMP checker shared, the debug's size (3k is an estimate). Measured at U3's Vivado run, before V and P add their part.
+
+**The order**, changed for that risk: **I, U, V, P, K, L, then J**: the FPU is the largest and decides whether the chip fits, so it is measured second; interrupts first, as they are small and other steps (K, L) need them.
+
+| Step | Work |
+|---|---|
+| I1, I2 | Interrupts, then at 20 ns (29.76) |
+| **U0** | The FPU's design: the FP queue's size, the FP file's size and ports, the paths between integer and FP, the store data's port; the DSP kernels on Spike (instructions, chains); Yosys estimates of the FP file, map and queue; the author confirms |
+| **U1** | The FP blocks alone with their benches and mutations: the FP map, the FP queue, the FP file, the FPU's wrapper (masks, the divide's wakeup) |
+| **U2** | In the core: decode in every slot, dispatch, FP loads and stores, the integer results, fcsr at commit; riscv-arch-test F (84), D (116), Zcd, riscv-tests rv64uf / ud -p-, the DSP kernels; CoreMark unchanged |
+| **U3** | `OOO_CPU` at 20 ns; the LUTs against the budget |
+| V1, V2, P1, V3 | Sv39 and PMP, then at 20 ns (29.76; the -v- tests then include rv64uf / ud) |
+| K1, L1 | The PMU's events; Linux to its prompt (gate S1-C) |
+| J1, J2 | Debug; at 20 ns |
