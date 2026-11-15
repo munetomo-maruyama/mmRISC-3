@@ -4,7 +4,7 @@
 // commit trace in lock-step with Spike at every instruction (bench.h).
 //
 //   tb_core [-seed <n>] [-miss <%>] [-dhit <%>] [-mlat <cycles>] [-exit <symbol>] [-max <cycles>] [-v]
-//           [-restores-out <file>] [-restores-ref <file> -restores-max <x>] [-replays-max <n>] <elf> ...
+//           [-restores-out <file>] [-restores-ref <file> -restores-max <x>] [-replays-max <n>] [-exit0] <elf> ...
 //
 // The D$: OOO_LSU3's, with DMissModel (ports.h) as its miss handler (step 1.3
 // E1; -dhit 100: fills at once, else up to 12 cycles late); Memory takes
@@ -25,7 +25,10 @@
 // than x times the restores of the reference file (+ 4): what only steers
 // the predictors costs mispredictions, not values (the bug injection);
 // -replays-max fails a run with more than n replays (loads issued past an
-// older store, Plan/CORE.md 5.9: what costs cycles, not values).
+// older store, Plan/CORE.md 5.9: what costs cycles, not values). -exit0 fails a
+// run whose exit code is not 0: a self-checking program (b4/irq, the Interrupts
+// tests) whose interrupt never came ends at its own bound, and Spike, made to
+// take only the core's interrupts, ends there too (step 1.8 I1).
 // The register file is set to 0 after reset, as Spike's registers start.
 // OOO_CPU (build_core.sh cpu, step 1.7 H3, Plan/OOC.md 29.58) has its own I$, the
 // arbiter and the L2: ICacheModel is not used (-miss means nothing), the memory
@@ -35,6 +38,11 @@
 // with random readies and stalls, for the tests. After the exit the memory is
 // compared with the program's, with the L2's dirty lines over it and the D$'s over
 // those (the D$ written back, step 1.7b W2, Plan/OOC.md 29.62).
+// Interrupts (step 1.8 I1, Plan/OOC.md 29.78): OOO_CPU has the CLINT and the PLIC (CPU_MMIO);
+// the PLIC's sources 1 to 31 are bits 1 to 31 of the word at IRQ_DEV, which a program writes
+// on the peripheral bus (AxiLite keeps it: it is outside Memory). OOO_CORE's interrupt lines are held at 0.
+// Lock-step makes Spike take the interrupt the core took (SIM/LOCKSTEP). The memory compared
+// after the exit is the RAM's (from 0x8000_0000): the devices' stores are not in Memory.
 //---------------------------------------------------------------------------
 #ifdef CPU_TOP                  // OOO_CPU: the core with OOO_DCAD and the D$ on the AXI models (build_core.sh cpu)
 #include "VOOO_CPU.h"
@@ -68,6 +76,7 @@ typedef VOOO_CORE___024root TopRoot;
 #include <vector>
 
 static const int VA = 39;
+static const uint64_t IRQ_DEV = 0x11000000;     // the bench's interrupt sources (OOO_CPU: the PLIC's 1 to 31)
 
 template <class W> static uint64_t wbits(const W& w, int lo, int n)
 {
@@ -84,6 +93,7 @@ struct Opts {
     uint64_t seed = 1; int miss = 8, dhit = 80, mlat = 0; std::string exit_sym; uint64_t max = 20000000; bool verbose = false;
     std::string rs_out; std::map<std::string, long> rs_ref; double rs_max = 0;
     long rp_max = -1;                   // -replays-max: fail a run with more replays
+    bool exit0 = false;                 // -exit0: fail a run whose exit code is not 0
 };
 static FILE* rs_out_f = nullptr;
 
@@ -212,6 +222,7 @@ static bool run(const Opts& o, const std::string& elf)
         d->m_axi4_rvalid = ax.rvalid; d->m_axi4_rdata = ax.rdata; d->m_axi4_rlast = ax.rlast; d->m_axi4_rresp = 0;
         d->m_axi4_bvalid = ax.bvalid; d->m_axi4_bresp = 0;
         al.drive();
+        d->irq_src = (uint32_t)(al.dev(IRQ_DEV) >> 1) & 0x7fffffffu;
         d->m_axil_arready = al.arready; d->m_axil_awready = al.awready; d->m_axil_wready = al.wready;
         d->m_axil_rvalid = al.rvalid; d->m_axil_rdata = al.rdata; d->m_axil_rresp = 0;
         d->m_axil_bvalid = al.bvalid; d->m_axil_bresp = 0;
@@ -225,6 +236,7 @@ static bool run(const Opts& o, const std::string& elf)
             d->dc_uc_done = uc.done(); d->dc_uc_rdata = uc.rdata();
             d->dc_vr_addr = 0; d->dc_vr_way = 0;        // (the model fills from Memory, which has every store)
         }
+        d->irq_m_soft = 0; d->irq_m_timer = 0; d->irq_m_ext = 0; d->irq_s_ext = 0; d->mtime = 0;
         d->fl_take = 1; d->fl_done = flq_q;
 #endif
         d->eval();
@@ -374,6 +386,7 @@ static bool run(const Opts& o, const std::string& elf)
         std::sort(pgs.begin(), pgs.end());
         pgs.erase(std::unique(pgs.begin(), pgs.end()), pgs.end());
         for (uint64_t pg : pgs) {
+            if (pg < 0x80000000ull) continue;           // (the devices: not memory)
             for (uint64_t w = pg; w < pg + Memory::PAGE; w += 8) {
                 if ((w >> 6) == th || (w >> 6) == fh) continue;
                 uint64_t x = b.mem().read64(w), y = b.arch().read64(w);
@@ -408,6 +421,10 @@ static bool run(const Opts& o, const std::string& elf)
     }
     d->final();                                         // (final blocks: a build with counters prints them)
     bool ok = b.passed() && !res_bad;
+    if (ok && o.exit0 && b.exit_code() != 0) {
+        std::printf("    exit code %d, not 0\n", b.exit_code());
+        ok = false;
+    }
     if (ok && o.rp_max >= 0 && replays > o.rp_max) {
         std::printf("    %ld replays, more than %ld\n", replays, o.rp_max);
         ok = false;
@@ -436,6 +453,7 @@ int main(int argc, char** argv)
         else if (a == "-exit" && i + 1 < argc) o.exit_sym = argv[++i];
         else if (a == "-max" && i + 1 < argc) o.max = strtoull(argv[++i], nullptr, 0);
         else if (a == "-v") o.verbose = true;
+        else if (a == "-exit0") o.exit0 = true;
         else if (a == "-restores-out" && i + 1 < argc) o.rs_out = argv[++i];
         else if (a == "-restores-max" && i + 1 < argc) o.rs_max = atof(argv[++i]);
         else if (a == "-replays-max" && i + 1 < argc) o.rp_max = atol(argv[++i]);

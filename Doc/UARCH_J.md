@@ -33,7 +33,8 @@ Spikeとロックステップで動き、単体で20 nsを満たす。ブロッ�
 | L1 D$ | **128 KB**、256セット × 8ウェイ × 64バイト、セットは仮想アドレスの13:6、物理タグ(シノニムはミスで解決)、**ライトバック**、ロードポート2(ロードユース2)、FENCE.Iはダーティなラインをすべて書き出す |
 | L2 | **512 KB**、2,048セット × 4ウェイ × 64バイト、ライトバック、疑似LRU、非インクルーシブ(mmRISC-2の`CPU_L2`) |
 | バス | L2のAXI4メモリバス。キャッシュしないもの([0x8000_0000, 0x1_0000_0000)の外)はD$のAXI4-Liteペリフェラルバス |
-| まだないもの | 割り込み源(CLINT、PLIC)、アドレス変換(DTLBはあってすべて許す。PTWとITLBはない)、PMPの検査(CSRはある)、FPU、デバッグ: **手順1.8** |
+| 割り込み | `OOO_CPU`のペリフェラルバスにmmRISC-2のCLINT(0x0200_0000)とPLIC(0x0C00_0000、ソース31本、MとSのコンテキスト)(`CPU_MMIO`、手順1.8 I1、`Plan/OOC_J.md` 29.78)。mtimeは500 kHz |
+| まだないもの | アドレス変換(DTLBはあってすべて許す。PTWとITLBはない)、PMPの検査(CSRはある)、FPU、デバッグ: **手順1.8** |
 | CoreMark/MHz | **8.244**(`-O2`、GCC 14、Zba / Zbb / Zbs / Zbc、計測区間、`OOO_CPU`で実機のメモリのレイテンシ)。GCC 13で7.835(`SIM/CORE/results/coremark.txt`) |
 | 資源 | **LUT 78,156**(133,800の58 %。うちLUT RAM 13,902)、フリップフロップ19,316、**ブロックRAMタイル284.5**(365のうち)、DSP 26 |
 | タイミング | 20 nsで**WNS +0.470 ns、ホールド+0.028 ns**(`Plan/OOC_J.md` 29.75) |
@@ -138,7 +139,7 @@ flowchart LR
   IC -- フィル --> MARB[OOO_MARB]
   DMISS -- フィル、ライン書き込み --> MARB
   MARB -- AXI4 --> L2[CPU_L2 512 KB] -- AXI4 --> MEM[(メモリ)]
-  DMISS -- AXI4-Lite --> DEV[(デバイス)]
+  DMISS -- AXI4-Lite --> MMIO[CPU_MMIO: CLINT、PLIC] -- AXI4-Lite --> DEV[(デバイス)]
 ```
 
 - **`OOO_ICACHE`**: 256セット × 8ウェイ、{valid、tag}はLUT RAM、データはブロックRAM(データ32タイル)、答えはF2で
@@ -154,7 +155,7 @@ flowchart LR
 - **ROB**(`OOO_ROB`): 4バンクに48エントリ、1サイクルに4入れて4コミット、完了ポート12。そのサイクルの最古の予測外れが復元
   する。トラップは先頭で。印付きのロードはコミットの後にリプレイする。
 - **`OOO_TRAP`**: 先頭での例外(最古のもののmepc / mcause / mtval)、ベクタ、MRETのリプレイ。割り込みはµopの境界で、発行
-  済みの非投機µopの下では取らない(割り込み源はまだつないでいない)。
+  済みの非投機µopの下では取らない。手順1.8 I1からCLINTとPLICの線。
 - **ROBの先頭でだけ**(非投機): CSR µop、FENCE、FENCE.I、SFENCE.VMA、MRET / SRET、WFI、デバイスからのロード、AMO / LR /
   SC。ECALL、EBREAK、不正命令はデコードでトラップする。そうしたµopの発行からコミットまでは割り込みを取らない(`ns_busy`)。
 
@@ -164,13 +165,13 @@ flowchart LR
   (riscv-tests、コンソール)、B4(riscv-arch-testの209本と、`illegal.S`、`dcrace.S`、`atomic.S`)、riscv-testsの-p-(146本)、
   CoreMark(3ビルド)。D$モデルの`OOO_CORE`と、本物のキャッシュの`OOO_CPU`で(`run_core.sh`の12回、`run_coremark.sh`)。
 - **ユニットベンチ**(`SIM/OOO_UNIT`): ブロックごとに参照と比べる。L2と`OOO_MARB`は`SIM/L2`。
-- **バグ注入**: ユニットベンチ(`SIM/OOO_UNIT/mutate.py`: ブロック全体で1,315個。キャンペーンごとに全行を読む。最後はE1cで
+- **バグ注入**: ユニットベンチ(`SIM/OOO_UNIT/mutate.py`: ブロック全体で1,318個。キャンペーンごとに全行を読む。最後はE1cで
   変えたブロックで194個中194個)、コア(`SIM/CORE/mutate_core.py`: 174個中166個、検出しない8個は`Plan/OOC_J.md`に挙げて
   論じた)、フロントエンド(52個中52個)、L2(51個中51個)。
 
 ### A.10 次に来るもの
 
-手順1.8(`Doc/STRATEGY_J.md` 5): 割り込み(CLINT、PLIC)、MMU(Sv39: PTW、ITLB、DTLBを有効に)、PMPの検査、FPU(mmRISC-2の)、
+手順1.8(`Doc/STRATEGY_J.md` 5。割り込みはI1で済み): MMU(Sv39: PTW、ITLB、DTLBを有効に)、PMPの検査、FPU(mmRISC-2の)、
 デバッグ、PMUのイベント。F / D / Sのarchテスト。シミュレーションでLinuxのプロンプトまで(関門S1-C)。その次は手順2、LiteXで
 ボードへ。
 

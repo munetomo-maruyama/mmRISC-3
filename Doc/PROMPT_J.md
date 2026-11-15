@@ -10282,3 +10282,9 @@ mmRISC-2 のブロックを流用し、コアの側をそれぞれ新しく作�
 ```text
 FPUは、DSP用途としてアセンブラで記述するケースも考慮して性能は上げておきたい。FPUは(b) renamedで設計したい。
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+No placeholders are left. Waiting for run_core to finish before committing.
+<!-- /answer -->

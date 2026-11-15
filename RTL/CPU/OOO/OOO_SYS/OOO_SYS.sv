@@ -25,8 +25,8 @@
 //               sepc and updates mstatus and the level), completes marked
 //               for replay
 // Privilege (CORE_CSR: the level, mstatus.TW / TSR / TVM): MRET below M,
-// SRET in U or in S with TSR, SFENCE.VMA in U or in S with TVM, WFI below M
-// with TW are illegal instructions: they complete with that exception and
+// SRET in U or in S with TSR, SFENCE.VMA in U or in S with TVM, WFI in U (S is
+// implemented: Spike's choice, since step 1.8 I1) or in S with TW are illegal instructions: they complete with that exception and
 // the instruction bits as tval (tv_*), doing nothing.
 //   WFI         completes when an interrupt is pending and enabled in mie
 //               (wfi_wake, whatever mstatus.MIE says); the interrupt is
@@ -94,7 +94,7 @@ module OOO_SYS
             OP_MRET:   ill = priv != PRIV_M;
             OP_SRET:   ill = priv == PRIV_U || (priv == PRIV_S && tsr);
             OP_SFENCE: ill = priv == PRIV_U || (priv == PRIV_S && tvm);
-            OP_WFI:    ill = priv != PRIV_M && tw;
+            OP_WFI:    ill = priv == PRIV_U || (priv == PRIV_S && tw);   // (U: S is implemented; Spike's choice, step 1.8 I1)
             default:   ill = 1'b0;
         endcase
         fl_req    = st == S_DFL;

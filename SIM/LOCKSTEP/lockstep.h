@@ -32,13 +32,25 @@
 //   - The first half of a fused pair whose result is not written (one write
 //     per pair, OOO_FUSE W1) sets rd_skip: only its pc and instruction are
 //     compared.
-// Interrupts are traps with bit 63 of the cause (the DUT's tr_int); the
-// bench has no interrupt source in Phase 1, and no MMIO with side effects.
+// Interrupts are traps with bit 63 of the cause (the DUT's tr_int). Since
+// step 1.8 I1 (Plan/OOC.md 29.78) the reference takes the interrupt the DUT
+// took, at that record: Spike's mip is set to that one bit for the step (and
+// put back after it); at every other step its pending interrupts are hidden
+// (mip at SSIP alone for the step, or mie at 0 for a CSR instruction on mip /
+// sip), so it never takes one from a device the DUT did not. SSIP is set and
+// cleared by CSR writes alone, the same in both, so the reference takes it
+// where it would and a DUT taking it later fails. Reads of mip / sip take the DUT's value. A
+// WFI retires and the reference goes on (the DUT's ends when an interrupt is
+// pending). The devices (LockstepCfg::dev: the CLINT, the PLIC, the bench's
+// interrupt sources) answer the reference's loads with the DUT's value and
+// take its stores; outside them and the RAM an access faults, as before.
 //---------------------------------------------------------------------------
 #pragma once
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 struct Commit {
     uint64_t pc = 0;
@@ -70,6 +82,11 @@ struct LockstepCfg {
     uint64_t    mcountinhibit = 0x1d;          // its bits (CY, IR, HPM3-4; Spike has none):
                                                //  kept here, IR stops minstret
     uint64_t    medeleg_zero = 1ull << 18;     // read 0 (software check: no Zicfilp / Zicfiss)
+    // the devices on the DUT's peripheral bus (base, size): a load takes the DUT's value
+    std::vector<std::pair<uint64_t, uint64_t>> dev = {
+        {0x02000000ull, 0x10000ull},        // the CLINT (OOO_CPU's CPU_MMIO)
+        {0x0c000000ull, 0x400000ull},       // the PLIC
+        {0x11000000ull, 0x1000ull}};        // the bench's interrupt sources (SIM/CORE)
     bool        tvec_mode0 = true;             // mtvec / stvec: a reserved mode is written as
                                                //  direct (Spike: bit 1 cleared)
 };

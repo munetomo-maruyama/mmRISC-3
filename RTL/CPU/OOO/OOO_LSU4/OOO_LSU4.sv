@@ -244,6 +244,12 @@ module OOO_LSU4
     typedef logic [SW:0] sptr_t;
     typedef logic [LW:0] lptr_t;
 
+    // the first byte a store's mask writes (its address's low 3 bits, for a device)
+    function automatic logic [2:0] low_byte(input logic [7:0] m);
+        for (int k = 0; k < 8; k++) if (m[k]) return 3'(k);
+        return 3'd0;
+    endfunction
+
     function automatic logic uncached(input logic [PAW-1:0] pa);
         return pa < CBASE || pa >= CTOP || (uc_line_v && pa[PAW-1:6] == uc_line);
     endfunction
@@ -1004,7 +1010,9 @@ module OOO_LSU4
                     if (uc_done && uc_is_ld && uc_lq == LW'(e) && luc[e]) lucd[e] <= 1'b1;
                     for (int p = 0; p < 2; p++)
                         if (w_lives[p] && w_lqs[p] == LW'(e)) lwait[e] <= !(w_oks[p] || w_excs[p]);
-                    if (ev) lretry[e] <= 1'b1;
+                    // a load that waits for a device is to be tried as it is: cand holds it back until ugo (the head,
+                    // the SQ drained), which no event may announce (the head with nothing else in flight: step 1.8 I1)
+                    if (ev || (w_ucs[0] && w_lqs[0] == LW'(e)) || (w_ucs[1] && w_lqs[1] == LW'(e))) lretry[e] <= 1'b1;
                     else if (launch_l && r_id[LW-1:0] == LW'(e)) lretry[e] <= 1'b0;
                 end
             end
@@ -1086,7 +1094,7 @@ module OOO_LSU4
         wt_addr   = {d2_line, d2_a[2:0], 3'b000};
         wt_data   = d2_d;
         wt_mask   = d2_m;
-        st_uc_a   = {d2_line, d2_a[2:0], 3'b000};
+        st_uc_a   = {d2_line, d2_a[2:0], low_byte(d2_m)};     // its first byte (a device chooses a register by it, step 1.8 I1)
         st_uc_d   = d2_d;
         st_uc_m   = d2_m;
         dirty_way = d2_way;

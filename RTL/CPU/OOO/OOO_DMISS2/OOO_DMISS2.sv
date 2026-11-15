@@ -412,14 +412,15 @@ module OOO_DMISS2
     assign m_axi4_arvalid = st == S_AR;
     assign m_axi4_rready  = st == S_R;
 
-    // the device
-    assign m_axil_awaddr  = {u_a[PAW-1:3], 3'b000};
+    // the device: the access's own byte address, its bytes in their lanes of the word (a 32-bit
+    // register of the PLIC is chosen by bit 2, not by the strobes: step 1.8 I1, Plan/OOC.md 29.78)
+    assign m_axil_awaddr  = u_a;
     assign m_axil_awvalid = st == S_UAW;
     assign m_axil_wdata   = u_d;
     assign m_axil_wstrb   = u_m;
     assign m_axil_wvalid  = st == S_UW;
     assign m_axil_bready  = st == S_UB;
-    assign m_axil_araddr  = {u_a[PAW-1:3], 3'b000};
+    assign m_axil_araddr  = u_a;
     assign m_axil_arvalid = st == S_UAR;
     assign m_axil_rready  = st == S_UR;
     assign uc_done  = (st == S_UB && m_axil_bvalid) || (st == S_UR && m_axil_rvalid);

@@ -33,7 +33,8 @@
 //     next line in it);
 //   - after FENCE.I, the whole memory is the program's.
 // And each line answered is in the set it was asked for in (its vx).
-// The peripheral bus is a device memory of its own (reads checked).
+// The peripheral bus is a device memory of its own (reads checked; since step 1.8 I1 at
+// byte addresses, each on the bus as asked: a device may choose a register by its low bits).
 //---------------------------------------------------------------------------
 #include "VDMISS_DC.h"
 #include "VDMISS_DC___024root.h"
@@ -110,7 +111,7 @@ int main(int argc, char** argv)
     std::map<int, std::set<uint64_t>> asked;            // by id: {line, vx}
     std::set<uint64_t> pend;                            // every {line, vx} asked for (loads' and stores'; kept: an ask
                                                         // made while its line is filled is answered again, at once)
-    bool uc_wait = false, uc_rd = false; uint64_t uc_exp = 0;
+    bool uc_wait = false, uc_rd = false; uint64_t uc_exp = 0, uc_a = 0;     // (uc_a: the address asked, to be the bus's)
     int fmode = 0; long f_at = 4000, f_quiet = 0;      // FENCE.I: 1 quiet, 2 asked, 3 taken
     int last_st_w = -1, last_st_s = -1;                 // the store of the cycle before (the race with S_INV)
 
@@ -158,10 +159,10 @@ int main(int argc, char** argv)
         }
         d.rd_addr = ra;
         if (!quiet && !uc_wait && rng() % 200 == 0) {
-            uint64_t a = (0x100000ull + (rng() % 16) * 8);
+            uint64_t k = rng() % 16, a = 0x100000ull + k * 8 + ((k * 5) & 7);     // (a byte's address, from the word's number: the bus takes it as it is, step 1.8 I1)
             bool we = rng() & 1;
             d.uc_req = 1; d.uc_we = we; d.uc_addr = a; d.uc_wdata = rng(); d.uc_wmask = (uint8_t)(rng() | 1);
-            uc_wait = true; uc_rd = !we;
+            uc_wait = true; uc_rd = !we; uc_a = a;
             if (we) { uint64_t o = dev.count(a >> 3) ? dev[a >> 3] : 0, x = d.uc_wdata; for (int b = 0; b < 8; b++) if (d.uc_wmask >> b & 1) o = (o & ~(0xffull << 8 * b)) | (x & (0xffull << 8 * b)); dev[a >> 3] = o; n_ucw++; }
             else { uc_exp = dev.count(a >> 3) ? dev[a >> 3] : 0; n_ucr++; }
         }
@@ -231,10 +232,10 @@ int main(int argc, char** argv)
         if (bh) b_pend = false;
         if (d.m_axi4_bvalid && !d.m_axi4_bready) err("B not taken");
         // the AXI4-Lite handshakes
-        if (d.m_axil_awvalid && d.m_axil_awready && !uaw) { uaw = true; ua = d.m_axil_awaddr; }
+        if (d.m_axil_awvalid && d.m_axil_awready && !uaw) { uaw = true; ua = d.m_axil_awaddr; if (ua != uc_a) err("a device write's address", ua); }
         if (d.m_axil_wvalid && d.m_axil_wready) { uw = true; uwd = d.m_axil_wdata; uwm = d.m_axil_wstrb; uaw = false; ub = true; }
         if (d.m_axil_bvalid && d.m_axil_bready) ub = false;
-        if (d.m_axil_arvalid && d.m_axil_arready && !uar) { uar = true; uaa = d.m_axil_araddr; }
+        if (d.m_axil_arvalid && d.m_axil_arready && !uar) { uar = true; uaa = d.m_axil_araddr; if (uaa != uc_a) err("a device read's address", uaa); }
         if (d.m_axil_rvalid && d.m_axil_rready) uar = false;
         (void)uw; (void)uwd; (void)uwm; (void)ua; (void)ur;
         if (d.uc_done) {

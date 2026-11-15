@@ -37,7 +37,8 @@ core with its caches, in lock-step with Spike, meeting 20 ns out of context. The
 | L1 D$ | **128 KB**, 256 sets × 8 ways × 64 bytes, set by the virtual address 13:6, physical tags (synonyms resolved at the miss), **write back**, 2 load ports (load-use 2), FENCE.I writes every dirty line out |
 | L2 | **512 KB**, 2,048 sets × 4 ways × 64 bytes, write back, pseudo LRU, non-inclusive (mmRISC-2's `CPU_L2`) |
 | Buses | the L2's AXI4 memory bus; the D$'s AXI4-Lite peripheral bus for what is not cacheable (outside [0x8000_0000, 0x1_0000_0000)) |
-| Not yet | interrupt sources (CLINT, PLIC), translation (the DTLBs are in place and grant all; no PTW, no ITLB), PMP checks (the CSRs exist), FPU, debug: **step 1.8** |
+| Interrupts | mmRISC-2's CLINT (0x0200_0000) and PLIC (0x0C00_0000, 31 sources, M and S contexts) on the peripheral bus in `OOO_CPU` (`CPU_MMIO`, step 1.8 I1, `Plan/OOC.md` 29.78); mtime at 500 kHz |
+| Not yet | translation (the DTLBs are in place and grant all; no PTW, no ITLB), PMP checks (the CSRs exist), FPU, debug: **step 1.8** |
 | CoreMark/MHz | **8.244** (`-O2`, GCC 14, Zba / Zbb / Zbs / Zbc, the timed part on `OOO_CPU` with the board's memory latency); 7.835 with GCC 13 (`SIM/CORE/results/coremark.txt`) |
 | Resources | **78,156 LUTs** (58 % of 133,800; 13,902 of them LUT RAM), 19,316 flip-flops, **284.5 block RAM tiles** (of 365), 26 DSP |
 | Timing | **WNS +0.470 ns, hold +0.028 ns** at 20 ns (`Plan/OOC.md` 29.75) |
@@ -145,7 +146,7 @@ flowchart LR
   IC -- fills --> MARB[OOO_MARB]
   DMISS -- fills, line writes --> MARB
   MARB -- AXI4 --> L2[CPU_L2 512 KB] -- AXI4 --> MEM[(memory)]
-  DMISS -- AXI4-Lite --> DEV[(devices)]
+  DMISS -- AXI4-Lite --> MMIO[CPU_MMIO: CLINT, PLIC] -- AXI4-Lite --> DEV[(devices)]
 ```
 
 - **`OOO_ICACHE`**: 256 sets × 8 ways, {valid, tag} in LUT RAM, the data in block RAM (32 data tiles), the answer at
@@ -161,7 +162,7 @@ flowchart LR
 - **The ROB** (`OOO_ROB`): 48 entries in 4 banks, 4 in and 4 committed a cycle, 12 completion ports; the oldest
   misprediction of a cycle restores; traps at the head; a marked load replays after its commit.
 - **`OOO_TRAP`**: exceptions at the head (mepc / mcause / mtval of the oldest), the vector, MRET's replay; interrupts
-  at a µop boundary, not under an issued non-speculative µop (no source is connected yet).
+  at a µop boundary, not under an issued non-speculative µop; the CLINT's and the PLIC's lines since step 1.8 I1.
 - **At the ROB head only** (non-speculative): CSR µops, FENCE, FENCE.I, SFENCE.VMA, MRET / SRET, WFI, loads from
   devices, AMO / LR / SC. ECALL, EBREAK and illegal instructions trap at decode. No interrupt is taken from such a µop's
   issue to its commit (`ns_busy`).
@@ -173,13 +174,13 @@ flowchart LR
   `atomic.S`), riscv-tests' -p- (146), CoreMark (3 builds), on `OOO_CORE` with a D$ model and on `OOO_CPU` with the real
   caches (`run_core.sh`, 12 runs; `run_coremark.sh`).
 - **Unit benches** (`SIM/OOO_UNIT`): each block against a reference; `SIM/L2` for the L2 and `OOO_MARB`.
-- **Bug injection**: the unit benches (`SIM/OOO_UNIT/mutate.py`: 1,315 mutations over the blocks; each campaign's lines
+- **Bug injection**: the unit benches (`SIM/OOO_UNIT/mutate.py`: 1,318 mutations over the blocks; each campaign's lines
   read, the last, on the blocks E1c changed, 194 of 194), the core (`SIM/CORE/mutate_core.py`: 166 of 174, the 8 undetected listed and argued in `Plan/OOC.md`), the
   front end (52 of 52), the L2 (51 of 51).
 
 ### A.10 What comes next
 
-Step 1.8 (`Doc/STRATEGY.md` 5): interrupts (CLINT, PLIC), the MMU (Sv39: the PTW, an ITLB, the DTLBs on), PMP checks,
+Step 1.8 (`Doc/STRATEGY.md` 5; interrupts done, I1): the MMU (Sv39: the PTW, an ITLB, the DTLBs on), PMP checks,
 the FPU (mmRISC-2's), debug, the PMU's events; the arch tests of F / D / S; Linux to its prompt in simulation (gate
 S1-C). Then step 2, the board with LiteX.
 

@@ -14,8 +14,11 @@
 # to their HTIF exit) on OOO_CORE with the D$ model, with
 # a budget of restores (-restores-max: a fault in what only steers the
 # predictors costs mispredictions, not values); then on B4's (b4/work:
-# riscv-arch-test, 209 since E1c, illegal.S, dcrace.S, atomic.S;
-# riscv-tests' -p- programs as run_core.sh runs them, 146 with rv64ua), last on CoreMark (g14 sf + -flto; at most 2,000 replays: about
+# riscv-arch-test, 209 since E1c, illegal.S, dcrace.S, atomic.S, devld.S;
+# riscv-tests' -p- programs as run_core.sh runs them, 146 with rv64ua),
+# on OOO_CPU then the interrupts' programs (b4/irq, the Interrupts groups,
+# each to exit 0: -exit0, step 1.8 I1, Plan/OOC.md 29.78; a mutation with a
+# 5th field CPU runs on OOO_CPU, as OOO_DMISS2's, OOO_CPU's and OOO_ICACHE's do), last on CoreMark (g14 sf + -flto; at most 2,000 replays: about
 # 250 now, 21,000 with loads issued past older stores). DETECTED when a run
 # fails.
 # Every line of the result is to be read: grep NOT.
@@ -76,7 +79,10 @@ B3 = os.path.join(HERE, 'b3/work')
 HPROGS = [os.path.join(B3, t + '.elf') for t in ('rv64ui-ld_st', 'rv64ui-st_ld', 'rv64ui-lb', 'rv64ui-lhu', 'rv64ui-lwu', 'rv64ui-sb',
                                                  'rv64ui-sh', 'rv64ui-sd', 'rv64ui-jalr', 'rv64uc-rvc', 'htif')]
 RMAX = '1.30'      # restores at most 1.3 times the clean run's, program by program (results/core_restores.txt)
-APROGS = sorted(glob.glob(os.path.join(HERE, 'b4/work/*/*.elf')))
+APROGS = sorted(p for p in glob.glob(os.path.join(HERE, 'b4/work/*/*.elf'))
+                if not __import__('re').search(r'/(irq|Interrupts[A-Za-z]*)/', p))
+# the interrupts (step 1.8 I1, Plan/OOC.md 29.78): OOO_CPU's CLINT and PLIC, so on OOO_CPU alone, each to exit 0
+IPROGS = sorted(glob.glob(os.path.join(HERE, 'b4/work/irq/*.elf')) + glob.glob(os.path.join(HERE, 'b4/work/InterruptsS*/*.elf')))
 CM = [os.path.join(HERE, '../../Plan/trace/work/g14-sflto-zbsc.elf')]     # CoreMark, the last stage
 RV = os.environ.get('RVTESTS', os.path.join(HERE, '../../../mmRISC-2/SIM/SIM_CORE/rvtests'))
 RPROGS = sorted(os.path.join(RV, t) for t in os.listdir(RV)
@@ -91,6 +97,8 @@ CP = 'OOO_CPU/OOO_CPU.sv'       # (the same, step 1.7 H3)
 IC = 'OOO_ICACHE/OOO_ICACHE.sv' # (the same)
 DE = 'OOO_DEC/OOO_DEC.sv'
 IQ = 'OOO_IQ3/OOO_IQ3.sv'
+SY = 'OOO_SYS/OOO_SYS.sv'
+CPU = True                      # a 5th field: the mutation runs on OOO_CPU (with the interrupts' programs)
 MUT = [
     # D2
     (C, "hd = g_valid[0] ? 2'd0 : g_valid[1] ? 2'd1 : g_valid[2] ? 2'd2 : 2'd3;", "hd = 2'd0;", 'D2: the group not rotated'),
@@ -289,6 +297,19 @@ MUT = [
     (L3, "assign cmp_ld_valid[p] = w_live && w_ld && (w_ok || w_exc) && !w_amo;", "assign cmp_ld_valid[p] = w_live && w_ld && (w_ok || w_exc);", 'E1c: an AMO completes with its load part'),
     (L3, "at_go        = at_ph == A_CMP && (!at_sc || at_exc || sdv[at_sq])", "at_go        = at_ph == A_CMP && (!at_sc || at_exc)", 'E1c: an SC completes before its data is there'),
     (L3, "assign at_uc  = m_at != 4'd0 && m_uc;", "assign at_uc  = 1'b0;", 'E1c: an atomic outside the memory goes on'),
+    # step 1.8 I1 (Plan/OOC.md 29.78): the interrupts, on OOO_CPU (its CLINT and PLIC) with b4/irq and the Interrupts tests
+    (C, ".irq_m_timer(irq_m_timer)", ".irq_m_timer(1'b0)", 'I1: no machine timer interrupt', CPU),
+    (C, ".irq_m_soft(irq_m_soft)", ".irq_m_soft(1'b0)", 'I1: no machine software interrupt', CPU),
+    (C, ".irq_m_ext(irq_m_ext)", ".irq_m_ext(1'b0)", 'I1: no machine external interrupt', CPU),
+    (C, ".irq_s_ext(irq_s_ext)", ".irq_s_ext(1'b0)", 'I1: no supervisor external interrupt', CPU),
+    (C, ".mtime(mtime),", ".mtime(64'd0),", 'I1: the CSRs\' time at 0 (Sstc compares with it)', CPU),
+    (CP, ".ext_irq({irq_src, 1'b0})", ".ext_irq({irq_src[30:1], 2'b0})", "I1: the PLIC's sources one off"),
+    (CP, ".irq_m_ext(irq_m_ext), .irq_s_ext(irq_s_ext),\n         .mtime(mtime));", ".irq_m_ext(irq_s_ext), .irq_s_ext(irq_m_ext),\n         .mtime(mtime));", "I1: the PLIC's contexts swapped"),
+    (DM, "assign m_axil_awaddr  = u_a;", "assign m_axil_awaddr  = {u_a[PAW-1:3], 3'b000};", "I1: a device's write at its word's address (the PLIC's register at +4 missed)"),
+    (DM, "assign m_axil_araddr  = u_a;", "assign m_axil_araddr  = {u_a[PAW-1:3], 3'b000};", "I1: a device's read at its word's address (the claim at +4 missed)"),
+    (L3, "low_byte(d2_m)};", "3'b000};", "I1: a store to a device at its word's address", CPU),
+    (L3, "if (ev || (w_ucs[0] && w_lqs[0] == LW'(e)) || (w_ucs[1] && w_lqs[1] == LW'(e))) lretry[e] <= 1'b1;", "if (ev) lretry[e] <= 1'b1;", 'I1: a load for a device that waits is tried only at an event (devld.S hangs)'),
+    (SY, "OP_WFI:    ill = priv == PRIV_U || (priv == PRIV_S && tw);", "OP_WFI:    ill = priv != PRIV_M && tw;", 'I1: WFI in U mode waits (Spike: illegal)', CPU),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),
@@ -313,7 +334,7 @@ if os.environ.get('B5A'):
 
 
 def run(i, m):
-    f, old, new, desc = m
+    f, old, new, desc = m[:4]
     src = open(os.path.join(OOO, f)).read()
     if src.count(old) != 1:
         return i, 'NOT APPLIED', desc
@@ -321,7 +342,7 @@ def run(i, m):
     shutil.rmtree(d, ignore_errors=True)
     shutil.copytree(OOO, os.path.join(d, 'OOO'))
     open(os.path.join(d, 'OOO', f), 'w').write(src.replace(old, new))
-    cpu = f in (DM, CP, IC)             # OOO_DMISS2, OOO_CPU's wiring and OOO_ICACHE run in OOO_CPU only,
+    cpu = f in (DM, CP, IC) or len(m) > 4   # OOO_DMISS2, OOO_CPU's wiring and OOO_ICACHE run in OOO_CPU only,
                                         # with an L2 of 4 KB (step 1.7 H3, Plan/OOC.md 29.58): most accesses
                                         # miss it, so memory's stalls reach the D$ and its dirty lines go to memory
     env = dict(os.environ, OOO_RTL=os.path.join(d, 'OOO'), OBJ=os.path.join(d, 'obj'), L2KB='4' if cpu else '256')
@@ -337,6 +358,9 @@ def run(i, m):
             det = subprocess.run([t, '+verilator+rand+reset+2'] + HPROGS, capture_output=True, timeout=900).returncode != 0
         if not det:
             det = subprocess.run([t, '+verilator+rand+reset+2', '-max', '3000000'] + APROGS + RPROGS,
+                                 capture_output=True, timeout=1800).returncode != 0
+        if not det and cpu:
+            det = subprocess.run([t, '+verilator+rand+reset+2', '-max', '3000000', '-exit0'] + IPROGS,
                                  capture_output=True, timeout=1800).returncode != 0
         if not det:
             det = subprocess.run([t, '+verilator+rand+reset+2', '-max', '100000000', '-miss', '0'] + ([] if cpu else ['-dhit', '100']) +

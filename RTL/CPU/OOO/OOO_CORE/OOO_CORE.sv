@@ -38,7 +38,8 @@
 // non-speculative and read their instruction bits from rob_insn (per ROB
 // entry, written at dispatch). A result for x0 (tag 0) of the LSU, the
 // multiplier or the MDU is neither written nor forwarded (Plan/CORE.md
-// 5.7). Left out: interrupt sources, the fusion kinds but ALU + branch.
+// 5.7). Left out: the fusion kinds but ALU + branch. The interrupt lines come in
+// since step 1.8 I1 (Plan/OOC.md 29.78), into OOO_CSRU.
 //
 // B5a (Plan/CORE.md 5.19; turned off in 5.21, KINDS 0: the fused compare
 // after the ALU does not fit in a cycle, Plan/OOC.md 27.5, and D1b's refill
@@ -96,6 +97,12 @@ module OOO_CORE
         input  logic                        clk,
         input  logic                        rst_n,
         input  logic                        boot,       // fetch from boot_pc (a cycle after reset)
+        // the interrupt lines (step 1.8 I1, Plan/OOC.md 29.78: the CLINT's and the PLIC's in OOO_CPU) and mtime
+        input  logic                        irq_m_soft,
+        input  logic                        irq_m_timer,
+        input  logic                        irq_m_ext,
+        input  logic                        irq_s_ext,
+        input  logic [63:0]                 mtime,
         input  logic [VA-1:1]               boot_pc,
         // I$
         output logic                        ic_req_valid,
@@ -957,7 +964,7 @@ module OOO_CORE
          .trap_en(csr_trap), .trap_int(csr_int), .trap_cause(csr_cause), .trap_epc(csr_epc), .trap_tval(csr_tval),
          .mret_en(csr_mret), .sret_en(csr_sret), .tvec(tvec), .mepc(mepc), .sepc(sepc),
          .irq_pend(irq_pend), .irq_cause(irq_cause), .wfi_wake(wfi_wake),
-         .irq_m_soft(1'b0), .irq_m_timer(1'b0), .irq_m_ext(1'b0), .irq_s_ext(1'b0), .mtime(64'd0),
+         .irq_m_soft(irq_m_soft), .irq_m_timer(irq_m_timer), .irq_m_ext(irq_m_ext), .irq_s_ext(irq_s_ext), .mtime(mtime),
          .instret_inc(cmt_instret[2:0]), .hpm_ev('0),
          .priv(priv), .satp(satp), .mstatus_sum(m_sum), .mstatus_mxr(m_mxr), .mstatus_mprv(m_mprv),
          .mstatus_mpp(m_mpp), .mstatus_tvm(m_tvm), .mstatus_tw(m_tw), .mstatus_tsr(m_tsr),

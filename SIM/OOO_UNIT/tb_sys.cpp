@@ -11,7 +11,7 @@
 // answer after a flush). Now and then flush_all abandons the µop.
 //
 // The level and mstatus.TW / TSR / TVM are random too: MRET below M, SRET in
-// U or in S with TSR, SFENCE.VMA in U or in S with TVM, WFI below M with TW
+// U or in S with TSR, SFENCE.VMA in U or in S with TVM, WFI in U or in S with TW (step 1.8 I1)
 // complete at once with an illegal instruction exception, the instruction
 // as tval (reported in the cycle of the issue), and nothing else.
 //
@@ -65,7 +65,7 @@ int main(int argc, char** argv)
         if (!busy && !fl_out && idle_wait-- <= 0 && rng() % 3 == 0) {
             iss = 1; op = rng() % 6; rob = rng() % 24; busy = true; inst = (uint32_t)rng();
             ill = (op == 3 && priv != 3) || (op == 5 && (priv == 0 || (priv == 1 && tsr))) ||
-                  (op == 2 && (priv == 0 || (priv == 1 && tvm))) || (op == 4 && priv != 3 && tw);
+                  (op == 2 && (priv == 0 || (priv == 1 && tvm))) || (op == 4 && (priv == 0 || (priv == 1 && tw)));
             if (ill) nill++;
             t_iss = cyc; t_sq = t_take = t_fdone = t_idone = t_wake = t_tlb = -1; t_last = cyc;
             sq_at = cyc + 1 + rng() % 12;

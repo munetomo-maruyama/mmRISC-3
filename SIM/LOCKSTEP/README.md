@@ -52,9 +52,18 @@ instruction in program order:
   the core is a second Spike, turns them off.
 - **Misaligned accesses trap** (as in mmRISC-2), and the reference is set the same way.
 - **The reference is mmRISC-2's machine**: its instruction set (`rv64imafdc_zicboz_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zihpm_zba_zbb_zbc_zbs_smcntrpmf_sscofpmf_sstc`, kept by mmRISC-3) and 16 PMP entries (8 implemented, 8 reading 0), M / S / U modes; one RAM region from 0x8000_0000 (64 MB), no devices.
-- Interrupts: the core's trace reports one taken before the head (`tr_int`, the cause with bit 63); the bench has
-  no interrupt source in Phase 1 (where the core takes one, the reference is to be made to take it too). MMIO with
-  side effects comes in Phase 2.
+- **Interrupts** (since step 1.8 I1, `Plan/OOC.md` 29.78): the core's trace reports one taken before the head (`tr_int`,
+  the cause with bit 63). The reference takes that interrupt at that record: Spike's mip is set to its one bit for the
+  step and put back after it. At every other step the pending interrupts of the devices are hidden (mip at SSIP alone
+  for the step, or mie at 0 for a CSR instruction on mip / sip), so it never takes one the core did not. SSIP is set and
+  cleared by CSR writes alone, the same in both: the reference takes it where it would, and a core that takes it later
+  fails (that checks a CSR write's replay). Reads of mip / sip take the core's
+  value. A WFI retires and the reference goes on (Spike would wait; the core's WFI ends when an interrupt is pending).
+- **The devices** (`LockstepCfg::dev`): the CLINT (0x0200_0000, 64 KB), the PLIC (0x0C00_0000, 4 MB) and the bench's
+  interrupt sources (0x1100_0000, 4 KB). The reference's loads there read 0 and take the core's value after the step,
+  its stores there are dropped; outside them and the RAM an access faults, as before. Sstc's STIP comes from the core's
+  time (Spike's `time` stays 0, and its reads take the core's value): hidden like the devices' lines, given when the
+  core takes it (`b4/irq/irq.S` part 6).
 
 ## Self-test (2026-10-25)
 

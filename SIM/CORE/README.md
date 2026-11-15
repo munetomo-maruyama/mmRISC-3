@@ -270,3 +270,17 @@ behind them, their addresses in the SQ before the AMO goes again. All pass on bo
 to the cycle. Core mutations: 29 new, **166 of 174 detected**, the 8 undetected the old ones. An AMO's try writing
 another SQ entry was caught only after `atomic.S`'s part 6 (the AMOs that miss among younger stores); an AMO computing
 before its rs2 is there is equivalent in time and left out (the header of `mutate_core.py`).
+
+## The interrupts (step 1.8 I1, 2026-11-15)
+
+`Plan/OOC.md` 29.78. `OOO_CPU` has mmRISC-2's CLINT and PLIC (`RTL/CPU/MMIO`) on its peripheral bus; the PLIC's sources
+1 to 31 are bits 1 to 31 of the bench's word at 0x1100_0000 (`IRQ_DEV`), which a program writes and `AxiLite` keeps (it
+is outside `Memory`). `OOO_CORE`'s interrupt lines are held at 0, so the interrupts' programs run on `OOO_CPU` alone:
+`b4/irq/irq.S` (the timer, software and external interrupts over every kind of work, WFI, the time CSR against mtime, delegated S-mode ones with Sstc's timer) and
+riscv-arch-test's InterruptsSm (21) and InterruptsS (11), built with `MMRISC_IRQ` (`b4/act/rvmodel_macros.h`: msip,
+mtimecmp, the PLIC's source 1 to context 0 and source 2 to context 1). Lock-step makes Spike take the interrupt the core
+took and hides the devices' (`SIM/LOCKSTEP`; SSIP, a CSR write's, stays Spike's own). `-exit0` fails a run whose exit code is not 0: a self-checking program whose
+interrupt never came ends at its own bound, as Spike does. `b4/dir/devld.S`: loads from a device at the ROB head with
+nothing in flight, on both tops. Three older bugs found: such a load waited for ever (`OOO_LSU4`), the device port sent
+the word's address (the PLIC's registers at +4 missed: `OOO_DMISS2`, `OOO_LSU4`), WFI in U mode waited (`OOO_SYS`).
+All pass; CoreMark's timed window unchanged to the cycle. Core mutations 178/186: the 12 new ones (174 to 185, a fifth stage on `OOO_CPU` with the interrupts' programs under `-exit0`) all detected; the same 8 undetected.

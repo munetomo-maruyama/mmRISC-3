@@ -58,6 +58,13 @@
 #define UDB_REPORT_ENCODING_IN_MTVAL_ON_ILLEGAL_INSTRUCTION
 #define UDB_REPORT_ENCODING_IN_STVAL_ON_ILLEGAL_INSTRUCTION
 
+// the machine interrupts OOO_CPU's CLINT and PLIC raise (step 1.8 I1; the Interrupts groups alone)
+#ifdef MMRISC_IRQ
+#define UDB_MEI_INTR_IMPL
+#define UDB_MTI_INTR_IMPL
+#define UDB_MSI_INTR_IMPL
+#endif
+
 #define UDB_NUM_PMP_ENTRIES 8
 #define UDB_NUM_USABLE_PMP_ENTRIES 8
 #define UDB_PMP_GRANULARITY 2

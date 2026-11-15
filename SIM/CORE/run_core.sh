@@ -22,7 +22,9 @@
 # rv64mi-p-csr (an FP instruction: no FPU), rv64si-p-dirty (paging); on
 # both tops, to their HTIF exit; with b4/dir/illegal.S (the exceptions
 # found at decode), b4/dir/dcrace.S (the D$'s races behind the L2) and
-# b4/dir/atomic.S (the atomics, step 1.4 E1c).
+# b4/dir/atomic.S (the atomics, step 1.4 E1c), b4/dir/devld.S (device loads at the
+# head alone, step 1.8 I1). The interrupts (step 1.8 I1, Plan/OOC.md 29.78): b4/irq and
+# the Interrupts groups on OOO_CPU alone (its CLINT and PLIC; OOO_CORE has none).
 # The restores of the first run are what mutate_core.py holds the mutated
 # cores to.
 #---------------------------------------------------------------------------
@@ -40,7 +42,8 @@ C=./obj/cpu/VOOO_CPU
 cpu() { [ "$CPU" = 1 ] && $C "$@"; }
 P=$(ls b2/work/alu-*.elf b2/work/br-*.elf b2/work/ls-*.elf | sort -V)
 H=$(ls b3/work/*.elf | sort -V)
-A=$(ls b4/work/*/*.elf | sort -V)
+A=$(ls b4/work/*/*.elf | grep -vE '/(irq|Interrupts[A-Za-z]*)/' | sort -V)
+I=$(ls b4/work/irq/*.elf b4/work/InterruptsSm/*.elf b4/work/InterruptsS/*.elf | sort -V)     # (OOO_CPU's CLINT and PLIC: step 1.8 I1)
 RV=${RVTESTS:-../../../mmRISC-2/SIM/SIM_CORE/rvtests}
 R=$(ls $RV | grep -E '^rv64(ui|um|ua|uc|uzba|uzbb|uzbc|uzbs|uzicond|mi|si)-p-[a-z0-9_]+$' |
     grep -vE '^rv64mi-p-(breakpoint|csr)$|^rv64si-p-dirty$|^rv64ua-p-amocas_' | sed "s|^|$RV/|")
@@ -55,7 +58,7 @@ cpu +verilator+rand+reset+2 $H
 $T +verilator+rand+reset+2 $A
 $T +verilator+rand+reset+2 -seed 2 -dhit 30 $A
 $T +verilator+rand+reset+2 $R
-cpu +verilator+rand+reset+2 $A
+cpu +verilator+rand+reset+2 $A $I
 cpu +verilator+rand+reset+2 $R
 } | tee results/core.txt
 [ "$(grep -c ' 0 failures: PASS' results/core.txt)" = $([ "$CPU" = 1 ] && echo 12 || echo 8) ] || exit 1

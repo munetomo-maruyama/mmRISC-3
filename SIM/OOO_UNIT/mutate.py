@@ -380,7 +380,7 @@ M = [
     ('M307', 'OOO_SYS/OOO_SYS.sv', 'sys', 'OP_MRET:   ill = priv != PRIV_M;', "OP_MRET:   ill = 1'b0;", 'MRET below M'),
     ('M308', 'OOO_SYS/OOO_SYS.sv', 'sys', 'OP_SRET:   ill = priv == PRIV_U || (priv == PRIV_S && tsr);', 'OP_SRET:   ill = priv == PRIV_U;', 'SRET under TSR'),
     ('M309', 'OOO_SYS/OOO_SYS.sv', 'sys', 'OP_SFENCE: ill = priv == PRIV_U || (priv == PRIV_S && tvm);', 'OP_SFENCE: ill = priv == PRIV_U;', 'SFENCE.VMA under TVM'),
-    ('M310', 'OOO_SYS/OOO_SYS.sv', 'sys', 'OP_WFI:    ill = priv != PRIV_M && tw;', "OP_WFI:    ill = 1'b0;", 'WFI under TW'),
+    ('M310', 'OOO_SYS/OOO_SYS.sv', 'sys', 'OP_WFI:    ill = priv == PRIV_U || (priv == PRIV_S && tw);', "OP_WFI:    ill = priv == PRIV_U;", 'WFI under TW (in S)'),
     ('M311', 'OOO_SYS/OOO_SYS.sv', 'sys', 'tv_valid  = sys_valid && st == S_IDLE && ill;', "tv_valid  = 1'b0;", 'an illegal system µop without its tval'),
     ('M312', 'OOO_IQ/OOO_IQ.sv', 'iq', '!(blk0 && wr[i] && !lat2[i] && !md[i]) && !(md[i] && !mdu_ok);', '!(md[i] && !mdu_ok);', "port 0's write slot taken twice"),
     ('M313', 'OOO_IQ/OOO_IQ.sv', 'iq', '!(blk0 && wr[i] && !lat2[i] && !md[i]) && !(md[i] && !mdu_ok);', '!(blk0 && wr[i] && !lat2[i] && !md[i]);', 'an MDU µop without mdu_ok'),
@@ -1385,6 +1385,10 @@ M = [
     # step 1.4 E1c (Plan/OOC.md 29.74): the atomics
     ('M1434', 'OOO_DEC/OOO_DEC.sv', 'dec', "lr   = amo && l_mem_cmd == CMD_LR;", "lr   = 1'b0;", 'LR answered from outside, as an AMO'),
     ('M1435', 'OOO_IQ3/OOO_IQ3.sv', 'iq3', "ns_stay = v & ns & ~left;", "ns_stay = v & ns & ~issued;", "a non-speculative µop passes a store whose data alone has gone"),
+    # step 1.8 I1 (Plan/OOC.md 29.78)
+    ('M1436', 'OOO_SYS/OOO_SYS.sv', 'sys', "OP_WFI:    ill = priv == PRIV_U || (priv == PRIV_S && tw);", "OP_WFI:    ill = priv != PRIV_M && tw;", 'WFI in U mode waits (S is implemented: illegal)'),
+    ('M1437', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', "assign m_axil_awaddr  = u_a;", "assign m_axil_awaddr  = {u_a[PAW-1:3], 3'b000};", "a device's write at its word's address"),
+    ('M1438', 'OOO_DMISS2/OOO_DMISS2.sv', 'dmiss2', "assign m_axil_araddr  = u_a;", "assign m_axil_araddr  = {u_a[PAW-1:3], 3'b000};", "a device's read at its word's address"),
 ]
 
 

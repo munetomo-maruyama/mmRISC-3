@@ -81,16 +81,27 @@ Elf load_elf(const std::string& path)
     return e;
 }
 
-// ---- the memory of the reference: one RAM region, no MMIO
+// ---- the memory of the reference: one RAM region, and the devices (LockstepCfg::dev),
+// whose loads read 0 (the DUT's value is taken after the step) and whose stores are dropped
 class Mem : public simif_t {
 public:
-    Mem(const LockstepCfg& c, cfg_t* cfg) : base(c.mem_base), ram(c.mem_size, 0), cfg(cfg) {}
+    Mem(const LockstepCfg& c, cfg_t* cfg) : base(c.mem_base), ram(c.mem_size, 0), cfg(cfg), dev(c.dev) {}
     char* addr_to_mem(reg_t a) override
     {
         return (a >= base && a - base < ram.size()) ? (char*)&ram[a - base] : nullptr;
     }
-    bool mmio_load(reg_t, size_t, uint8_t*) override { return false; }
-    bool mmio_store(reg_t, size_t, const uint8_t*) override { return false; }
+    bool is_dev(reg_t a, size_t n) const
+    {
+        for (auto& d : dev) if (a >= d.first && a + n <= d.first + d.second) return true;
+        return false;
+    }
+    bool mmio_load(reg_t a, size_t n, uint8_t* b) override
+    {
+        if (!is_dev(a, n)) return false;
+        std::memset(b, 0, n); dev_load = true; return true;
+    }
+    bool mmio_store(reg_t a, size_t n, const uint8_t*) override { return is_dev(a, n); }
+    bool dev_load = false;
     void proc_reset(unsigned) override {}
     const cfg_t& get_cfg() const override { return *cfg; }
     const std::map<size_t, processor_t*>& get_harts() const override { return harts; }
@@ -99,6 +110,7 @@ public:
     std::vector<uint8_t> ram;
     cfg_t* cfg;
     std::map<size_t, processor_t*> harts;
+    std::vector<std::pair<uint64_t, uint64_t>> dev;
 };
 
 // the counters whose reads differ between a real core and Spike by nature
@@ -109,6 +121,9 @@ bool impl_csr(unsigned csr)
     return csr == CSR_MVENDORID || csr == CSR_MARCHID || csr == CSR_MIMPID ||
            (csr >= CSR_MHPMEVENT3 && csr <= CSR_MHPMEVENT31);
 }
+
+// the pending interrupts: the DUT's lines are not the reference's (it takes only the DUT's)
+bool irq_csr(unsigned csr) { return csr == CSR_MIP || csr == CSR_SIP; }
 
 bool counter_csr(unsigned csr)
 {
@@ -134,6 +149,8 @@ struct Lockstep::Impl {
     std::ostringstream sout;
     uint64_t tohost = 0, fromhost = 0, nsteps = 0;
     bool htif_load = false;     // the last step read tohost or fromhost
+    bool dev_load = false;      // the last step read a device
+    int irq = -1;               // the interrupt the DUT took at this record (its cause), or -1
     uint64_t ih = 0;            // mcountinhibit as the core has it (LockstepCfg)
     bool exited = false;
     int code = 0;
@@ -208,8 +225,23 @@ struct Lockstep::Impl {
         uint64_t pre = (csr_wr && (csr == CSR_MISA || csr == CSR_MTVEC || csr == CSR_STVEC)) ? proc->get_csr(csr) : 0;
         bool ir_off = (ih & 4) != 0;                       // mcountinhibit.IR
         reg_t inst0 = proc->get_csr(CSR_MINSTRET);
+        // the interrupts (lockstep.h): the DUT's alone, or none; mie hides them for a CSR instruction on mip / sip
+        auto mip = s->mip;
+        reg_t mip0 = mip->read(), mie0 = 0;
+        // (an interrupt is taken before the instruction runs: mip goes back as it was)
+        bool hide_mie = irq < 0 && csr_op && irq_csr(csr);
+        if (hide_mie) { mie0 = proc->get_csr(CSR_MIE); proc->put_csr(CSR_MIE, 0); }
+        // (SSIP is software's alone, a CSR write's in both: the reference takes it where it would; a core
+        //  taking it late is then a mismatch, the check of a CSR write's replay; the other bits come from the
+        //  devices and the DUT's time, and only the DUT's interrupt is given)
+        else mip->backdoor_write_with_mask(~(reg_t)0, irq >= 0 ? (reg_t)1 << irq : (mip0 & MIP_SSIP));
+        mem->dev_load = false;
         proc->step(1);
         nsteps++;
+        if (hide_mie) proc->put_csr(CSR_MIE, mie0);
+        else mip->backdoor_write_with_mask(~(reg_t)0, mip0);
+        if (proc->is_waiting_for_interrupt()) proc->clear_waiting_for_interrupt();   // (a WFI retired)
+        dev_load = mem->dev_load;
         htif_load = false;
         for (auto& m : s->log_mem_read) {
             uint64_t a = std::get<0>(m), e = a + std::get<2>(m);
@@ -266,7 +298,9 @@ Commit Lockstep::step_ref() { return p->step(); }
 
 bool Lockstep::check(const Commit& d, std::string* why)
 {
+    p->irq = (d.trap && (d.cause >> 63)) ? (int)(d.cause & 63) : -1;
     Commit r = p->step();
+    p->irq = -1;
     auto bad = [&](const std::string& s) {
         if (why) *why = "pc " + hex(r.pc) + ": " + s;
         return false;
@@ -281,7 +315,8 @@ bool Lockstep::check(const Commit& d, std::string* why)
     }
     // a counter read, and a load of tohost or fromhost, take the DUT's value
     unsigned opc = r.insn & 0x7f, f3 = (r.insn >> 12) & 7;
-    if (((opc == 0x73 && f3 != 0 && f3 != 4 && (counter_csr(r.insn >> 20) || impl_csr(r.insn >> 20))) || p->htif_load) && r.rd > 0 && !r.rd_fp) {
+    if (((opc == 0x73 && f3 != 0 && f3 != 4 && (counter_csr(r.insn >> 20) || impl_csr(r.insn >> 20) || irq_csr(r.insn >> 20))) ||
+         p->htif_load || p->dev_load) && r.rd > 0 && !r.rd_fp) {
         p->proc->get_state()->XPR.write(r.rd, d.rd_val);
         r.rd_val = d.rd_val;
     }

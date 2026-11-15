@@ -281,17 +281,28 @@ public:
     {
         if (rvalid && rready) r_pend = false;
         if (bvalid && bready) b_pend = false;
-        if (arvalid && arready) { r_pend = true; r_at = cyc + 1 + (long)(rng() % 4); rdata = m.read64(araddr & ~7ull); reads++; }
+        if (arvalid && arready) { r_pend = true; r_at = cyc + 1 + (long)(rng() % 4); rdata = rd(araddr & ~7ull); reads++; }
         if (awvalid && awready) { aw_have = true; aw_addr = awaddr; }
         if (wvalid && wready)   { w_have = true; w_data = wdata; w_strb = wstrb; }
         if (aw_have && w_have) {
-            m.write64(aw_addr & ~7ull, w_data, w_strb);
+            wr(aw_addr & ~7ull, w_data, w_strb);
             aw_have = w_have = false; b_pend = true; b_at = cyc + 1 + (long)(rng() % 4); writes++;
         }
         cyc++;
     }
     long reads = 0, writes = 0;
+    // a word outside the memory (a device of the bench: tb_core's IRQ_DEV), kept here
+    uint64_t dev(uint64_t a) const { auto i = devw.find(a & ~7ull); return i == devw.end() ? 0 : i->second; }
 private:
+    uint64_t rd(uint64_t a) { return m.contains(a, 8) ? m.read64(a) : dev(a); }
+    void wr(uint64_t a, uint64_t d, uint8_t s)
+    {
+        if (m.contains(a, 8)) { m.write64(a, d, s); return; }
+        uint64_t v = dev(a);
+        for (int k = 0; k < 8; k++) if ((s >> k) & 1) v = (v & ~(0xffull << (8 * k))) | (d & (0xffull << (8 * k)));
+        devw[a] = v;
+    }
+    std::map<uint64_t, uint64_t> devw;
     Memory& m;
     std::mt19937_64 rng;
     bool r_pend = false, b_pend = false, aw_have = false, w_have = false;

@@ -172,4 +172,16 @@
 171 DETECTED      E1c: an AMO completes with its load part
 172 DETECTED      E1c: an SC completes before its data is there
 173 DETECTED      E1c: an atomic outside the memory goes on
-174 mutations, 166 detected
+174 DETECTED      I1: no machine timer interrupt
+175 DETECTED      I1: no machine software interrupt
+176 DETECTED      I1: no machine external interrupt
+177 DETECTED      I1: no supervisor external interrupt
+178 DETECTED      I1: the CSRs' time at 0 (Sstc compares with it)
+179 DETECTED      I1: the PLIC's sources one off
+180 DETECTED      I1: the PLIC's contexts swapped
+181 DETECTED      I1: a device's write at its word's address (the PLIC's register at +4 missed)
+182 DETECTED      I1: a device's read at its word's address (the claim at +4 missed)
+183 DETECTED      I1: a store to a device at its word's address
+184 DETECTED      I1: a load for a device that waits is tried only at an event (devld.S hangs)
+185 DETECTED      I1: WFI in U mode waits (Spike: illegal)
+186 mutations, 178 detected

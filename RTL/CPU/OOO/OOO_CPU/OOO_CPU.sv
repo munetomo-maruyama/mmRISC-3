@@ -19,6 +19,12 @@
 // L2 512 KB (2,048 sets x 4 ways, C3, Plan/OOC.md 29.70; its data array's write port
 // registered).
 //
+// Interrupts (step 1.8 I1, Plan/OOC.md 29.78): mmRISC-2's CPU_MMIO (RTL/CPU/MMIO) on the D$'s
+// peripheral bus, with its CLINT (0x0200_0000: msip, mtimecmp, mtime, a step every
+// CLINT_TICK_DIV cycles) and PLIC (0x0C00_0000: 31 sources, the machine and supervisor
+// contexts) answered inside; the rest goes out on m_axil_*. Their lines and mtime go to
+// OOO_CORE; irq_src are the platform's sources (1 to 31; LiteX's in step 2, the bench's here).
+//
 // Simulation (DCACHE_SIM_UC): sim_uc_line names one line not cached (OOO_LSU3's
 // uc_line): the test bench's tohost, which HTIF must see in the memory and set back to
 // 0 there (Plan/CORE.md 5.1 rule 2).
@@ -31,13 +37,16 @@ module OOO_CPU
         parameter int VA      = 39,
         parameter int PAW     = 40,
         parameter int L2_SIZE = 512 * 1024,
-        parameter int DWAYS   = 8           // the D$'s ways (256 sets: 128 KB since step 1.7c C5)
+        parameter int DWAYS   = 8,          // the D$'s ways (256 sets: 128 KB since step 1.7c C5)
+        parameter int CLINT_TICK_DIV = 100  // clk cycles a step of mtime (50 MHz / 100: 500 kHz, as mmRISC-2)
     )
     (
         input  logic                        clk,
         input  logic                        rst_n,
         input  logic                        boot,
         input  logic [VA-1:1]               boot_pc,
+        // the platform's interrupt sources (the PLIC's 1 to 31; bit 0 is not a source)
+        input  logic [31:1]                 irq_src,
         // the memory bus (the L2's)
         output logic [3:0]                  m_axi4_awid,
         output logic [PAW-1:0]              m_axi4_awaddr,
@@ -133,8 +142,11 @@ module OOO_CPU
     logic             ic_req_valid, ic_req_ready, ic_resp_valid, ic_flush, ic_done;
     logic [VA-1:1]    ic_req_pc;
     logic [255:0]     ic_resp_data;
+    logic             irq_m_soft, irq_m_timer, irq_m_ext, irq_s_ext;
+    logic [63:0]      mtime;
     OOO_CORE #(.VA(VA), .PAW(PAW), .DWAYS(DWAYS)) u_core
         (.clk(clk), .rst_n(rst_n), .boot(boot), .boot_pc(boot_pc),
+         .irq_m_soft(irq_m_soft), .irq_m_timer(irq_m_timer), .irq_m_ext(irq_m_ext), .irq_s_ext(irq_s_ext), .mtime(mtime),
          .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ready(ic_req_ready),
          .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data),
          .dc_miss_valid(dc_miss_valid), .dc_miss_line(dc_miss_line), .dc_miss_vx(dc_miss_vx), .dc_miss_id(dc_miss_id),
@@ -172,6 +184,12 @@ module OOO_CPU
                       l_rlast, l_rvalid, l_rready;
     logic [63:0]      d_wdata, d_rdata, i_rdata, l_wdata, l_rdata;
 
+    logic [PAW-1:0]   p_awaddr, p_araddr;          // OOO_DMISS2's peripheral bus, into CPU_MMIO
+    logic             p_awvalid, p_awready, p_wvalid, p_wready, p_bvalid, p_bready, p_arvalid, p_arready, p_rvalid, p_rready;
+    logic [63:0]      p_wdata, p_rdata;
+    logic [7:0]       p_wstrb;
+    logic [1:0]       p_bresp, p_rresp;
+
     OOO_DMISS2 #(.PAW(PAW), .IW(5), .WAYS(DWAYS)) u_dmiss
         (.clk(clk), .rst_n(rst_n),
          .miss_valid(dc_miss_valid), .miss_line(dc_miss_line), .miss_vx(dc_miss_vx), .miss_id(dc_miss_id),
@@ -192,12 +210,30 @@ module OOO_CPU
          .m_axi4_arsize(d_arsize), .m_axi4_arburst(d_arburst), .m_axi4_arvalid(d_arvalid),
          .m_axi4_arready(d_arready), .m_axi4_rdata(d_rdata), .m_axi4_rresp(d_rresp),
          .m_axi4_rlast(d_rlast), .m_axi4_rvalid(d_rvalid), .m_axi4_rready(d_rready),
-         .m_axil_awaddr(m_axil_awaddr), .m_axil_awvalid(m_axil_awvalid), .m_axil_awready(m_axil_awready),
-         .m_axil_wdata(m_axil_wdata), .m_axil_wstrb(m_axil_wstrb), .m_axil_wvalid(m_axil_wvalid),
-         .m_axil_wready(m_axil_wready), .m_axil_bresp(m_axil_bresp), .m_axil_bvalid(m_axil_bvalid),
-         .m_axil_bready(m_axil_bready), .m_axil_araddr(m_axil_araddr), .m_axil_arvalid(m_axil_arvalid),
-         .m_axil_arready(m_axil_arready), .m_axil_rdata(m_axil_rdata), .m_axil_rresp(m_axil_rresp),
-         .m_axil_rvalid(m_axil_rvalid), .m_axil_rready(m_axil_rready));
+         .m_axil_awaddr(p_awaddr), .m_axil_awvalid(p_awvalid), .m_axil_awready(p_awready),
+         .m_axil_wdata(p_wdata), .m_axil_wstrb(p_wstrb), .m_axil_wvalid(p_wvalid),
+         .m_axil_wready(p_wready), .m_axil_bresp(p_bresp), .m_axil_bvalid(p_bvalid),
+         .m_axil_bready(p_bready), .m_axil_araddr(p_araddr), .m_axil_arvalid(p_arvalid),
+         .m_axil_arready(p_arready), .m_axil_rdata(p_rdata), .m_axil_rresp(p_rresp),
+         .m_axil_rvalid(p_rvalid), .m_axil_rready(p_rready));
+
+    // the peripheral bus: the CLINT and the PLIC inside, the rest out (step 1.8 I1)
+    CPU_MMIO #(.ADDR_WIDTH(PAW), .CLINT_BASE(40'h00_0200_0000), .PLIC_BASE(40'h00_0C00_0000), .NUM_HARTS(1),
+               .CLINT_TICK_DIV(CLINT_TICK_DIV), .PLIC_SOURCES(31), .PLIC_CONTEXTS(2), .PLIC_PRIO_BITS(3)) u_mmio
+        (.clk(clk), .rst_n(rst_n),
+         .s_awaddr(p_awaddr), .s_awprot(3'd0), .s_awvalid(p_awvalid), .s_awready(p_awready),
+         .s_wdata(p_wdata), .s_wstrb(p_wstrb), .s_wvalid(p_wvalid), .s_wready(p_wready),
+         .s_bresp(p_bresp), .s_bvalid(p_bvalid), .s_bready(p_bready),
+         .s_araddr(p_araddr), .s_arprot(3'd0), .s_arvalid(p_arvalid), .s_arready(p_arready),
+         .s_rdata(p_rdata), .s_rresp(p_rresp), .s_rvalid(p_rvalid), .s_rready(p_rready),
+         .m_awaddr(m_axil_awaddr), .m_awprot(), .m_awvalid(m_axil_awvalid), .m_awready(m_axil_awready),
+         .m_wdata(m_axil_wdata), .m_wstrb(m_axil_wstrb), .m_wvalid(m_axil_wvalid), .m_wready(m_axil_wready),
+         .m_bresp(m_axil_bresp), .m_bvalid(m_axil_bvalid), .m_bready(m_axil_bready),
+         .m_araddr(m_axil_araddr), .m_arprot(), .m_arvalid(m_axil_arvalid), .m_arready(m_axil_arready),
+         .m_rdata(m_axil_rdata), .m_rresp(m_axil_rresp), .m_rvalid(m_axil_rvalid), .m_rready(m_axil_rready),
+         .ext_irq({irq_src, 1'b0}),
+         .irq_m_soft(irq_m_soft), .irq_m_timer(irq_m_timer), .irq_m_ext(irq_m_ext), .irq_s_ext(irq_s_ext),
+         .mtime(mtime));
 
     OOO_ICACHE #(.VA(VA), .PAW(PAW), .SETS(256), .WAYS(8), .AXI_ID(4'd2)) u_icache
         (.clk(clk), .rst_n(rst_n),
