@@ -10223,3 +10223,38 @@ synth_ooo.bat OOO_CPU
 ```text
 Ran Vivado
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+With I2, `OOO_CPU` with the interrupts meets 20 ns, and step I2 is done. The commit is 48d38b1, pushed to dev (the 1e7a0d6 written in the next-step box was a mistake; 48d38b1 is right). The remote holds no files under `Ref/`.
+
+| | E1c | I2's first run | **I2** |
+|---|---|---|---|
+| WNS / hold | +0.470 / +0.028 ns | −19.402 ns | **+0.027 / +0.028 ns** (no failing endpoint) |
+| LUTs | 78,156 | 81,451 | **80,345 (+2,189, 60 %)** |
+| flip-flops | 19,316 | 19,920 | **19,942 (+626)** |
+| block RAM | 284.5 | 284.5 | 284.5 |
+
+**What the result shows**
+- **The PLIC and the interrupt lines are in none of the 100 worst paths.** With its choice a tree, the PLIC itself went from 1,489 to 1,026 LUTs.
+- **Where the added LUTs are**
+  - `CPU_MMIO` 1,427 (PLIC 1,026, CLINT 345).
+  - In the core, the CSR logic kept now that the interrupt lines are live: +237.
+  - I1's LSU change (the device load's retry and byte addresses): +146.
+  - The rest comes and goes with the placement.
+- **The worst path (+0.027 ns, 20 levels) is in the front end**: from `OOO_FETCH2`'s `hge` to `OOO_FBUF3` and the micro-BTB.
+  - It was there at E1c (+1.360 ns), and nothing in it changed: the placement moved.
+  - The core's other paths are back from −4 to −7 ns to where they were (+0.7 to +1.3 ns): the last run's loss was indeed the placement pulled by the PLIC's path.
+- **The margin is thin.** The FPU will move all the placement, so it is watched at each step; if it goes negative, this front-end path is cut (`hge` a stage earlier).
+
+The numbers in Plan/OOC 29.79, STRATEGY, UARCH and README are updated in English and Japanese.
+
+Next is step 1.8's U0, the design study of the renamed FPU (following Plan/OOC 29.77).
+<!-- /answer -->
+
+## 255. 2026-11-17 00:14:25 JST
+
+```text
+Start U0
+```

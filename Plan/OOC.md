@@ -5976,3 +5976,66 @@ What `Doc/STRATEGY.md` 5 asks of 1.8: interrupts, the MMU (Sv39), the FPU, debug
 - **The worst path** (+0.027 ns, 20 levels) is the front end's: `OOO_FETCH2`'s `hge` (the parcels at or after the pc, 29.42) → the decode a cycle ahead → `OOO_FBUF3`'s `hj` (its reset) and the micro-BTB's `pi_q` / `pc_q`. It was there at E1c too (+1.360 ns, 17 levels) and nothing in it changed: the placement moved. The core's other paths are back where they were (`u_ctrl` +1.3 ns, `u_iq` +0.8 ns, the ALUs' write-back +0.8 ns and more); E1c's worst, ALU 0's result to the register file, is +0.742 ns. The margin is thin and comes from where the tool puts things; it is watched at the next steps (the FPU will move everything), and the front end's path is the one to cut if it goes negative (`hge` a stage earlier, as 29.42 did for its other half).
 
 **Step I2 is done** at 20 ns: the interrupts on `OOO_CPU`, 80,345 LUTs (60 %), 284.5 block RAM tiles. Next is U0, the renamed FPU's design (29.77).
+
+### 29.80 Step 1.8 U0: the renamed FPU's design (2026-11-17)
+
+U0 settles what 29.77 left open: the FP queue's size, the FP file's size and ports, the paths between the integer and FP sides, the store data's port. Tools in `Plan/fpu` (new): `gen.py` (the DSP kernels), `fpu.sh` (build, Spike, the model), `fpsched.py` (a scheduling model), `yest.sh` (Yosys estimates); `results/kernels.txt`, `sweep.txt`, `yest.txt`.
+
+**The DSP kernels** (`gen.py`), written as a DSP programmer writes them in assembler, single and double, each checking itself against a plain scalar loop bit for bit (the same operations in the same order, or sums that stay exact), all 20 PASS on Spike: **dot** (1,008 terms, 1 / 4 / 8 / 12 accumulators), **fir** (16 taps, 480 outputs, 4 / 8 / 12 outputs at once, each its own accumulator, the coefficients loaded), **mm** (32 × 32, a 4 × 4 block of C in 16 accumulators, k unrolled by 2), **bq** (a biquad, transposed direct form II, 512 samples, 1 or 4 channels interleaved). They become U2's tests in lock-step.
+
+**The model** (`fpsched.py`): Spike's log of the kernel (from `kstart` to `kend`), a cycle at a time. The core as built (dispatch 4 in order, a group ending at a taken branch; ROB 48; the integer queue 24 with its 6 ports; LQ / SQ 16; 80 integer physical registers; 12 checkpoints; ALU 1, load 2) with the FP side proposed below (an FP queue of `fq`, one FPU operation and one FP store's data a cycle; `freg` FP physical registers; the FPU's latency `lat`; divide and square root holding the FPU). Prediction perfect, every load a hit: it measures the window and the FPU, not the memory or the front end. The single and double kernels give the same numbers (the same instructions).
+
+| Kernel (double) | Instructions | FPU operations | Cycles | **FPU ops a cycle** | The bound | What holds it |
+|---|---|---|---|---|---|---|
+| mm 4x4 | 55,325 | 33,792 | 34,075 | **0.992** | 1 (the FPU) | FP registers, briefly |
+| fir out12 | 17,089 | 8,160 | 8,373 | **0.975** | 1 | FP registers |
+| fir out8 | 17,469 | 8,160 | 9,196 | 0.887 | 8 chains / 9 cycles and the next block's | the LQ, FP registers |
+| fir out4 | 18,609 | 8,160 | 15,872 | 0.514 | 4 chains (overlapped) | the LQ |
+| bq ch4 | 15,886 | 10,248 | 10,265 | **0.998** | 1 | FP registers |
+| bq ch1 | 5,128 | 2,562 | 9,486 | 0.270 | the recursion: 5 operations / 18 cycles | the latency |
+| dot acc12 | 3,306 | 1,031 | 1,432 | 0.720 | 1 | **the LQ** (2 loads an FMA) |
+| dot acc8 | 3,424 | 1,023 | 1,405 | 0.728 | 8 / 9 | the LQ |
+| dot acc4 | 3,794 | 1,015 | 2,301 | 0.441 | 4 / 9 | the latency |
+| dot acc1 | 6,056 | 1,009 | 9,084 | 0.111 | 1 / 9 | the latency |
+
+**One FMA a cycle is reached** where the code has the chains (mm, fir out12, bq ch4: 0.975 to 0.998). The sweep (`results/sweep.txt`, FPU operations a cycle):
+
+| | fq 8 | fq 12 | **fq 16** | fq 24 | freg 48 | **freg 64** | freg 80 | lat 10 | lq 24 | all larger (rob 96, fq 32, freg 96, iq 32, lq / sq 32) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| mm 4x4 | 0.983 | 0.988 | 0.992 | 0.974 | 0.885 | 0.992 | 0.992 | 0.992 | 0.992 | 0.999 |
+| fir out12 | 0.979 | 0.988 | 0.975 | 0.975 | 0.695 | 0.975 | 0.979 | 0.998 | 0.975 | 0.998 |
+| fir out8 | 0.876 | 0.887 | 0.887 | 0.887 | 0.672 | 0.887 | 0.899 | 0.808 | 0.887 | 0.911 |
+| bq ch4 | 0.974 | 0.998 | 0.998 | 0.998 | 0.749 | 0.998 | 0.998 | 0.974 | 0.998 | 0.998 |
+| dot acc12 | 0.720 | 0.720 | 0.720 | 0.720 | 0.477 | 0.720 | 0.720 | 0.666 | 0.835 | 0.966 |
+| dot acc8 | 0.728 | 0.728 | 0.728 | 0.728 | 0.486 | 0.728 | 0.728 | 0.673 | 0.867 | 0.867 |
+
+- **The FP queue: 12 is enough** (as 16 within 1 %; 8 loses up to 2.6 %). Its entries wait for operands only; at one issue a cycle they leave fast.
+- **The FP physical registers: 64** (32 in flight). **48 loses 11 to 34 %** (9 FMAs in the FPU, the loads ahead of them and the dispatched ones behind all hold a register); 80 gains at most 1.4 %. 29.77's fallback to 48 is ruled out, and it would save little anyway (the file's LUT RAM comes in 64 rows; the map's entries keep 6 bits).
+- **A bypass from the FPU's output to its input** (latency 9, not 10): without it the kernels whose chains are just enough lose 5 to 10 % (fir out8 -9 %, dot -7.5 %, bq ch1 -10 %). It costs a 2:1 mux on the 3 operands (about 0.2k LUTs).
+- **The LQ (16) limits the load-heavy kernels**, not the FP side: dot's 2 loads an FMA hold their LQ entries from dispatch to commit, behind the FMAs' 9 cycles. LQ 24 gives dot +16 to +19 %; mm, fir out12 and bq gain nothing. An option of the LSU (its LUTs measured before), not part of the FPU.
+
+**The design** (U1 builds the new blocks, U2 joins them):
+
+| Part | What | Size, ports |
+|---|---|---|
+| Decode | FP in every slot: `OOO_RARE` stops cutting LOAD-FP, STORE-FP, the FMAs and OP-FP (the FP CSRs stay CSR µops at the head); each slot decodes the FP fields `CORE_DEC` gives slot 0 today (operation, format, rounding mode, the sources' and destination's types: rs1 integer for fcvt from / fmv from an integer, rd integer for compares, fclass, fmv to / fcvt to an integer) | mstatus.FS off: illegal, as now |
+| FP renaming (new `OOO_FREN`, beside `OOO_RENAME2`) | a map of 32 × 6 bits in flip-flops, a copy at each of the 12 checkpoints, a free list of 32, busy bits of 64; 4 µops a cycle with up to 3 FP sources each (FMA's rs3) and an FP destination, the group's own dependencies bypassed; the old mapping freed at commit | the integer rename unchanged (its paths stay) |
+| FP queue (new `OOO_FIQ`) | **12 entries, 4 banks of 3** (a bank a slot, as `OOO_IQ3`); 3 FP sources; oldest first by an age matrix; **2 issues a cycle**: one to the FPU (not while a divide / square root holds it, nor when the int-to-FP buffer is full) and one FP store's data; wakeups: the FPU's (issue + 9, from a delay line of issued tags), the 2 load ports (an FP load at its issue + 2, as integer ones), the int-to-FP path (at its entry to the FPU, then + 9 the same way), a divide's (when it comes out); branch masks and kills as `OOO_IQ3` | |
+| FP register file | `OOO_PRF` with NREG 64, NW 3, NR 4: written by the FPU and the 2 load ports, read for the FPU's 3 operands and a store's data; the bypass from the FPU's output | LUT RAM banks with a live value table |
+| FPU (new wrapper `OOO_FPUW`) | `FPU_PIPE` unchanged (hold / kill unused: the queue offers only what it takes); the tag {destination, ROB index, integer destination}; the branch mask in a 9-deep delay line beside it, cleared on a resolve, a killed result neither written nor completed; a flush drops everything in flight; the 3 operands from the file or the bypass; flags to the ROB | **a divide on a killed path runs to its end** (at most 130 cycles; `FPU_PIPE` unchanged; an abort is a small change if U2 shows it matters) |
+| FP loads | loads of `OOO_LSU4` with an FP destination: written into the FP file by the load port (flw NaN-boxed), the FP queue woken at issue + 2; a miss replays after commit as an integer load's (the FP µops that took its value are younger and flushed) | LQ unchanged |
+| FP stores | the address µop on port 4 as now; the data µop in the FP queue, read from the FP file's 4th port into its SQ entry by a **second SQ data write port** beside port 1's | fsw stores the low 32 bits |
+| FP to integer (compares, fclass, fmv.x.*, fcvt to integers) | out of the FPU into a FIFO of 4, written into the integer file through **port 0's free write slot, shared with `OOO_MDUP`** (one arbiter, one external wakeup of `OOO_IQ3`: no new port); the FP queue issues one only if the FIFO will have room (a count of those in flight) | |
+| Integer to FP (fmv.*.x, fcvt from integers) | issued from `OOO_IQ3` on port 0 (the operand read there, as an MDU µop), into a one-entry buffer at the FPU's input, which the FP queue yields to; port 0 held while it is full (`p0_hold`'s way) | rare in DSP loops (the accumulators' zeroing) |
+| The ROB | per entry: an FP destination (freed to the FP free list at commit), 5 flag bits (from the FPU's completion), "writes FP state"; the FPU's completion port | +1 completion port |
+| fcsr | the rounding mode read at issue (frm is written only by CSR µops at the head, which replay what follows); the flags ORed into fflags at commit, mstatus.FS made dirty there (`OOO_CSRU`'s `fflags_we`, `fflags_set`, `fs_dirty`, there since E1) | |
+
+**The LUTs** (Vivado as built × Yosys's ratios where Yosys can be run; `results/yest.txt`):
+- `FPU_PIPE`: 9,060 (mmRISC-2, alone).
+- The FP file: Yosys gives its LUT RAM as Vivado does for the integer file (7,920 against 7,800): **1,056**; its logic by the integer file's ratio (Vivado 3,496 / Yosys 19,108) about 0.3k: **about 1.4k** (29.77: 2.5k).
+- The FP map: `OOO_RENAME2` at 64 registers is 0.90 of 80 in Yosys; 2,780 × 0.90, and 3 sources a µop for 2 (× 1.25): **about 3.1k** (29.77: 2.5k).
+- The FP queue: Yosys cannot read `OOO_IQ3` (a function called with variables); by its structure, against `OOO_IQ3`'s 9,352 (24 entries × 2 sources × 8 wakeup buses, 6 ports): 12 × 3 × 4 compares, 2 ports: **about 2.0k** (29.77: 2.5k for 16).
+- The wrapper (masks, the FIFO, the buffer, the bypass) about 0.6k; decode in every slot about 0.6k; the LSU's FP data and the second SQ data port about 0.4k; the ROB's flags and port about 0.4k; the integer side's glue about 0.2k.
+- **About +17.2k** (29.77: +18k). The chip at the end of step 1.8: 80,345 + 17.2k + 7.8k (V, P, K, J as 29.76) = **about 105.3k (79 %)**; **with LiteX's SoC (5.3k) about 110.6k (83 %), 2.9k above the 107.7k ceiling** (I2 cost 1.6k more than 29.76 expected). The ceiling is the Arty's experience at 50 MHz, not a limit measured on this device; U3 measures. What could give LUTs back, if U3 says so: one PMP checker shared by the fetch and the walker (about 0.8k), mmRISC-2's C2 / C3 for the FPU (`Doc/UARCH.md` 5: about 0.3k and 0.8k), the debug's size; the FP registers cannot (above).
+
+**For the author to confirm**: (1) the FP queue of 12, (2) 64 FP physical registers, (3) the bypass (latency 9), (4) a killed divide left to run (no change to `FPU_PIPE`), (5) the LQ at 16 for now (24 is an option of the LSU, +16 to +19 % on dot). Then **U1**: `OOO_FREN`, `OOO_FIQ`, `OOO_FPUW` and the FP file alone, with their benches and mutations.

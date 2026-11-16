@@ -26,6 +26,7 @@ findings and measurements stand; the budgets and reductions are history. New: `m
 | `reduce/` | `synth.sh` (one module of mmRISC-2 with changed parameters, sv2v + Yosys for the Artix-7), `deps.py`, `sweep.sh`, `results/sweep.txt`. `work/` is not kept |
 | `wpol/` | The D$'s write policy (`OOC.md` 29.60): `wpol.sh` (copies of the RTL and the bench: write queues of 8 to 64, an L2 answering part writes in 3 cycles, a store that never waits), `tb_core_wp.patch`, `cpu_l2_b3.patch`, `tb_cpu_wp.vlt`, `stset.S` / `stcpy.S` (memset, memcpy in the D$), `results/`. `work/` is not kept |
 | `csize/` | The caches' sizes on Linux (`OOC.md` 29.64, 29.65): `csize.sh` (Linux and a busybox initramfs under Spike with its cache models, OpenSBI's `fw_jump` built from mmRISC-2's copy), `init_work` / `init_boot` / `init_big` (29.65: larger working sets), `initrd.txt`, `parse.py` (the workload = work − boot), `results/` (`table.txt`). `work/` is not kept |
+| `fpu/` | The renamed FPU's design (`OOC.md` 29.80, step 1.8 U0): `gen.py` (the DSP kernels in assembler: dot, FIR, matrix product, biquad, single and double, each checking itself), `fpsched.py` (a scheduling model of the core with the FP side on Spike's log), `fpu.sh` (build, Spike, the model and its sweep), `yest.sh` (Yosys estimates of the FP file and map), `results/` (`kernels.txt`, `sweep.txt`, `yest.txt`). `work/` is not kept |
 
 ## Tools outside the repository
 

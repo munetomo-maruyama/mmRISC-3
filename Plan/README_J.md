@@ -24,6 +24,7 @@ mmRISC-3の検討と作業ファイル。**多くはArty A7-100T向け**(履歴�
 | `reduce/` | `synth.sh`(mmRISC-2のモジュールをパラメータを変えて、sv2v + YosysでArtix-7向けに合成)、`deps.py`、`sweep.sh`、`results/sweep.txt`。`work/`は入れない |
 | `wpol/` | D$の書き込み方式(`OOC_J.md` 29.60): `wpol.sh`(RTLとベンチのコピーで: 書き込みキュー8〜64、部分書き込みに3サイクルで応答するL2、待たないストア)、`tb_core_wp.patch`、`cpu_l2_b3.patch`、`tb_cpu_wp.vlt`、`stset.S` / `stcpy.S`(D$内のmemset、memcpy)、`results/`。`work/`は入れない |
 | `csize/` | Linuxでのキャッシュのサイズ(`OOC_J.md` 29.64、29.65): `csize.sh`(Spikeのキャッシュモデルの上でLinuxとbusyboxのinitramfs。OpenSBIの`fw_jump`はmmRISC-2のコピーからビルド)、`init_work` / `init_boot` / `init_big`(29.65: 大きなワーキングセット)、`initrd.txt`、`parse.py`(ワークロード = work − boot)、`results/`(`table.txt`)。`work/`は入れない |
+| `fpu/` | リネームするFPUの設計(`OOC_J.md` 29.80、手順1.8 U0): `gen.py`(アセンブラのDSPカーネル: dot、FIR、行列積、バイクワッド、単精度と倍精度、それぞれ自己チェック)、`fpsched.py`(SpikeのログでFP側を含むコアのスケジューリングのモデル)、`fpu.sh`(ビルド、Spike、モデルとそのスイープ)、`yest.sh`(FPファイルとマップのYosysの見積もり)、`results/`(`kernels.txt`、`sweep.txt`、`yest.txt`)。`work/`は残さない |
 
 ## リポジトリ外のツール
 

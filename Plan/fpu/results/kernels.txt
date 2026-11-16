@@ -1,0 +1,21 @@
+fpsched.py with the proposed sizes (w 4, rob 48, iq 24, fq 16, freg 64, lat 9, one FPU op and one FP store's data a cycle)
+bq_ch1_d       insns 5128 cycles 9486 IPC 0.54 FPU ops 2562 (0.270 a cycle) stalls: fq 6864
+bq_ch1_s       insns 5129 cycles 9486 IPC 0.54 FPU ops 2562 (0.270 a cycle) stalls: fq 6864
+bq_ch4_d       insns 15886 cycles 10265 IPC 1.55 FPU ops 10248 (0.998 a cycle) stalls: freg 1535 fq 1
+bq_ch4_s       insns 15886 cycles 10265 IPC 1.55 FPU ops 10248 (0.998 a cycle) stalls: freg 1535 fq 1
+dot_acc12_d    insns 3306 cycles 1432 IPC 2.31 FPU ops 1031 (0.720 a cycle) stalls: lq 289 freg 1
+dot_acc12_s    insns 3306 cycles 1432 IPC 2.31 FPU ops 1031 (0.720 a cycle) stalls: lq 289 freg 1
+dot_acc1_d     insns 6056 cycles 9084 IPC 0.67 FPU ops 1009 (0.111 a cycle) stalls: rob 6994
+dot_acc1_s     insns 6056 cycles 9084 IPC 0.67 FPU ops 1009 (0.111 a cycle) stalls: rob 6994
+dot_acc4_d     insns 3794 cycles 2301 IPC 1.65 FPU ops 1015 (0.441 a cycle) stalls: lq 1004
+dot_acc4_s     insns 3794 cycles 2301 IPC 1.65 FPU ops 1015 (0.441 a cycle) stalls: lq 1004
+dot_acc8_d     insns 3424 cycles 1405 IPC 2.44 FPU ops 1023 (0.728 a cycle) stalls: lq 232
+dot_acc8_s     insns 3424 cycles 1405 IPC 2.44 FPU ops 1023 (0.728 a cycle) stalls: lq 232
+fir_out12_d    insns 17089 cycles 8373 IPC 2.04 FPU ops 8160 (0.975 a cycle) stalls: freg 589 lq 79
+fir_out12_s    insns 17088 cycles 8373 IPC 2.04 FPU ops 8160 (0.975 a cycle) stalls: freg 590 lq 79
+fir_out4_d     insns 18609 cycles 15872 IPC 1.17 FPU ops 8160 (0.514 a cycle) stalls: lq 6498 freg 1666
+fir_out4_s     insns 18608 cycles 15872 IPC 1.17 FPU ops 8160 (0.514 a cycle) stalls: lq 6499 freg 1666
+fir_out8_d     insns 17469 cycles 9196 IPC 1.90 FPU ops 8160 (0.887 a cycle) stalls: lq 841 freg 653
+fir_out8_s     insns 17468 cycles 9196 IPC 1.90 FPU ops 8160 (0.887 a cycle) stalls: lq 841 freg 654
+mm_4x4_d       insns 55325 cycles 34075 IPC 1.62 FPU ops 33792 (0.992 a cycle) stalls: freg 184
+mm_4x4_s       insns 55325 cycles 34075 IPC 1.62 FPU ops 33792 (0.992 a cycle) stalls: freg 184
