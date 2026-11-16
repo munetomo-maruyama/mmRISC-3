@@ -10073,3 +10073,68 @@ If (a) is fine, I will go on and start with I1 (interrupts).
 ```text
 I want the FPU's performance up, as it may also be written in assembler for DSP work. I want the FPU designed as (b), renamed.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Step 1.8 I1 (interrupts) is done. Commit f29d51b is pushed to dev, and the remote holds no files under `Ref/`. Next is I2, the timing check: please run Vivado.
+
+**The FPU's direction (your instruction, now in the plan)**
+- The plan for (b), renamed, is in Plan/OOC 29.77: it can take one FMA a cycle, also for DSP code written in assembler.
+- The order is I → U (U0 to U3) → V → P → K → L → J.
+- The FPU is expected at about +18k LUTs, about 110k with LiteX: about 2k above the ceiling of 107.7k. The exact figure will come from Vivado at U3.
+
+**What I1 put in**
+- mmRISC-2's CLINT and PLIC, unchanged, on `OOO_CPU`'s peripheral bus (new `RTL/CPU/MMIO`).
+  - The PLIC's 31 sources come from the new input `irq_src`.
+  - The interrupt lines and mtime go into `OOO_CSRU`.
+- Three bugs older than I1 were found on the way and fixed:
+  1. A load from a device at the ROB head, with nothing else in flight, waited for ever (`OOO_LSU4`).
+  2. The device port sent the word's address, so the PLIC's registers at +4 (the claim and others) were never reached (`OOO_DMISS2`, `OOO_LSU4`).
+  3. WFI in U mode waited (`OOO_SYS`). It is now illegal, as in Spike and the specification.
+- In lock-step, Spike is made to take the interrupt the core took, at the same instruction.
+- New tests:
+  - `b4/irq/irq.S`: the timer, software and external interrupts over many kinds of work, with WFI and delegated S-mode interrupts;
+  - riscv-arch-test's InterruptsSm / InterruptsS (32 tests);
+  - `b4/dir/devld.S`: device loads at the head.
+
+**Results**
+- run_core: all 12 runs PASS.
+  - B4: 213 programs on `OOO_CORE`, 246 on `OOO_CPU` with the interrupts.
+  - riscv-tests -p-: 146.
+- CoreMark's timed window is unchanged to the cycle: 8.244 CoreMark/MHz.
+- Core mutations: 178/186 detected. All 12 new ones for I1 are detected; the only misses are the 8 from before.
+
+**What the campaign found**
+The first campaign missed two. Each was rerun alone after its fix and is now detected; the results file is updated.
+- **86 (no replay after a CSR write)**
+  - Cause: it was detected before I1, and was missed once lock-step hid all of Spike's pending interrupts. When Spike only follows the core, it cannot see an interrupt taken late.
+  - Fix: SSIP, which CSR writes alone set and clear and which Spike decides correctly itself, is left to Spike. Only the devices' lines and Sstc's STIP (from the core's time) are hidden.
+- **178 (the time CSR at 0)**
+  - Cause: no test read time or used Sstc.
+  - Fix: two parts added to `irq.S`:
+    - rdtime compared with the CLINT's mtime;
+    - Sstc's timer used in S mode.
+
+**Vivado (I2)**
+Please run:
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+
+Expected: about +0.6k LUTs, a few hundred flip-flops, no more block RAM. Once the results are in I will write up I2, then go on to U0 (the FPU's design study).
+<!-- /answer -->
+
+## 252. 2026-11-16 21:41:49 JST
+
+```text
+Vivado's synthesis gave an error.
+
+<pasted_content>
+(Vivado's log: OOO_DMISS2 synthesized, then
+ERROR: [Synth 8-439] module 'CPU_MMIO' not found [.../RTL/CPU/OOO/OOO_CPU/OOO_CPU.sv:222]
+ERROR: [Synth 8-6156] failed synthesizing module 'OOO_CPU'
+synth_design failed)
+</pasted_content>
+```

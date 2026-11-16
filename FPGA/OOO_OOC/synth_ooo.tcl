@@ -35,7 +35,8 @@
 # OOO_CPU (B7, Plan/CORE.md 5.17): mmRISC-3's core as it will be in the
 # chip, OOO_CORE (its D$ in OOO_LSU4) with OOO_DMISS (step 1.3 E2; OOO_DMISS2, the D$
 # written back, since step 1.7b W2, Plan/OOC.md 29.62), and since step 1.7
-# H3 (Plan/OOC.md 29.58) OOO_ICACHE, OOO_MARB and CPU_L2; its own ports (the L2's AXI4
+# H3 (Plan/OOC.md 29.58) OOO_ICACHE, OOO_MARB and CPU_L2, since step 1.8 I1
+# (Plan/OOC.md 29.78) CPU_MMIO with CPU_CLINT and CPU_PLIC (RTL/CPU/MMIO); its own ports (the L2's AXI4
 # and the D$'s AXI4-Lite) with the 30 % I/O delay, as
 # MM2_CPU_CORE: a whole core out of context counts as in the chip (Plan/
 # OOC.md 25.3), and its LUTs are what the budget's estimate from the
@@ -54,6 +55,7 @@ set part   xc7a200tsbg484-1
 set rtl    ../../RTL/CPU/OOO
 set core   ../../RTL/CPU/CORE
 set cache  ../../RTL/CPU/CACHE
+set mmio   ../../RTL/CPU/MMIO
 
 set top    [expr {[llength $argv] > 0 ? [lindex $argv 0] : "OOC_ALU2"}]
 set period [expr {[llength $argv] > 1 ? [lindex $argv 1] : 20.0}]
@@ -104,7 +106,8 @@ read_verilog -sv [list \
     $rtl/OOO_STAGE/OOO_STAGE.sv $rtl/OOO_CORE/OOO_CORE.sv $rtl/OOO_DMISS2/OOO_DMISS2.sv $rtl/OOO_ICACHE/OOO_ICACHE.sv $rtl/OOO_MARB/OOO_MARB.sv $rtl/OOO_CPU/OOO_CPU.sv \
     $core/CORE_CSR/CORE_CSR.sv $rtl/OOO_CSRU/OOO_CSRU.sv $core/CORE_MDU/CORE_MDU.sv $rtl/OOO_MDUP/OOO_MDUP.sv $rtl/OOO_PMUL/OOO_PMUL.sv \
     $cache/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv $cache/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv \
-    $cache/DCACHE/DCACHE.sv $cache/CPU_L2/L2_TAG_ARRAY.sv $cache/CPU_L2/CPU_L2.sv ./rtl/OOC_WRAP.sv]
+    $cache/DCACHE/DCACHE.sv $cache/CPU_L2/L2_TAG_ARRAY.sv $cache/CPU_L2/CPU_L2.sv \
+    $mmio/CPU_CLINT/CPU_CLINT.sv $mmio/CPU_PLIC/CPU_PLIC.sv $mmio/CPU_MMIO/CPU_MMIO.sv ./rtl/OOC_WRAP.sv]
 }
 
 set gargs {}

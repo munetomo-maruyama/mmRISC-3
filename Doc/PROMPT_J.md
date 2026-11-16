@@ -10286,5 +10286,86 @@ FPUは、DSP用途としてアセンブラで記述するケースも考慮し�
 <!-- answer -->
 **Claude Codeの回答**
 
-No placeholders are left. Waiting for run_core to finish before committing.
+ステップ1.8 I1(割り込み)が完了しました。コミット f29d51b を dev にプッシュし、リモートに `Ref/` のファイルが 0 件であることも確認しています。次はタイミング確認の I2 で、Vivado の実行をお願いします。
+
+**FPU の方針(先の指示を反映済み)**
+- (b) renamed で設計する計画を Plan/OOC 29.77 に書きました。DSP 用途のアセンブラでも1サイクルに1つの FMA を流せる構成です。
+- 進める順番は I → U(U0〜U3)→ V → P → K → L → J です。
+- LUT は FPU で約 +18k、LiteX を含めると約 110k の見込みで、上限 107.7k を約 2k 超えます。正確な値は U3 で Vivado にかけて確かめます。
+
+**I1 で入れたもの**
+- `OOO_CPU` の周辺バスに、mmRISC-2 の CLINT と PLIC を手を加えずに載せました(新しい `RTL/CPU/MMIO`)。
+  - PLIC のソースは31本で、新しい入力 `irq_src` から入ります。
+  - 割り込みの線と mtime は `OOO_CSRU` に入ります。
+- 途中で、I1 より前からあったバグが3つ見つかり、直しました。
+  1. ほかに何も動いていない ROB 先頭でデバイスからロードすると、永遠に待っていた(`OOO_LSU4`)。
+  2. デバイスのポートが語のアドレスを送っていたため、PLIC の +4 にあるレジスタ(claim など)に届かなかった(`OOO_DMISS2`、`OOO_LSU4`)。
+  3. U モードの WFI が待っていた(`OOO_SYS`)。Spike と仕様に合わせて不正命令にしました。
+- ロックステップでは、コアが受けた割り込みを Spike にもその命令で受けさせます。
+- テストとして次を加えました。
+  - `b4/irq/irq.S`: いろいろな仕事の上でタイマ、ソフトウェア、外部割り込みを起こす。WFI、委譲した S モードの割り込みも含む。
+  - riscv-arch-test の InterruptsSm / InterruptsS(32本)
+  - `b4/dir/devld.S`: 先頭でのデバイスのロード
+
+**結果**
+- run_core は12実行すべて PASS です。
+  - B4 は `OOO_CORE` で213本、`OOO_CPU` で割り込み込みの246本。
+  - riscv-tests の -p- は146本。
+- CoreMark の計測区間はサイクル単位で変わらず、8.244 CoreMark/MHz のままです。
+- コアのミューテーションは 178/186 を検出しました。I1 の新しい12個はすべて検出し、未検出は以前からの8個だけです。
+
+**キャンペーンで見つかったこと**
+最初のキャンペーンでは、次の2つを見逃していました。どちらも対策後に単独で再実行して検出を確かめ、結果ファイルを更新しています。
+- **86(CSR の書き込みのあとのリプレイなし)**
+  - 原因: I1 の前は検出できていましたが、ロックステップが Spike 側の保留中の割り込みをすべて隠したため、見逃すようになりました。Spike がコアの後を追うだけになると、割り込みが遅れて受けられても気づけません。
+  - 対策: Spike 自身が正しく決められる SSIP(CSR の書き込みだけで立ち消えする)は、Spike に任せることにしました。隠すのはデバイスの線と、コアの時刻から来る Sstc の STIP だけです。
+- **178(time の CSR が 0)**
+  - 原因: time を読むテストも Sstc を使うテストもありませんでした。
+  - 対策: `irq.S` に2つの部分を足しました。
+    - CLINT の mtime と rdtime の比較
+    - S モードで Sstc のタイマを使う部分
+
+**Vivado(I2)**
+次のコマンドを実行してください。
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+
+見込みは LUT が約 +0.6k、フリップフロップが数百、ブロック RAM の増加はなしです。結果を受け取ったら I2 をまとめて、そのあと U0(FPU の設計検討)に進みます。
 <!-- /answer -->
+
+## 252. 2026-11-16 21:41:49 JST
+
+```text
+Vivadoの合成でエラーが出た。
+
+<pasted_content id="6b8c">
+INFO: [Synth 8-6157] synthesizing module 'OOO_DMISS2' [Z:/Documents/CQ/RISCV/mmRISC/mmRISC-3/RTL/CPU/OOO/OOO_DMISS2/OOO_DMISS2.sv:55]
+        Parameter PAW bound to: 32'sb00000000000000000000000000101000
+        Parameter IW bound to: 32'sb00000000000000000000000000000101
+        Parameter WAYS bound to: 32'sb00000000000000000000000000001000
+INFO: [Synth 8-226] default block is never used [Z:/Documents/CQ/RISCV/mmRISC/mmRISC-3/RTL/CPU/OOO/OOO_DMISS2/OOO_DMISS2.sv:348]
+INFO: [Synth 8-6155] done synthesizing module 'OOO_DMISS2' (0#1) [Z:/Documents/CQ/RISCV/mmRISC/mmRISC-3/RTL/CPU/OOO/OOO_DMISS2/OOO_DMISS2.sv:55]
+ERROR: [Synth 8-439] module 'CPU_MMIO' not found [Z:/Documents/CQ/RISCV/mmRISC/mmRISC-3/RTL/CPU/OOO/OOO_CPU/OOO_CPU.sv:222]
+        Parameter ADDR_WIDTH bound to: 32'sb00000000000000000000000000101000
+        Parameter CLINT_BASE bound to: 40'b0000000000000010000000000000000000000000
+        Parameter PLIC_BASE bound to: 40'b0000000000001100000000000000000000000000
+        Parameter NUM_HARTS bound to: 32'sb00000000000000000000000000000001
+        Parameter CLINT_TICK_DIV bound to: 32'sb00000000000000000000000001100100
+        Parameter PLIC_SOURCES bound to: 32'sb00000000000000000000000000011111
+        Parameter PLIC_CONTEXTS bound to: 32'sb00000000000000000000000000000010
+        Parameter PLIC_PRIO_BITS bound to: 32'sb00000000000000000000000000000011
+ERROR: [Synth 8-6156] failed synthesizing module 'OOO_CPU' [Z:/Documents/CQ/RISCV/mmRISC/mmRISC-3/RTL/CPU/OOO/OOO_CPU/OOO_CPU.sv:35]
+---------------------------------------------------------------------------------
+Finished Synthesize : Time (s): cpu = 00:00:18 ; elapsed = 00:00:20 . Memory (MB): peak = 1525.215 ; gain = 786.375
+---------------------------------------------------------------------------------
+synthesize failed
+INFO: [Common 17-83] Releasing license: Synthesis
+92 Infos, 6 Warnings, 0 Critical Warnings and 3 Errors encountered.
+synth_design failed
+ERROR: [Common 17-69] Command failed: Vivado Synthesis failed
+INFO: [Common 17-206] Exiting Vivado at Mon Nov 16 21:21:44 2026...
+Done. The numbers are in output\*\summary.txt
+</pasted_content id="6b8c">
+```
