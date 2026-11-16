@@ -10170,3 +10170,56 @@ Expected as before: about +0.6k LUTs, a few hundred flip-flops, no more block RA
 ```text
 I ran Vivado, but there is a rather large negative WNS.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The WNS of -19.4 ns came from a long chain of logic inside the PLIC taken from mmRISC-2. It is fixed, checked in simulation and by mutations, and pushed to dev as 748311a; the remote holds no files under `Ref/`. Whether the timing really improved needs Vivado to be run again.
+
+**Cause**
+- All of the 20 worst paths started at `CPU_PLIC`'s threshold register.
+  - The PLIC chooses, for each context, the best of 31 sources.
+  - mmRISC-2's implementation was a loop that counted down through the sources one by one, comparing each with the best so far.
+  - So 31 comparisons and selections were chained: about 46 levels of logic.
+- Inside the PLIC alone, the path to the pending bits was -17.8 ns.
+- Its output went on into CORE_CSR's mip and the CSR writes behind it: 60 levels, -19.4 ns in all.
+- The LUTs grew by +3,295 rather than the expected +0.6k, for two reasons:
+  - until I1 the interrupt lines were tied to 0, so the core's interrupt logic was optimized away; with live lines it stays as logic;
+  - cells were replicated on the failing paths.
+- The core's own paths were also worse, -4 to -7 ns. E1c had +0.47 ns, so I read it as placement pulled around by the failing path; the next run will tell.
+
+**Fix**
+- **`CPU_PLIC`**: the choice is rewritten as a tree of 5 levels.
+  - With equal priorities the lower number still wins.
+  - This is the only change to mmRISC-2's blocks.
+- **`OOO_CPU`**: the four interrupt lines (MSIP, MTIP, MEIP, SEIP) each go into the core through a flip-flop. An interrupt comes one cycle later.
+
+**Checks**
+- **New `SIM/MMIO/run_plic_eq.sh`**: mmRISC-2's PLIC and the new one side by side, 4 million cycles of random register accesses and sources: no difference. A deliberately broken version (ties to the higher number) differs within 900 cycles, so the comparison itself works.
+- **`irq.S` part 3b (new)**: with MIE 0 it polls the PLIC's claims and checks priorities, the threshold and ties.
+- **Interrupt programs**: the 33 and `devld.S` PASS; `irq.S` over 6 seeds and memory latencies.
+- **run_core**: all 12 runs PASS.
+- **Core mutations**: 183 of 191 detected.
+  - `CPU_PLIC` can now be mutated too; all 5 new mutations are detected.
+  - The only misses are the 8 from before.
+  - One of the first ideas turned out equivalent (it gives the same answer anyway), so it was replaced; the RTL's redundant test was dropped with it.
+  - The new mutations were run alone; the other 185 stand from I1.
+- One caveat: I edited `CPU_PLIC` while run_core was running. The change is equivalent, so the results hold, but the interrupt programs and mutation 188 were run again on the new build to be sure.
+
+**Expected in Vivado**
+- The PLIC's choice about 10 levels.
+- Into the core from flip-flops: mip to the CSR writes about 14 levels.
+- If placement was the cause, the core's paths should come back near E1c's +0.47 ns.
+
+Please run again:
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+<!-- /answer -->
+
+## 254. 2026-11-16 23:49:25 JST
+
+```text
+Ran Vivado
+```

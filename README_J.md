@@ -33,7 +33,7 @@ Pmod JA の JTAG / cJTAG も使う。周辺回路は LiteX から持ってきて
 | キャッシュ | I$ 128 KB と D$ 128 KB(どちらも 8 ウェイ。D$ はライトバック、ロードポート 2)、L2 512 KB |
 | 今の ISA | RV64IMAC + Zba / Zbb / Zbc / Zbs / Zicond / Zicsr / Zifencei / Zicntr、M / S / U モード |
 | CoreMark/MHz | **8.244**(`-O2`、計測区間、実機のメモリのレイテンシで。作業上の目標 8.0 を満たす) |
-| 資源、タイミング | LUT 78,156(58 %)、ブロック RAM タイル 284.5(78 %)。20 ns で WNS +0.470 ns |
+| 資源、タイミング | LUT 80,345(60 %)、ブロック RAM タイル 284.5(78 %)。20 ns で WNS +0.027 ns(割り込み込み、手順1.8 I2、2026-11-16) |
 
 **次は手順 1.8**: 割り込み、MMU(Sv39)、FPU、デバッグ、PMU、そしてシミュレーションで Linux(関門 S1-C)。その後 LiteX でボードへ
 (手順 2)、その上で Linux(手順 3)。作業の順序は [`Doc/STRATEGY_J.md`](Doc/STRATEGY_J.md) 5 章、ここまでの手順は

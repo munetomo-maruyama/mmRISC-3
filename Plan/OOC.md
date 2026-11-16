@@ -5961,3 +5961,18 @@ What `Doc/STRATEGY.md` 5 asks of 1.8: interrupts, the MMU (Sv39), the FPU, debug
 **Results**: `SIM/MMIO/run_plic_eq.sh` PASS. The interrupts' 33 programs and `devld.S` PASS on `OOO_CPU` with exit 0, `irq.S` over 6 seeds and memory latencies. run_core PASS in all 12 runs (B4 213 on `OOO_CORE`, 246 on `OOO_CPU`, -p- 146). Core mutations 191, 183 detected: the 5 new and 180 (moved) detected, the same 8 undetected; the runs of the 6 were taken alone (`./mutate_core.py 180 186 ...`), the other 185 stand from 29.78 (nothing they run changed but the PLIC, whose answers are the same, and the lines' register). (The test of `best_id` was dropped while run_core ran; the change is equivalent, and the interrupts' programs and mutation 188 were run again on the new build.)
 
 **Expected in Vivado**: the PLIC's choice about 10 levels (5 compare-and-select stages); its LUTs about the same or fewer (the chain's muxes become the tree's). Into the core from 4 flip-flops: mip's path to the CSR writes about 14 levels, as the other paths of `CORE_CSR`. The core's paths back near E1c's +0.47 ns if the placement was the cause.
+
+**The second run** (2026-11-16):
+
+| | E1c (29.75) | I2's first run | **I2** |
+|---|---|---|---|
+| WNS / hold | +0.470 / +0.028 ns | -19.402 ns | **+0.027 / +0.028 ns** (no endpoint failing, of 178,132) |
+| LUTs (after place and route) | 78,156 | 81,451 | **80,345 (+2,189 on E1c)** |
+| flip-flops | 19,316 | 19,920 | **19,942 (+626)** |
+| block RAM tiles | 284.5 | 284.5 | 284.5 |
+
+- **Where the LUTs went**: `CPU_MMIO` 1,427 (`CPU_PLIC` 1,026, 463 fewer than mmRISC-2's chain; `CPU_CLINT` 345); `OOO_CORE` +647: `OOO_CSRU` +237 (the interrupts' side of `CORE_CSR`, live now), `OOO_LSU4` +146 (I1's retry of a device load and its byte addresses), `OOO_FRONT` +113 and `OOO_PRF` -109 (the placement's), about +200 in `OOO_CORE`'s own logic (the trap's interrupt cause and the rest); `CPU_L2` +166 too (its tag array's, the placement's). The flip-flops: `CPU_MMIO`'s 617 (the PLIC's 228, the CLINT's 161: mtime, mtimecmp; its address and data) and the 4 lines' registers; `OOO_CORE`'s unchanged.
+- **The PLIC is in none of the 100 worst paths**; the interrupts' path from the 4 registers into `CORE_CSR` is not there either (`u_csr`'s worst input +1.829 ns, from the decoded instruction, 24 levels).
+- **The worst path** (+0.027 ns, 20 levels) is the front end's: `OOO_FETCH2`'s `hge` (the parcels at or after the pc, 29.42) → the decode a cycle ahead → `OOO_FBUF3`'s `hj` (its reset) and the micro-BTB's `pi_q` / `pc_q`. It was there at E1c too (+1.360 ns, 17 levels) and nothing in it changed: the placement moved. The core's other paths are back where they were (`u_ctrl` +1.3 ns, `u_iq` +0.8 ns, the ALUs' write-back +0.8 ns and more); E1c's worst, ALU 0's result to the register file, is +0.742 ns. The margin is thin and comes from where the tool puts things; it is watched at the next steps (the FPU will move everything), and the front end's path is the one to cut if it goes negative (`hge` a stage earlier, as 29.42 did for its other half).
+
+**Step I2 is done** at 20 ns: the interrupts on `OOO_CPU`, 80,345 LUTs (60 %), 284.5 block RAM tiles. Next is U0, the renamed FPU's design (29.77).
