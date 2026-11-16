@@ -10138,3 +10138,35 @@ ERROR: [Synth 8-6156] failed synthesizing module 'OOO_CPU'
 synth_design failed)
 </pasted_content>
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The synthesis error came from a missing entry in Vivado's file list. The fix is pushed to dev as f4f89a2, and the remote holds no files under `Ref/`. It is not yet checked in Vivado (synthesis cannot run here).
+
+**Cause**
+- When I1 put `CPU_MMIO` (the CLINT and the PLIC) into `OOO_CPU`, the new `RTL/CPU/MMIO` was added to `build_core.sh` for simulation.
+- It was not added to [synth_ooo.tcl](FPGA/OOO_OOC/synth_ooo.tcl) for Vivado, so synthesis stopped at `module 'CPU_MMIO' not found`.
+
+**Fix**
+- `synth_ooo.tcl` now has `set mmio ../../RTL/CPU/MMIO`, and these three files are in its list:
+  - `CPU_CLINT.sv`
+  - `CPU_PLIC.sv`
+  - `CPU_MMIO.sv`
+- The new input `irq_src` gets the same I/O delay as the other inputs (30 % of the period) automatically. It goes into a register inside the PLIC, so it should not be a timing problem.
+- One sentence on this was added to Plan/OOC 29.78 (English and Japanese).
+
+Please run again:
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+
+Expected as before: about +0.6k LUTs, a few hundred flip-flops, no more block RAM.
+<!-- /answer -->
+
+## 253. 2026-11-16 22:31:41 JST
+
+```text
+I ran Vivado, but there is a rather large negative WNS.
+```

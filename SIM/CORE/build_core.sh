@@ -6,6 +6,7 @@
 #   ./build_core.sh cpu         -> obj/cpu/VOOO_CPU    (the D$, the I$, the arbiter and the L2 on AXI models, step 1.7 H3)
 #   OOO_RTL=<dir> OBJ=<dir>     another copy of RTL/CPU/OOO and where to build
 #                               (the bug injection of mutate_core.py)
+#   MMIO_RTL=<dir>              another copy of RTL/CPU/MMIO (the same; step 1.8 I2: CPU_PLIC)
 #   L2KB=<n>                    OOO_CPU's L2 of n KB (512 by default; mutate_core.py
 #                               takes 4: most accesses miss it, so memory's stalls
 #                               reach the D$ and its dirty lines go on to memory)
@@ -21,7 +22,7 @@ R=${OOO_RTL:-$(cd ../../RTL/CPU/OOO && pwd)}
 C=$(cd ../../RTL/CPU/CORE && pwd)
 S=${SPIKE:-$HOME/RISCV/toolchain/spike-install}
 CA=$(cd ../../RTL/CPU/CACHE && pwd)
-MM=$(cd ../../RTL/CPU/MMIO && pwd)
+MM=${MMIO_RTL:-$(cd ../../RTL/CPU/MMIO && pwd)}
 if [ "$1" = cpu ]; then
     L2KB=${L2KB:-512}
     TOP=OOO_CPU; O=${OBJ:-$HERE/obj/cpu}; DEF="+define+DCACHE_SIM_UC -GL2_SIZE=$((L2KB * 1024)) -GCLINT_TICK_DIV=1 $HERE/tb_cpu.vlt"; CDEF="-DCPU_TOP -DL2_SETS=$((L2KB * 4))"

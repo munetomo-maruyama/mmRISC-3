@@ -18,7 +18,7 @@
 # riscv-tests' -p- programs as run_core.sh runs them, 146 with rv64ua),
 # on OOO_CPU then the interrupts' programs (b4/irq, the Interrupts groups,
 # each to exit 0: -exit0, step 1.8 I1, Plan/OOC.md 29.78; a mutation with a
-# 5th field CPU runs on OOO_CPU, as OOO_DMISS2's, OOO_CPU's and OOO_ICACHE's do), last on CoreMark (g14 sf + -flto; at most 2,000 replays: about
+# 5th field CPU runs on OOO_CPU, as OOO_DMISS2's, OOO_CPU's, OOO_ICACHE's and CPU_PLIC's do), last on CoreMark (g14 sf + -flto; at most 2,000 replays: about
 # 250 now, 21,000 with loads issued past older stores). DETECTED when a run
 # fails.
 # Every line of the result is to be read: grep NOT.
@@ -72,6 +72,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OOO = os.path.normpath(os.path.join(HERE, '../../RTL/CPU/OOO'))
+MMIO = os.path.normpath(os.path.join(HERE, '../../RTL/CPU/MMIO'))   # (copied beside OOO: CPU_PLIC's mutations, step 1.8 I2)
 W = os.path.join(HERE, 'b2/work')
 PROGS = ([os.path.join(W, 'alu-%d.elf' % i) for i in range(1, 5)] + [os.path.join(W, 'br-%d.elf' % i) for i in range(1, 11)] +
          [os.path.join(W, 'ls-%d.elf' % i) for i in range(1, 7)])
@@ -98,6 +99,7 @@ IC = 'OOO_ICACHE/OOO_ICACHE.sv' # (the same)
 DE = 'OOO_DEC/OOO_DEC.sv'
 IQ = 'OOO_IQ3/OOO_IQ3.sv'
 SY = 'OOO_SYS/OOO_SYS.sv'
+PL = '../MMIO/CPU_PLIC/CPU_PLIC.sv'   # (RTL/CPU/MMIO, from OOO's copy: on OOO_CPU, step 1.8 I2)
 CPU = True                      # a 5th field: the mutation runs on OOO_CPU (with the interrupts' programs)
 MUT = [
     # D2
@@ -304,12 +306,18 @@ MUT = [
     (C, ".irq_s_ext(irq_s_ext)", ".irq_s_ext(1'b0)", 'I1: no supervisor external interrupt', CPU),
     (C, ".mtime(mtime),", ".mtime(64'd0),", 'I1: the CSRs\' time at 0 (Sstc compares with it)', CPU),
     (CP, ".ext_irq({irq_src, 1'b0})", ".ext_irq({irq_src[30:1], 2'b0})", "I1: the PLIC's sources one off"),
-    (CP, ".irq_m_ext(irq_m_ext), .irq_s_ext(irq_s_ext),\n         .mtime(mtime));", ".irq_m_ext(irq_s_ext), .irq_s_ext(irq_m_ext),\n         .mtime(mtime));", "I1: the PLIC's contexts swapped"),
+    (CP, "<= {mm_m_soft, mm_m_timer, mm_m_ext, mm_s_ext};", "<= {mm_m_soft, mm_m_timer, mm_s_ext, mm_m_ext};", "I1: the PLIC's contexts swapped"),
     (DM, "assign m_axil_awaddr  = u_a;", "assign m_axil_awaddr  = {u_a[PAW-1:3], 3'b000};", "I1: a device's write at its word's address (the PLIC's register at +4 missed)"),
     (DM, "assign m_axil_araddr  = u_a;", "assign m_axil_araddr  = {u_a[PAW-1:3], 3'b000};", "I1: a device's read at its word's address (the claim at +4 missed)"),
     (L3, "low_byte(d2_m)};", "3'b000};", "I1: a store to a device at its word's address", CPU),
     (L3, "if (ev || (w_ucs[0] && w_lqs[0] == LW'(e)) || (w_ucs[1] && w_lqs[1] == LW'(e))) lretry[e] <= 1'b1;", "if (ev) lretry[e] <= 1'b1;", 'I1: a load for a device that waits is tried only at an event (devld.S hangs)'),
     (SY, "OP_WFI:    ill = priv == PRIV_U || (priv == PRIV_S && tw);", "OP_WFI:    ill = priv != PRIV_M && tw;", 'I1: WFI in U mode waits (Spike: illegal)', CPU),
+    # step 1.8 I2 (Plan/OOC.md 29.79): CPU_PLIC's choice a tree (irq.S part 3b polls the claims), the lines registered
+    (PL, "if (t_prio[c][2*k + 1] > t_prio[c][2*k]) begin", "if (t_prio[c][2*k + 1] >= t_prio[c][2*k]) begin", "I2: the PLIC's tree: equal priorities to the higher number"),
+    (PL, "if (pending[s] && enable[c][s] && (prio[s] > threshold[c]))", "if (pending[s] && enable[c][s] && (prio[s] >= threshold[c]))", "I2: the PLIC's threshold lets its own priority through"),
+    (PL, "if (pending[s] && enable[c][s] && (prio[s] > threshold[c]))", "if (pending[s] && (prio[s] > threshold[c]))", "I2: the PLIC's choice ignores the context's enables"),
+    (PL, "t_id[c][k]   = t_id[c][2*k + 1];", "t_id[c][k]   = t_id[c][2*k];", "I2: the PLIC's tree keeps the right child's priority with the left one's number"),
+    (CP, "else        {irq_m_soft, irq_m_timer, irq_m_ext, irq_s_ext} <=", "else if (0) {irq_m_soft, irq_m_timer, irq_m_ext, irq_s_ext} <=", "I2: the interrupt lines' registers never loaded"),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),
@@ -341,11 +349,12 @@ def run(i, m):
     d = os.path.join(HERE, 'obj/cmut%d' % i)
     shutil.rmtree(d, ignore_errors=True)
     shutil.copytree(OOO, os.path.join(d, 'OOO'))
+    shutil.copytree(MMIO, os.path.join(d, 'MMIO'))
     open(os.path.join(d, 'OOO', f), 'w').write(src.replace(old, new))
-    cpu = f in (DM, CP, IC) or len(m) > 4   # OOO_DMISS2, OOO_CPU's wiring and OOO_ICACHE run in OOO_CPU only,
+    cpu = f in (DM, CP, IC, PL) or len(m) > 4   # OOO_DMISS2, OOO_CPU's wiring and OOO_ICACHE run in OOO_CPU only,
                                         # with an L2 of 4 KB (step 1.7 H3, Plan/OOC.md 29.58): most accesses
                                         # miss it, so memory's stalls reach the D$ and its dirty lines go to memory
-    env = dict(os.environ, OOO_RTL=os.path.join(d, 'OOO'), OBJ=os.path.join(d, 'obj'), L2KB='4' if cpu else '256')
+    env = dict(os.environ, OOO_RTL=os.path.join(d, 'OOO'), MMIO_RTL=os.path.join(d, 'MMIO'), OBJ=os.path.join(d, 'obj'), L2KB='4' if cpu else '256')
     if subprocess.run([os.path.join(HERE, 'build_core.sh')] + (['cpu'] if cpu else []), env=env, capture_output=True).returncode:
         return i, 'BUILD FAILED', desc
     t = os.path.join(d, 'obj', 'VOOO_CPU' if cpu else 'VOOO_CORE')

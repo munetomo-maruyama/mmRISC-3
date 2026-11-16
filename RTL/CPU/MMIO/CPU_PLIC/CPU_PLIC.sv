@@ -1,7 +1,8 @@
 //---------------------------------------------------------------------------
 // CPU_PLIC.sv
 //
-// (mmRISC-3: taken from mmRISC-2 Rev.02 without change, RTL/CPU/MMIO/README.md)
+// (mmRISC-3: taken from mmRISC-2 Rev.02, RTL/CPU/MMIO/README.md; one change, step 1.8 I2,
+//  Plan/OOC.md 29.79: the choice of each context is a tree, not a loop: below)
 //
 // Platform level interrupt controller (CPU_CORE_SPEC.md 8).
 //
@@ -84,21 +85,41 @@ module CPU_PLIC
     //   Priority zero means the source never interrupts, and it needs no
     //   test of its own: the threshold cannot go below zero, so "greater
     //   than the threshold" already excludes it.
+    //
+    //   mmRISC-3 (step 1.8 I2): mmRISC-2's loop counted down through the
+    //   sources, each step comparing with the best so far: a chain of 31
+    //   comparisons and selections, about 46 levels of logic (-17.8 ns at
+    //   20 ns in OOO_CPU). Now a tree: each source that may interrupt
+    //   enters with its priority, one that may not with 0; each node keeps
+    //   the right child only if its priority is greater, so equal ones go
+    //   to the lower number as before; 5 levels for 31 sources. With none
+    //   that may interrupt every priority is 0 and leaf 0 (no source) wins.
     //-----------------------------------------------------------------
+    localparam int NL = 1 << ID_BITS;                    // leaves, sources 0 .. NL-1
+
     logic [ID_BITS-1:0]   best_id   [0:CONTEXTS-1];
-    logic [PRIO_BITS-1:0] best_prio [0:CONTEXTS-1];
+    logic [PRIO_BITS-1:0] t_prio    [0:CONTEXTS-1][1:2*NL-1];
+    logic [ID_BITS-1:0]   t_id      [0:CONTEXTS-1][1:2*NL-1];
 
     always @(*) begin
         for (int c = 0; c < CONTEXTS; c++) begin
-            best_id[c]   = '0;
-            best_prio[c] = '0;
-            for (int s = SOURCES; s >= 1; s--) begin
-                if (pending[s] && enable[c][s] &&
-                    (prio[s] > threshold[c]) && (prio[s] >= best_prio[c])) begin
-                    best_id[c]   = ID_BITS'(s);
-                    best_prio[c] = prio[s];
+            for (int s = 0; s < NL; s++) begin
+                t_prio[c][NL + s] = '0;
+                t_id[c][NL + s]   = ID_BITS'(s);
+                if (s >= 1 && s <= SOURCES)
+                    if (pending[s] && enable[c][s] && (prio[s] > threshold[c]))
+                        t_prio[c][NL + s] = prio[s];
+            end
+            for (int k = NL - 1; k >= 1; k--) begin
+                if (t_prio[c][2*k + 1] > t_prio[c][2*k]) begin
+                    t_prio[c][k] = t_prio[c][2*k + 1];
+                    t_id[c][k]   = t_id[c][2*k + 1];
+                end else begin
+                    t_prio[c][k] = t_prio[c][2*k];
+                    t_id[c][k]   = t_id[c][2*k];
                 end
             end
+            best_id[c]   = t_id[c][1];   // (none may interrupt: all 0, ties go left, leaf 0's id 0)
         end
     end
 

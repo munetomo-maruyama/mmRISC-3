@@ -184,4 +184,9 @@
 183 DETECTED      I1: a store to a device at its word's address
 184 DETECTED      I1: a load for a device that waits is tried only at an event (devld.S hangs)
 185 DETECTED      I1: WFI in U mode waits (Spike: illegal)
-186 mutations, 178 detected
+186 DETECTED      I2: the PLIC's tree: equal priorities to the higher number
+187 DETECTED      I2: the PLIC's threshold lets its own priority through
+188 DETECTED      I2: the PLIC's choice ignores the context's enables
+189 DETECTED      I2: the PLIC's tree keeps the right child's priority with the left one's number
+190 DETECTED      I2: the interrupt lines' registers never loaded
+191 mutations, 183 detected

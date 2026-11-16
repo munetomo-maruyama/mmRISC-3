@@ -9,6 +9,8 @@
 # 2. The machine software interrupt (msip), 12 times over the same kinds.
 # 3. External interrupts through the PLIC (context 0), sources 1 to 3 from the
 #    bench's word IRQ_DEV: claim, the source taken down, complete; 12 times.
+#    Then the PLIC's choice, polled with MIE 0 (step 1.8 I2: a tree since): the
+#    highest priority first, the threshold, equal priorities to the lower number.
 # 4. WFI with mstatus.MIE 0: it ends when the timer is pending, no trap; WFI
 #    with MIE 1: the interrupt before or after it (then a wait for the count: a
 #    WFI returned to after an interrupt taken before it would wait for another).
@@ -112,6 +114,56 @@ _start:
     addi    s9, s9, 1
     li      t0, 12
     bltu    s9, t0, 3b
+
+    # ---- 3b. the PLIC's choice, polled with MIE 0 (claims read by the program: lock-step takes the core's value)
+    csrci   mstatus, 8
+    li      t0, PLIC
+    li      t1, 2
+    sw      t1, 12(t0)              # source 3 at priority 2
+    li      t0, PTH0
+    li      t1, 1
+    sw      t1, 0(t0)               # threshold 1: sources 1 and 2 (priority 1) below it
+    li      t0, IRQ_DEV
+    li      t1, 0xe
+    sw      t1, 0(t0)               # sources 1, 2, 3 up
+    fence
+    li      t3, 40
+1:  addi    t3, t3, -1
+    bnez    t3, 1b
+    li      t0, PCL0
+    lw      t1, 0(t0)
+    li      t2, 3
+    bne     t1, t2, fail            # the highest priority
+    lw      t1, 0(t0)
+    bnez    t1, fail                # the rest at the threshold: nothing
+    li      t4, PTH0
+    sw      zero, 0(t4)             # threshold 0
+    lw      t1, 0(t0)
+    li      t2, 1
+    bne     t1, t2, fail            # equal priorities: the lower number
+    lw      t1, 0(t0)
+    li      t2, 2
+    bne     t1, t2, fail
+    lw      t1, 0(t0)
+    bnez    t1, fail                # all claimed
+    li      t4, IRQ_DEV
+    sw      zero, 0(t4)             # the lines down, then complete 3, 1, 2
+    li      t1, 3
+    sw      t1, 0(t0)
+    li      t1, 1
+    sw      t1, 0(t0)
+    li      t1, 2
+    sw      t1, 0(t0)
+    li      t4, PLIC
+    li      t1, 1
+    sw      t1, 12(t4)              # source 3 back at priority 1
+    fence
+    li      t3, 40
+1:  addi    t3, t3, -1
+    bnez    t3, 1b
+    lw      t1, 0(t0)
+    bnez    t1, fail                # nothing pending
+    csrsi   mstatus, 8
 
     # ---- 4. WFI: MIE 0 (no trap: it ends when the timer is pending), then MIE 1
     csrci   mstatus, 8

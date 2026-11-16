@@ -22,8 +22,9 @@
 // Interrupts (step 1.8 I1, Plan/OOC.md 29.78): mmRISC-2's CPU_MMIO (RTL/CPU/MMIO) on the D$'s
 // peripheral bus, with its CLINT (0x0200_0000: msip, mtimecmp, mtime, a step every
 // CLINT_TICK_DIV cycles) and PLIC (0x0C00_0000: 31 sources, the machine and supervisor
-// contexts) answered inside; the rest goes out on m_axil_*. Their lines and mtime go to
-// OOO_CORE; irq_src are the platform's sources (1 to 31; LiteX's in step 2, the bench's here).
+// contexts) answered inside; the rest goes out on m_axil_*. Their lines go to OOO_CORE
+// through a register each (step 1.8 I2: the PLIC's choice and the CLINT's compare are not
+// added to the core's paths; an interrupt comes a cycle later), mtime directly (a register); irq_src are the platform's sources (1 to 31; LiteX's in step 2, the bench's here).
 //
 // Simulation (DCACHE_SIM_UC): sim_uc_line names one line not cached (OOO_LSU3's
 // uc_line): the test bench's tohost, which HTIF must see in the memory and set back to
@@ -142,7 +143,8 @@ module OOO_CPU
     logic             ic_req_valid, ic_req_ready, ic_resp_valid, ic_flush, ic_done;
     logic [VA-1:1]    ic_req_pc;
     logic [255:0]     ic_resp_data;
-    logic             irq_m_soft, irq_m_timer, irq_m_ext, irq_s_ext;
+    logic             irq_m_soft, irq_m_timer, irq_m_ext, irq_s_ext;      // registered (I2)
+    logic             mm_m_soft, mm_m_timer, mm_m_ext, mm_s_ext;          // CPU_MMIO's
     logic [63:0]      mtime;
     OOO_CORE #(.VA(VA), .PAW(PAW), .DWAYS(DWAYS)) u_core
         (.clk(clk), .rst_n(rst_n), .boot(boot), .boot_pc(boot_pc),
@@ -232,8 +234,13 @@ module OOO_CPU
          .m_araddr(m_axil_araddr), .m_arprot(), .m_arvalid(m_axil_arvalid), .m_arready(m_axil_arready),
          .m_rdata(m_axil_rdata), .m_rresp(m_axil_rresp), .m_rvalid(m_axil_rvalid), .m_rready(m_axil_rready),
          .ext_irq({irq_src, 1'b0}),
-         .irq_m_soft(irq_m_soft), .irq_m_timer(irq_m_timer), .irq_m_ext(irq_m_ext), .irq_s_ext(irq_s_ext),
+         .irq_m_soft(mm_m_soft), .irq_m_timer(mm_m_timer), .irq_m_ext(mm_m_ext), .irq_s_ext(mm_s_ext),
          .mtime(mtime));
+
+    // the interrupt lines into the core from flip-flops (step 1.8 I2, Plan/OOC.md 29.79)
+    always_ff @(posedge clk or negedge rst_n)
+        if (!rst_n) {irq_m_soft, irq_m_timer, irq_m_ext, irq_s_ext} <= 4'd0;
+        else        {irq_m_soft, irq_m_timer, irq_m_ext, irq_s_ext} <= {mm_m_soft, mm_m_timer, mm_m_ext, mm_s_ext};
 
     OOO_ICACHE #(.VA(VA), .PAW(PAW), .SETS(256), .WAYS(8), .AXI_ID(4'd2)) u_icache
         (.clk(clk), .rst_n(rst_n),

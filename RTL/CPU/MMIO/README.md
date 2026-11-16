@@ -3,7 +3,7 @@
 [日本語](README_J.md)
 
 mmRISC-2 Rev.02's peripheral bus with the two blocks of the core that sit on it, taken for mmRISC-3 **without change**
-(step 1.8 I1, `Plan/OOC.md` 29.78). Their specification is mmRISC-2's `RTL/CPU/CPU_CORE/CPU_CORE_SPEC.md` section 8.
+(step 1.8 I1, `Plan/OOC.md` 29.78) **but one**: `CPU_PLIC`'s choice is a tree since step 1.8 I2 (29.79, below). Their specification is mmRISC-2's `RTL/CPU/CPU_CORE/CPU_CORE_SPEC.md` section 8.
 Each file has a line added to its header to say where it comes from.
 
 | Block | What it is | In mmRISC-3 |
@@ -18,4 +18,11 @@ Each file has a line added to its header to say where it comes from.
 - Tests: `SIM/CORE` on `OOO_CPU`: `b4/irq/irq.S` and riscv-arch-test's InterruptsSm / InterruptsS (32), in lock-step
   with Spike made to take the interrupt the core took (`SIM/LOCKSTEP`); mmRISC-2's own tests of the blocks are not
   repeated here.
+- **`CPU_PLIC`'s choice (step 1.8 I2)**: mmRISC-2's loop counted down through the 31 sources, each step comparing with
+  the best so far: a chain of about 46 levels of logic, -17.8 ns at 20 ns inside the PLIC and -19.4 ns on into the core
+  (the first run of I2). It is now a tree of 5 levels (each node keeps its right child only if its priority is greater,
+  so equal priorities still go to the lower number). The same answers: checked against mmRISC-2's version, both side by
+  side under 4 million cycles of random register accesses and sources (no difference in `irq` or `rdata`; a tie given to
+  the higher number differs within 900 cycles), and by `irq.S` part 3b on the core (`SIM/MMIO/run_plic_eq.sh`). `OOO_CPU` also takes the four
+  interrupt lines into the core through flip-flops.
 - Their lint warnings (unused bits of `ext_irq`, of the strobes, of `cmp_safe`) are mmRISC-2's.

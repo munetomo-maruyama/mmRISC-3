@@ -10369,3 +10369,41 @@ INFO: [Common 17-206] Exiting Vivado at Mon Nov 16 21:21:44 2026...
 Done. The numbers are in output\*\summary.txt
 </pasted_content id="6b8c">
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+合成エラーの原因は、Vivado のファイルリストの漏れでした。修正して f4f89a2 として dev にプッシュし、リモートに `Ref/` のファイルが 0 件であることも確認しました。この修正はまだ Vivado では確かめていません(ここでは合成を実行できないため)。
+
+**原因**
+- I1 で `OOO_CPU` に `CPU_MMIO`(CLINT と PLIC)を入れたとき、シミュレーション用の `build_core.sh` には新しい `RTL/CPU/MMIO` を加えました。
+- 一方、Vivado 用の [synth_ooo.tcl](../FPGA/OOO_OOC/synth_ooo.tcl) には加えていなかったため、`module 'CPU_MMIO' not found` で止まりました。
+
+**修正**
+- `synth_ooo.tcl` に `set mmio ../../RTL/CPU/MMIO` を足し、次の3ファイルを読み込みリストに加えました。
+  - `CPU_CLINT.sv`
+  - `CPU_PLIC.sv`
+  - `CPU_MMIO.sv`
+- 新しい入力 `irq_src` にも、他の入力と同じ I/O 遅延(周期の 30 %)が自動でかかります。PLIC の中でレジスタに入るので、タイミングの問題にはならない見込みです。
+- Plan/OOC 29.78(英語版と日本語版)にこの件を一文追記しました。
+
+もう一度、次のコマンドを実行してください。
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+
+見込みは前回と同じで、LUT が約 +0.6k、フリップフロップが数百、ブロック RAM の増加はなしです。
+<!-- /answer -->
+
+## 253. 2026-11-16 22:31:41 JST
+
+```text
+Vivado実行したが、かなり大きな負のWNSが出ている。
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+The `SIM/MMIO` bench and its README are in. Waiting for run_core to finish; then I'll rebuild with the new RTL and rerun the interrupt programs and mutation 188.
+<!-- /answer -->

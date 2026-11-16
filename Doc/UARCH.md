@@ -37,7 +37,7 @@ core with its caches, in lock-step with Spike, meeting 20 ns out of context. The
 | L1 D$ | **128 KB**, 256 sets × 8 ways × 64 bytes, set by the virtual address 13:6, physical tags (synonyms resolved at the miss), **write back**, 2 load ports (load-use 2), FENCE.I writes every dirty line out |
 | L2 | **512 KB**, 2,048 sets × 4 ways × 64 bytes, write back, pseudo LRU, non-inclusive (mmRISC-2's `CPU_L2`) |
 | Buses | the L2's AXI4 memory bus; the D$'s AXI4-Lite peripheral bus for what is not cacheable (outside [0x8000_0000, 0x1_0000_0000)) |
-| Interrupts | mmRISC-2's CLINT (0x0200_0000) and PLIC (0x0C00_0000, 31 sources, M and S contexts) on the peripheral bus in `OOO_CPU` (`CPU_MMIO`, step 1.8 I1, `Plan/OOC.md` 29.78); mtime at 500 kHz |
+| Interrupts | mmRISC-2's CLINT (0x0200_0000) and PLIC (0x0C00_0000, 31 sources, M and S contexts) on the peripheral bus in `OOO_CPU` (`CPU_MMIO`, step 1.8 I1, `Plan/OOC.md` 29.78); mtime at 500 kHz; the PLIC's choice a tree, the lines into the core through registers (I2, 29.79) |
 | Not yet | translation (the DTLBs are in place and grant all; no PTW, no ITLB), PMP checks (the CSRs exist), FPU, debug: **step 1.8** |
 | CoreMark/MHz | **8.244** (`-O2`, GCC 14, Zba / Zbb / Zbs / Zbc, the timed part on `OOO_CPU` with the board's memory latency); 7.835 with GCC 13 (`SIM/CORE/results/coremark.txt`) |
 | Resources | **78,156 LUTs** (58 % of 133,800; 13,902 of them LUT RAM), 19,316 flip-flops, **284.5 block RAM tiles** (of 365), 26 DSP |
