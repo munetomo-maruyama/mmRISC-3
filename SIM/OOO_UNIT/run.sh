@@ -7,6 +7,7 @@
 #   OOO_RTL=<dir>  another copy of RTL/CPU/OOO (the bug injection of mutate.py)
 #   CORE_RTL=<dir> another copy of RTL/CPU/CORE (the same)
 #   CACHE_RTL=<dir> another copy of RTL/CPU/CACHE (the same)
+#   FPU_RTL=<dir>  another copy of RTL/CPU/FPU (the same)
 #   OOO_OBJ=<dir>  where to build (default obj_dir)
 #
 # Each test is a Verilator C++ testbench (tb_<test>.cpp) that holds one block
@@ -23,6 +24,7 @@ HERE=$(pwd)
 R=${OOO_RTL:-$(cd ../../RTL/CPU/OOO && pwd)}
 C=${CORE_RTL:-$(cd ../../RTL/CPU/CORE && pwd)}   # blocks taken from mmRISC-2
 CA=${CACHE_RTL:-$(cd ../../RTL/CPU/CACHE && pwd)} # mmRISC-2's D$
+FP=${FPU_RTL:-$(cd ../../RTL/CPU/FPU && pwd)}     # mmRISC-2's FPU_PIPE (step 1.8 U1)
 SP=${SPIKE:-$HOME/RISCV/toolchain/spike-install}   # Spike, the judge of tb_dec
 OBJ=${OOO_OBJ:-$HERE/obj_dir}
 
@@ -32,11 +34,14 @@ TOP[alu1]=OOO_ALU2;     SRC[alu1]="${SRC[alu2]}"; GV[alu1]="-GFULL=0"   # ALU1 (
 TOP[alum]=OOO_ALU2;     SRC[alum]="${SRC[alu2]}"; GV[alum]="-GFULL=0 -GMID=1"   # ALU1..3 of the 4-wide core (Plan/OOC.md 29.27)
 TOP[fuse]=OOO_FUSE;     SRC[fuse]="$R/OOO_FUSE/OOO_FUSE.sv"
 TOP[prf]=OOO_PRF;       SRC[prf]="$R/OOO_PRF/OOO_PRF.sv"
+TOP[fprf]=OOO_PRF;      SRC[fprf]="$R/OOO_PRF/OOO_PRF.sv"; GV[fprf]="-GNREG=64 -GNW=3 -GNR=4 -GZERO=0"; XC[fprf]="-DPRF_NREG=64 -DPRF_NW=3 -DPRF_NR=4 -DPRF_ZERO=0"; TB[fprf]=tb_prf   # (the FP file, step 1.8 U1)
 TOP[rename]=OOO_RENAME; SRC[rename]="$R/OOO_RENAME/OOO_RENAME.sv"
 TOP[rename2]=OOO_RENAME2; SRC[rename2]="$R/OOO_RENAME2/OOO_RENAME2.sv"; GV[rename2]="--public-flat-rw"
+TOP[fren]=OOO_FREN;     SRC[fren]="$R/OOO_FREN/OOO_FREN.sv"   # (the FP renaming, step 1.8 U1)
 TOP[iq]=OOO_IQ;         SRC[iq]="$R/OOO_IQ/OOO_IQ.sv"
 TOP[iq2]=OOO_IQ2;       SRC[iq2]="$R/OOO_IQ2/OOO_IQ2.sv"
 TOP[iq3]=OOO_IQ3;       SRC[iq3]="$R/OOO_IQ3/OOO_IQ3.sv"   # (stores split, step 1.5b G2)
+TOP[fiq]=OOO_FIQ;       SRC[fiq]="$R/OOO_FIQ/OOO_FIQ.sv"   # (the FP queue, step 1.8 U1)
 TOP[iq2n2]=OOO_IQ2;     SRC[iq2n2]="$R/OOO_IQ2/OOO_IQ2.sv"; GV[iq2n2]="-GNA=2 -GP5=0"; XC[iq2n2]="-DNA=2"; TB[iq2n2]=tb_iq2
 TOP[busy]=OOO_BUSY;     SRC[busy]="$R/OOO_BUSY/OOO_BUSY.sv"
 TOP[sched]=OOO_SCHED;   SRC[sched]="$R/OOO_SDISP/OOO_SDISP.sv $R/OOO_SCHED/OOO_SCHED.sv"
@@ -49,6 +54,7 @@ TOP[trap]=OOO_TRAP;     SRC[trap]="$R/OOO_TRAP/OOO_TRAP.sv"
 TOP[sys]=OOO_SYS;       SRC[sys]="$R/OOO_SYS/OOO_SYS.sv"
 TOP[csru]=OOO_CSRU;     SRC[csru]="$C/CORE_CSR/CORE_CSR.sv $R/OOO_CSRU/OOO_CSRU.sv"
 TOP[mdup]=OOO_MDUP;     SRC[mdup]="$C/CORE_MDU/CORE_MDU.sv $R/OOO_MDUP/OOO_MDUP.sv"
+TOP[fpuw]=OOO_FPUW;     SRC[fpuw]="$FP/FPU_ROUND/FPU_ROUND.sv $FP/FPU_PIPE/FPU_PIPE.sv $R/OOO_FPUW/OOO_FPUW.sv"; XC[fpuw]="-frounding-math -ffp-contract=off"   # (the FPU, step 1.8 U1)
 TOP[pmul]=OOO_PMUL;     SRC[pmul]="$R/OOO_PMUL/OOO_PMUL.sv"
 TOP[fers]=OOO_FERS;     SRC[fers]="$R/OOO_FERS/OOO_FERS.sv"
 TOP[stage]=OOO_STAGE;   SRC[stage]="$R/OOO_STAGE/OOO_STAGE.sv"; GV[stage]="-GW=16"
@@ -79,7 +85,7 @@ XC[dec]="-I$SP/include -I$SP/include/riscv -I$SP/include/softfloat -I$SP/include
 XL[dec]="-L$SP/lib -lriscv -ldisasm -lsoftfloat -lfesvr -Wl,-rpath,$SP/lib -lpthread -ldl"
 TOP[fetch]=OOO_FETCH;   SRC[fetch]="$R/OOO_UBTB/OOO_UBTB.sv $R/OOO_PREDEC/OOO_PREDEC.sv $R/OOO_TAGE/OOO_TAGE.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FETCH/OOO_FETCH.sv"
 TOP[fetch2]=OOO_FETCH2; SRC[fetch2]="$R/OOO_UBTB2/OOO_UBTB2.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FDEC2/OOO_FDEC2.sv $R/OOO_TAGE2/OOO_TAGE2.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_FETCH2/OOO_FETCH2.sv"
-TESTS=${*:-alu2 alu1 alum exu exu2 fuse prf prf2 rename rename2 ctrl dsreg stage fers trap sys csru mdup pmul iq iq2 iq2n2 iq3 busy sched iqpl iqpl2 ubtb ubtb2 lsu lsu2 lsu3 lsu4 dcad icache dmiss2 rob fbuf fbuf2 fbuf3 fdec fdec2 ftq predec ras btb tage fetch fetch2 dec}
+TESTS=${*:-alu2 alu1 alum exu exu2 fuse prf fprf prf2 rename rename2 fren ctrl dsreg stage fers trap sys csru mdup fpuw pmul iq iq2 iq2n2 iq3 fiq busy sched iqpl iqpl2 ubtb ubtb2 lsu lsu2 lsu3 lsu4 dcad icache dmiss2 rob fbuf fbuf2 fbuf3 fdec fdec2 ftq predec ras btb tage fetch fetch2 dec}
 
 fail=0
 for t in $TESTS; do

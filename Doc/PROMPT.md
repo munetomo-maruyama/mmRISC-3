@@ -10258,3 +10258,58 @@ Next is step 1.8's U0, the design study of the renamed FPU (following Plan/OOC 2
 ```text
 Start U0
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+U0 (the design study of the renamed FPU) is written up in Plan/OOC 29.80 (English and Japanese). Commit 4afbf98 is pushed to dev, and the remote holds no files under `Ref/`. Once you confirm the five points below, I go on to U1.
+
+**What was made (new `Plan/fpu`)**
+- **`gen.py`**: generates DSP kernels in assembler, 20 in all in single and double precision; all PASS on Spike.
+  - Dot product (1/4/8/12 accumulators), FIR (16 taps, 4/8/12 outputs at once), a 32×32 matrix product (4×4 blocks), a biquad (1/4 channels).
+  - Each checks its result bit for bit against a plain scalar loop.
+  - In U2 they become lock-step tests.
+- **`fpsched.py`**: a scheduling model that steps Spike's log a cycle at a time.
+  - The core as built, plus the proposed FP side.
+  - Branch prediction perfect, every load a hit: it measures the instruction window and the FPU, not the memory or the front end.
+- **`yest.sh`**: Yosys estimates of the FP register file and the FP map.
+
+**Results (the model's FPU operations a cycle)**
+- Where the code has enough independent chains, **it comes close to one FMA a cycle**: matrix product 0.992, FIR (12 outputs) 0.975, biquad (4 channels) 0.998.
+- An FP queue of **12 is enough** (within 1 % of 16).
+- **64 FP physical registers are needed**: 48 loses 11 to 34 %, so 29.77's fallback to 48 cannot be used.
+- **A bypass** from the FPU's output to its input **is needed**: without it the latency is 10, and kernels whose chains are just enough lose 5 to 10 %.
+- What holds the dot product at 0.72 is not the FP side but **the LQ (16)**: two loads per FMA hold their entries until commit. With LQ 24 the dot product gains +16 to +19 %.
+
+**The design's main points**
+- FP instructions in every decode slot (today slot 0 only).
+- Four new blocks:
+  - **`OOO_FREN`**: FP renaming (32 onto 64 physical, 12 checkpoints)
+  - **`OOO_FIQ`**: the FP queue (12 entries; a cycle, one issue to the FPU and one store's data)
+  - **the FP register file**: `OOO_PRF` with 64 registers, 3 writes, 4 reads
+  - **`OOO_FPUW`**: a wrapper around `FPU_PIPE`, unchanged
+- The paths to the integer side:
+  - FP results for integer registers written through port 0's free write slot, shared with `OOO_MDUP`; the integer queue needs no new port.
+  - Integer-to-FP instructions go into the FPU from the integer queue's port 0.
+  - FP store data enters through a second SQ data write port.
+  - fflags and mstatus.FS are updated at commit.
+
+**LUTs**
+- The FPU in all about +17.2k (29.77 said +18k).
+- About 105.3k (79 %) at the end of step 1.8; about 110.6k (83 %) with LiteX, about 2.9k above the 107.7k taken as the ceiling. The gap grew because I2 cost 1.6k more than expected.
+- The ceiling comes from experience on the Arty, not from a limit measured on this device; U3 measures it in Vivado.
+- If it does not fit: a PMP checker shared (about 0.8k), the FPU's C2 / C3 (about 0.3k and 0.8k), the debug's size.
+
+**Five points to confirm**
+1. The FP queue at 12 entries.
+2. 64 FP physical registers.
+3. A bypass at the FPU (latency 9).
+4. A divide killed by a misprediction runs to its end (it holds the FPU up to 130 cycles, but `FPU_PIPE` stays unchanged).
+5. The LQ stays at 16 for now (24 kept as an option of the LSU).
+<!-- /answer -->
+
+## 256. 2026-11-17 14:56:40 JST
+
+```text
+Confirm, start U1
+```

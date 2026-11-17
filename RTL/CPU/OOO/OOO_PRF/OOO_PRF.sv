@@ -10,7 +10,8 @@
 //     newest value of each register: the technique of mmRISC-2's CORE_RF,
 //     with more ports. The synthesis tool replicates a bank for its read
 //     ports (a RAM64M gives three reads beside the write).
-//   - Physical register 0 is x0: it reads as zero and is never written.
+//   - Physical register 0 is x0: it reads as zero and is never written (ZERO = 1; the
+//     FP file of step 1.8 U1 has ZERO = 0: its register 0 is f0's first mapping).
 //   - Reads are asynchronous; a read of a register written in the same cycle
 //     gives the old value (the bypass network forwards the new one).
 //   - Two ports never write one register in the same cycle (renaming gives
@@ -33,7 +34,8 @@ module OOO_PRF
     #(
         parameter int NREG = 96,
         parameter int NW   = 5,
-        parameter int NR   = 8
+        parameter int NR   = 8,
+        parameter bit ZERO = 1'b1      // register 0 reads as zero, is never written
     )
     (
         input  logic                           clk,
@@ -60,7 +62,7 @@ module OOO_PRF
         if (NREG <= 64) begin : g_one
             (* ram_style = "distributed" *) logic [63:0] mem [NREG];
             always_ff @(posedge clk) begin
-                if (we[w] && wa[w] != '0) mem[wa[w]] <= wd[w];
+                if (we[w] && (!ZERO || wa[w] != '0)) mem[wa[w]] <= wd[w];
             end
             for (genvar r = 0; r < NR; r++) begin : g_rd
                 assign rb[r][w] = mem[ra[r]];
@@ -70,7 +72,7 @@ module OOO_PRF
             (* ram_style = "distributed" *) logic [63:0] lo [64];
             (* ram_style = "distributed" *) logic [63:0] hi [NREG-64];
             always_ff @(posedge clk) begin
-                if (we[w] && wa[w] != '0 && !wa[w][6]) lo[wa[w][5:0]] <= wd[w];
+                if (we[w] && (!ZERO || wa[w] != '0) && !wa[w][6]) lo[wa[w][5:0]] <= wd[w];
                 if (we[w] && wa[w][6]) hi[wa[w][HW-1:0]] <= wd[w];
             end
             for (genvar r = 0; r < NR; r++) begin : g_rd
@@ -81,12 +83,12 @@ module OOO_PRF
 
     always_ff @(posedge clk) begin
         for (int w = 0; w < NW; w++)
-            if (we[w] && wa[w] != '0) lvt[wa[w]] <= LW'(w);
+            if (we[w] && (!ZERO || wa[w] != '0)) lvt[wa[w]] <= LW'(w);
     end
 
     // the bank the LVT names
     for (genvar r = 0; r < NR; r++) begin : g_out
-        assign rd[r] = (ra[r] == '0) ? 64'd0 : rb[r][lvt[ra[r]]];
+        assign rd[r] = (ZERO && ra[r] == '0) ? 64'd0 : rb[r][lvt[ra[r]]];
     end
 
 endmodule : OOO_PRF
