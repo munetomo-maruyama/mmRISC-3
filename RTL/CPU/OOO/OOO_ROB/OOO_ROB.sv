@@ -11,6 +11,9 @@
 //             LUTRAM, ND banks by the index modulo ND: the µops of a
 //             dispatch and those of a commit are always consecutive, so each
 //             bank has one write and one read a cycle
+//   extra     XW bits more of the same kind, the integrator's (the core's
+//             FP destination, step 1.8 U3b: Plan/OOC.md 29.85), in LUTRAM
+//             beside the payload, written and read with it (disp_x, cmt_x)
 //   status    done, exception and its cause, in flip-flops (written by the
 //             NCMP completion ports)
 //
@@ -64,7 +67,8 @@ module OOO_ROB
         parameter int CW   = 3,        // checkpoint index
         parameter int NCMP = 4,        // completion ports
         parameter int FTQW = 4,        // FTQ index
-        parameter int PB   = 3         // a parcel's bits (3: 16-byte blocks; 4: 32 bytes)
+        parameter int PB   = 3,        // a parcel's bits (3: 16-byte blocks; 4: 32 bytes)
+        parameter int XW   = 8         // the extra payload's bits (disp_x, cmt_x)
     )
     (
         input  logic                        clk,
@@ -86,6 +90,7 @@ module OOO_ROB
         input  logic [ND-1:0][FTQW-1:0]        disp_ftq,    // its fetch block (of its last half: Plan/OOC.md 21)
         input  logic [ND-1:0]                  disp_exc,    // an exception known at decode
         input  logic [ND-1:0][4:0]             disp_cause,
+        input  logic [ND-1:0][XW-1:0]          disp_x,      // the extra payload: given back at commit
         output logic [ND-1:0][ROBW-1:0]        disp_rob,
 
         // completion
@@ -120,6 +125,7 @@ module OOO_ROB
         output logic [ND-1:0][TAGW-1:0]        cmt_old,
         output logic [ND-1:0][VA-1:1]          cmt_pc,
         output logic [ND-1:0][FTQW-1:0]        cmt_ftq,
+        output logic [ND-1:0][XW-1:0]          cmt_x,
         output logic [2:0]                   cmt_ld_n,    // loads committed now
         output logic [2:0]                   cmt_st_n,    // stores committed now
         output logic [3:0]                  cmt_instret, // instructions (a fused pair counts 2)
@@ -193,34 +199,40 @@ module OOO_ROB
     pay_t rdv [ND][ND];                        // bank b's read for the head's k-th
     for (genvar b = 0; b < ND; b++) begin : g_bank
         (* ram_style = "distributed" *) pay_t mem [H];
+        (* ram_style = "distributed" *) logic [XW-1:0] xm [H];    // the extra payload, beside it
         logic          we;
         logic [HW-1:0] wa;
         pay_t          wd;
+        logic [XW-1:0] wx;
         always @(*) begin
-            we = 1'b0; wa = '0; wd = '0;
+            we = 1'b0; wa = '0; wd = '0; wx = '0;
             for (int k = 0; k < ND; k++)
                 if (bk(tk[k][ROBW-1:0]) == BW'(b)) begin
-                    we = disp_valid[k]; wa = rw(tk[k][ROBW-1:0]); wd = pack(k);
+                    we = disp_valid[k]; wa = rw(tk[k][ROBW-1:0]); wd = pack(k); wx = disp_x[k];
                 end
         end
-        always_ff @(posedge clk) if (we) mem[wa] <= wd;
+        always_ff @(posedge clk) if (we) begin mem[wa] <= wd; xm[wa] <= wx; end
         // the head's k-th: in bank (head + k) mod ND
         for (genvar k = 0; k < ND; k++) begin : g_rd
             logic [ROBW-1:0] hi;
             pay_t            q;
+            logic [XW-1:0]   qx;
             assign hi = hk[k][ROBW-1:0];
             assign q  = mem[rw(hi)];
+            assign qx = xm[rw(hi)];
         end
     end
+    logic [XW-1:0] rdx [ND][ND];
     always @(*) begin
-        for (int k = 0; k < ND; k++) pk[k] = '0;
+        for (int k = 0; k < ND; k++) begin pk[k] = '0; cmt_x[k] = '0; end
         for (int k = 0; k < ND; k++)
             for (int b = 0; b < ND; b++)
-                if (bk(hk[k][ROBW-1:0]) == BW'(b)) pk[k] = rdv[b][k];
+                if (bk(hk[k][ROBW-1:0]) == BW'(b)) begin pk[k] = rdv[b][k]; cmt_x[k] = rdx[b][k]; end
     end
     for (genvar b = 0; b < ND; b++) begin : g_rv
         for (genvar k = 0; k < ND; k++) begin : g_k
             assign rdv[b][k] = g_bank[b].g_rd[k].q;
+            assign rdx[b][k] = g_bank[b].g_rd[k].qx;
         end
     end
 

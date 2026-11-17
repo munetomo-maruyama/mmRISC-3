@@ -20,7 +20,8 @@
 // point the front end goes back to (rcv_ftq, rcv_end: the trapping or
 // replayed µop's block and last parcel), an interrupt taken before the head
 // (irq: nothing commits, the ROB empties; head_valid, head_fused), every
-// commit (pc, destination, new and old registers, fetch block) and the load / store /
+// commit (pc, destination, new and old registers, fetch block, the extra payload
+// disp_x / cmt_x of 8 bits: the core's FP destination, Plan/OOC.md 29.85) and the load / store /
 // instret counts, and that a restore names the oldest mispredicted branch
 // in the ROB with its checkpoint.
 //---------------------------------------------------------------------------
@@ -34,7 +35,7 @@
 
 static const int NROB = 24;
 struct E {
-    int idx; uint64_t pc; int wr, arch, nw, old, ld, st, fused, ns, br, ckpt, len, ftq;
+    int idx; uint64_t pc; int wr, arch, nw, old, ld, st, fused, ns, br, ckpt, len, ftq, x;
     bool done = false, exc = false, rp = false; int cause = 0;
     long ready_at = 0; bool ns_go = false;
 };
@@ -127,7 +128,7 @@ int main(int argc, char** argv)
         }
         E ne[2];
         unsigned dv = 0, dwr = 0, dld = 0, dst = 0, dfu = 0, dns = 0, dexc = 0;
-        uint32_t darch = 0, dnew = 0, dold = 0, dcause = 0, dlen = 0, dftq = 0;
+        uint32_t darch = 0, dnew = 0, dold = 0, dcause = 0, dlen = 0, dftq = 0, dx8 = 0;
         d.disp_pc[0] = d.disp_pc[1] = d.disp_pc[2] = 0;
         for (int u = 0; u < nd; u++) {
             E& e = ne[u];
@@ -140,17 +141,18 @@ int main(int argc, char** argv)
             e.ckpt = rng() % 8;
             e.len = e.fused ? 2 + rng() % 3 : 1 + rng() % 2;      // halfwords: RVC 1, 32-bit 2, a pair 2 .. 4
             e.ftq = rng() % 16;                 // FTQW = 4 (D-18)
+            e.x = rng() % 256;                  // XW = 8
             bool dx = rng() % 40 == 0;
             e.done = e.exc = dx; e.cause = dx ? rng() % 32 : 0;
             e.ready_at = cyc + 1 + rng() % 10;
             dv |= 1u << u; dwr |= e.wr << u; dld |= e.ld << u; dst |= e.st << u; dfu |= e.fused << u; dns |= e.ns << u; dexc |= dx << u;
             darch |= e.arch << (5 * u); dnew |= e.nw << (6 * u); dold |= e.old << (6 * u); dcause |= e.cause << (5 * u);
-            dlen |= e.len << (3 * u); dftq |= e.ftq << (4 * u);
+            dlen |= e.len << (3 * u); dftq |= e.ftq << (4 * u); dx8 |= e.x << (8 * u);
             setw(d.disp_pc, 38 * u, 38, e.pc);
         }
         d.disp_valid = dv; d.disp_wr = dwr; d.disp_arch = darch; d.disp_new = dnew; d.disp_old = dold;
         d.disp_ld = dld; d.disp_st = dst; d.disp_fused = dfu; d.disp_ns = dns; d.disp_exc = dexc; d.disp_cause = dcause;
-        d.disp_len = dlen; d.disp_ftq = dftq;
+        d.disp_len = dlen; d.disp_ftq = dftq; d.disp_x = nd ? dx8 : (uint32_t)(rng() & 0xffff);
         d.cmp_valid = cv; d.cmp_rob = crob; d.cmp_exc = cexc; d.cmp_cause = ccause; d.cmp_rp = crp;
         d.br_valid = bv; d.br_rob = brob; d.br_mispred = bmis; d.br_ckpt = bck;
         d.irq = irq;
@@ -193,6 +195,7 @@ int main(int argc, char** argv)
             if ((int)((d.cmt_arch >> (5 * u)) & 31) != e.arch) FAIL("commit %d arch", u);
             if ((int)((d.cmt_new >> (6 * u)) & 63) != e.nw) FAIL("commit %d new", u);
             if ((int)((d.cmt_old >> (6 * u)) & 63) != e.old) FAIL("commit %d old", u);
+            if ((int)((d.cmt_x >> (8 * u)) & 255) != e.x) FAIL("commit %d x %d, expected %d", u, (int)((d.cmt_x >> (8 * u)) & 255), e.x);
             if ((int)((d.cmt_ftq >> (4 * u)) & 15) != e.ftq) FAIL("commit %d ftq %d, expected %d", u, (int)((d.cmt_ftq >> (4 * u)) & 15), e.ftq);
         }
         if ((int)d.cmt_ld_n != eld || (int)d.cmt_st_n != est || (int)d.cmt_instret != eir)

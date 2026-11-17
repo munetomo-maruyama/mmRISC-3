@@ -351,10 +351,10 @@ MUT = [
     (C, "assign xf_ok = x_ready && !(g_alu[0].rr_v && rr_rec[0].fx) && !(ex_v[0] && ex[0].rec.fx);", "assign xf_ok = x_ready;", "U2: int -> FP µops back to back into one buffer"),
     (C, "!ex[p].sd && !ex[p].rec.fx;", "!ex[p].sd;", "U2: an int -> FP µop completed in port 0's EX"),
     (C, "f_fl_set = f_fl_set | fr_fl[ik];", "f_fl_set = fr_fl[ik];", "U2: fflags from the last µop committed alone"),
-    (C, "if (fr_wr[ik] || fr_fl[ik] != 5'd0) f_dirty = 1'b1;", "if (fr_wr[ik]) f_dirty = 1'b1;", "U2: new flags alone leave FS clean"),
+    (C, "if (cmt_fx[k][FXW-1] || fr_fl[ik] != 5'd0) f_dirty = 1'b1;", "if (cmt_fx[k][FXW-1]) f_dirty = 1'b1;", "U2: new flags alone leave FS clean"),
     (C, "if (iw_ack)   fr_fl[iw_rob] <= iw_flags;", "", "U2: an FP -> integer µop's flags lost"),
     (C, "x_pl[11 +: ROBW] = ex[0].rec.rob;", "", "U2: an int -> FP µop completes entry 0"),
-    (C, "fcmt_wr[k]   = cmt_valid[k] && fr_wr[ik];", "fcmt_wr[k]   = 1'b0;", "U2: the committed FP map never written"),
+    (C, "fcmt_wr[k]   = cmt_valid[k] && cmt_fx[k][FXW-1];", "fcmt_wr[k]   = 1'b0;", "U2: the committed FP map never written"),
     (C, "|| (at && g_mem_cmd[s] != 5'd2) || fpst[j];", "|| (at && g_mem_cmd[s] != 5'd2);", "U2: an FP store without an SQ entry"),
     (C, "fi2f[j] ? {21'd0, g_fp_int_w[s], g_fp_int_signed[s], g_fp_rm[s], g_fp_fmt[s], g_fp_op[s]} : g_imm[s];", "g_imm[s];", "U2: an int -> FP µop's operation not passed"),
     (IQ, "sdq <= b_nd[B];", "sdq <= 1'b0;", "U2: an FP store's data waited for on port 1"),
@@ -365,6 +365,8 @@ MUT = [
     (DE, "assign rs3[k]          = xi[31:27];", "assign rs3[k]          = xi[24:20];", "U2: an FMA's rs3 its rs2"),
     (C, "assign iq_ready   = (q_ready >= n_iq && fq_ready >= n_fq) ? 3'd4 : 3'd0;", "assign iq_ready   = (fq_ready >= n_fq) ? 3'd4 : 3'd0;", "U2b: dispatch without room in OOO_IQ3"),
     (DE, "assign fp_we_rd[k]     = l_fp_we_rd;", "assign fp_we_rd[k]     = S0 && l_fp_we_rd;", "U2b: an FP destination in slot 0 only"),
+    (C, "f2_dst[j], f2_old[j]};", "f2_old[j], f2_dst[j]};", "U3b: the FP destination's new and old swapped in OOO_ROB"),
+    (C, "fcmt_arch[k] = cmt_fx[k][2*FTAGW +: 5];", "fcmt_arch[k] = cmt_fx[k][FTAGW +: 5];", "U3b: the FP map's architectural register read off"),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),

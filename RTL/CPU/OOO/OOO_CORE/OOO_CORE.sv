@@ -214,6 +214,7 @@ module OOO_CORE
     localparam int NWK   = 9;                   // wakeup buses (OOO_IQ3: 7 + NEXT)
     // the renamed FPU (step 1.8 U2, Plan/OOC.md 29.80)
     localparam int NFREG = 80, FTAGW = 7;       // FP physical registers (80 since step 1.8 U2b, Plan/OOC.md 29.83)
+    localparam int FXW   = 1 + 5 + 2 * FTAGW;   // the FP destination in OOO_ROB's extra payload: {wr, arch, new, old}
     localparam int FPLW  = 32;                  // OOO_FIQ's payload: op [4:0], fmt [5], rm [8:6], int_signed [9], int_w [10],
                                                 // the ROB index [11 +: ROBW], the integer destination [17 +: TAGW]; a store's
                                                 // data: its SQ entry [27:24], double [28]
@@ -547,6 +548,7 @@ module OOO_CORE
     logic [ND-1:0][4:0]        cmt_arch;
     logic [ND-1:0][VA-1:1]     cmt_pc;
     logic [ND-1:0][FTQW-1:0]   cmt_ftq;
+    logic [ND-1:0][FXW-1:0]    dv_fx, cmt_fx;                 // the FP destination through OOO_ROB (step 1.8 U3b)
 
     // ---- renaming: 4 slots
     logic [ND-1:0]             d_go;
@@ -750,19 +752,19 @@ module OOO_CORE
             disp_len[j]   = (ds[j].rec.len4 ? 3'd2 : 3'd1) + ((FUSE_AB && ds[j].rec.fused) ? (ds[j].rec.len4b ? 3'd2 : 3'd1) : 3'd0);
             disp_fused[j] = FUSE_AB && ds[j].rec.fused;
         end
-    OOO_ROB #(.NROB(NROB), .ROBW(ROBW), .VA(VA), .TAGW(TAGW), .CW(CW), .NCMP(NCMP), .FTQW(FTQW), .ND(ND), .PB(4)) u_rob
+    OOO_ROB #(.NROB(NROB), .ROBW(ROBW), .VA(VA), .TAGW(TAGW), .CW(CW), .NCMP(NCMP), .FTQW(FTQW), .ND(ND), .PB(4), .XW(FXW)) u_rob
         (.clk(clk), .rst_n(rst_n), .rob_avail(rob_avail), .disp_valid(disp_go),
          .disp_pc(dv_pc), .disp_wr(dv_wr), .disp_arch(dv_arch),
          .disp_new(dv_dst), .disp_old(dv_old), .disp_ld(dv_ld), .disp_st(dv_st),
          .disp_fused(disp_fused), .disp_ns(dv_ns), .disp_len(disp_len),
-         .disp_ftq(dv_ftq), .disp_exc(dv_exc), .disp_cause(dv_cause),
+         .disp_ftq(dv_ftq), .disp_exc(dv_exc), .disp_cause(dv_cause), .disp_x(dv_fx),
          .disp_rob(disp_rob),
          .cmp_valid(cmp_valid), .cmp_rob(cmp_rob), .cmp_exc(cmp_exc), .cmp_cause(cmp_cause), .cmp_rp(cmp_rp),
          .br_valid(br_valid), .br_rob(br_rob), .br_mispred(br_mispred), .br_ckpt(br_ckpt),
          .restore(rob_restore), .restore_k(rob_restore_k), .restore_rob(rob_restore_rob), .restore_ckpt(rob_restore_ckpt),
          .head_rob(head_rob), .head_ns(head_ns), .head_valid(head_valid), .head_fused(head_fused), .irq(irq),
          .cmt_valid(cmt_valid), .cmt_wr(cmt_wr), .cmt_arch(cmt_arch), .cmt_new(cmt_new), .cmt_old(cmt_old),
-         .cmt_pc(cmt_pc), .cmt_ftq(cmt_ftq), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_instret(cmt_instret),
+         .cmt_pc(cmt_pc), .cmt_ftq(cmt_ftq), .cmt_x(cmt_fx), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_instret(cmt_instret),
          .trap(rob_trap), .trap_cause(trap_cause), .trap_pc(trap_pc), .replay(replay), .replay_pc(rob_replay_pc),
          .rcv_ftq(rcv_ftq), .rcv_end(rcv_end));
 
@@ -1506,35 +1508,31 @@ module OOO_CORE
         sd2_data <= b2_dat;
     end
 
-    // ---- per ROB entry: the FP destination (OOO_FREN's commit) and the flags; at commit fflags and mstatus.FS
-    logic                      fr_wr   [NROB];
-    logic [4:0]                fr_arch [NROB];
-    logic [FTAGW-1:0]          fr_new  [NROB];
-    logic [FTAGW-1:0]          fr_old  [NROB];
+    // ---- per ROB entry: the FP destination (OOO_FREN's commit) in OOO_ROB's extra payload, LUT RAM (step 1.8
+    // U3b, Plan/OOC.md 29.85: as flip-flops written by 4 slots and read by 4, about 2 to 3k LUTs), and the flags
+    // here (written at completion); at commit fflags and mstatus.FS
     logic [4:0]                fr_fl   [NROB];
     always_ff @(posedge clk) begin
         if (fw_valid) fr_fl[fw_rob] <= fw_flags;
         if (iw_ack)   fr_fl[iw_rob] <= iw_flags;
-        for (int j = 0; j < ND; j++) if (disp_go[j]) begin     // (an entry given out again takes its new state first)
-            fr_wr[disp_rob[j]]   <= ds[j].fwr && !ds[j].exc;
-            fr_arch[disp_rob[j]] <= ds[j].farch;
-            fr_new[disp_rob[j]]  <= f2_dst[j];
-            fr_old[disp_rob[j]]  <= f2_old[j];
+        for (int j = 0; j < ND; j++) if (disp_go[j])            // (an entry given out again takes its new state first)
             fr_fl[disp_rob[j]]   <= 5'd0;
-        end
+    end
+    always @(*) begin
+        for (int j = 0; j < ND; j++) dv_fx[j] = {ds[j].fwr && !ds[j].exc, ds[j].farch, f2_dst[j], f2_old[j]};
     end
     always @(*) begin
         automatic logic [ROBW-1:0] ik = head_rob;
         f_fl_set = '0;
         f_dirty  = 1'b0;
         for (int k = 0; k < ND; k++) begin
-            fcmt_wr[k]   = cmt_valid[k] && fr_wr[ik];
-            fcmt_arch[k] = fr_arch[ik];
-            fcmt_new[k]  = fr_new[ik];
-            fcmt_old[k]  = fr_old[ik];
+            fcmt_wr[k]   = cmt_valid[k] && cmt_fx[k][FXW-1];
+            fcmt_arch[k] = cmt_fx[k][2*FTAGW +: 5];
+            fcmt_new[k]  = cmt_fx[k][FTAGW +: FTAGW];
+            fcmt_old[k]  = cmt_fx[k][0 +: FTAGW];
             if (cmt_valid[k]) begin
                 f_fl_set = f_fl_set | fr_fl[ik];
-                if (fr_wr[ik] || fr_fl[ik] != 5'd0) f_dirty = 1'b1;    // (Spike dirties FS on an FP write or new flags)
+                if (cmt_fx[k][FXW-1] || fr_fl[ik] != 5'd0) f_dirty = 1'b1;    // (Spike dirties FS on an FP write or new flags)
             end
             ik = (ik == ROBW'(NROB - 1)) ? '0 : ik + ROBW'(1);
         end

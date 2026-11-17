@@ -14,7 +14,9 @@
 // flush, and take an integer result when iw_valid (iw_ack, not always).
 // What must hold:
 //   - every µop not killed gives its result once: an FP one on fw_* (tag, value,
-//     ROB index, flags), an integer one on iw_* in FPU order; none of a killed one
+//     ROB index, flags), an integer one on iw_* in FPU order; none of a killed one,
+//     but for the FIFO's head in the very cycle it is killed (or flushed): it may go
+//     out then (Plan/OOC.md 29.85), and is checked as a live one
 //   - the latency: issue + 11 for port A (divide / square root at least that),
 //     an int -> FP µop at least 10 after it is sent
 //   - the wakeup: for each FP result its tag at the answer - 3, a divide's or a
@@ -225,7 +227,7 @@ int main(int argc, char** argv)
     int ldn[2] = {-1, -1};                    // loads that write in the next cycle
     uint64_t ldnv[2] = {0, 0};
     int frm = 0;
-    long nres = 0, nint = 0, nx = 0, nld = 0, nb2 = 0, nb1 = 0, nkill = 0, nkop = 0, nflush = 0, ndv = 0, nldb = 0, nackw = 0, nf2ok = 0, nfok = 0, ndyn = 0, nwkd = 0;
+    long nres = 0, nint = 0, nx = 0, nld = 0, nb2 = 0, nb1 = 0, nkill = 0, nkop = 0, nflush = 0, ndv = 0, nldb = 0, nackw = 0, nf2ok = 0, nfok = 0, ndyn = 0, nwkd = 0, nkhw = 0;
 
     auto kill_op = [&](Op& o) {
         if (!o.alive) return;
@@ -418,7 +420,8 @@ int main(int argc, char** argv)
             }
         }
         // FP -> integer results answered now (issue + 11), alive at this cycle
-        bool hdrop = !fifo.empty() && (!ops[fifo.front()].alive || (ops[fifo.front()].bm & kill) || flush);
+        // (dropped: killed in an earlier cycle; one killed in this cycle may still go out)
+        bool hdrop = !fifo.empty() && !ops[fifo.front()].alive;
         if (d.iw_valid) {
             if (fifo.empty() || hdrop) { FAIL("cycle %ld: an integer result with none expected (x%d rob %d; fifo %zu, hdrop %d)", cyc, (int)d.iw_tag, (int)d.iw_rob, fifo.size(), (int)hdrop);
                 for (size_t q = ops.size() > 60 ? ops.size() - 60 : 0; q < ops.size(); q++) if (ops[q].f2i && ops[q].idst == (int)d.iw_tag && ops[q].rob == (int)d.iw_rob)
@@ -430,7 +433,7 @@ int main(int argc, char** argv)
                 if ((int)d.iw_tag != o.idst || (uint64_t)d.iw_data != r.v || (int)d.iw_flags != r.fl || (int)d.iw_rob != o.rob)
                     FAIL("cycle %ld: op %d (%d fmt %d) integer result x%d %016lx flags %x, expected x%d %016lx flags %x", cyc, o.id, o.op, o.fmt,
                          (int)d.iw_tag, (unsigned long)d.iw_data, (int)d.iw_flags, o.idst, (unsigned long)r.v, r.fl);
-                if (ack) { fifo.pop_front(); finish(o); nint++; nackw++; }
+                if (ack) { if ((o.bm & kill) || flush) nkhw++; fifo.pop_front(); finish(o); nint++; nackw++; }
             }
         } else if (!fifo.empty() && cyc > 0) {
             if (!hdrop) FAIL("cycle %ld: no integer result, op %d waiting", cyc, ops[fifo.front()].id);
@@ -480,9 +483,9 @@ int main(int argc, char** argv)
         for (int l = 0; l < 2; l++) { ldsch[l] = ldn[l]; ldval[l] = ldnv[l]; }
     }
     bool cov = nres > 100000 && nint > 15000 && nx > 10000 && nld > 50000 && nb2 > 20000 && nb1 > 20000 && nldb > 3000 && nkill > 5000 &&
-               nkop > 10000 && nflush > 50 && ndv > 1000 && nwkd > 1000 && nfok > 10000 && nf2ok > 500 && ndyn > 10000;
-    printf("tb_fpuw (%d registers): %ld FP results (%ld divides / square roots), %ld integer results, %ld int -> FP µops; %ld loads (%ld read the cycle they are written); "
+               nkop > 10000 && nflush > 50 && ndv > 1000 && nwkd > 1000 && nfok > 10000 && nf2ok > 500 && ndyn > 10000 && nkhw > 20;
+    printf("tb_fpuw (%d registers): %ld FP results (%ld divides / square roots), %ld integer results (%ld at the head the cycle they were killed), %ld int -> FP µops; %ld loads (%ld read the cycle they are written); "
            "%ld sources at the answer, %ld a cycle after; %ld kills (%ld µops), %ld flushes; %ld cycles without fpu_ok, %ld without f2i_ok; %ld with frm: %ld mismatches: %s\n",
-           FW_NR, nres, ndv, nint, nx, nld, nldb, nb2, nb1, nkill, nkop, nflush, nfok, nf2ok, ndyn, bad, bad == 0 && cov ? "PASS" : "FAIL");
+           FW_NR, nres, ndv, nint, nkhw, nx, nld, nldb, nb2, nb1, nkill, nkop, nflush, nfok, nf2ok, ndyn, bad, bad == 0 && cov ? "PASS" : "FAIL");
     return bad != 0 || !cov;
 }

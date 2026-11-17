@@ -1424,7 +1424,7 @@ M = [
     ('M1470', 'OOO_FPUW/OOO_FPUW.sv', 'fpuw', "            if (dead(r_bm[i])) r_k[i] <= 1'b1;", "            if (1'b0) r_k[i] <= 1'b1;", 'FPUW: a kill in the FPU forgotten'),
     ('M1471', 'OOO_FPUW/OOO_FPUW.sv', 'fpuw', "assign fpu_ok  = !xb_v && !(s1_v && s1_dv) && !(s2_v && s2_dv) && in_ready;", "assign fpu_ok  = !xb_v && !(s2_v && s2_dv) && in_ready;", 'FPUW: a µop issued behind a divide in S1'),
     ('M1472', 'OOO_FPUW/OOO_FPUW.sv', 'fpuw', "assign f2i_ok  = f2n < 5'(FD);", "assign f2i_ok  = f2n <= 5'(FD);", 'FPUW: one FP -> integer µop too many'),
-    ('M1473', 'OOO_FPUW/OOO_FPUW.sv', 'fpuw', "assign fhd      = fcnt != 3'd0 && (f_k[fh] || dead(f_bm[fh]));", "assign fhd      = fcnt != 3'd0 && dead(f_bm[fh]);", 'FPUW: a kill in the FIFO forgotten (found so, 29.81)'),
+    ('M1473', 'OOO_FPUW/OOO_FPUW.sv', 'fpuw', "assign fhd      = fcnt != 3'd0 && f_k[fh];", "assign fhd      = 1'b0;", 'FPUW: a kill in the FIFO forgotten (found so, 29.81; the registered kill alone since 29.85)'),
     ('M1474', 'OOO_FPUW/OOO_FPUW.sv', 'fpuw', "assign s1_rm = s1_pl[8:6] == 3'b111 ? frm : s1_pl[8:6];", "assign s1_rm = s1_pl[8:6];", 'FPUW: the dynamic rounding mode not resolved'),
     ('M1475', 'OOO_FPUW/OOO_FPUW.sv', 'fpuw', "assign x_rm = xb_pl[8:6] == 3'b111 ? frm : xb_pl[8:6];", "assign x_rm = xb_pl[8:6];", "FPUW: an int -> FP µop's dynamic rounding mode"),
     ('M1476', 'OOO_FPUW/OOO_FPUW.sv', 'fpuw', "if (o_fp && r_dv[rh]) begin wk_valid = 1'b1; wk_tag = r_dst[rh]; end", "if (1'b0) begin wk_valid = 1'b1; wk_tag = r_dst[rh]; end", "FPUW: a divide's dependents never woken"),
@@ -1447,6 +1447,8 @@ M = [
     ('M1491', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "|| (sd2_v && sd2_sq == SW'(i))) sdv[i] <= 1'b1;", ") sdv[i] <= 1'b1;", "LSU4: an FP store's data never valid"),
     ('M1492', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "uc_done || sd_w || sd2_v || sc_dec || at_sdw;", "uc_done || sd_w || sc_dec || at_sdw;", "LSU4: an FP store's data is no event for a waiting load"),
     ('M1493', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "m_f    = align(sdr(f_idx),", "m_f    = align(sd_f[f_idx],", "LSU4: a forward from the integer RAM alone"),
+    ('M1496', 'OOO_ROB/OOO_ROB.sv', 'rob', "wx = disp_x[k];", "wx = disp_x[0];", "ROB: every bank's extra payload slot 0's (step 1.8 U3b)"),
+    ('M1497', 'OOO_ROB/OOO_ROB.sv', 'rob', "cmt_x[k] = rdx[b][k];", "cmt_x[k] = rdx[0][k];", "ROB: every commit's extra payload bank 0's (step 1.8 U3b)"),
     ('M1494', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "d2_d    <= sdr(d1_p[SW-1:0]);", "d2_d    <= sd_f[d1_p[SW-1:0]];", "LSU4: a store drained from the integer RAM alone"),
 ]
 

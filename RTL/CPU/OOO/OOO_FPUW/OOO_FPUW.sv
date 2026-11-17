@@ -38,7 +38,11 @@
 // Kills: what is in flight carries its branch mask, cleared by clr: in S1, S2, the
 // buffer (not offered when killed), the FPU (a ring of the offered µops in FPU order,
 // popped at each answer: a killed one is neither written nor woken), the FIFO
-// (skipped at its head). flush kills it all. A killed divide runs to its end
+// (skipped at its head once its kill is registered, f_k: a head killed in this very
+// cycle still goes out on iw_*, which is harmless, as its integer register is freed
+// only by this kill and given out later, its ROB entry is squashed and its wakeup
+// reaches only µops killed with it; the kill this cycle stays off port 0's write,
+// Plan/OOC.md 29.84, 29.85). flush kills it all. A killed divide runs to its end
 // (Plan/OOC.md 29.80).
 //
 // The payload (OOO_FIQ's, PLW bits): op [4:0] (FPU_PIPE's numbers), fmt [5],
@@ -237,8 +241,8 @@ module OOO_FPUW
     logic [NCK-1:0]   f_bm   [FD];
     logic             f_k    [FD];                   // killed while it waits
     logic [$clog2(FD)-1:0] fh, ft;
-    logic             fhd;                           // the head is killed: dropped now
-    assign fhd      = fcnt != 3'd0 && (f_k[fh] || dead(f_bm[fh]));
+    logic             fhd;                           // the head was killed: dropped now
+    assign fhd      = fcnt != 3'd0 && f_k[fh];
     assign iw_valid = fcnt != 3'd0 && !fhd;
     assign iw_tag   = f_tag[fh];
     assign iw_data  = f_data[fh];

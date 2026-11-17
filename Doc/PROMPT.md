@@ -10483,3 +10483,62 @@ Tell me when the run ends. As U3 I will look at the WNS, how much the LUTs grew,
 ```text
 Ran Vivado.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+U3's first run just misses 20 ns (WNS −0.108 ns), and the LUTs are about 7.6k above the estimate. The causes of both are found, and there are changes that fix them at once. But the whole chip is now expected to go well over the LUT ceiling, so the budget is yours to decide.
+
+**The numbers (against I2)**
+
+| Item | I2 | U3 |
+|---|---|---|
+| WNS | +0.027 ns | **−0.108 ns** (TNS −0.297 ns, 6 failing endpoints) |
+| Hold | | +0.028 ns (none failing) |
+| LUTs | 80,345 | **105,169** (+24,824) |
+| FF | 19,942 | 27,506 (+7,564) |
+| DSP | 26 | 42 (+16, FPU_PIPE's multipliers) |
+| BRAM | 284.5 | 284.5 (unchanged) |
+
+**Timing**
+- 77 of the 100 worst paths (all 6 failing ones) are one new path: a branch's kill, then the head of OOO_FPUW's FIFO (an FP→integer result), `iw_ack`, port 0's write select, into the integer register file's LVT.
+- The fix: `iw_valid` stops looking at "killed in this cycle" and decides from the kill held in a flip-flop alone.
+  - A result killed in this cycle is written once, which is harmless.
+  - Its integer register becomes free only with this kill, so no other µop has it yet.
+  - Only µops killed with it are woken.
+  - The integer ports already work this way (they write without waiting for the kill).
+- The next slowest path is E1c's atomic tval (+0.077 ns), which is met. No other FP path is among the 100 worst.
+
+**LUTs**
+- The new blocks total 17,453, about as estimated:
+  - OOO_FPUW: 9,636
+  - OOO_FREN and the FP busy bits: 3,484
+  - The FP file: 2,490
+  - OOO_FIQ: 1,843
+- What went over is the core's own logic, +7.4k (estimated 1.5k).
+  - Synthesis rebuilds the hierarchy, so it is counted inside blocks such as OOO_ROB (+5,040).
+  - The main reason is the FP arrays kept per ROB entry (25 bits × 48 = 1,200), built in flip-flops. Any entry is written from 4 slots and read by 4 slots, which takes many LUTs.
+  - Four of the arrays are only written at dispatch and read at commit, so they can move into OOO_ROB's banked LUT RAM. I expect 2 to 3k saved; that is an estimate, measured in the next run.
+- The outlook at the end of step 1.8 is about 113.0k (84 %), about 118.3k (88 %) with LiteX: **10.6k over** the 107.7k ceiling (U0 estimated 2.9k).
+- The ceiling is experience from the Arty, not a value measured on this device (133,800 LUTs).
+
+**Proposal: U3b**
+1. Put in the timing fix above, with `tb_fpuw`'s model of the FIFO following it.
+2. Move the four FP arrays into OOO_ROB's LUT RAM (`fr_fl` stays in flip-flops, since it is written at completion).
+3. After the tests and mutations, you run Vivado again.
+
+What to do about the budget itself can wait for U3b's numbers. Candidates that give LUTs back:
+- FP back to 64 registers / 12 entries: about 1.5k saved. Performance: bq ch4 +17 %, mm +1.9 %, fir out12 +4.9 % slower.
+- One PMP checker shared: about 0.8k.
+- mmRISC-2's C2/C3 for the FPU: about 1.1k.
+- A smaller debug.
+- Or, before taking it as the limit, measure the real ceiling with LiteX included.
+
+U3 cannot be called passed yet, so the RTL is unchanged. The analysis is in Plan/OOC 29.84 (EN/JA) and STRATEGY 1.8, committed with the reports and pushed (Ref/: 0).
+<!-- /answer -->
+
+## 261. 2026-11-18 01:02:42 JST
+
+```text
+Start U3b
+```
