@@ -27,9 +27,11 @@
 //               from the checkpoint, then the undoes), and adv must be low in the
 //               second (OOO_RENAME2's u_v does the same there)
 //
-// ready: the registers are there (at least 8 were free in the last cycle: up to 8
-// are between R1 and the ROB) and the init is over (NREG - 32 places: (NREG - 32) / 4
-// cycles). The integrator keeps adv low while ready is not.
+// ready: the registers are there (at least 4 free now: a group's; a register from the
+// next state's head and tail, step 1.8 U2b, Plan/OOC.md 29.83: with 8 free in the last
+// cycle, as OOO_RENAME2's, a fourth of the 32 were never used, and the DSP kernels lost
+// 8 to 16 %) and the init is over (NREG - 32 places: (NREG - 32) / 4 cycles). The
+// integrator keeps adv low while ready is not.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -280,8 +282,10 @@ module OOO_FREN
     endfunction
 
     // ---- the clocked state
-    logic [5:0] h_new;
+    logic [5:0] h_new, h_nx, t_nx;
     assign h_new = flush_all ? chead : rd[32*TAGW +: 6];
+    assign h_nx  = (flush_all || restore) ? h_new : adv ? head + 6'(n) : head;     // (the next state's head and tail)
+    assign t_nx  = init_b ? tail : tail + 6'(f_n);
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             init    <= 4'd0;
@@ -298,7 +302,7 @@ module OOO_FREN
             end
         end else begin
             if (init_b) init <= init + 4'd1;
-            free_ok <= !init_b && 6'(tail - head) >= 6'd8;
+            free_ok <= !init_b && 6'(t_nx - h_nx) >= 6'd4;
             u_v     <= restore && !flush_all;
             pk_any  <= adv;
             tail    <= init_b ? tail : tail + 6'(f_n);

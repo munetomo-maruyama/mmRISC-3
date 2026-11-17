@@ -1,8 +1,8 @@
 #---------------------------------------------------------------------------
 # illegal.S : B4's directed test of the exceptions found at decode
 # (Plan/CORE.md 5.7), in lock-step: with mstatus.FS off every FP
-# instruction is illegal in Spike too (in the core always: no FPU in Phase
-# 1); illegal compressed encodings followed by a 32-bit instruction (tval:
+# instruction is illegal, in Spike and in the core (no FPU in Phase 1; FS's
+# check since step 1.8 U2a: b4/dir/fprm.S has the rounding mode's traps); illegal compressed encodings followed by a 32-bit instruction (tval:
 # the 16 bits only); 32-bit illegal instructions; each after 0 to 3 ALU
 # instructions, so that it lands in either slot of a dispatch group. The
 # handler stores mcause and mtval (what lock-step compares) and skips the

@@ -10349,3 +10349,57 @@ Next, U2 joins them to the core: FP in every slot of decode, FP loads and stores
 ```text
 Start U2
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I was stopped part-way, so here is where things stand.
+
+**U2a (the FP datapath in the core, FP still decoded in slot 0 only) is pushed (1cd4f6d).** `Ref/` on the remote: 0 files.
+- In lock-step with Spike, all of these pass:
+  - rv64uf / ud, rv64mi-p-csr
+  - riscv-arch-test F, D, Zcd and the FP privileged tests (FS-off traps included)
+  - the 20 DSP kernels
+  - the new random FP programs
+- Core mutations: 36 of 38 detected.
+  - 192 (a dynamic rounding mode with frm reserved) was a gap in the tests; the new `b4/dir/fprm.S` catches it (checked).
+  - 212 (an FP -> integer result does not hold port 0's writers) changes only cycles, not results (equivalent); the guard stays.
+
+**U2b (FP in every slot) is not committed.** run_core passes all 12 runs on both tops; unit mutations 19 of 19 detected. Four changes:
+- OOO_RARE no longer treats FP as a rare class, and OOO_DEC gives the FP fields in all 4 slots.
+- Dispatch compares each queue's room with that queue's µops only.
+- OOO_FREN's ready is exact. It used to need 8 free in the last cycle, which left 8 of the 32 unused; now it needs 4 free in the next state.
+- 11 older unit mutations that U2a's changes had moved were retargeted to the new lines (missed at U2a).
+
+**The DSP kernels (double, cycles from kstart to kend) against the model:**
+
+| Kernel | Slot 0 only (U2a) | Every slot (U2b) | Model |
+|---|---|---|---|
+| mm 4x4 | 55,798 | 38,118 (1.12 x) | 34,075 |
+| fir out12 | 18,403 | 10,696 (1.28 x) | 8,373 |
+| bq ch4 | 15,900 | 12,061 (1.18 x) | 10,265 |
+| dot acc12 | 3,335 | 2,000 (1.40 x) | 1,432 |
+| bq ch1 / dot acc1 | 9,477 / 9,040 | 9,478 / 9,039 | 9,486 / 9,084 |
+
+The latency-bound kernels match the model. The rest of the gap comes from FP µops completing later than in the model:
+- in the core a result comes 11 cycles after issue and then commits (the model: 9), and the FP register is taken at R1, 2 stages before dispatch;
+- so the FP registers, the FP queue and the LQ stay full longer than in the model.
+
+Estimates with the confirmed values changed (cycles, as in the table):
+- **80 FP registers + FP queue 16:** mm 37,402, fir out12 10,194, bq ch4 10,271.
+  - The FP file's LUT RAM nearly doubles (past 64 rows); about +1k LUTs or a little more.
+- **dot:** capped by the LQ, as U0 expected.
+
+The FP queue of 12 and the 64 FP registers are values you confirmed, so I left them unchanged.
+
+**Still to do:**
+- U2b's 5 core mutations (on a snapshot)
+- checking CoreMark is unchanged
+- Plan/OOC 29.83 (EN/JA) and the U2b commit
+<!-- /answer -->
+
+## 258. 2026-11-17 20:10:03 JST
+
+```text
+Go to 80 / 16
+```

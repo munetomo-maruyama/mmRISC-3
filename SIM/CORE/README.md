@@ -294,3 +294,8 @@ the kstart to kend window); `b2/build.sh` a 4th kind, `fp` (`gen_b2.py`: ls's pr
 commit trace says an FP register's write (`tr_fwr`), which the lock-step compares as Spike's. All pass on both tops. Core
 mutations: 37 new (191 to 227), 14 old ones moved to the lines U2a changed; the programs of the FP kind, the new B4 groups and
 rv64uf / ud in the campaign.
+
+**Step 1.8 U2b** (`Plan/OOC.md` 29.83): FP in every slot, 80 FP registers, an FP queue of 16. `b4/dir/fprm.S`: the rounding
+mode's traps (frm 0 to 7 with FP operations that round dynamically and ones that do not; the reserved static modes). All pass;
+CoreMark's timed window unchanged. Core mutations: 2 new (228, 229), 202 and 227 moved; 192 caught by `fprm.S`, 212
+equivalent in time.

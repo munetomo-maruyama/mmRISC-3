@@ -79,8 +79,8 @@
 // OOO_LSU4 writes the result through its port 0 and wakes the issue queue
 // (ext port 1, at_wk_*); its access fault (5 LR, 7 SC / AMO) and tval.
 //
-// The renamed FPU (step 1.8 U2, Plan/OOC.md 29.80 to 29.82): FP decoded in slot 0
-// (a rare class, as before; U2b takes it to every slot). OOO_FREN renames the FP
+// The renamed FPU (step 1.8 U2, Plan/OOC.md 29.80 to 29.83): FP decoded in every slot
+// (since U2b; a rare class in slot 0 at U2a). OOO_FREN renames the FP
 // registers beside OOO_RENAME2 (its r1_adv, checkpoint ids; ready joins renaming's);
 // busy bits of the FP file (OOO_BUSY, twice for 3 sources). An FP operation (and an
 // FP -> integer one) goes to OOO_FIQ alone; an FP store's address to OOO_IQ3 (an
@@ -213,7 +213,7 @@ module OOO_CORE
     localparam bit         FUSE_AB    = FUSE_KINDS[7];
     localparam int NWK   = 9;                   // wakeup buses (OOO_IQ3: 7 + NEXT)
     // the renamed FPU (step 1.8 U2, Plan/OOC.md 29.80)
-    localparam int NFREG = 64, FTAGW = 6;       // FP physical registers
+    localparam int NFREG = 80, FTAGW = 7;       // FP physical registers (80 since step 1.8 U2b, Plan/OOC.md 29.83)
     localparam int FPLW  = 32;                  // OOO_FIQ's payload: op [4:0], fmt [5], rm [8:6], int_signed [9], int_w [10],
                                                 // the ROB index [11 +: ROBW], the integer destination [17 +: TAGW]; a store's
                                                 // data: its SQ entry [27:24], double [28]
@@ -598,6 +598,7 @@ module OOO_CORE
     logic [4:0]                iw_flags, fw_flags;
     logic [FTAGW-1:0]          fw_tag;
     logic [4:0]                f_fl_set;
+    logic [ND-1:0]             fq_disp, fq_cand;        // to OOO_FIQ (below)
     logic                      f_dirty;
 
     // ---- the FP registers' renaming (OOO_FREN, beside OOO_RENAME2 and in step with it: its r1_adv, the checkpoints'
@@ -845,7 +846,17 @@ module OOO_CORE
          .ext_valid({at_wk_v, md_ext_v || f2i_wr}), .ext_tag({at_wk_t, md_ext_v ? md_ext_t : iw_tag}),
          .iss_valid(q_valid), .iss_entry(q_ientry), .iss_src(q_src), .iss_wr(q_wr), .iss_dst(q_dst),
          .iss_bm(q_bm), .iss_ns(iss_ns), .iss_md(iss_md), .iss_sd(iss_sd), .wk_valid(wk_valid), .wk_tag(wk_tag));
-    assign iq_ready   = q_ready < fq_ready ? q_ready : fq_ready;    // (both queues: the group goes to either or both)
+    // each queue's room against its own µops of the group (step 1.8 U2b): OOO_CTRL compares iq_avail with all the group's
+    logic [2:0]                n_iq, n_fq;
+    always @(*) begin
+        n_iq = '0;
+        n_fq = '0;
+        for (int j = 0; j < ND; j++) begin
+            n_iq = n_iq + 3'(iq_cand[j]);
+            n_fq = n_fq + 3'(fq_cand[j]);
+        end
+    end
+    assign iq_ready   = (q_ready >= n_iq && fq_ready >= n_fq) ? 3'd4 : 3'd0;
     assign disp_entry = q_entry;
     always @(*) begin
         for (int p = 0; p <= NAP + 1; p++) begin
@@ -1357,7 +1368,6 @@ module OOO_CORE
 
     // ==== the renamed FPU (step 1.8 U2, Plan/OOC.md 29.80 to 29.82) ====
     // ---- dispatch to OOO_FIQ: an FP operation (port A), an FP store's data (port B: its fs2 as source 0)
-    logic [ND-1:0]             fq_disp, fq_cand;
     logic [ND-1:0][2:0]        fq_use, fq_rdy;
     logic [ND-1:0][2:0][FTAGW-1:0] fq_src;
     logic [ND-1:0]             fq_wr, fq_sd, fq_dv, fq_f2i;
@@ -1366,7 +1376,6 @@ module OOO_CORE
     always @(*) begin
         for (int j = 0; j < ND; j++) begin
             fq_cand[j] = ds_valid[j] && !ds[j].exc && (ds[j].fq || ds[j].fsd);
-            fq_disp[j] = d_go[j] && fq_cand[j];
             fq_use[j]  = ds[j].fuse;
             fq_src[j]  = ds[j].fsd ? {f2_src[j][2], f2_src[j][0], f2_src[j][1]} : f2_src[j];
             fq_rdy[j]  = ds[j].fsd ? {frdy[j][2], frdy[j][0], frdy[j][1]} : frdy[j];
@@ -1383,13 +1392,14 @@ module OOO_CORE
             fq_pl[j][28]             = ds[j].rec.msize[0];  // (a store's data: fsd)
         end
     end
+    assign fq_disp = d_go & fq_cand;                    // (apart: fq_cand feeds the dispatch room, d_go comes of it)
     logic                      fpu_ok, f2i_ok;
     logic                      ia_v, ia_wr, ia_dv, ia_f2i, ib_v;
     logic [2:0][FTAGW-1:0]     ia_src;
     logic [FTAGW-1:0]          ia_dst, ib_src;
     logic [NCKPT-1:0]          ia_bm, ib_bm;
     logic [FPLW-1:0]           ia_pl, ib_pl;
-    OOO_FIQ #(.N(12), .TAGW(FTAGW), .NEXT(4), .NCK(NCKPT), .NBANK(4), .PLW(FPLW)) u_fiq
+    OOO_FIQ #(.N(16), .TAGW(FTAGW), .NEXT(4), .NCK(NCKPT), .NBANK(4), .PLW(FPLW)) u_fiq
         (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .fpu_ok(fpu_ok), .f2i_ok(f2i_ok),
          .disp_ready(fq_ready), .disp_valid(fq_disp), .disp_cand(fq_cand), .disp_use(fq_use), .disp_src(fq_src),
          .disp_rdy(fq_rdy), .disp_wr(fq_wr), .disp_dst(fq_dst), .disp_bm(d_bmask), .disp_sd(fq_sd), .disp_dv(fq_dv),

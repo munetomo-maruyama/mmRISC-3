@@ -62,6 +62,10 @@
 #     no program makes it. Not equivalent: the guard stays.
 #   - (step 1.4 E1c) an AMO's load part without the write permission (m_perm): no
 #     translation in Phase 1 (tr_on 0), so the DTLB grants both; for step 1.8.
+#   - (step 1.8 U2, kept in the list) an FP -> integer result that does not hold port 0's latency-1
+#     writers (212): equivalent in time. The result waits for a free slot; while it waits it is at
+#     the ROB's head or behind it, so commit stops, the ROB and the queue fill, and port 0 runs dry:
+#     the slot comes. The guard stays (the MDU's way: within two cycles).
 #   - (step 1.4 E1c) an AMO's new value computed without its rs2 there (at_sdw without
 #     sdv[at_sq]): equivalent in time. rs2's producer is older, so it has woken the data
 #     by the time the AMO is the ROB's head; IQ3 sends store data oldest first, so the
@@ -333,7 +337,7 @@ MUT = [
     (C, "frdy[j]  = {fbsy_b[j][0], fbsy_a[j][1], fbsy_a[j][0]};", "frdy[j]  = {fbsy_a[j][1], fbsy_a[j][1], fbsy_a[j][0]};", "U2: an FMA's fs3 ready as its fs2"),
     (C, "u_fbusy_a\n        (.clk(clk), .rst_n(rst_n), .set_v(f1_wr)", "u_fbusy_a\n        (.clk(clk), .rst_n(rst_n), .set_v(4'd0)", 'U2: the FP busy bits never set'),
     (C, ".r_ren_ready(ren_ready && fren_ready)", ".r_ren_ready(ren_ready)", "U2: renaming goes without FP registers"),
-    (C, "assign iq_ready   = q_ready < fq_ready ? q_ready : fq_ready;", "assign iq_ready   = q_ready;", "U2: dispatch without room in OOO_FIQ"),
+    (C, "assign iq_ready   = (q_ready >= n_iq && fq_ready >= n_fq) ? 3'd4 : 3'd0;", "assign iq_ready   = (q_ready >= n_iq) ? 3'd4 : 3'd0;", "U2: dispatch without room in OOO_FIQ"),
     (C, "fwk_v[1 + m] = m_rr_v[m] && rr_rec[NAP+m].fpd", "fwk_v[1 + m] = 1'b0 && rr_rec[NAP+m].fpd", "U2: an FP load wakes nothing"),
     (C, "ld_db[m] = ld_nt[m][TAGW+1] ? {32'hFFFF_FFFF, ld_d[m][31:0]} : ld_d[m];", "ld_db[m] = ld_d[m];", "U2: flw not NaN boxed"),
     (C, "prf_we[NAP + m] = ld_nv[m] && !ld_fp[m];", "prf_we[NAP + m] = ld_nv[m];", "U2: an FP load written into the integer file too"),
@@ -358,7 +362,9 @@ MUT = [
     (L4, "assign sd2_rep = sd2_size == 2'd2 ? {2{sd2_data[31:0]}} : sd2_data;", "assign sd2_rep = sd2_data;", "U2: fsw's data not replicated"),
     (L4, "if (sd2_v) sd_lv[sd2_sq] <= 1'b1;", "", "U2: an FP store's data read from the integer RAM"),
     (L4, "|| (sd2_v && sd2_sq == SW'(i))) sdv[i] <= 1'b1;", ") sdv[i] <= 1'b1;", "U2: an FP store's data never valid"),
-    (DE, "assign rs3[k]          = S0 ? xi[31:27] : '0;", "assign rs3[k]          = S0 ? xi[24:20] : '0;", "U2: an FMA's rs3 its rs2"),
+    (DE, "assign rs3[k]          = xi[31:27];", "assign rs3[k]          = xi[24:20];", "U2: an FMA's rs3 its rs2"),
+    (C, "assign iq_ready   = (q_ready >= n_iq && fq_ready >= n_fq) ? 3'd4 : 3'd0;", "assign iq_ready   = (fq_ready >= n_fq) ? 3'd4 : 3'd0;", "U2b: dispatch without room in OOO_IQ3"),
+    (DE, "assign fp_we_rd[k]     = l_fp_we_rd;", "assign fp_we_rd[k]     = S0 && l_fp_we_rd;", "U2b: an FP destination in slot 0 only"),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),

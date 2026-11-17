@@ -44,6 +44,14 @@ static long bad = 0;
 enum { ADD = 0, SUB, MUL, DIV, SQRT, MADD, MSUB, NMSUB, NMADD, SGNJ, SGNJN, SGNJX, MIN, MAX, EQ, LT, LE, CLASS,
        MVXF, MVFX, CVTSD, CVTDS, CVTFI, CVTIF };
 static const long INF = 1L << 60;
+// the configuration (run.sh: fpuw at 6-bit tags, 64 registers; fpuw80 the core's, 7-bit and 80, step 1.8 U2b)
+#ifndef FW_TW
+#define FW_TW 6
+#endif
+#ifndef FW_NR
+#define FW_NR 64
+#endif
+#define FW_TM ((1 << FW_TW) - 1)
 static const uint64_t QN64 = 0x7ff8000000000000ull, QN32 = 0xffffffff7fc00000ull;
 
 // ---------------------------------------------------------------- the reference
@@ -205,9 +213,9 @@ int main(int argc, char** argv)
     d.clk = 0; d.rst_n = 1; d.flush = 0; d.kill = 0; d.clr = 0; d.frm = 0; d.a_valid = 0; d.x_valid = 0; d.ld_valid = 0; d.iw_ack = 0;
     d.eval(); d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
 
-    uint64_t file[64];
-    Tag tg[64];
-    for (int t = 0; t < 64; t++) { file[t] = rnd_val(t & 1); tg[t].have = true; tg[t].val = file[t]; tg[t].fmt = t & 1; tg[t].avail = 0; }
+    uint64_t file[FW_NR];
+    Tag tg[FW_NR];
+    for (int t = 0; t < FW_NR; t++) { file[t] = rnd_val(t & 1); tg[t].have = true; tg[t].val = file[t]; tg[t].fmt = t & 1; tg[t].avail = 0; }
     std::vector<Op> ops;
     std::vector<int> fl;                      // alive, not done (ids)
     std::deque<int> fifo;                     // FP -> integer results answered, waiting (FPU order)
@@ -250,7 +258,7 @@ int main(int argc, char** argv)
         // the loads scheduled at the last cycle write now
         unsigned lv = 0, lt = 0; VlWide<4> lw; for (int i = 0; i < 4; i++) lw[i] = 0;
         for (int l = 0; l < 2; l++) if (ldsch[l] >= 0) {
-            lv |= 1u << l; lt |= (unsigned)ldsch[l] << (6 * l);
+            lv |= 1u << l; lt |= (unsigned)ldsch[l] << (FW_TW * l);
             lw[2 * l] = (uint32_t)ldval[l]; lw[2 * l + 1] = (uint32_t)(ldval[l] >> 32);
         }
         d.ld_valid = lv; d.ld_tag = lt; d.ld_data = lw;
@@ -259,7 +267,7 @@ int main(int argc, char** argv)
         {
             VlWide<6> rd;
             for (int s = 0; s < 3; s++) {
-                int a = (d.rf_addr >> (6 * s)) & 63;
+                int a = (d.rf_addr >> (FW_TW * s)) & FW_TM;
                 rd[2 * s] = (uint32_t)file[a]; rd[2 * s + 1] = (uint32_t)(file[a] >> 32);
             }
             d.rf_data = rd;
@@ -283,7 +291,7 @@ int main(int argc, char** argv)
         ldn[0] = ldn[1] = -1;
         for (int l = 0; l < 2; l++) {
             if (rng() % 3) continue;
-            int t = rng() % 64;
+            int t = rng() % FW_NR;
             if (tg[t].prod >= 0 || tg[t].readers > 0 || t == ldn[0] || t == ldsch[0] || t == ldsch[1] || !(tg[t].have || tg[t].avail == INF)) continue;
             ldn[l] = t;
             ldnv[l] = rnd_val(rng() % 2);
@@ -293,7 +301,7 @@ int main(int argc, char** argv)
 
         // ---- an issue on port A
         std::vector<int> usable, exact, next1, freet;
-        for (int t = 0; t < 64; t++) {
+        for (int t = 0; t < FW_NR; t++) {
             if (tg[t].avail <= cyc) usable.push_back(t);
             if (tg[t].avail == cyc) exact.push_back(t);
             if (tg[t].avail == cyc - 1) next1.push_back(t);
@@ -343,7 +351,7 @@ int main(int argc, char** argv)
             }
             if (na.rm == 7) ndyn++;
             d.a_valid = 1;
-            d.a_src = (uint32_t)na.src[0] | ((uint32_t)na.src[1] << 6) | ((uint32_t)na.src[2] << 12);
+            d.a_src = (uint32_t)na.src[0] | ((uint32_t)na.src[1] << FW_TW) | ((uint32_t)na.src[2] << (2 * FW_TW));
             d.a_wr = !na.f2i; d.a_dst = na.dst; d.a_bm = abm; d.a_dv = na.dv; d.a_f2i = na.f2i;
             d.a_pl = (uint32_t)na.op | ((uint32_t)na.fmt << 5) | ((uint32_t)na.rm << 6) | ((uint32_t)na.isg << 9) | ((uint32_t)na.iw << 10) |
                      ((uint32_t)na.rob << 11) | ((uint32_t)na.idst << 17);
@@ -473,8 +481,8 @@ int main(int argc, char** argv)
     }
     bool cov = nres > 100000 && nint > 15000 && nx > 10000 && nld > 50000 && nb2 > 20000 && nb1 > 20000 && nldb > 3000 && nkill > 5000 &&
                nkop > 10000 && nflush > 50 && ndv > 1000 && nwkd > 1000 && nfok > 10000 && nf2ok > 500 && ndyn > 10000;
-    printf("tb_fpuw: %ld FP results (%ld divides / square roots), %ld integer results, %ld int -> FP µops; %ld loads (%ld read the cycle they are written); "
+    printf("tb_fpuw (%d registers): %ld FP results (%ld divides / square roots), %ld integer results, %ld int -> FP µops; %ld loads (%ld read the cycle they are written); "
            "%ld sources at the answer, %ld a cycle after; %ld kills (%ld µops), %ld flushes; %ld cycles without fpu_ok, %ld without f2i_ok; %ld with frm: %ld mismatches: %s\n",
-           nres, ndv, nint, nx, nld, nldb, nb2, nb1, nkill, nkop, nflush, nfok, nf2ok, ndyn, bad, bad == 0 && cov ? "PASS" : "FAIL");
+           FW_NR, nres, ndv, nint, nx, nld, nldb, nb2, nb1, nkill, nkop, nflush, nfok, nf2ok, ndyn, bad, bad == 0 && cov ? "PASS" : "FAIL");
     return bad != 0 || !cov;
 }

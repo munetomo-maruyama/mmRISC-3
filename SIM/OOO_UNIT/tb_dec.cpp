@@ -16,8 +16,9 @@
 // slots get different instructions each round. Every output of every slot
 // is compared where it means something for that instruction.
 //
-// The rare classes (FP, CSR and system, SFENCE.VMA, AMO / LR / SC, cbo.zero,
-// FENCE / FENCE.I) are decoded in slot 0 only (G0b G2) and told by OOO_RARE
+// The rare classes (CSR and system, SFENCE.VMA, AMO / LR / SC, cbo.zero,
+// FENCE / FENCE.I; FP until step 1.8 U2b, Plan/OOC.md 29.83, now in every slot)
+// are decoded in slot 0 only (G0b G2) and told by OOO_RARE
 // from the first parcel (Plan/OOC.md 26): `cut` is checked against a
 // predecode written here from the opcode list, every legal instruction of
 // those classes must be caught by it (decode leaves their fields out in
@@ -59,6 +60,7 @@ struct R {
     bool csr = false; int csr_addr = 0, csr_op = 0, csr_imm = 0, csr_wr = 0, csr_rd = 0;
     bool fp = false, fpa = false; int fop = 0, fmt = 0, rm = 0, ufs = 0, rs3 = 0, fwe = 0, cvt = 0, isg = 0, iw = 0;
     bool fpmem = false;
+    int frd = 0;
 };
 static uint32_t bits(uint32_t x, int hi, int lo) { return (x >> lo) & ((1u << (hi - lo + 1)) - 1); }
 static uint32_t sx32(uint32_t v, int b) { return (uint32_t)((int32_t)(v << (32 - b)) >> (32 - b)); }
@@ -250,6 +252,7 @@ static R decode32(uint32_t x)
     }
     r.rd = we ? (int)rd : 0;
     r.rs1 = (int)rs1; r.rs2 = (int)rs2;
+    if (r.fp && r.fwe) r.frd = bits(x, 11, 7);            // (the FP destination: step 1.8 U2b)
     return r;
 }
 
@@ -411,20 +414,18 @@ static int g1(uint32_t v, int k) { return (v >> k) & 1; }
 template <class T> static uint64_t gf(T v, int k, int w) { return ((uint64_t)v >> (k * w)) & ((1ull << w) - 1); }
 
 // the classes decoded in slot 0 only (legal instructions)
-static bool rare(const R& e) { return e.legal && (e.fp || e.fpmem || e.csr || e.sys || e.sfence || (e.mem && e.cmd != 0 && e.cmd != 1)); }
-// what OOO_RARE tells from the first parcel: the 32-bit major opcodes LOAD-FP,
-// STORE-FP, FMADD / FMSUB / FNMSUB / FNMADD, OP-FP, AMO, MISC-MEM, SYSTEM; c.fld,
-// c.fsd, c.fldsp, c.fsdsp, c.ebreak
+static bool rare(const R& e) { return e.legal && (e.csr || e.sys || e.sfence || (e.mem && e.cmd != 0 && e.cmd != 1)); }
+// what OOO_RARE tells from the first parcel: the 32-bit major opcodes AMO, MISC-MEM,
+// SYSTEM; c.ebreak (the FP opcodes and c.fld, c.fsd, c.fldsp, c.fsdsp until step 1.8 U2b)
 static bool pre_rare(uint32_t raw, bool rvc)
 {
     uint32_t p = raw & 0xffff;
     if (!rvc) {
-        static const int OP[] = {0x07, 0x27, 0x43, 0x47, 0x4b, 0x4f, 0x53, 0x2f, 0x0f, 0x73};
+        static const int OP[] = {0x2f, 0x0f, 0x73};
         for (int o : OP) if ((p & 0x7f) == (uint32_t)o) return true;
         return false;
     }
-    uint32_t q = p & 3, f = (p >> 13) & 7;
-    return ((q == 0 || q == 2) && (f == 1 || f == 5)) || p == 0x9002;
+    return p == 0x9002;
 }
 
 static void check(int k, uint32_t raw, bool rvc, const R& e, long n, bool cut_exp)
@@ -492,6 +493,7 @@ static void check(int k, uint32_t raw, bool rvc, const R& e, long n, bool cut_ex
             CK("fp_fmt", g1(d.fp_fmt, k), e.fmt);
             CK("use_fs", gf(d.use_fs, k, 3), e.ufs);
             CK("fp_we_rd", g1(d.fp_we_rd, k), e.fwe);
+            if (e.fwe) CK("frd", gf(d.frd, k, 5), e.frd);
         }
         if (e.fpa) {
             CK("fp_op", gf(d.fp_op, k, 5), e.fop);

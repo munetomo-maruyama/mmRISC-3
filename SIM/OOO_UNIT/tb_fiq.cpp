@@ -28,6 +28,18 @@
 static VOOO_FIQ d;
 static std::mt19937 rng(31);
 static long bad = 0;
+// the configuration (run.sh: fiq at 12 entries and 6-bit tags; fiq16 the core's, 16 and 7-bit, step 1.8 U2b)
+#ifndef FQ_N
+#define FQ_N 12
+#endif
+#ifndef FQ_TW
+#define FQ_TW 6
+#endif
+#define FQ_BS (FQ_N / 4)                // entries a bank
+#define FQ_NT (1 << FQ_TW)              // tags
+#ifndef FQ_NR
+#define FQ_NR FQ_NT                     // ... of them in use (the FP file's registers)
+#endif
 #define FAIL(...) do { if (bad++ < 12) { printf(__VA_ARGS__); printf("\n"); } } while (0)
 
 static const long INF = 1L << 60;
@@ -54,9 +66,9 @@ int main(int argc, char** argv)
     d.disp_valid = 0; d.disp_cand = 0; d.ext_valid = 0;
     d.eval(); d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
 
-    long avail[64];
-    bool pending[64];
-    for (int t = 0; t < 64; t++) { avail[t] = 0; pending[t] = false; }
+    long avail[FQ_NT];
+    bool pending[FQ_NT];
+    for (int t = 0; t < FQ_NT; t++) { avail[t] = 0; pending[t] = false; }
     std::vector<U> q;                         // in the queue, oldest first
     int occ[4] = {0, 0, 0, 0};
     long seq = 0;
@@ -67,19 +79,19 @@ int main(int argc, char** argv)
         // ---- the external wakeups of this cycle
         unsigned ev = 0, et = 0;
         std::vector<int> pend;
-        for (int t = 0; t < 64; t++) if (pending[t]) pend.push_back(t);
+        for (int t = 0; t < FQ_NT; t++) if (pending[t]) pend.push_back(t);
         int hold = phase == 1 || phase == 5;
         for (int b = 0; b < 4 && !pend.empty(); b++) {
             if (rng() % (hold ? 12 : 2)) continue;
             int i = rng() % pend.size();
             int t = pend[i];
             pend.erase(pend.begin() + i);
-            ev |= 1u << b; et |= (unsigned)t << (6 * b);
+            ev |= 1u << b; et |= (unsigned)t << (FQ_TW * b);
         }
         d.ext_valid = ev; d.ext_tag = et;
-        long annnow[64];
-        for (int t = 0; t < 64; t++) annnow[t] = 0;
-        for (int b = 0; b < 4; b++) if ((ev >> b) & 1) annnow[(et >> (6 * b)) & 63] = 1;
+        long annnow[FQ_NT];
+        for (int t = 0; t < FQ_NT; t++) annnow[t] = 0;
+        for (int b = 0; b < 4; b++) if ((ev >> b) & 1) annnow[(et >> (FQ_TW * b)) & (FQ_NT - 1)] = 1;
 
         // ---- fpu_ok, f2i_ok
         bool fok = phase == 2 ? rng() % 4 == 0 : rng() % 8 != 0;
@@ -108,7 +120,7 @@ int main(int argc, char** argv)
 
         // ---- dispatch: up to disp_ready µops, banks in order
         int room = 0;
-        for (int b = 0; b < 4; b++) if (occ[b] < 3) room++;
+        for (int b = 0; b < 4; b++) if (occ[b] < FQ_BS) room++;
         if (room == 0) nfull++;
         if ((int)d.disp_ready != room) FAIL("cycle %ld: disp_ready %d, expected %d", cyc, (int)d.disp_ready, room);
         int nd = phase == 4 ? rng() % 2 : rng() % 5;
@@ -122,20 +134,20 @@ int main(int argc, char** argv)
         uint64_t dbm = 0;
         VlWide<4> dpl; for (int i = 0; i < 4; i++) dpl[i] = 0;
         int bk[4], nb = 0;
-        for (int b = 0; b < 4; b++) if (occ[b] < 3) bk[nb++] = b;
+        for (int b = 0; b < 4; b++) if (occ[b] < FQ_BS) bk[nb++] = b;
         for (int k = 0; k < 4; k++) {
             U u{};
             u.sd = phase == 6 ? rng() % 2 : rng() % 6 == 0;
             u.use = u.sd ? 1 : (rng() % 3 == 0 ? 7 : rng() % 2 ? 3 : 1);
             for (int s = 0; s < 3; s++) {
                 // a source from a pending tag or one available
-                u.src[s] = rng() % 64;
+                u.src[s] = rng() % FQ_NR;
                 if (((u.use >> s) & 1) && rng() % 3 == 0 && !pend.empty()) u.src[s] = pend[rng() % pend.size()];
             }
             u.wr = !u.sd && rng() % 5 != 0;
             u.dv = !u.sd && rng() % 16 == 0;
             u.f2i = !u.sd && !u.dv && rng() % 8 == 0;
-            u.dst = rng() % 64;
+            u.dst = rng() % FQ_NR;
             u.bm = rng() & 0xfff & rng();
             u.pl = rng();
             unsigned rdy = 0;
@@ -151,9 +163,9 @@ int main(int argc, char** argv)
                 nu.push_back(u);
             }
             dw |= (unsigned)u.wr << k; dsd |= (unsigned)u.sd << k; ddv |= (unsigned)u.dv << k; df |= (unsigned)u.f2i << k;
-            dd |= (unsigned)u.dst << (6 * k);
+            dd |= (unsigned)u.dst << (FQ_TW * k);
             duse |= (unsigned)u.use << (3 * k); drdy |= rdy << (3 * k);
-            for (int s = 0; s < 3; s++) put(dsrc.data(), (k * 3 + s) * 6, 6, u.src[s]);
+            for (int s = 0; s < 3; s++) put(dsrc.data(), (k * 3 + s) * FQ_TW, FQ_TW, u.src[s]);
             dbm |= (uint64_t)u.bm << (12 * k);
             put(dpl.data(), 32 * k, 32, u.pl);
         }
@@ -166,8 +178,8 @@ int main(int argc, char** argv)
         if ((bool)d.ia_valid != (ea >= 0)) FAIL("cycle %ld: ia_valid %d, expected %d", cyc, (int)d.ia_valid, ea >= 0);
         else if (ea >= 0) {
             U& u = q[ea];
-            for (int s = 0; s < 3; s++) if ((int)bits(&d.ia_src, s * 6, 6) != u.src[s] && ((u.use >> s) & 1))
-                FAIL("cycle %ld: ia_src %d %d, expected %d", cyc, s, (int)bits(&d.ia_src, s * 6, 6), u.src[s]);
+            for (int s = 0; s < 3; s++) if ((int)bits(&d.ia_src, s * FQ_TW, FQ_TW) != u.src[s] && ((u.use >> s) & 1))
+                FAIL("cycle %ld: ia_src %d %d, expected %d", cyc, s, (int)bits(&d.ia_src, s * FQ_TW, FQ_TW), u.src[s]);
             if ((int)d.ia_wr != u.wr || (int)d.ia_dv != u.dv || (int)d.ia_f2i != u.f2i) FAIL("cycle %ld: ia wr / dv / f2i", cyc);
             if (u.wr && (int)d.ia_dst != u.dst) FAIL("cycle %ld: ia_dst %d, expected %d", cyc, (int)d.ia_dst, u.dst);
             if ((unsigned)d.ia_pl != u.pl) FAIL("cycle %ld: ia_pl %08x, expected %08x", cyc, (unsigned)d.ia_pl, u.pl);
@@ -204,10 +216,10 @@ int main(int argc, char** argv)
         if (clr) nclr++;
         if (flush) { q.clear(); for (int b = 0; b < 4; b++) occ[b] = 0; nflush++; }
         else if (!none) for (auto& u : nu) { q.push_back(u); occ[u.bank]++; }
-        for (int t = 0; t < 64; t++) if (annnow[t]) { avail[t] = cyc + 1; pending[t] = false; }
+        for (int t = 0; t < FQ_NT; t++) if (annnow[t]) { avail[t] = cyc + 1; pending[t] = false; }
         // tags become pending again (a new producer), when no queued µop reads them
         if (rng() % 2) {
-            int t = rng() % 64;
+            int t = rng() % FQ_NR;
             bool used = false;
             for (auto& u : q) for (int s = 0; s < 3; s++) if (((u.use >> s) & 1) && u.src[s] == t) used = true;
             if (!used && !pending[t]) { pending[t] = true; avail[t] = INF; }
@@ -215,7 +227,7 @@ int main(int argc, char** argv)
     }
     bool cov = nia > 100000 && nib > 30000 && nboth > 10000 && nb2b > 20000 && ndwk > 3000 && nkill > 10000 && nkq > 10000 &&
                nflush > 100 && nfull > 10000 && nfpu > 5000 && nf2i > 2000 && ncand > 10000 && nclr > 100000;
-    printf("tb_fiq: %ld issues on A, %ld on B (%ld cycles both), %ld back to back after a wakeup, %ld sources woken at dispatch; %ld kills (%ld µops), %ld flushes; %ld cycles full, %ld held by fpu_ok, %ld by f2i_ok, %ld dispatches that do not go: %ld mismatches: %s\n",
-           nia, nib, nboth, nb2b, ndwk, nkill, nkq, nflush, nfull, nfpu, nf2i, ncand, bad, bad == 0 && cov ? "PASS" : "FAIL");
+    printf("tb_fiq (%d entries): %ld issues on A, %ld on B (%ld cycles both), %ld back to back after a wakeup, %ld sources woken at dispatch; %ld kills (%ld µops), %ld flushes; %ld cycles full, %ld held by fpu_ok, %ld by f2i_ok, %ld dispatches that do not go: %ld mismatches: %s\n",
+           FQ_N, nia, nib, nboth, nb2b, ndwk, nkill, nkq, nflush, nfull, nfpu, nf2i, ncand, bad, bad == 0 && cov ? "PASS" : "FAIL");
     return bad != 0 || !cov;
 }

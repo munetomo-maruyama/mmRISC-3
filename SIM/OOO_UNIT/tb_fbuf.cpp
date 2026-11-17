@@ -45,10 +45,11 @@ static bool ref_rare(uint16_t p)
 {
     if ((p & 3) == 3) {
         int op = (p >> 2) & 31;
-        return op == 0x01 || op == 0x09 || (op >= 0x10 && op <= 0x14) || op == 0x0b || op == 0x03 || op == 0x1c;
+        return op == 0x0b || op == 0x03 || op == 0x1c;      // (AMO, MISC-MEM, SYSTEM; the FP opcodes until step 1.8 U2b)
     }
     int q = p & 3, f3 = (p >> 13) & 7;
-    return ((q == 0 || q == 2) && (f3 == 1 || f3 == 5)) || p == 0x9002;
+    (void)q; (void)f3;
+    return p == 0x9002;                     // (c.fld and the like until step 1.8 U2b)
 }
 struct Ins { uint32_t pc; int len; uint32_t bits; bool taken; long fblk = -1, lblk = -1; int off = 0; int ftq = 0; };
 static std::vector<Ins> ex;                    // the run, in order

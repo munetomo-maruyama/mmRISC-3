@@ -6104,3 +6104,30 @@ The latency-bound kernels agree with the model to 0.5 %: the FPU's 9 cycles, the
 **The core's mutations** (`mutate_core.py`): 37 new (191 to 227: the FP classes and traps at decode, the store's source in `OOO_FIQ`, the busy bits of fs3, renaming without FP registers, dispatch without room in `OOO_FIQ`, the FP load's wakeup, box and files, port B's bypass and size, the FP -> integer slot, wakeup and hold, the int -> FP gate and completion, fflags and FS, the committed FP map, `OOO_IQ3`'s and `OOO_LSU4`'s new lines, `OOO_DEC`'s rs3); 14 old ones moved to the lines U2a changed, mutation 62 ("an FP instruction not illegal") now "an FP instruction that traps not illegal"; the programs: 8 FP ones of B2, B4's new groups, rv64uf / ud. The campaign runs on a copy outside the shared folder; its results come with U2b (29.83).
 
 `FPGA/OOO_OOC/synth_ooo.tcl` reads `RTL/CPU/FPU` and the 3 blocks. Next **U2b**: FP in every slot.
+
+### 29.83 Step 1.8 U2b: FP in every slot, 80 FP registers, FP queue 16 (2026-11-17)
+
+**FP in every slot**: `OOO_RARE` no longer takes the FP opcodes (LOAD-FP, STORE-FP, the FMAs, OP-FP; c.fld, c.fsd, c.fldsp, c.fsdsp) for a rare class, and `OOO_DEC` gives CORE_DEC's FP fields in all 4 slots (an FP encoding that is illegal is now reported in any slot, as other illegal ones). In the core each queue's room is weighed against its own µops of the group (`OOO_IQ3`'s count against the µops going to it, `OOO_FIQ`'s against its; U2a took the smaller of the two counts against all of them).
+
+**`OOO_FREN`'s ready made exact**: it asked for 8 registers free in the last cycle (`OOO_RENAME2`'s rule: the count is a cycle old, and a group takes up to 4), so 8 of the 32 renamable registers were never used. Now a register takes the next state's free count (the head after this cycle's group or restore, the tail after this cycle's commits) and asks for 4. `tb_fren` follows (4 free now).
+
+**The kernels against the model** (double, kstart to kend; the FPU's operations a cycle in brackets; the single ones the same within 0.3 %):
+
+| Kernel | U2a (slot 0) | every slot, 64 / 12 | **80 / 16** | Model (29.80) |
+|---|---|---|---|---|
+| mm 4x4 | 55,798 | 38,118 | **37,402 (0.903)** | 34,075 (0.992) |
+| fir out12 | 18,403 | 10,696 | **10,194 (0.800)** | 8,373 (0.975) |
+| fir out8 | | 10,941 | **10,460 (0.780)** | 9,196 |
+| fir out4 | | 17,712 | **17,182** | 15,872 |
+| bq ch4 | 15,900 | 12,061 | **10,271 (0.998)** | 10,265 (0.998) |
+| bq ch1 | 9,477 | 9,478 | **9,479** | 9,486 |
+| dot acc12 | 3,335 | 2,000 | **2,000 (0.516)** | 1,432 (0.720) |
+| dot acc4 / acc1 | | 2,284 / 9,039 | **2,284 / 9,039** | 2,301 / 9,084 |
+
+**Why the core needed more than the model** (stall counters between kstart and kend, a copy of the core): at 64 / 12, mm and fir waited at renaming for FP registers most of the time (mm 23,251 of 38,118 cycles), bq ch4 at dispatch for room in `OOO_FIQ` (6,147). The model takes a register at dispatch and completes an FPU operation at its latency, 9; the core takes it at R1, 2 stages before dispatch, and an operation completes at issue + 11 (S1, the offer, FPU_PIPE's 9), then commits: every FP µop holds its register, its ROB entry and what is behind it a few cycles longer, so 64 registers act as the model's about 48 (where it lost 11 to 34 %), and the queue fills. With 80 / 16 (the author's choice, 2026-11-17, from these numbers) bq ch4 meets the model; mm and fir are held by the ROB and the queue (the whole window full), dot by the LQ (16: 29.80's option of 24 stays open).
+
+**What changed for 80**: the FP tags are 7 bits (`OOO_IQ3`'s destination field carries them for an FP load or an int -> FP µop, as before); the FP file `OOO_PRF` 80 x 64 (its LUT RAM past 64 rows); `OOO_FREN`'s ring of 64 places holds the 48 free tags (96 registers would fill it: full would read as empty). The unit benches take the core's sizes as well: `fren80`, `fiq16` (16 entries, 7-bit tags, drawn from 80), `fpuw80`, `fprf80` (beside the U1 sizes; `tb_fren`, `tb_fiq`, `tb_fpuw` parametrised).
+
+**Tests**: `b4/dir/fprm.S` (new): frm written 0 to 7 with FP operations that round dynamically (they trap with 5 to 7) and ones that do not round (they run), the reserved static modes 5 and 6 (.word); it catches core mutation 192, which U2a's campaign left undetected. `tb_dec` (FP no longer rare; frd checked), `tb_fbuf3` (its rare instructions now AMO / MISC-MEM / SYSTEM, 1 in 128 parcels), `tb_fbuf` and `tb_fbuf2` (blocks before `OOO_FBUF3`, their rare models the same). The unit regression: every bench PASS. run_core: 12 runs PASS (B2 80, B4 440, -p- 170; both tops). CoreMark's timed window unchanged to the cycle (g14 -O2, ideal caches: 1,211,530 cycles). Lint: as before.
+
+**Mutations**: U2a's core campaign (on a copy outside the shared folder): 36 of 38; 192 caught by `fprm.S` (checked), 212 (an FP -> integer result that does not hold port 0's writers) equivalent in time (the waiting result stops commit, so port 0 runs dry; the guard stays). U2b: 2 new core mutations (dispatch without room in `OOO_IQ3`, an FP destination in slot 0 only), 202 and 227 moved; unit: 11 older ones that U2a's lines had moved (`OOO_LSU4`'s event and drain, `OOO_IQ3`'s port 0 and new store) retargeted, 5 of `OOO_RARE` replaced by `OOO_DEC`'s FP fields in slot 0 only, M1445 (FREN's ready at 3), M1495 new (from this cycle's head): 19 of 19. U2b's core mutations (192, 202, 227, 228, 229, on a copy at 80 / 16): 5 of 5. The core's list is 230: of U2's 39, 38 detected and 212 equivalent in time; the 191 before U2 as at I2 (183, the same 8 undetected), 14 of them moved to U2a's lines, the campaign not run again over all.

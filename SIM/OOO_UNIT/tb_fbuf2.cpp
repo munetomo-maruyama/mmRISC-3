@@ -41,10 +41,11 @@ static uint32_t target[MEM];
 static bool rare_of(uint16_t p) {
     if ((p & 3) == 3) {
         int op = (p >> 2) & 31;
-        return op == 0x01 || op == 0x09 || (op >= 0x10 && op <= 0x14) || op == 0x0b || op == 0x03 || op == 0x1c;
+        return op == 0x0b || op == 0x03 || op == 0x1c;      // (AMO, MISC-MEM, SYSTEM; the FP opcodes until step 1.8 U2b)
     }
     int q = p & 3, f3 = (p >> 13) & 7;
-    return ((q == 0 || q == 2) && (f3 == 1 || f3 == 5)) || p == 0x9002;
+    (void)q; (void)f3;
+    return p == 0x9002;                     // (c.fld and the like until step 1.8 U2b)
 }
 
 int main(int argc, char** argv)
@@ -61,6 +62,8 @@ int main(int argc, char** argv)
             if (rng() % 8 != 0) { x &= ~(uint16_t)(1u << 13); }   // few c.fld and the like
         }
         if (rng() % 256 == 0) x = 0x0073;                 // an ecall now and then: rare
+        // and the other rare opcodes (since step 1.8 U2b FP is not rare: c.fld and the like were most of the rare ones)
+        if (rng() % 128 == 0) { static const int rops[] = {0x2f, 0x0f, 0x73}; x = (uint16_t)((x & 0xff80) | rops[rng() % 3]); }
         mem[i] = x;
         is_taken[i] = rng() % 6 == 0;
         target[i] = rng() % MEM;

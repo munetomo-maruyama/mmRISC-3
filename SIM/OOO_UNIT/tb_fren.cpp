@@ -12,7 +12,7 @@
 // to the oldest branch not resolved; now and then a misprediction, that
 // restores a checkpoint and drops what is younger, or a flush_all. What must
 // hold:
-//   - ready: the init over and at least 8 registers free in the last cycle
+//   - ready: the init over and at least 4 registers free now (8 in the last cycle until step 1.8 U2b)
 //   - each of the 3 sources at R2 is the register the reference maps it to, as
 //     of its place in the program; the old mapping the same
 //   - a new register for each that writes, the next of a ring as the
@@ -39,6 +39,15 @@ struct Ck { int id, m[32], head; size_t pos; int undo; };
 static VOOO_FREN d;
 static std::mt19937 rng(23);
 static long bad = 0;
+// the configuration (run.sh: fren at 64 registers, fren80 the core's since step 1.8 U2b)
+#ifndef FR_NREG
+#define FR_NREG 64
+#endif
+#ifndef FR_TW
+#define FR_TW 6
+#endif
+#define FR_TM ((1 << FR_TW) - 1)
+#define FR_IN ((FR_NREG - 32) / 4)       // the init's cycles
 #define FAIL(...) do { if (bad++ < 12) { printf(__VA_ARGS__); printf("\n"); } } while (0)
 
 static unsigned bits(const uint32_t* w, int lo, int n)
@@ -57,14 +66,13 @@ int main(int argc, char** argv)
     int map[32], amap[32];
     for (int a = 0; a < 32; a++) { map[a] = a; amap[a] = a; }
     int ring[64] = {0};
-    for (int i = 0; i < 32; i++) ring[i] = 32 + i;
-    int rhead = 0, rtail = 32, chead = 0;
-    bool hands[64] = {false};
+    for (int i = 0; i < FR_NREG - 32; i++) ring[i] = 32 + i;
+    int rhead = 0, rtail = FR_NREG - 32, chead = 0;
+    bool hands[FR_NREG] = {false};
     for (int a = 0; a < 32; a++) hands[a] = true;
     std::deque<Uop> rob;
     std::vector<Ck> cks;
     int next_id = 0, rest_wait = 0;
-    bool free_ok = false;
     Uop r2[4]; bool r2v = false;
     std::vector<Uop> rv;
     int pend = 0;
@@ -117,11 +125,11 @@ int main(int argc, char** argv)
             for (int k = 0; k < npend && fresh; k++) {
                 Uop& u = r2[k];
                 for (int s = 0; s < 3; s++) {
-                    int p = (int)bits(d.r2_src.data(), (k * 3 + s) * 6, 6);
+                    int p = (int)bits(d.r2_src.data(), (k * 3 + s) * FR_TW, FR_TW);
                     if (p != u.psrc[s]) FAIL("cycle %ld: slot %d source %d (f%d) is p%d, expected p%d", cyc, k, s, u.src[s], p, u.psrc[s]);
                 }
                 if ((int)((d.r2_wr >> k) & 1) != u.wr) FAIL("cycle %ld: slot %d wr", cyc, k);
-                int nd = (int)((d.r2_dst >> (6 * k)) & 63), no = (int)((d.r2_old >> (6 * k)) & 63);
+                int nd = (int)((d.r2_dst >> (FR_TW * k)) & FR_TM), no = (int)((d.r2_old >> (FR_TW * k)) & FR_TM);
                 if (u.wr && nd != u.pdst) FAIL("cycle %ld: slot %d new p%d, expected p%d", cyc, k, nd, u.pdst);
                 if (no != u.pold) FAIL("cycle %ld: slot %d old p%d, expected p%d", cyc, k, no, u.pold);
             }
@@ -178,8 +186,8 @@ int main(int argc, char** argv)
                 if (u.wr) {
                     cw |= 1u << slot;
                     ca |= (unsigned)u.dst << (5 * slot);
-                    cn |= (unsigned)u.pdst << (6 * slot);
-                    co |= (unsigned)u.pold << (6 * slot);
+                    cn |= (unsigned)u.pdst << (FR_TW * slot);
+                    co |= (unsigned)u.pold << (FR_TW * slot);
                     amap[u.dst] = u.pdst;
                     ring[rtail & 63] = u.pold;
                     rtail = (rtail + 1) & 63;
@@ -194,14 +202,14 @@ int main(int argc, char** argv)
         d.eval();
 
         // ---- ready, and whether the group moves (the bench's choice, as OOO_RENAME2's in the core)
-        bool rdy = free_ok && cyc > 9;
-        if ((bool)d.ready != rdy && cyc > 12) FAIL("cycle %ld: ready %d, expected %d (free %d)", cyc, (int)d.ready, rdy, free_seen);
+        bool rdy = free_seen >= 4 && cyc > FR_IN + 1;      // (4 free now: step 1.8 U2b)
+        if ((bool)d.ready != rdy && cyc > FR_IN + 4) FAIL("cycle %ld: ready %d, expected %d (free %d)", cyc, (int)d.ready, rdy, free_seen);
         int want = 0, nck = 0;
         for (int k = 0; k < offer && nck < 2; k++) { want++; nck += rv[k].ck; }
-        bool may = rdy && rest_wait == 0 && !rest && !flush && cyc > 12;
+        bool may = rdy && rest_wait == 0 && !rest && !flush && cyc > FR_IN + 4;
         bool adv = may && rng() % 5 != 0;
         if (may && !adv) nhold++;
-        if (!rdy && cyc > 20 && rest_wait == 0) nshort++;
+        if (!rdy && cyc > FR_IN + 12 && rest_wait == 0) nshort++;
         d.adv = adv;
         d.eval();
 
@@ -212,12 +220,11 @@ int main(int argc, char** argv)
             d.clk = 1; d.eval(); d.clk = 0; d.eval();
             if (adv) {
                 if (d.r2_wr != rw) FAIL("cycle %ld: r1_wr %x, then r2_wr %x", cyc, rw, (unsigned)d.r2_wr);
-                for (int k = 0; k < 4; k++) if (((rw >> k) & 1) && ((rt >> (6 * k)) & 63) != ((d.r2_dst >> (6 * k)) & 63))
+                for (int k = 0; k < 4; k++) if (((rw >> k) & 1) && ((rt >> (FR_TW * k)) & FR_TM) != ((d.r2_dst >> (FR_TW * k)) & FR_TM))
                     FAIL("cycle %ld: r1_tag %d, then r2_dst differs", cyc, k);
             }
         }
 
-        free_ok = cyc >= 8 && free_seen >= 8;
         if (flush) {
             nflush++;
             for (int a = 0; a < 32; a++) map[a] = amap[a];
@@ -254,7 +261,7 @@ int main(int argc, char** argv)
     }
     bool cov = ntake > 100000 && ndep > 50000 && ndep3 > 10000 && nundo > 1000 && nrest > 5000 && nearly > 500 && nflush > 100 &&
                ncm > 50000 && n2ck > 5000 && nhold > 10000 && nshort > 1000 && nf0 > 10000;
-    printf("tb_fren: %ld µops taken, %ld sources inside a group (%ld of them rs3), %ld writes of f0, %ld groups with 2 checkpoints; %ld restores (%ld with undoes, %ld at the earliest), %ld flushes; %ld commits that write; %ld cycles short of registers; %ld groups held: %ld mismatches: %s\n",
-           ntake, ndep, ndep3, nf0, n2ck, nrest, nundo, nearly, nflush, ncm, nshort, nhold, bad, bad == 0 && cov ? "PASS" : "FAIL");
+    printf("tb_fren (%d registers): %ld µops taken, %ld sources inside a group (%ld of them rs3), %ld writes of f0, %ld groups with 2 checkpoints; %ld restores (%ld with undoes, %ld at the earliest), %ld flushes; %ld commits that write; %ld cycles short of registers; %ld groups held: %ld mismatches: %s\n",
+           FR_NREG, ntake, ndep, ndep3, nf0, n2ck, nrest, nundo, nearly, nflush, ncm, nshort, nhold, bad, bad == 0 && cov ? "PASS" : "FAIL");
     return bad != 0 || !cov;
 }

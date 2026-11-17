@@ -37,8 +37,9 @@
 //   nonspec   runs only at the ROB head (Doc/UARCH.md 3.9: CSR, ECALL,
 //             EBREAK, MRET, SRET, WFI, FENCE, FENCE.I, SFENCE.VMA, AMO, LR,
 //             SC, cbo.zero)
-//   cut       slot k is not taken this cycle: the rare classes (FP, CSR and
-//             system, SFENCE.VMA, AMO / LR / SC, cbo.zero, FENCE / FENCE.I)
+//   cut       slot k is not taken this cycle: the rare classes (CSR and
+//             system, SFENCE.VMA, AMO / LR / SC, cbo.zero, FENCE / FENCE.I;
+//             FP until step 1.8 U2b, Plan/OOC.md 29.83: in every slot since)
 //             are decoded in slot 0 only (G0b G2, Doc/UARCH.md 6.3), so a
 //             group ends before one in slot 1 to 3; it comes to slot 0 in
 //             the next cycle. In slots 1 to 3 the fields only those classes
@@ -161,8 +162,8 @@ module OOO_DEC
         assign imm_full = d_imm;
         assign imm[k]   = imm_full[31:0];
         localparam bit S0 = (k == 0);
-        assign rs3[k]          = S0 ? xi[31:27] : '0;
-        assign frd[k]          = S0 ? xi[11:7] : '0;
+        assign rs3[k]          = xi[31:27];
+        assign frd[k]          = xi[11:7];
         assign sys[k]          = S0 ? {wfi, sret, mret, ebreak, ecall, cbo, fei, fe} : '0;
         assign is_sfence[k]    = S0 && l_sfence;
         assign is_csr[k]       = S0 && l_csr;
@@ -171,15 +172,16 @@ module OOO_DEC
         assign csr_imm_sel[k]  = S0 && l_csr_imm_sel;
         assign csr_wr[k]       = S0 && l_csr_wr;
         assign csr_rd[k]       = S0 && l_csr_rd;
-        assign is_fp[k]        = S0 && l_fp;
-        assign fp_op[k]        = S0 ? l_fp_op : '0;
-        assign fp_fmt[k]       = S0 && l_fp_fmt;
-        assign fp_rm[k]        = S0 ? l_fp_rm : '0;
-        assign use_fs[k]       = S0 ? l_use_fs : '0;
-        assign fp_we_rd[k]     = S0 && l_fp_we_rd;
-        assign fp_int_signed[k] = S0 && l_fp_int_signed;
-        assign fp_int_w[k]     = S0 && l_fp_int_w;
-        // slots 1 to 3 carry integer loads and stores only
+        // FP in every slot since step 1.8 U2b (Plan/OOC.md 29.83)
+        assign is_fp[k]        = l_fp;
+        assign fp_op[k]        = l_fp_op;
+        assign fp_fmt[k]       = l_fp_fmt;
+        assign fp_rm[k]        = l_fp_rm;
+        assign use_fs[k]       = l_use_fs;
+        assign fp_we_rd[k]     = l_fp_we_rd;
+        assign fp_int_signed[k] = l_fp_int_signed;
+        assign fp_int_w[k]     = l_fp_int_w;
+        // slots 1 to 3 carry loads and stores only (integer, and FP since step 1.8 U2b)
         assign mem_cmd[k]      = S0 ? l_mem_cmd : {4'd0, is_store};
 
         always @(*) begin
@@ -224,7 +226,7 @@ module OOO_DEC
             // where it issues, how its result comes
             if (ill)                            port[k] = 2'd1;    // (an exception at decode: never issued)
             else if (is_load || is_store)       port[k] = 2'd2;
-            else if (l_fp && S0)                port[k] = 2'd3;    // (FP loads and stores went to the LSU)
+            else if (l_fp)                      port[k] = 2'd3;    // (FP loads and stores went to the LSU)
             else if (is_mdu || (sysm && S0))    port[k] = 2'd1;
             else if (alu && !simple)            port[k] = 2'd1;    // ALU0 only (L7)
             else if (is_branch[k] || is_jal[k] || is_jalr[k] || (alu && a_sel[k] == 2'd1))
