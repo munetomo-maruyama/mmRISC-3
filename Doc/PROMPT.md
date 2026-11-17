@@ -10403,3 +10403,83 @@ The FP queue of 12 and the 64 FP registers are values you confirmed, so I left t
 ```text
 Go to 80 / 16
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+U2b is done with 80 FP registers and an FP queue of 16, pushed as b84d068. `Ref/` on the remote: 0 files.
+
+**What changed**
+- **FP in every slot:** OOO_RARE no longer treats FP as a rare class, and OOO_DEC gives the FP fields in all 4 slots. Dispatch compares each queue's room with that queue's µops only.
+- **OOO_FREN's ready made exact:** ready when 4 are free in the next state. The old rule left a quarter of the usable registers unused.
+- **80 FP registers (7-bit FP tags), OOO_FIQ of 16 entries.**
+- **The unit benches also run at the core's sizes:** `fren80`, `fiq16`, `fpuw80`, `fprf80` added.
+
+**The DSP kernels (double, cycles)**
+
+| Kernel | 64 / 12 | **80 / 16** | Model |
+|---|---|---|---|
+| bq ch4 | 12,061 | **10,271** | 10,265 (as the model) |
+| mm 4x4 | 38,118 | **37,402** (1.10 x) | 34,075 |
+| fir out12 | 10,696 | **10,194** (1.22 x) | 8,373 |
+| dot acc12 | 2,000 | **2,000** (1.40 x) | 1,432 |
+| bq ch1 / dot acc1 | 9,478 / 9,039 | 9,479 / 9,039 | 9,486 / 9,084 |
+
+- mm and fir stop with the whole window (the ROB and the queues) full.
+- dot stops at the LQ (16). LQ 24, the option left at U0, is still a candidate.
+
+**Verification**
+- run_core: all 12 runs PASS on both tops; the unit regression: every bench PASS.
+- CoreMark's timed window unchanged to the cycle (1,211,530 cycles).
+- The new `b4/dir/fprm.S` checks dynamic rounding with frm 0 to 7 and the reserved static modes. It catches mutation 192, which U2a left undetected.
+- **Mutations (unit):**
+  - 11 old ones that U2a's changes had moved were retargeted (missed at U2a).
+  - With the new and replaced ones, 19 in all, all detected.
+- **Mutations (core):**
+  - U2a's: 36 of 38 detected. 192 is now caught by `fprm.S`; 212 changes only cycles, not results (equivalent).
+  - U2b's 5: all detected.
+  - The core's whole campaign (230) has not been run through again.
+
+Recorded in `Plan/OOC.md` 29.83 (EN/JA), `Doc/STRATEGY` 1.8 and the READMEs.
+
+Next is U3: please run Vivado at 20 ns (`synth_ooo.bat OOO_CPU`). The FP side's LUTs and the timing of the new FP paths are checked there. U0 estimated about +17.2k LUTs; with 80 registers the FP file adds a little more.
+<!-- /answer -->
+
+## 259. 2026-11-17 21:44:31 JST
+
+```text
+Vivado is running now, but the ERROR and WARNING messages below came out. The run goes on after them; is it all right?
+...
+
+[pasted: the Vivado log around "Start Part Resource Summary"]
+ERROR: [Common 17-1257] Failed to create directory 'C'.
+...
+WARNING: [Synth 8-3936] Found unconnected internal register 's1_pl_reg' and it is trimmed from '32' to '24' bits. [.../OOO_FPUW/OOO_FPUW.sv:181]
+
+...
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Both are harmless; let the run go on to the end.
+
+**ERROR: [Common 17-1257] Failed to create directory 'C'**
+- It is not in the log file `output/vivado_OOO_CPU.log` (0 ERROR lines there). Where the console showed it, the log reads "No constraint files found."
+- Synthesis finished as usual: `post_synth.dcp` was written at 21:36, and the log's end is already in placement (Phase 3.8).
+- It is not the kind of message RTL causes. It looks like Vivado failing to make a directory for its console output; a Windows path or an environment variable's "C:" cut short is possible, but I have not pinned the cause down.
+- No earlier run of OOO_CPU had it in its log, so it belongs to this Vivado session. It does not change the results.
+
+**WARNING: [Synth 8-3936] s1_pl_reg trimmed from 32 to 24 bits**
+- Expected. Of OOO_FIQ's 32-bit payload, port A (the FPU) uses only bits 0 to 23 (op, fmt, rm, sign, w, the ROB index, the integer destination).
+- Bits 24 to 28 are the SQ index and size for an FP store's data (port B); 29 to 31 are unused.
+- Vivado only removed bits OOO_FPUW never reads, which saves LUTs and flip-flops.
+
+Tell me when the run ends. As U3 I will look at the WNS, how much the LUTs grew, and whether the new FP paths are among the worst.
+<!-- /answer -->
+
+## 260. 2026-11-18 00:54:44 JST
+
+```text
+Ran Vivado.
+```
