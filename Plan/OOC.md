@@ -6062,3 +6062,45 @@ After the fixes the 18 of `OOO_FPUW`: 18 detected; **1,364 of 1,364**.
 Lint (`verilator -Wall`): the four blocks clean; `FPU_PIPE` has 6 warnings of its own (unused parameters and bits), left as mmRISC-2 has it. The unit regression (`SIM/OOO_UNIT/run.sh`): every bench PASS, the four new included. The core (`SIM/CORE/run_core.sh`, `OOO_PRF`'s change in it): PASS (B4 213 on `OOO_CORE`, 246 on `OOO_CPU`, -p- 146, 0 failures).
 
 Next **U2**: the blocks into the core: FP in every slot of decode (`OOO_RARE` stops cutting FP), `OOO_FREN` beside `OOO_RENAME2`, `OOO_FIQ` and `OOO_FPUW` with the FP file, FP loads and stores through `OOO_LSU4` (the second SQ data port), FP-to-integer results through port 0's slot with `OOO_MDUP`, int-to-FP from port 0, the ROB's flags and FP destination, fflags and FS at commit; riscv-arch-test's F and D and the DSP kernels in lock-step with Spike.
+
+### 29.82 Step 1.8 U2a: the renamed FPU in the core, FP decoded in slot 0 (2026-11-17)
+
+U2 joins 29.81's blocks to the core in two parts: **U2a** (here) the whole FP datapath with FP still a rare class (decoded in slot 0, as before), so that every path is checked before the decode changes; **U2b** FP in every slot (`OOO_RARE`, `OOO_DEC`), then the DSP kernels against 29.80's model.
+
+**The core** (`OOO_CORE`; `OOO_FRONT` and `OOO_DEC` give CORE_DEC's FP fields, and the FP destination's number `frd`):
+- **Decode (D2)**: an FP instruction's class (an FP operation, FP -> integer, int -> FP, an FP load, an FP store); it traps (illegal) with mstatus.FS off or a reserved rounding mode, in the instruction or, dynamic, in frm (mmRISC-2's rule; a CSR write replays what follows, so decode sees the frm and FS of its time).
+- **Renaming**: `OOO_FREN` beside `OOO_RENAME2` (its `r1_adv`, checkpoint ids, restore, flush; `r_ren_ready` both's); the FP file's busy bits (`OOO_BUSY` twice, for 3 sources), cleared by the FP wakeups.
+- **Dispatch**: an FP operation (and FP -> integer) to `OOO_FIQ` alone; an FP store's address to `OOO_IQ3` (an integer store whose data is not its: `disp_nd`, the entry leaves with its address) and its data to `OOO_FIQ`'s port B (fs2 as source 0); an FP load to `OOO_IQ3` as a load; an int -> FP µop to `OOO_IQ3`'s port 0 (`disp_xf`, issued with `xf_ok`: `OOO_FPUW`'s buffer empty and none in port 0's RR or EX). The group goes when both queues have room (the smaller of their counts, for now).
+- **The FPU**: `OOO_FPUW` on port A; the FP file `OOO_PRF` (64, 3 writes: the FPU, the 2 load ports; 4 reads: the FPU's 3, a store's data).
+- **FP loads**: `OOO_LSU4`'s tag is 2 bits wider, {flw: NaN box, FP, tag}: an FP load's result goes into the FP file (boxed if flw), not the integer file, nor its bypass; the FP side is woken in the load's RR (as `OOO_IQ3` wakes an integer load's dependents: they issue the cycle after, their S1 meets the write in M; a value that was not there is replayed at the load's commit, as for an integer load).
+- **FP stores**: port B in 2 stages (the FP file read in the second, with the FP result of that cycle: a store issued right after its producer's wakeup meets the result there), then a register into `OOO_LSU4`'s **second data port** (`sd2_*`: a second RAM for the SQ's data and a bit per entry saying which RAM holds it; its write is an event for a load that waits, as port 1's).
+- **FP -> integer**: `OOO_FPUW`'s FIFO into port 0's write slot when the MDU and a latency-1 writer leave it (its wakeup on the MDU's external bus of `OOO_IQ3`; while one waits, port 0's latency-1 writers are held a cycle later, as for the MDU); its own completion port.
+- **Int -> FP**: port 0's EX gives the operand (after the bypass) to `OOO_FPUW`'s buffer; the µop completes with its FP result.
+- **The ROB's FP side** (per entry, in `OOO_CORE`): the FP destination (`OOO_FREN`'s commit), the flags (from the FPU's completions); at commit fflags |= the committed µops' flags, mstatus.FS dirty at an FP write or new flags (Spike's rule); 2 completion ports more (the FP result, the FP -> integer one).
+- **The commit trace**: `tr_fwr` (an FP register written), the FP results' values, an FP store's data from port B.
+
+**Tests** (lock-step with Spike at every instruction):
+- riscv-tests rv64uf / rv64ud (23) and rv64mi-p-csr (left out before: an FP instruction): PASS at the first run.
+- riscv-arch-test **F (84), D (116), Zcd (4)**, the FP privileged tests `Sm_F` and `Exceptions_F` (FS off: the traps): 206, PASS (`b4/act/rvtest_config.h` F, D, Zcd; `TEST_FLEN` by each test's -march).
+- **Plan/fpu's DSP kernels** (20, each checking itself): PASS; a B4 group of their own (`b4/build.sh dsp`), tb_core times kstart to kend.
+- **Random FP programs** (`gen_b2.py fp`, ls's program with FP segments: FP operations of both formats and every rounding mode, FMA chains, divides and square roots holding the FPU, FP -> integer results to x0 too and branches on them, int -> FP, FP loads and stores of both sizes with c.fld / c.fsd, an FP store then a load of the same word (FP or integer), an integer store then an FP load, bursts of FP stores, fflags read and written, frm written): 20 in run_core, PASS (fp-3: 174 restores and 138 replays with FP in flight).
+- run_core: 12 runs PASS (B2 80 programs, B4 439, -p- 170; both tops).
+
+**The kernels' cycles now** (kstart to kend, double; FP still in slot 0, so one FP instruction a cycle at most, an fld included):
+
+| Kernel | Core (U2a) | Model (29.80) | |
+|---|---|---|---|
+| bq ch1 | 9,477 | 9,486 | the recursion's latency: **as the model** |
+| dot acc1 | 9,040 | 9,084 | the latency: **as the model** |
+| mm 4x4 | 55,798 | 34,075 | slot 0: 1.64 x |
+| fir out12 | 18,403 | 8,373 | slot 0 (fld and fmadd): 2.20 x |
+| bq ch4 | 15,900 | 10,265 | 1.55 x |
+| dot acc12 | 3,335 | 1,432 | 2.33 x |
+
+The latency-bound kernels agree with the model to 0.5 %: the FPU's 9 cycles, the bypass and the wakeups are as designed. The others wait for U2b.
+
+**Unit benches**: `tb_iq3` drives and checks `disp_nd` (an FP store leaves with its address; 8,467) and `disp_xf` / `xf_ok` (4,411 int -> FP µops, 2,724 cycles held); `tb_lsu4` an FP store's data on `sd2_*` (9,089 in the physical run, 2,707 in a cycle with another store's on `sd_*`; the FP choices on a random generator of their own, so that the rest's sequence stays: the stores' misses' coverage is on its edge, 102 for 100). Unit mutations M1484 to M1494: 10 detected; M1487 (a marked load waiting a cycle for an FP store of its own group) equivalent: the load waits for that store's address, which issues a cycle after dispatch at the earliest (an RTL change for it was taken back). Lint: the core's new lines clean.
+
+**The core's mutations** (`mutate_core.py`): 37 new (191 to 227: the FP classes and traps at decode, the store's source in `OOO_FIQ`, the busy bits of fs3, renaming without FP registers, dispatch without room in `OOO_FIQ`, the FP load's wakeup, box and files, port B's bypass and size, the FP -> integer slot, wakeup and hold, the int -> FP gate and completion, fflags and FS, the committed FP map, `OOO_IQ3`'s and `OOO_LSU4`'s new lines, `OOO_DEC`'s rs3); 14 old ones moved to the lines U2a changed, mutation 62 ("an FP instruction not illegal") now "an FP instruction that traps not illegal"; the programs: 8 FP ones of B2, B4's new groups, rv64uf / ud. The campaign runs on a copy outside the shared folder; its results come with U2b (29.83).
+
+`FPGA/OOO_OOC/synth_ooo.tcl` reads `RTL/CPU/FPU` and the 3 blocks. Next **U2b**: FP in every slot.

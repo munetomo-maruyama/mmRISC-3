@@ -10548,5 +10548,41 @@ Confirm, start U1
 <!-- answer -->
 **Claude Codeの回答**
 
-Docs are written. Only the core regression remains before the commit; I'll pick it up when it finishes.
+U1(リネームするFPUのブロックの単体作成)が終わり、986f3cc で push しました。リモートに `Ref/` が 0 件であることも確認済みです。
+
+**作ったブロック**
+- **OOO_FREN**: FP レジスタのマップです。OOO_RENAME2 の横で同じタイミングで進みます。1 µop あたり FP ソースは最大 3 つ(FMA の rs3)で、f0 も他のレジスタと同じくリネームします。
+- **OOO_FIQ**: FP 発行キューで 12 エントリ、1 サイクルに 2 つ発行します。ポート A は FPU へ、ポート B は FP ストアのデータへ出します。
+- **OOO_FPUW**: mmRISC-2 の `FPU_PIPE` を変えずに使い、`RTL/CPU/FPU` に置きました。依存する µop へのレイテンシは 9 です。FP から整数への結果は 4 段の FIFO を通し、ポート 0 の書き込みの空きに入れます。
+- **FP レジスタファイル**: `OOO_PRF` に `ZERO` パラメータを足し、FP 側だけレジスタ 0 を固定のゼロにしないようにしました。整数側は変わりません。
+
+**検証結果**
+- 新しいベンチ 4 つ(tb_fren、tb_fiq、tb_fpuw、fprf)を含め、ユニット回帰は全部 PASS です。tb_fpuw は FPU の全演算を IEEE 演算と照合しています。
+- コアの回帰も PASS で、`OOO_PRF` の変更がコアに影響しないことを確かめました。
+- リントは新しい 4 ブロックとも警告なしです。`FPU_PIPE` 自身に警告が 6 件ありますが、mmRISC-2 のままにしています。
+- tb_fpuw が RTL のバグを 1 つ見つけました。FIFO の先頭より後ろで kill された整数の結果が、後で整数ファイルに書かれていました。各エントリに kill 済みの印を持たせて直しました。
+
+**ミューテーション**
+- 新しく 45 件足して、全部で 1,364 件です。
+- 初回は 1,361 件の検出でした。残った 3 件はどれも等価ではなく、ベンチ側の穴でした。
+  - S1 でロードの書き込みに出会うケースが一度も起きていなかった。
+  - `a_bm` をそのサイクルのクリアを外した後の値で与えていた。
+  - kill されるサイクルのウェイクアップを確かめていなかった。
+- ベンチを直した後は 1,364 件中 1,364 件を検出しています。
+
+記録は `Plan/OOC.md` 29.81(日英)、`Doc/STRATEGY` の 1.8、`RTL/CPU/OOO/README` に書きました。
+
+次の U2 で、これらをコアにつなぎます。デコードの全スロットで FP を扱い、FP のロードとストア、ROB のフラグ、コミットでの fflags と FS を入れて、riscv-arch-test の F / D と DSP カーネルを Spike と lock-step で走らせます。
+<!-- /answer -->
+
+## 257. 2026-11-17 17:39:18 JST
+
+```text
+Start U2
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+Waiting on run_core (the FP-enabled full regression) and the 11 unit mutations. I'll continue when run_core reports.
 <!-- /answer -->

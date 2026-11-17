@@ -104,6 +104,7 @@ module OOO_DEC
         output logic [3:0][2:0]     fp_rm,
         output logic [3:0][2:0]     use_fs,     // fs1, fs2, fs3 (bit 0: fs1)
         output logic [3:0][4:0]     rs3,
+        output logic [3:0][4:0]     frd,        // the FP destination's number (rd of the instruction: fp_we_rd tells)
         output logic [3:0]          fp_we_rd,
         output logic [3:0]          fp_int_signed,
         output logic [3:0]          fp_int_w
@@ -161,6 +162,7 @@ module OOO_DEC
         assign imm[k]   = imm_full[31:0];
         localparam bit S0 = (k == 0);
         assign rs3[k]          = S0 ? xi[31:27] : '0;
+        assign frd[k]          = S0 ? xi[11:7] : '0;
         assign sys[k]          = S0 ? {wfi, sret, mret, ebreak, ecall, cbo, fei, fe} : '0;
         assign is_sfence[k]    = S0 && l_sfence;
         assign is_csr[k]       = S0 && l_csr;

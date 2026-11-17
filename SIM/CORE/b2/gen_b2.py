@@ -27,6 +27,18 @@
 #            memory to dependent loads (or to x0, read at once: tag 0), bursts
 #            of stores (the SQ fills); multiplies after divides or mulh now and
 #            then (to x0 too, then x0 read)
+#     fp     (step 1.8 U2, Plan/OOC.md 29.82) ls's program with FP segments
+#            as well (mstatus.FS on, every f register set first): FP
+#            operations single and double with every rounding mode (dynamic
+#            too; frm written by fsrmi now and then, a CSR write that replays),
+#            chains on a few registers and FMAs (OOO_FIQ fills), divides and
+#            square roots (the FPU held), FP -> integer results (compares,
+#            fclass, fmv.x, fcvt to integers; to x0 too) and branches on
+#            them (mispredicted with FP µops in flight), int -> FP (fmv.*.x,
+#            fcvt from integers), FP loads and stores of both sizes (c.fld /
+#            c.fsd through x9), an FP store then a load of the same word (FP
+#            or integer; an integer store then an FP load), bursts of FP
+#            stores (port B), fflags read and written
 #---------------------------------------------------------------------------
 import random, sys
 
@@ -41,6 +53,53 @@ SH = [('slli', 6), ('srli', 6), ('srai', 6), ('slliw', 5), ('srliw', 5), ('sraiw
       ('slli.uw', 6), ('bclri', 6), ('bexti', 6), ('binvi', 6), ('bseti', 6)]
 R2 = ['clz', 'ctz', 'cpop', 'clzw', 'ctzw', 'cpopw', 'sext.b', 'sext.h', 'zext.h', 'rev8', 'orc.b', 'mv', 'neg', 'not']
 BR = ['beq', 'bne', 'blt', 'bge', 'bltu', 'bgeu', 'beqz', 'bnez']
+FR = ['f%d' % i for i in range(32)]
+FFEW = ['f%d' % i for i in range(8, 16)]
+RMS = ['', '', '', '', 'rne', 'rtz', 'rdn', 'rup', 'rmm', 'dyn']
+
+
+def fpop(rnd):
+    # an FP operation on FP registers (single or double), its rounding mode at random
+    fmt = rnd.choice(['s', 'd'])
+    fp = lambda: rnd.choice(FFEW) if rnd.random() < 0.7 else rnd.choice(FR)
+    rm = rnd.choice(RMS)
+    rms = (', ' + rm) if rm else ''
+    k = rnd.random()
+    if k < 0.35:
+        return '%s.%s %s, %s, %s%s' % (rnd.choice(['fadd', 'fsub', 'fmul']), fmt, fp(), fp(), fp(), rms)
+    if k < 0.60:
+        return '%s.%s %s, %s, %s, %s%s' % (rnd.choice(['fmadd', 'fmsub', 'fnmadd', 'fnmsub']), fmt, fp(), fp(), fp(), fp(), rms)
+    if k < 0.75:
+        return '%s.%s %s, %s, %s' % (rnd.choice(['fmin', 'fmax', 'fsgnj', 'fsgnjn', 'fsgnjx']), fmt, fp(), fp(), fp())
+    if k < 0.85:
+        return 'fcvt.s.d %s, %s%s' % (fp(), fp(), rms) if rnd.random() < 0.5 else 'fcvt.d.s %s, %s' % (fp(), fp())
+    if k < 0.93:
+        return 'fdiv.%s %s, %s, %s%s' % (fmt, fp(), fp(), fp(), rms)
+    if k < 0.97:
+        return 'fsqrt.%s %s, %s%s' % (fmt, fp(), fp(), rms)
+    return 'fmv.%s %s, %s' % (fmt, fp(), fp())
+
+
+def f2i(rnd, xd, fs):
+    fmt = rnd.choice(['s', 'd'])
+    k = rnd.random()
+    if k < 0.35:
+        return '%s.%s %s, %s, %s' % (rnd.choice(['feq', 'flt', 'fle']), fmt, xd, fs, rnd.choice(FR))
+    if k < 0.45:
+        return 'fclass.%s %s, %s' % (fmt, xd, fs)
+    if k < 0.60:
+        return 'fmv.x.%s %s, %s' % ('w' if fmt == 's' else 'd', xd, fs)
+    rm = rnd.choice(RMS)
+    return 'fcvt.%s.%s %s, %s%s' % (rnd.choice(['w', 'wu', 'l', 'lu']), fmt, xd, fs, (', ' + rm) if rm else '')
+
+
+def i2f(rnd, fd, xs):
+    fmt = rnd.choice(['s', 'd'])
+    if rnd.random() < 0.4:
+        return 'fmv.%s.x %s, %s' % ('w' if fmt == 's' else 'd', fd, xs)
+    src = rnd.choice(['w', 'wu', 'l', 'lu'])
+    rm = '' if fmt == 'd' and src in ('w', 'wu') else rnd.choice(RMS)    # (exact: no rounding mode)
+    return 'fcvt.%s.%s %s, %s%s' % (fmt, src, fd, xs, (', ' + rm) if rm else '')
 
 
 def alu(rnd, regs, few=None):
@@ -71,6 +130,15 @@ def main():
     out = ['    .section .text.init', '    .globl _start', '_start:']
     for r in range(1, 32):
         out.append('    li x%d, %d' % (r, rnd.getrandbits(64) - (1 << 63)))
+    if kind == 'fp':                                       # FS on (dirty), every f register set (a value, or random bits)
+        out += ['    li x1, 0x6000', '    csrs mstatus, x1']
+        for r in range(32):
+            if r % 3 == 0:
+                out.append('    fmv.d.x f%d, x%d' % (r, rnd.randint(1, 31)))
+            else:
+                out.append('    li x1, %d' % rnd.randint(-1000, 1000))
+                out.append('    fcvt.%s.l f%d, x1' % (rnd.choice('sd'), r))
+        out.append('    li x1, %d' % (rnd.getrandbits(64) - (1 << 63)))
     if kind == 'alu':
         regs = ['x%d' % r for r in range(1, 32)]
         few = ['x8', 'x9', 'x10', 'x11', 'x12', 'x13', 'x14', 'x15']
@@ -79,7 +147,8 @@ def main():
         out += ['    .globl pass', 'pass:', '    j pass']
     else:
         BASES = ['x9', 'x28', 'x27', 'x26', 'x25', 'x24', 'x23']
-        regs = ['x%d' % r for r in range(2, 30) if r not in (3, 4, 5, 6, 7) + ((9, 28, 27, 26, 25, 24, 23) if kind == 'ls' else ())]
+        mem = kind in ('ls', 'fp')
+        regs = ['x%d' % r for r in range(2, 30) if r not in (3, 4, 5, 6, 7) + ((9, 28, 27, 26, 25, 24, 23) if mem else ())]
         LD = [('ld', 8), ('lw', 4), ('lwu', 4), ('lh', 2), ('lhu', 2), ('lb', 1), ('lbu', 1)]
         ST = [('sd', 8), ('sw', 4), ('sh', 2), ('sb', 1)]
 
@@ -104,7 +173,9 @@ def main():
             body = []
             for _ in range(rnd.randint(1, 4)):
                 body.append('    ' + alu(rnd, regs, few))
-            if kind == 'ls' and rnd.random() < 0.15:       # a multiply (OOO_PMUL), to x0 now and then, x0 read soon
+            if kind == 'fp' and rnd.random() < 0.5:
+                body += fpseg()
+            if mem and rnd.random() < 0.15:                # a multiply (OOO_PMUL), to x0 now and then, x0 read soon
                 if rnd.random() < 0.5:                     # after an MDU µop (OOO_MDUP: its result and the multiply's meet)
                     body.append('    %s %s, %s, %s' % (rnd.choice(['div', 'divu', 'rem', 'remu', 'divw', 'remuw', 'mulh', 'mulhu']),
                                                       'x0' if rnd.random() < 0.3 else rnd.choice(few), rnd.choice(regs), rnd.choice(regs)))
@@ -113,7 +184,7 @@ def main():
                 for _ in range(rnd.randint(0, 2)):
                     body.append('    ' + alu(rnd, regs, few))
                 body.append('    add %s, x0, %s' % (rnd.choice(regs), rnd.choice(regs)))
-            if kind == 'ls' and rnd.random() < 0.5:        # memory
+            if mem and rnd.random() < 0.5:                 # memory
                 m = rnd.random()
                 base = rnd.choice(BASES)
                 if m < 0.3:                                # a few loads and stores at random
@@ -226,7 +297,79 @@ def main():
                 body.append(l + ':')
             return body
 
-        if kind == 'ls':
+        def fpseg():                                   # the FP side (kind fp)
+            body = []
+            fp = lambda: rnd.choice(FFEW) if rnd.random() < 0.7 else rnd.choice(FR)
+            k = rnd.random()
+            if k < 0.30:                                   # FP operations, chains on a few registers
+                for _ in range(rnd.randint(1, 8)):
+                    body.append('    ' + fpop(rnd))
+            elif k < 0.42:                                 # an FP -> integer result, used, a branch on it (mispredicted often)
+                l = new()
+                xd = 'x0' if rnd.random() < 0.15 else rnd.choice(few)
+                body.append('    ' + f2i(rnd, xd, fp()))
+                body.append('    add %s, %s, %s' % (rnd.choice(regs), xd, rnd.choice(regs)))
+                body.append('    %s %s, %s' % (rnd.choice(['beqz', 'bnez']), xd, l))
+                for _ in range(rnd.randint(0, 4)):
+                    body.append('    ' + (fpop(rnd) if rnd.random() < 0.6 else alu(rnd, regs, few)))
+                body.append(l + ':')
+            elif k < 0.52:                                 # int -> FP, used
+                f = fp()
+                body.append('    ' + i2f(rnd, f, rnd.choice(regs)))
+                body.append('    fadd.d %s, %s, %s' % (fp(), f, fp()))
+            elif k < 0.60:                                 # a divide or square root, work behind it (the FPU held)
+                fmt = rnd.choice('sd')
+                if rnd.random() < 0.7:
+                    body.append('    fdiv.%s %s, %s, %s' % (fmt, fp(), fp(), fp()))
+                else:
+                    body.append('    fsqrt.%s %s, %s' % (fmt, fp(), fp()))
+                for _ in range(rnd.randint(1, 6)):
+                    body.append('    ' + (fpop(rnd) if rnd.random() < 0.5 else f2i(rnd, rnd.choice(few), fp())))
+            elif k < 0.78:                                 # FP loads and stores
+                base = rnd.choice(BASES)
+                m = rnd.random()
+                if m < 0.35:
+                    for _ in range(rnd.randint(1, 5)):
+                        sz = rnd.choice([4, 8])
+                        op = ('fsw' if sz == 4 else 'fsd') if rnd.random() < 0.5 else ('flw' if sz == 4 else 'fld')
+                        body.append('    %s %s, %d(%s)' % (op, rnd.choice(FFEW) if base == 'x9' else fp(), mem_off(base, sz), base))
+                elif m < 0.65:                             # an FP store, then a load of the same word (FP or integer)
+                    sz = rnd.choice([4, 8])
+                    o = mem_off(base, 8)
+                    body.append('    %s %s, %d(%s)' % ('fsw' if sz == 4 else 'fsd', fp(), o, base))
+                    for _ in range(rnd.randint(0, 2)):
+                        body.append('    ' + fpop(rnd))
+                    if rnd.random() < 0.5:
+                        body.append('    %s %s, %d(%s)' % ('flw' if sz == 4 else 'fld', fp(), o, base))
+                    else:
+                        lop, lsz = rnd.choice(LD)
+                        body.append('    %s %s, %d(%s)' % (lop, rnd.choice(regs), o + rnd.randrange(0, sz, lsz) if lsz <= sz else o, base))
+                elif m < 0.80:                             # an integer store, then an FP load of it, used
+                    o = mem_off(base, 8)
+                    body.append('    sd %s, %d(%s)' % (rnd.choice(regs), o, base))
+                    f = fp()
+                    body.append('    %s %s, %d(%s)' % (rnd.choice(['fld', 'flw']), f, o, base))
+                    body.append('    fmul.d %s, %s, %s' % (fp(), f, fp()))
+                else:                                      # a burst of FP stores (port B), the results of FMAs
+                    for _ in range(rnd.randint(4, 10)):
+                        if rnd.random() < 0.4:
+                            body.append('    ' + fpop(rnd))
+                        sz = rnd.choice([4, 8])
+                        body.append('    %s %s, %d(%s)' % ('fsw' if sz == 4 else 'fsd', fp(), mem_off(base, sz), base))
+            elif k < 0.86:                                 # fflags read (and written), compared at the CSR read
+                body.append('    frflags %s' % rnd.choice(few))
+                if rnd.random() < 0.3:
+                    body.append('    fsflags %s' % rnd.choice(['x0', rnd.choice(regs)]))
+            elif k < 0.90:                                 # frm (a CSR write: what follows replays), a valid mode
+                body.append('    fsrmi %d' % rnd.randint(0, 4))
+            else:                                          # FP results through moves to integer and back
+                f, x = fp(), rnd.choice(few)
+                body.append('    fmv.x.d %s, %s' % (x, f))
+                body.append('    xor %s, %s, %s' % (x, x, rnd.choice(regs)))
+                body.append('    fmv.d.x %s, %s' % (fp(), x))
+            return body
+
+        if mem:
             out += ['    la x9, buf', '    la x28, buf + 2048'] + ['    la x%d, buf + %d' % (27 - k, 2048 + 4096 * (k + 1)) for k in range(5)]
         for _ in range(n):
             out += seg(0)
@@ -238,7 +381,7 @@ def main():
             out.append('    jr %s' % link)                 # (a return: c.jr ra / jalr x0, 0(t0))
     out += ['    .section .tohost, "aw", @progbits', '    .align 6', '    .globl tohost', 'tohost: .dword 0',
             '    .globl fromhost', 'fromhost: .dword 0']
-    if kind == 'ls':                                       # the buffer, filled with random words
+    if kind in ('ls', 'fp'):                               # the buffer, filled with random words
         out += ['    .section .data', '    .align 6', 'buf:'] + ['    .dword %d' % rnd.getrandbits(64) for _ in range(3072)]
     print('\n'.join(out))
 

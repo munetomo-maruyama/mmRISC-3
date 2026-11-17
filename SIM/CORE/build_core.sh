@@ -7,6 +7,7 @@
 #   OOO_RTL=<dir> OBJ=<dir>     another copy of RTL/CPU/OOO and where to build
 #                               (the bug injection of mutate_core.py)
 #   MMIO_RTL=<dir>              another copy of RTL/CPU/MMIO (the same; step 1.8 I2: CPU_PLIC)
+#   FPU_RTL=<dir>               another copy of RTL/CPU/FPU (step 1.8 U2: FPU_PIPE, FPU_ROUND)
 #   L2KB=<n>                    OOO_CPU's L2 of n KB (512 by default; mutate_core.py
 #                               takes 4: most accesses miss it, so memory's stalls
 #                               reach the D$ and its dirty lines go on to memory)
@@ -23,6 +24,7 @@ C=$(cd ../../RTL/CPU/CORE && pwd)
 S=${SPIKE:-$HOME/RISCV/toolchain/spike-install}
 CA=$(cd ../../RTL/CPU/CACHE && pwd)
 MM=${MMIO_RTL:-$(cd ../../RTL/CPU/MMIO && pwd)}
+FP=${FPU_RTL:-$(cd ../../RTL/CPU/FPU && pwd)}
 if [ "$1" = cpu ]; then
     L2KB=${L2KB:-512}
     TOP=OOO_CPU; O=${OBJ:-$HERE/obj/cpu}; DEF="+define+DCACHE_SIM_UC -GL2_SIZE=$((L2KB * 1024)) -GCLINT_TICK_DIV=1 $HERE/tb_cpu.vlt"; CDEF="-DCPU_TOP -DL2_SETS=$((L2KB * 4))"
@@ -39,7 +41,9 @@ verilator --cc --exe --build -O2 -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT --x-assign
     $R/OOO_RENAME2/OOO_RENAME2.sv $R/OOO_BUSY/OOO_BUSY.sv $R/OOO_CTRL/OOO_CTRL.sv $R/OOO_DSREG/OOO_DSREG.sv $R/OOO_ROB/OOO_ROB.sv \
     $R/OOO_IQ3/OOO_IQ3.sv $R/OOO_IQPL2/OOO_IQPL2.sv $R/OOO_STAGE/OOO_STAGE.sv $R/OOO_ALU/OOO_ALU.sv $R/OOO_ALU2/OOO_ALU2.sv \
     $R/OOO_PRF/OOO_PRF.sv $R/OOO_DTLB2/OOO_DTLB2.sv $R/OOO_DCH2/OOO_DCH2.sv $R/OOO_LSU4/OOO_LSU4.sv $C/CORE_CSR/CORE_CSR.sv $R/OOO_CSRU/OOO_CSRU.sv $R/OOO_TRAP/OOO_TRAP.sv \
-    $R/OOO_SYS/OOO_SYS.sv $R/OOO_PMUL/OOO_PMUL.sv $C/CORE_MDU/CORE_MDU.sv $R/OOO_MDUP/OOO_MDUP.sv $R/OOO_CORE/OOO_CORE.sv $XSRC \
+    $R/OOO_SYS/OOO_SYS.sv $R/OOO_PMUL/OOO_PMUL.sv $C/CORE_MDU/CORE_MDU.sv $R/OOO_MDUP/OOO_MDUP.sv \
+    $FP/FPU_ROUND/FPU_ROUND.sv $FP/FPU_PIPE/FPU_PIPE.sv $R/OOO_FREN/OOO_FREN.sv $R/OOO_FIQ/OOO_FIQ.sv $R/OOO_FPUW/OOO_FPUW.sv \
+    $R/OOO_CORE/OOO_CORE.sv $XSRC \
     $HERE/tb_core.cpp $HERE/bench.cc $HERE/../LOCKSTEP/lockstep.cc \
     -CFLAGS "-O2 -std=c++17 $CDEF -I$HERE -I$HERE/../LOCKSTEP -I$S/include -I$S/include/riscv -I$S/include/softfloat -I$S/include/fesvr -Wno-c++20-extensions" \
     -LDFLAGS "-L$S/lib -lriscv -lsoftfloat -ldisasm -lfesvr -Wl,-rpath,$S/lib -lpthread -ldl" > $O/build.log 2>&1 \

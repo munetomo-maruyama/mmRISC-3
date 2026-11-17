@@ -106,6 +106,7 @@ module OOO_CPU
         output logic [3:0]                  tr_pair,
         output logic [3:0][31:0]            tr_insn2,
         output logic [3:0]                  tr_wr,
+        output logic [3:0]                  tr_fwr,
         output logic [3:0][4:0]             tr_rd,
         output logic [3:0][63:0]            tr_val,
         output logic                        tr_trap,
@@ -168,7 +169,7 @@ module OOO_CPU
          .fl_req(fl_req), .fl_take(fl_take), .fl_done(fl_done), .ic_flush(ic_flush), .ic_done(ic_done)
 `ifdef OOO_TRACE
          ,
-         .tr_valid(tr_valid), .tr_pc(tr_pc), .tr_insn(tr_insn), .tr_pair(tr_pair), .tr_insn2(tr_insn2), .tr_wr(tr_wr), .tr_rd(tr_rd), .tr_val(tr_val),
+         .tr_valid(tr_valid), .tr_pc(tr_pc), .tr_insn(tr_insn), .tr_pair(tr_pair), .tr_insn2(tr_insn2), .tr_wr(tr_wr), .tr_fwr(tr_fwr), .tr_rd(tr_rd), .tr_val(tr_val),
          .tr_trap(tr_trap), .tr_int(tr_int), .tr_cause(tr_cause), .tr_trap_pc(tr_trap_pc), .tr_st(tr_st), .tr_st_addr(tr_st_addr),
          .tr_st_data(tr_st_data), .tr_st_size(tr_st_size)
 `endif

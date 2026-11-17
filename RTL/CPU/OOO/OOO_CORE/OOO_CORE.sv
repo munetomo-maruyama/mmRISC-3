@@ -31,9 +31,8 @@
 //              (free list, LQ / SQ, FTQ pops), OOO_TRAP (exceptions, the
 //              interrupt, the vector, the replay pc), the commit trace
 //
-// B4: an illegal instruction (and every FP instruction, its loads and
-// stores too: no FPU in Phase 1; decode's is_fp, slot 0 only, rare), ECALL
-// and EBREAK trap at decode (to the ROB at dispatch, never issued; tval
+// B4: an illegal instruction (and an FP instruction with mstatus.FS off or a
+// reserved rounding mode, step 1.8 U2), ECALL and EBREAK trap at decode (to the ROB at dispatch, never issued; tval
 // through OOO_TRAP's ports 0 .. 3, one a dispatch slot). Port 0's CSR and system µops are
 // non-speculative and read their instruction bits from rob_insn (per ROB
 // entry, written at dispatch). A result for x0 (tag 0) of the LSU, the
@@ -79,6 +78,24 @@
 // carries CORE_DEC's command in xop. SC and an AMO are answered from outside:
 // OOO_LSU4 writes the result through its port 0 and wakes the issue queue
 // (ext port 1, at_wk_*); its access fault (5 LR, 7 SC / AMO) and tval.
+//
+// The renamed FPU (step 1.8 U2, Plan/OOC.md 29.80 to 29.82): FP decoded in slot 0
+// (a rare class, as before; U2b takes it to every slot). OOO_FREN renames the FP
+// registers beside OOO_RENAME2 (its r1_adv, checkpoint ids; ready joins renaming's);
+// busy bits of the FP file (OOO_BUSY, twice for 3 sources). An FP operation (and an
+// FP -> integer one) goes to OOO_FIQ alone; an FP store's address to OOO_IQ3 (an
+// integer store whose data is not its: disp_nd) and its data to OOO_FIQ's port B
+// (2 stages, the FP file's 4th read with the FP result's bypass, then OOO_LSU4's
+// second data port); an FP load to OOO_IQ3 as a load whose destination is FP (the
+// LSU's tag carries {box, fp}: written into the FP file, NaN boxed if flw, the FP
+// side woken in its RR, as the queue wakes for an integer load); an int -> FP µop
+// to OOO_IQ3's port 0 (its operand in EX into OOO_FPUW's buffer; xf_ok). OOO_FPUW
+// with mmRISC-2's FPU_PIPE; the FP file (OOO_PRF, 64, 3 writes: the FPU, the 2
+// loads; 4 reads). FP -> integer results write through port 0's slot when the MDU
+// and a latency-1 writer leave it (its wakeup on the MDU's external bus, its own
+// completion port). Per ROB entry: the FP destination (OOO_FREN's commit), the
+// flags (fflags at commit), mstatus.FS made dirty at the commit of an FP write or
+// of nonzero flags (Spike's rule).
 //
 // The commit trace (OOO_TRACE, simulation only): per ROB entry the
 // instruction bits (written at dispatch) and the value written (at
@@ -168,6 +185,7 @@ module OOO_CORE
         output logic [3:0]                  tr_pair,    // a fused pair: its second instruction
         output logic [3:0][31:0]            tr_insn2,
         output logic [3:0]                  tr_wr,
+        output logic [3:0]                  tr_fwr,     // ... an FP register (step 1.8 U2)
         output logic [3:0][4:0]             tr_rd,
         output logic [3:0][63:0]            tr_val,
         output logic                        tr_trap,
@@ -194,12 +212,21 @@ module OOO_CORE
     localparam logic [7:0] FUSE_KINDS = 8'h00;
     localparam bit         FUSE_AB    = FUSE_KINDS[7];
     localparam int NWK   = 9;                   // wakeup buses (OOO_IQ3: 7 + NEXT)
+    // the renamed FPU (step 1.8 U2, Plan/OOC.md 29.80)
+    localparam int NFREG = 64, FTAGW = 6;       // FP physical registers
+    localparam int FPLW  = 32;                  // OOO_FIQ's payload: op [4:0], fmt [5], rm [8:6], int_signed [9], int_w [10],
+                                                // the ROB index [11 +: ROBW], the integer destination [17 +: TAGW]; a store's
+                                                // data: its SQ entry [27:24], double [28]
+    localparam logic [4:0] FOP_DIV = 5'd3, FOP_SQRT = 5'd4, FOP_EQ = 5'd14, FOP_MV_X_F = 5'd18, FOP_MV_F_X = 5'd19,
+                           FOP_CVT_F_I = 5'd22, FOP_CVT_I_F = 5'd23;
 
     logic [1:0]          priv;                  // the privilege level (CORE_CSR): ECALL's cause at decode
 
     // the payload record (OOO_IQPL2, 102 bits; the fields of B2 to B4)
     localparam logic [1:0] K_ALU = 2'd0, K_MDU = 2'd1, K_CSR = 2'd2, K_SYS = 2'd3;
     typedef struct packed {
+        logic            fpd;                   // a load to an FP register (step 1.8 U2)
+        logic            fx;                    // an int -> FP µop (port 0; OOO_FPUW's payload in imm [10:0])
         logic [1:0]      kind;                  // port 0's units: K_ALU (and branches, jumps), K_MDU, K_CSR, K_SYS
         logic [3:0]      xop;                   // an MDU µop's CORE_MDU op (0: mul / mulw, OOO_PMUL); a system µop's OOO_SYS op;
                                                 // a µop of port 2: 0 a load or store, else an atomic's CORE_DEC command
@@ -256,6 +283,17 @@ module OOO_CORE
         logic            lat2;
         logic            wt;                    // the wait table's bit: a load waits for older stores' data too
         logic [31:0]     insn;
+        // the FP side (step 1.8 U2)
+        logic            fq;                    // to OOO_FIQ's port A (an FP operation, an FP -> integer one)
+        logic            fsd;                   // an FP store (its data to OOO_FIQ's port B)
+        logic            fwr;                   // writes an FP register
+        logic            f2i;                   // its result is an integer register's
+        logic            fdv;                   // a divide or square root
+        logic            fpld;                  // an FP load
+        logic            i2f;                   // an int -> FP µop
+        logic [2:0]      fuse;                  // the FP sources it reads (a store: source 0, its fs2)
+        logic [4:0]      farch;
+        logic [10:0]     fpl;                   // OOO_FPUW's: int_w, int_signed, rm, fmt, op
 `ifdef OOO_TRACE
         logic [31:0]     insn2;                 // a pair's second instruction (the trace only)
 `endif
@@ -312,11 +350,17 @@ module OOO_CORE
     logic [3:0]          g_mem_signed, g_ext_ans, g_nonspec, g_is_sfence, g_is_csr;
     logic [3:0][3:0]     g_mdu_op;
     logic [3:0][7:0]     g_sys;
-    logic [3:0]          g_csr_imm_sel, g_csr_wr, g_csr_rd, g_is_fp;     // (the CSR unit decodes the instruction itself)
+    logic [3:0]          g_csr_imm_sel, g_csr_wr, g_csr_rd;     // (the CSR unit decodes the instruction itself)
     logic [3:0][4:0]     g_mem_cmd;
     logic [3:0][11:0]    g_csr_addr;
     logic [3:0][1:0]     g_csr_op;
     /* verilator lint_on UNUSEDSIGNAL */
+    logic [3:0]          g_is_fp, g_fp_fmt, g_fp_we_rd, g_fp_int_signed, g_fp_int_w;
+    logic [3:0][4:0]     g_fp_op, g_rs3, g_frd;
+    logic [3:0][2:0]     g_fp_rm, g_use_fs;
+    // the FP CSR state decode reads (OOO_CSRU's; a CSR write replays what follows it)
+    logic [1:0]          fs;
+    logic [2:0]          frm;
 
     OOO_FRONT #(.VA(VA), .NFTQ(NFTQ), .FTQW(FTQW)) u_front
         (.clk(clk), .rst_n(rst_n),
@@ -337,7 +381,9 @@ module OOO_CORE
          .g_mdu_op(g_mdu_op), .g_mem_cmd(g_mem_cmd), .g_mem_size(g_mem_size), .g_mem_signed(g_mem_signed),
          .g_sys(g_sys), .g_is_sfence(g_is_sfence), .g_is_csr(g_is_csr), .g_csr_addr(g_csr_addr),
          .g_csr_op(g_csr_op), .g_csr_imm_sel(g_csr_imm_sel), .g_csr_wr(g_csr_wr), .g_csr_rd(g_csr_rd),
-         .g_is_fp(g_is_fp), .g_take(g_take));
+         .g_is_fp(g_is_fp), .g_fp_op(g_fp_op), .g_fp_fmt(g_fp_fmt), .g_fp_rm(g_fp_rm), .g_use_fs(g_use_fs),
+         .g_rs3(g_rs3), .g_frd(g_frd), .g_fp_we_rd(g_fp_we_rd), .g_fp_int_signed(g_fp_int_signed),
+         .g_fp_int_w(g_fp_int_w), .g_take(g_take));
 
     // ---- D2: the group from its oldest valid slot. The valid slots run from
     // hd to the last one given (D2 takes from the oldest, and the register
@@ -380,12 +426,33 @@ module OOO_CORE
     logic [ND-1:0][CW-1:0] ren_ckpt_id;
     logic                ren_ready;
     dsp_t [ND-1:0]       d2;
+    // FP at D2 (step 1.8 U2): its classes, and an FP instruction that traps (mstatus.FS off; a reserved rounding mode,
+    // in the instruction or, dynamic, in frm: mmRISC-2's CPU_CORE)
+    logic [ND-1:0]       f_ok, fexc, fpar, fpld, fpst, fi2f, ff2i, fwr_d;
+    logic [ND-1:0][2:0][4:0] fren_src;
+    logic [ND-1:0][4:0]  fren_dst;
+    always @(*) begin
+        for (int j = 0; j < ND; j++) begin
+            automatic logic [1:0] s  = rs[j];
+            automatic logic [2:0] rm = g_fp_rm[s];
+            f_ok[j]  = g_is_fp[s] && !g_illegal[s];
+            fpar[j]  = f_ok[j] && g_port[s] == 2'd3;
+            fpld[j]  = f_ok[j] && g_port[s] == 2'd2 && g_fp_we_rd[s];
+            fpst[j]  = f_ok[j] && g_port[s] == 2'd2 && !g_fp_we_rd[s];
+            fi2f[j]  = fpar[j] && (g_fp_op[s] == FOP_MV_F_X || g_fp_op[s] == FOP_CVT_F_I);
+            ff2i[j]  = fpar[j] && ((g_fp_op[s] >= FOP_EQ && g_fp_op[s] <= FOP_MV_X_F) || g_fp_op[s] == FOP_CVT_I_F);
+            fexc[j]  = f_ok[j] && (fs == 2'b00 || (fpar[j] && (rm == 3'd5 || rm == 3'd6 || (rm == 3'd7 && frm >= 3'd5))));
+            fwr_d[j] = f_ok[j] && g_fp_we_rd[s] && !fexc[j];
+            fren_src[j] = {g_rs3[s], g_rs2[s], g_rs1[s]};
+            fren_dst[j] = g_frd[s];
+        end
+    end
     always @(*) begin
         for (int j = 0; j < ND; j++) begin
             r_valid[j] = r_v[j];
             ren_use[j] = {g_use_rs2[rs[j]], g_use_rs1[rs[j]]};
             ren_src[j] = {g_rs2[rs[j]], g_rs1[rs[j]]};
-            ren_wr[j]  = r_valid[j] && g_rd[rs[j]] != 5'd0;   // (renaming's ready counts the destinations offered)
+            ren_wr[j]  = r_valid[j] && g_rd[rs[j]] != 5'd0 && !fexc[j];   // (renaming's ready counts the destinations offered)
             ren_dst[j] = g_rd[rs[j]];
             r_ckpt[j]  = g_is_branch[rs[j]] || g_is_jalr[rs[j]];
         end
@@ -421,7 +488,8 @@ module OOO_CORE
             d2[j].rec.a_shift    = jmp ? 2'd0 : g_a_shift[s];
             d2[j].rec.a_uw       = jmp ? 1'b0 : g_a_uw[s];
             d2[j].rec.alu_op     = jmp ? 6'd0 : g_alu_op[s];            // (ADD)
-            d2[j].rec.imm        = jmp ? (g_rvc[s] ? 32'd2 : 32'd4) : g_imm[s];
+            d2[j].rec.imm        = jmp ? (g_rvc[s] ? 32'd2 : 32'd4) :
+                                   fi2f[j] ? {21'd0, g_fp_int_w[s], g_fp_int_signed[s], g_fp_rm[s], g_fp_fmt[s], g_fp_op[s]} : g_imm[s];
             d2[j].rec.joff       = g_imm[s][11:0];
             d2[j].rec.len4       = !g_rvc[s];
             d2[j].rec.xline      = !g_rvc[s] && g_pc[s][4:1] == 4'd15;
@@ -431,22 +499,34 @@ module OOO_CORE
             d2[j].rec.ftq        = g_ftq[s];
             d2[j].rec.msize      = g_mem_size[s];
             d2[j].rec.uns        = !g_mem_signed[s];
-            d2[j].rec.is_ld      = g_cls[s] == 3'd4 || (at && g_mem_cmd[s] != 5'd3);
-            d2[j].ld             = g_cls[s] == 3'd4 || (at && g_mem_cmd[s] != 5'd3);
-            d2[j].st             = g_cls[s] == 3'd5 || (at && g_mem_cmd[s] != 5'd2);
+            d2[j].rec.is_ld      = g_cls[s] == 3'd4 || (at && g_mem_cmd[s] != 5'd3) || fpld[j];
+            d2[j].ld             = g_cls[s] == 3'd4 || (at && g_mem_cmd[s] != 5'd3) || fpld[j];
+            d2[j].st             = g_cls[s] == 3'd5 || (at && g_mem_cmd[s] != 5'd2) || fpst[j];
+            d2[j].rec.fpd        = fpld[j];
+            d2[j].rec.fx         = fi2f[j];
+            d2[j].fq             = fpar[j] && !fi2f[j];
+            d2[j].fsd            = fpst[j];
+            d2[j].fwr            = fwr_d[j];
+            d2[j].f2i            = ff2i[j];
+            d2[j].fdv            = fpar[j] && (g_fp_op[s] == FOP_DIV || g_fp_op[s] == FOP_SQRT);
+            d2[j].fpld           = fpld[j];
+            d2[j].i2f            = fi2f[j];
+            d2[j].fuse           = fpst[j] ? 3'b001 : g_use_fs[s];
+            d2[j].farch          = g_frd[s];
+            d2[j].fpl            = {g_fp_int_w[s], g_fp_int_signed[s], g_fp_rm[s], g_fp_fmt[s], g_fp_op[s]};
             d2[j].pc             = g_pc[s];
             d2[j].wr             = ren_wr[j];
             d2[j].arch           = g_rd[s];
             d2[j].rec.kind       = g_cls[s] == 3'd6 ? K_MDU : g_is_csr[s] ? K_CSR : sysop_v ? K_SYS : K_ALU;
             d2[j].rec.xop        = g_cls[s] == 3'd6 ? g_mdu_op[s] : at ? g_mem_cmd[s][3:0] : {1'b0, sysop};
-            // illegal (and in Phase 1 an FP instruction: no FPU), EBREAK, ECALL
-            d2[j].exc            = g_illegal[s] || g_is_fp[s] || g_sys[s][4] || g_sys[s][3];
-            d2[j].cause          = (g_illegal[s] || g_is_fp[s]) ? 5'd2 : g_sys[s][4] ? 5'd3 : (5'd8 | 5'(priv));
-            d2[j].tval           = (g_illegal[s] || g_is_fp[s]) ? {32'd0, g_insn[s]}     // (an RVC one: the upper half 0, OOO_FBUF)
+            // illegal (an FP instruction with FS off or a reserved rounding mode too), EBREAK, ECALL
+            d2[j].exc            = g_illegal[s] || fexc[j] || g_sys[s][4] || g_sys[s][3];
+            d2[j].cause          = (g_illegal[s] || fexc[j]) ? 5'd2 : g_sys[s][4] ? 5'd3 : (5'd8 | 5'(priv));
+            d2[j].tval           = (g_illegal[s] || fexc[j]) ? {32'd0, g_insn[s]}     // (an RVC one: the upper half 0, OOO_FBUF)
                                  : g_sys[s][4] ? {{(64 - VA){g_pc[s][VA-1]}}, g_pc[s], 1'b0} : 64'd0;
             d2[j].ns             = g_nonspec[s];
             d2[j].md             = g_ext_ans[s];
-            d2[j].port           = g_port[s];
+            d2[j].port           = fi2f[j] ? 2'd1 : g_port[s];          // (an int -> FP µop: port 0, its operand there)
             d2[j].lat2           = g_lat2[s];
             d2[j].wt             = wt_g[s];
             d2[j].insn           = g_insn[s];
@@ -493,6 +573,54 @@ module OOO_CORE
     OOO_BUSY #(.NREG(80), .TAGW(TAGW), .NWK(NWK)) u_busy
         (.clk(clk), .rst_n(rst_n), .set_v(r1_wr), .set_t(r1_tag), .wk_valid(wk_valid), .wk_tag(wk_tag),
          .rd_t(r2_src_all), .rd_rdy(ren_rdy));
+
+    // ---- the FP side's declarations (step 1.8 U2; the blocks below)
+    logic                      fren_ready;
+    logic [3:0]                f1_wr;
+    logic [3:0][FTAGW-1:0]     f1_tag;
+    logic [3:0][2:0][FTAGW-1:0] f2_src;
+    /* verilator lint_off UNUSEDSIGNAL */      // (R2's write bit: the DS register has it from D2)
+    logic [3:0]                f2_wr;
+    /* verilator lint_on UNUSEDSIGNAL */
+    logic [3:0][FTAGW-1:0]     f2_dst, f2_old;
+    logic [ND-1:0]             fcmt_wr;
+    logic [ND-1:0][4:0]        fcmt_arch;
+    logic [ND-1:0][FTAGW-1:0]  fcmt_new, fcmt_old;
+    logic [3:0]                fwk_v;                   // the FP wakeups: the FPU's, the 2 load ports' (in their RR), none
+    logic [3:0][FTAGW-1:0]     fwk_t;
+    logic [3:0][1:0]           fbsy_a, fbsy_b;
+    logic [ND-1:0][2:0]        frdy;
+    logic [2:0]                fq_ready;
+    logic                      x_ready, xf_ok, f2i_wr, f2i_hold, iw_ack, fw_valid, iw_valid;
+    logic [TAGW-1:0]           iw_tag;
+    logic [63:0]               iw_data, fw_data;
+    logic [ROBW-1:0]           iw_rob, fw_rob;
+    logic [4:0]                iw_flags, fw_flags;
+    logic [FTAGW-1:0]          fw_tag;
+    logic [4:0]                f_fl_set;
+    logic                      f_dirty;
+
+    // ---- the FP registers' renaming (OOO_FREN, beside OOO_RENAME2 and in step with it: its r1_adv, the checkpoints'
+    // ids; the group goes when both are ready, OOO_CTRL's r_ren_ready) and the FP file's busy bits
+    OOO_FREN #(.NREG(NFREG), .TAGW(FTAGW), .NCK(NCKPT)) u_fren
+        (.clk(clk), .rst_n(rst_n), .in_valid(r_go), .in_src(fren_src), .in_wr(fwr_d), .in_dst(fren_dst),
+         .in_ckpt(r_ckpt), .in_ckid(r1_ckid), .adv(r1_adv), .ready(fren_ready),
+         .r1_wr(f1_wr), .r1_tag(f1_tag), .r2_src(f2_src), .r2_wr(f2_wr), .r2_dst(f2_dst), .r2_old(f2_old),
+         .cmt_wr(fcmt_wr), .cmt_arch(fcmt_arch), .cmt_new(fcmt_new), .cmt_old(fcmt_old),
+         .restore(restore), .restore_id(restore_id), .flush_all(flush_all));
+    logic [3:0][1:0][FTAGW-1:0] fb_ta, fb_tb;
+    always @(*)
+        for (int j = 0; j < ND; j++) begin
+            fb_ta[j] = {f2_src[j][1], f2_src[j][0]};
+            fb_tb[j] = {f2_src[j][2], f2_src[j][2]};
+            frdy[j]  = {fbsy_b[j][0], fbsy_a[j][1], fbsy_a[j][0]};
+        end
+    OOO_BUSY #(.NREG(NFREG), .TAGW(FTAGW), .NWK(4)) u_fbusy_a
+        (.clk(clk), .rst_n(rst_n), .set_v(f1_wr), .set_t(f1_tag), .wk_valid(fwk_v), .wk_tag(fwk_t),
+         .rd_t(fb_ta), .rd_rdy(fbsy_a));
+    OOO_BUSY #(.NREG(NFREG), .TAGW(FTAGW), .NWK(4)) u_fbusy_b      // (the third source: fs3)
+        (.clk(clk), .rst_n(rst_n), .set_v(f1_wr), .set_t(f1_tag), .wk_valid(fwk_v), .wk_tag(fwk_t),
+         .rd_t(fb_tb), .rd_rdy(fbsy_b));
 
     // ---- DS
     logic [2:0]                rob_avail, iq_ready;
@@ -586,7 +714,7 @@ module OOO_CORE
     /* verilator lint_off PINCONNECTEMPTY */   // (what OOO_TRAP and interrupts take: not yet)
     OOO_CTRL #(.NCKPT(NCKPT), .CW(CW), .VA(VA), .FTQW(FTQW), .LW(4), .TAGW(TAGW), .ND(ND)) u_ctrl
         (.clk(clk), .rst_n(rst_n),
-         .r_valid(r_valid), .r_ckpt(r_ckpt), .r_ckpt_id(ren_ckpt_id), .r_ren_ready(ren_ready), .r_go(r_go),
+         .r_valid(r_valid), .r_ckpt(r_ckpt), .r_ckpt_id(ren_ckpt_id), .r_ren_ready(ren_ready && fren_ready), .r_go(r_go),
          .ds_valid(ds_valid), .ds_load(ds_load), .ds_ld(dv_ld), .ds_st(dv_st),
          .ds_ftq(dv_ftq), .rob_avail(rob_avail), .iq_avail(iq_ready),
          .lq_avail(lq_avail), .sq_avail(sq_avail), .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail), .d_go(d_go), .d_bmask(d_bmask),
@@ -603,8 +731,9 @@ module OOO_CORE
 
     // the ROB
     // completion: 0 port 0's EX, 1 port 1's EX, 2 the LSU's loads, 3 its stores, 4 port 0's multiplier and
-    // MDU (their results), 5 the system unit, 6 / 7 the mispredicted branches of ports 0 / 1 with their restore
-    localparam int NCMP = NAP + 8;
+    // MDU (their results), 5 the system unit, 6 / 7 the mispredicted branches of ports 0 / 1 with their restore,
+    // (after the ALU ports) 8 the CSR unit, 9 an FP -> integer result, 10 an FP result (step 1.8 U2)
+    localparam int NCMP = NAP + 10;
     logic [NCMP-1:0]           cmp_valid, cmp_exc, cmp_rp;
     logic [NCMP-1:0][ROBW-1:0] cmp_rob;
     logic [NCMP-1:0][4:0]      cmp_cause;
@@ -685,8 +814,18 @@ module OOO_CORE
     logic [TAGW-1:0]           md_ext_t;
     logic                      at_wk_v;                 // an AMO's or SC's result written (OOO_LSU4, step 1.4 E1c): its wakeup
     logic [TAGW-1:0]           at_wk_t;
-    assign iq_disp = d_go & ~dv_exc;
-    assign iq_cand = ds_valid & ~dv_exc;              // (iq_disp is these or none: the banks need not wait for the go)
+    // (an FP operation goes to OOO_FIQ alone; an FP store's address, an FP load and an int -> FP µop to this queue)
+    logic [ND-1:0]             dv_fq, dv_fsd, dv_i2f;
+    logic [ND-1:0][TAGW-1:0]   iq_dst;                  // an FP load's, an int -> FP µop's: the FP tag (not woken here: wr 0)
+    always @(*)
+        for (int j = 0; j < ND; j++) begin
+            dv_fq[j]  = ds[j].fq;
+            dv_fsd[j] = ds[j].fsd;
+            dv_i2f[j] = ds[j].i2f;
+            iq_dst[j] = (ds[j].fpld || ds[j].i2f) ? TAGW'(f2_dst[j]) : dv_dst[j];
+        end
+    assign iq_disp = d_go & ~dv_exc & ~dv_fq;
+    assign iq_cand = ds_valid & ~dv_exc & ~dv_fq;      // (iq_disp is these or none: the banks need not wait for the go)
     // OOO_IQ3: ALU ports 0..3 (port 1 also a store's data, iss_sd), LSU0 (port 4: loads, stores' addresses) and
     // LSU1 (port 5, step 1.3 E1)
     logic [2:0]                q_ready;
@@ -698,14 +837,15 @@ module OOO_CORE
     logic [5:0][NCKPT-1:0]     q_bm;
     OOO_IQ3 #(.N(NIQ), .TAGW(TAGW), .NEXT(2), .NCK(NCKPT)) u_iq
         (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .ns_ok(ns_ok), .mdu_ok(mdu_ok),
-         .p0_hold(p0_hold), .disp_ready(q_ready), .disp_entry(q_entry), .disp_valid(iq_disp), .disp_cand(iq_cand),
+         .p0_hold(p0_hold || f2i_hold), .xf_ok(xf_ok), .disp_ready(q_ready), .disp_entry(q_entry), .disp_valid(iq_disp), .disp_cand(iq_cand),
          .disp_port(dv_port), .disp_use(ds_use), .disp_src(ds_src), .disp_rdy(ds_rdy),
-         .disp_wr(dv_iqwr), .disp_dst(dv_dst), .disp_lat2(dv_lat2), .disp_bm(d_bmask), .disp_ns(dv_ns),
-         .disp_md(dv_md), .disp_st(dv_st), .disp_wt(dv_wt),
-         .ext_valid({at_wk_v, md_ext_v}), .ext_tag({at_wk_t, md_ext_t}),
+         .disp_wr(dv_iqwr), .disp_dst(iq_dst), .disp_lat2(dv_lat2), .disp_bm(d_bmask), .disp_ns(dv_ns),
+         .disp_md(dv_md), .disp_st(dv_st), .disp_wt(dv_wt), .disp_nd(dv_fsd), .disp_xf(dv_i2f),
+         // (an FP -> integer result is written through port 0's slot when the MDU leaves it: its wakeup on the MDU's bus)
+         .ext_valid({at_wk_v, md_ext_v || f2i_wr}), .ext_tag({at_wk_t, md_ext_v ? md_ext_t : iw_tag}),
          .iss_valid(q_valid), .iss_entry(q_ientry), .iss_src(q_src), .iss_wr(q_wr), .iss_dst(q_dst),
          .iss_bm(q_bm), .iss_ns(iss_ns), .iss_md(iss_md), .iss_sd(iss_sd), .wk_valid(wk_valid), .wk_tag(wk_tag));
-    assign iq_ready   = q_ready;
+    assign iq_ready   = q_ready < fq_ready ? q_ready : fq_ready;    // (both queues: the group goes to either or both)
     assign disp_entry = q_entry;
     always @(*) begin
         for (int p = 0; p <= NAP + 1; p++) begin
@@ -910,8 +1050,9 @@ module OOO_CORE
             prf_wa[p]     = wbi_t[p];
             prf_wd[p]     = wbi_d[p];
             // (a store's data on port 1 completes nothing: the store completes in OOO_LSU4 with both)
+            // (an int -> FP µop completes with its FP result, OOO_FPUW's)
             cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS && ex[p].rec.kind != K_CSR && !isbr &&
-                            !ex[p].sd;
+                            !ex[p].sd && !ex[p].rec.fx;
             cmp_rob[p]    = ex[p].rec.rob;
         end
         assign ex_bms[p] = ex_bm;
@@ -919,7 +1060,7 @@ module OOO_CORE
         // against kill with their own masks this cycle; a later kill can only be of a branch older than the
         // result, whose takers are younger and killed too, and its tag is not given out again in a cycle)
         logic [NCKPT-1:0] wb_in_bm;
-        assign wb_in_bm = ((p == 0 && md_w) || (p == 1 && pm_w)) ? '0 : ex_bm;
+        assign wb_in_bm = ((p == 0 && (md_w || f2i_wr)) || (p == 1 && pm_w)) ? '0 : ex_bm;     // (an FP -> integer result: the MDU's case)
         // WB
         OOO_STAGE #(.W(WBW), .NCK(NCKPT)) u_wb
             (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
@@ -946,8 +1087,7 @@ module OOO_CORE
     /* verilator lint_off UNUSEDSIGNAL */      // (translation, PMP, FP, debug, triggers: Phase 2)
     logic [63:0]     satp;
     logic            m_sum, m_mxr, m_mprv, menv_cbze, senv_cbze, dcsr_step, dcsr_ebm, dcsr_ebs, dcsr_ebu, tctl_mte;
-    logic [1:0]      m_mpp, fs;
-    logic [2:0]      frm;
+    logic [1:0]      m_mpp;
     logic [63:0]     pmpcfg;
     logic [511:0]    pmpaddr, pmpmask;
     logic [63:0]     dbg_rdata, dpc;
@@ -969,7 +1109,7 @@ module OOO_CORE
          .priv(priv), .satp(satp), .mstatus_sum(m_sum), .mstatus_mxr(m_mxr), .mstatus_mprv(m_mprv),
          .mstatus_mpp(m_mpp), .mstatus_tvm(m_tvm), .mstatus_tw(m_tw), .mstatus_tsr(m_tsr),
          .menvcfg_cbze(menv_cbze), .senvcfg_cbze(senv_cbze), .pmpcfg(pmpcfg), .pmpaddr(pmpaddr), .pmpmask(pmpmask),
-         .fflags_we(1'b0), .fflags_set(5'd0), .fs_dirty(1'b0), .frm(frm), .fs(fs),
+         .fflags_we(f_fl_set != 5'd0), .fflags_set(f_fl_set), .fs_dirty(f_dirty), .frm(frm), .fs(fs),
          .dbg_access(1'b0), .dbg_addr(12'd0), .dbg_enter(1'b0), .dbg_cause(3'd0), .dbg_pc(64'd0), .dbg_resume(1'b0),
          .dbg_rdata(dbg_rdata), .dcsr_step(dcsr_step), .dcsr_ebreakm(dcsr_ebm), .dcsr_ebreaks(dcsr_ebs),
          .dcsr_ebreaku(dcsr_ebu), .dpc(dpc), .trig_cfg(trig_cfg), .trig_addr(trig_addr), .tcontrol_mte(tctl_mte),
@@ -1011,15 +1151,16 @@ module OOO_CORE
     // the register file's write from port 0 does not wait on the kill (Plan/OOC.md 29.28): the MDU's raw
     // write, which implies no latency-1 writer (slot_busy), so the choice below can take it too
     assign md_wr = md_we && md_t != '0;
-    assign wbw0  = md_wr || x_wv;
+    // an FP -> integer result (step 1.8 U2) takes the slot when the MDU and a latency-1 writer leave it (f2i_wr, below)
+    assign wbw0  = md_wr || x_wv || f2i_wr;
     // port 1 the same: a multiply in its write slot (also one killed now) implies no latency-1 writer there, the
     // queue having kept the slot (blk1), but for one to x0, which keeps none
     assign pm_wr = pm_we && pm_t != '0;
     assign wbw1  = pm_wr || (ex_v[1] && ex[1].wr);
     always @(*) begin
-        wbi_v[0] = md_w || x_wv;
-        wbi_t[0] = md_wr ? md_t : ex[0].dst;
-        wbi_d[0] = md_wr ? md_d : (ex[0].rec.kind == K_CSR ? csr_res : ex_res[0]);
+        wbi_v[0] = md_w || x_wv || f2i_wr;
+        wbi_t[0] = md_wr ? md_t : f2i_wr ? iw_tag : ex[0].dst;
+        wbi_d[0] = md_wr ? md_d : f2i_wr ? iw_data : (ex[0].rec.kind == K_CSR ? csr_res : ex_res[0]);
         wbi_v[1] = pm_w || (ex_v[1] && ex[1].wr);
         wbi_t[1] = pm_wr ? pm_t : ex[1].dst;
         wbi_d[1] = pm_wr ? pm_d : ex_res[1];
@@ -1041,6 +1182,7 @@ module OOO_CORE
     ex_t  [1:0]              m_ex;
     /* verilator lint_on UNUSEDSIGNAL */
     logic [1:0][TAGW-1:0]    m_rr_dst;
+    logic [1:0][TAGW+1:0]    l_rr_dst;                  // OOO_LSU4's: {flw: NaN box it, an FP register, the tag} (step 1.8 U2)
     logic [1:0][63:0]        m_a, m_ea;
     for (genvar m = 0; m < 2; m++) begin : g_mem
         logic [RRW-1:0]  rr_d;
@@ -1056,6 +1198,7 @@ module OOO_CORE
              .in_data({iss_src[NAP+m][1], iss_src[NAP+m][0], iss_dst[NAP+m], iss_wr[NAP+m]}),
              .out_valid(m_rr_v[m]), .out_bm(m_rr_bm[m]), .out_data(rr_d));
         assign {t2, t1, m_rr_dst[m], wr} = rr_d;
+        assign l_rr_dst[m] = {rr_rec[NAP+m].fpd && rr_rec[NAP+m].msize == 2'd2, rr_rec[NAP+m].fpd, m_rr_dst[m]};
         assign prf_ra[2*NAP + m] = t1;                          // the base
         always @(*) begin
             rx     = '0;
@@ -1129,8 +1272,16 @@ module OOO_CORE
 
     logic            sq_drained;
     logic [1:0]      ld_nv;
-    logic [1:0][TAGW-1:0] ld_nt;
-    logic [1:0][63:0] ld_d;
+    logic [1:0][TAGW+1:0] ld_nt;                        // {box, fp, tag}
+    logic [1:0][63:0] ld_d, ld_db;                      // (ld_db: NaN boxed for flw)
+    logic [1:0]      ld_fp;
+    logic            sd2_v;                             // an FP store's data (OOO_FIQ's port B), into OOO_LSU4's second port
+    logic [3:0]      sd2_sq;
+    logic [1:0]      sd2_size;
+    logic [63:0]     sd2_data;
+    /* verilator lint_off UNUSEDSIGNAL */      // (an atomic's destination: integer, its {box, fp} 0)
+    logic [TAGW+1:0] at_wk_tl;
+    /* verilator lint_on UNUSEDSIGNAL */
     logic [1:0]      cmp_ld_v, cmp_ld_e, cmp_ld_rp, cmp_ld_sd;
     logic [1:0][ROBW-1:0] cmp_ld_rob;
     logic            cmp_st_v, cmp_st_e;
@@ -1145,21 +1296,22 @@ module OOO_CORE
     /* verilator lint_on UNUSEDSIGNAL */
     logic [ROBW-1:0] cmp_st_rob;
     /* verilator lint_off PINCONNECTEMPTY */   // (translation: step 1.8)
-    OOO_LSU4 #(.NLQ(16), .NSQ(16), .PAW(PAW), .VA(VA), .TAGW(TAGW), .ROBW(ROBW), .NCK(NCKPT), .DWAYS(DWAYS)) u_lsu
+    OOO_LSU4 #(.NLQ(16), .NSQ(16), .PAW(PAW), .VA(VA), .TAGW(TAGW + 2), .ROBW(ROBW), .NCK(NCKPT), .DWAYS(DWAYS)) u_lsu
         (.clk(clk), .rst_n(rst_n), .tr_on(1'b0),
          .lq_alloc(lq_alloc), .sq_alloc(sq_alloc), .lq_tail(l3_lq_tail), .sq_tail(l3_sq_tail),
          .lq_free(l3_lq_free), .sq_free(l3_sq_free),
          .rr_valid(m_rr_v), .rr_ld(rr_rec[NAP].is_ld), .rr_lq({rr_rec[NAP+1].lq, rr_rec[NAP].lq}), .rr_sq(rr_rec[NAP].sq),
          .rr_st({rr_rec[NAP+1].st, rr_rec[NAP].st}), .rr_size({rr_rec[NAP+1].msize, rr_rec[NAP].msize}),
-         .rr_uns({rr_rec[NAP+1].uns, rr_rec[NAP].uns}), .rr_dst(m_rr_dst), .rr_rob({rr_rec[NAP+1].rob, rr_rec[NAP].rob}),
+         .rr_uns({rr_rec[NAP+1].uns, rr_rec[NAP].uns}), .rr_dst(l_rr_dst), .rr_rob({rr_rec[NAP+1].rob, rr_rec[NAP].rob}),
          .rr_bm(m_rr_bm), .rr_at(rr_rec[NAP].xop), .rt_v(rt_v), .rt_base(rt_base),
          .e_addr({m_ea[1], rt_q ? 64'(rt_bq) : m_ea[0]}),
          .sd_v(sd_v), .sd_sq(sd_sq), .sd_size(sd_size), .sd_data(sd_data),
+         .sd2_v(sd2_v), .sd2_sq(sd2_sq), .sd2_size(sd2_size), .sd2_data(sd2_data),
          .ld_nv(ld_nv), .ld_nt(ld_nt), .ld_d(ld_d),
          .cmp_ld_valid(cmp_ld_v), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_e), .cmp_ld_rp(cmp_ld_rp), .cmp_ld_sd(cmp_ld_sd),
          .cmp_st_valid(cmp_st_v), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_e),
          .cmp_ld_af(cmp_ld_af), .cmp_st_af(cmp_st_af), .at_tv_v(at_tv_v), .at_tv_rob(at_tv_rob), .at_tv_va(at_tv_va),
-         .at_wk_v(at_wk_v), .at_wk_t(at_wk_t), .at_wk_rob(at_wk_rob), .at_wk_d(at_wk_d), .at_st(at_st), .at_amo(at_amo),
+         .at_wk_v(at_wk_v), .at_wk_t(at_wk_tl), .at_wk_rob(at_wk_rob), .at_wk_d(at_wk_d), .at_st(at_st), .at_amo(at_amo),
          .at_nd(at_nd),
          .lq_commit(lq_commit), .sq_commit(sq_commit), .restore(restore_k), .kill(kill),
          .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all(flush_all),
@@ -1178,22 +1330,204 @@ module OOO_CORE
          .vr_addr(dc_vr_addr), .vr_way(dc_vr_way), .vr_data(dc_vr_data));
     /* verilator lint_on PINCONNECTEMPTY */
     assign dc_sq_drained = sq_drained;
+    assign at_wk_t = at_wk_tl[TAGW-1:0];
+    always @(*)
+        for (int m = 0; m < 2; m++) begin
+            ld_fp[m] = ld_nt[m][TAGW];
+            ld_db[m] = ld_nt[m][TAGW+1] ? {32'hFFFF_FFFF, ld_d[m][31:0]} : ld_d[m];
+        end
     // the loads' results: the register file at the end of M (whatever the value: a miss's is replaced by its fill, and
     // what read it replays), the bypass from a register a cycle later
     always @(*) begin
         for (int m = 0; m < 2; m++) begin
-            prf_we[NAP + m] = ld_nv[m];
-            prf_wa[NAP + m] = ld_nt[m];
+            prf_we[NAP + m] = ld_nv[m] && !ld_fp[m];        // (an FP load's: the FP file, below)
+            prf_wa[NAP + m] = ld_nt[m][TAGW-1:0];
             prf_wd[NAP + m] = ld_d[m];
         end
     end
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) lw_v <= '0;
-        else for (int m = 0; m < 2; m++) lw_v[m] <= ld_nv[m] && ld_nt[m] != '0 && !flush_all;
+        else for (int m = 0; m < 2; m++) lw_v[m] <= ld_nv[m] && !ld_fp[m] && ld_nt[m][TAGW-1:0] != '0 && !flush_all;
     end
     always_ff @(posedge clk) begin
-        lw_t <= ld_nt;
-        lw_d <= ld_d;
+        for (int m = 0; m < 2; m++) lw_t[m] <= ld_nt[m][TAGW-1:0];
+        lw_d <= ld_db;                                  // (boxed: the trace's value of an FP load; an integer one is not)
+    end
+
+
+    // ==== the renamed FPU (step 1.8 U2, Plan/OOC.md 29.80 to 29.82) ====
+    // ---- dispatch to OOO_FIQ: an FP operation (port A), an FP store's data (port B: its fs2 as source 0)
+    logic [ND-1:0]             fq_disp, fq_cand;
+    logic [ND-1:0][2:0]        fq_use, fq_rdy;
+    logic [ND-1:0][2:0][FTAGW-1:0] fq_src;
+    logic [ND-1:0]             fq_wr, fq_sd, fq_dv, fq_f2i;
+    logic [ND-1:0][FTAGW-1:0]  fq_dst;
+    logic [ND-1:0][FPLW-1:0]   fq_pl;
+    always @(*) begin
+        for (int j = 0; j < ND; j++) begin
+            fq_cand[j] = ds_valid[j] && !ds[j].exc && (ds[j].fq || ds[j].fsd);
+            fq_disp[j] = d_go[j] && fq_cand[j];
+            fq_use[j]  = ds[j].fuse;
+            fq_src[j]  = ds[j].fsd ? {f2_src[j][2], f2_src[j][0], f2_src[j][1]} : f2_src[j];
+            fq_rdy[j]  = ds[j].fsd ? {frdy[j][2], frdy[j][0], frdy[j][1]} : frdy[j];
+            fq_wr[j]   = ds[j].fwr;
+            fq_dst[j]  = f2_dst[j];
+            fq_sd[j]   = ds[j].fsd;
+            fq_dv[j]   = ds[j].fdv;
+            fq_f2i[j]  = ds[j].f2i;
+            fq_pl[j]   = '0;
+            fq_pl[j][10:0]           = ds[j].fpl;
+            fq_pl[j][11 +: ROBW]     = disp_rob[j];
+            fq_pl[j][17 +: TAGW]     = ds[j].dst;           // (an FP -> integer µop's integer destination: 0 for x0)
+            fq_pl[j][27:24]          = disp_sq[j];
+            fq_pl[j][28]             = ds[j].rec.msize[0];  // (a store's data: fsd)
+        end
+    end
+    logic                      fpu_ok, f2i_ok;
+    logic                      ia_v, ia_wr, ia_dv, ia_f2i, ib_v;
+    logic [2:0][FTAGW-1:0]     ia_src;
+    logic [FTAGW-1:0]          ia_dst, ib_src;
+    logic [NCKPT-1:0]          ia_bm, ib_bm;
+    logic [FPLW-1:0]           ia_pl, ib_pl;
+    OOO_FIQ #(.N(12), .TAGW(FTAGW), .NEXT(4), .NCK(NCKPT), .NBANK(4), .PLW(FPLW)) u_fiq
+        (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .fpu_ok(fpu_ok), .f2i_ok(f2i_ok),
+         .disp_ready(fq_ready), .disp_valid(fq_disp), .disp_cand(fq_cand), .disp_use(fq_use), .disp_src(fq_src),
+         .disp_rdy(fq_rdy), .disp_wr(fq_wr), .disp_dst(fq_dst), .disp_bm(d_bmask), .disp_sd(fq_sd), .disp_dv(fq_dv),
+         .disp_f2i(fq_f2i), .disp_pl(fq_pl), .ext_valid(fwk_v), .ext_tag(fwk_t),
+         .ia_valid(ia_v), .ia_src(ia_src), .ia_wr(ia_wr), .ia_dst(ia_dst), .ia_bm(ia_bm), .ia_dv(ia_dv), .ia_f2i(ia_f2i),
+         .ia_pl(ia_pl), .ib_valid(ib_v), .ib_src(ib_src), .ib_bm(ib_bm), .ib_pl(ib_pl));
+
+    // ---- the FP file: written by the FPU and the 2 load ports, read by the FPU (3) and a store's data (1)
+    logic [3:0][FTAGW-1:0]     fp_ra;
+    logic [3:0][63:0]          fp_rd;
+    logic [2:0]                fp_we;
+    logic [2:0][FTAGW-1:0]     fp_wa;
+    logic [2:0][63:0]          fp_wd;
+    /* verilator lint_off PINCONNECTEMPTY */
+    OOO_PRF #(.NREG(NFREG), .NW(3), .NR(4), .ZERO(1'b0)) u_fprf
+        (.clk(clk), .ra(fp_ra), .rd(fp_rd), .we(fp_we), .wa(fp_wa), .wd(fp_wd));
+    /* verilator lint_on PINCONNECTEMPTY */
+    logic [1:0]                fld_w;                   // an FP load's write of this cycle (its M)
+    logic [1:0][FTAGW-1:0]     fld_t;
+    always @(*) begin
+        for (int m = 0; m < 2; m++) begin
+            fld_w[m]      = ld_nv[m] && ld_fp[m];
+            fld_t[m]      = ld_nt[m][FTAGW-1:0];
+            fp_we[1 + m]  = fld_w[m];
+            fp_wa[1 + m]  = fld_t[m];
+            fp_wd[1 + m]  = ld_db[m];
+        end
+        fp_we[0] = fw_valid;
+        fp_wa[0] = fw_tag;
+        fp_wd[0] = fw_data;
+    end
+
+    // ---- the FPU (OOO_FPUW around FPU_PIPE): port A; an int -> FP µop from port 0's EX (its operand after the bypass)
+    logic                      x_i2f;
+    logic [FPLW-1:0]           x_pl;
+    logic                      fpu_wk_v;
+    logic [FTAGW-1:0]          fpu_wk_t;
+    always @(*) begin
+        x_i2f = ex_v[0] && ex[0].rec.fx;
+        x_pl  = '0;
+        x_pl[10:0]       = ex[0].rec.imm[10:0];
+        x_pl[11 +: ROBW] = ex[0].rec.rob;
+    end
+    OOO_FPUW #(.TAGW(FTAGW), .ITAGW(TAGW), .ROBW(ROBW), .NCK(NCKPT), .PLW(FPLW), .FD(4)) u_fpuw
+        (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .frm(frm),
+         .a_valid(ia_v), .a_src(ia_src), .a_wr(ia_wr), .a_dst(ia_dst), .a_bm(ia_bm), .a_dv(ia_dv), .a_f2i(ia_f2i),
+         .a_pl(ia_pl), .fpu_ok(fpu_ok), .f2i_ok(f2i_ok), .rf_addr(fp_ra[2:0]), .rf_data(fp_rd[2:0]),
+         .ld_valid(fld_w), .ld_tag(fld_t), .ld_data(ld_db),
+         .x_valid(x_i2f), .x_data(ex_a[0]), .x_dst(ex[0].dst[FTAGW-1:0]), .x_bm(ex_bms[0]), .x_pl(x_pl), .x_ready(x_ready),
+         .fw_valid(fw_valid), .fw_tag(fw_tag), .fw_data(fw_data), .fw_rob(fw_rob), .fw_flags(fw_flags),
+         .iw_valid(iw_valid), .iw_tag(iw_tag), .iw_data(iw_data), .iw_rob(iw_rob), .iw_flags(iw_flags), .iw_ack(iw_ack),
+         .wk_valid(fpu_wk_v), .wk_tag(fpu_wk_t));
+    // an int -> FP µop issues when OOO_FPUW's buffer is empty and none is in port 0's RR or EX (one at a time: rare)
+    assign xf_ok = x_ready && !(g_alu[0].rr_v && rr_rec[0].fx) && !(ex_v[0] && ex[0].rec.fx);
+    // an FP -> integer result: written through port 0's slot when the MDU and a latency-1 writer leave it; while one
+    // waits, port 0's latency-1 writers are held a cycle later (OOO_MDUP's p0_hold), so the slot comes
+    assign iw_ack = iw_valid && !x_wv && !md_we;
+    assign f2i_wr = iw_ack && iw_tag != '0;                 // (x0: completed, not written)
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) f2i_hold <= 1'b0;
+        else        f2i_hold <= iw_valid && !iw_ack;
+    end
+
+    // ---- the FP wakeups: the FPU's (OOO_FPUW: its dependents issue the cycle after), an FP load's in its RR (as OOO_IQ3
+    // wakes for an integer load: its dependents issue the cycle after, their S1 meets its write in M)
+    always @(*) begin
+        fwk_v[0] = fpu_wk_v;
+        fwk_t[0] = fpu_wk_t;
+        for (int m = 0; m < 2; m++) begin
+            fwk_v[1 + m] = m_rr_v[m] && rr_rec[NAP+m].fpd && !flush_all && (m_rr_bm[m] & kill) == '0;
+            fwk_t[1 + m] = m_rr_dst[m][FTAGW-1:0];
+        end
+        fwk_v[3] = 1'b0;
+        fwk_t[3] = '0;
+    end
+
+    // ---- an FP store's data (OOO_FIQ's port B): 2 stages, the FP file read in the second (with the FP result of that
+    // cycle: a store issued the cycle after its producer's wakeup meets the result there), then into OOO_LSU4's second
+    // data port through a register (as port 1's data)
+    logic                      b1_v, b2_v;
+    logic [NCKPT-1:0]          b1_bm, b2_bm;
+    logic [FTAGW+FPLW-1:0]     b1_d, b2_d;
+    logic [FTAGW-1:0]          b2_src;
+    /* verilator lint_off UNUSEDSIGNAL */      // (a store's data: its SQ entry, size and ROB index)
+    logic [FPLW-1:0]           b2_pl;
+    /* verilator lint_on UNUSEDSIGNAL */
+    logic [63:0]               b2_dat;
+    OOO_STAGE #(.W(FTAGW + FPLW), .NCK(NCKPT)) u_fb1
+        (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
+         .in_valid(ib_v), .in_bm(ib_bm), .in_data({ib_src, ib_pl}), .out_valid(b1_v), .out_bm(b1_bm), .out_data(b1_d));
+    OOO_STAGE #(.W(FTAGW + FPLW), .NCK(NCKPT)) u_fb2
+        (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
+         .in_valid(b1_v), .in_bm(b1_bm), .in_data(b1_d), .out_valid(b2_v), .out_bm(b2_bm), .out_data(b2_d));
+    assign {b2_src, b2_pl} = b2_d;
+    assign fp_ra[3] = b2_src;
+    assign b2_dat   = (fw_valid && fw_tag == b2_src) ? fw_data : fp_rd[3];
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) sd2_v <= 1'b0;
+        else        sd2_v <= b2_v && !flush_all && (b2_bm & kill) == '0;
+    end
+    always_ff @(posedge clk) begin
+        sd2_sq   <= b2_pl[27:24];
+        sd2_size <= {1'b1, b2_pl[28]};
+        sd2_data <= b2_dat;
+    end
+
+    // ---- per ROB entry: the FP destination (OOO_FREN's commit) and the flags; at commit fflags and mstatus.FS
+    logic                      fr_wr   [NROB];
+    logic [4:0]                fr_arch [NROB];
+    logic [FTAGW-1:0]          fr_new  [NROB];
+    logic [FTAGW-1:0]          fr_old  [NROB];
+    logic [4:0]                fr_fl   [NROB];
+    always_ff @(posedge clk) begin
+        if (fw_valid) fr_fl[fw_rob] <= fw_flags;
+        if (iw_ack)   fr_fl[iw_rob] <= iw_flags;
+        for (int j = 0; j < ND; j++) if (disp_go[j]) begin     // (an entry given out again takes its new state first)
+            fr_wr[disp_rob[j]]   <= ds[j].fwr && !ds[j].exc;
+            fr_arch[disp_rob[j]] <= ds[j].farch;
+            fr_new[disp_rob[j]]  <= f2_dst[j];
+            fr_old[disp_rob[j]]  <= f2_old[j];
+            fr_fl[disp_rob[j]]   <= 5'd0;
+        end
+    end
+    always @(*) begin
+        automatic logic [ROBW-1:0] ik = head_rob;
+        f_fl_set = '0;
+        f_dirty  = 1'b0;
+        for (int k = 0; k < ND; k++) begin
+            fcmt_wr[k]   = cmt_valid[k] && fr_wr[ik];
+            fcmt_arch[k] = fr_arch[ik];
+            fcmt_new[k]  = fr_new[ik];
+            fcmt_old[k]  = fr_old[ik];
+            if (cmt_valid[k]) begin
+                f_fl_set = f_fl_set | fr_fl[ik];
+                if (fr_wr[ik] || fr_fl[ik] != 5'd0) f_dirty = 1'b1;    // (Spike dirties FS on an FP write or new flags)
+            end
+            ik = (ik == ROBW'(NROB - 1)) ? '0 : ik + ROBW'(1);
+        end
     end
 
     // completion: port 0 (a CSR µop: illegal, replay after a write), port 1, the LSU's loads and stores
@@ -1266,13 +1600,13 @@ module OOO_CORE
         csr_tvq_val <= csr_tv;
     end
     always @(*) begin
-        cmp_exc   = {csr_ce, 2'b00, sys_exc, 1'b0, cmp_st_e, ld_ce, (NAP)'(0)};
-        cmp_rp    = {csr_crp, 2'b00, sys_rp, 1'b0, 1'b0, ld_crp, (NAP)'(0)};
+        cmp_exc   = {2'b00, csr_ce, 2'b00, sys_exc, 1'b0, cmp_st_e, ld_ce, (NAP)'(0)};
+        cmp_rp    = {2'b00, csr_crp, 2'b00, sys_rp, 1'b0, 1'b0, ld_crp, (NAP)'(0)};
         // the LSU's: misaligned (4 a load, 6 a store or AMO), or an atomic's access fault (5 LR, 7 SC or AMO)
-        cmp_cause = {5'd2, 5'd0, 5'd0, 5'd2, 5'd0, cmp_st_af ? 5'd7 : 5'd6, 5'd4, ld_caf ? 5'd5 : 5'd4, (5 * NAP)'(0)};
+        cmp_cause = {5'd0, 5'd0, 5'd2, 5'd0, 5'd0, 5'd2, 5'd0, cmp_st_af ? 5'd7 : 5'd6, 5'd4, ld_caf ? 5'd5 : 5'd4, (5 * NAP)'(0)};
     end
-    assign cmp_valid[NCMP-1:NAP] = {csr_cv, br_valid, sys_cv, pm_v || md_v, cmp_st_v, ld_cv};
-    assign cmp_rob[NCMP-1:NAP]   = {csr_crob, br_rob, sys_rob, pm_v ? pm_rob : md_rob, cmp_st_rob, ld_crob};
+    assign cmp_valid[NCMP-1:NAP] = {fw_valid, iw_ack, csr_cv, br_valid, sys_cv, pm_v || md_v, cmp_st_v, ld_cv};
+    assign cmp_rob[NCMP-1:NAP]   = {fw_rob, iw_rob, csr_crob, br_rob, sys_rob, pm_v ? pm_rob : md_rob, cmp_st_rob, ld_crob};
 
     // tval: a misaligned access of LSU0 or LSU1 (its address), the CSR unit or the system unit (one at a time at the head);
     // an atomic's access fault (OOO_LSU4's W, step 1.4 E1c) on LSU0's port: it is at the ROB head, and what is younger in
@@ -1372,6 +1706,8 @@ module OOO_CORE
         if (pm_v) sh_val[pm_rob] <= pm_d;                                         // the multiplier's and the MDU's
         if (md_v) sh_val[md_rob] <= md_d;
         if (x_csr) sh_val[ex[0].rec.rob] <= csr_res;                              // a CSR µop's old value
+        if (fw_valid) sh_val[fw_rob] <= fw_data;                                  // an FP result (step 1.8 U2)
+        if (iw_ack) sh_val[iw_rob] <= iw_data;                                    // an FP -> integer one
         // a store's address in EX (OOO_LSU4's E), an AMO's too
         if (m_ex_v[0] && (!m_ex[0].rec.is_ld || m_ex[0].rec.xop[3:2] != 2'd0)) begin
             sh_st[m_ex[0].rec.rob] <= 1'b1;
@@ -1379,6 +1715,7 @@ module OOO_CORE
             sh_ss[m_ex[0].rec.rob] <= m_ex[0].rec.msize;
         end
         if (ex_v[1] && ex[1].sd) sh_sd[ex[1].rec.rob] <= ex_b[1];                  // its data in port 1's EX
+        if (b2_v) sh_sd[b2_pl[11 +: ROBW]] <= b2_dat;                             // an FP store's, in port B's second stage
         if (at_wk_v) begin                                                        // an AMO's or SC's result (step 1.4 E1c):
             sh_val[at_wk_rob] <= at_wk_d;                                         // its value; a store if an AMO or an SC
             sh_st[at_wk_rob]  <= at_st;                                           // that succeeds, with an AMO's new data
@@ -1389,8 +1726,9 @@ module OOO_CORE
         logic [ROBW-1:0] ik;
         tr_valid   = cmt_valid;
         tr_pc      = cmt_pc;
-        tr_wr      = cmt_wr;
-        tr_rd      = cmt_arch;
+        tr_wr      = cmt_wr | fcmt_wr;
+        tr_fwr     = fcmt_wr;
+        for (int k = 0; k < ND; k++) tr_rd[k] = fcmt_wr[k] ? fcmt_arch[k] : cmt_arch[k];
         tr_trap    = rob_trap || irq;
         tr_int     = irq;
         tr_cause   = csr_cause;              // (OOO_TRAP's: irq_cause a cycle late)

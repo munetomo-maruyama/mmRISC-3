@@ -43,6 +43,9 @@
 // says why (the core's wait table, Plan/OOC.md 29.50). A store completes when it has both;
 // one whose data comes after its address waits in sdone and completes through cmp_st in a
 // cycle when port 0's W has no store that does (no second completion port).
+// An FP store's data comes on a second port (sd2_*, step 1.8 U2, Plan/OOC.md 29.82: OOO_FIQ's
+// port B), in the same way; the data is then in a second RAM (sd_f1), and a bit per entry (sd_lv)
+// says which RAM holds it: the two ports never write one entry (a store is of one kind).
 //
 // With 2 ports: each has its copy of the arrays (OOO_DCH2), its DTLB (written alike) and
 // its search. Only port 0 asks for a line or a walk: a load of port 1 that needs one goes
@@ -134,6 +137,10 @@ module OOO_LSU4
         input  logic [$clog2(NSQ)-1:0]   sd_sq,
         input  logic [1:0]               sd_size,
         input  logic [63:0]              sd_data,
+        input  logic                     sd2_v,      // an FP store's data (step 1.8 U2)
+        input  logic [$clog2(NSQ)-1:0]   sd2_sq,
+        input  logic [1:0]               sd2_size,
+        input  logic [63:0]              sd2_data,
 
         // ---- the result, in M: into OOO_EXU2's result registers and the register file
         output logic [1:0]               ld_nv,
@@ -508,12 +515,17 @@ module OOO_LSU4
 
     // the SQ's RAMs, written by a store in M (sd_f by the data's port); read by the forwards and the drain
     (* ram_style = "distributed" *) logic [63:0]   sd_f [NSQ];
+    (* ram_style = "distributed" *) logic [63:0]   sd_f1 [NSQ];     // (an FP store's: sd2_*)
+    logic [NSQ-1:0]                                sd_lv;           // the entry's data is in sd_f1
+    function automatic logic [63:0] sdr(input logic [SW-1:0] e);
+        return sd_lv[e] ? sd_f1[e] : sd_f[e];
+    endfunction
     (* ram_style = "distributed" *) logic [TW-1:0] st_r [NSQ];
     (* ram_style = "distributed" *) logic [7:0]    sm_f [NSQ];
 
     // an AMO's new value, from its old one and its rs2, written over rs2 in its entry when the data's port leaves the
     // write port free
-    assign at_rs2 = sd_f[at_sq];
+    assign at_rs2 = sd_f[at_sq];                       // (an AMO's: an integer store's RAM)
     assign at_sdw = at_ph == A_DATA && sdv[at_sq] && !sd_v;
     always @(*) begin
         at_new = amo_calc(at_cmd, at_w, at_old, at_rs2);
@@ -712,7 +724,7 @@ module OOO_LSU4
                 sel[w] = hit[w] && !f_any;
                 m_dw   = m_dw | ({64{sel[w]}} & m_w[w]);
             end
-            m_f    = align(sd_f[f_idx], m_off, m_spos, m_s0, m_s01, m_s3, m_sen);
+            m_f    = align(sdr(f_idx), m_off, m_spos, m_s0, m_s01, m_s3, m_sen);
             m_hit  = hit != '0;
             f_cv   = (sm_f[f_idx] & m_lmask) == m_lmask && sp[f_idx] && !sat[f_idx] && st_r[f_idx] == t_ptag;   // it can forward
             f_ok   = f_cv && sdv[f_idx];                                                          // ... with its data
@@ -954,6 +966,13 @@ module OOO_LSU4
         endcase
     end
     always_ff @(posedge clk) if (sd_w || at_sdw) sd_f[sd_w ? sd_sq : at_sq] <= sd_w ? sd_rep : at_new;
+    logic [63:0] sd2_rep;
+    assign sd2_rep = sd2_size == 2'd2 ? {2{sd2_data[31:0]}} : sd2_data;     // (fsw, fsd)
+    always_ff @(posedge clk) if (sd2_v) sd_f1[sd2_sq] <= sd2_rep;
+    always_ff @(posedge clk) begin
+        if (sd_w)  sd_lv[sd_sq]  <= 1'b0;
+        if (sd2_v) sd_lv[sd2_sq] <= 1'b1;
+    end
     // the bit goes when the entry is given out, not when its store leaves: a load that searches
     // as the store drains may still find it, and its data is right (nothing is given out in a
     // recovery's cycle)
@@ -964,7 +983,7 @@ module OOO_LSU4
         else begin
             for (int i = 0; i < NSQ; i++) begin
                 if (salloc[i])                    sdv[i] <= 1'b0;
-                else if (sd_w && sd_sq == SW'(i)) sdv[i] <= 1'b1;
+                else if ((sd_w && sd_sq == SW'(i)) || (sd2_v && sd2_sq == SW'(i))) sdv[i] <= 1'b1;
             end
         end
     end
@@ -983,7 +1002,7 @@ module OOO_LSU4
 
     // ---- what may let a waiting µop go. A try that a recovery dropped goes again
     logic ev;
-    assign ev = m_st0 || w_ask1 || d3_v || fill_done || tlb_done || rec || uc_done || sd_w || sc_dec || at_sdw;
+    assign ev = m_st0 || w_ask1 || d3_v || fill_done || tlb_done || rec || uc_done || sd_w || sd2_v || sc_dec || at_sdw;
     logic launch_l, launch_s;
     assign launch_l = rt_v && !r_id[LW];
     assign launch_s = rt_v &&  r_id[LW];
@@ -1131,7 +1150,7 @@ module OOO_LSU4
         d2_m    <= d1_m;
         d2_hit  <= d_hit != '0;
         d2_way  <= d1_way;
-        d2_d    <= sd_f[d1_p[SW-1:0]];
+        d2_d    <= sdr(d1_p[SW-1:0]);
         d2_line <= {d1_tag, d1_a[8:3]};
         d2_uc   <= uncached({d1_tag, d1_a, 3'b000});
     end

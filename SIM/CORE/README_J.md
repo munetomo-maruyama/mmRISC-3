@@ -212,3 +212,13 @@ InterruptsS(11本)(`b4/act/rvmodel_macros.h`: msip、mtimecmp、PLICのソース
 ほかに何も動いていないROB先頭でのデバイスからのロード、両方のトップで。古いバグを3つ見つけた: そうしたロードが永遠に待った
 (`OOO_LSU4`)、デバイスのポートが語のアドレスを送った(+4のPLICのレジスタに届かない: `OOO_DMISS2`、`OOO_LSU4`)、Uモードの
 WFIが待った(`OOO_SYS`)。すべてPASS。CoreMarkの計測区間はサイクル単位で不変。コアのミューテーションは178/186: 新しい12個(174〜185、割り込みのプログラムを`-exit0`で`OOO_CPU`で動かす5段目)はすべて検出。同じ8個が未検出。**手順1.8 I2**(`Plan/OOC_J.md` 29.79): `CPU_PLIC`の選択を木にし、割り込みの線をレジスタに通した(20 nsでの最初の実行: -19.4 ns)。`irq.S`の3bはPLICのclaimをポーリングする(優先度、しきい値、同点は小さい番号へ)。`build_core.sh`は`MMIO_RTL`を受け、`mutate_core.py`は`CPU_PLIC`もミューテーションする: 191個、183個を検出(新しい5個はすべて)。
+
+## リネームするFPU(手順1.8 U2a、2026-11-17)
+
+`Plan/OOC_J.md` 29.82。コアはFとDを実行する: riscv-testsのrv64uf / rv64udとrv64mi-p-csrをrun_coreの-p-の一覧に(170本)。
+riscv-arch-testのF(84本)、D(116本)、Zcd(4本)とFPの特権テスト(`Sm_F`、`Exceptions_F`)をB4に(`b4/act/rvtest_config.h`に
+F、D、Zcd。`TEST_FLEN`は各テストの-marchから)。`b4/build.sh dsp`: Plan/fpuのDSPカーネル20本(それぞれ自己チェック。`-v`で
+kstartからkendまでの区間を表示)。`b2/build.sh`に4つ目の種類`fp`(`gen_b2.py`: lsのプログラムにFPの区間を加えたもの、run_coreで20本)。
+コミットトレースはFPレジスタへの書き込みを示し(`tr_fwr`)、lock-stepはそれをSpikeのものと比べる。両トップですべてPASS。
+コアのミューテーション: 新しく37件(191〜227)、古いもの14件はU2aで変わった行へ移した。キャンペーンにFPの種類のプログラム、
+B4の新しいグループ、rv64uf / udを加えた。

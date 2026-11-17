@@ -1435,6 +1435,18 @@ M = [
     ('M1481', 'OOO_FPUW/OOO_FPUW.sv', 'fpuw', "s1_v <= a_valid && !dead(a_bm);", "s1_v <= a_valid && !flush;", 'FPUW: a µop killed as it issues kept'),
     ('M1482', 'OOO_PRF/OOO_PRF.sv', 'fprf', "if (we[w] && (!ZERO || wa[w] != '0)) mem[wa[w]] <= wd[w];", "if (we[w] && wa[w] != '0) mem[wa[w]] <= wd[w];", "PRF (FP): register 0 never written"),
     ('M1483', 'OOO_PRF/OOO_PRF.sv', 'fprf', "assign rd[r] = (ZERO && ra[r] == '0) ? 64'd0 : rb[r][lvt[ra[r]]];", "assign rd[r] = (ra[r] == '0) ? 64'd0 : rb[r][lvt[ra[r]]];", "PRF (FP): register 0 reads zero"),
+    # step 1.8 U2 (Plan/OOC.md 29.82): OOO_IQ3's FP store and int -> FP µop, OOO_LSU4's second store-data port
+    ('M1484', 'OOO_IQ3/OOO_IQ3.sv', 'iq3', "&& !(xf[i] && !xf_ok);", ";", "IQ3: an int -> FP µop issues without xf_ok"),
+    ('M1485', 'OOO_IQ3/OOO_IQ3.sv', 'iq3', "xq  <= b_xf[B];", "xq  <= 1'b0;", "IQ3: an entry's int -> FP bit never set"),
+    ('M1486', 'OOO_IQ3/OOO_IQ3.sv', 'iq3', "sdq <= b_nd[B];", "sdq <= 1'b0;", "IQ3: an FP store waits for its data on port 1"),
+    # (M1487, a marked load waiting a cycle for an FP store of its own group: equivalent, it waits for its address then)
+    ('M1488', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "assign sd2_rep = sd2_size == 2'd2 ? {2{sd2_data[31:0]}} : sd2_data;", "assign sd2_rep = sd2_data;", "LSU4: an FP word's data not replicated"),
+    ('M1489', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "if (sd2_v) sd_lv[sd2_sq] <= 1'b1;", "", "LSU4: an FP store's data read from the integer RAM"),
+    ('M1490', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "if (sd_w)  sd_lv[sd_sq]  <= 1'b0;", "", "LSU4: an integer store after an FP one in its entry reads the FP RAM"),
+    ('M1491', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "|| (sd2_v && sd2_sq == SW'(i))) sdv[i] <= 1'b1;", ") sdv[i] <= 1'b1;", "LSU4: an FP store's data never valid"),
+    ('M1492', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "uc_done || sd_w || sd2_v || sc_dec || at_sdw;", "uc_done || sd_w || sc_dec || at_sdw;", "LSU4: an FP store's data is no event for a waiting load"),
+    ('M1493', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "m_f    = align(sdr(f_idx),", "m_f    = align(sd_f[f_idx],", "LSU4: a forward from the integer RAM alone"),
+    ('M1494', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "d2_d    <= sdr(d1_p[SW-1:0]);", "d2_d    <= sd_f[d1_p[SW-1:0]];", "LSU4: a store drained from the integer RAM alone"),
 ]
 
 

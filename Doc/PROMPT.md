@@ -10313,3 +10313,39 @@ U0 (the design study of the renamed FPU) is written up in Plan/OOC 29.80 (Englis
 ```text
 Confirm, start U1
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+U1 (the renamed FPU's blocks, built alone) is done and pushed as 986f3cc. `Ref/` on the remote: 0 files.
+
+**The blocks**
+- **OOO_FREN**: the FP register map. It sits beside OOO_RENAME2 and moves with it. Up to 3 FP sources a µop (FMA's rs3); f0 is renamed like any other register.
+- **OOO_FIQ**: the FP issue queue, 12 entries, 2 issues a cycle. Port A goes to the FPU, port B to an FP store's data.
+- **OOO_FPUW**: mmRISC-2's `FPU_PIPE` used unchanged, placed in `RTL/CPU/FPU`. Latency 9 for dependents. FP-to-integer results go through a FIFO of 4 into port 0's free write slot.
+- **The FP register file**: `OOO_PRF` gets a `ZERO` parameter, so that only the FP side does not fix register 0 at zero. The integer side is unchanged.
+
+**Verification**
+- The unit regression, with the 4 new benches (tb_fren, tb_fiq, tb_fpuw, fprf), all PASS. tb_fpuw checks every FPU operation against IEEE arithmetic.
+- The core regression PASS: the `OOO_PRF` change leaves the core unchanged.
+- Lint: the 4 new blocks clean. `FPU_PIPE` has 6 warnings of its own, left as mmRISC-2 has it.
+- tb_fpuw found one RTL bug: an integer result killed behind the FIFO's head was later written into the integer file. Each entry now keeps a killed flag.
+
+**Mutations**
+- 45 new, 1,364 in all.
+- The first run detected 1,361. The other 3 were not equivalents but gaps in the bench:
+  - an S1 never met a load's write;
+  - `a_bm` was given with this cycle's clear already taken off;
+  - a wakeup in the cycle its µop is killed was not checked.
+- After fixing the bench: 1,364 of 1,364.
+
+Recorded in `Plan/OOC.md` 29.81 (EN/JA), `Doc/STRATEGY` 1.8 and `RTL/CPU/OOO/README`.
+
+Next, U2 joins them to the core: FP in every slot of decode, FP loads and stores, the ROB's flags, fflags and FS at commit; riscv-arch-test's F / D and the DSP kernels in lock-step with Spike.
+<!-- /answer -->
+
+## 257. 2026-11-17 17:39:18 JST
+
+```text
+Start U2
+```

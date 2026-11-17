@@ -14,7 +14,9 @@
 //                  data's write lets a dropped try go. A time of pairs: a store whose data comes
 //                  60 cycles late and a load of its bytes, alone, nothing committed until the
 //                  load completes: it must, within 12 cycles of the data (it is tried again at
-//                  the data's write, not at the store's leaving)
+//                  the data's write, not at the store's leaving). An FP store (step 1.8 U2: a
+//                  word or a double, a third of those) has its data on the second port
+//                  (sd2_*), alone or in the same cycle as another store's on sd_*
 //   the commit     in order; a µop with an exception flushes everything
 //   recoveries     branches at random, kills, flushes
 //   the miss       a line evicted (tag invalid), its words, its tag, fill_done;
@@ -45,6 +47,7 @@
 
 struct Op {
     bool ld, issued = false, addr_done = false, ld_done = false, dead = false, data_given = false;
+    bool fp = false;                      // a store whose data comes on sd2_* (an FP store)
     long data_c = -1;                     // a store: the cycle its data went
     long data_at = 0;                     // ... not before this cycle
     long id = 0;                          // the program's order
@@ -65,6 +68,7 @@ struct Pg { uint64_t vp, pp; bool r, w; };
 struct Sim {
     VOOO_LSU4 d;
     std::mt19937_64 rng;
+    std::mt19937_64 frng;                 // the FP stores' choices (step 1.8 U2), apart: rng's sequence stays
     bool tr;
     std::vector<Pg> pg;
     std::map<uint64_t, uint8_t> drained, spec;
@@ -91,10 +95,10 @@ struct Sim {
     Op zombie; bool have_z = false;
     Op zd; bool have_zd = false;          // a store's data in the cycle a recovery kills the store
     std::map<long, long> dat_c;           // a store's id -> the cycle its data went
-    long n_sdw = 0, n_dfirst = 0, n_dlate = 0, n_zd = 0, n_dexc = 0;
+    long n_sdw = 0, n_dfirst = 0, n_dlate = 0, n_zd = 0, n_dexc = 0, n_fpd = 0, n_both = 0;
     bool stop = false;
 
-    Sim(uint64_t seed, bool tr_) : rng(seed), tr(tr_), byrob(64, nullptr), bydst(128, nullptr), stdst(128, nullptr) {
+    Sim(uint64_t seed, bool tr_) : rng(seed), frng(seed + 1000), tr(tr_), byrob(64, nullptr), bydst(128, nullptr), stdst(128, nullptr) {
         for (auto& a : tag_ref) for (auto& b : a) b = 0;
         for (auto& a : v_ref) for (auto& b : a) b = false;
         // physical pages: few, so that lines meet in sets; 2 virtual ones on one
@@ -162,6 +166,7 @@ struct Sim {
         o->uns = rng() & 1;
         if (o->ld && o->size == 3) o->uns = false;
         o->data = rng();
+        o->fp = !o->ld && o->size >= 2 && frng() % 3 == 0;
         bool mis = po & ((1u << o->size) - 1);
         bool noncanon = false;
         if (tr && rng() % 256 == 0) { o->va ^= 1ull << (40 + rng() % 24); noncanon = true; }
@@ -391,7 +396,7 @@ struct Sim {
             if (have_zd) { sdo = &zd; have_zd = false; n_zd++; }
             else if (rng() % 4 != 0 || pre_quiet()) {
                 std::vector<Op*> can;
-                for (auto* o : pend) if (!o->ld && !o->data_given && (cyc >= o->data_at || (pre_quiet() && cyc >= o->disp_c + 2))) can.push_back(o);   // (never in its dispatch's cycle or the next: the core's data µop is 2 behind at least)
+                for (auto* o : pend) if (!o->ld && !o->fp && !o->data_given && (cyc >= o->data_at || (pre_quiet() && cyc >= o->disp_c + 2))) can.push_back(o);   // (never in its dispatch's cycle or the next: the core's data µop is 2 behind at least)
                 if (!can.empty()) sdo = can[rng() % 2 ? rng() % can.size() : 0];
                 if (sdo) {
                     sdo->data_given = true; sdo->data_c = cyc; dat_c[sdo->id] = cyc;
@@ -408,6 +413,25 @@ struct Sim {
             uint64_t x = rng();
             if (sdo) { x = sdo->data; if (sdo->size < 3) x = (x & ((1ull << (8 << sdo->size)) - 1)) | (rng() << (8 << sdo->size)); }
             d.sd_data = x;
+            // an FP store's data on the second port, the same way
+            Op* f = nullptr;
+            if (frng() % 4 != 0 || pre_quiet()) {
+                std::vector<Op*> can;
+                for (auto* o : pend) if (!o->ld && o->fp && !o->data_given && (cyc >= o->data_at || (pre_quiet() && cyc >= o->disp_c + 2))) can.push_back(o);
+                if (!can.empty()) f = can[frng() % 2 ? frng() % can.size() : 0];
+                if (f) {
+                    f->data_given = true; f->data_c = cyc; dat_c[f->id] = cyc;
+                    if (pair_ld) { pair_dat = cyc; if (pre_quiet()) pair_skip = true; }
+                    n_fpd++;
+                    if (sdo) n_both++;
+                }
+            }
+            d.sd2_v = f != nullptr;
+            d.sd2_sq = f ? f->sq : (int)(frng() % 16);
+            d.sd2_size = f ? f->size : (int)(frng() % 4);
+            x = frng();
+            if (f) { x = f->data; if (f->size < 3) x = (x & 0xffffffffull) | (frng() << 32); }
+            d.sd2_data = x;
         }
 
         // ---- the miss handler: from registers of its own
@@ -648,8 +672,8 @@ int main(int argc, char** argv)
     for (int m = 0; m < 2; m++) {
         Sim s(77 + m, m == 1);
         for (long c = 0; c < 600000 && s.bad == 0; c++) s.step(c);
-        printf("%s: data before the address %ld, after %ld, of a store with an exception %ld, killed with its store %ld; loads that waited for a store's data %ld\n",
-               m ? "translated" : "physical", s.n_dfirst, s.n_dlate, s.n_dexc, s.n_zd, s.n_sdw);
+        printf("%s: data before the address %ld, after %ld, of a store with an exception %ld, killed with its store %ld; loads that waited for a store's data %ld; FP stores' data %ld (with another's %ld)\n",
+               m ? "translated" : "physical", s.n_dfirst, s.n_dlate, s.n_dexc, s.n_zd, s.n_sdw, s.n_fpd, s.n_both);
         printf("%s: pairs %ld, timed %ld; misaligned alone after a flush %ld\n", m ? "translated" : "physical", s.n_pair, s.n_pair_chk, s.n_solo_bad);
         printf("%s: loads %ld stores %ld, meeting a store %ld (partly %ld), same offset, another page %ld; tries %ld, replayed %ld; "
                "misses %ld, stores' misses %ld (present by then %ld), evicted %ld; walks %ld, flushes of the DTLB %ld; 2 issued %ld, on port 1 %ld, in one go there %ld; same word, no byte in common %ld; recoveries on a try before a quiet time %ld; "
@@ -662,7 +686,7 @@ int main(int argc, char** argv)
         printf("\n");
         if (wmin < 50 ||
             s.n_fwd < 1000 || s.n_part < 100 || s.n_rp < 1000 || s.n_miss < 100 || s.n_stm < 100 || s.n_evict < 100 || s.n_two < 1000 || s.n_p1first < 1000 || s.n_noov < 100 ||
-            s.n_written < 1000 || s.n_exc < 50 || s.n_dfirst < 1000 || s.n_dlate < 1000 || s.n_zd < 50 || s.n_sdw < 100 || s.n_pair_chk < 100 || s.n_rest < 100 || s.n_fl < 50 || (m == 1 && (s.n_syn < 100 || s.n_solo_bad < 50 || s.n_remap < 10 || s.n_walk < 100 || s.n_alias < 100 || s.n_tflush < 10))) {
+            s.n_written < 1000 || s.n_exc < 50 || s.n_dfirst < 1000 || s.n_dlate < 1000 || s.n_zd < 50 || s.n_sdw < 100 || s.n_fpd < 1000 || s.n_both < 100 || s.n_pair_chk < 100 || s.n_rest < 100 || s.n_fl < 50 || (m == 1 && (s.n_syn < 100 || s.n_solo_bad < 50 || s.n_remap < 10 || s.n_walk < 100 || s.n_alias < 100 || s.n_tflush < 10))) {
             printf("the coverage is too low\n");
             bad++;
         }

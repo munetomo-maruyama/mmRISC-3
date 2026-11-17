@@ -205,7 +205,9 @@ static bool run(const Opts& o, const std::string& elf)
     std::map<uint64_t, long> bypc;
     long bypc_last = -1;
     // CoreMark's timed window: from the commit of start_time's first instruction to stop_time's (-v prints it)
+    // (or a DSP kernel's of Plan/fpu: kstart to kend, step 1.8 U2)
     uint64_t tw_lo = b.symbol("start_time"), tw_hi = b.symbol("stop_time");
+    if (!tw_lo) { tw_lo = b.symbol("kstart"); tw_hi = b.symbol("kend"); }
     long tw_a = -1, tw_b = -1;
     for (uint64_t cyc = 0; !b.done() || drain_left > 0; cyc++) {
         d->boot = cyc == 2;
@@ -263,7 +265,7 @@ static bool run(const Opts& o, const std::string& elf)
                     t.insn[1] = (uint32_t)wbits(d->tr_insn2, 32 * k, 32);
                     if ((t.insn[1] & 3) != 3) t.insn[1] &= 0xffff;
                 }
-                if ((d->tr_wr >> k) & 1) { t.rd = (int)((d->tr_rd >> (5 * k)) & 31); t.rd_val = wbits(d->tr_val, 64 * k, 64); }
+                if ((d->tr_wr >> k) & 1) { t.rd = (int)((d->tr_rd >> (5 * k)) & 31); t.rd_fp = (d->tr_fwr >> k) & 1; t.rd_val = wbits(d->tr_val, 64 * k, 64); }
                 if ((d->tr_st >> k) & 1) {
                     t.st[0].v = true;
                     t.st[0].addr = wbits(d->tr_st_addr, 64 * k, 64);

@@ -284,3 +284,13 @@ interrupt never came ends at its own bound, as Spike does. `b4/dir/devld.S`: loa
 nothing in flight, on both tops. Three older bugs found: such a load waited for ever (`OOO_LSU4`), the device port sent
 the word's address (the PLIC's registers at +4 missed: `OOO_DMISS2`, `OOO_LSU4`), WFI in U mode waited (`OOO_SYS`).
 All pass; CoreMark's timed window unchanged to the cycle. Core mutations 178/186: the 12 new ones (174 to 185, a fifth stage on `OOO_CPU` with the interrupts' programs under `-exit0`) all detected; the same 8 undetected. **Step 1.8 I2** (`Plan/OOC.md` 29.79): `CPU_PLIC`'s choice a tree and the interrupt lines registered (the first run at 20 ns: -19.4 ns); `irq.S` part 3b polls the PLIC's claims (priorities, the threshold, ties to the lower number); `build_core.sh` takes `MMIO_RTL` and `mutate_core.py` mutates `CPU_PLIC` too: 191, 183 detected (the 5 new all).
+
+## The renamed FPU (step 1.8 U2a, 2026-11-17)
+
+`Plan/OOC.md` 29.82. The core runs F and D: riscv-tests rv64uf / rv64ud and rv64mi-p-csr in run_core's -p- list (170);
+riscv-arch-test's F (84), D (116), Zcd (4) and the FP privileged tests (`Sm_F`, `Exceptions_F`) in B4 (`b4/act/rvtest_config.h`
+F, D, Zcd; `TEST_FLEN` by each test's -march); `b4/build.sh dsp`: Plan/fpu's 20 DSP kernels (each checking itself; `-v` prints
+the kstart to kend window); `b2/build.sh` a 4th kind, `fp` (`gen_b2.py`: ls's program with FP segments, 20 in run_core). The
+commit trace says an FP register's write (`tr_fwr`), which the lock-step compares as Spike's. All pass on both tops. Core
+mutations: 37 new (191 to 227), 14 old ones moved to the lines U2a changed; the programs of the FP kind, the new B4 groups and
+rv64uf / ud in the campaign.

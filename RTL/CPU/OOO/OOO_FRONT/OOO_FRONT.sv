@@ -171,6 +171,16 @@ module OOO_FRONT
         output logic [3:0]        g_csr_wr,
         output logic [3:0]        g_csr_rd,
         output logic [3:0]        g_is_fp,
+        // the FP fields (step 1.8 U2, Plan/OOC.md 29.82): CORE_DEC's, slot 0 only as long as FP is a rare class
+        output logic [3:0][4:0]   g_fp_op,
+        output logic [3:0]        g_fp_fmt,
+        output logic [3:0][2:0]   g_fp_rm,
+        output logic [3:0][2:0]   g_use_fs,
+        output logic [3:0][4:0]   g_rs3,
+        output logic [3:0][4:0]   g_frd,
+        output logic [3:0]        g_fp_we_rd,
+        output logic [3:0]        g_fp_int_signed,
+        output logic [3:0]        g_fp_int_w,
         input  logic [2:0]                  g_take      // instructions D2 takes this cycle
     );
 
@@ -410,7 +420,6 @@ module OOO_FRONT
     logic [3:0] d_csr_wr;
     logic [3:0] d_csr_rd;
     logic [3:0] d_is_fp;
-    /* verilator lint_off UNUSEDSIGNAL */          // the FP fields: not kept in Phase 1
     logic [3:0][4:0] d_fp_op;
     logic [3:0] d_fp_fmt;
     logic [3:0][2:0] d_fp_rm;
@@ -419,12 +428,12 @@ module OOO_FRONT
     logic [3:0] d_fp_we_rd;
     logic [3:0] d_fp_int_signed;
     logic [3:0] d_fp_int_w;
-    /* verilator lint_on UNUSEDSIGNAL */
+    logic [3:0][4:0] d_frd;
     // ---- D1b: decode of R
     /* verilator lint_off PINCONNECTEMPTY */    // (decode's cut: the fetch buffer's group is cut below, as it is given)
     OOO_DEC u_dec
         (.in_inst(r_inst), .in_rvc(r_rvc), .cut(),
-         .illegal(d_illegal), .cls(d_cls), .op(d_op), .rd(d_rd), .rs1(d_rs1), .rs2(d_rs2), .use_rs1(d_use_rs1), .use_rs2(d_use_rs2), .imm(d_imm), .port(d_port), .lat2(d_lat2), .ext_ans(d_ext_ans), .nonspec(d_nonspec), .alu_op(d_alu_op), .a_uw(d_a_uw), .a_shift(d_a_shift), .a_sel(d_a_sel), .b_sel(d_b_sel), .word_op(d_word_op), .is_branch(d_is_branch), .is_jal(d_is_jal), .is_jalr(d_is_jalr), .br_op(d_br_op), .mdu_op(d_mdu_op), .mem_cmd(d_mem_cmd), .mem_size(d_mem_size), .mem_signed(d_mem_signed), .sys(d_sys), .is_sfence(d_is_sfence), .is_csr(d_is_csr), .csr_addr(d_csr_addr), .csr_op(d_csr_op), .csr_imm_sel(d_csr_imm_sel), .csr_wr(d_csr_wr), .csr_rd(d_csr_rd), .is_fp(d_is_fp), .fp_op(d_fp_op), .fp_fmt(d_fp_fmt), .fp_rm(d_fp_rm), .use_fs(d_use_fs), .rs3(d_rs3), .fp_we_rd(d_fp_we_rd), .fp_int_signed(d_fp_int_signed), .fp_int_w(d_fp_int_w));
+         .illegal(d_illegal), .cls(d_cls), .op(d_op), .rd(d_rd), .rs1(d_rs1), .rs2(d_rs2), .use_rs1(d_use_rs1), .use_rs2(d_use_rs2), .imm(d_imm), .port(d_port), .lat2(d_lat2), .ext_ans(d_ext_ans), .nonspec(d_nonspec), .alu_op(d_alu_op), .a_uw(d_a_uw), .a_shift(d_a_shift), .a_sel(d_a_sel), .b_sel(d_b_sel), .word_op(d_word_op), .is_branch(d_is_branch), .is_jal(d_is_jal), .is_jalr(d_is_jalr), .br_op(d_br_op), .mdu_op(d_mdu_op), .mem_cmd(d_mem_cmd), .mem_size(d_mem_size), .mem_signed(d_mem_signed), .sys(d_sys), .is_sfence(d_is_sfence), .is_csr(d_is_csr), .csr_addr(d_csr_addr), .csr_op(d_csr_op), .csr_imm_sel(d_csr_imm_sel), .csr_wr(d_csr_wr), .csr_rd(d_csr_rd), .is_fp(d_is_fp), .fp_op(d_fp_op), .fp_fmt(d_fp_fmt), .fp_rm(d_fp_rm), .use_fs(d_use_fs), .rs3(d_rs3), .fp_we_rd(d_fp_we_rd), .fp_int_signed(d_fp_int_signed), .fp_int_w(d_fp_int_w), .frd(d_frd));
     /* verilator lint_on PINCONNECTEMPTY */
 
     // the fetch buffer's group: all it shows, taken while S is empty
@@ -483,6 +492,15 @@ module OOO_FRONT
         logic  csr_wr;
         logic  csr_rd;
         logic  is_fp;
+        logic [4:0] fp_op;
+        logic  fp_fmt;
+        logic [2:0] fp_rm;
+        logic [2:0] use_fs;
+        logic [4:0] rs3;
+        logic [4:0] frd;
+        logic  fp_we_rd;
+        logic  fp_int_signed;
+        logic  fp_int_w;
     } dec_t;
     dec_t [3:0]            gd, g_d;
     always @(*) begin
@@ -523,6 +541,15 @@ module OOO_FRONT
             gd[k].csr_wr = d_csr_wr[k];
             gd[k].csr_rd = d_csr_rd[k];
             gd[k].is_fp = d_is_fp[k];
+            gd[k].fp_op = d_fp_op[k];
+            gd[k].fp_fmt = d_fp_fmt[k];
+            gd[k].fp_rm = d_fp_rm[k];
+            gd[k].use_fs = d_use_fs[k];
+            gd[k].rs3 = d_rs3[k];
+            gd[k].frd = d_frd[k];
+            gd[k].fp_we_rd = d_fp_we_rd[k];
+            gd[k].fp_int_signed = d_fp_int_signed[k];
+            gd[k].fp_int_w = d_fp_int_w[k];
         end
     end
 
@@ -641,6 +668,15 @@ module OOO_FRONT
         assign g_csr_wr[k] = g_d[k].csr_wr;
         assign g_csr_rd[k] = g_d[k].csr_rd;
         assign g_is_fp[k] = g_d[k].is_fp;
+        assign g_fp_op[k] = g_d[k].fp_op;
+        assign g_fp_fmt[k] = g_d[k].fp_fmt;
+        assign g_fp_rm[k] = g_d[k].fp_rm;
+        assign g_use_fs[k] = g_d[k].use_fs;
+        assign g_rs3[k] = g_d[k].rs3;
+        assign g_frd[k] = g_d[k].frd;
+        assign g_fp_we_rd[k] = g_d[k].fp_we_rd;
+        assign g_fp_int_signed[k] = g_d[k].fp_int_signed;
+        assign g_fp_int_w[k] = g_d[k].fp_int_w;
     end
 
 endmodule : OOO_FRONT

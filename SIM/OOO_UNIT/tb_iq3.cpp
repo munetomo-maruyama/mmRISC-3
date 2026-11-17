@@ -33,6 +33,11 @@
 // queued), its data at any time; iss_ns by its address alone (it went once on port 4 with
 // both before E1c).
 //
+// The FP side (step 1.8 U2): a store whose data comes another way (disp_nd: an FP store, its
+// data from OOO_FIQ) issues its address alone and leaves with it, and no marked load waits for
+// its data; an int -> FP µop (disp_xf, ALU0 only, writing no integer register) issues only
+// with xf_ok.
+//
 // In some phases the external answers are held back, and more µops read what is not
 // answered, so that the queue fills and the banks run out.
 //---------------------------------------------------------------------------
@@ -57,6 +62,8 @@ struct Uop {
     int st = 0;         // a store
     int wt = 0;         // a load the wait table marks
     int sa = 0, sd = 0; // a store split: its address, its data issued
+    int nd = 0;         // a store whose data comes another way (an FP store)
+    int xf = 0;         // an int -> FP µop
 };
 
 static std::mt19937 rng(5);
@@ -86,7 +93,8 @@ int main(int argc, char** argv)
     std::vector<std::pair<long, int>> ext_due;   // (cycle, tag) to announce on ext
     long next_id = 0, bad = 0, issued_n = 0, flushes = 0, nkill = 0, nkilled = 0, nclr = 0, nns = 0;
     long nwk = 0, nport[6] = {0}, nsix = 0, nfull = 0, nlow = 0, nblk1 = 0, nst = 0, nidle0 = 0, ngap = 0;
-    long nsd = 0, nboth = 0, ndfirst = 0, npush = 0, nwt = 0, nwtheld = 0;   // data issues; with the address; before it; a rank-2 µop pushed off port 1; marked loads; held by wd alone
+    long nsd = 0, nboth = 0, ndfirst = 0, npush = 0, nwt = 0, nwtheld = 0;
+    long nnd = 0, nxf = 0, nxfh = 0;    // FP stores' addresses (they leave with them); int -> FP µops issued; held by xf_ok   // data issues; with the address; before it; a rank-2 µop pushed off port 1; marked loads; held by wd alone
     std::vector<int> open_ids;              // checkpoint ids open, in program order
     const int NCK = 12;
     long cyc;
@@ -154,6 +162,10 @@ int main(int argc, char** argv)
             x.st = x.port == 2 && x.ext && (rng() & 1);
             x.wt = x.port == 2 && !x.st ? rng() % 3 == 0 : rng() & 1;   // (on anything but a load it means nothing)
             x.sa = x.sd = 0;
+            x.nd = x.st && rng() % 3 == 0;
+            x.sd = x.nd;                                // (its data is not this queue's)
+            x.xf = x.port == 1 && !x.lat2 && !x.md && rng() % 5 == 0;
+            if (x.xf) x.wr = 0;                         // (its result is an FP register's)
             x.bm = 0; x.disp = 0; x.entry = -1;
             for (int s = 0; s < 2; s++) {
                 x.use[s] = rng() % 3 != 0;
@@ -189,8 +201,8 @@ int main(int argc, char** argv)
         d.flush = flush;
         int ns_ok = rng() % 2;
         d.ns_ok = ns_ok;
-        int mdu_ok = rng() % 3 != 0, p0_hold = rng() % 6 == 0;
-        d.mdu_ok = mdu_ok; d.p0_hold = p0_hold;
+        int mdu_ok = rng() % 3 != 0, p0_hold = rng() % 6 == 0, xf_ok = rng() % 3 != 0;
+        d.mdu_ok = mdu_ok; d.p0_hold = p0_hold; d.xf_ok = xf_ok;
         bool blk0 = p0_hold, blk1 = pd0_v;
         d.kill = kill_id >= 0 ? 1u << kill_id : 0;
         d.clr = clr_id >= 0 ? 1u << clr_id : 0;
@@ -208,7 +220,7 @@ int main(int argc, char** argv)
             if (mask != (1u << nd) - 1) ngap++;
         }
         uint64_t src = 0, dst = 0, bmw = 0;
-        uint32_t port = 0, use = 0, rdy = 0, wr = 0, lat2 = 0, nsw = 0, mdw = 0, stw = 0, wtw = 0;
+        uint32_t port = 0, use = 0, rdy = 0, wr = 0, lat2 = 0, nsw = 0, mdw = 0, stw = 0, wtw = 0, ndw = 0, xfw = 0;
         for (int k = 0; k < nd; k++) {
             Uop& x = u[k];
             int ps = pos[k];
@@ -224,14 +236,19 @@ int main(int argc, char** argv)
             mdw |= (uint32_t)x.md << ps;
             stw |= (uint32_t)x.st << ps;
             wtw |= (uint32_t)x.wt << ps;
+            ndw |= (uint32_t)x.nd << ps;
+            xfw |= (uint32_t)x.xf << ps;
         }
         {   // a slot not valid holds anything
             unsigned jm = ~(unsigned)d.disp_valid & 15;
             nsw |= rng() & jm; stw |= rng() & jm; mdw |= rng() & jm; wr |= rng() & jm; lat2 |= rng() & jm; wtw |= rng() & jm;
+            ndw |= rng() & jm; xfw |= rng() & jm;
             for (int k = 0; k < 4; k++) if ((jm >> k) & 1) port |= (rng() & 3) << (2 * k);
         }
         d.disp_port = port; d.disp_use = use; d.disp_src = src; d.disp_rdy = rdy;
         d.disp_wr = wr; d.disp_dst = dst; d.disp_lat2 = lat2; d.disp_bm = bmw; d.disp_ns = nsw; d.disp_md = mdw; d.disp_st = stw; d.disp_wt = wtw;
+        d.disp_nd = ndw | (rng() & 15 & ~stw);          // (on anything but a store it means nothing)
+        d.disp_xf = xfw;
         // a store's data on a load's or an ALU µop's wait bit means nothing; a store's is anything
         d.ext_valid = extv; d.ext_tag = extt;
         d.eval();
@@ -287,7 +304,8 @@ int main(int argc, char** argv)
             for (auto& kv : q) if (ready(kv.second)) {
                 const Uop& x = kv.second;
                 if (x.port == 0) ra.push_back(&x);
-                else if (x.port == 1 && !(x.md && !mdu_ok) && !(blk0 && x.wr && !x.lat2 && !x.md)) r0.push_back(&x);
+                else if (x.port == 1 && !(x.md && !mdu_ok) && !(blk0 && x.wr && !x.lat2 && !x.md) && !(x.xf && !xf_ok)) r0.push_back(&x);
+                else if (x.port == 1 && x.xf && !xf_ok) nxfh++;
             }
             auto by_age = [](const Uop* a, const Uop* b) { return a->id < b->id; };
             std::sort(ra.begin(), ra.end(), by_age);
@@ -384,6 +402,7 @@ int main(int argc, char** argv)
                 if (split(*exp[p]) && !(exp[p]->bm & killm)) {
                     Uop& y = q[exp[p]->dst];
                     if (p == 4) y.sa = 1;
+                    if (p == 4 && y.nd) nnd++;
                     if (p == 1 && sd_now) y.sd = 1;
                     if (!(y.sa && y.sd)) continue;
                 }
@@ -392,6 +411,7 @@ int main(int argc, char** argv)
                 q.erase(x.dst);
                 exp[p] = nullptr;
                 if (x.wt && x.port == 2 && !x.st) nwt++;
+                if (x.xf) nxf++;
                 for (int s2 = 0; s2 < 2; s2++) if (x.use[s2]) refs[x.src[s2]]--;
                 issued_n++;
                 int lat = x.lat2 ? 2 : 1;
@@ -424,9 +444,10 @@ int main(int argc, char** argv)
         }
     }
     bool cov = nsix > 100 && nfull > 1000 && nlow > 1000 && nkill > 1000 && nblk1 > 100 && nst > 1000 && nidle0 > 10 && ngap > 10000 &&
-               nsd > 10000 && nboth > 100 && ndfirst > 1000 && npush > 1000 && nwt > 1000 && nwtheld > 1000;
+               nsd > 10000 && nboth > 100 && ndfirst > 1000 && npush > 1000 && nwt > 1000 && nwtheld > 1000 &&
+               nnd > 1000 && nxf > 1000 && nxfh > 1000;
     for (int p = 0; p < 6; p++) cov = cov && nport[p] > 10000;
-    printf("tb_iq3: stores' data %ld (with the address %ld, before it %ld), rank-2 µops pushed off port 1 %ld, marked loads %ld (held by data alone %ld cycles)\n", nsd, nboth, ndfirst, npush, nwt, nwtheld);
+    printf("tb_iq3: stores' data %ld (with the address %ld, before it %ld), rank-2 µops pushed off port 1 %ld, marked loads %ld (held by data alone %ld cycles); FP stores' addresses %ld, int -> FP µops %ld (held by xf_ok %ld)\n", nsd, nboth, ndfirst, npush, nwt, nwtheld, nnd, nxf, nxfh);
     printf("tb_iq3: %ld cycles, %ld µops issued (%ld %ld %ld %ld %ld %ld by port, %ld stores, %ld cycles with 6, %ld non-speculative), queue full %ld, banks short %ld, a multiply's slot %ld, %ld kills (%ld µops killed), %ld clears, %ld flushes, %ld wakeups, %ld mismatches: %s\n",
            cyc, issued_n, nport[0], nport[1], nport[2], nport[3], nport[4], nport[5], nst, nsix, nns, nfull, nlow, nblk1, nkill, nkilled, nclr, flushes, nwk, bad, bad == 0 && cov ? "PASS" : "FAIL");
     return bad != 0 || !cov;

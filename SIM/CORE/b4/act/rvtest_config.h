@@ -5,8 +5,8 @@
 // M / S / U, C, the B parts, Zicond, Zicsr, Zifencei, Zicntr, Zihpm (2
 // counters), 8 PMP entries (TOR and NAPOT, 4-byte grain), mtvec / stvec
 // direct and vectored, the instruction in mtval on an illegal instruction.
-// F / D are not listed: their tests are not built in Phase 1. Zaamo and
-// Zalrsc (A) since step 1.4 E1c (Plan/OOC.md 29.74).
+// Zaamo and Zalrsc (A) since step 1.4 E1c (Plan/OOC.md 29.74); F, D and Zcd
+// since step 1.8 U2 (Plan/OOC.md 29.82: the renamed FPU).
 #ifndef RVTEST_CONFIG_H
 #define RVTEST_CONFIG_H
 
@@ -25,6 +25,9 @@
 #define ZICOND_SUPPORTED
 #define ZAAMO_SUPPORTED
 #define ZALRSC_SUPPORTED
+#define F_SUPPORTED
+#define D_SUPPORTED
+#define ZCD_SUPPORTED
 #define ZICSR_SUPPORTED
 #define ZIFENCEI_SUPPORTED
 #define ZICNTR_SUPPORTED

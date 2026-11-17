@@ -10,12 +10,14 @@
 # Each mutation is one textual change of a copy of RTL/CPU/OOO (it must
 # match exactly once, or it is NOT APPLIED); tb_core is built on the copy
 # and run on B2's and B3's programs (b2/work: 4 ALU, 10 with branches and
-# jumps, 6 with loads and stores; b3/work: 10 riscv-tests and the console,
+# jumps, 6 with loads and stores, 8 with FP since step 1.8 U2; b3/work: 10 riscv-tests and the console,
 # to their HTIF exit) on OOO_CORE with the D$ model, with
 # a budget of restores (-restores-max: a fault in what only steers the
 # predictors costs mispredictions, not values); then on B4's (b4/work:
 # riscv-arch-test, 209 since E1c, illegal.S, dcrace.S, atomic.S, devld.S;
-# riscv-tests' -p- programs as run_core.sh runs them, 146 with rv64ua),
+# F, D, Zcd, the FP Sm / Exceptions tests and Plan/fpu's DSP kernels since step
+# 1.8 U2; riscv-tests' -p- programs as run_core.sh runs them, 146 with rv64ua,
+# 170 with rv64uf / ud and rv64mi-p-csr),
 # on OOO_CPU then the interrupts' programs (b4/irq, the Interrupts groups,
 # each to exit 0: -exit0, step 1.8 I1, Plan/OOC.md 29.78; a mutation with a
 # 5th field CPU runs on OOO_CPU, as OOO_DMISS2's, OOO_CPU's, OOO_ICACHE's and CPU_PLIC's do), last on CoreMark (g14 sf + -flto; at most 2,000 replays: about
@@ -75,7 +77,7 @@ OOO = os.path.normpath(os.path.join(HERE, '../../RTL/CPU/OOO'))
 MMIO = os.path.normpath(os.path.join(HERE, '../../RTL/CPU/MMIO'))   # (copied beside OOO: CPU_PLIC's mutations, step 1.8 I2)
 W = os.path.join(HERE, 'b2/work')
 PROGS = ([os.path.join(W, 'alu-%d.elf' % i) for i in range(1, 5)] + [os.path.join(W, 'br-%d.elf' % i) for i in range(1, 11)] +
-         [os.path.join(W, 'ls-%d.elf' % i) for i in range(1, 7)])
+         [os.path.join(W, 'ls-%d.elf' % i) for i in range(1, 7)] + [os.path.join(W, 'fp-%d.elf' % i) for i in range(1, 9)])
 B3 = os.path.join(HERE, 'b3/work')
 HPROGS = [os.path.join(B3, t + '.elf') for t in ('rv64ui-ld_st', 'rv64ui-st_ld', 'rv64ui-lb', 'rv64ui-lhu', 'rv64ui-lwu', 'rv64ui-sb',
                                                  'rv64ui-sh', 'rv64ui-sd', 'rv64ui-jalr', 'rv64uc-rvc', 'htif')]
@@ -87,8 +89,8 @@ IPROGS = sorted(glob.glob(os.path.join(HERE, 'b4/work/irq/*.elf')) + glob.glob(o
 CM = [os.path.join(HERE, '../../Plan/trace/work/g14-sflto-zbsc.elf')]     # CoreMark, the last stage
 RV = os.environ.get('RVTESTS', os.path.join(HERE, '../../../mmRISC-2/SIM/SIM_CORE/rvtests'))
 RPROGS = sorted(os.path.join(RV, t) for t in os.listdir(RV)
-                if __import__('re').fullmatch(r'rv64(ui|um|ua|uc|uzba|uzbb|uzbc|uzbs|uzicond|mi|si)-p-[a-z0-9_]+', t) and
-                t not in ('rv64mi-p-breakpoint', 'rv64mi-p-csr', 'rv64si-p-dirty') and not t.startswith('rv64ua-p-amocas_'))
+                if __import__('re').fullmatch(r'rv64(ui|um|ua|uf|ud|uc|uzba|uzbb|uzbc|uzbs|uzicond|mi|si)-p-[a-z0-9_]+', t) and
+                t not in ('rv64mi-p-breakpoint', 'rv64si-p-dirty') and not t.startswith('rv64ua-p-amocas_'))
 CS = 'OOO_CSRU/OOO_CSRU.sv'
 
 C = 'OOO_CORE/OOO_CORE.sv'
@@ -100,6 +102,7 @@ DE = 'OOO_DEC/OOO_DEC.sv'
 IQ = 'OOO_IQ3/OOO_IQ3.sv'
 SY = 'OOO_SYS/OOO_SYS.sv'
 PL = '../MMIO/CPU_PLIC/CPU_PLIC.sv'   # (RTL/CPU/MMIO, from OOO's copy: on OOO_CPU, step 1.8 I2)
+L4 = L3
 CPU = True                      # a 5th field: the mutation runs on OOO_CPU (with the interrupts' programs)
 MUT = [
     # D2
@@ -137,7 +140,7 @@ MUT = [
     (C, "assign ta_idx[p] = rr_rec[p].ftq;", "assign ta_idx[p] = rr_rec[p].ftq + FTQW'(1);", 'jalr: the next block\'s predicted target'),
     (C, "rx.v2   = prf_rd[2*p+1];", "rx.v2   = prf_rd[2*p];", 'RR: the second source from the first read'),
     # port 2 and the LSU (B3)
-    (C, "d2[j].rec.is_ld      = g_cls[s] == 3'd4 || (at && g_mem_cmd[s] != 5'd3);", "d2[j].rec.is_ld      = 1'b1;", 'every µop of port 2 a load'),
+    (C, "d2[j].rec.is_ld      = g_cls[s] == 3'd4 || (at && g_mem_cmd[s] != 5'd3) || fpld[j];", "d2[j].rec.is_ld      = 1'b1;", 'every µop of port 2 a load'),
     (C, "d2[j].rec.uns        = !g_mem_signed[s];", "d2[j].rec.uns        = g_mem_signed[s];", 'loads sign- and zero-extended the other way'),
     (C, "wrec[j].lq  = disp_lq[j];", "wrec[j].lq  = disp_lq[0];", 'the record: µop 1 with µop 0\'s LQ entry'),
     (C, "wrec[j].sq  = disp_sq[j];", "wrec[j].sq  = disp_sq[0];", 'the record: µop 1 with µop 0\'s SQ entry'),
@@ -151,8 +154,8 @@ MUT = [
     (C, '.rr_uns({rr_rec[NAP+1].uns, rr_rec[NAP].uns})', ".rr_uns(2'b00)", 'LSU: lbu / lhu / lwu sign-extended'),
     (C, 'if (byp_v[q] && byp_t[q] == m_ex[m].t1) m_a[m] = byp_d[q];', '', 'port 2: no bypass for the base'),
     (C, 'byp_v[NAP + m] = lw_v[m];', "byp_v[NAP + m] = 1'b0;", "bypass: the LSU's result not forwarded"),
-    (C, "lw_v[m] <= ld_nv[m] && ld_nt[m] != '0 && !flush_all;", 'lw_v[m] <= ld_nv[m] && !flush_all;', 'bypass: a load to x0 forwarded (tag 0)'),
-    (C, 'prf_we[NAP + m] = ld_nv[m];', "prf_we[NAP + m] = 1'b0;", 'register file: loads not written'),
+    (C, "lw_v[m] <= ld_nv[m] && !ld_fp[m] && ld_nt[m][TAGW-1:0] != '0 && !flush_all;", "lw_v[m] <= ld_nv[m] && !ld_fp[m] && !flush_all;", 'bypass: a load to x0 forwarded (tag 0)'),
+    (C, "prf_we[NAP + m] = ld_nv[m] && !ld_fp[m];", "prf_we[NAP + m] = 1'b0;", 'register file: loads not written'),
     (C, "1'b0, 1'b0, ld_crp, (NAP)'(0)}", "1'b0, 1'b0, 1'b0, (NAP)'(0)}", 'ROB: no replay after a load that raised ld_cancel'),
     (C, ".restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .flush_all", ".restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_lq_tail), .flush_all",
      'LSU: the SQ restored to the LQ\'s tail'),
@@ -171,10 +174,10 @@ MUT = [
     (C, "cmp_valid[p]  = ex_v[p] && ex[p].rec.kind", "cmp_valid[p]  = ex_v[p] && ex[p].wr && ex[p].rec.kind", 'ROB: µops without a destination never complete'),
     (C, "cmp_rob[p]    = ex[p].rec.rob;", "cmp_rob[p]    = ex[0].rec.rob;", 'ROB: port 1 completes port 0\'s entry'),
     # B4: exceptions at decode
-    (C, "d2[j].exc            = g_illegal[s] || g_is_fp[s] || g_sys[s][4] || g_sys[s][3];",
-     "d2[j].exc            = g_illegal[s] || g_is_fp[s] || g_sys[s][4];", 'ECALL not an exception'),
-    (C, "d2[j].exc            = g_illegal[s] || g_is_fp[s] || g_sys[s][4] || g_sys[s][3];",
-     "d2[j].exc            = g_illegal[s] || g_sys[s][4] || g_sys[s][3];", 'an FP instruction not illegal (no FPU)'),
+    (C, "d2[j].exc            = g_illegal[s] || fexc[j] || g_sys[s][4] || g_sys[s][3];",
+     "d2[j].exc            = g_illegal[s] || fexc[j] || g_sys[s][4];", 'ECALL not an exception'),
+    (C, "d2[j].exc            = g_illegal[s] || fexc[j] || g_sys[s][4] || g_sys[s][3];",
+     "d2[j].exc            = g_illegal[s] || g_sys[s][4] || g_sys[s][3];", 'an FP instruction that traps (FS off, a reserved rounding mode) not illegal (U2: was no FPU)'),
     (C, "g_sys[s][4] ? 5'd3 : (5'd8 | 5'(priv));", "g_sys[s][4] ? 5'd3 : 5'd8;", 'ECALL: the cause without the level'),
     (C, "g_sys[s][4] ? 5'd3 : (5'd8 | 5'(priv));", "g_sys[s][4] ? 5'd2 : (5'd8 | 5'(priv));", 'EBREAK: cause 2'),
     (C, "tv_val[j]   = ds[j].tval;", "tv_val[j]   = ds[0].tval;", 'tval at decode: µop 1 with µop 0\'s'),
@@ -204,8 +207,8 @@ MUT = [
     # B4: completion and tval
     (C, "cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS &&",
      "cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU &&", 'a system µop complete at EX'),
-    (C, "cmp_exc   = {csr_ce, 2'b00,", "cmp_exc   = {1'b0, 2'b00,", 'CSR: an illegal access completes'),
-    (C, "cmp_rp    = {csr_crp, 2'b00,", "cmp_rp    = {1'b0, 2'b00,", 'CSR: no replay after a write'),
+    (C, "cmp_exc   = {2'b00, csr_ce, 2'b00,", "cmp_exc   = {2'b00, 1'b0, 2'b00,", 'CSR: an illegal access completes'),
+    (C, "cmp_rp    = {2'b00, csr_crp, 2'b00,", "cmp_rp    = {2'b00, 1'b0, 2'b00,", 'CSR: no replay after a write'),
     (C, "sys_rob, pm_v ? pm_rob : md_rob,", "sys_rob, md_rob,", 'the multiply completes the MDU\'s entry'),
     (C, 'tv_valid[ND]     = (m_ex_v[0] && mis[0]) || at_tv_v;', "tv_valid[ND]     = at_tv_v;", 'tval: a misaligned address not given'),
     (C, "tv_valid[ND + 1] = csr_tvq || sys_tv_v;", "tv_valid[ND + 1] = sys_tv_v;", "tval: an illegal CSR access's not given"),
@@ -220,7 +223,7 @@ MUT = [
     (C, "ex[p].rec.kind != K_CSR && !isbr &&", "ex[p].rec.kind != K_CSR &&", 'a branch complete in EX, mispredicted or not (younger µops commit before the restore)'),
     (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && !flush_all;", 'a branch killed as it leaves EX resolves'),
     (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && (ex_bms[p] & kill) == '0;", 'a branch flushed as it leaves EX resolves'),
-    (C, "{csr_cv, br_valid, sys_cv,", "{csr_cv, br_valid & ~br_mispred, sys_cv,", 'a mispredicted branch never completes'),
+    (C, "iw_ack, csr_cv, br_valid, sys_cv,", "iw_ack, csr_cv, br_valid & ~br_mispred, sys_cv,", 'a mispredicted branch never completes'),
     (C, "tv_valid[ND + 2] = m_ex_v[1] && mis[1];", "tv_valid[ND + 2] = 1'b0;", 'tval: LSU1\'s misaligned address not given'),
     (L3, "return pa < CBASE || pa >= CTOP || (uc_line_v && pa[PAW-1:6] == uc_line);", "return pa < CBASE || pa >= CTOP;", 'uncached: the bench\'s line cached'),
     (L3, "(!m_ld || (!m_uc && (f_any ? f_ok : m_hit))));", "(!m_ld || (f_any ? f_ok : m_hit)));", 'uncached: a load for a device takes the D$ or the SQ'),
@@ -247,16 +250,16 @@ MUT = [
     (C, "            ck_lq_tail[k] = lt;", "            ck_lq_tail[k] = l3_lq_tail;", 'LSU: a restore takes the LQ\'s tail of the group\'s start'),
     (C, "            csr_cv  <= x_csr;", "            csr_cv  <= 1'b0;", 'a CSR µop never completes'),
     (C, "        csr_ce      <= csr_exc;", "        csr_ce      <= 1'b0;", 'an illegal CSR access completes without its exception'),
-    (C, "    assign wbw0  = md_wr || x_wv;", "    assign wbw0  = x_wv;", 'register file: the MDU\'s results not written'),
+    (C, "    assign wbw0  = md_wr || x_wv || f2i_wr;", "    assign wbw0  = x_wv || f2i_wr;", 'register file: the MDU\'s results not written'),
     (C, "ex[p].rec.kind != K_SYS && ex[p].rec.kind != K_CSR && !isbr &&", "ex[p].rec.kind != K_SYS && !isbr &&", 'a CSR µop completes in EX too (twice: the late one may hit the next µop)'),
     (C, "        for (int q = 0; q < NAP; q++) begin\n            byp_v[q] = wb_v[q];", "        for (int q = 0; q < NAP - 1; q++) begin\n            byp_v[q] = wb_v[q];", 'bypass: ALU3\'s result not forwarded'),
     (C, "            wbi_v[p] = ex_v[p] && ex[p].wr;\n            wbi_t[p] = ex[p].dst;", "            wbi_v[p] = ex_v[p] && ex[p].wr && p != 3;\n            wbi_t[p] = ex[p].dst;", 'register file: ALU3\'s results not written'),
-    (C, "{csr_cv, br_valid, sys_cv,", "{csr_cv, br_valid & br_mispred, sys_cv,", 'a branch resolved as predicted never completes'),
-    (C, "cmp_exc   = {csr_ce, 2'b00, sys_exc, 1'b0, cmp_st_e, ld_ce,", "cmp_exc   = {csr_ce, 2'b00, sys_exc, 1'b0, cmp_st_e, cmp_ld_e,", "a load's exception a cycle before its completion"),
+    (C, "iw_ack, csr_cv, br_valid, sys_cv,", "iw_ack, csr_cv, br_valid & br_mispred, sys_cv,", 'a branch resolved as predicted never completes'),
+    (C, "cmp_exc   = {2'b00, csr_ce, 2'b00, sys_exc, 1'b0, cmp_st_e, ld_ce,", "cmp_exc   = {2'b00, csr_ce, 2'b00, sys_exc, 1'b0, cmp_st_e, cmp_ld_e,", "a load's exception a cycle before its completion"),
     (CS, "tv_val   = {32'd0, ex_inst};", "tv_val   = 64'd0;", 'CSR: an illegal access\'s tval 0'),
     (CS, "(fs == 2'b00 && (ex_addr == 12'h001", "(1'b0 && (ex_addr == 12'h001", 'CSR: fcsr with mstatus.FS off not illegal'),
     # step 1.5b G3 (Plan/OOC.md 29.53): a store's data on port 1, the wait table
-    (C, 'cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS && ex[p].rec.kind != K_CSR && !isbr &&\n                            !ex[p].sd;', 'cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS && ex[p].rec.kind != K_CSR && !isbr;', 'G3: a store completes when its data goes on port 1'),
+    (C, "cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS && ex[p].rec.kind != K_CSR && !isbr &&\n                            !ex[p].sd && !ex[p].rec.fx;", "cmp_valid[p]  = ex_v[p] && ex[p].rec.kind != K_MDU && ex[p].rec.kind != K_SYS && ex[p].rec.kind != K_CSR && !isbr && !ex[p].rec.fx;", 'G3: a store completes when its data goes on port 1'),
     (C, 'rx.sd   = rr_sd;', "rx.sd   = 1'b0;", "G3: a store's data never reaches the LSU"),
     (C, '.in_data({p == 1 && iss_sd, iss_src[p][1]', '.in_data({iss_sd, iss_src[p][1]', "G3: every ALU port's µop taken for a store's data"),
     (C, 'sd_data <= ex_b[1];', 'sd_data <= ex[1].v2;', "G3: a store's data without the bypass"),
@@ -272,8 +275,8 @@ MUT = [
     (IC, "if (ic_flush && !ic_done && !cl && !busy && !s1_miss) cl <= 1'b1;", "if (ic_flush && !ic_done && !cl && !busy && !s1_miss) ic_done <= 1'b1;", 'H3: FENCE.I done without the sweep (stale code runs)'),
     # step 1.4 E1c (Plan/OOC.md 29.74): the atomics (Zaamo, Zalrsc, their Exceptions tests, rv64ua, b4/dir/atomic.S)
     (C, "g_mem_cmd[s] <= 5'd12 && !g_is_fp[s]", "g_mem_cmd[s] <= 5'd11 && !g_is_fp[s]", 'E1c: AMOMAXU not an atomic'),
-    (C, "d2[j].st             = g_cls[s] == 3'd5 || (at && g_mem_cmd[s] != 5'd2);", "d2[j].st             = g_cls[s] == 3'd5 || (at && g_mem_cmd[s] == 5'd3);", 'E1c: an AMO without an SQ entry'),
-    (C, ".ext_valid({at_wk_v, md_ext_v})", ".ext_valid({1'b0, md_ext_v})", "E1c: an atomic's result wakes nothing"),
+    (C, "d2[j].st             = g_cls[s] == 3'd5 || (at && g_mem_cmd[s] != 5'd2) || fpst[j];", "d2[j].st             = g_cls[s] == 3'd5 || (at && g_mem_cmd[s] == 5'd3) || fpst[j];", 'E1c: an AMO without an SQ entry'),
+    (C, ".ext_valid({at_wk_v, md_ext_v || f2i_wr})", ".ext_valid({1'b0, md_ext_v || f2i_wr})", "E1c: an atomic's result wakes nothing"),
     (C, "cmp_st_af ? 5'd7 : 5'd6", "5'd6", "E1c: an AMO's access fault reported as misaligned"),
     (C, "ld_caf ? 5'd5 : 5'd4", "5'd4", "E1c: an LR's access fault reported as misaligned"),
     (C, 'tv_valid[ND]     = (m_ex_v[0] && mis[0]) || at_tv_v;', 'tv_valid[ND]     = m_ex_v[0] && mis[0];', "E1c: an access fault's tval not given"),
@@ -318,6 +321,44 @@ MUT = [
     (PL, "if (pending[s] && enable[c][s] && (prio[s] > threshold[c]))", "if (pending[s] && (prio[s] > threshold[c]))", "I2: the PLIC's choice ignores the context's enables"),
     (PL, "t_id[c][k]   = t_id[c][2*k + 1];", "t_id[c][k]   = t_id[c][2*k];", "I2: the PLIC's tree keeps the right child's priority with the left one's number"),
     (CP, "else        {irq_m_soft, irq_m_timer, irq_m_ext, irq_s_ext} <=", "else if (0) {irq_m_soft, irq_m_timer, irq_m_ext, irq_s_ext} <=", "I2: the interrupt lines' registers never loaded"),
+    # step 1.8 U2 (Plan/OOC.md 29.82): the renamed FPU in the core
+    (C, "fexc[j]  = f_ok[j] && (fs == 2'b00 || ", "fexc[j]  = f_ok[j] && (1'b0 || ", 'U2: an FP instruction with FS off runs'),
+    (C, "(rm == 3'd5 || rm == 3'd6 || (rm == 3'd7 && frm >= 3'd5))", "(rm == 3'd5 || rm == 3'd6)", 'U2: a dynamic rounding mode with frm reserved runs'),
+    (C, "|| g_fp_op[s] == FOP_CVT_I_F);", ");", 'U2: fcvt to an integer taken for an FP result'),
+    (C, "(g_fp_op[s] == FOP_MV_F_X || g_fp_op[s] == FOP_CVT_F_I);", "(g_fp_op[s] == FOP_MV_F_X);", 'U2: fcvt from an integer sent to OOO_FIQ'),
+    (C, "(g_fp_op[s] == FOP_DIV || g_fp_op[s] == FOP_SQRT);", "(g_fp_op[s] == FOP_DIV);", 'U2: a square root not marked a divide'),
+    (C, "d2[j].fuse           = fpst[j] ? 3'b001 : g_use_fs[s];", "d2[j].fuse           = g_use_fs[s];", "U2: an FP store's data waits for its fs2 in the wrong place"),
+    (C, "fq_src[j]  = ds[j].fsd ? {f2_src[j][2], f2_src[j][0], f2_src[j][1]} : f2_src[j];", "fq_src[j]  = f2_src[j];", "U2: an FP store's data from its fs1"),
+    (C, "fq_rdy[j]  = ds[j].fsd ? {frdy[j][2], frdy[j][0], frdy[j][1]} : frdy[j];", "fq_rdy[j]  = frdy[j];", "U2: an FP store's data ready as its fs1"),
+    (C, "frdy[j]  = {fbsy_b[j][0], fbsy_a[j][1], fbsy_a[j][0]};", "frdy[j]  = {fbsy_a[j][1], fbsy_a[j][1], fbsy_a[j][0]};", "U2: an FMA's fs3 ready as its fs2"),
+    (C, "u_fbusy_a\n        (.clk(clk), .rst_n(rst_n), .set_v(f1_wr)", "u_fbusy_a\n        (.clk(clk), .rst_n(rst_n), .set_v(4'd0)", 'U2: the FP busy bits never set'),
+    (C, ".r_ren_ready(ren_ready && fren_ready)", ".r_ren_ready(ren_ready)", "U2: renaming goes without FP registers"),
+    (C, "assign iq_ready   = q_ready < fq_ready ? q_ready : fq_ready;", "assign iq_ready   = q_ready;", "U2: dispatch without room in OOO_FIQ"),
+    (C, "fwk_v[1 + m] = m_rr_v[m] && rr_rec[NAP+m].fpd", "fwk_v[1 + m] = 1'b0 && rr_rec[NAP+m].fpd", "U2: an FP load wakes nothing"),
+    (C, "ld_db[m] = ld_nt[m][TAGW+1] ? {32'hFFFF_FFFF, ld_d[m][31:0]} : ld_d[m];", "ld_db[m] = ld_d[m];", "U2: flw not NaN boxed"),
+    (C, "prf_we[NAP + m] = ld_nv[m] && !ld_fp[m];", "prf_we[NAP + m] = ld_nv[m];", "U2: an FP load written into the integer file too"),
+    (C, "lw_v[m] <= ld_nv[m] && !ld_fp[m] && ld_nt", "lw_v[m] <= ld_nv[m] && ld_nt", "U2: an FP load forwarded to integer readers"),
+    (C, "assign b2_dat   = (fw_valid && fw_tag == b2_src) ? fw_data : fp_rd[3];", "assign b2_dat   = fp_rd[3];", "U2: an FP store's data without the FP result's bypass"),
+    (C, "sd2_size <= {1'b1, b2_pl[28]};", "sd2_size <= 2'd3;", "U2: fsw stored as a double"),
+    (C, "assign iw_ack = iw_valid && !x_wv && !md_we;", "assign iw_ack = iw_valid && !x_wv;", "U2: an FP -> integer result over the MDU's"),
+    (C, "assign iw_ack = iw_valid && !x_wv && !md_we;", "assign iw_ack = iw_valid && !md_we;", "U2: an FP -> integer result over a latency-1 writer's"),
+    (C, ".ext_valid({at_wk_v, md_ext_v || f2i_wr})", ".ext_valid({at_wk_v, md_ext_v})", "U2: an FP -> integer result wakes nothing"),
+    (C, ".p0_hold(p0_hold || f2i_hold)", ".p0_hold(p0_hold)", "U2: an FP -> integer result does not hold port 0's writers"),
+    (C, "assign xf_ok = x_ready && !(g_alu[0].rr_v && rr_rec[0].fx) && !(ex_v[0] && ex[0].rec.fx);", "assign xf_ok = x_ready;", "U2: int -> FP µops back to back into one buffer"),
+    (C, "!ex[p].sd && !ex[p].rec.fx;", "!ex[p].sd;", "U2: an int -> FP µop completed in port 0's EX"),
+    (C, "f_fl_set = f_fl_set | fr_fl[ik];", "f_fl_set = fr_fl[ik];", "U2: fflags from the last µop committed alone"),
+    (C, "if (fr_wr[ik] || fr_fl[ik] != 5'd0) f_dirty = 1'b1;", "if (fr_wr[ik]) f_dirty = 1'b1;", "U2: new flags alone leave FS clean"),
+    (C, "if (iw_ack)   fr_fl[iw_rob] <= iw_flags;", "", "U2: an FP -> integer µop's flags lost"),
+    (C, "x_pl[11 +: ROBW] = ex[0].rec.rob;", "", "U2: an int -> FP µop completes entry 0"),
+    (C, "fcmt_wr[k]   = cmt_valid[k] && fr_wr[ik];", "fcmt_wr[k]   = 1'b0;", "U2: the committed FP map never written"),
+    (C, "|| (at && g_mem_cmd[s] != 5'd2) || fpst[j];", "|| (at && g_mem_cmd[s] != 5'd2);", "U2: an FP store without an SQ entry"),
+    (C, "fi2f[j] ? {21'd0, g_fp_int_w[s], g_fp_int_signed[s], g_fp_rm[s], g_fp_fmt[s], g_fp_op[s]} : g_imm[s];", "g_imm[s];", "U2: an int -> FP µop's operation not passed"),
+    (IQ, "sdq <= b_nd[B];", "sdq <= 1'b0;", "U2: an FP store's data waited for on port 1"),
+    (IQ, "&& !(xf[i] && !xf_ok);", ";", "U2: the queue ignores xf_ok"),
+    (L4, "assign sd2_rep = sd2_size == 2'd2 ? {2{sd2_data[31:0]}} : sd2_data;", "assign sd2_rep = sd2_data;", "U2: fsw's data not replicated"),
+    (L4, "if (sd2_v) sd_lv[sd2_sq] <= 1'b1;", "", "U2: an FP store's data read from the integer RAM"),
+    (L4, "|| (sd2_v && sd2_sq == SW'(i))) sdv[i] <= 1'b1;", ") sdv[i] <= 1'b1;", "U2: an FP store's data never valid"),
+    (DE, "assign rs3[k]          = S0 ? xi[31:27] : '0;", "assign rs3[k]          = S0 ? xi[24:20] : '0;", "U2: an FMA's rs3 its rs2"),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),

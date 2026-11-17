@@ -63,6 +63,12 @@
 // the latency-1 slot is not given port 1 in the cycle after a multiply; ports 2, 3
 // and 0 can take it. A result of the MDU is written through port 0's (p0_hold).
 //
+// The FP side (step 1.8 U2, Plan/OOC.md 29.82): an FP store (disp_nd) is split with its data
+// already gone (the data is OOO_FIQ's, through its port B), so it leaves with its address and
+// no marked load waits for its data (but one of its own group, a cycle: equivalent, as the load
+// waits for the store's address, which issues a cycle after dispatch at the earliest); an int -> FP µop (disp_xf, port 0) issues only with xf_ok
+// (OOO_FPUW's buffer free), as an MDU µop with mdu_ok.
+//
 // The rest is as in OOO_IQ, which has the reasons: a load is guessed to hit; kill,
 // clr, flush; iss_bm without this cycle's clr; non-speculative µops at the ROB head,
 // one at a time; a load waits while an older store is in the queue.
@@ -87,6 +93,7 @@ module OOO_IQ3
         input  logic                  ns_ok,      // the ROB head is a non-speculative µop not run yet
         input  logic                  mdu_ok,     // an MDU µop may issue now
         input  logic                  p0_hold,    // a result of the MDU waits for port 0's write
+        input  logic                  xf_ok,      // an int -> FP µop may issue now (step 1.8 U2: OOO_FPUW's buffer)
 
         // dispatch: up to 4 µops a cycle, in program order (0 the oldest)
         output logic [2:0]            disp_ready, // room for this many
@@ -105,6 +112,8 @@ module OOO_IQ3
         input  logic [3:0]            disp_md,    // an MDU µop (port 0)
         input  logic [3:0]            disp_st,    // a store (port 2): younger loads wait for its address to issue
         input  logic [3:0]            disp_wt,    // a load the wait table marks: it waits for older stores' data too
+        input  logic [3:0]            disp_nd,    // a store whose data comes another way (an FP store: OOO_FIQ's port B)
+        input  logic [3:0]            disp_xf,    // an int -> FP µop (port 0, ALU0 only): it issues when xf_ok
 
         // external wakeups
         input  logic [NEXT-1:0]           ext_valid,
@@ -181,6 +190,7 @@ module OOO_IQ3
     endfunction
 
     logic [N-1:0] ready_all, anyalu, only0, ld, mem, g [6];
+    logic [N-1:0] xf;                         // an int -> FP µop
     logic [N-1:0] split, sdr, gsd;            // a store split; its data ready; its data issued
     logic         sd_any;
     logic [2:0]   rank [N];                   // any-ALU µops older than this one, as far as 4
@@ -195,7 +205,7 @@ module OOO_IQ3
             sdr[i]       = v[i] && split[i] && ok[1] && !sd[i];
             anyalu[i] = ready_all[i] && port[i] == 2'd0;
             only0[i]  = ready_all[i] && port[i] == 2'd1 &&
-                        !(blk0 && wr[i] && !lat2[i] && !md[i]) && !(md[i] && !mdu_ok);
+                        !(blk0 && wr[i] && !lat2[i] && !md[i]) && !(md[i] && !mdu_ok) && !(xf[i] && !xf_ok);
             mem[i]    = ready_all[i] && port[i] == 2'd2;
             ld[i]     = mem[i] && !st[i] && !ns[i];
         end
@@ -384,7 +394,7 @@ module OOO_IQ3
     logic                 b_wr   [NBANK], b_lat2 [NBANK], b_ns [NBANK], b_md [NBANK], b_st [NBANK];
     logic [TAGW-1:0]      b_dst  [NBANK];
     logic [NCK-1:0]       b_bm   [NBANK];
-    logic                 b_wt   [NBANK], b_wn [NBANK], b_wd [NBANK];
+    logic                 b_wt   [NBANK], b_wn [NBANK], b_wd [NBANK], b_nd [NBANK], b_xf [NBANK];
     always @(*) begin
         for (int b = 0; b < NBANK; b++) begin
             automatic logic [1:0] k = bs[b];
@@ -399,6 +409,8 @@ module OOO_IQ3
             b_st[b]   = disp_st[k];
             b_dst[b]  = disp_dst[k];
             b_bm[b]   = disp_bm[k];
+            b_nd[b]   = disp_st[k] && disp_nd[k];
+            b_xf[b]   = disp_xf[k];
             // a load waits while an older store's address is in the queue: every
             // store that stays, and those of the group before it; a marked one for their data too
             b_wt[b]   = disp_port[k] == 2'd2 && !disp_st[k] && (st_stay != '0 || dst_older[k]);
@@ -417,7 +429,7 @@ module OOO_IQ3
         logic [TAGW-1:0]      dq;
         logic [N-1:0]         oq;
         logic [NCK-1:0]       bq;
-        logic                 nq, mq, tq, wtq, wnq, wdq, saq, sdq;
+        logic                 nq, mq, tq, wtq, wnq, wdq, saq, sdq, xq;
         assign v[i]     = vq;
         assign lat2[i]  = lq;
         assign port[i]  = pq;
@@ -436,6 +448,7 @@ module OOO_IQ3
         assign wd[i]    = wdq;
         assign sa[i]    = saq;
         assign sd[i]    = sdq;
+        assign xf[i]    = xq;
 
         always_ff @(posedge clk or negedge rst_n) begin
             if (!rst_n) begin
@@ -465,7 +478,8 @@ module OOO_IQ3
                 wnq <= b_wn[B];
                 wdq <= b_wd[B];
                 saq <= 1'b0;
-                sdq <= 1'b0;
+                sdq <= b_nd[B];             // (an FP store: its data is OOO_FIQ's, the entry leaves with its address)
+                xq  <= b_xf[B];
                 // age: younger than every entry but what is written after it
                 oq <= ~dafter[B];
                 oq[i] <= 1'b0;

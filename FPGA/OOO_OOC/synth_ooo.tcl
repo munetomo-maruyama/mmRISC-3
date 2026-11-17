@@ -56,6 +56,7 @@ set rtl    ../../RTL/CPU/OOO
 set core   ../../RTL/CPU/CORE
 set cache  ../../RTL/CPU/CACHE
 set mmio   ../../RTL/CPU/MMIO
+set fpu    ../../RTL/CPU/FPU
 
 set top    [expr {[llength $argv] > 0 ? [lindex $argv 0] : "OOC_ALU2"}]
 set period [expr {[llength $argv] > 1 ? [lindex $argv 1] : 20.0}]
@@ -107,7 +108,9 @@ read_verilog -sv [list \
     $core/CORE_CSR/CORE_CSR.sv $rtl/OOO_CSRU/OOO_CSRU.sv $core/CORE_MDU/CORE_MDU.sv $rtl/OOO_MDUP/OOO_MDUP.sv $rtl/OOO_PMUL/OOO_PMUL.sv \
     $cache/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv $cache/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv \
     $cache/DCACHE/DCACHE.sv $cache/CPU_L2/L2_TAG_ARRAY.sv $cache/CPU_L2/CPU_L2.sv \
-    $mmio/CPU_CLINT/CPU_CLINT.sv $mmio/CPU_PLIC/CPU_PLIC.sv $mmio/CPU_MMIO/CPU_MMIO.sv ./rtl/OOC_WRAP.sv]
+    $mmio/CPU_CLINT/CPU_CLINT.sv $mmio/CPU_PLIC/CPU_PLIC.sv $mmio/CPU_MMIO/CPU_MMIO.sv \
+    $fpu/FPU_ROUND/FPU_ROUND.sv $fpu/FPU_PIPE/FPU_PIPE.sv $rtl/OOO_FREN/OOO_FREN.sv $rtl/OOO_FIQ/OOO_FIQ.sv $rtl/OOO_FPUW/OOO_FPUW.sv \
+    ./rtl/OOC_WRAP.sv]
 }
 
 set gargs {}
