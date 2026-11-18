@@ -6,7 +6,8 @@
 // (no fill's word, no tag written in the cycle: st_ok), which also sets the
 // line dirty. The memory bus and the peripheral bus are the ports. Since step 1.7c
 // C2 (Plan/OOC.md 29.68): 256 sets, the set {vx, the physical 11:6}; each miss with
-// its vx. Since step 1.7c C5 (Plan/OOC.md 29.72): WAYS ways, 8.
+// its vx. Since step 1.7c C5 (Plan/OOC.md 29.72): WAYS ways, 8. Since step 1.8 V1 (Plan/OOC.md 29.87):
+// a page table's entries read (pt_*), as OOO_PTW reads them.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -57,6 +58,10 @@ module DMISS_DC
         input  logic                  fl_req,
         output logic                  fl_take,
         output logic                  fl_done,
+        input  logic                  pt_req,
+        input  logic [PAW-1:3]        pt_addr,
+        output logic                  pt_done,
+        output logic [63:0]           pt_data,
 
         // the memory bus (AXI4)
         output logic [3:0]            m_axi4_awid,
@@ -141,6 +146,7 @@ module DMISS_DC
          .uc_req(uc_req), .uc_we(uc_we), .uc_addr(uc_addr), .uc_wdata(uc_wdata), .uc_wmask(uc_wmask),
          .uc_done(uc_done), .uc_rdata(uc_rdata),
          .fl_req(fl_req), .fl_take(fl_take), .fl_done(fl_done),
+         .pt_req(pt_req), .pt_addr(pt_addr), .pt_done(pt_done), .pt_data(pt_data),
          .m_axi4_awid(m_axi4_awid), .m_axi4_awaddr(m_axi4_awaddr), .m_axi4_awlen(m_axi4_awlen),
          .m_axi4_awsize(m_axi4_awsize), .m_axi4_awburst(m_axi4_awburst), .m_axi4_awvalid(m_axi4_awvalid),
          .m_axi4_awready(m_axi4_awready), .m_axi4_wdata(m_axi4_wdata), .m_axi4_wstrb(m_axi4_wstrb),

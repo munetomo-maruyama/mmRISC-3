@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-// tb_lsu4.cpp : OOO_LSU4 (with OOO_DCH2, OOO_DTLB2) against the program's order
+// tb_lsu4.cpp : OOO_LSU4 (with OOO_DCH2, OOO_DTLB3) against the program's order
 //
 // A random program of loads and stores over a few pages and lines, so that sets
 // overflow, stores and loads meet, and pages alias both ways (2 virtual pages on
@@ -27,8 +27,14 @@
 //                  13:12 differ) is first made invalid there, as OOO_DMISS2 does. Since step
 //                  1.7c C5 (Plan/OOC.md 29.72) 8 ways a set (WAYS); the victim, as before, a
 //                  way at random (half the time the set's last written), free or not
-//   the walk       the DTLB refilled after some cycles, flushed now and then
-// Checks: the value of every load that completes, its exception, cmp_ld_rp when it
+//   the walk       the DTLB refilled after some cycles, flushed now and then. Since step 1.8 V1
+//                  (Plan/OOC.md 29.87, OOO_DTLB3) the walk gives each page's U, R, W, X and AF,
+//                  and the privilege (allow_u, allow_s, mxr) changes at a flush (the core's
+//                  privilege changes only with nothing in flight): S mode with SUM or without,
+//                  now and then U mode, MXR or not. Page 3 is execute only (read with MXR),
+//                  page 4 a user page, page 5 an access fault
+// Checks: the value of every load that completes, its exception and its cause (misaligned,
+// an access fault, a page fault) and every exception's tval (tv_*, the virtual address), cmp_ld_rp when it
 // ran more than once, cmp_ld_sd only then and with an older store of that offset whose data
 // came after the load's issue; a store's exception, and that it completes only with its data; that a store is written in commit order,
 // to the way that has its line (and a later load's value says the bytes went there);
@@ -55,6 +61,8 @@ struct Op {
     uint64_t va = 0, pa = 0, data = 0, exp = 0;
     int size = 0, dst = 0, rob = 0, lq = 0, sq = 0, st = 0, disp_c = 0;
     bool uns = false, exc = false, shade = false, badaddr = false, noov = false;   // shade: behind a µop with an exception: it never commits, its value is anything
+    int cause = 0;                        // with exc: 0 misaligned, 1 an access fault, 2 a page fault (step 1.8 V1)
+    long tv_c = -1;                       // the cycle its tval came
     uint32_t bm = 0;
     int runs = 0;
     long issue_c = -1;
@@ -63,12 +71,13 @@ struct Ck { int bit, lt, st; long seq; };
 
 static const int NPG = 8;
 static const int WAYS = 8;            // the D$'s ways (OOO_LSU4's DWAYS)
-struct Pg { uint64_t vp, pp; bool r, w; };
+struct Pg { uint64_t vp, pp; bool u, r, w, x, af; };
 
 struct Sim {
     VOOO_LSU4 d;
     std::mt19937_64 rng;
     std::mt19937_64 frng;                 // the FP stores' choices (step 1.8 U2), apart: rng's sequence stays
+    std::mt19937_64 prng;                 // the privilege's (step 1.8 V1), apart too
     bool tr;
     std::vector<Pg> pg;
     std::map<uint64_t, uint8_t> drained, spec;
@@ -97,8 +106,13 @@ struct Sim {
     std::map<long, long> dat_c;           // a store's id -> the cycle its data went
     long n_sdw = 0, n_dfirst = 0, n_dlate = 0, n_zd = 0, n_dexc = 0, n_fpd = 0, n_both = 0;
     bool stop = false;
+    // the privilege (step 1.8 V1): changed at a flush
+    bool au = false, as = true, mx = false;
+    long n_priv = 0, n_umode = 0, n_cause[3] = {0, 0, 0}, n_tv = 0, n_mxr = 0, n_sum = 0, n_user = 0;
+    bool r_ok(const Pg& p) const { return !tr || ((p.u ? au : as) && (p.r || (mx && p.x))); }
+    bool w_ok(const Pg& p) const { return !tr || ((p.u ? au : as) && p.w); }
 
-    Sim(uint64_t seed, bool tr_) : rng(seed), frng(seed + 1000), tr(tr_), byrob(64, nullptr), bydst(128, nullptr), stdst(128, nullptr) {
+    Sim(uint64_t seed, bool tr_) : rng(seed), frng(seed + 1000), prng(seed + 2000), tr(tr_), byrob(64, nullptr), bydst(128, nullptr), stdst(128, nullptr) {
         for (auto& a : tag_ref) for (auto& b : a) b = 0;
         for (auto& a : v_ref) for (auto& b : a) b = false;
         // physical pages: few, so that lines meet in sets; 2 virtual ones on one
@@ -108,9 +122,11 @@ struct Sim {
         // sets; translated, vx is the virtual page's: 0x12340 and 0x12342 on one physical page are synonyms)
         static const uint64_t pp[NPG] = {0x80000, 0x80004, 0x80008, 0x8000c, 0x80000, 0x80010, 0x80014, 0x8080000};
         static const uint64_t vv[NPG] = {0x12340, 0x12360, 0x12381, 0x123a1, 0x12342, 0x12362, 0x12340 | (1ull << 26), 0};
+        // (translated: page 3 execute only, page 4 a user page, page 5 an access fault)
         for (int i = 0; i < NPG; i++) {
             Pg p; p.vp = tr ? vv[i] : pp[i]; p.pp = pp[i];
-            p.r = !tr || i != 5; p.w = !tr || (i != 5 && i != 3);
+            p.u = i == 4; p.af = i == 5;
+            p.r = i != 5 && i != 3; p.w = i != 5 && i != 3; p.x = i == 0 || i == 3;
             pg.push_back(p);
         }
         d.clk = 0; d.rst_n = 1; zero(); d.eval(); d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
@@ -119,6 +135,8 @@ struct Sim {
         d.done_v = 0; d.tr_on = tr; d.lq_alloc = d.sq_alloc = 0; d.rr_valid = 0; d.rr_at = 0; d.lq_commit = d.sq_commit = 0;
         d.restore = 0; d.kill = 0; d.flush_all = 0; d.fill_done = 0; d.tw_en = 0; d.rf_en = 0; d.tlb_done = 0; d.tlb_we = 0; d.tlb_flush = 0; d.vr_addr = 0; d.vr_way = 0;
         d.uc_done = 0;                      // (no device here: an input left alone starts at anything, and made ev 1 for ever)
+        d.allow_u = au; d.allow_s = as; d.mxr = mx;
+        d.tlb_u = d.tlb_r = d.tlb_w = d.tlb_x = d.tlb_af = 0;
     }
     uint8_t mem0(uint64_t a) { return (uint8_t)((a * 0x9E3779B97F4A7C15ull) >> 56); }
     uint8_t rd(std::map<uint64_t, uint8_t>& m, uint64_t a) { auto it = m.find(a); return it != m.end() ? it->second : mem0(a); }
@@ -148,7 +166,7 @@ struct Sim {
         // to the others', unless who was answered tries first)
         static const int thrash[4] = {0, 1, 6, 7};
         do pi = (tr && (cyc >> 14 & 3) == 3) ? thrash[rng() % 4] : (int)(rng() % ((cyc >> 13 & 1) ? 3 : NPG));
-        while ((o->ld ? !pg[pi].r : !pg[pi].w) && rng() % 32 != 0);
+        while ((o->ld ? !r_ok(pg[pi]) : !w_ok(pg[pi])) && rng() % 32 != 0);
         const Pg& p = pg[pi];
         // lines: 3 sets, 2 lines each in a page, so sets of 4 ways overflow; words near each other
         static const int lines[6] = {0, 1, 16, 17, 32, 33};
@@ -170,8 +188,14 @@ struct Sim {
         bool mis = po & ((1u << o->size) - 1);
         bool noncanon = false;
         if (tr && rng() % 256 == 0) { o->va ^= 1ull << (40 + rng() % 24); noncanon = true; }
-        o->exc = mis || noncanon || (o->ld ? !p.r : !p.w);
+        bool perm = o->ld ? r_ok(p) : w_ok(p);
+        o->exc = mis || noncanon || !perm;
         o->badaddr = mis || noncanon;
+        o->cause = mis ? 0 : noncanon ? 2 : p.af ? 1 : 2;
+        if (tr && !o->exc) {
+            if (o->ld && pi == 3) n_mxr++;
+            if (pi == 4) { if (as) n_sum++; else n_user++; }
+        }
         o->disp_c = (int)cyc;
         o->data_at = cyc + 2 + (rng() % 2 ? 0 : (long)(rng() % 24));
         o->id = seq;
@@ -263,6 +287,14 @@ struct Sim {
         if (flush) {
             n_fl++;
             d.flush_all = 1;
+            // the privilege may change, as at a trap or a return (now and then U mode; else S, with SUM or without)
+            if (prng() % 2) {
+                n_priv++;
+                if (prng() % 16 == 0) { au = true; as = false; n_umode++; }
+                else { as = true; au = prng() % 2; }
+                mx = prng() % 2;
+                d.allow_u = au; d.allow_s = as; d.mxr = mx;
+            }
             for (auto* o : pend) if (!o->ld && !o->data_given && !have_zd && rng() % 2) { zd = *o; zd.bm = 0; have_zd = true; }
             for (auto* o : pend) kill_op(o);
             pend.clear();
@@ -289,7 +321,7 @@ struct Sim {
             if (rng() % 256 == 0) stop = !stop;
             if (quiet()) stop = true;
             if (solo() || pairs()) {
-                nd = pend.empty() && cmt_st.empty() && mq.empty() && m_state == 0 && wq.empty() && !d.tlb_busy ? (pairs() ? 2 : 1) : 0;
+                nd = pend.empty() && cmt_st.empty() && mq.empty() && m_state == 0 && wq.empty() ? (pairs() ? 2 : 1) : 0;
                 solo_fl = solo() && tr && nd && rng() % 4 == 0;
                 if (solo_fl) { d.tlb_flush = 1; n_tflush++; }
                 stop = false;
@@ -438,20 +470,21 @@ struct Sim {
         step_miss();
         // ---- the walk
         if (w_delay > 0) w_delay--;
-        if (!wq.empty() && w_delay == 0 && !d.tlb_busy) {
+        if (!wq.empty() && w_delay == 0) {
             uint64_t vp = wq.front(); wq.pop_front();
             bool found = false;
             for (auto& p : pg) if ((p.vp & 0x7ffffff) == vp) {
-                d.tlb_we = 1; d.tlb_vpn = (uint32_t)vp; d.tlb_ptag = (uint32_t)p.pp; d.tlb_r = p.r; d.tlb_w = p.w; found = true; break;
+                d.tlb_we = 1; d.tlb_vpn = (uint32_t)vp; d.tlb_ptag = (uint32_t)p.pp;
+                d.tlb_u = p.u; d.tlb_r = p.r; d.tlb_w = p.w; d.tlb_x = p.x; d.tlb_af = p.af; found = true; break;
             }
-            if (!found) { d.tlb_we = 1; d.tlb_vpn = (uint32_t)vp; d.tlb_ptag = 0; d.tlb_r = 0; d.tlb_w = 0; }
+            if (!found) { d.tlb_we = 1; d.tlb_vpn = (uint32_t)vp; d.tlb_ptag = 0; }
             d.tlb_done = 1;
             d.done_v = 1; d.done_id = w_id[vp];
             w_delay = 4 + (int)(rng() % 16);
         }
-        if (tr && !quiet() && rng() % 4096 == 0 && !d.tlb_busy) { d.tlb_flush = 1; n_tflush++; }
+        if (tr && !quiet() && rng() % 4096 == 0) { d.tlb_flush = 1; n_tflush++; }
         // with nothing in flight, as an SFENCE.VMA: 2 pages change places, so what stays in the DTLB is wrong
-        if (tr && quiet() && (cyc & 4095) == 2048 && pend.empty() && wq.empty() && !d.tlb_busy) {
+        if (tr && quiet() && (cyc & 4095) == 2048 && pend.empty() && wq.empty()) {
             std::swap(pg[1].pp, pg[2].pp);
             d.tlb_flush = 1; n_tflush++; n_remap++;
         }
@@ -480,6 +513,12 @@ struct Sim {
             if (!o || !o->ld) { err("a load completes that is not there"); }
             else {
                 if ((bool)((d.cmp_ld_exc >> p) & 1) != o->exc) err("the load's exception");
+                else if (o->exc) {
+                    int c = (d.cmp_ld_cause >> (2 * p)) & 3;
+                    exc_done.push_back(o);
+                    n_cause[o->cause]++;
+                    if (c != o->cause) { err("the load's cause"); printf("  va %llx: %d, expected %d\n", (unsigned long long)o->va, c, o->cause); }
+                }
                 if (!o->exc && !o->shade && lastv[o->dst] != o->exp) {
                     err("the load's value");
                     printf("  port %d load pa %llx size %d uns %d rob %d lq %d st %d runs %d: got %016llx, expected %016llx\n", p,
@@ -508,7 +547,7 @@ struct Sim {
                     else if (pair_skip) { }
                     else if (n_pair_chk++, cyc > pair_dat + 12) {
                         err("a load that waited for a store's data is not tried again at its data");
-                        printf("  load pa %llx va %llx issue %ld runs %d data %ld now %ld; wq %zu mq %zu walks pending %d\n", (unsigned long long)o->pa, (unsigned long long)o->va, o->issue_c, o->runs, pair_dat, cyc, wq.size(), mq.size(), (int)d.tlb_busy);
+                        printf("  load pa %llx va %llx issue %ld runs %d data %ld now %ld; wq %zu mq %zu\n", (unsigned long long)o->pa, (unsigned long long)o->va, o->issue_c, o->runs, pair_dat, cyc, wq.size(), mq.size());
                     }
                     pair_ld = nullptr;
                 }
@@ -521,11 +560,28 @@ struct Sim {
             if (!o || o->ld) err("a store completes that is not there");
             else {
                 if ((bool)d.cmp_st_exc != o->exc) err("the store's exception");
+                else if (o->exc) {
+                    n_cause[o->cause]++;
+                    exc_done.push_back(o);
+                    if ((int)d.cmp_st_cause != o->cause) { err("the store's cause"); printf("  va %llx: %d, expected %d\n", (unsigned long long)o->va, (int)d.cmp_st_cause, o->cause); }
+                }
                 if (!o->exc && !o->data_given) err("a store completes without its data");
                 if (o->addr_done) err("a store completes twice");
                 o->addr_done = true;
             }
         }
+        // every exception's tval: the µop's virtual address
+        for (int p = 0; p < 2; p++) if ((d.tv_v >> p) & 1) {
+            Op* o = byrob[(d.tv_rob >> (6 * p)) & 63];
+            uint64_t va = (uint64_t)d.tv_va.m_storage[2 * p] | (uint64_t)d.tv_va.m_storage[2 * p + 1] << 32;
+            n_tv++;
+            if (o) o->tv_c = cyc;
+            if (!o || !o->exc) err("a tval for a µop without an exception");
+            else if (va != o->va) { err("the tval"); printf("  port %d: %llx, expected %llx\n", p, (unsigned long long)va, (unsigned long long)o->va); }
+        }
+        // ... and every exception has one: in its W, the cycle it completes
+        for (Op* o : exc_done) if (o->tv_c != cyc) { err("an exception without its tval"); printf("  va %llx\n", (unsigned long long)o->va); }
+        exc_done.clear();
         if (pair_ld && pair_dat >= 0 && (d.tlb_miss || d.miss_valid || d.tlb_flush)) pair_skip = true;
         if (d.miss_valid) { n_miss++; ask_line(((uint64_t)d.miss_line << 2) | d.miss_vx, d.miss_id); }
         if (d.st_miss_valid) { n_stm++; ask_line(((uint64_t)d.st_miss_line << 2) | d.st_miss_vx, -1); }
@@ -576,6 +632,7 @@ struct Sim {
         return bad == 0;
     }
     uint64_t lastv[128] = {0};
+    std::vector<Op*> exc_done;            // the exceptions completed this cycle (their tval checked)
 
     void kill_op(Op* o) {
         if (o == pair_ld) pair_ld = nullptr;
@@ -675,6 +732,8 @@ int main(int argc, char** argv)
         printf("%s: data before the address %ld, after %ld, of a store with an exception %ld, killed with its store %ld; loads that waited for a store's data %ld; FP stores' data %ld (with another's %ld)\n",
                m ? "translated" : "physical", s.n_dfirst, s.n_dlate, s.n_dexc, s.n_zd, s.n_sdw, s.n_fpd, s.n_both);
         printf("%s: pairs %ld, timed %ld; misaligned alone after a flush %ld\n", m ? "translated" : "physical", s.n_pair, s.n_pair_chk, s.n_solo_bad);
+        printf("%s: exceptions misaligned %ld, access faults %ld, page faults %ld, tvals %ld; privilege changed %ld (U mode %ld); loads by MXR %ld, the user page from S (SUM) %ld, from U %ld\n",
+               m ? "translated" : "physical", s.n_cause[0], s.n_cause[1], s.n_cause[2], s.n_tv, s.n_priv, s.n_umode, s.n_mxr, s.n_sum, s.n_user);
         printf("%s: loads %ld stores %ld, meeting a store %ld (partly %ld), same offset, another page %ld; tries %ld, replayed %ld; "
                "misses %ld, stores' misses %ld (present by then %ld), evicted %ld; walks %ld, flushes of the DTLB %ld; 2 issued %ld, on port 1 %ld, in one go there %ld; same word, no byte in common %ld; recoveries on a try before a quiet time %ld; "
                "written %ld; exceptions %ld, recoveries %ld, flushes %ld, queue full %ld; synonyms made invalid %ld\n",
@@ -686,7 +745,8 @@ int main(int argc, char** argv)
         printf("\n");
         if (wmin < 50 ||
             s.n_fwd < 1000 || s.n_part < 100 || s.n_rp < 1000 || s.n_miss < 100 || s.n_stm < 100 || s.n_evict < 100 || s.n_two < 1000 || s.n_p1first < 1000 || s.n_noov < 100 ||
-            s.n_written < 1000 || s.n_exc < 50 || s.n_dfirst < 1000 || s.n_dlate < 1000 || s.n_zd < 50 || s.n_sdw < 100 || s.n_fpd < 1000 || s.n_both < 100 || s.n_pair_chk < 100 || s.n_rest < 100 || s.n_fl < 50 || (m == 1 && (s.n_syn < 100 || s.n_solo_bad < 50 || s.n_remap < 10 || s.n_walk < 100 || s.n_alias < 100 || s.n_tflush < 10))) {
+            s.n_written < 1000 || s.n_exc < 50 || s.n_dfirst < 1000 || s.n_dlate < 1000 || s.n_zd < 50 || s.n_sdw < 100 || s.n_fpd < 1000 || s.n_both < 100 || s.n_pair_chk < 100 || s.n_rest < 100 || s.n_fl < 50 || (m == 1 && (s.n_syn < 100 || s.n_solo_bad < 50 || s.n_remap < 10 || s.n_walk < 100 || s.n_alias < 100 || s.n_tflush < 10 ||
+            s.n_cause[1] < 20 || s.n_cause[2] < 50 || s.n_priv < 20 || s.n_umode < 3 || s.n_mxr < 20 || s.n_sum < 20 || s.n_user < 20)) || s.n_cause[0] < 20 || s.n_tv < 50) {
             printf("the coverage is too low\n");
             bad++;
         }

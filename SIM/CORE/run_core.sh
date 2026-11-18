@@ -18,13 +18,13 @@
 # F, D, Zcd and the FP Sm / Exceptions tests since step 1.8 U2, Plan/OOC.md 29.82),
 # and riscv-tests' -p- programs of mmRISC-2 ($RVTESTS: rv64ui / um / ua / uf /
 # ud / uc / uzba / uzbb / uzbc / uzbs / uzicond / mi / si; ua since E1c, not its
-# amocas: Zacas; uf, ud and rv64mi-p-csr since U2) but two that Phase 1
-# cannot run: rv64mi-p-breakpoint (the triggers' firing is not wired),
-# rv64si-p-dirty (paging); on
+# amocas: Zacas; uf, ud and rv64mi-p-csr since U2; rv64si-p-dirty since step 1.8 V1,
+# Plan/OOC.md 29.87: paging's data side) but one that Phase 1
+# cannot run: rv64mi-p-breakpoint (the triggers' firing is not wired); on
 # both tops, to their HTIF exit; with b4/dir/illegal.S (the exceptions
 # found at decode), b4/dir/dcrace.S (the D$'s races behind the L2) and
 # b4/dir/atomic.S (the atomics, step 1.4 E1c), b4/dir/devld.S (device loads at the
-# head alone, step 1.8 I1). The interrupts (step 1.8 I1, Plan/OOC.md 29.78): b4/irq and
+# head alone, step 1.8 I1), b4/dir/vm.S (Sv39's data side, step 1.8 V1). The interrupts (step 1.8 I1, Plan/OOC.md 29.78): b4/irq and
 # the Interrupts groups on OOO_CPU alone (its CLINT and PLIC; OOO_CORE has none).
 # The restores of the first run are what mutate_core.py holds the mutated
 # cores to.
@@ -47,7 +47,7 @@ A=$(ls b4/work/*/*.elf | grep -vE '/(irq|Interrupts[A-Za-z]*)/' | sort -V)
 I=$(ls b4/work/irq/*.elf b4/work/InterruptsSm/*.elf b4/work/InterruptsS/*.elf | sort -V)     # (OOO_CPU's CLINT and PLIC: step 1.8 I1)
 RV=${RVTESTS:-../../../mmRISC-2/SIM/SIM_CORE/rvtests}
 R=$(ls $RV | grep -E '^rv64(ui|um|ua|uf|ud|uc|uzba|uzbb|uzbc|uzbs|uzicond|mi|si)-p-[a-z0-9_]+$' |
-    grep -vE '^rv64mi-p-breakpoint$|^rv64si-p-dirty$|^rv64ua-p-amocas_' | sed "s|^|$RV/|")
+    grep -vE '^rv64mi-p-breakpoint$|^rv64ua-p-amocas_' | sed "s|^|$RV/|")
 {
 $T +verilator+rand+reset+2 -exit pass -v -restores-out results/core_restores.txt $P
 $T +verilator+rand+reset+2 -exit pass -seed 2 $P

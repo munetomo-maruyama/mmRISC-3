@@ -35,6 +35,10 @@
 // And each line answered is in the set it was asked for in (its vx).
 // The peripheral bus is a device memory of its own (reads checked; since step 1.8 I1 at
 // byte addresses, each on the bus as asked: a device may choose a register by its low bits).
+// Since step 1.8 V1 (Plan/OOC.md 29.87): a page table's entry read now and then (pt_*, one at
+// a time, as OOO_PTW), a word of the lines above: its value checked against the program's (no
+// store goes to its line while it is out); a line found in its own set, in another (a synonym),
+// or filled into the set of its physical 13:12.
 //---------------------------------------------------------------------------
 #include "VDMISS_DC.h"
 #include "VDMISS_DC___024root.h"
@@ -118,6 +122,8 @@ int main(int argc, char** argv)
     long bad = 0, cyc = 0;
     long n_ld = 0, n_st = 0, n_stmiss = 0, n_fill = 0, n_vict = 0, n_clean = 0, n_fl = 0, n_ucr = 0, n_ucw = 0, n_gate = 0, n_race = 0, n_done = 0, n_wrar = 0, n_t0 = 0;
     long n_syn = 0, n_syd = 0;
+    bool pt_on = false, pt_filled = false; uint64_t pt_l = 0, pt_exp = 0;     // an entry out (step 1.8 V1)
+    long n_pt = 0, n_ptfill = 0, n_ptsyn = 0, n_ptown = 0;
     auto err = [&](const char* m, uint64_t x = 0) { if (bad++ < 12) printf("cycle %ld: %s (%llx)\n", cyc, m, (unsigned long long)x); };
     int pst = 40, pld = 60, lat = 20;
     const long N = 600000;
@@ -135,10 +141,22 @@ int main(int argc, char** argv)
         chk.clear();
         uint64_t st_l = 0; int st_w = -1, st_word = 0, st_s = 0; uint64_t st_dat = 0; uint8_t st_m = 0;
         auto t0c = [&](uint64_t l, int x) { int s = sof(l, x); bool all = true; for (int w = 0; w < WAYS; w++) all = all && tg[w][s].v; if (l < 64 && !all) n_t0++; };
+        d.pt_req = 0;
+        if (!quiet && !pt_on && rng() % 40 == 0) {
+            uint64_t l = pick(cyc);
+            int wd = rng() % 8;
+            d.pt_req = 1; d.pt_addr = (l << 3) | (uint64_t)wd;
+            pt_on = true; pt_filled = false; pt_l = l; pt_exp = at(ref, l).w[wd];
+            pend.insert((l << 2) | ((l >> 6) & 3));         // (filled, it goes into the set of its own 13:12)
+            if (find(l, (int)((l >> 6) & 3)) >= 0) n_ptown++;
+            else if (places(l)) n_ptsyn++;
+        }
         if (!stores_off && (long)(rng() % 100) < pst) {
             uint64_t l = pick(cyc);
             int x = pvx(l), w = find(l, x);
-            if (w >= 0) {
+            if (pt_on && l == pt_l) w = -2;                // (no store into an entry's line while it is out)
+            if (w == -2) { }
+            else if (w >= 0) {
                 st_l = l; st_w = w; st_s = sof(l, x); st_word = rng() % 8; st_dat = rng(); st_m = rng() % 3 ? (uint8_t)(rng() & 0xff) : 0xff;
                 if (!st_m) st_m = 1;
                 d.st_en = 1; d.st_way = w; d.st_addr = (uint32_t)(st_s << 3) | st_word; d.st_data = st_dat; d.st_strb = st_m;
@@ -202,6 +220,7 @@ int main(int argc, char** argv)
             Line &R = at(ref, l), &M = at(mem, l);
             for (int i = 0; i < 8; i++) if (R.w[i] != M.w[i]) { err("a fill reads a line memory does not have", l); break; }
             if (aw_on || b_pend) n_wrar++;
+            if (pt_on && l == pt_l) pt_filled = true;
             ar_on = true; ar_line = l; r_beat = 0; r_at = cyc + (lat == 1 ? rng() % 2 : (rng() % 10 == 0 ? 40 : rng() % 21)); n_fill++;
             r_tight = (aw_on || d.m_axi4_awvalid) && w_beat == 0; r_ar = cyc;
         }
@@ -254,6 +273,12 @@ int main(int argc, char** argv)
             if (!pend.count((fl << 2) | fx)) err("a line filled in a set no one asked for it in", fl);
             if (d.done_v) { n_done++; if (!asked[d.done_id].count((fl << 2) | fx)) err("a load's answer to an id that did not ask for the line", d.done_id); }
         }
+        if (d.pt_done) {
+            if (!pt_on) err("an entry answered, not asked for");
+            else if (d.pt_data != pt_exp) { err("an entry's value", pt_l); if (bad < 12) printf("    got %016llx, the program's %016llx\n", (unsigned long long)d.pt_data, (unsigned long long)pt_exp); }
+            n_pt++; if (pt_filled) n_ptfill++;
+            pt_on = false;
+        }
         int tww = d.tw_way, tws = d.tw_set; uint32_t twt = d.tw_tag; bool twe = d.tw_en;
 
         // ---- the edge
@@ -289,13 +314,14 @@ int main(int argc, char** argv)
     }
     if (fmode != 0) err("the last FENCE.I not done");
     if (uc_wait) err("a device access not answered");
+    if (pt_on) err("an entry not answered");
     printf("tb_dmiss2: %ld loads checked, %ld stores (%ld missed), %ld fills (%ld behind a write out), %ld dirty victims written out, "
            "%ld lines cleaned by %ld FENCE.I, %ld dirty victims' fills with the first beat the cycle after AR, %ld stores the cycle before their line's tag went, "
            "%ld load answers, %ld asks of a tag-0 line with a way of its set as reset left it, %ld synonyms taken out (%ld dirty), "
-           "%ld/%ld device reads/writes, %ld mismatches: ",
-           n_ld, n_st, n_stmiss, n_fill, n_wrar, n_vict, n_clean, n_fl, n_gate, n_race, n_done, n_t0, n_syn, n_syd, n_ucr, n_ucw, bad);
+           "%ld/%ld device reads/writes, %ld entries read (%ld filled; found in their own set %ld, in another %ld), %ld mismatches: ",
+           n_ld, n_st, n_stmiss, n_fill, n_wrar, n_vict, n_clean, n_fl, n_gate, n_race, n_done, n_t0, n_syn, n_syd, n_ucr, n_ucw, n_pt, n_ptfill, n_ptown, n_ptsyn, bad);
     bool ok = bad == 0 && n_vict > 1000 && n_clean > 100 && n_fl > 20 && n_gate > 100 && n_race > 50 && n_done > 1000 && n_ucr > 100 && n_wrar > 100 && n_t0 > 100 &&
-              n_syn > 500 && n_syd > 200;
+              n_syn > 500 && n_syd > 200 && n_pt > 1000 && n_ptfill > 300 && n_ptown > 300 && n_ptsyn > 100;
     printf("%s\n", ok ? "PASS" : "FAIL");
     return ok ? 0 : 1;
 }

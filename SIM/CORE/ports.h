@@ -21,6 +21,11 @@
 //                written. Memory has every committed store (tb_core writes
 //                them at commit), so a dirty line evicted needs no writing
 //                back. HTIF's tohost is not cached (dc_uc_line: UcModel).
+//                Since step 1.8 V1 (Plan/OOC.md 29.87), as OOO_DMISS2: a line asked for
+//                in one set while it is in another of its index (a synonym: two
+//                virtual pages of one physical whose 13:12 differ) is made invalid
+//                there first; and a page table's entry (pt_*, OOO_PTW) is answered
+//                from Memory, one at a time, 1 to fill_lat + 1 cycles after its ask.
 //   UcModel      a device's access (OOO_LSU3's uc_*, step 1.3 E1b): one at a
 //                time, answered after a random delay on Memory.
 //   Axi4Mem      the D$'s memory bus (AXI4, OOO_CPU, B3b) on Memory: read and
@@ -84,8 +89,8 @@ public:
         for (auto& a : v_ref) for (auto& b : a) b = false;
     }
     // the core's inputs this cycle (set them before its evaluation)
-    struct Out { bool fill_done = false, done_v = false, tw_en = false, rf_en = false;
-                 int done_id = 0, tw_way = 0, tw_set = 0, rf_way = 0, rf_addr = 0; uint64_t tw_tag = 0, rf_data = 0; };
+    struct Out { bool fill_done = false, done_v = false, tw_en = false, rf_en = false, pt_done = false;
+                 int done_id = 0, tw_way = 0, tw_set = 0, rf_way = 0, rf_addr = 0; uint64_t tw_tag = 0, rf_data = 0, pt_data = 0; };
     const Out& out() const { return o; }
     // the clock edge, with what the core gave this cycle
     // (since step 1.7c C2, Plan/OOC.md 29.68: 256 sets, the set {vx, the line's 11:6}, vx the virtual 13:12 the
@@ -93,16 +98,18 @@ public:
     // step 1.7c C5, Plan/OOC.md 29.72)
     static const int WAYS = 8;
     void clock(bool miss_v, uint64_t miss_line, int miss_vx, int miss_id, bool st_miss_v, uint64_t st_miss_line, int st_miss_vx,
-               bool dirty_set, int dirty_way, int dirty_idx, bool sq_drained)
+               bool dirty_set, int dirty_way, int dirty_idx, bool sq_drained, bool pt_req = false, uint64_t pt_addr = 0)
     {
         if (dirty_set) last_way[dirty_idx & 255] = dirty_way;
         if (miss_v) { asks++; ask((miss_line << 2) | (uint64_t)miss_vx, miss_id); }
         if (st_miss_v) { st_asks++; ask((st_miss_line << 2) | (uint64_t)st_miss_vx, -1); }
+        if (pt_req) { pt_on = true; pt_a = pt_addr << 3; pt_wait = 1 + (fill_lat ? (int)(rng() % fill_lat) : 0); pts++; }
         o = Out{};
         step(sq_drained);
+        if (pt_on && --pt_wait <= 0) { o.pt_done = true; o.pt_data = m.read64(pt_a); pt_on = false; }
         cyc++;
     }
-    long asks = 0, st_asks = 0, fills = 0, evicts = 0, invals = 0;
+    long asks = 0, st_asks = 0, fills = 0, evicts = 0, invals = 0, syns = 0, pts = 0;
 private:
     Memory& m;
     std::mt19937_64 rng;
@@ -113,6 +120,7 @@ private:
     std::map<uint64_t, int> who;
     int state = 0, way = 0, word = 0, delay = 0;
     uint64_t line = 0;
+    bool pt_on = false; uint64_t pt_a = 0; int pt_wait = 0;
     uint64_t tag_ref[256][WAYS]; bool v_ref[256][WAYS]; int last_way[256] = {0};
     int lset() const { return (int)(((line & 3) << 6) | ((line >> 2) & 63)); }
     void ask(uint64_t l, int id)
@@ -141,6 +149,18 @@ private:
                 bool have = false;
                 for (int w = 0; w < WAYS; w++) if (v_ref[set][w] && tag_ref[set][w] == tag) have = true;
                 if (have) { done(); break; }
+                // a synonym: the line in another set of its index, made invalid first (one a cycle)
+                for (int x = 0; x < 4; x++) {
+                    int ys = (x << 6) | (set & 63);
+                    if (ys == set) continue;
+                    for (int w = 0; w < WAYS; w++)
+                        if (v_ref[ys][w] && tag_ref[ys][w] == tag) {
+                            o.tw_en = true; o.tw_way = w; o.tw_set = ys; o.tw_tag = tag;   // (the valid bit goes)
+                            v_ref[ys][w] = false; syns++;
+                            mq.push_front(line);                    // (looked at again: the next cycle fills it)
+                            return;
+                        }
+                }
                 way = -1;
                 for (int w = 0; w < WAYS && way < 0; w++) if (!v_ref[set][w]) way = w;
                 if (way < 0) { way = (int)(rng() % WAYS); if (way == last_way[set]) way = (way + 1) % WAYS; evicts++; }

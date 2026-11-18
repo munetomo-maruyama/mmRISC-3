@@ -141,6 +141,9 @@ module OOO_CPU
     logic [$clog2(DWAYS)-1:0] dc_vr_way;
     logic [63:0]      dc_vr_data;
     logic             fl_req, fl_take, fl_done;
+    logic             dc_pt_req, dc_pt_done;            // a page table's entry (step 1.8 V1)
+    logic [PAW-1:3]   dc_pt_addr;
+    logic [63:0]      dc_pt_data;
     logic             ic_req_valid, ic_req_ready, ic_resp_valid, ic_flush, ic_done;
     logic [VA-1:1]    ic_req_pc;
     logic [255:0]     ic_resp_data;
@@ -166,6 +169,7 @@ module OOO_CPU
          .dc_uc_wdata(dc_uc_wdata), .dc_uc_wmask(dc_uc_wmask), .dc_uc_done(dc_uc_done), .dc_uc_rdata(dc_uc_rdata),
          .dc_wt_valid(), .dc_wt_addr(), .dc_wt_data(), .dc_wt_mask(),     // (a store written into the D$: the bench's)
          .dc_vr_addr(dc_vr_addr), .dc_vr_way(dc_vr_way), .dc_vr_data(dc_vr_data),
+         .dc_pt_req(dc_pt_req), .dc_pt_addr(dc_pt_addr), .dc_pt_done(dc_pt_done), .dc_pt_data(dc_pt_data),
          .fl_req(fl_req), .fl_take(fl_take), .fl_done(fl_done), .ic_flush(ic_flush), .ic_done(ic_done)
 `ifdef OOO_TRACE
          ,
@@ -204,6 +208,7 @@ module OOO_CPU
          .uc_req(dc_uc_req), .uc_we(dc_uc_we), .uc_addr(dc_uc_addr), .uc_wdata(dc_uc_wdata), .uc_wmask(dc_uc_wmask),
          .uc_done(dc_uc_done), .uc_rdata(dc_uc_rdata),
          .fl_req(fl_req), .fl_take(fl_take), .fl_done(fl_done),
+         .pt_req(dc_pt_req), .pt_addr(dc_pt_addr), .pt_done(dc_pt_done), .pt_data(dc_pt_data),
          .m_axi4_awid(d_awid), .m_axi4_awaddr(d_awaddr), .m_axi4_awlen(d_awlen),
          .m_axi4_awsize(d_awsize), .m_axi4_awburst(d_awburst), .m_axi4_awvalid(d_awvalid),
          .m_axi4_awready(d_awready), .m_axi4_wdata(d_wdata), .m_axi4_wstrb(d_wstrb),

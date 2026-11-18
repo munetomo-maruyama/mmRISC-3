@@ -10583,3 +10583,54 @@ When Vivado has run, please tell me. Whether the WNS is positive again and how m
 ```text
 Ran Vivado.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+U3b meets timing at 20 ns. With U3 passed, step 1.8's U (the renamed FPU) is done.
+
+**Results (against U3's first run)**
+
+| Item | U3 | U3b |
+|---|---|---|
+| WNS | −0.108 ns | **+0.216 ns** (TNS 0) |
+| Worst between flip-flops | −0.108 ns | **+0.285 ns** (19 levels) |
+| Hold | +0.028 ns | +0.028 ns |
+| LUTs | 105,169 | **101,637 (−3,532)** |
+| FF | 27,506 | 26,595 (−911) |
+
+- **The +0.216 ns WNS path:** from the L2 to an AXI output port. It comes from the 6 ns I/O delay given to every port out of context, not from a path inside the core.
+- **LUTs:** more came back than the 2–3k expected. OOO_ROB is −3,312 and the core's flip-flops −925: the effect of moving the FP destination per ROB entry (20 bits × 48) into LUT RAM. The other blocks' changes come from synthesis redistributing logic; only the sum means anything.
+- **Against I2:** the renamed FPU costs +21.3k LUTs: 17.0k for the new blocks, about +4.3k for the core's own logic.
+
+**Timing**
+- The path that failed in U3 is gone. The worst path out of OOO_FPUW is +3.191 ns.
+- The worst now runs from dispatch deciding which slots go to OOO_FREN's `free_ok` and the FP busy bits: +0.285 to +0.346 ns.
+- If needed, registering `free_ok` would cut it, at the cost of FP registers left unused. While it is met, I leave it.
+
+**LUT outlook**
+- About 109.4k (82 %) at the end of step 1.8.
+- With LiteX about 114.7k (86 %), **7.0k over** the 107.7k ceiling (10.6k over at U3).
+- The ceiling is experience from the Arty, not measured on this device.
+
+**Budget (your decision)**
+
+Four ways to give LUTs back. Each is a parameter or a single block's change, so it can be taken later without undoing other work.
+
+| Means | LUTs back | Cost |
+|---|---|---|
+| FP registers / queue back to 64 / 12 | about 1.5k | bq ch4 17 % slower |
+| One shared PMP checker | about 0.8k | |
+| mmRISC-2's C2 / C3 for the FPU | about 1.1k | |
+| A smaller debug | | |
+
+My recommendation is to go on to V1 (Sv39's data side) as planned. The budget is decided again with V3's 20 ns run, once V1, V2 and P1 are in. If the ceiling is measured with LiteX first, it can be decided earlier.
+
+The record is in Plan/OOC 29.86 (EN/JA) and STRATEGY 1.8, committed with the reports and pushed (452a14e, Ref/: 0).
+<!-- /answer -->
+
+## 263. 2026-11-18 20:34:16 JST
+
+```text
+Start V1
+```

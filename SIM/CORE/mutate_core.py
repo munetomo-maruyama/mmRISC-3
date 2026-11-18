@@ -17,7 +17,7 @@
 # riscv-arch-test, 209 since E1c, illegal.S, dcrace.S, atomic.S, devld.S;
 # F, D, Zcd, the FP Sm / Exceptions tests and Plan/fpu's DSP kernels since step
 # 1.8 U2; riscv-tests' -p- programs as run_core.sh runs them, 146 with rv64ua,
-# 170 with rv64uf / ud and rv64mi-p-csr),
+# 170 with rv64uf / ud and rv64mi-p-csr, 171 with rv64si-p-dirty and b4/dir/vm.S since step 1.8 V1),
 # on OOO_CPU then the interrupts' programs (b4/irq, the Interrupts groups,
 # each to exit 0: -exit0, step 1.8 I1, Plan/OOC.md 29.78; a mutation with a
 # 5th field CPU runs on OOO_CPU, as OOO_DMISS2's, OOO_CPU's, OOO_ICACHE's and CPU_PLIC's do), last on CoreMark (g14 sf + -flto; at most 2,000 replays: about
@@ -94,7 +94,7 @@ CM = [os.path.join(HERE, '../../Plan/trace/work/g14-sflto-zbsc.elf')]     # Core
 RV = os.environ.get('RVTESTS', os.path.join(HERE, '../../../mmRISC-2/SIM/SIM_CORE/rvtests'))
 RPROGS = sorted(os.path.join(RV, t) for t in os.listdir(RV)
                 if __import__('re').fullmatch(r'rv64(ui|um|ua|uf|ud|uc|uzba|uzbb|uzbc|uzbs|uzicond|mi|si)-p-[a-z0-9_]+', t) and
-                t not in ('rv64mi-p-breakpoint', 'rv64si-p-dirty') and not t.startswith('rv64ua-p-amocas_'))
+                t not in ('rv64mi-p-breakpoint',) and not t.startswith('rv64ua-p-amocas_'))
 CS = 'OOO_CSRU/OOO_CSRU.sv'
 
 C = 'OOO_CORE/OOO_CORE.sv'
@@ -214,7 +214,7 @@ MUT = [
     (C, "cmp_exc   = {2'b00, csr_ce, 2'b00,", "cmp_exc   = {2'b00, 1'b0, 2'b00,", 'CSR: an illegal access completes'),
     (C, "cmp_rp    = {2'b00, csr_crp, 2'b00,", "cmp_rp    = {2'b00, 1'b0, 2'b00,", 'CSR: no replay after a write'),
     (C, "sys_rob, pm_v ? pm_rob : md_rob,", "sys_rob, md_rob,", 'the multiply completes the MDU\'s entry'),
-    (C, 'tv_valid[ND]     = (m_ex_v[0] && mis[0]) || at_tv_v;', "tv_valid[ND]     = at_tv_v;", 'tval: a misaligned address not given'),
+    (C, "tv_valid[ND]     = l_tv_v[0];", "tv_valid[ND]     = 1'b0;", 'tval: LSU0\'s exceptions\' address not given (from OOO_LSU4 since step 1.8 V1)'),
     (C, "tv_valid[ND + 1] = csr_tvq || sys_tv_v;", "tv_valid[ND + 1] = sys_tv_v;", "tval: an illegal CSR access's not given"),
     (C, "for (int j = 0; j < ND; j++) if (disp_go[j]) rob_insn[disp_rob[j]] <= ds[j].insn;", "for (int j = 0; j < 2; j++) if (disp_go[j]) rob_insn[disp_rob[j]] <= ds[j].insn;", '4 wide: slots 2 and 3 leave rob_insn unwritten (a CSR µop reads a stale one)'),
     (C, "assign g_take = r_go[3] ? 3'd4 :", "assign g_take = r_go[3] ? 3'd3 :", '4 wide: four go, three taken (one runs twice)'),
@@ -228,7 +228,7 @@ MUT = [
     (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && !flush_all;", 'a branch killed as it leaves EX resolves'),
     (C, "br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;", "br_valid[p] <= e_br_valid[p] && (ex_bms[p] & kill) == '0;", 'a branch flushed as it leaves EX resolves'),
     (C, "iw_ack, csr_cv, br_valid, sys_cv,", "iw_ack, csr_cv, br_valid & ~br_mispred, sys_cv,", 'a mispredicted branch never completes'),
-    (C, "tv_valid[ND + 2] = m_ex_v[1] && mis[1];", "tv_valid[ND + 2] = 1'b0;", 'tval: LSU1\'s misaligned address not given'),
+    (C, "tv_valid[ND + 2] = l_tv_v[1];", "tv_valid[ND + 2] = 1'b0;", 'tval: LSU1\'s exceptions\' address not given'),
     (L3, "return pa < CBASE || pa >= CTOP || (uc_line_v && pa[PAW-1:6] == uc_line);", "return pa < CBASE || pa >= CTOP;", 'uncached: the bench\'s line cached'),
     (L3, "(!m_ld || (!m_uc && (f_any ? f_ok : m_hit))));", "(!m_ld || (f_any ? f_ok : m_hit)));", 'uncached: a load for a device takes the D$ or the SQ'),
     (L3, "ugo[e] = luc[e] && !lucd[e] && lrob[e] == head_rob && sq_drained && !uc_busy;", "ugo[e] = luc[e] && !lucd[e] && lrob[e] == head_rob && !uc_busy;", 'uncached: a load goes before older stores reach the devices'),
@@ -238,7 +238,7 @@ MUT = [
     (L3, "m_ucd  = p == 0 && m_ld && m_try && !m_id[LW] && lucd[m_id[LW-1:0]];", "m_ucd  = 1'b0;", 'uncached: the device\'s word never taken'),
     (DM, "if (miss_valid && !asked(miss_line, miss_vx, aq_n) && n != (QW + 1)'(NAQ)) begin", "if (1'b0) begin", 'OOO_DMISS2: a load\'s miss never filled'),
     (DM, "tw_en   = st == S_SINV || st == S_INV || st == S_TAG;", "tw_en   = st == S_SINV || st == S_TAG;", 'OOO_DMISS2: the victim\'s tag valid while its words are replaced'),
-    (DM, "assign aq_pop = st == S_IDLE && !u_pend && !fl_req && aq_n != '0 && wr_quiet;", "assign aq_pop = st == S_IDLE && !u_pend && !fl_req && aq_n != '0;", 'OOO_DMISS2: a fill before the write out has its answer'),
+    (DM, "assign aq_pop = st == S_IDLE && !u_pend && !fl_req && !p_pend && aq_n != '0 && wr_quiet;", "assign aq_pop = st == S_IDLE && !u_pend && !fl_req && !p_pend && aq_n != '0;", 'OOO_DMISS2: a fill before the write out has its answer'),
     (DM, "if (ev_go ? int'(ev_way) == w : dirty_set && int'(dirty_way) == w)", "if (ev_go ? int'(ev_way) == w : 1'b0 && int'(dirty_way) == w)", 'OOO_DMISS2: a store never makes its line dirty'),
     (DM, "assign ev_go  = ((st == S_INV || st == S_SINV) && ev_dirty) ||", "assign ev_go  = ((st == S_SINV) && ev_dirty) ||", 'OOO_DMISS2: a dirty victim not written out'),
     (DM, "e_line <= {tagr[ev_way][TW-1:0], t_set[5:0]};", "e_line <= {f_line[PAW-1:12], t_set[5:0]};", 'OOO_DMISS2: a victim written out at the new line\'s address'),
@@ -281,9 +281,9 @@ MUT = [
     (C, "g_mem_cmd[s] <= 5'd12 && !g_is_fp[s]", "g_mem_cmd[s] <= 5'd11 && !g_is_fp[s]", 'E1c: AMOMAXU not an atomic'),
     (C, "d2[j].st             = g_cls[s] == 3'd5 || (at && g_mem_cmd[s] != 5'd2) || fpst[j];", "d2[j].st             = g_cls[s] == 3'd5 || (at && g_mem_cmd[s] == 5'd3) || fpst[j];", 'E1c: an AMO without an SQ entry'),
     (C, ".ext_valid({at_wk_v, md_ext_v || f2i_wr})", ".ext_valid({1'b0, md_ext_v || f2i_wr})", "E1c: an atomic's result wakes nothing"),
-    (C, "cmp_st_af ? 5'd7 : 5'd6", "5'd6", "E1c: an AMO's access fault reported as misaligned"),
-    (C, "ld_caf ? 5'd5 : 5'd4", "5'd4", "E1c: an LR's access fault reported as misaligned"),
-    (C, 'tv_valid[ND]     = (m_ex_v[0] && mis[0]) || at_tv_v;', 'tv_valid[ND]     = m_ex_v[0] && mis[0];', "E1c: an access fault's tval not given"),
+    (C, "cmp_st_cause == 2'd1 ? 5'd7 : 5'd6", "5'd6", "E1c: an AMO's access fault reported as misaligned"),
+    (C, "cmp_ld_cause[m] == 2'd1 ? 5'd5 : 5'd4", "5'd4", "E1c: an LR's access fault reported as misaligned"),
+    (L4, "at_cause <= w_cause;", "at_cause <= 2'd0;", "E1c: an atomic's cause lost (misaligned; one tval for all since step 1.8 V1)"),
     (DE, "lr   = amo && l_mem_cmd == CMD_LR;", "lr   = 1'b0;", 'E1c: LR answered from outside, as an AMO'),
     (IQ, "split[i] = st[i];", "split[i] = st[i] && !ns[i];", "E1c: an AMO's or SC's data never goes (not split, as before E1c)"),
     (IQ, "assign iss_ns = (((issued & ~st) | a_now) & ns) != '0;", "assign iss_ns = (issued & ns) != '0;", "E1c: an AMO's data counts as its issue"),
@@ -367,6 +367,17 @@ MUT = [
     (DE, "assign fp_we_rd[k]     = l_fp_we_rd;", "assign fp_we_rd[k]     = S0 && l_fp_we_rd;", "U2b: an FP destination in slot 0 only"),
     (C, "f2_dst[j], f2_old[j]};", "f2_old[j], f2_dst[j]};", "U3b: the FP destination's new and old swapped in OOO_ROB"),
     (C, "fcmt_arch[k] = cmt_fx[k][2*FTAGW +: 5];", "fcmt_arch[k] = cmt_fx[k][FTAGW +: 5];", "U3b: the FP map's architectural register read off"),
+    # Sv39's data side (step 1.8 V1, Plan/OOC.md 29.87): b4/dir/vm.S, rv64si-p-dirty
+    (C, "assign tr_eff = (m_mprv && priv == 2'd3) ? m_mpp : priv;", "assign tr_eff = priv;", "V1: MPRV ignored"),
+    (C, "tr_au  <= tr_eff == 2'd0 || (tr_eff == 2'd1 && m_sum);", "tr_au  <= tr_eff == 2'd0;", "V1: SUM ignored"),
+    (C, "tr_as  <= tr_eff == 2'd1;", "tr_as  <= 1'b1;", "V1: S pages from U"),
+    (C, "tr_mxr <= m_mxr;", "tr_mxr <= 1'b0;", "V1: MXR ignored"),
+    (C, "tr_on  <= satp[63:60] == 4'd8 && tr_eff != 2'd3;", "tr_on  <= satp[63:60] == 4'd8;", "V1: M mode translated"),
+    (C, "assign tlb_flush_all = tlb_flush || satp_q != satp;", "assign tlb_flush_all = tlb_flush;", "V1: a change of satp leaves the DTLBs"),
+    (C, "ld_ccause[m] <= cmp_ld_cause[m] == 2'd2 ? 5'd13 :", "ld_ccause[m] <= cmp_ld_cause[m] == 2'd2 ? 5'd5 :", "V1: a load's page fault reported as an access fault"),
+    (C, "cmp_st_cause == 2'd2 ? 5'd15 :", "cmp_st_cause == 2'd2 ? 5'd13 :", "V1: a store's page fault reported as a load's"),
+    (C, ".satp_ppn(satp[43:0])", ".satp_ppn({satp[42:0], 1'b0})", "V1: the walk's root a page off"),
+    (DM, "pt_data   = st == S_PANS ? vr_data : p_q;", "pt_data   = p_q;", "V1: an entry found in the D$ answered from the last fill", CPU),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),

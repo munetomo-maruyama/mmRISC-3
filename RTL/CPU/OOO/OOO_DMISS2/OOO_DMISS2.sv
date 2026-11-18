@@ -48,6 +48,15 @@
 //              written out and clean (it stays in the D$); done when the last
 //              write out has its answer. OOO_SYS asks only with the SQ drained, so
 //              no store makes a line dirty meanwhile.
+//   an entry   of a page table, for OOO_PTW (pt_*, step 1.8 V1, Plan/OOC.md 29.87): an
+//              8-byte word by its physical address, one at a time, after the write out
+//              before it (as a line). Its line is looked for in the 4 sets of its index:
+//              found, its word is read from the D$'s copy (vr_*: no write out is on
+//              then) and answered 2 cycles later; else the line is filled into the set
+//              of its own 13:12 (no virtual address: the walk is physical), as a load's,
+//              and the word is taken from its beat. So the tables are cached, and the
+//              walk reads what the D$ has, dirty or not. A device or FENCE.I goes first,
+//              then an entry, then the lines asked for.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -95,6 +104,12 @@ module OOO_DMISS2
         input  logic [7:0]            uc_wmask,
         output logic                  uc_done,
         output logic [63:0]           uc_rdata,
+
+        // ---- OOO_PTW: an entry of a page table (step 1.8 V1)
+        input  logic                  pt_req,
+        input  logic [PAW-1:3]        pt_addr,
+        output logic                  pt_done,
+        output logic [63:0]           pt_data,
 
         // ---- OOO_SYS: FENCE.I's FLUSH of the D$
         input  logic                  fl_req,
@@ -163,7 +178,8 @@ module OOO_DMISS2
     localparam int FW = 8 + WB;         // the walk: {set, way}
     localparam int QW = $clog2(NAQ);
 
-    typedef enum logic [3:0] { S_IDLE, S_LOOK, S_SINV, S_SYW, S_INV, S_AR, S_R, S_TAG, S_DONE, S_UAW, S_UW, S_UB, S_UAR, S_UR, S_FL, S_FLW } st_t;
+    typedef enum logic [4:0] { S_IDLE, S_LOOK, S_SINV, S_SYW, S_INV, S_AR, S_R, S_TAG, S_DONE, S_UAW, S_UW, S_UB, S_UAR, S_UR, S_FL, S_FLW,
+                               S_PRD, S_PANS } st_t;
     st_t            st;
     logic [FW-1:0]  fi;                 // FENCE.I's walk: {set, way}
 
@@ -293,8 +309,12 @@ module OOO_DMISS2
             end
         end
     end
-    assign vr_addr        = {e_set, e_k[2:0]};
-    assign vr_way         = e_way;
+    // (an entry found in the D$ is read in S_PRD: no write out is on then)
+    logic [7:0]     p_set;              // where the entry's line is
+    logic [WB-1:0]  p_way;
+    logic [2:0]     p_word;
+    assign vr_addr        = st == S_PRD ? {p_set, p_word} : {e_set, e_k[2:0]};
+    assign vr_way         = st == S_PRD ? p_way : e_way;
     assign m_axi4_awid    = '0;
     assign m_axi4_awaddr  = {e_line, 6'd0};
     assign m_axi4_awlen   = 8'd7;
@@ -320,15 +340,20 @@ module OOO_DMISS2
     logic [63:0]    u_d;
     logic [7:0]     u_m;
     logic           f_have;
+    logic [WB-1:0]  f_hw;               // ... its way
+    logic           f_pt;               // the line in hand is an entry's (pt_*)
+    logic           p_pend;             // an entry asked for, not begun
+    logic [PAW-1:3] p_a;
+    logic [63:0]    p_q;                // its word, from the fill's beat
     logic [WB-1:0]  f_free;
     logic           f_any;
     logic           y_any;              // the line in a synonym's set (one at most)
     logic [1:0]     y_b;
     logic [WB-1:0]  y_w;
     always @(*) begin
-        f_have = 1'b0; f_any = 1'b0; f_free = '0;
+        f_have = 1'b0; f_any = 1'b0; f_free = '0; f_hw = '0;
         for (int w = WAYS - 1; w >= 0; w--) begin
-            if (tagr[w][TW] && tagr[w][TW-1:0] == f_line[PAW-1:12]) f_have = 1'b1;
+            if (tagr[w][TW] && tagr[w][TW-1:0] == f_line[PAW-1:12]) begin f_have = 1'b1; f_hw = WB'(w); end
             if (!tagr[w][TW]) begin f_any = 1'b1; f_free = WB'(w); end
         end
         y_any = 1'b0; y_b = '0; y_w = '0;
@@ -338,18 +363,25 @@ module OOO_DMISS2
                     y_any = 1'b1; y_b = 2'(b); y_w = WB'(w);
                 end
     end
-    assign aq_pop = st == S_IDLE && !u_pend && !fl_req && aq_n != '0 && wr_quiet;
+    logic p_go;                         // an entry begins
+    assign p_go   = st == S_IDLE && !u_pend && !fl_req && p_pend && wr_quiet;
+    assign aq_pop = st == S_IDLE && !u_pend && !fl_req && !p_pend && aq_n != '0 && wr_quiet;
     assign ev_go  = ((st == S_INV || st == S_SINV) && ev_dirty) || (st == S_FL && ev_dirty && !e_on);
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            st <= S_IDLE; u_pend <= 1'b0; fi <= '0;
+            st <= S_IDLE; u_pend <= 1'b0; fi <= '0; p_pend <= 1'b0;
         end else begin
             if (uc_req) u_pend <= 1'b1;
+            if (pt_req) p_pend <= 1'b1;
+            else if (p_go) p_pend <= 1'b0;
             case (st)
                 S_IDLE: if (u_pend)             begin u_pend <= 1'b0; st <= u_we ? S_UAW : S_UAR; end
                         else if (fl_req && !u_pend) begin fi <= '0; st <= S_FL; end   // (as fl_take)
-                        else if (aq_pop)        st <= S_LOOK;
-                S_LOOK: st <= f_have ? S_DONE : y_any ? S_SINV : S_INV;
+                        else if (p_go || aq_pop) st <= S_LOOK;
+                // an entry: read where its line is, else filled (no synonym to take out: it is in no set)
+                S_LOOK: st <= f_pt ? ((f_have || y_any) ? S_PRD : S_INV) : f_have ? S_DONE : y_any ? S_SINV : S_INV;
+                S_PRD:  st <= S_PANS;
+                S_PANS: st <= S_IDLE;
                 S_SINV: st <= S_SYW;                // the synonym's tag invalid, its write out begun if dirty
                 S_SYW:  if (wr_quiet) st <= S_INV;  // memory has it before it is read back
                 S_INV:  st <= S_AR;
@@ -377,14 +409,26 @@ module OOO_DMISS2
             f_line <= aq_line[0];
             f_vx   <= aq_vx[0];
             f_id   <= aq_id[0];
+            f_pt   <= 1'b0;
         end
+        if (p_go) begin
+            f_line <= p_a[PAW-1:6];
+            f_vx   <= p_a[13:12];
+            f_id   <= '0;
+            f_pt   <= 1'b1;
+            p_word <= p_a[5:3];
+        end
+        if (pt_req) p_a <= pt_addr;
         if (st == S_LOOK) begin
+            p_set  <= {f_have ? f_vx : y_b, f_line[11:6]};
+            p_way  <= f_have ? f_hw : y_w;
             y_vx   <= y_b;
             y_way  <= y_w;
             f_way  <= f_any ? f_free : (lfsr[WB-1:0] == lastr ? lfsr[WB-1:0] + 1'b1 : lfsr[WB-1:0]);
             f_beat <= '0;
         end
         if (m_axi4_rvalid && m_axi4_rready) f_beat <= f_beat + 3'd1;
+        if (m_axi4_rvalid && m_axi4_rready && f_beat == p_word) p_q <= m_axi4_rdata;
         if (uc_req) begin
             u_we <= uc_we; u_a <= uc_addr; u_d <= uc_wdata; u_m <= uc_wmask;
         end
@@ -403,6 +447,8 @@ module OOO_DMISS2
         fill_done = st == S_DONE;
         done_v    = st == S_DONE && f_id[IW];
         done_id   = f_id[IW-1:0];
+        pt_done   = (st == S_DONE && f_pt) || st == S_PANS;
+        pt_data   = st == S_PANS ? vr_data : p_q;
     end
     assign m_axi4_arid    = '0;
     assign m_axi4_araddr  = {f_line, 6'd0};

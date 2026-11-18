@@ -151,6 +151,7 @@ struct Lockstep::Impl {
     bool htif_load = false;     // the last step read tohost or fromhost
     bool dev_load = false;      // the last step read a device
     int irq = -1;               // the interrupt the DUT took at this record (its cause), or -1
+    uint64_t last_pa = 0;       // the last store's physical address
     uint64_t ih = 0;            // mcountinhibit as the core has it (LockstepCfg)
     bool exited = false;
     int code = 0;
@@ -209,6 +210,28 @@ struct Lockstep::Impl {
         *t = 0;
     }
 
+    // a store's physical address: Sv39 by the reference's satp, its effective privilege (MPRV with MPP in M) and
+    // its memory (the store went: the walk succeeds), after the step (step 1.8 V1)
+    uint64_t pa_of(uint64_t va)
+    {
+        state_t* s = proc->get_state();
+        reg_t ms = proc->get_csr(CSR_MSTATUS), satp = proc->get_csr(CSR_SATP);
+        reg_t eff = ((ms & MSTATUS_MPRV) && s->prv == PRV_M) ? (ms & MSTATUS_MPP) >> 11 : s->prv;
+        if (eff == PRV_M || (satp >> 60) != 8) return va;
+        uint64_t table = satp & ((1ull << 44) - 1);
+        for (int lvl = 2; lvl >= 0; lvl--) {
+            uint64_t* e = (uint64_t*)mem->addr_to_mem((table << 12) | (((va >> (12 + 9 * lvl)) & 511) << 3));
+            if (!e) return va;
+            uint64_t pte = *e, ppn = (pte >> 10) & ((1ull << 44) - 1);
+            if (pte & (PTE_R | PTE_X)) {
+                uint64_t m = (1ull << (12 + 9 * lvl)) - 1;
+                return ((ppn << 12) & ~m) | (va & m);
+            }
+            table = ppn;
+        }
+        return va;
+    }
+
     // one step of the reference, as a Commit record
     Commit step()
     {
@@ -261,6 +284,7 @@ struct Lockstep::Impl {
         for (auto& m : s->log_mem_write) {
             r.st = true;
             r.st_addr = std::get<0>(m); r.st_data = std::get<1>(m); r.st_size = std::get<2>(m);
+            r.st_pa = pa_of(r.st_addr);
         }
         // the core's legal choices (LockstepCfg)
         auto give = [&](uint64_t v) { if (r.rd > 0) { s->XPR.write(r.rd, v); r.rd_val = v; } };
@@ -295,12 +319,14 @@ int Lockstep::exit_code() const { return p->code; }
 uint64_t Lockstep::steps() const { return p->nsteps; }
 const std::string& Lockstep::output() const { return p->out; }
 Commit Lockstep::step_ref() { return p->step(); }
+uint64_t Lockstep::last_st_pa() const { return p->last_pa; }
 
 bool Lockstep::check(const Commit& d, std::string* why)
 {
     p->irq = (d.trap && (d.cause >> 63)) ? (int)(d.cause & 63) : -1;
     Commit r = p->step();
     p->irq = -1;
+    p->last_pa = r.st ? r.st_pa : d.st_addr;
     auto bad = [&](const std::string& s) {
         if (why) *why = "pc " + hex(r.pc) + ": " + s;
         return false;

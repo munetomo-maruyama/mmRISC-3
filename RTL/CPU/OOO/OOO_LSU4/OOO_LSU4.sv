@@ -74,7 +74,7 @@
 // decided (sat), a younger load that finds its entry waits. The result (an AMO's old value, an SC's 0 / 1)
 // is written into the register file through port 0's M in a cycle with no load there, with the issue
 // queue's external wakeup (at_wk_*); then the µop completes through the store's completion port, the
-// last in turn. An atomic outside the cacheable memory is an access fault (cmp_*_af; at_tv_* its tval);
+// last in turn. An atomic outside the cacheable memory is an access fault (cmp_*_cause; tv_* its tval);
 // misaligned, as a store's (an LR as a load's). A failed SC's entry drains as a store of no byte.
 //
 // The D$ at 64 KB (step 1.7c C2, Plan/OOC.md 29.68): 256 sets of 4 ways, the set the virtual
@@ -84,6 +84,16 @@
 // physical. A physical line in another set of its index (a synonym) is the miss handler's to
 // take out (OOO_DMISS2); here it is a miss. Since step 1.7c C5 (Plan/OOC.md 29.72) DWAYS ways, 8 (128 KB):
 // the hit's word chosen among 8 and the SQ's, the drain's hit among 8; nothing else changes.
+//
+// Translation (step 1.8 V1, Plan/OOC.md 29.87): OOO_DTLB3 in place of OOO_DTLB2. The walk (OOO_PTW, outside)
+// writes the leaf's U, R, W (with D), X and AF into both ports' DTLBs; the permissions are checked at the
+// lookup against the privilege the core gives (allow_u, allow_s, mxr: registers of the effective privilege,
+// MPRV with MPP, SUM, MXR), so a change of them needs no flush; a flush (tlb_flush) takes a cycle. An
+// exception says why (cmp_ld_cause, cmp_st_cause: 0 misaligned, 1 an access fault, 2 a page fault; the core
+// makes the cause of a load or of a store of it) and gives its tval, the virtual address, from W (tv_*, a
+// port each: every exception, misaligned too). A page fault: an address not canonical with translation on,
+// or no permission in an entry without AF; an access fault: an entry with AF, or an atomic outside the
+// cacheable memory.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -105,6 +115,9 @@ module OOO_LSU4
         input  logic                     clk,
         input  logic                     rst_n,
         input  logic                     tr_on,
+        input  logic                     allow_u,    // the effective privilege (step 1.8 V1): U pages may be accessed
+        input  logic                     allow_s,    // ... S pages
+        input  logic                     mxr,        // ... X pages read
 
         // ---- dispatch: how many; renaming numbers them from the tails
         input  logic [2:0]               lq_alloc,
@@ -156,11 +169,11 @@ module OOO_LSU4
         output logic                     cmp_st_valid,  // a store: translated, with its data
         output logic [ROBW-1:0]          cmp_st_rob,
         output logic                     cmp_st_exc,
-        output logic                     cmp_ld_af,  // port 0's load: an LR outside the cacheable memory (else misaligned)
-        output logic                     cmp_st_af,  // an AMO or SC so (else misaligned)
-        output logic                     at_tv_v,    // ... its tval, the virtual address
-        output logic [ROBW-1:0]          at_tv_rob,
-        output logic [63:0]              at_tv_va,
+        output logic [1:0][1:0]          cmp_ld_cause,  // with an exception: 0 misaligned, 1 an access fault, 2 a page fault
+        output logic [1:0]               cmp_st_cause,  // (a store's, an AMO's, an SC's)
+        output logic [1:0]               tv_v,       // an exception in W: its tval, the virtual address (a port each)
+        output logic [1:0][ROBW-1:0]     tv_rob,
+        output logic [1:0][63:0]         tv_va,
 
         // ---- an AMO's or SC's result, written now through port 0's M: the issue queue's external wakeup, and
         // what the commit trace takes (its value; it stores; an AMO's new data)
@@ -212,14 +225,16 @@ module OOO_LSU4
         output logic                     tlb_miss,
         output logic [VA-1:12]           tlb_miss_vpn,
         output logic [$clog2(NLQ+NSQ)-1:0] walk_id,
-        input  logic                     tlb_done,   // an answer: written, or nothing (a fault says r_ok, w_ok at 0)
+        input  logic                     tlb_done,   // an answer: written, or nothing (a fault: an entry without permission)
         input  logic                     tlb_we,
         input  logic [VA-1:12]           tlb_vpn,
         input  logic [PAW-1:12]          tlb_ptag,
+        input  logic                     tlb_u,      // the leaf's U, R, W (with D), X; an access fault (OOO_DTLB3)
         input  logic                     tlb_r,
         input  logic                     tlb_w,
+        input  logic                     tlb_x,
+        input  logic                     tlb_af,
         input  logic                     tlb_flush,
-        output logic                     tlb_busy,
 
         // ---- what is not cacheable (step 1.3 E1b)
         input  logic                     uc_line_v,  // a line not cached (simulation: tohost)
@@ -478,7 +493,8 @@ module OOO_LSU4
     // ---- the atomic of the ROB head (an AMO or SC; one at a time): from its first M to its completion
     localparam logic [2:0] A_IDLE = 3'd0, A_RUN = 3'd1, A_DATA = 3'd2, A_INJ = 3'd3, A_CMP = 3'd4;
     logic [2:0]      at_ph;
-    logic            at_sc, at_w, at_exc, at_af, at_res;    // an SC (else an AMO); a word; its completion's exception
+    logic            at_sc, at_w, at_exc, at_res;           // an SC (else an AMO); a word; its completion's exception
+    logic [1:0]      at_cause;                              // ... its cause
     logic [3:0]      at_cmd;
     logic [SW-1:0]   at_sq;
     logic [TAGW-1:0] at_dst;
@@ -554,7 +570,6 @@ module OOO_LSU4
     logic [1:0][IW-1:0]   m_ids;
     logic [1:0][KW-1:0]   m_kp;
     logic [1:0]           m_kpw;
-    logic [1:0]           t_busy;
 
     for (genvar p = 0; p < 2; p++) begin : g_port
         // ---- E
@@ -682,13 +697,13 @@ module OOO_LSU4
         assign m_kp[p]  = {m_a, m_size, m_uns, m_dst, m_rob, m_st, m_at};
 
         // the DTLB
-        logic            t_hit, t_r, t_w;
+        logic            t_hit, t_r, t_w, t_af;
         logic [PAW-1:12] t_ptag;
-        OOO_DTLB2 #(.SETS(32), .VA(VA), .PAW(PAW)) u_tlb
-            (.clk(clk), .rst_n(rst_n), .tr_on(tr_on), .va(m_a[PAW-1:12]),
-             .hit(t_hit), .ptag(t_ptag), .r_ok(t_r), .w_ok(t_w),
-             .tlb_we(tlb_we), .tlb_vpn(tlb_vpn), .tlb_ptag(tlb_ptag), .tlb_r(tlb_r), .tlb_w(tlb_w),
-             .tlb_flush(tlb_flush), .busy(t_busy[p]));
+        OOO_DTLB3 #(.SETS(32), .VA(VA), .PAW(PAW)) u_tlb
+            (.clk(clk), .rst_n(rst_n), .tr_on(tr_on), .allow_u(allow_u), .allow_s(allow_s), .mxr(mxr), .va(m_a[PAW-1:12]),
+             .hit(t_hit), .ptag(t_ptag), .r_ok(t_r), .w_ok(t_w), .af(t_af),
+             .tlb_we(tlb_we), .tlb_vpn(tlb_vpn), .tlb_ptag(tlb_ptag),
+             .tlb_u(tlb_u), .tlb_r(tlb_r), .tlb_w(tlb_w), .tlb_x(tlb_x), .tlb_af(tlb_af), .tlb_flush(tlb_flush));
 
         // the search: the youngest older store with this offset, that has bytes of the
         // load: the first one going back from the load's place in the ring
@@ -784,9 +799,10 @@ module OOO_LSU4
         logic            w_v, w_ld, w_try, w_ok, w_exc, w_miss, w_walk, w_live, w_uc, w_sd;
         logic            w_amo;
         logic            at_uc;
-        /* verilator lint_off UNUSEDSIGNAL */      // (port 0's: an atomic outside the cacheable memory, its tval; which atomic)
-        logic            w_af, w_sc, w_lr;
+        logic [1:0]      w_cause;              // with w_exc: 0 misaligned, 1 an access fault, 2 a page fault
         logic [63:0]     w_va;
+        /* verilator lint_off UNUSEDSIGNAL */      // (port 0's: which atomic)
+        logic            w_sc, w_lr;
         /* verilator lint_on UNUSEDSIGNAL */
         /* verilator lint_off UNUSEDSIGNAL */      // (port 0's: the device's address and size)
         logic [PAW-1:0]  w_a;
@@ -806,7 +822,7 @@ module OOO_LSU4
             w_bm   <= m_bm;
             w_lq   <= m_lq;
             w_exc  <= m_bad || (t_hit && !m_perm) || (t_hit && at_uc);
-            w_af   <= !m_bad && t_hit && m_perm && at_uc;
+            w_cause <= m_mis ? 2'd0 : m_bad ? 2'd2 : (t_hit && !m_perm) ? (t_af ? 2'd1 : 2'd2) : 2'd1;
             w_amo  <= m_amo;
             w_sc   <= m_sc;
             w_lr   <= m_at == 4'd2;
@@ -834,6 +850,10 @@ module OOO_LSU4
         assign cmp_ld_exc[p]   = w_exc;
         assign cmp_ld_rp[p]    = w_try;
         assign cmp_ld_sd[p]    = w_try && lsd[w_lq];
+        assign cmp_ld_cause[p] = w_cause;
+        assign tv_v[p]         = w_live && w_exc;
+        assign tv_rob[p]       = w_rob;
+        assign tv_va[p]        = w_va;
         if (p == 0) begin : g_w0
             logic [SW-1:0] w_sq;
             logic [IW-1:0] w_id;
@@ -856,11 +876,7 @@ module OOO_LSU4
             assign cmp_st_valid = st_now || (p_any && !rec) || at_go;
             assign cmp_st_rob   = st_now ? w_rob : p_any ? srob[p_idx] : at_rob;
             assign cmp_st_exc   = (st_now && w_exc) || (!st_now && !p_any && at_exc);
-            assign cmp_st_af    = !st_now && !p_any && at_af;
-            assign cmp_ld_af    = w_af;
-            assign at_tv_v      = w_live && w_af;
-            assign at_tv_rob    = w_rob;
-            assign at_tv_va     = w_va;
+            assign cmp_st_cause = st_now ? w_cause : at_cause;
             // the atomic's state
             always_ff @(posedge clk or negedge rst_n) begin
                 if (!rst_n) begin
@@ -893,7 +909,7 @@ module OOO_LSU4
                 if (w_live && w_lr && w_ok) resv_a <= w_a;
                 if (at_ph == A_RUN && w_live && (w_amo || w_sc) && (w_ok || w_exc)) begin
                     at_exc <= w_exc;
-                    at_af  <= w_af;
+                    at_cause <= w_cause;
                     at_res <= sc_fail;                             // an SC's result: 0 it stores, 1 it fails
                 end
             end
@@ -940,7 +956,6 @@ module OOO_LSU4
         end
     end
 
-    assign tlb_busy   = t_busy != 2'd0;
     assign w_done_try = w_try0;
 
     // the first M keeps what a try needs

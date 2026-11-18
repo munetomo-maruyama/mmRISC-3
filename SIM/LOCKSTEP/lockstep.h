@@ -65,6 +65,7 @@ struct Commit {
     uint64_t st_addr = 0;
     uint64_t st_data = 0;      // the bytes stored, in the low st_size bytes
     int      st_size = 0;
+    uint64_t st_pa = 0;        // the reference's: the store's physical address (Sv39, step 1.8 V1; not compared)
 };
 
 struct LockstepCfg {
@@ -105,6 +106,8 @@ public:
     int  exit_code() const;
     uint64_t steps() const;     // instructions the reference has stepped
     const std::string& output() const;   // characters printed through HTIF
+    uint64_t last_st_pa() const;         // the physical address of the last store checked (its virtual one translated
+                                         //  by the reference's tables: the bench's architectural memory, step 1.8 V1)
 private:
     struct Impl;
     std::unique_ptr<Impl> p;

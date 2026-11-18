@@ -38,7 +38,8 @@ core with its caches, in lock-step with Spike, meeting 20 ns out of context. The
 | L2 | **512 KB**, 2,048 sets × 4 ways × 64 bytes, write back, pseudo LRU, non-inclusive (mmRISC-2's `CPU_L2`) |
 | Buses | the L2's AXI4 memory bus; the D$'s AXI4-Lite peripheral bus for what is not cacheable (outside [0x8000_0000, 0x1_0000_0000)) |
 | Interrupts | mmRISC-2's CLINT (0x0200_0000) and PLIC (0x0C00_0000, 31 sources, M and S contexts) on the peripheral bus in `OOO_CPU` (`CPU_MMIO`, step 1.8 I1, `Plan/OOC.md` 29.78); mtime at 500 kHz; the PLIC's choice a tree, the lines into the core through registers (I2, 29.79) |
-| Not yet | translation (the DTLBs are in place and grant all; no PTW, no ITLB), PMP checks (the CSRs exist), FPU, debug: **step 1.8** |
+| Translation | Sv39 for loads and stores since step 1.8 V1 (`Plan/OOC.md` 29.87): `OOO_PTW` (mmRISC-2's walker, the tables read through the D$'s miss handler, Svade), `OOO_DTLB3` a load port (32 sets × 2 ways, the permissions checked at the lookup, no ASID: flushed by SFENCE.VMA or a change of satp) |
+| Not yet | the fetch's translation (an ITLB: V2), PMP checks (the CSRs exist), debug: **step 1.8** (the renamed FPU done: U, 29.82 to 29.86) |
 | CoreMark/MHz | **8.244** (`-O2`, GCC 14, Zba / Zbb / Zbs / Zbc, the timed part on `OOO_CPU` with the board's memory latency); 7.835 with GCC 13 (`SIM/CORE/results/coremark.txt`) |
 | Resources | **80,345 LUTs** (60 % of 133,800; 13,902 of them LUT RAM), 19,942 flip-flops, **284.5 block RAM tiles** (of 365), 26 DSP |
 | Timing | **WNS +0.027 ns, hold +0.028 ns** at 20 ns (`Plan/OOC.md` 29.79, with the interrupts; E1c's +0.470 ns, 78,156 LUTs, 29.75) |
@@ -120,7 +121,7 @@ that, with the history and the RAS put back.
 
 - **`OOO_LSU4`**: 2 ports, load-use 2 (E: the address, the arrays read at the end; M: tags of 8 ways compared, each way
   aligned with the SQ's word as a ninth, the result). Each port has its copy of the arrays (`OOO_DCH2`) and a DTLB
-  (`OOO_DTLB2`, 32 sets; translation off in Phase 1). Only port 0 asks for a line: a port-1 load that misses goes to
+  (`OOO_DTLB3` since step 1.8 V1, 32 sets; `OOO_PTW` refills both, asked by port 0). Only port 0 asks for a line: a port-1 load that misses goes to
   port 0.
 - **Waiting and tries**: a µop that cannot finish (a miss, a store without its data, a device) waits in its LQ / SQ
   entry and is tried again at the event that may have changed it (a fill, a store's data, the head).

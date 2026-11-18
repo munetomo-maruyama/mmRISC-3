@@ -237,6 +237,7 @@ static bool run(const Opts& o, const std::string& elf)
             d->dc_uc_line_v = 1; d->dc_uc_line = tohost_line;
             d->dc_uc_done = uc.done(); d->dc_uc_rdata = uc.rdata();
             d->dc_vr_addr = 0; d->dc_vr_way = 0;        // (the model fills from Memory, which has every store)
+            d->dc_pt_done = q.pt_done; d->dc_pt_data = q.pt_data;   // a page table's entry (step 1.8 V1)
         }
         d->irq_m_soft = 0; d->irq_m_timer = 0; d->irq_m_ext = 0; d->irq_s_ext = 0; d->mtime = 0;
         d->fl_take = 1; d->fl_done = flq_q;
@@ -310,6 +311,7 @@ static bool run(const Opts& o, const std::string& elf)
         uint64_t ml = d->dc_miss_line, sml = d->dc_st_miss_line;
         int mid = d->dc_miss_id, dway = d->dc_dirty_way, didx = d->dc_dirty_idx, mvx = d->dc_miss_vx, smvx = d->dc_st_miss_vx;
         bool ucr = d->dc_uc_req, ucw = d->dc_uc_we;
+        bool ptr = d->dc_pt_req; uint64_t pta = d->dc_pt_addr;
         uint64_t uca = d->dc_uc_addr, ucd = d->dc_uc_wdata; uint8_t ucm = d->dc_uc_wmask;
         // Memory takes each store as the D$ takes it (dc_wt_*: what a write-back D$ would give back at once, step
         // 1.7b W2; OOO_CPU has the real write-back); a store for a device reaches Memory through UcModel
@@ -329,7 +331,7 @@ static bool run(const Opts& o, const std::string& elf)
         ax.clock(arv, ara, arl, rr, awv, awa, awl, wv, wd, ws, br);
         al.clock(larv, lara, lrr, lawv, lawa, lwv, lwd, lws, lbr);
 #else
-        dm.clock(mv, ml, mvx, mid, smv, sml, smvx, dset, dway, didx, sqd);
+        dm.clock(mv, ml, mvx, mid, smv, sml, smvx, dset, dway, didx, sqd, ptr, pta);
         uc.clock(ucr, ucw, uca, ucd, ucm);
 #endif
     }

@@ -97,6 +97,15 @@
 // flags (fflags at commit), mstatus.FS made dirty at the commit of an FP write or
 // of nonzero flags (Spike's rule).
 //
+// Translation of loads and stores (step 1.8 V1, Plan/OOC.md 29.87): the effective
+// privilege (MPRV with MPP in M) and tr_on (satp's MODE 8, not M) registered into
+// OOO_LSU4's DTLBs (OOO_DTLB3: the permissions checked at the lookup); OOO_PTW on
+// the LSU's walk port, its entries read through the D$'s miss handler (dc_pt_*);
+// the DTLBs flushed (and a walk cancelled) by SFENCE.VMA or a change of satp (no
+// ASID); a walk cancelled by a flush of everything too. The LSU's exceptions with
+// their cause (misaligned, access fault, page fault: 4 / 5 / 13 a load, 6 / 7 / 15 a
+// store or AMO) and their tval from its W. The fetch is not translated (V2).
+//
 // The commit trace (OOO_TRACE, simulation only): per ROB entry the
 // instruction bits (written at dispatch) and the value written (at
 // completion); at commit with the ROB's pc and destination.
@@ -154,6 +163,10 @@ module OOO_CORE
         input  logic [$clog2(DWAYS)-1:0]   dc_vr_way,
         output logic [63:0]                 dc_vr_data,
         output logic                        dc_sq_drained,
+        output logic                        dc_pt_req,      // a page table's entry (OOO_PTW, step 1.8 V1), read through the miss handler
+        output logic [PAW-1:3]              dc_pt_addr,
+        input  logic                        dc_pt_done,
+        input  logic [63:0]                 dc_pt_data,
         // what is not cacheable (step 1.3 E1b, Plan/OOC.md 29.33): one access to a device at a time
         input  logic                        dc_uc_line_v,   // a line not cached (simulation: the bench's tohost)
         input  logic [PAW-1:6]              dc_uc_line,
@@ -1097,17 +1110,18 @@ module OOO_CORE
     logic            csr_exc, csr_rp, csr_tv_v;
     logic [ROBW-1:0] csr_tv_rob;
     logic            m_tw, m_tsr, m_tvm;
-    /* verilator lint_off UNUSEDSIGNAL */      // (translation, PMP, FP, debug, triggers: Phase 2)
-    logic [63:0]     satp;
-    logic            m_sum, m_mxr, m_mprv, menv_cbze, senv_cbze, dcsr_step, dcsr_ebm, dcsr_ebs, dcsr_ebu, tctl_mte;
+    logic            m_sum, m_mxr, m_mprv;
     logic [1:0]      m_mpp;
+    /* verilator lint_off UNUSEDSIGNAL */      // (satp's ASID; PMP, debug, triggers: Phase 2)
+    logic [63:0]     satp;
+    logic            menv_cbze, senv_cbze, dcsr_step, dcsr_ebm, dcsr_ebs, dcsr_ebu, tctl_mte;
     logic [63:0]     pmpcfg;
     logic [511:0]    pmpaddr, pmpmask;
     logic [63:0]     dbg_rdata, dpc;
     logic [31:0]     trig_cfg;
     logic [255:0]    trig_addr;
-    logic            tlb_flush;
     /* verilator lint_on UNUSEDSIGNAL */
+    logic            tlb_flush;
     // misa as mmRISC-2's (and the reference's): RV64 IMAFDC, S, U
     OOO_CSRU #(.VA(VA), .ROBW(ROBW), .MISA(64'h8000_0000_0014_112F)) u_csr
         (.clk(clk), .rst_n(rst_n),
@@ -1188,7 +1202,10 @@ module OOO_CORE
     // OOO_LSU4's tries of what had to wait) and LSU1 (NAP + 1: loads), one source each: a store's data comes on
     // port 1 (step 1.5b G3, Plan/OOC.md 29.53). RR and EX here; OOO_LSU4 follows them with its E (the address of
     // EX), M (the D$'s arrays inside it) and W
-    logic [1:0]              m_rr_v, m_ex_v;
+    logic [1:0]              m_rr_v;
+    /* verilator lint_off UNUSEDSIGNAL */      // (the commit trace's: a store's address in EX)
+    logic [1:0]              m_ex_v;
+    /* verilator lint_on UNUSEDSIGNAL */
     logic [1:0][NCKPT-1:0]   m_rr_bm;
     /* verilator lint_off UNUSEDSIGNAL */      // (the address and the store's data only, and the trace)
     logic [1:0][NCKPT-1:0]   m_ex_bm;
@@ -1298,19 +1315,52 @@ module OOO_CORE
     logic [1:0]      cmp_ld_v, cmp_ld_e, cmp_ld_rp, cmp_ld_sd;
     logic [1:0][ROBW-1:0] cmp_ld_rob;
     logic            cmp_st_v, cmp_st_e;
-    logic            cmp_ld_af, cmp_st_af;              // an atomic outside the cacheable memory: an access fault
-    logic            at_tv_v;                           // ... its tval
-    logic [ROBW-1:0] at_tv_rob;
-    logic [63:0]     at_tv_va;
+    logic [1:0][1:0] cmp_ld_cause;                      // an exception's: 0 misaligned, 1 an access fault, 2 a page fault
+    logic [1:0]      cmp_st_cause;
+    logic [1:0]      l_tv_v;                            // its tval, from the LSU's W (a port each)
+    logic [1:0][ROBW-1:0] l_tv_rob;
+    logic [1:0][63:0] l_tv_va;
+    // ---- translation (step 1.8 V1, Plan/OOC.md 29.87): the effective privilege of loads and stores (MPRV with MPP in M),
+    // registered: it changes only at a trap, a return or a CSR write, each with nothing younger in flight after it
+    logic            tr_on, tr_au, tr_as, tr_mxr;
+    logic [1:0]      tr_eff;
+    logic [63:0]     satp_q;
+    logic            tlb_flush_all;                     // SFENCE.VMA, or satp changed (no ASID in the DTLBs)
+    assign tr_eff = (m_mprv && priv == 2'd3) ? m_mpp : priv;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            tr_on <= 1'b0; tr_au <= 1'b0; tr_as <= 1'b0; tr_mxr <= 1'b0; satp_q <= '0;
+        end else begin
+            tr_on  <= satp[63:60] == 4'd8 && tr_eff != 2'd3;
+            tr_au  <= tr_eff == 2'd0 || (tr_eff == 2'd1 && m_sum);
+            tr_as  <= tr_eff == 2'd1;
+            tr_mxr <= m_mxr;
+            satp_q <= satp;
+        end
+    end
+    assign tlb_flush_all = tlb_flush || satp_q != satp;
+    // the walker
+    logic            w_req, w_done, w_we, w_u, w_r, w_w, w_x, w_af;
+    logic [VA-1:12]  w_vpn, w_tvpn;
+    logic [4:0]      w_rid, w_did;
+    logic [PAW-1:12] w_ptag;
+    /* verilator lint_off UNUSEDSIGNAL */      // (its state: for a look from the bench)
+    logic            w_busy;
+    /* verilator lint_on UNUSEDSIGNAL */
+    OOO_PTW #(.PAW(PAW), .VA(VA), .IW(5)) u_ptw
+        (.clk(clk), .rst_n(rst_n), .req(w_req), .req_vpn(w_vpn), .req_id(w_rid), .satp_ppn(satp[43:0]),
+         .cancel(tlb_flush_all || flush_all), .busy(w_busy),
+         .pt_req(dc_pt_req), .pt_addr(dc_pt_addr), .pt_done(dc_pt_done), .pt_data(dc_pt_data),
+         .hold(dc_fill_done), .tlb_done(w_done), .done_id(w_did), .tlb_we(w_we), .tlb_vpn(w_tvpn), .tlb_ptag(w_ptag),
+         .tlb_u(w_u), .tlb_r(w_r), .tlb_w(w_w), .tlb_x(w_x), .tlb_af(w_af));
     /* verilator lint_off UNUSEDSIGNAL */      // (the commit trace's)
     logic [ROBW-1:0] at_wk_rob;
     logic [63:0]     at_wk_d, at_nd;
     logic            at_st, at_amo;
     /* verilator lint_on UNUSEDSIGNAL */
     logic [ROBW-1:0] cmp_st_rob;
-    /* verilator lint_off PINCONNECTEMPTY */   // (translation: step 1.8)
     OOO_LSU4 #(.NLQ(16), .NSQ(16), .PAW(PAW), .VA(VA), .TAGW(TAGW + 2), .ROBW(ROBW), .NCK(NCKPT), .DWAYS(DWAYS)) u_lsu
-        (.clk(clk), .rst_n(rst_n), .tr_on(1'b0),
+        (.clk(clk), .rst_n(rst_n), .tr_on(tr_on), .allow_u(tr_au), .allow_s(tr_as), .mxr(tr_mxr),
          .lq_alloc(lq_alloc), .sq_alloc(sq_alloc), .lq_tail(l3_lq_tail), .sq_tail(l3_sq_tail),
          .lq_free(l3_lq_free), .sq_free(l3_sq_free),
          .rr_valid(m_rr_v), .rr_ld(rr_rec[NAP].is_ld), .rr_lq({rr_rec[NAP+1].lq, rr_rec[NAP].lq}), .rr_sq(rr_rec[NAP].sq),
@@ -1323,7 +1373,7 @@ module OOO_CORE
          .ld_nv(ld_nv), .ld_nt(ld_nt), .ld_d(ld_d),
          .cmp_ld_valid(cmp_ld_v), .cmp_ld_rob(cmp_ld_rob), .cmp_ld_exc(cmp_ld_e), .cmp_ld_rp(cmp_ld_rp), .cmp_ld_sd(cmp_ld_sd),
          .cmp_st_valid(cmp_st_v), .cmp_st_rob(cmp_st_rob), .cmp_st_exc(cmp_st_e),
-         .cmp_ld_af(cmp_ld_af), .cmp_st_af(cmp_st_af), .at_tv_v(at_tv_v), .at_tv_rob(at_tv_rob), .at_tv_va(at_tv_va),
+         .cmp_ld_cause(cmp_ld_cause), .cmp_st_cause(cmp_st_cause), .tv_v(l_tv_v), .tv_rob(l_tv_rob), .tv_va(l_tv_va),
          .at_wk_v(at_wk_v), .at_wk_t(at_wk_tl), .at_wk_rob(at_wk_rob), .at_wk_d(at_wk_d), .at_st(at_st), .at_amo(at_amo),
          .at_nd(at_nd),
          .lq_commit(lq_commit), .sq_commit(sq_commit), .restore(restore_k), .kill(kill),
@@ -1331,17 +1381,16 @@ module OOO_CORE
          .sq_drained(sq_drained),
          .miss_valid(dc_miss_valid), .miss_line(dc_miss_line), .miss_vx(dc_miss_vx), .miss_id(dc_miss_id),
          .st_miss_valid(dc_st_miss_valid), .st_miss_line(dc_st_miss_line), .st_miss_vx(dc_st_miss_vx), .fill_done(dc_fill_done),
-         .done_v(dc_done_v), .done_id(dc_done_id), .tw_en(dc_tw_en), .tw_way(dc_tw_way), .tw_set(dc_tw_set),
+         .done_v(dc_done_v || w_done), .done_id(w_done ? w_did : dc_done_id), .tw_en(dc_tw_en), .tw_way(dc_tw_way), .tw_set(dc_tw_set),
          .tw_tag(dc_tw_tag), .rf_en(dc_rf_en), .rf_way(dc_rf_way), .rf_addr(dc_rf_addr), .rf_data(dc_rf_data),
          .dirty_set(dc_dirty_set), .dirty_way(dc_dirty_way), .dirty_idx(dc_dirty_idx),
-         .tlb_miss(), .tlb_miss_vpn(), .walk_id(), .tlb_done(1'b0), .tlb_we(1'b0), .tlb_vpn('0), .tlb_ptag('0),
-         .tlb_r(1'b0), .tlb_w(1'b0), .tlb_flush(tlb_flush), .tlb_busy(),
+         .tlb_miss(w_req), .tlb_miss_vpn(w_vpn), .walk_id(w_rid), .tlb_done(w_done), .tlb_we(w_we), .tlb_vpn(w_tvpn),
+         .tlb_ptag(w_ptag), .tlb_u(w_u), .tlb_r(w_r), .tlb_w(w_w), .tlb_x(w_x), .tlb_af(w_af), .tlb_flush(tlb_flush_all),
          .uc_line_v(dc_uc_line_v), .uc_line(dc_uc_line), .head_rob(head_rob),
          .uc_req(dc_uc_req), .uc_we(dc_uc_we), .uc_addr(dc_uc_addr), .uc_size(dc_uc_size), .uc_wdata(dc_uc_wdata),
          .uc_wmask(dc_uc_wmask), .uc_done(dc_uc_done), .uc_rdata(dc_uc_rdata),
          .wt_valid(dc_wt_valid), .wt_addr(dc_wt_addr), .wt_data(dc_wt_data), .wt_mask(dc_wt_mask),
          .vr_addr(dc_vr_addr), .vr_way(dc_vr_way), .vr_data(dc_vr_data));
-    /* verilator lint_on PINCONNECTEMPTY */
     assign dc_sq_drained = sq_drained;
     assign at_wk_t = at_wk_tl[TAGW-1:0];
     always @(*)
@@ -1546,7 +1595,7 @@ module OOO_CORE
     // completion of a µop killed or flushed meanwhile is harmless: its entry is out of the ROB, and an
     // entry given out again in that cycle takes its new state first (OOO_ROB's status writes)
     logic [1:0]      ld_cv, ld_ce, ld_crp;
-    logic            ld_caf;                            // port 0's: an LR's access fault
+    logic [1:0][4:0] ld_ccause;                         // the cause of an exception (4, 5 or 13)
     logic [1:0][ROBW-1:0] ld_crob;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) ld_cv <= '0;
@@ -1556,7 +1605,7 @@ module OOO_CORE
         ld_crob <= cmp_ld_rob;
         ld_ce   <= cmp_ld_e;
         ld_crp  <= cmp_ld_rp;
-        ld_caf  <= cmp_ld_af;
+        for (int m = 0; m < 2; m++) ld_ccause[m] <= cmp_ld_cause[m] == 2'd2 ? 5'd13 : cmp_ld_cause[m] == 2'd1 ? 5'd5 : 5'd4;
     end
     // the wait table's write: a load that waited for a store's data is marked by its ROB entry when it completes
     // (cmp_ld_sd comes with its replay), and its pc goes to the table at its commit, as the last µop of the cycle
@@ -1610,29 +1659,25 @@ module OOO_CORE
     always @(*) begin
         cmp_exc   = {2'b00, csr_ce, 2'b00, sys_exc, 1'b0, cmp_st_e, ld_ce, (NAP)'(0)};
         cmp_rp    = {2'b00, csr_crp, 2'b00, sys_rp, 1'b0, 1'b0, ld_crp, (NAP)'(0)};
-        // the LSU's: misaligned (4 a load, 6 a store or AMO), or an atomic's access fault (5 LR, 7 SC or AMO)
-        cmp_cause = {5'd0, 5'd0, 5'd2, 5'd0, 5'd0, 5'd2, 5'd0, cmp_st_af ? 5'd7 : 5'd6, 5'd4, ld_caf ? 5'd5 : 5'd4, (5 * NAP)'(0)};
+        // the LSU's: misaligned (4 a load, 6 a store or AMO), an access fault (5, 7), a page fault (13, 15; step 1.8 V1)
+        cmp_cause = {5'd0, 5'd0, 5'd2, 5'd0, 5'd0, 5'd2, 5'd0,
+                     cmp_st_cause == 2'd2 ? 5'd15 : cmp_st_cause == 2'd1 ? 5'd7 : 5'd6, ld_ccause[1], ld_ccause[0], (5 * NAP)'(0)};
     end
     assign cmp_valid[NCMP-1:NAP] = {fw_valid, iw_ack, csr_cv, br_valid, sys_cv, pm_v || md_v, cmp_st_v, ld_cv};
     assign cmp_rob[NCMP-1:NAP]   = {fw_rob, iw_rob, csr_crob, br_rob, sys_rob, pm_v ? pm_rob : md_rob, cmp_st_rob, ld_crob};
 
-    // tval: a misaligned access of LSU0 or LSU1 (its address), the CSR unit or the system unit (one at a time at the head);
-    // an atomic's access fault (OOO_LSU4's W, step 1.4 E1c) on LSU0's port: it is at the ROB head, and what is younger in
-    // EX now dies with its trap
+    // tval: an exception of LSU0 or LSU1 (OOO_LSU4's W: misaligned, an access fault, a page fault; its virtual address;
+    // step 1.8 V1), the CSR unit or the system unit (one at a time at the head)
     always @(*) begin
-        logic [1:0] mis;
-        for (int m = 0; m < 2; m++)
-            mis[m] = (m_ex[m].rec.msize == 2'd1 && m_ea[m][0]) || (m_ex[m].rec.msize == 2'd2 && m_ea[m][1:0] != 2'd0) ||
-                     (m_ex[m].rec.msize == 2'd3 && m_ea[m][2:0] != 3'd0);
-        tv_valid[ND]     = (m_ex_v[0] && mis[0]) || at_tv_v;
-        tv_rob[ND]       = at_tv_v ? at_tv_rob : m_ex[0].rec.rob;
-        tv_val[ND]       = at_tv_v ? at_tv_va : m_ea[0];
+        tv_valid[ND]     = l_tv_v[0];
+        tv_rob[ND]       = l_tv_rob[0];
+        tv_val[ND]       = l_tv_va[0];
         tv_valid[ND + 1] = csr_tvq || sys_tv_v;                // (the CSR's a cycle late: never with the system unit's,
         tv_rob[ND + 1]   = sys_tv_v ? sys_tv_rob : csr_tvq_rob;  //  as both run at the ROB head and complete first)
         tv_val[ND + 1]   = sys_tv_v ? sys_tv : csr_tvq_val;
-        tv_valid[ND + 2] = m_ex_v[1] && mis[1];
-        tv_rob[ND + 2]   = m_ex[1].rec.rob;
-        tv_val[ND + 2]   = m_ea[1];
+        tv_valid[ND + 2] = l_tv_v[1];
+        tv_rob[ND + 2]   = l_tv_rob[1];
+        tv_val[ND + 2]   = l_tv_va[1];
     end
 
     // an indirect jump (a jalr not a return) writes the BTB: port 0's first

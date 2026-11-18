@@ -75,7 +75,8 @@ older), the fields of `TraceSlot`:
   non-cacheable for the core (the D$ adapter sends its loads and stores to the memory; a bench parameter under
   `ifdef`). Until then the port models write the memory directly.
 - **The architectural memory holds without translation** (Phase 1): a store commits its virtual address. The stand-in
-  does not compare it when a program turns translation on (`rv64si-p-dirty`).
+  does not compare it when a program turns translation on (`rv64si-p-dirty`). Since step 1.8 V1 (`Plan/OOC.md` 29.87)
+  `tb_core`'s architectural memory takes the store's physical address from the lock-step (`SIM/LOCKSTEP`: Spike's tables).
 
 ## The stand-in test (2026-10-29)
 
@@ -299,3 +300,12 @@ rv64uf / ud in the campaign.
 mode's traps (frm 0 to 7 with FP operations that round dynamically and ones that do not; the reserved static modes). All pass;
 CoreMark's timed window unchanged. Core mutations: 2 new (228, 229), 202 and 227 moved; 192 caught by `fprm.S`, 212
 equivalent in time.
+
+## Sv39, the data side (step 1.8 V1, 2026-11-18)
+
+`Plan/OOC.md` 29.87. `OOO_CORE` translates loads and stores (`OOO_PTW`, `OOO_DTLB3`); fetch waits for V2. `b4/dir/vm.S`:
+tables for every kind of page and fault, M mode with MPRV, then S mode under an identity gigapage (Spike translates the
+fetch, the core does not: the same bytes), synonyms, SFENCE.VMA, satp changed with and without SFENCE.VMA; its 28
+exceptions are Spike's. `rv64si-p-dirty` runs now (in run_core's -p- list, 171). `ports.h`'s `DMissModel` takes a synonym
+out before a fill and answers the walker's entries (`dc_pt_*`) from `Memory`; the architectural memory takes each store's
+physical address from the lock-step (`Commit::st_pa`). CoreMark's timed window unchanged to the cycle.

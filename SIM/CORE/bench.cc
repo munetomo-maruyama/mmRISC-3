@@ -277,8 +277,10 @@ bool Bench::commit(const TraceSlot* s, int n)
             if (ref && !ref->check(x, &why)) { fail("mismatch at instruction " + std::to_string(insns) + ": " + why); return false; }
             if (exit_pc && x.pc == exit_pc && !x.trap) { over = true; return false; }      // (exit_sym: no HTIF)
             if (!x.st || x.trap) continue;
-            a->poke(x.st_addr, &x.st_data, x.st_size);
-            if (h->commit_store(x.st_addr, x.st_data, x.st_size) && h->exited) { finish(); return false; }
+            // (the physical address, by the reference's tables: step 1.8 V1)
+            uint64_t pa = ref ? ref->last_st_pa() : x.st_addr;
+            a->poke(pa, &x.st_data, x.st_size);
+            if (h->commit_store(pa, x.st_data, x.st_size) && h->exited) { finish(); return false; }
         }
     }
     return true;
