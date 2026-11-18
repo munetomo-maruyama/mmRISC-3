@@ -10542,3 +10542,44 @@ U3 cannot be called passed yet, so the RTL is unchanged. The analysis is in Plan
 ```text
 Start U3b
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+U3b's changes are in; every test and mutation passes, and the cycle counts are unchanged. Next, please run Vivado again (`synth_ooo.bat OOO_CPU`). How much the timing and the LUTs improve has not been measured in Vivado yet.
+
+**Change 1: timing (OOO_FPUW)**
+- The head of the FP-to-integer FIFO is now dropped only by the kill held in a flip-flop. This cycle's kill no longer reaches port 0's write and the integer file's LVT, so the path that failed in U3 (77 of the 100 worst) should be gone.
+- A head may go out once in the very cycle it is killed, which is harmless: its integer register becomes free only through this kill, its ROB entry is squashed, and the only µops it wakes are killed with it.
+- `tb_fpuw`'s model of the FIFO follows. This case happens 179 to 241 times a run, and those results are checked too.
+
+**Change 2: LUTs (OOO_ROB and the core)**
+- OOO_ROB has an extra field (`disp_x` / `cmt_x`) kept in LUT RAM together with the payload.
+- The FP destination per ROB entry (wr, arch, new, old: 20 bits) moved into it. Until now it was about 1,200 flip-flops, written by 4 slots and read by 4.
+- Only `fr_fl`, written at completion, stays in flip-flops.
+- `tb_rob` drives the new field and checks it at every commit.
+
+**Checks**
+
+| Item | Result |
+|---|---|
+| Unit regression | all PASS |
+| run_core | all 12 runs PASS (both tops) |
+| DSP kernels | the same as U2b to the cycle (mm 37,402, fir out12 10,194, bq ch4 10,271, dot acc12 2,000) |
+| CoreMark's timed window | unchanged at 1,211,530 cycles |
+| `verilator -Wall` | the same warnings as before |
+| Unit mutations | ROB's and FPUW's 47 all detected (1 retargeted, 2 new) |
+| Core mutations | the 4 on changed lines and new ones all detected |
+
+The whole list of core mutations (232) has not been run again.
+
+The results are in Plan/OOC 29.85 (EN/JA), STRATEGY 1.8 and the READMEs, committed and pushed (1add801, Ref/: 0).
+
+When Vivado has run, please tell me. Whether the WNS is positive again and how many LUTs came back (2 to 3k expected) will be the material for your decision on the budget.
+<!-- /answer -->
+
+## 262. 2026-11-18 20:24:02 JST
+
+```text
+Ran Vivado.
+```

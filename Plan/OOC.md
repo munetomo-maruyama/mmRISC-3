@@ -6166,3 +6166,24 @@ The author's go for 29.84's proposal ("Start U3b"). Two changes, neither of them
 **Checks**: the unit regression: every bench PASS. run_core: 12 runs PASS (B2 80, B4 440, -p- 170; both tops). The DSP kernels (double, kstart to kend) as at U2b to the cycle (mm 37,402, fir out12 10,194, bq ch4 10,271, dot acc12 2,000); CoreMark's timed window unchanged (1,211,530 cycles). `verilator -Wall` on `OOO_CPU`: the same warnings as before. **Mutations**: unit, `OOO_ROB`'s 27 and `OOO_FPUW`'s 18 again (the bench changed) with M1473 retargeted (the registered kill forgotten: `fhd` 0) and M1496, M1497 new (the extra payload: every bank's slot 0's, every commit's bank 0's): 47 of 47. Core: 216 and 219 retargeted to `cmt_fx`, 230 (new and old swapped in the extra payload) and 231 (the FP map's architectural register read off) new: 4 of 4. The core's list is now 232; the whole campaign has not been run again (U2a's and U2b's results stand, 29.83).
 
 **Next**: the author's Vivado run (`synth_ooo.bat OOO_CPU`): the WNS without 29.84's path, and the LUTs the FP destination gives back (2 to 3k expected).
+
+### 29.86 Step 1.8 U3b at 20 ns: met, 101,637 LUTs (2026-11-18)
+
+**The run** (by the author, `synth_ooo.bat OOO_CPU`, the RTL of 29.85): **101,637 LUTs** after place and route (85,253 logic + 16,272 LUT RAM), 26,595 FF, 42 DSP, 284.5 tiles of block RAM; **WNS +0.216 ns, TNS 0**; hold +0.028 ns, none failing. The WNS is a port's path (`u_l2`'s `dcnt` → `m_axi4_wdata`, 1 LUT and 12.2 ns of route against the 6 ns of I/O delay given to every port out of context); between flip-flops the worst is **+0.285 ns** (19 levels). No `timing_blocks.rpt` (it is written only when a path fails). **U3 is passed**: step 1.8's U (the renamed FPU) is done.
+
+**The LUTs against U3 (29.84)**: **−3,532 LUTs, −911 FF**, more than the 2 to 3k expected. `OOO_ROB` −3,312 (the core's own logic is counted inside it, 29.84), the core's flip-flops −925 (20 bits x 48 = 960, the FP destination now in LUT RAM), the LUT RAM +192. The other rows move as synthesis spreads the core's logic (`OOO_CTRL` +1,140, `OOO_BUSY` +626, `OOO_IQ3` −842, `FPU_PIPE` −422, `OOO_FIQ` −332, the rest within ±150); only the sum counts. Against I2 (29.79: 80,345): **+21,292 LUTs** for the renamed FPU (U0 said 17.2k; the new blocks 17.0k, the core's own logic about +4.3k).
+
+**The timing**: 29.84's path is gone (`OOO_FPUW`'s worst out is now +3.191 ns, into the integer file's write enable). The worst between flip-flops are now:
+
+| slack | levels | path |
+|---|---|---|
+| +0.285 ns | 19 | `OOO_IQ3`'s entries → the queues' room (`OOO_CTRL`'s `iq_ready`) → `ds_load` → `OOO_FRONT`'s slots that go → which of them take an FP register → `OOO_FREN`'s next head → `free_ok` (U2b's exact ready: 4 free in the next state) |
+| +0.330 / +0.346 ns | 17 | the same start → the FP busy bits (`u_fbusy_a` / `_b`) |
+| +0.355 ns | 29 | integer port 3's W → port 0's write into the integer file (`u_prf`'s LVT RAM), as at I2 |
+| +0.482 ns | 21 | `OOO_FDEC2` → `OOO_UBTB2`'s index, as before |
+
+The first three are new with the FP side (dispatch's go reaching `OOO_FREN`); each could be cut later by a registered `free_ok` asking for more free registers, at the cost U2b measured before its exact ready (FP registers left unused). None is worth changing while it is met.
+
+**The chip at the end of step 1.8**: 101.6k + 7.8k (V, P, K, J as 29.76) = **about 109.4k (82 %)**; with LiteX's SoC (5.3k) **about 114.7k (86 %), 7.0k above the ceiling of 107.7k** (U3 said 10.6k). The ceiling is still the Arty's experience at 50 MHz, not measured on this device (133,800 LUTs).
+
+**The budget** (the author's): the ways to give LUTs back stand as 29.84 listed (FP registers / queue to 64 / 12: about 1.5k, bq ch4 +17 %; one PMP checker shared: about 0.8k; mmRISC-2's C2 / C3 for the FPU: about 1.1k; the debug's size), and each can be taken later without undoing other work: they are a parameter or a block's own change. **Recommended**: go on with V1 (Sv39's data side) and look at the budget again with V3's run at 20 ns (V1, V2, P1 measured), or earlier if the ceiling is measured with LiteX.
