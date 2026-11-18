@@ -34,6 +34,8 @@ instruction in program order:
 | `st`, `st_addr`, `st_data`, `st_size` | The store it made |
 | `st_pa` | The reference's only, not compared: the store's physical address (Spike's satp, effective privilege and tables walked in software after the step; step 1.8 V1, `Plan/OOC.md` 29.87); `Lockstep::last_st_pa()` gives the last checked store's, for the bench's architectural memory |
 
+Since step 1.8 V2 (`Plan/OOC.md` 29.88) the reference's instruction is read through its tables too (the current privilege, by halves; a half that cannot be read is 0), and an instruction fetch fault (cause 1 or 12) is compared without its bits: the core has zeros there, and this software fetch may read a page the walk refused (one not accessed, under Svade).
+
 ## Rules for the core and its test bench
 
 - **HTIF**: the reference answers a store to `tohost` at once (`tohost` back to 0 before its next instruction; exit:

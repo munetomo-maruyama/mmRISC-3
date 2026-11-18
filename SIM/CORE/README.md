@@ -309,3 +309,12 @@ fetch, the core does not: the same bytes), synonyms, SFENCE.VMA, satp changed wi
 exceptions are Spike's. `rv64si-p-dirty` runs now (in run_core's -p- list, 171). `ports.h`'s `DMissModel` takes a synonym
 out before a fill and answers the walker's entries (`dc_pt_*`) from `Memory`; the architectural memory takes each store's
 physical address from the lock-step (`Commit::st_pa`). CoreMark's timed window unchanged to the cycle.
+
+## Sv39, the fetch side (step 1.8 V2, 2026-11-19)
+
+`Plan/OOC.md` 29.88. The fetch is translated too (an ITLB in `OOO_FRONT`, the I$'s tags physical): riscv-tests' -v-
+programs (155, in run_core's -p- list: 329) and riscv-arch-test's Sv39 groups (`b4/build.sh`'s `Sv`, `Svade`, `Svbare`:
+54; the two that jump to an address not canonical left out, as the core's 39-bit pc cannot give Spike's epc) pass on both
+tops; `b4/dir/vmx.S` (the fetch's faults, an instruction across two pages, an I$ synonym, SFENCE.VMA, satp). `ICacheModel`
+reads the physical address; the trace's pc is sign extended from bit 38. The -v- programs found a bug of V1: a try's
+address in the core was zero extended.

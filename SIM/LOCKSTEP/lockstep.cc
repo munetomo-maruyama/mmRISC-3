@@ -186,13 +186,22 @@ struct Lockstep::Impl {
     }
     ~Impl() { proc.reset(); if (devnull) std::fclose(devnull); }
 
+    // the instruction at pc, by halves, each at its physical address (Sv39 for fetch since step 1.8 V2: the current
+    // privilege, no MPRV); a half that cannot be read is 0 (its fetch faults: the core gives zeros there too)
+    uint16_t half(uint64_t va)
+    {
+        uint64_t pa;
+        if (!walk(va, true, pa)) return 0;
+        char* m = mem->addr_to_mem(pa);
+        if (!m) return 0;
+        uint16_t h; std::memcpy(&h, m, 2);
+        return h;
+    }
     uint32_t fetch(uint64_t pc)
     {
-        char* m = mem->addr_to_mem(pc);
-        if (!m) return 0;
-        uint16_t lo; std::memcpy(&lo, m, 2);
+        uint16_t lo = half(pc);
         if ((lo & 3) != 3) return lo;
-        uint32_t w; std::memcpy(&w, m, 4); return w;
+        return lo | (uint32_t)half(pc + 2) << 16;
     }
 
     // HTIF on a store to tohost: answered at once. Device 0 command 0 with
@@ -212,24 +221,34 @@ struct Lockstep::Impl {
 
     // a store's physical address: Sv39 by the reference's satp, its effective privilege (MPRV with MPP in M) and
     // its memory (the store went: the walk succeeds), after the step (step 1.8 V1)
-    uint64_t pa_of(uint64_t va)
+    // (a fetch: the current privilege; a load or store: MPRV with MPP in M). False if the walk finds no valid leaf
+    bool walk(uint64_t va, bool ifetch, uint64_t& pa)
     {
         state_t* s = proc->get_state();
         reg_t ms = proc->get_csr(CSR_MSTATUS), satp = proc->get_csr(CSR_SATP);
-        reg_t eff = ((ms & MSTATUS_MPRV) && s->prv == PRV_M) ? (ms & MSTATUS_MPP) >> 11 : s->prv;
-        if (eff == PRV_M || (satp >> 60) != 8) return va;
+        reg_t eff = (!ifetch && (ms & MSTATUS_MPRV) && s->prv == PRV_M) ? (ms & MSTATUS_MPP) >> 11 : s->prv;
+        pa = va;
+        if (eff == PRV_M || (satp >> 60) != 8) return true;
         uint64_t table = satp & ((1ull << 44) - 1);
         for (int lvl = 2; lvl >= 0; lvl--) {
             uint64_t* e = (uint64_t*)mem->addr_to_mem((table << 12) | (((va >> (12 + 9 * lvl)) & 511) << 3));
-            if (!e) return va;
+            if (!e) return false;
             uint64_t pte = *e, ppn = (pte >> 10) & ((1ull << 44) - 1);
+            if (!(pte & PTE_V)) return false;
             if (pte & (PTE_R | PTE_X)) {
                 uint64_t m = (1ull << (12 + 9 * lvl)) - 1;
-                return ((ppn << 12) & ~m) | (va & m);
+                pa = ((ppn << 12) & ~m) | (va & m);
+                return true;
             }
             table = ppn;
         }
-        return va;
+        return false;
+    }
+    uint64_t pa_of(uint64_t va)
+    {
+        uint64_t pa;
+        walk(va, false, pa);
+        return pa;
     }
 
     // one step of the reference, as a Commit record
@@ -333,7 +352,10 @@ bool Lockstep::check(const Commit& d, std::string* why)
     };
     if (d.pc != r.pc) return bad("pc: DUT " + hex(d.pc) + ", reference " + hex(r.pc));
     uint32_t mask = ((r.insn & 3) == 3) ? 0xffffffffu : 0xffffu;
-    if ((d.insn & mask) != r.insn) return bad("instruction: DUT " + hex(d.insn) + ", reference " + hex(r.insn));
+    // (an instruction fetch fault has no instruction: the core gives zeros, this reference's software fetch may read
+    // a page the walk refused, as one not accessed: step 1.8 V2)
+    bool ifault = r.trap && (r.cause == 1 || r.cause == 12);
+    if (!ifault && (d.insn & mask) != r.insn) return bad("instruction: DUT " + hex(d.insn) + ", reference " + hex(r.insn));
     if (d.trap != r.trap) return bad(std::string("trap: DUT ") + (d.trap ? "yes" : "no") + ", reference " + (r.trap ? "yes" : "no"));
     if (r.trap) {
         if (d.cause != r.cause) return bad("cause: DUT " + hex(d.cause) + ", reference " + hex(r.cause));

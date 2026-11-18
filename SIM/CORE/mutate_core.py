@@ -93,7 +93,8 @@ IPROGS = sorted(glob.glob(os.path.join(HERE, 'b4/work/irq/*.elf')) + glob.glob(o
 CM = [os.path.join(HERE, '../../Plan/trace/work/g14-sflto-zbsc.elf')]     # CoreMark, the last stage
 RV = os.environ.get('RVTESTS', os.path.join(HERE, '../../../mmRISC-2/SIM/SIM_CORE/rvtests'))
 RPROGS = sorted(os.path.join(RV, t) for t in os.listdir(RV)
-                if __import__('re').fullmatch(r'rv64(ui|um|ua|uf|ud|uc|uzba|uzbb|uzbc|uzbs|uzicond|mi|si)-p-[a-z0-9_]+', t) and
+                if (__import__('re').fullmatch(r'rv64(ui|um|ua|uf|ud|uc|uzba|uzbb|uzbc|uzbs|uzicond|mi|si)-p-[a-z0-9_]+', t) or
+                    __import__('re').fullmatch(r'rv64(ui|um|ua|uf|ud|uc|uzba|uzbb|uzbc|uzbs|uzicond)-v-[a-z0-9_]+', t)) and
                 t not in ('rv64mi-p-breakpoint',) and not t.startswith('rv64ua-p-amocas_'))
 CS = 'OOO_CSRU/OOO_CSRU.sv'
 
@@ -102,6 +103,7 @@ L3 = 'OOO_LSU4/OOO_LSU4.sv'   # (OOO_LSU3's lines, in OOO_LSU4 since step 1.5b G
 DM = 'OOO_DMISS2/OOO_DMISS2.sv' # (on OOO_CPU: the runs take VOOO_CPU; the D$ written back since step 1.7b W2)
 CP = 'OOO_CPU/OOO_CPU.sv'       # (the same, step 1.7 H3)
 IC = 'OOO_ICACHE/OOO_ICACHE.sv' # (the same)
+FR = 'OOO_FRONT/OOO_FRONT.sv'   # (the ITLB, step 1.8 V2)
 DE = 'OOO_DEC/OOO_DEC.sv'
 IQ = 'OOO_IQ3/OOO_IQ3.sv'
 SY = 'OOO_SYS/OOO_SYS.sv'
@@ -178,10 +180,10 @@ MUT = [
     (C, "cmp_valid[p]  = ex_v[p] && ex[p].rec.kind", "cmp_valid[p]  = ex_v[p] && ex[p].wr && ex[p].rec.kind", 'ROB: µops without a destination never complete'),
     (C, "cmp_rob[p]    = ex[p].rec.rob;", "cmp_rob[p]    = ex[0].rec.rob;", 'ROB: port 1 completes port 0\'s entry'),
     # B4: exceptions at decode
-    (C, "d2[j].exc            = g_illegal[s] || fexc[j] || g_sys[s][4] || g_sys[s][3];",
-     "d2[j].exc            = g_illegal[s] || fexc[j] || g_sys[s][4];", 'ECALL not an exception'),
-    (C, "d2[j].exc            = g_illegal[s] || fexc[j] || g_sys[s][4] || g_sys[s][3];",
-     "d2[j].exc            = g_illegal[s] || g_sys[s][4] || g_sys[s][3];", 'an FP instruction that traps (FS off, a reserved rounding mode) not illegal (U2: was no FPU)'),
+    (C, "d2[j].exc            = ifl || g_illegal[s] || fexc[j] || g_sys[s][4] || g_sys[s][3];",
+     "d2[j].exc            = ifl || g_illegal[s] || fexc[j] || g_sys[s][4];", 'ECALL not an exception'),
+    (C, "d2[j].exc            = ifl || g_illegal[s] || fexc[j] || g_sys[s][4] || g_sys[s][3];",
+     "d2[j].exc            = ifl || g_illegal[s] || g_sys[s][4] || g_sys[s][3];", 'an FP instruction that traps (FS off, a reserved rounding mode) not illegal (U2: was no FPU)'),
     (C, "g_sys[s][4] ? 5'd3 : (5'd8 | 5'(priv));", "g_sys[s][4] ? 5'd3 : 5'd8;", 'ECALL: the cause without the level'),
     (C, "g_sys[s][4] ? 5'd3 : (5'd8 | 5'(priv));", "g_sys[s][4] ? 5'd2 : (5'd8 | 5'(priv));", 'EBREAK: cause 2'),
     (C, "tv_val[j]   = ds[j].tval;", "tv_val[j]   = ds[0].tval;", 'tval at decode: µop 1 with µop 0\'s'),
@@ -249,7 +251,7 @@ MUT = [
     (CP, ".dc_vr_way(dc_vr_way)", ".dc_vr_way(2'd0)", 'W2: the victim\'s copy read in way 0'),
     (CP, ".miss_vx(dc_miss_vx)", ".miss_vx(2'd0)", "C2: a load's miss filled in the set of vx 0"),
     (CP, ".st_miss_vx(dc_st_miss_vx)", ".st_miss_vx(2'd0)", "C2: a store's miss filled in the set of vx 0"),
-    (C, ".e_addr({m_ea[1], rt_q ? 64'(rt_bq) : m_ea[0]})", ".e_addr({m_ea[1], m_ea[0]})", 'LSU0: a try takes the address left in EX'),
+    (C, ".e_addr({m_ea[1], rt_q ? {{(64 - PAW){rt_bq[PAW-1]}}, rt_bq} : m_ea[0]})", ".e_addr({m_ea[1], m_ea[0]})", 'LSU0: a try takes the address left in EX'),
     (C, "            disp_st[k] = st;", "            disp_st[k] = st + 5'd1;", 'LSU: a load takes the store after it as older'),
     (C, "            ck_lq_tail[k] = lt;", "            ck_lq_tail[k] = l3_lq_tail;", 'LSU: a restore takes the LQ\'s tail of the group\'s start'),
     (C, "            csr_cv  <= x_csr;", "            csr_cv  <= 1'b0;", 'a CSR µop never completes'),
@@ -378,6 +380,18 @@ MUT = [
     (C, "cmp_st_cause == 2'd2 ? 5'd15 :", "cmp_st_cause == 2'd2 ? 5'd13 :", "V1: a store's page fault reported as a load's"),
     (C, ".satp_ppn(satp[43:0])", ".satp_ppn({satp[42:0], 1'b0})", "V1: the walk's root a page off"),
     (DM, "pt_data   = st == S_PANS ? vr_data : p_q;", "pt_data   = p_q;", "V1: an entry found in the D$ answered from the last fill", CPU),
+    # Sv39's fetch side (step 1.8 V2, Plan/OOC.md 29.88): b4/dir/vmx.S, riscv-tests' -v-, riscv-arch-test's Sv groups
+    (C, "rt_q ? {{(64 - PAW){rt_bq[PAW-1]}}, rt_bq} : m_ea[0]", "rt_q ? 64'(rt_bq) : m_ea[0]", "V2: a try's address not sign extended (S mode's high addresses)"),
+    (FR, "assign ic_req_valid = f_req_v && it_hit;", "assign ic_req_valid = f_req_v;", "V2: a fetch without its translation"),
+    (FR, ".ic_req_ready(ic_req_ready && it_hit)", ".ic_req_ready(ic_req_ready)", "V2: fetch takes a request the I$ did not"),
+    (FR, "it_xok ? 2'd0 : it_afo ? 2'd2 : 2'd1;", "it_xok ? 2'd0 : 2'd1;", "V2: a fetch's access fault said to be a page fault"),
+    (FR, "if (out_valid) bf[push_idx] <= fq_f[fq_h];", "if (out_valid) bf[push_idx] <= 2'd0;", "V2: a block's fetch fault lost"),
+    (FR, "assign g_ifault[k] = g_bsel[k] ? g_bf1 : g_bf0;", "assign g_ifault[k] = g_bf0;", "V2: the fault of the group's first block for all"),
+    (C, "ipc                  = g_pc[s] + (VA - 1)'(g_ifx[s]);", "ipc                  = g_pc[s];", "V2: an instruction across into a faulting page: tval its pc"),
+    (C, "d2[j].cause          = ifl ? (g_ifault[s] == 2'd1 ? 5'd12 : 5'd1) :", "d2[j].cause          = ifl ? 5'd12 :", "V2: a fetch's access fault reported as a page fault"),
+    (C, "assign it_on = satp[63:60] == 4'd8 && priv != 2'd3;", "assign it_on = satp[63:60] == 4'd8 && tr_eff != 2'd3;", "V2: fetch translated with MPRV's privilege"),
+    (C, "assign it_au = priv == 2'd0;", "assign it_au = 1'b1;", "V2: S runs user pages"),
+    (C, ".req_id(w_req ? {1'b0, w_rid} : 6'b100000)", ".req_id(w_req ? {1'b0, w_rid} : 6'b000000)", "V2: the fetch's walk taken for the LSU's"),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),

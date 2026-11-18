@@ -11,7 +11,11 @@
 //                only if that one hits). Every accepted request is answered.
 //                The answer is the 32-byte line of the request, read from
 //                Memory when it is given (no cache state: FENCE.I has
-//                nothing to invalidate). Misses are drawn at random.
+//                nothing to invalidate). Misses are drawn at random. Since step
+//                1.8 V2 (Plan/OOC.md 29.88) a request comes with its physical
+//                page (the core's ITLB) and whether it may be fetched: the
+//                line is read at its physical address, and one that may not
+//                be fetched is answered with zeros, never a miss.
 //
 //   DMissModel   the miss handler behind OOO_LSU3 (step 1.3 E1, Plan/OOC.md 29.32), as
 //                tb_lsu3 has it: a line asked for (miss_*, st_miss_*) is
@@ -58,16 +62,22 @@ public:
     bool ready() const { return miss_cnt == 0 && !(s1_v && s1_miss); }
     bool resp_valid() const { return rq_v; }
     // the answer: 8 words, parcel 2k in the low half of word k
-    void resp_data(uint32_t w[8]) const { m.read((rq_pc << 1) & ~31ull, w, 32); }
-    // the clock edge: acc = a request accepted in this cycle at the halfword address pc
-    void clock(bool acc, uint64_t pc)
+    void resp_data(uint32_t w[8]) const
     {
-        bool nv = false; uint64_t npc = 0;
+        if (!rq_ok) { for (int k = 0; k < 8; k++) w[k] = 0; return; }
+        m.read(rq_pc & ~31ull, w, 32);
+    }
+    // the clock edge: acc = a request accepted in this cycle at the halfword address pc, its physical page ptag,
+    // whether it may be fetched (tok)
+    void clock(bool acc, uint64_t pc, uint64_t ptag = ~0ull, bool tok = true)
+    {
+        bool nv = false; uint64_t npc = 0; bool nok = true;
         if (miss_cnt > 0 && --miss_cnt == 0) { nv = true; npc = miss_pc; }
-        if (s1_v && !s1_miss) { nv = true; npc = s1_pc; }
+        if (s1_v && !s1_miss) { nv = true; npc = s1_pc; nok = s1_ok; }
         if (s1_v && s1_miss) { miss_cnt = 2 + (int)(rng() % miss_lat); miss_pc = s1_pc; misses++; }
-        rq_v = nv; rq_pc = npc;
-        s1_v = acc; s1_pc = pc; s1_miss = acc && (int)(rng() % 100) < miss_pct;
+        rq_v = nv; rq_pc = npc; rq_ok = nok;
+        uint64_t pa = ptag == ~0ull ? pc << 1 : (ptag << 12) | ((pc << 1) & 0xfff);   // (a byte address)
+        s1_v = acc; s1_pc = pa; s1_ok = tok; s1_miss = acc && tok && (int)(rng() % 100) < miss_pct;
         reqs += acc;
     }
     long reqs = 0, misses = 0;
@@ -75,7 +85,7 @@ private:
     Memory& m;
     std::mt19937_64 rng;
     int miss_pct, miss_lat;
-    bool s1_v = false, s1_miss = false, rq_v = false;
+    bool s1_v = false, s1_miss = false, rq_v = false, s1_ok = true, rq_ok = true;
     uint64_t s1_pc = 0, rq_pc = 0, miss_pc = 0;
     int miss_cnt = 0;
 };

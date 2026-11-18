@@ -10634,3 +10634,62 @@ The record is in Plan/OOC 29.86 (EN/JA) and STRATEGY 1.8, committed with the rep
 ```text
 Start V1
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+V1 is done: loads and stores are now translated with Sv39. Instruction fetch is still untranslated; that is V2. The tests, mutations and CoreMark all check out, and the LUT increase is my estimate until the Vivado run at V3.
+
+**What I added**
+- **OOO_PTW (new):** the page table walker, based on mmRISC-2's MMU_PTW and connected to OOO_LSU4's walk port.
+  - It reads the page tables through the D$'s miss handler, so it also sees table entries that are still dirty in the write-back D$.
+  - Faults follow Spike's rules. The walker never sets A or D (Svade).
+  - Each walk is cancelled at a TLB flush or a full flush.
+- **OOO_DTLB3 (new):** the DTLB now checks permissions when it is looked up, against the effective privilege.
+  - Each entry keeps the page's U, R, W (only with D), X bits and an access-fault bit.
+  - So traps, returns and mstatus writes need no flush. Otherwise Linux would empty the DTLB on every system call and interrupt.
+  - A flush takes one cycle.
+  - There is no ASID, so SFENCE.VMA and any change of satp flush everything.
+- **OOO_LSU4 / OOO_CORE:** every exception reports its cause (load 4/5/13, store 6/7/15) and its tval, per port. MPRV (with MPP) is handled.
+- **OOO_DMISS2:** reads a page table entry. It looks in the D$ first and fills the line if it isn't there.
+
+**Bench fixes**
+- The bench's final memory compare was applying stores at their virtual address. The lock-step now gives each store's physical address, worked out from Spike's own page tables.
+- The D$ model in the core-only bench could keep one physical line in two sets. It now removes the other copy first, as OOO_DMISS2 does.
+
+**Verification**
+
+| Check | Result |
+|---|---|
+| Unit benches | new tb_ptw against a reference walk that follows Spike's rules; tb_lsu4 now covers privileges, causes and tvals; tb_dmiss2 covers entry reads. All PASS |
+| b4/dir/vm.S (new) | all 28 intended exceptions match Spike's cause and tval in lock-step, on both tops |
+| rv64si-p-dirty | previously left out for paging; now passes and is in run_core |
+| run_core | all 12 runs PASS |
+| Unit regression, lock-step self-test | PASS |
+| `verilator -Wall` | the same warnings as before |
+| CoreMark timed window | 1,211,530 cycles, unchanged to the cycle |
+| Unit mutations | 169 of 169 detected (34 new, 7 retargeted) |
+| Core mutations | 15 of 16 detected (10 new, 6 retargeted) |
+
+- **Unit mutations:** the first pass missed two, and both were gaps in the benches, now closed. tb_lsu4 didn't require a tval for every exception. tb_ptw only generated "W without R" entries in a form the walker rejects for another reason anyway.
+- **Core mutations:** the one undetected (109) was already one of the 8 known undetected. The L2 hides that case from the core, and tb_dmiss2 catches it.
+
+**Estimated cost:** about +0.7k LUTs, inside the +2k that step 1.8's plan allowed for the walker and the ITLB together.
+
+I made one process slip. I edited run_core.sh while bash was still running it, so I stopped that run and reran it clean; the passing run is that clean one.
+
+Everything is recorded in Plan/OOC 29.87 (English and Japanese), STRATEGY, Doc/UARCH and the READMEs. Committed and pushed as 68e9443; Ref/ count on the remote is 0.
+
+Next is V2, translating instruction fetch:
+- an ITLB beside the I$ tags;
+- physical I$ tags;
+- instruction page faults.
+
+After that, the riscv-tests -v- programs and the riscv-arch-test Sv groups can run.
+<!-- /answer -->
+
+## 264. 2026-11-18 22:42:48 JST
+
+```text
+Start V2
+```

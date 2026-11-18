@@ -104,7 +104,10 @@
 // the DTLBs flushed (and a walk cancelled) by SFENCE.VMA or a change of satp (no
 // ASID); a walk cancelled by a flush of everything too. The LSU's exceptions with
 // their cause (misaligned, access fault, page fault: 4 / 5 / 13 a load, 6 / 7 / 15 a
-// store or AMO) and their tval from its W. The fetch is not translated (V2).
+// store or AMO) and their tval from its W. The fetch's translation (step 1.8 V2,
+// Plan/OOC.md 29.88): OOO_FRONT's ITLB on the same walker (the LSU's ask first; bit 5
+// of the id the fetch's), its privilege the current one's; the fetch's faults at D2
+// first (12, 1; tval the pc, + 2 for an instruction across into the faulting page).
 //
 // The commit trace (OOO_TRACE, simulation only): per ROB entry the
 // instruction bits (written at dispatch) and the value written (at
@@ -133,6 +136,8 @@ module OOO_CORE
         // I$
         output logic                        ic_req_valid,
         output logic [VA-1:1]               ic_req_pc,
+        output logic [PAW-1:12]             ic_req_ptag,    // its physical page (the ITLB, step 1.8 V2)
+        output logic                        ic_req_tok,     // ... it may be fetched (else answered with zeros)
         input  logic                        ic_req_ready,
         input  logic                        ic_resp_valid,
         input  logic [255:0]                ic_resp_data,
@@ -376,7 +381,21 @@ module OOO_CORE
     logic [1:0]          fs;
     logic [2:0]          frm;
 
-    OOO_FRONT #(.VA(VA), .NFTQ(NFTQ), .FTQW(FTQW)) u_front
+    // the fetch's translation (step 1.8 V2): the current privilege (not MPRV), from CORE_CSR's registers (a trap or a
+    // return redirects fetch as they change); the walker shared with the LSU (below)
+    logic [3:0][1:0]     g_ifault;              // an instruction's fetch faulted (1 page, 2 access)
+    logic [3:0]          g_ifx;                 // ... in its last half: tval pc + 2
+    logic                it_on, it_au, it_as;
+    logic                iw_req;
+    logic [VA-1:12]      iw_vpn;
+    logic                it_we;
+    logic            w_req, w_done, w_we, w_u, w_r, w_w, w_x, w_af;
+    logic [VA-1:12]  w_vpn, w_tvpn;
+    logic [4:0]      w_rid;
+    logic [5:0]      w_did;                             // {the fetch's, the LSU's asker}
+    logic [PAW-1:12] w_ptag;
+    assign it_we = w_we && w_did[5];
+    OOO_FRONT #(.VA(VA), .PAW(PAW), .NFTQ(NFTQ), .FTQW(FTQW)) u_front
         (.clk(clk), .rst_n(rst_n),
          .fe_redirect(fe_redirect || boot), .fe_flush(fe_flush || boot), .fe_pc(boot ? boot_pc : fe_pc),
          .restore_ftq(restore_ftq), .restore_port(restore_port), .br_e(br_e), .br_taken(br_taken),
@@ -384,8 +403,8 @@ module OOO_CORE
          .rs_valid(rs_valid), .rs_ftq(rs_ftq), .rs_e(rs_e), .rs_taken(rs_taken),
          .bt_valid(bt_valid), .bt_pc(bt_pc), .bt_tgt(bt_tgt), .ftq_pop(ftq_pop),
          .ta_idx(ta_idx), .ta_tgt(ta_tgt), .pa_idx(pa_idx), .pa_line(pa_line),
-         .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ready(ic_req_ready),
-         .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data),
+         .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ptag(ic_req_ptag), .ic_req_tok(ic_req_tok),
+         .ic_req_ready(ic_req_ready), .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data),
          .g_valid(g_valid), .g_pc(g_pc), .g_insn(g_insn), .g_rvc(g_rvc), .g_ftq(g_ftq), .g_end(g_end),
          .g_taken(g_taken), .g_seq(g_seq), .g_illegal(g_illegal), .g_cls(g_cls), .g_op(g_op), .g_rd(g_rd),
          .g_rs1(g_rs1), .g_rs2(g_rs2), .g_use_rs1(g_use_rs1), .g_use_rs2(g_use_rs2), .g_imm(g_imm),
@@ -397,7 +416,9 @@ module OOO_CORE
          .g_csr_op(g_csr_op), .g_csr_imm_sel(g_csr_imm_sel), .g_csr_wr(g_csr_wr), .g_csr_rd(g_csr_rd),
          .g_is_fp(g_is_fp), .g_fp_op(g_fp_op), .g_fp_fmt(g_fp_fmt), .g_fp_rm(g_fp_rm), .g_use_fs(g_use_fs),
          .g_rs3(g_rs3), .g_frd(g_frd), .g_fp_we_rd(g_fp_we_rd), .g_fp_int_signed(g_fp_int_signed),
-         .g_fp_int_w(g_fp_int_w), .g_take(g_take));
+         .g_fp_int_w(g_fp_int_w), .g_ifault(g_ifault), .g_ifx(g_ifx), .g_take(g_take),
+         .it_on(it_on), .it_au(it_au), .it_as(it_as), .it_flush(tlb_flush_all), .iw_req(iw_req), .iw_vpn(iw_vpn),
+         .it_we(it_we), .it_vpn(w_tvpn), .it_ptag(w_ptag), .it_u(w_u), .it_x(w_x), .it_af(w_af));
 
     // ---- D2: the group from its oldest valid slot. The valid slots run from
     // hd to the last one given (D2 takes from the oldest, and the register
@@ -473,8 +494,9 @@ module OOO_CORE
     end
     always @(*) begin
         logic [1:0] s;
-        logic       jmp, link_rd, link_rs1, sysop_v, at;
+        logic       jmp, link_rd, link_rs1, sysop_v, at, ifl;
         logic [2:0] sysop;
+        logic [VA-1:1] ipc;
         for (int j = 0; j < ND; j++) begin
             s        = rs[j];
             // OOO_SYS's operations: 0 FENCE, 1 FENCE.I, 2 SFENCE.VMA, 3 MRET, 4 WFI, 5 SRET (decode's sys:
@@ -533,10 +555,15 @@ module OOO_CORE
             d2[j].arch           = g_rd[s];
             d2[j].rec.kind       = g_cls[s] == 3'd6 ? K_MDU : g_is_csr[s] ? K_CSR : sysop_v ? K_SYS : K_ALU;
             d2[j].rec.xop        = g_cls[s] == 3'd6 ? g_mdu_op[s] : at ? g_mem_cmd[s][3:0] : {1'b0, sysop};
-            // illegal (an FP instruction with FS off or a reserved rounding mode too), EBREAK, ECALL
-            d2[j].exc            = g_illegal[s] || fexc[j] || g_sys[s][4] || g_sys[s][3];
-            d2[j].cause          = (g_illegal[s] || fexc[j]) ? 5'd2 : g_sys[s][4] ? 5'd3 : (5'd8 | 5'(priv));
-            d2[j].tval           = (g_illegal[s] || fexc[j]) ? {32'd0, g_insn[s]}     // (an RVC one: the upper half 0, OOO_FBUF)
+            // a fetch fault (step 1.8 V2: 12 a page fault, 1 an access fault; tval its pc, + 2 if in its last half), illegal
+            // (an FP instruction with FS off or a reserved rounding mode too), EBREAK, ECALL
+            ifl                  = g_ifault[s] != 2'd0;
+            ipc                  = g_pc[s] + (VA - 1)'(g_ifx[s]);
+            d2[j].exc            = ifl || g_illegal[s] || fexc[j] || g_sys[s][4] || g_sys[s][3];
+            d2[j].cause          = ifl ? (g_ifault[s] == 2'd1 ? 5'd12 : 5'd1) :
+                                   (g_illegal[s] || fexc[j]) ? 5'd2 : g_sys[s][4] ? 5'd3 : (5'd8 | 5'(priv));
+            d2[j].tval           = ifl ? {{(64 - VA){ipc[VA-1]}}, ipc, 1'b0}
+                                 : (g_illegal[s] || fexc[j]) ? {32'd0, g_insn[s]}     // (an RVC one: the upper half 0, OOO_FBUF)
                                  : g_sys[s][4] ? {{(64 - VA){g_pc[s][VA-1]}}, g_pc[s], 1'b0} : 64'd0;
             d2[j].ns             = g_nonspec[s];
             d2[j].md             = g_ext_ans[s];
@@ -1339,16 +1366,19 @@ module OOO_CORE
         end
     end
     assign tlb_flush_all = tlb_flush || satp_q != satp;
-    // the walker
-    logic            w_req, w_done, w_we, w_u, w_r, w_w, w_x, w_af;
-    logic [VA-1:12]  w_vpn, w_tvpn;
-    logic [4:0]      w_rid, w_did;
-    logic [PAW-1:12] w_ptag;
+    assign it_on = satp[63:60] == 4'd8 && priv != 2'd3;
+    assign it_au = priv == 2'd0;
+    assign it_as = priv == 2'd1;
+    // the walker (its signals declared above, with the fetch's)
     /* verilator lint_off UNUSEDSIGNAL */      // (its state: for a look from the bench)
     logic            w_busy;
     /* verilator lint_on UNUSEDSIGNAL */
-    OOO_PTW #(.PAW(PAW), .VA(VA), .IW(5)) u_ptw
-        (.clk(clk), .rst_n(rst_n), .req(w_req), .req_vpn(w_vpn), .req_id(w_rid), .satp_ppn(satp[43:0]),
+    // one walker for both sides (step 1.8 V2): the LSU's ask (one cycle, dropped if the walker is busy) first, else the
+    // fetch's (held until its entry is in); bit 5 of the id says the fetch's. Every walk's end is an event for the LSU;
+    // the DTLBs are written by the LSU's walks, the ITLB by the fetch's
+    OOO_PTW #(.PAW(PAW), .VA(VA), .IW(6)) u_ptw
+        (.clk(clk), .rst_n(rst_n), .req(w_req || iw_req), .req_vpn(w_req ? w_vpn : iw_vpn),
+         .req_id(w_req ? {1'b0, w_rid} : 6'b100000), .satp_ppn(satp[43:0]),
          .cancel(tlb_flush_all || flush_all), .busy(w_busy),
          .pt_req(dc_pt_req), .pt_addr(dc_pt_addr), .pt_done(dc_pt_done), .pt_data(dc_pt_data),
          .hold(dc_fill_done), .tlb_done(w_done), .done_id(w_did), .tlb_we(w_we), .tlb_vpn(w_tvpn), .tlb_ptag(w_ptag),
@@ -1367,7 +1397,7 @@ module OOO_CORE
          .rr_st({rr_rec[NAP+1].st, rr_rec[NAP].st}), .rr_size({rr_rec[NAP+1].msize, rr_rec[NAP].msize}),
          .rr_uns({rr_rec[NAP+1].uns, rr_rec[NAP].uns}), .rr_dst(l_rr_dst), .rr_rob({rr_rec[NAP+1].rob, rr_rec[NAP].rob}),
          .rr_bm(m_rr_bm), .rr_at(rr_rec[NAP].xop), .rt_v(rt_v), .rt_base(rt_base),
-         .e_addr({m_ea[1], rt_q ? 64'(rt_bq) : m_ea[0]}),
+         .e_addr({m_ea[1], rt_q ? {{(64 - PAW){rt_bq[PAW-1]}}, rt_bq} : m_ea[0]}),     // (a try: sign extended, step 1.8 V2)
          .sd_v(sd_v), .sd_sq(sd_sq), .sd_size(sd_size), .sd_data(sd_data),
          .sd2_v(sd2_v), .sd2_sq(sd2_sq), .sd2_size(sd2_size), .sd2_data(sd2_data),
          .ld_nv(ld_nv), .ld_nt(ld_nt), .ld_d(ld_d),
@@ -1381,10 +1411,10 @@ module OOO_CORE
          .sq_drained(sq_drained),
          .miss_valid(dc_miss_valid), .miss_line(dc_miss_line), .miss_vx(dc_miss_vx), .miss_id(dc_miss_id),
          .st_miss_valid(dc_st_miss_valid), .st_miss_line(dc_st_miss_line), .st_miss_vx(dc_st_miss_vx), .fill_done(dc_fill_done),
-         .done_v(dc_done_v || w_done), .done_id(w_done ? w_did : dc_done_id), .tw_en(dc_tw_en), .tw_way(dc_tw_way), .tw_set(dc_tw_set),
+         .done_v(dc_done_v || (w_done && !w_did[5])), .done_id((w_done && !w_did[5]) ? w_did[4:0] : dc_done_id), .tw_en(dc_tw_en), .tw_way(dc_tw_way), .tw_set(dc_tw_set),
          .tw_tag(dc_tw_tag), .rf_en(dc_rf_en), .rf_way(dc_rf_way), .rf_addr(dc_rf_addr), .rf_data(dc_rf_data),
          .dirty_set(dc_dirty_set), .dirty_way(dc_dirty_way), .dirty_idx(dc_dirty_idx),
-         .tlb_miss(w_req), .tlb_miss_vpn(w_vpn), .walk_id(w_rid), .tlb_done(w_done), .tlb_we(w_we), .tlb_vpn(w_tvpn),
+         .tlb_miss(w_req), .tlb_miss_vpn(w_vpn), .walk_id(w_rid), .tlb_done(w_done), .tlb_we(w_we && !w_did[5]), .tlb_vpn(w_tvpn),
          .tlb_ptag(w_ptag), .tlb_u(w_u), .tlb_r(w_r), .tlb_w(w_w), .tlb_x(w_x), .tlb_af(w_af), .tlb_flush(tlb_flush_all),
          .uc_line_v(dc_uc_line_v), .uc_line(dc_uc_line), .head_rob(head_rob),
          .uc_req(dc_uc_req), .uc_we(dc_uc_we), .uc_addr(dc_uc_addr), .uc_size(dc_uc_size), .uc_wdata(dc_uc_wdata),

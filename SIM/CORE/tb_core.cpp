@@ -85,6 +85,9 @@ template <class W> static uint64_t wbits(const W& w, int lo, int n)
     return v;
 }
 static uint64_t wbits(uint64_t w, int lo, int n) { return (w >> lo) & (n >= 64 ? ~0ull : ((1ull << n) - 1)); }
+// a pc of the commit trace (VA - 1 bits of halfwords): the address, sign extended from bit VA - 1 (step 1.8 V2: the high
+// virtual addresses of S mode, as Spike's)
+static uint64_t tpc(uint64_t h) { return (uint64_t)(((int64_t)(h << 1) << (64 - VA)) >> (64 - VA)); }
 
 #include <map>
 #include <fstream>
@@ -248,7 +251,7 @@ static bool run(const Opts& o, const std::string& elf)
         int n = 0;
         if (d->tr_trap) {
             s[0] = TraceSlot{};
-            s[0].pc = wbits(d->tr_trap_pc, 0, VA - 1) << 1;
+            s[0].pc = tpc(wbits(d->tr_trap_pc, 0, VA - 1));
             s[0].trap = true; s[0].cause = d->tr_cause | ((uint64_t)d->tr_int << 63);   // (mcause's interrupt bit)
             s[0].insn[0] = (uint32_t)wbits(d->tr_insn, 0, 32);           // the head's instruction
             if ((s[0].insn[0] & 3) != 3) s[0].insn[0] &= 0xffff;
@@ -258,7 +261,7 @@ static bool run(const Opts& o, const std::string& elf)
                 if (!((d->tr_valid >> k) & 1)) continue;
                 TraceSlot& t = s[n++];
                 t = TraceSlot{};
-                t.pc = wbits(d->tr_pc, (VA - 1) * k, VA - 1) << 1;
+                t.pc = tpc(wbits(d->tr_pc, (VA - 1) * k, VA - 1));
                 t.insn[0] = (uint32_t)wbits(d->tr_insn, 32 * k, 32);
                 if ((t.insn[0] & 3) != 3) t.insn[0] &= 0xffff;
                 if ((d->tr_pair >> k) & 1) {                    // ALU + branch (B5a): the write is the ALU's
@@ -294,6 +297,7 @@ static bool run(const Opts& o, const std::string& elf)
         bool flr = d->fl_req;                           // taken now (fl_take is 1): done in the next cycle
         bool acc = d->ic_req_valid && ic.ready();
         uint64_t rpc = d->ic_req_pc;
+        uint64_t rpt = d->ic_req_ptag; bool rtok = d->ic_req_tok;      // (the ITLB's, step 1.8 V2)
 #else
         if (d->rootp->OOO_CPU__DOT__u_icache__DOT__s1_v && !d->rootp->OOO_CPU__DOT__u_icache__DOT__s1_rp) {
             ic_reqs++;
@@ -325,7 +329,7 @@ static bool run(const Opts& o, const std::string& elf)
 #ifndef CPU_TOP
         icf_q = icf && !icf_q;
         flq_q = flr;
-        ic.clock(acc, rpc);
+        ic.clock(acc, rpc, rpt, rtok);
 #endif
 #ifdef CPU_TOP
         ax.clock(arv, ara, arl, rr, awv, awa, awl, wv, wd, ws, br);

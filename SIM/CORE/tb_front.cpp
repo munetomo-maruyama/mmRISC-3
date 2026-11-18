@@ -189,6 +189,9 @@ static Result run(const std::string& elf, const Opts& o)
         d->g_take = 0;
         d->ta_idx = 0;
         d->pa_idx = 0;
+        // the ITLB (step 1.8 V2): translation off, nothing written (the core's bench translates)
+        d->it_on = 0; d->it_au = 0; d->it_as = 0; d->it_flush = 0; d->it_we = 0;
+        d->it_vpn = 0; d->it_ptag = 0; d->it_u = 0; d->it_x = 0; d->it_af = 0;
         d->eval();
 
         auto* rp = d->rootp;

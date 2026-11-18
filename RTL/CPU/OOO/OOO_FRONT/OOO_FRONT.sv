@@ -71,6 +71,21 @@
 // Phase 1 keeps decode's FP fields out of the group register (no FPU;
 // is_fp only), and the instruction bits go with each instruction for the
 // commit trace (simulation; synthesis drops them when nothing reads them).
+//
+// The fetch's translation (step 1.8 V2, Plan/OOC.md 29.88): an ITLB (OOO_DTLB3,
+// 32 sets of 2 ways; its R the leaf's X, MXR off, the privilege the current one's:
+// MPRV is not for fetch) read at F0 by the fetch address (OOO_FETCH2's pc_q, a
+// register). Its physical page goes with the I$ request (ic_req_ptag: the I$'s tags
+// are physical). A miss holds the request (OOO_FETCH2 sees the I$ not ready) and
+// asks the walker (iw_req, until the entry is in); a hit without X for this privilege
+// goes to the I$ with ic_req_tok 0, answered with zeros, and its fault (a page fault,
+// or an access fault with AF) is kept in a queue beside OOO_FETCH2's requests in
+// flight, in the order of the answers, and put with the block's FTQ entry (bf_*, 2
+// bits a block) when it is pushed. D1b reads the faults of the group's two blocks
+// with their lines: an instruction whose last half lies in a faulting block takes
+// the fault (g_ifault) with its pc for tval, pc + 2 for one across two lines
+// (g_ifx: Spike's, the faulting half's address). A faulting block's zeros make
+// 16-bit instructions, so none crosses out of it.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -78,6 +93,7 @@
 module OOO_FRONT
     #(
         parameter int VA   = 39,
+        parameter int PAW  = 40,
         parameter int NFTQ = 32,
         parameter int FTQW = 5,
         parameter int MW   = 531        // OOO_TAGE2's metadata, TAGE-M (the field positions below are its layout)
@@ -122,6 +138,8 @@ module OOO_FRONT
         // I$
         output logic                        ic_req_valid,
         output logic [VA-1:1]               ic_req_pc,
+        output logic [PAW-1:12]             ic_req_ptag,    // its physical page (step 1.8 V2)
+        output logic                        ic_req_tok,     // ... it may be fetched
         input  logic                        ic_req_ready,
         input  logic                        ic_resp_valid,
         input  logic [255:0]                ic_resp_data,
@@ -181,7 +199,23 @@ module OOO_FRONT
         output logic [3:0]        g_fp_we_rd,
         output logic [3:0]        g_fp_int_signed,
         output logic [3:0]        g_fp_int_w,
-        input  logic [2:0]                  g_take      // instructions D2 takes this cycle
+        output logic [3:0][1:0]   g_ifault,     // its fetch faulted: 1 a page fault, 2 an access fault (step 1.8 V2)
+        output logic [3:0]        g_ifx,        // ... in its last half (across two lines): tval pc + 2
+        input  logic [2:0]                  g_take,     // instructions D2 takes this cycle
+
+        // the ITLB (step 1.8 V2): the fetch's privilege (from CORE_CSR), the walker, the flush
+        input  logic                        it_on,      // translation (satp's MODE 8, not M)
+        input  logic                        it_au,      // U mode: U pages
+        input  logic                        it_as,      // S mode: S pages
+        input  logic                        it_flush,
+        output logic                        iw_req,     // a walk wanted for the fetch address (until its entry is in)
+        output logic [VA-1:12]              iw_vpn,
+        input  logic                        it_we,
+        input  logic [VA-1:12]              it_vpn,
+        input  logic [PAW-1:12]             it_ptag,
+        input  logic                        it_u,
+        input  logic                        it_x,
+        input  logic                        it_af
     );
 
     localparam int TM = 4 + VA - 1;     // where TAGE's metadata starts in the FTQ's (above the RAS's)
@@ -238,12 +272,53 @@ module OOO_FRONT
     // the smaller of the two (at most the fetch buffer's 8 blocks)
     assign credit = (FTQW + 1)'(fb_free) < ftq_free ? fb_free : 4'(ftq_free);
 
+    // ---- the ITLB (step 1.8 V2): read at F0 by the fetch address
+    logic            f_req_v;                   // OOO_FETCH2 asks
+    logic            it_hit, it_xok, it_afo;
+    /* verilator lint_off UNUSEDSIGNAL */
+    logic            it_wok;
+    /* verilator lint_on UNUSEDSIGNAL */
+    OOO_DTLB3 #(.SETS(32), .VA(VA), .PAW(PAW)) u_itlb
+        (.clk(clk), .rst_n(rst_n), .tr_on(it_on), .allow_u(it_au), .allow_s(it_as), .mxr(1'b0),
+         .va({{(PAW - VA){1'b0}}, ic_req_pc[VA-1:12]}),
+         .hit(it_hit), .ptag(ic_req_ptag), .r_ok(it_xok), .w_ok(it_wok), .af(it_afo),
+         .tlb_we(it_we), .tlb_vpn(it_vpn), .tlb_ptag(it_ptag),
+         .tlb_u(it_u), .tlb_r(it_x), .tlb_w(1'b0), .tlb_x(1'b0), .tlb_af(it_af), .tlb_flush(it_flush));
+    assign ic_req_valid = f_req_v && it_hit;
+    assign ic_req_tok   = it_xok;
+    assign iw_req       = f_req_v && !it_hit;
+    assign iw_vpn       = ic_req_pc[VA-1:12];
+    // the faults of the requests in flight, in the order of the I$'s answers (as OOO_FETCH2's queue)
+    logic [1:0] fq_f [4];
+    logic [1:0] fq_h;
+    logic [2:0] fq_n;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            fq_h <= '0;
+            fq_n <= '0;
+        end else begin
+            logic [1:0] h;
+            logic [2:0] n;
+            h = fq_h; n = fq_n;
+            if (ic_resp_valid) begin h = h + 2'd1; n = n - 3'd1; end
+            if (ic_req_valid && ic_req_ready) n = n + 3'd1;
+            fq_h <= h;
+            fq_n <= n;
+        end
+    end
+    always_ff @(posedge clk)
+        if (ic_req_valid && ic_req_ready)
+            fq_f[fq_h + fq_n[1:0]] <= it_xok ? 2'd0 : it_afo ? 2'd2 : 2'd1;     // (a pop now moves only the head)
+    // each FTQ block's fault, written with its push (the block goes out with the I$'s answer)
+    logic [1:0] bf [NFTQ];
+    always_ff @(posedge clk) if (out_valid) bf[push_idx] <= fq_f[fq_h];
+
     OOO_FETCH2 #(.VA(VA), .MW(MW)) u_fetch
         (.clk(clk), .rst_n(rst_n),
          .be_stop(fe_redirect), .be_redirect(be_redirect), .be_pc(be_pc), .be_hist(be_hist), .be_hist_n(be_hist_n),
          .be_hist_bits(be_hist_bits), .be_ras_ptr(be_ras_ptr), .be_ras_val(be_ras_val), .be_ras_push(be_ras_push),
          .be_ras_addr(be_ras_addr), .be_ras_pop(be_ras_pop), .credit(credit),
-         .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ready(ic_req_ready),
+         .ic_req_valid(f_req_v), .ic_req_pc(ic_req_pc), .ic_req_ready(ic_req_ready && it_hit),
          .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data),
          .out_valid(out_valid), .out_pc(out_pc), .out_data(out_data), .out_st(out_st), .out_first(out_first),
          .out_cross(out_cross), .out_end(out_end), .out_taken(out_taken),
@@ -558,6 +633,7 @@ module OOO_FRONT
     logic [3:0][FTQW-1:0]  g_ftq_q;
     logic [3:0][31:0]      g_insn_q;
     logic [VA-1:5]         g_line0, g_line1, g_line0m, g_line1m;    // (m: the line before)
+    logic [1:0]            g_bf0, g_bf1;                             // their blocks' fetch faults (step 1.8 V2)
     logic                  g_load, r_free;
     always @(*) begin
         logic [2:0] n;
@@ -610,6 +686,8 @@ module OOO_FRONT
             g_line1  <= rd_pc[1][VA-1:5];
             g_line0m <= rd_pc[0][VA-1:5] - (VA-5)'(1);
             g_line1m <= rd_pc[1][VA-1:5] - (VA-5)'(1);
+            g_bf0    <= bf[rd_idx[0]];
+            g_bf1    <= bf[rd_idx[1]];
             for (int k = 0; k < 4; k++) begin
                 g_bsel[k]   <= r_lh[k] != r_lh[0];
                 g_x[k]      <= r_x[k];
@@ -633,6 +711,8 @@ module OOO_FRONT
         assign g_pc[k]  = {g_bsel[k] ? (g_x[k] ? g_line1m : g_line1) : (g_x[k] ? g_line0m : g_line0), g_off[k]};
         assign g_end[k] = g_off[k] + 4'(!g_rvc_q[k]);
         assign g_illegal[k] = g_d[k].illegal;
+        assign g_ifault[k] = g_bsel[k] ? g_bf1 : g_bf0;
+        assign g_ifx[k] = g_x[k];
         assign g_cls[k] = g_d[k].cls;
         assign g_op[k] = g_d[k].op;
         assign g_rd[k] = g_d[k].rd;

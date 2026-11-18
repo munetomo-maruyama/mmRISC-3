@@ -17,6 +17,11 @@
 // AR (address and its constants), whether an answer comes and its 32 bytes (a hit:
 // the line's words; a miss: the fill's beats of the request's half), and ic_done.
 // Everything is compared each cycle; at the end, nothing is left unanswered.
+// Since step 1.8 V2 (Plan/OOC.md 29.88) the tags are physical: each request comes with its
+// physical page (ic_req_ptag), a virtual page's from a map onto 40 physical pages, so several
+// virtual pages share one (a line in two sets: synonyms, as the index takes the virtual 13:12);
+// the fills read physical lines, and the memory's words are physical. One request in 20 may not
+// be fetched (ic_req_tok 0, a fault): answered with zeros, never a miss.
 //---------------------------------------------------------------------------
 #include "VOOO_ICACHE.h"
 #include <cstdint>
@@ -40,10 +45,17 @@ static uint64_t word(uint64_t a)
     return x;
 }
 
+// a virtual page's physical page (step 1.8 V2): 40 of them, so pages share one
+static uint64_t ppage(uint64_t vp)
+{
+    uint64_t x = vp * 0x9e3779b97f4a7c15ull; x ^= x >> 31;
+    return 0x80000 + x % 40;
+}
+
 int main(int argc, char** argv)
 {
     Verilated::commandArgs(argc, argv);
-    d.clk = 0; d.rst_n = 1; d.ic_req_valid = 0; d.ic_req_pc = 0; d.ic_flush = 0;
+    d.clk = 0; d.rst_n = 1; d.ic_req_valid = 0; d.ic_req_pc = 0; d.ic_req_ptag = 0; d.ic_req_tok = 1; d.ic_flush = 0;
     d.m_axi4_arready = 0; d.m_axi4_rvalid = 0; d.m_axi4_rdata = 0; d.m_axi4_rresp = 0; d.m_axi4_rlast = 0;
     d.eval(); d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
 
@@ -64,8 +76,10 @@ int main(int argc, char** argv)
     static Line c[WAYS][SETS];
     for (auto& x : c) for (auto& y : x) y.v = rng() & 1;      // (the LUT RAM starts at random: the sweep clears it)
     int rr = 0;
-    bool s1_v = false, s1_rp = false; int s1_way = -1; uint64_t s1_line = 0; int s1_half = 0; bool s1_vs[WAYS] = {false};
-    bool busy = false, arp = false, m_err = false, rp = false; uint64_t m_line = 0; int m_half = 0, m_way = 0, beat = 0; uint64_t fb[8];
+    // (a line: its set by the virtual line, its tag the physical page; s1_line / m_line the virtual line, s1_pl / m_pl the physical)
+    bool s1_v = false, s1_rp = false, s1_tok = true; int s1_way = -1; uint64_t s1_line = 0, s1_pl = 0; int s1_half = 0; bool s1_vs[WAYS] = {false};
+    bool busy = false, arp = false, m_err = false, rp = false; uint64_t m_line = 0, m_pl = 0; int m_half = 0, m_way = 0, beat = 0; uint64_t fb[8];
+    long ntok0 = 0, nsyn = 0;
     bool resp_v = false; uint64_t resp[4] = {0}; bool done = false;
     bool cl = true; int fc = 0;                               // the sweep, after the reset
     // ---- the memory's bus
@@ -87,6 +101,9 @@ int main(int argc, char** argv)
         uint64_t pc = (l << 6) | ((rng() & 1) << 5) | (rng() & 31);      // a byte address, its bit 0 dropped below
         if (rng() % 4 == 0 && (next_pc >> 6) == l) pc = next_pc | (rng() & 31);
         d.ic_req_valid = rv; d.ic_req_pc = (pc >> 1) & ((1ull << 38) - 1);
+        uint64_t pl = (ppage(l >> 6) << 6) | (l & 63);            // the physical line
+        bool tok = rng() % 20 != 0;
+        d.ic_req_ptag = pl >> 6; d.ic_req_tok = tok;
         if (!fl && !quiet && cyc >= fl_at) { fl = true; nfl++; if (busy) nfl_busy++; }
         d.ic_flush = fl;
         d.m_axi4_arready = rng() % 10 < 7;
@@ -97,7 +114,7 @@ int main(int argc, char** argv)
         d.eval();
 
         // ---- the outputs against the account
-        bool s1_miss = s1_v && !s1_rp && s1_way < 0;
+        bool s1_miss = s1_v && !s1_rp && s1_way < 0 && s1_tok;
         bool ready = !busy && !s1_miss && !cl && !fl;
         if ((bool)d.ic_req_ready != ready) err("ic_req_ready");
         if ((bool)d.ic_resp_valid != resp_v) err("ic_resp_valid");
@@ -109,7 +126,7 @@ int main(int argc, char** argv)
             }
         }
         if ((bool)d.m_axi4_arvalid != arp) err("arvalid");
-        if (arp && ((uint64_t)d.m_axi4_araddr != (m_line << 6) || d.m_axi4_arid != 2 || d.m_axi4_arlen != 7 ||
+        if (arp && ((uint64_t)d.m_axi4_araddr != (m_pl << 6) || d.m_axi4_arid != 2 || d.m_axi4_arlen != 7 ||
                     d.m_axi4_arsize != 3 || d.m_axi4_arburst != 1)) err("the AR");
         if (!d.m_axi4_rready) err("rready");
         if ((bool)d.ic_done != done) err("ic_done");
@@ -124,14 +141,22 @@ int main(int argc, char** argv)
         uint64_t nresp[4]; for (int k = 0; k < 4; k++) nresp[k] = resp[k];
         if (nresp_v) for (int k = 0; k < 4; k++) nresp[k] = s1_way >= 0 ? c[s1_way][s1_line % SETS].w[4 * s1_half + k] : 0;
         // F0: a request's lookup (or the miss's again), on the lines as they are before the edge
-        bool ns1_v = acc || rp, ns1_rp = rp; int ns1_way = -1; bool ns1_vs[WAYS];
-        uint64_t ns1_line = rp ? m_line : l; int ns1_half = rp ? m_half : (int)((pc >> 5) & 1);
+        bool ns1_v = acc || rp, ns1_rp = rp, ns1_tok = rp || tok; int ns1_way = -1; bool ns1_vs[WAYS];
+        uint64_t ns1_line = rp ? m_line : l, ns1_pl = rp ? m_pl : pl; int ns1_half = rp ? m_half : (int)((pc >> 5) & 1);
         if (ns1_v) {
-            uint64_t set = ns1_line % SETS, tag = ns1_line / SETS;
-            for (int w = 0; w < WAYS; w++) { ns1_vs[w] = c[w][set].v; if (c[w][set].v && c[w][set].tag == tag) ns1_way = w; }
+            uint64_t set = ns1_line % SETS, tag = ns1_pl >> 6;
+            for (int w = 0; w < WAYS; w++) { ns1_vs[w] = c[w][set].v; if (ns1_tok && c[w][set].v && c[w][set].tag == tag) ns1_way = w; }
         }
         if (acc) {
             nacc++; if (ns1_way >= 0) nhit++;
+            if (!tok) ntok0++;
+            // a synonym: the physical line valid in another set too
+            if (ns1_way >= 0)
+                for (int x = 0; x < 4; x++) {
+                    uint64_t ys = (uint64_t)(x << 6) | (l & 63);
+                    if (ys == l % SETS) continue;
+                    for (int w = 0; w < WAYS; w++) if (c[w][ys].v && c[w][ys].tag == (pl >> 6)) { nsyn++; x = 4; break; }
+                }
             next_pc = (l << 6) + ((uint64_t)ns1_half << 5) + 32;
         }
         if (rp) { nrp++; rp = false; busy = false; }
@@ -141,12 +166,12 @@ int main(int argc, char** argv)
             int vic = rr;
             for (int w = WAYS - 1; w >= 0; w--) if (!s1_vs[w]) vic = w;
             if (s1_vs[vic]) nevict++;
-            busy = true; arp = true; m_line = s1_line; m_half = s1_half; m_way = vic; beat = 0; m_err = false;
+            busy = true; arp = true; m_line = s1_line; m_pl = s1_pl; m_half = s1_half; m_way = vic; beat = 0; m_err = false;
         }
         if (arok) {
             arp = false;
             if (burst) err("(a second AR while a burst is out)");
-            burst = true; b_line = m_line; b_beat = 0; b_at = cyc + 1 + (rng() % 50 == 0 ? 40 : (long)(rng() % 20));
+            burst = true; b_line = m_pl; b_beat = 0; b_at = cyc + 1 + (rng() % 50 == 0 ? 40 : (long)(rng() % 20));
         }
         if (busy && rgive) {
             fb[beat] = rdata;
@@ -154,7 +179,7 @@ int main(int argc, char** argv)
             beat++;
             if (fill_end) {
                 Line& x = c[m_way][m_line % SETS];
-                x.tag = m_line / SETS; for (int k = 0; k < 8; k++) x.w[k] = fb[k];
+                x.tag = m_pl >> 6; for (int k = 0; k < 8; k++) x.w[k] = fb[k];
                 x.v = !m_err;
                 if (m_err) nerr++;
                 rr = (rr + 1) % WAYS;
@@ -173,16 +198,19 @@ int main(int argc, char** argv)
         if (fl && d.ic_done) { fl = false; fl_at = cyc + 500 + (long)(rng() % 4000); }
         resp_v = nresp_v; for (int k = 0; k < 4; k++) resp[k] = nresp[k];
         done = ndone;
-        s1_v = ns1_v; s1_rp = ns1_rp; s1_way = ns1_way; s1_line = ns1_line; s1_half = ns1_half;
+        s1_v = ns1_v; s1_rp = ns1_rp; s1_tok = ns1_tok; s1_way = ns1_way; s1_line = ns1_line; s1_pl = ns1_pl; s1_half = ns1_half;
         if (ns1_v) for (int w = 0; w < WAYS; w++) s1_vs[w] = ns1_vs[w];
         // the D$'s writes: a word of the pool now and then
-        if (rng() % 50 == 0) { uint64_t wl = pool[rng() % pool.size()]; mem[((wl << 6) | ((rng() & 7) << 3)) >> 3] = rng(); nwr++; }
+        if (rng() % 50 == 0) {
+            uint64_t vl = pool[rng() % pool.size()], wl = (ppage(vl >> 6) << 6) | (vl & 63);
+            mem[((wl << 6) | ((rng() & 7) << 3)) >> 3] = rng(); nwr++;
+        }
 
         d.clk = 1; d.eval(); d.clk = 0; d.eval();
     }
     if (busy || rp || s1_v || resp_v) err("something left unanswered at the end");
     printf("tb_icache: %ld cycles, %ld requests (%ld hits, %ld misses, %ld evicting, %ld looked up again), %ld answers, "
-           "%ld fills with an error, %ld FENCE.I (%ld during a fill), %ld memory writes, %ld mismatches: %s\n",
-           cyc, nacc, nhit, nmiss, nevict, nrp, nans, nerr, nfl, nfl_busy, nwr, bad, bad ? "FAIL" : "PASS");
-    return bad ? 1 : 0;
+           "%ld fills with an error, %ld FENCE.I (%ld during a fill), %ld memory writes, %ld not to be fetched, %ld hits with the line in another set too, %ld mismatches: %s\n",
+           cyc, nacc, nhit, nmiss, nevict, nrp, nans, nerr, nfl, nfl_busy, nwr, ntok0, nsyn, bad, (bad || ntok0 < 1000 || nsyn < 1000) ? "FAIL" : "PASS");
+    return (bad || ntok0 < 1000 || nsyn < 1000) ? 1 : 0;
 }

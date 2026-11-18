@@ -18,9 +18,13 @@
 // Each column of a way is SETS*2 x 64 bits: at 256 sets 512 x 64 in one RAMB36
 // (512 x 72), the same 32 tiles as at 64 sets; the tags' LUT RAM 4 times as deep.
 // The index takes bits 13:12 of the fetch address, beyond a 4 KB page: with the ITLB
-// (step 1.8) a physical line can sit in up to 4 sets. In an I$ that is harmless: no
-// store writes it, and FENCE.I sweeps every set. Tagged by the fetch address (no
-// translation yet). One miss at a time: a burst of 8 beats on AXI4 (m_axi4_ar*, r*), each word
+// a physical line can sit in up to 4 sets. In an I$ that is harmless: no store writes
+// it, and FENCE.I sweeps every set. Since step 1.8 V2 (Plan/OOC.md 29.88) the tags are
+// physical: the core's ITLB gives the request's physical page with it at F0
+// (ic_req_ptag, its bits 39:12, all of them in the tag, as the index is virtual), and
+// whether it may be fetched (ic_req_tok: a translation that faults is answered with
+// zeros and no fill, as the core marks the block). The fill reads the physical line.
+// One miss at a time: a burst of 8 beats on AXI4 (m_axi4_ar*, r*), each word
 // written into the arrays as it comes, the line's tag and valid bit at the last beat;
 // the cycle after, the request is looked up again in F0 (rp) and answered as a hit,
 // 3 cycles after the last beat (the answer has one source: answered from the beats,
@@ -56,6 +60,8 @@ module OOO_ICACHE
         // ---- OOO_FETCH2
         input  logic                  ic_req_valid,
         input  logic [VA-1:1]         ic_req_pc,
+        input  logic [PAW-1:12]       ic_req_ptag,  // its physical page (the core's ITLB, step 1.8 V2)
+        input  logic                  ic_req_tok,   // ... it may be fetched (else zeros, no fill)
         output logic                  ic_req_ready,
         output logic                  ic_resp_valid,
         output logic [255:0]          ic_resp_data,
@@ -79,7 +85,7 @@ module OOO_ICACHE
 
     localparam int SW = $clog2(SETS);
     localparam int WW = (WAYS > 1) ? $clog2(WAYS) : 1;
-    localparam int TW = VA - 6 - SW;            // the tag: the address above the index
+    localparam int TW = PAW - 12;               // the tag: the physical page (step 1.8 V2)
 
     // ---- F0: the tags compared
     logic [SW-1:0]   idx0;
@@ -92,11 +98,12 @@ module OOO_ICACHE
     logic            rp;                        // a miss's line is in: its request looked up again
     logic            busy;                      // a line asked for, until its request is looked up again
     logic            arv;
-    logic [VA-1:6]   m_line;
+    logic [SW-1:0]   m_set;                     // the miss: its set (the virtual index), its physical line
+    logic [PAW-1:6]  m_line;
     logic            m_half;
 
-    assign idx0 = rp ? m_line[6+SW-1:6]  : ic_req_pc[6+SW-1:6];
-    assign tag0 = rp ? m_line[VA-1:6+SW] : ic_req_pc[VA-1:6+SW];
+    assign idx0 = rp ? m_set              : ic_req_pc[6+SW-1:6];
+    assign tag0 = rp ? m_line[PAW-1:12]   : ic_req_ptag;
     assign hf0  = rp ? m_half            : ic_req_pc[5];
     assign acc  = ic_req_valid && ic_req_ready;
 
@@ -118,8 +125,8 @@ module OOO_ICACHE
     logic [SW-1:0]   t_wa;
     logic [TW:0]     t_wd;
     assign t_we = cl || fill_end;
-    assign t_wa = cl ? fc : m_line[6+SW-1:6];
-    assign t_wd = cl ? '0 : {!m_err && m_axi4_rresp == 2'b00, m_line[VA-1:6+SW]};   // (the way's old line is gone either way)
+    assign t_wa = cl ? fc : m_set;
+    assign t_wd = cl ? '0 : {!m_err && m_axi4_rresp == 2'b00, m_line[PAW-1:12]};   // (the way's old line is gone either way)
 
     logic [63:0]     dq [WAYS][4];              // each way's 32 bytes, read at F0 (zero if it does not hit), by columns
     for (genvar w = 0; w < WAYS; w++) begin : g_way
@@ -127,12 +134,12 @@ module OOO_ICACHE
         always_ff @(posedge clk) if (t_we && (cl || m_way == WW'(w))) tag_ram[t_wa] <= t_wd;
         assign tv[w]   = tag_ram[idx0];
         assign vs0[w]  = tv[w][TW];
-        assign hit0[w] = tv[w][TW] && tv[w][TW-1:0] == tag0;
+        assign hit0[w] = tv[w][TW] && tv[w][TW-1:0] == tag0 && (rp || ic_req_tok);
         for (genvar c = 0; c < 4; c++) begin : g_col      // a column: the c-th 8 bytes of each half line
             (* ram_style = "block" *) logic [63:0] dat [SETS*2];
             always_ff @(posedge clk)
                 if (busy && m_axi4_rvalid && m_way == WW'(w) && beat[1:0] == 2'(c))
-                    dat[{m_line[6+SW-1:6], beat[2]}] <= m_axi4_rdata;
+                    dat[{m_set, beat[2]}] <= m_axi4_rdata;
             always_ff @(posedge clk)                      // (the block RAM's output reset)
                 if (!hit0[w]) dq[w][c] <= '0;
                 else          dq[w][c] <= dat[{idx0, hf0}];
@@ -145,11 +152,13 @@ module OOO_ICACHE
                                                 // its words come by the block RAMs' output reset, s1_hit and s1_vs not needed
     logic            s1_hit;                    // a request that hit
     logic [WAYS-1:0] s1_vs;                     // its set's valid ways
-    logic [VA-1:5]   s1_pc;
+    logic [6+SW-1:5] s1_pc;                     // (the index and the half: the page is s1_ptag)
+    logic [PAW-1:12] s1_ptag;
+    logic            s1_tok;                    // it may be fetched: else answered with zeros, no fill
     logic            s1_miss;
     logic [255:0]    s1_data;
 
-    assign s1_miss      = s1_v && !s1_rp && !s1_hit;
+    assign s1_miss      = s1_v && !s1_rp && !s1_hit && s1_tok;
     assign ic_req_ready = !busy && !s1_miss && !cl && !ic_flush;
 
     always @(*) begin
@@ -209,11 +218,14 @@ module OOO_ICACHE
         if (acc) begin
             s1_hit <= hit0 != '0;
             s1_vs  <= vs0;
-            s1_pc  <= ic_req_pc[VA-1:5];
+            s1_pc  <= ic_req_pc[6+SW-1:5];
+            s1_ptag <= ic_req_ptag;
+            s1_tok <= ic_req_tok;
         end
         if (s1_v && !s1_miss) ic_resp_data <= s1_data;
         if (s1_miss) begin
-            m_line <= s1_pc[VA-1:6];
+            m_set  <= s1_pc[6+SW-1:6];
+            m_line <= {s1_ptag, s1_pc[11:6]};
             m_half <= s1_pc[5];
             m_way  <= vic;
             beat   <= 3'd0;
@@ -226,7 +238,7 @@ module OOO_ICACHE
     end
 
     assign m_axi4_arid    = AXI_ID;
-    assign m_axi4_araddr  = PAW'({m_line, 6'd0});
+    assign m_axi4_araddr  = {m_line, 6'd0};
     assign m_axi4_arlen   = 8'd7;
     assign m_axi4_arsize  = 3'd3;
     assign m_axi4_arburst = 2'b01;
@@ -235,7 +247,7 @@ module OOO_ICACHE
 
     /* verilator lint_off UNUSEDSIGNAL */
     logic unused;
-    assign unused = ^ic_req_pc[4:1];
+    assign unused = ^{ic_req_pc[VA-1:6+SW], ic_req_pc[4:1]};   // (the page: ic_req_ptag)
     /* verilator lint_on UNUSEDSIGNAL */
 
 endmodule

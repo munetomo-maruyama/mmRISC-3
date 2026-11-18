@@ -33,13 +33,13 @@ core with its caches, in lock-step with Spike, meeting 20 ns out of context. The
 | ALUs | ALU0 full (and branches, jumps, the pc; CSR, system, multiply, divide behind it); ALU1..3 `OOO_ALU` `MID` (add / sub, compare, logic, shifts, Zba, andn / orn / xnor, sext / zext.h, czero) |
 | Latencies | ALU 1, **load-use 2**, multiply 2 (pipelined, DSP), mulh* / div / clmul from `CORE_MDU` (one at a time) |
 | Stores | **split**: the address on memory port 0, the data on ALU port 1 into the SQ; a wait table of 256 bits by pc for loads that met a store without its data |
-| L1 I$ | **128 KB**, 256 sets × 8 ways × 64 bytes, 32 bytes a cycle, one miss at a time |
+| L1 I$ | **128 KB**, 256 sets × 8 ways × 64 bytes, 32 bytes a cycle, one miss at a time; set by the virtual address 13:6, physical tags (the ITLB's page at F0, step 1.8 V2) |
 | L1 D$ | **128 KB**, 256 sets × 8 ways × 64 bytes, set by the virtual address 13:6, physical tags (synonyms resolved at the miss), **write back**, 2 load ports (load-use 2), FENCE.I writes every dirty line out |
 | L2 | **512 KB**, 2,048 sets × 4 ways × 64 bytes, write back, pseudo LRU, non-inclusive (mmRISC-2's `CPU_L2`) |
 | Buses | the L2's AXI4 memory bus; the D$'s AXI4-Lite peripheral bus for what is not cacheable (outside [0x8000_0000, 0x1_0000_0000)) |
 | Interrupts | mmRISC-2's CLINT (0x0200_0000) and PLIC (0x0C00_0000, 31 sources, M and S contexts) on the peripheral bus in `OOO_CPU` (`CPU_MMIO`, step 1.8 I1, `Plan/OOC.md` 29.78); mtime at 500 kHz; the PLIC's choice a tree, the lines into the core through registers (I2, 29.79) |
-| Translation | Sv39 for loads and stores since step 1.8 V1 (`Plan/OOC.md` 29.87): `OOO_PTW` (mmRISC-2's walker, the tables read through the D$'s miss handler, Svade), `OOO_DTLB3` a load port (32 sets × 2 ways, the permissions checked at the lookup, no ASID: flushed by SFENCE.VMA or a change of satp) |
-| Not yet | the fetch's translation (an ITLB: V2), PMP checks (the CSRs exist), debug: **step 1.8** (the renamed FPU done: U, 29.82 to 29.86) |
+| Translation | Sv39 for loads and stores since step 1.8 V1 (`Plan/OOC.md` 29.87), for fetch since V2 (29.88: an ITLB, `OOO_DTLB3` in `OOO_FRONT`, read at F0; one walker for both sides): `OOO_PTW` (mmRISC-2's walker, the tables read through the D$'s miss handler, Svade), `OOO_DTLB3` a load port (32 sets × 2 ways, the permissions checked at the lookup, no ASID: flushed by SFENCE.VMA or a change of satp) |
+| Not yet | PMP checks (the CSRs exist), debug: **step 1.8** (the renamed FPU done: U, 29.82 to 29.86) |
 | CoreMark/MHz | **8.244** (`-O2`, GCC 14, Zba / Zbb / Zbs / Zbc, the timed part on `OOO_CPU` with the board's memory latency); 7.835 with GCC 13 (`SIM/CORE/results/coremark.txt`) |
 | Resources | **80,345 LUTs** (60 % of 133,800; 13,902 of them LUT RAM), 19,942 flip-flops, **284.5 block RAM tiles** (of 365), 26 DSP |
 | Timing | **WNS +0.027 ns, hold +0.028 ns** at 20 ns (`Plan/OOC.md` 29.79, with the interrupts; E1c's +0.470 ns, 78,156 LUTs, 29.75) |

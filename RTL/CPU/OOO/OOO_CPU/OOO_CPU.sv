@@ -146,6 +146,8 @@ module OOO_CPU
     logic [63:0]      dc_pt_data;
     logic             ic_req_valid, ic_req_ready, ic_resp_valid, ic_flush, ic_done;
     logic [VA-1:1]    ic_req_pc;
+    logic [PAW-1:12]  ic_req_ptag;                      // (the core's ITLB, step 1.8 V2)
+    logic             ic_req_tok;
     logic [255:0]     ic_resp_data;
     logic             irq_m_soft, irq_m_timer, irq_m_ext, irq_s_ext;      // registered (I2)
     logic             mm_m_soft, mm_m_timer, mm_m_ext, mm_s_ext;          // CPU_MMIO's
@@ -153,7 +155,7 @@ module OOO_CPU
     OOO_CORE #(.VA(VA), .PAW(PAW), .DWAYS(DWAYS)) u_core
         (.clk(clk), .rst_n(rst_n), .boot(boot), .boot_pc(boot_pc),
          .irq_m_soft(irq_m_soft), .irq_m_timer(irq_m_timer), .irq_m_ext(irq_m_ext), .irq_s_ext(irq_s_ext), .mtime(mtime),
-         .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ready(ic_req_ready),
+         .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ptag(ic_req_ptag), .ic_req_tok(ic_req_tok), .ic_req_ready(ic_req_ready),
          .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data),
          .dc_miss_valid(dc_miss_valid), .dc_miss_line(dc_miss_line), .dc_miss_vx(dc_miss_vx), .dc_miss_id(dc_miss_id),
          .dc_st_miss_valid(dc_st_miss_valid), .dc_st_miss_line(dc_st_miss_line), .dc_st_miss_vx(dc_st_miss_vx), .dc_fill_done(dc_fill_done),
@@ -250,7 +252,7 @@ module OOO_CPU
 
     OOO_ICACHE #(.VA(VA), .PAW(PAW), .SETS(256), .WAYS(8), .AXI_ID(4'd2)) u_icache
         (.clk(clk), .rst_n(rst_n),
-         .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ready(ic_req_ready),
+         .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ptag(ic_req_ptag), .ic_req_tok(ic_req_tok), .ic_req_ready(ic_req_ready),
          .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data), .ic_flush(ic_flush), .ic_done(ic_done),
          .m_axi4_arid(i_arid), .m_axi4_araddr(i_araddr), .m_axi4_arlen(i_arlen), .m_axi4_arsize(i_arsize),
          .m_axi4_arburst(i_arburst), .m_axi4_arvalid(i_arvalid), .m_axi4_arready(i_arready),
