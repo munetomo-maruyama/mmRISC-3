@@ -10849,3 +10849,48 @@ The analysis is in Plan/OOC 29.90 (EN/JA) and STRATEGY, committed with the repor
 ```text
 Start V3b
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+V3b is in: the entry of the path that missed 20 ns at V3, the store search's offset compare, has moved to the E stage. M's result does not change by a single cycle.
+
+**The change (OOO_LSU4)**
+- Each SQ entry used to be compared with the load entirely at M. Two of the three terms, the offset compare and the bytes' overlap, are now made at E into a 16-bit register per port, `m_om`. M keeps only the narrowing to older stores and the priority.
+- So that M's result is as before, E also sees two cases as M would:
+  - a store writing its entry at M (port 0) in the cycle the load is at E is compared from its M registers;
+  - an SC failing in that cycle clears its entry's bit.
+- Expected:
+  - the 9-bit compare and its fan-out of 50 leave M, about 2.5 to 3 ns off V3's path;
+  - cost: 32 FF, about 50 LUTs;
+  - E's path grows, but no E path was among V3's worst.
+
+**Verification**
+
+| Item | Result |
+|---|---|
+| Cycle identity | with every state at zero, all 834 runs identical to HEAD to the cycle |
+| run_core | 12 runs PASS |
+| CoreMark | PASS; `OOO_CORE`'s timed window 1,211,530, unchanged |
+| Unit regression | PASS (61) |
+| `verilator -Wall` | the same warnings as HEAD |
+| Unit mutations | 101 of 101 detected |
+| Core mutations | 2 of 2 detected (261, 262 new) |
+
+**What the verification found**
+- **Cycles moving with the random start:** 251 of run_core's runs moved a few cycles (br-15 by 154 at most). With every state at zero they match HEAD exactly, so the cause is P1's: new flip-flops shift the order of the random first values, and the predictors' first contents change.
+- **tb_lsu4 only looked at results:** a false match with a store that has no bytes in common only makes the load wait, its value right, so it slipped through. Each cycle, the match at M is now compared with the old search made from M's own state. Matches with a store being written in the load's E happen 2,020 and 1,550 times (floor 500).
+- **The failing SC:** tb_lsu4 issues no atomic, so the core checks it. b4/dir/atomic.S has a part 7. With ten loads behind each SC at first, the case never happened:
+  - a load that meets the SC's entry before its W waits, is tried again and replayed at its commit; what follows is fetched again, and the late loads' values never commit.
+  - With one load an SC, lock-step fails on the mutated core.
+
+Plan/OOC 29.91 (EN/JA), STRATEGY, Doc/UARCH and the READMEs updated; committed and pushed as d3b9087 (Ref/ on the remote: 0).
+
+Next: please run `synth_ooo.bat OOO_CPU` at 20 ns again. The worst should then be the paths that had +0.007 to +0.29 ns at V3, so even if it meets, the margin will be small.
+<!-- /answer -->
+
+## 268. 2026-11-19 21:21:04 JST
+
+```text
+Ran Vivado.
+```

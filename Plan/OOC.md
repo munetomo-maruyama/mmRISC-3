@@ -6341,3 +6341,17 @@ The cost: 32 flip-flops and about 50 LUTs (the moved compares are the same numbe
 **Mutations**: unit, the 101 of `tb_lsu4` (its bench changed): M1192, M1193 retargeted to E's line, **M1553 to M1555 new** (a store writing its entry in the load's E not seen, matched without bytes in common, matched at any offset; the second only by the new check: a false match makes the load wait and its value is right): **101 of 101**; 1,435 in the list. Core: **261, 262 new** (an SC failing in the load's E keeps its bytes for the search; a store writing its entry in the load's E not seen): **2 of 2**; the core's list is 263.
 
 **Next**: `OOO_CPU` at 20 ns again (the author's Vivado run), V3's measure with V3b.
+
+### 29.92 Step 1.8 V3 again, with V3b: −0.203 ns, 106,056 LUTs (2026-11-19)
+
+**The run** (by the author, `synth_ooo.bat OOO_CPU`, the RTL of 29.91): **106,056 LUTs** after place and route (89,290 logic + 16,656 LUT RAM; 107,629 after synthesis), 27,586 FF, 42 DSP, 284.5 tiles of block RAM; **WNS −0.203 ns, TNS −0.315 ns, 2 endpoints failing**; hold +0.028 ns, none failing. V3 is not passed yet. The LUTs as V3's (+5).
+
+**V3b worked**: the LSU's path into the FP file is gone (`u_fprf`'s worst in now +0.984 ns, from 14 levels); the LSU's worst is now its own W (port 1's address at M → the DTLB → the D$'s hit → `w_ok`, +0.277 ns, 18 levels: P1's risk, met).
+
+**The failing paths**: both are one path, **ALU port 0's EX into the integer file** (32 levels, 19.2 ns, 73 % route): the bypass (each EX operand's tag compared with the 4 ALU ports' WB tags and the 2 loads', `byp_t[q] == ex[p].t1`, then the 7-way select, fan-outs of 65 and 64) → the operand → the ALU's adder (16 CARRY4) and its result's select → port 0's write select (the MDU's, the multiplier's, the FP → integer result, a MUXF7) → `u_prf`'s bank 0 (fan-out 31, 1.65 ns). The same family as U3b's +0.355 ns and V3's +0.021 ns (integer port 3's W, then `lw_t`, into port 0's write): unchanged RTL, closing in as the design grew; ports 2 and 3's WB into the same write are at −0.193 and −0.025 ns, port 1's at +0.164.
+
+**The next paths**: the LSU's W (+0.277 to +0.517 ns, `w_ok`, `w_sd`, `w_uc`, `w_miss`, `w_exc`); the I$'s answer → `OOO_FBUF3`'s `hj` (+0.433 ns, 23 levels) and `OOO_UBTB2`'s `pc_q` (+0.631); `OOO_ROB`'s head → its entries' `done` (+0.486 ns) and `OOO_FTQ`'s tail (+0.608); a CSR write → `pmpmask` (+0.635).
+
+**Proposed: V3c, the bypass's compare at RR**. Each ALU port's bypass compares at EX two registered tags, the operand's (`ex[p].t1`, `t2`, from RR) and each source's (`wb_d`'s tag, from `wbi_t` at EX; `lw_t`, from `ld_nt` at M); both registers always take their inputs (`OOO_STAGE`'s `en` 1, `lw_t` without an enable). So the compare can be made a cycle earlier on those inputs, `wbi_t[q] == rr_t1` and `ld_nt[m] == rr_t1` at RR, into a register (6 bits an operand), and EX selects with `byp_v[q] && m1[q]` as now with the compare: **the same to the bit**, every cycle. Taken off EX: the 7-bit compares and the first level of the select (about 2 ns of the 7 ns before the operand); the 4 ports and both operands alike, so ports 2 and 3's paths go too. The cost: 48 flip-flops, the compares moved (the same number). RR's path gains a compare after `wbi_t` (port 0's: the MDU's or the FP → integer result's tag, from registers). Then the worst should be the LSU's W at +0.277 ns: met, with a few hundred ps.
+
+**Next**: V3c (the author's go), then `OOO_CPU` at 20 ns again.
