@@ -86,6 +86,20 @@
 // the fault (g_ifault) with its pc for tval, pc + 2 for one across two lines
 // (g_ifx: Spike's, the faulting half's address). A faulting block's zeros make
 // 16-bit instructions, so none crosses out of it.
+//
+// PMP (step 1.8 P1, Plan/OOC.md 29.89): an OOO_PMP of 32-byte blocks checks the fetch
+// block at F0 word by word (its physical address, execute, the current privilege), as
+// Spike checks an instruction by its 16-bit pieces at the 4-byte grain: the block's 8
+// denials go with its fault into the queue and the FTQ entry (with the word 7 denial of
+// the block pushed before it, for an instruction across the two). A block with every
+// word denied is not fetched (ic_req_tok 0: zeros); one partly denied is (its other
+// words run). An instruction takes, in Spike's order: in one block, the translation's
+// fault, then its first piece's denial, then its second's (tval pc + 2); across two
+// blocks, its first piece's denial (in the block before), then the second block's
+// translation fault, then its second piece's denial (both pc + 2). It is shared with the walker:
+// in the cycle the walker shows an entry's address (pw_chk), the checker reads it (8
+// bytes, S mode's read) and answers pw_fail, and the fetch is held (its request not
+// given, as on an ITLB miss).
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -215,7 +229,14 @@ module OOO_FRONT
         input  logic [PAW-1:12]             it_ptag,
         input  logic                        it_u,
         input  logic                        it_x,
-        input  logic                        it_af
+        input  logic                        it_af,
+        input  logic [1:0]                  it_priv,    // PMP (step 1.8 P1): the fetch's privilege
+        input  logic [63:0]                 pmp_cfg,
+        input  logic [511:0]                pmp_addr,
+        input  logic [511:0]                pmp_mask,
+        input  logic                        pw_chk,     // the walker's entry to be checked now (the fetch held)
+        input  logic [PAW-1:3]              pw_addr,
+        output logic                        pw_fail
     );
 
     localparam int TM = 4 + VA - 1;     // where TAGE's metadata starts in the FTQ's (above the RAS's)
@@ -284,12 +305,20 @@ module OOO_FRONT
          .hit(it_hit), .ptag(ic_req_ptag), .r_ok(it_xok), .w_ok(it_wok), .af(it_afo),
          .tlb_we(it_we), .tlb_vpn(it_vpn), .tlb_ptag(it_ptag),
          .tlb_u(it_u), .tlb_r(it_x), .tlb_w(1'b0), .tlb_x(1'b0), .tlb_af(it_af), .tlb_flush(it_flush));
-    assign ic_req_valid = f_req_v && it_hit;
-    assign ic_req_tok   = it_xok;
+    // PMP: the fetch block, or the walker's entry
+    logic            pmpf;
+    logic [7:0]      pmpw;                      // the fetch block's words denied
+    OOO_PMP #(.ENTRIES(8), .PAW(PAW), .LB(3)) u_pmp
+        (.cfg(pmp_cfg), .addr(pmp_addr), .mask(pmp_mask), .priv(pw_chk ? 2'd1 : it_priv),
+         .paddr(pw_chk ? {pw_addr, 3'd0} : {ic_req_ptag, ic_req_pc[11:5], 5'd0}), .size(pw_chk ? 3'd3 : 3'd5),
+         .is_read(pw_chk), .is_write(1'b0), .is_exec(!pw_chk), .fail(pmpf), .fail_w(pmpw));
+    assign pw_fail      = pmpf;
+    assign ic_req_valid = f_req_v && it_hit && !pw_chk;
+    assign ic_req_tok   = it_xok && pmpw != 8'hff;
     assign iw_req       = f_req_v && !it_hit;
     assign iw_vpn       = ic_req_pc[VA-1:12];
     // the faults of the requests in flight, in the order of the I$'s answers (as OOO_FETCH2's queue)
-    logic [1:0] fq_f [4];
+    logic [9:0] fq_f [4];                       // {the translation's fault, the words denied}
     logic [1:0] fq_h;
     logic [2:0] fq_n;
     always_ff @(posedge clk or negedge rst_n) begin
@@ -308,17 +337,24 @@ module OOO_FRONT
     end
     always_ff @(posedge clk)
         if (ic_req_valid && ic_req_ready)
-            fq_f[fq_h + fq_n[1:0]] <= it_xok ? 2'd0 : it_afo ? 2'd2 : 2'd1;     // (a pop now moves only the head)
+            fq_f[fq_h + fq_n[1:0]] <= !it_xok ? {it_afo ? 2'd2 : 2'd1, 8'd0} : {2'd0, pmpw};   // (a pop now moves only the head)
     // each FTQ block's fault, written with its push (the block goes out with the I$'s answer)
-    logic [1:0] bf [NFTQ];
-    always_ff @(posedge clk) if (out_valid) bf[push_idx] <= fq_f[fq_h];
+    // ({the block before's word 7 denied, the translation's fault, the words denied})
+    logic [10:0] bf [NFTQ];
+    logic        bf_w7;                         // the last block pushed: its word 7 denied
+    always_ff @(posedge clk) begin
+        if (out_valid) begin
+            bf[push_idx] <= {bf_w7, fq_f[fq_h]};
+            bf_w7        <= fq_f[fq_h][7];
+        end
+    end
 
     OOO_FETCH2 #(.VA(VA), .MW(MW)) u_fetch
         (.clk(clk), .rst_n(rst_n),
          .be_stop(fe_redirect), .be_redirect(be_redirect), .be_pc(be_pc), .be_hist(be_hist), .be_hist_n(be_hist_n),
          .be_hist_bits(be_hist_bits), .be_ras_ptr(be_ras_ptr), .be_ras_val(be_ras_val), .be_ras_push(be_ras_push),
          .be_ras_addr(be_ras_addr), .be_ras_pop(be_ras_pop), .credit(credit),
-         .ic_req_valid(f_req_v), .ic_req_pc(ic_req_pc), .ic_req_ready(ic_req_ready && it_hit),
+         .ic_req_valid(f_req_v), .ic_req_pc(ic_req_pc), .ic_req_ready(ic_req_ready && it_hit && !pw_chk),
          .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data),
          .out_valid(out_valid), .out_pc(out_pc), .out_data(out_data), .out_st(out_st), .out_first(out_first),
          .out_cross(out_cross), .out_end(out_end), .out_taken(out_taken),
@@ -633,7 +669,7 @@ module OOO_FRONT
     logic [3:0][FTQW-1:0]  g_ftq_q;
     logic [3:0][31:0]      g_insn_q;
     logic [VA-1:5]         g_line0, g_line1, g_line0m, g_line1m;    // (m: the line before)
-    logic [1:0]            g_bf0, g_bf1;                             // their blocks' fetch faults (step 1.8 V2)
+    logic [10:0]           g_bf0, g_bf1;                             // their blocks' fetch faults (step 1.8 V2, P1)
     logic                  g_load, r_free;
     always @(*) begin
         logic [2:0] n;
@@ -711,8 +747,28 @@ module OOO_FRONT
         assign g_pc[k]  = {g_bsel[k] ? (g_x[k] ? g_line1m : g_line1) : (g_x[k] ? g_line0m : g_line0), g_off[k]};
         assign g_end[k] = g_off[k] + 4'(!g_rvc_q[k]);
         assign g_illegal[k] = g_d[k].illegal;
-        assign g_ifault[k] = g_bsel[k] ? g_bf1 : g_bf0;
-        assign g_ifx[k] = g_x[k];
+        // the fetch's fault (Spike's order: one block, the translation then each piece's PMP; across two, the first
+        // piece's PMP, then the second block's translation, then the second piece's PMP)
+        logic [10:0] bfk;
+        logic [7:0]  pdk;                   // its block's words denied
+        logic [1:0]  tf;
+        logic        d1, d2;
+        logic [2:0]  w2;                    // the word of its second half
+        always @(*) begin
+            bfk = g_bsel[k] ? g_bf1 : g_bf0;
+            pdk = bfk[7:0];
+            tf  = bfk[9:8];
+            w2  = 3'((g_off[k] + 4'(!g_rvc_q[k])) >> 1);
+            d1  = g_x[k] ? bfk[10] : pdk[g_off[k][3:1]];
+            d2  = g_x[k] ? bfk[0]  : !g_rvc_q[k] && pdk[w2];
+            if (g_x[k]) begin
+                g_ifault[k] = d1 ? 2'd2 : tf != 2'd0 ? tf : d2 ? 2'd2 : 2'd0;
+                g_ifx[k]    = !d1;
+            end else begin
+                g_ifault[k] = tf != 2'd0 ? tf : d1 ? 2'd2 : d2 ? 2'd2 : 2'd0;
+                g_ifx[k]    = tf == 2'd0 && !d1;
+            end
+        end
         assign g_cls[k] = g_d[k].cls;
         assign g_op[k] = g_d[k].op;
         assign g_rd[k] = g_d[k].rd;

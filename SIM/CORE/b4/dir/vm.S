@@ -25,6 +25,8 @@
 # DTLBs, as Spike's TLB is emptied; Linux with ASIDs switches without SFENCE.VMA).
 # In M mode with satp on, before MPRV, a load of a device (not translated; translated, it
 # would page fault: VA 0x1100_0000 is not mapped).
+# At the end of phase A, PMP denies the level-0 table to S mode (an unlocked entry): the
+# MPRV load's walk, S mode's, takes an access fault (step 1.8 P1).
 # The trap handler (M) sums mcause and mtval into registers and skips the access.
 #---------------------------------------------------------------------------
     .equ PTE_V, 1
@@ -67,6 +69,11 @@ _start:
     .option norvc
     la      t0, trap
     csrw    mtvec, t0
+    li      t0, -1                      # PMP entry 0: everything, R W X (S and U code; step 1.8 P1)
+    srli    t0, t0, 10
+    csrw    pmpaddr0, t0
+    li      t0, (3 << 3) | 7
+    csrw    pmpcfg0, t0
     li      s2, 0
     li      s3, 0                       # the causes' sum
     li      s4, 0                       # the tvals'
@@ -180,6 +187,28 @@ _start:
     MIX     a6
     sd      a6, 0(a4)                   # ... no W
     SET_MPP 0
+    # PMP on the walk (step 1.8 P1): l0_low's page denied (an unlocked entry: M itself would pass), the walk is S mode's
+    SET_MPP 1
+    la      t0, l0_low
+    srli    t0, t0, 2
+    ori     t0, t0, 0x1ff               # NAPOT, 4 KB
+    csrw    pmpaddr0, t0
+    li      t0, -1
+    srli    t0, t0, 10
+    csrw    pmpaddr1, t0                # everything
+    li      t0, (3 << 3) | (((3 << 3) | 7) << 8)
+    csrw    pmpcfg0, t0
+    sfence.vma
+    ld      a6, 0x10(a0)                # its walk reads l0_low: a load access fault
+    SET_MPP 1
+    li      t0, -1
+    srli    t0, t0, 10
+    csrw    pmpaddr0, t0
+    li      t0, (3 << 3) | 7
+    csrw    pmpcfg0, t0                 # back: everything
+    sfence.vma
+    ld      a6, 0x10(a0)
+    MIX     a6
     li      t0, (1 << 17) | (1 << 18) | (1 << 19)
     csrc    mstatus, t0                 # MPRV, SUM, MXR off
 

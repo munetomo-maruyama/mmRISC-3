@@ -32,7 +32,11 @@
 //                  and the privilege (allow_u, allow_s, mxr) changes at a flush (the core's
 //                  privilege changes only with nothing in flight): S mode with SUM or without,
 //                  now and then U mode, MXR or not. Page 3 is execute only (read with MXR),
-//                  page 4 a user page, page 5 an access fault
+//                  page 4 a user page, page 5 an access fault. Since step 1.8 P1 (Plan/OOC.md
+//                  29.89) PMP: entry 0 makes the physical page 0x80014 read only, entry 1 opens
+//                  everything; the privilege the bench's S or U, untranslated M or S (drawn at a
+//                  flush): a store there below M is an access fault (a page outside the hot
+//                  few, so the misses' coverage stays)
 // Checks: the value of every load that completes, its exception and its cause (misaligned,
 // an access fault, a page fault) and every exception's tval (tv_*, the virtual address), cmp_ld_rp when it
 // ran more than once, cmp_ld_sd only then and with an older store of that offset whose data
@@ -108,6 +112,10 @@ struct Sim {
     bool stop = false;
     // the privilege (step 1.8 V1): changed at a flush
     bool au = false, as = true, mx = false;
+    bool pm = false;                      // untranslated: M mode (PMP's privilege, step 1.8 P1)
+    long n_pmpd = 0;
+    int ppriv() const { return tr ? (as ? 1 : 0) : (pm ? 3 : 1); }
+    bool pmp_deny(const Op* o) const { return !o->ld && (o->pa >> 12) == 0x80014 && ppriv() != 3; }
     long n_priv = 0, n_umode = 0, n_cause[3] = {0, 0, 0}, n_tv = 0, n_mxr = 0, n_sum = 0, n_user = 0;
     bool r_ok(const Pg& p) const { return !tr || ((p.u ? au : as) && (p.r || (mx && p.x))); }
     bool w_ok(const Pg& p) const { return !tr || ((p.u ? au : as) && p.w); }
@@ -136,7 +144,17 @@ struct Sim {
         d.restore = 0; d.kill = 0; d.flush_all = 0; d.fill_done = 0; d.tw_en = 0; d.rf_en = 0; d.tlb_done = 0; d.tlb_we = 0; d.tlb_flush = 0; d.vr_addr = 0; d.vr_way = 0;
         d.uc_done = 0;                      // (no device here: an input left alone starts at anything, and made ev 1 for ever)
         d.allow_u = au; d.allow_s = as; d.mxr = mx;
+        set_pmp();
         d.tlb_u = d.tlb_r = d.tlb_w = d.tlb_x = d.tlb_af = 0;
+    }
+    void set_pmp() {
+        const uint64_t a0 = (0x80014000ull >> 2) | 0x1ff, a1 = (1ull << 54) - 1;    // a NAPOT page; everything
+        d.pmp_cfg = 0x19 | (0x1full << 8);                                            // NAPOT R; NAPOT R W X
+        for (int i = 0; i < 16; i++) { d.pmp_addr[i] = 0; d.pmp_mask[i] = 0; }
+        uint64_t m0 = a0 ^ (a0 + 1);
+        d.pmp_addr[0] = (uint32_t)a0; d.pmp_addr[1] = (uint32_t)(a0 >> 32); d.pmp_mask[0] = (uint32_t)m0; d.pmp_mask[1] = (uint32_t)(m0 >> 32);
+        d.pmp_addr[2] = (uint32_t)a1; d.pmp_addr[3] = (uint32_t)(a1 >> 32); d.pmp_mask[2] = (uint32_t)a1; d.pmp_mask[3] = (uint32_t)(a1 >> 32);
+        d.pmp_priv = ppriv();
     }
     uint8_t mem0(uint64_t a) { return (uint8_t)((a * 0x9E3779B97F4A7C15ull) >> 56); }
     uint8_t rd(std::map<uint64_t, uint8_t>& m, uint64_t a) { auto it = m.find(a); return it != m.end() ? it->second : mem0(a); }
@@ -166,7 +184,7 @@ struct Sim {
         // to the others', unless who was answered tries first)
         static const int thrash[4] = {0, 1, 6, 7};
         do pi = (tr && (cyc >> 14 & 3) == 3) ? thrash[rng() % 4] : (int)(rng() % ((cyc >> 13 & 1) ? 3 : NPG));
-        while ((o->ld ? !r_ok(pg[pi]) : !w_ok(pg[pi])) && rng() % 32 != 0);
+        while ((o->ld ? !r_ok(pg[pi]) : (!w_ok(pg[pi]) || ((pg[pi].pp == 0x80014) && ppriv() != 3))) && rng() % 32 != 0);
         const Pg& p = pg[pi];
         // lines: 3 sets, 2 lines each in a page, so sets of 4 ways overflow; words near each other
         static const int lines[6] = {0, 1, 16, 17, 32, 33};
@@ -189,9 +207,11 @@ struct Sim {
         bool noncanon = false;
         if (tr && rng() % 256 == 0) { o->va ^= 1ull << (40 + rng() % 24); noncanon = true; }
         bool perm = o->ld ? r_ok(p) : w_ok(p);
-        o->exc = mis || noncanon || !perm;
+        bool pd = pmp_deny(o);
+        o->exc = mis || noncanon || !perm || pd;
         o->badaddr = mis || noncanon;
-        o->cause = mis ? 0 : noncanon ? 2 : p.af ? 1 : 2;
+        o->cause = mis ? 0 : noncanon ? 2 : !perm ? (p.af ? 1 : 2) : 1;
+        if (!mis && !noncanon && perm && pd) n_pmpd++;
         if (tr && !o->exc) {
             if (o->ld && pi == 3) n_mxr++;
             if (pi == 4) { if (as) n_sum++; else n_user++; }
@@ -290,10 +310,12 @@ struct Sim {
             // the privilege may change, as at a trap or a return (now and then U mode; else S, with SUM or without)
             if (prng() % 2) {
                 n_priv++;
+                pm = prng() % 2;
                 if (prng() % 16 == 0) { au = true; as = false; n_umode++; }
                 else { as = true; au = prng() % 2; }
                 mx = prng() % 2;
                 d.allow_u = au; d.allow_s = as; d.mxr = mx;
+                set_pmp();
             }
             for (auto* o : pend) if (!o->ld && !o->data_given && !have_zd && rng() % 2) { zd = *o; zd.bm = 0; have_zd = true; }
             for (auto* o : pend) kill_op(o);
@@ -732,6 +754,7 @@ int main(int argc, char** argv)
         printf("%s: data before the address %ld, after %ld, of a store with an exception %ld, killed with its store %ld; loads that waited for a store's data %ld; FP stores' data %ld (with another's %ld)\n",
                m ? "translated" : "physical", s.n_dfirst, s.n_dlate, s.n_dexc, s.n_zd, s.n_sdw, s.n_fpd, s.n_both);
         printf("%s: pairs %ld, timed %ld; misaligned alone after a flush %ld\n", m ? "translated" : "physical", s.n_pair, s.n_pair_chk, s.n_solo_bad);
+        printf("%s: PMP's access faults %ld\n", m ? "translated" : "physical", s.n_pmpd);
         printf("%s: exceptions misaligned %ld, access faults %ld, page faults %ld, tvals %ld; privilege changed %ld (U mode %ld); loads by MXR %ld, the user page from S (SUM) %ld, from U %ld\n",
                m ? "translated" : "physical", s.n_cause[0], s.n_cause[1], s.n_cause[2], s.n_tv, s.n_priv, s.n_umode, s.n_mxr, s.n_sum, s.n_user);
         printf("%s: loads %ld stores %ld, meeting a store %ld (partly %ld), same offset, another page %ld; tries %ld, replayed %ld; "
@@ -746,7 +769,7 @@ int main(int argc, char** argv)
         if (wmin < 50 ||
             s.n_fwd < 1000 || s.n_part < 100 || s.n_rp < 1000 || s.n_miss < 100 || s.n_stm < 100 || s.n_evict < 100 || s.n_two < 1000 || s.n_p1first < 1000 || s.n_noov < 100 ||
             s.n_written < 1000 || s.n_exc < 50 || s.n_dfirst < 1000 || s.n_dlate < 1000 || s.n_zd < 50 || s.n_sdw < 100 || s.n_fpd < 1000 || s.n_both < 100 || s.n_pair_chk < 100 || s.n_rest < 100 || s.n_fl < 50 || (m == 1 && (s.n_syn < 100 || s.n_solo_bad < 50 || s.n_remap < 10 || s.n_walk < 100 || s.n_alias < 100 || s.n_tflush < 10 ||
-            s.n_cause[1] < 20 || s.n_cause[2] < 50 || s.n_priv < 20 || s.n_umode < 3 || s.n_mxr < 20 || s.n_sum < 20 || s.n_user < 20)) || s.n_cause[0] < 20 || s.n_tv < 50) {
+            s.n_cause[1] < 20 || s.n_cause[2] < 50 || s.n_priv < 20 || s.n_umode < 3 || s.n_mxr < 20 || s.n_sum < 20 || s.n_user < 20)) || s.n_cause[0] < 20 || s.n_tv < 50 || s.n_pmpd < 20) {
             printf("the coverage is too low\n");
             bad++;
         }

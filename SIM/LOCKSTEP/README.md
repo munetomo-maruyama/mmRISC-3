@@ -32,6 +32,7 @@ instruction in program order:
 | `rd`, `rd_fp`, `rd_val` | The register written (−1: none; x0 counts as none), integer or FP, and the value |
 | `rd_skip` | The first half of a fused pair whose result is not written (one write per pair): only `pc` and `insn` are compared |
 | `st`, `st_addr`, `st_data`, `st_size` | The store it made |
+| (config) | `LockstepCfg::pmp_regions`: 8 since step 1.8 P1 (`Plan/OOC.md` 29.89), the core's 8 entries (16 before: the reference kept entries 8 to 15) |
 | `st_pa` | The reference's only, not compared: the store's physical address (Spike's satp, effective privilege and tables walked in software after the step; step 1.8 V1, `Plan/OOC.md` 29.87); `Lockstep::last_st_pa()` gives the last checked store's, for the bench's architectural memory |
 
 Since step 1.8 V2 (`Plan/OOC.md` 29.88) the reference's instruction is read through its tables too (the current privilege, by halves; a half that cannot be read is 0), and an instruction fetch fault (cause 1 or 12) is compared without its bits: the core has zeros there, and this software fetch may read a page the walk refused (one not accessed, under Svade).

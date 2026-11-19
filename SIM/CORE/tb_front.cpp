@@ -192,6 +192,9 @@ static Result run(const std::string& elf, const Opts& o)
         // the ITLB (step 1.8 V2): translation off, nothing written (the core's bench translates)
         d->it_on = 0; d->it_au = 0; d->it_as = 0; d->it_flush = 0; d->it_we = 0;
         d->it_vpn = 0; d->it_ptag = 0; d->it_u = 0; d->it_x = 0; d->it_af = 0;
+        // PMP (step 1.8 P1): M mode, no entry (all open), no walker's check
+        d->it_priv = 3; d->pmp_cfg = 0; d->pw_chk = 0; d->pw_addr = 0;
+        for (int k = 0; k < 16; k++) { d->pmp_addr[k] = 0; d->pmp_mask[k] = 0; }
         d->eval();
 
         auto* rp = d->rootp;

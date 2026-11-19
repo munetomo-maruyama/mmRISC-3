@@ -18,7 +18,9 @@
 // Checks: each entry's address is the reference walk's next; no second read while one
 // is out; the answer (tlb_done with tlb_we) for a walk taken and not aborted only, never
 // with hold, with its id, its page, its physical page, U R W X AF as the reference says;
-// none after a cancel; every walk taken ends.
+// none after a cancel; every walk taken ends. Since step 1.8 P1 (Plan/OOC.md 29.89) a PMP denies
+// the entries of one table page (TPOOL + 7): pmp_fail answers in the cycle of pt_chk, and the walk
+// ends with an access fault there.
 //---------------------------------------------------------------------------
 #include "VOOO_PTW.h"
 #include <cstdint>
@@ -72,6 +74,7 @@ static uint64_t draw()
     }
     return pte;
 }
+static bool pmp_deny(uint64_t a) { return (a >> 12) == TPOOL + 7; }      // (step 1.8 P1)
 static uint64_t rd(uint64_t a)
 {
     auto it = mem.find(a);
@@ -87,7 +90,7 @@ static Res walk(uint64_t root, uint64_t vpn)
     uint64_t table = root;
     for (int lvl = 2; lvl >= 0; lvl--) {
         uint64_t a = (table << 12) | (((vpn >> (9 * lvl)) & 511) << 3);
-        if ((a >> 40) != 0 || a < CBASE || a >= CTOP) { s.kind = 2; s.af = 1; return s; }
+        if ((a >> 40) != 0 || a < CBASE || a >= CTOP || pmp_deny(a)) { s.kind = 2; s.af = 1; return s; }
         s.reads.push_back(a);
         uint64_t pte = rd(a), ppn = (pte >> 10) & ((1ull << 44) - 1);
         bool v = pte & PTE_V, r = pte & PTE_R, w = pte & PTE_W, x = pte & PTE_X;
@@ -119,7 +122,7 @@ int main(int argc, char** argv)
     }
     std::vector<uint64_t> roots = {TPOOL, TPOOL + 5, TPOOL + 11, 0x40010, 1ull << 33};    // (two that fault at once)
     uint64_t root = roots[0];
-    d.clk = 0; d.rst_n = 1; d.req = 0; d.cancel = 0; d.pt_done = 0; d.hold = 0; d.satp_ppn = root;
+    d.clk = 0; d.rst_n = 1; d.req = 0; d.cancel = 0; d.pt_done = 0; d.hold = 0; d.satp_ppn = root; d.pmp_fail = 0;
     d.eval(); d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
 
     long bad = 0, cyc = 0;
@@ -128,7 +131,7 @@ int main(int argc, char** argv)
     Res ex; int ex_id = 0; uint64_t ex_vpn = 0; size_t nread = 0;
     bool out = false; long out_at = 0; uint64_t out_a = 0;    // an entry asked for, not answered
     long n_walk = 0, n_kind[3] = {0, 0, 0}, n_lvl[3] = {0, 0, 0}, n_abort = 0, n_abw = 0, n_abd = 0, n_hold = 0, n_drop = 0, n_root = 0;
-    long last_end = 0;
+    long last_end = 0, n_pmp = 0;
     const long N = 400000;
     for (cyc = 0; cyc < N + 200; cyc++) {
         bool tail = cyc >= N;
@@ -151,7 +154,10 @@ int main(int argc, char** argv)
         if (out && cyc >= out_at) { d.pt_done = 1; d.pt_data = rd(out_a); }
         else d.pt_data = rng();
         bool idle = !d.busy;
+        d.pmp_fail = 0;
         d.eval();
+        // PMP answers the entry's address shown now (from registers: no loop)
+        if (d.pt_chk && pmp_deny((uint64_t)d.pt_addr << 3)) { d.pmp_fail = 1; d.eval(); n_pmp++; }
 
         // ---- what the walker does
         if (d.pt_req) {
@@ -201,10 +207,10 @@ int main(int argc, char** argv)
     }
     if (on) err("the last walk not ended");
     printf("tb_ptw: %ld walks (%ld asks dropped, busy): leaves %ld (4 KB %ld, 2 MB %ld, 1 GB %ld), page faults %ld, access faults %ld; aborts %ld (an entry out %ld, at the answer %ld), "
-           "roots changed %ld, answers held %ld cycles; entries drawn: pointers %ld, leaves %ld, not valid %ld, reserved %ld, W without R %ld; %ld mismatches: ",
-           n_walk, n_drop, n_kind[0], n_lvl[0], n_lvl[1], n_lvl[2], n_kind[1], n_kind[2], n_abort, n_abw, n_abd, n_root, n_hold,
+           "roots changed %ld, answers held %ld cycles, PMP denials %ld; entries drawn: pointers %ld, leaves %ld, not valid %ld, reserved %ld, W without R %ld; %ld mismatches: ",
+           n_walk, n_drop, n_kind[0], n_lvl[0], n_lvl[1], n_lvl[2], n_kind[1], n_kind[2], n_abort, n_abw, n_abd, n_root, n_hold, n_pmp,
            n_draw[0], n_draw[1], n_draw[2], n_draw[3], n_draw[4], bad);
-    bool ok = bad == 0 && n_lvl[0] > 500 && n_lvl[1] > 200 && n_lvl[2] > 100 && n_kind[1] > 1000 && n_kind[2] > 200 && n_abw > 50 && n_abd > 20 && n_hold > 500 && n_root > 30;
+    bool ok = bad == 0 && n_lvl[0] > 500 && n_lvl[1] > 200 && n_lvl[2] > 100 && n_kind[1] > 1000 && n_kind[2] > 200 && n_abw > 50 && n_abd > 20 && n_hold > 500 && n_root > 30 && n_pmp > 200;
     printf("%s\n", ok ? "PASS" : "FAIL");
     return ok ? 0 : 1;
 }

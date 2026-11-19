@@ -389,6 +389,10 @@ module OOO_CORE
     logic                iw_req;
     logic [VA-1:12]      iw_vpn;
     logic                it_we;
+    // PMP (step 1.8 P1): CORE_CSR's 8 entries; the walker's entry checked by OOO_FRONT's checker
+    logic [63:0]         pmpcfg;
+    logic [511:0]        pmpaddr, pmpmask;
+    logic                pw_chk, pw_fail;
     logic            w_req, w_done, w_we, w_u, w_r, w_w, w_x, w_af;
     logic [VA-1:12]  w_vpn, w_tvpn;
     logic [4:0]      w_rid;
@@ -418,7 +422,9 @@ module OOO_CORE
          .g_rs3(g_rs3), .g_frd(g_frd), .g_fp_we_rd(g_fp_we_rd), .g_fp_int_signed(g_fp_int_signed),
          .g_fp_int_w(g_fp_int_w), .g_ifault(g_ifault), .g_ifx(g_ifx), .g_take(g_take),
          .it_on(it_on), .it_au(it_au), .it_as(it_as), .it_flush(tlb_flush_all), .iw_req(iw_req), .iw_vpn(iw_vpn),
-         .it_we(it_we), .it_vpn(w_tvpn), .it_ptag(w_ptag), .it_u(w_u), .it_x(w_x), .it_af(w_af));
+         .it_we(it_we), .it_vpn(w_tvpn), .it_ptag(w_ptag), .it_u(w_u), .it_x(w_x), .it_af(w_af),
+         .it_priv(priv), .pmp_cfg(pmpcfg), .pmp_addr(pmpaddr), .pmp_mask(pmpmask),
+         .pw_chk(pw_chk), .pw_addr(dc_pt_addr), .pw_fail(pw_fail));
 
     // ---- D2: the group from its oldest valid slot. The valid slots run from
     // hd to the last one given (D2 takes from the oldest, and the register
@@ -1139,11 +1145,9 @@ module OOO_CORE
     logic            m_tw, m_tsr, m_tvm;
     logic            m_sum, m_mxr, m_mprv;
     logic [1:0]      m_mpp;
-    /* verilator lint_off UNUSEDSIGNAL */      // (satp's ASID; PMP, debug, triggers: Phase 2)
+    /* verilator lint_off UNUSEDSIGNAL */      // (satp's ASID; debug, triggers: Phase 2)
     logic [63:0]     satp;
     logic            menv_cbze, senv_cbze, dcsr_step, dcsr_ebm, dcsr_ebs, dcsr_ebu, tctl_mte;
-    logic [63:0]     pmpcfg;
-    logic [511:0]    pmpaddr, pmpmask;
     logic [63:0]     dbg_rdata, dpc;
     logic [31:0]     trig_cfg;
     logic [255:0]    trig_addr;
@@ -1350,18 +1354,20 @@ module OOO_CORE
     // ---- translation (step 1.8 V1, Plan/OOC.md 29.87): the effective privilege of loads and stores (MPRV with MPP in M),
     // registered: it changes only at a trap, a return or a CSR write, each with nothing younger in flight after it
     logic            tr_on, tr_au, tr_as, tr_mxr;
+    logic [1:0]      tr_ep;                             // ... the privilege itself (PMP's, step 1.8 P1)
     logic [1:0]      tr_eff;
     logic [63:0]     satp_q;
     logic            tlb_flush_all;                     // SFENCE.VMA, or satp changed (no ASID in the DTLBs)
     assign tr_eff = (m_mprv && priv == 2'd3) ? m_mpp : priv;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            tr_on <= 1'b0; tr_au <= 1'b0; tr_as <= 1'b0; tr_mxr <= 1'b0; satp_q <= '0;
+            tr_on <= 1'b0; tr_au <= 1'b0; tr_as <= 1'b0; tr_mxr <= 1'b0; tr_ep <= 2'd3; satp_q <= '0;
         end else begin
             tr_on  <= satp[63:60] == 4'd8 && tr_eff != 2'd3;
             tr_au  <= tr_eff == 2'd0 || (tr_eff == 2'd1 && m_sum);
             tr_as  <= tr_eff == 2'd1;
             tr_mxr <= m_mxr;
+            tr_ep  <= tr_eff;
             satp_q <= satp;
         end
     end
@@ -1380,7 +1386,8 @@ module OOO_CORE
         (.clk(clk), .rst_n(rst_n), .req(w_req || iw_req), .req_vpn(w_req ? w_vpn : iw_vpn),
          .req_id(w_req ? {1'b0, w_rid} : 6'b100000), .satp_ppn(satp[43:0]),
          .cancel(tlb_flush_all || flush_all), .busy(w_busy),
-         .pt_req(dc_pt_req), .pt_addr(dc_pt_addr), .pt_done(dc_pt_done), .pt_data(dc_pt_data),
+         .pt_req(dc_pt_req), .pt_addr(dc_pt_addr), .pt_chk(pw_chk), .pmp_fail(pw_fail),
+         .pt_done(dc_pt_done), .pt_data(dc_pt_data),
          .hold(dc_fill_done), .tlb_done(w_done), .done_id(w_did), .tlb_we(w_we), .tlb_vpn(w_tvpn), .tlb_ptag(w_ptag),
          .tlb_u(w_u), .tlb_r(w_r), .tlb_w(w_w), .tlb_x(w_x), .tlb_af(w_af));
     /* verilator lint_off UNUSEDSIGNAL */      // (the commit trace's)
@@ -1391,6 +1398,7 @@ module OOO_CORE
     logic [ROBW-1:0] cmp_st_rob;
     OOO_LSU4 #(.NLQ(16), .NSQ(16), .PAW(PAW), .VA(VA), .TAGW(TAGW + 2), .ROBW(ROBW), .NCK(NCKPT), .DWAYS(DWAYS)) u_lsu
         (.clk(clk), .rst_n(rst_n), .tr_on(tr_on), .allow_u(tr_au), .allow_s(tr_as), .mxr(tr_mxr),
+         .pmp_priv(tr_ep), .pmp_cfg(pmpcfg), .pmp_addr(pmpaddr), .pmp_mask(pmpmask),
          .lq_alloc(lq_alloc), .sq_alloc(sq_alloc), .lq_tail(l3_lq_tail), .sq_tail(l3_sq_tail),
          .lq_free(l3_lq_free), .sq_free(l3_sq_free),
          .rr_valid(m_rr_v), .rr_ld(rr_rec[NAP].is_ld), .rr_lq({rr_rec[NAP+1].lq, rr_rec[NAP].lq}), .rr_sq(rr_rec[NAP].sq),

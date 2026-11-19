@@ -25,7 +25,7 @@
 # both tops, to their HTIF exit; with b4/dir/illegal.S (the exceptions
 # found at decode), b4/dir/dcrace.S (the D$'s races behind the L2) and
 # b4/dir/atomic.S (the atomics, step 1.4 E1c), b4/dir/devld.S (device loads at the
-# head alone, step 1.8 I1), b4/dir/vm.S (Sv39's data side, step 1.8 V1), b4/dir/vmx.S (its fetch side, V2). The interrupts (step 1.8 I1, Plan/OOC.md 29.78): b4/irq and
+# head alone, step 1.8 I1), b4/dir/vm.S (Sv39's data side, step 1.8 V1), b4/dir/vmx.S (its fetch side, V2), b4/dir/pmpx.S (PMP on the fetch word by word, P1). The interrupts (step 1.8 I1, Plan/OOC.md 29.78): b4/irq and
 # the Interrupts groups on OOO_CPU alone (its CLINT and PLIC; OOO_CORE has none).
 # The restores of the first run are what mutate_core.py holds the mutated
 # cores to.

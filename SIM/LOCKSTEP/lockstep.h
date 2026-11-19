@@ -76,7 +76,8 @@ struct LockstepCfg {
     std::string priv = "MSU";
     uint64_t    mem_base = 0x80000000ull;
     uint64_t    mem_size = 64ull << 20;
-    unsigned    pmp_regions = 16;     // mmRISC-2: 8 entries, pmpaddr8 to 15 read 0
+    unsigned    pmp_regions = 8;      // mmRISC-2's 8 entries (step 1.8 P1: 16 had Spike keep entries 8 to 15, which
+                                      //  the core reads 0 and does not check)
     // the CSRs where the core (mmRISC-2's CORE_CSR) and Spike make different
     // legal choices: the reference is put where the core is (0 / false: Spike's own)
     uint64_t    misa = 0x800000000014112Full;  // read-only, this value (Spike: writable)

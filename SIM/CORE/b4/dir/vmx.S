@@ -60,6 +60,11 @@ _start:
     .option norvc
     la      t0, trap
     csrw    mtvec, t0
+    li      t0, -1                      # PMP entry 0: everything, R W X (S and U code; step 1.8 P1)
+    srli    t0, t0, 10
+    csrw    pmpaddr0, t0
+    li      t0, (3 << 3) | 7
+    csrw    pmpcfg0, t0
     li      s2, 0
     li      s3, 0
     li      s4, 0

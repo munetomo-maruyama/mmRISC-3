@@ -22,8 +22,10 @@
 // it, and FENCE.I sweeps every set. Since step 1.8 V2 (Plan/OOC.md 29.88) the tags are
 // physical: the core's ITLB gives the request's physical page with it at F0
 // (ic_req_ptag, its bits 39:12, all of them in the tag, as the index is virtual), and
-// whether it may be fetched (ic_req_tok: a translation that faults is answered with
-// zeros and no fill, as the core marks the block). The fill reads the physical line.
+// whether it may be fetched (ic_req_tok: a translation or PMP that faults is answered
+// with zeros and no fill, as the core marks the block; taken at F1 since step 1.8 P1,
+// the answer's register zeroed, so the ITLB's and PMP's decision is not on F0's path
+// to the data RAM's output reset). The fill reads the physical line.
 // One miss at a time: a burst of 8 beats on AXI4 (m_axi4_ar*, r*), each word
 // written into the arrays as it comes, the line's tag and valid bit at the last beat;
 // the cycle after, the request is looked up again in F0 (rp) and answered as a hit,
@@ -134,7 +136,7 @@ module OOO_ICACHE
         always_ff @(posedge clk) if (t_we && (cl || m_way == WW'(w))) tag_ram[t_wa] <= t_wd;
         assign tv[w]   = tag_ram[idx0];
         assign vs0[w]  = tv[w][TW];
-        assign hit0[w] = tv[w][TW] && tv[w][TW-1:0] == tag0 && (rp || ic_req_tok);
+        assign hit0[w] = tv[w][TW] && tv[w][TW-1:0] == tag0;
         for (genvar c = 0; c < 4; c++) begin : g_col      // a column: the c-th 8 bytes of each half line
             (* ram_style = "block" *) logic [63:0] dat [SETS*2];
             always_ff @(posedge clk)
@@ -222,7 +224,7 @@ module OOO_ICACHE
             s1_ptag <= ic_req_ptag;
             s1_tok <= ic_req_tok;
         end
-        if (s1_v && !s1_miss) ic_resp_data <= s1_data;
+        if (s1_v && !s1_miss) ic_resp_data <= s1_tok ? s1_data : '0;   // (one that may not be fetched: zeros)
         if (s1_miss) begin
             m_set  <= s1_pc[6+SW-1:6];
             m_line <= {s1_ptag, s1_pc[11:6]};

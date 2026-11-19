@@ -94,6 +94,10 @@
 // port each: every exception, misaligned too). A page fault: an address not canonical with translation on,
 // or no permission in an entry without AF; an access fault: an entry with AF, or an atomic outside the
 // cacheable memory.
+//
+// PMP (step 1.8 P1, Plan/OOC.md 29.89): an OOO_PMP a port, in M, on the physical address ({t_ptag, the
+// offset}) with the access's size and kind (an AMO reads and writes) and the effective privilege
+// (pmp_priv: MPRV with MPP); a denial is an access fault, after the translation's own faults.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -118,6 +122,10 @@ module OOO_LSU4
         input  logic                     allow_u,    // the effective privilege (step 1.8 V1): U pages may be accessed
         input  logic                     allow_s,    // ... S pages
         input  logic                     mxr,        // ... X pages read
+        input  logic [1:0]               pmp_priv,   // PMP (step 1.8 P1): the effective privilege
+        input  logic [63:0]              pmp_cfg,    // CORE_CSR's 8 entries
+        input  logic [511:0]             pmp_addr,
+        input  logic [511:0]             pmp_mask,
 
         // ---- dispatch: how many; renaming numbers them from the tails
         input  logic [2:0]               lq_alloc,
@@ -728,7 +736,14 @@ module OOO_LSU4
         logic [63:0] m_f, m_w [DWAYS];
         logic [63:0] m_dw;                  // the hit way's word
         logic        f_cv, f_ok, m_hit;
-        logic        m_bad, m_perm;
+        logic        m_bad, m_perm, m_permt, m_pmpf;    // (m_permt: the translation's alone; m_pmpf: PMP denies)
+        // PMP on the physical address (step 1.8 P1)
+        /* verilator lint_off PINCONNECTEMPTY */   // (each word alone: the fetch's)
+        OOO_PMP #(.ENTRIES(8), .PAW(PAW), .LB(1)) u_pmp
+            (.cfg(pmp_cfg), .addr(pmp_addr), .mask(pmp_mask), .priv(pmp_priv),
+             .paddr({t_ptag, m_a[11:0]}), .size({1'b0, m_size}),
+             .is_read(m_ld), .is_write(!m_ld || m_amo), .is_exec(1'b0), .fail(m_pmpf), .fail_w());
+        /* verilator lint_on PINCONNECTEMPTY */
         logic        m_uc, m_ucd;           // for a device; the last try of one, with its word in uc_q
         logic [63:0] m_u;
         always @(*) begin
@@ -744,7 +759,8 @@ module OOO_LSU4
             f_cv   = (sm_f[f_idx] & m_lmask) == m_lmask && sp[f_idx] && !sat[f_idx] && st_r[f_idx] == t_ptag;   // it can forward
             f_ok   = f_cv && sdv[f_idx];                                                          // ... with its data
             m_bad  = m_mis || (tr_on && !(&m_hi || !(|m_hi)));
-            m_perm = m_ld ? t_r && (!m_amo || t_w) : t_w;
+            m_permt = m_ld ? t_r && (!m_amo || t_w) : t_w;
+            m_perm = m_permt && !m_pmpf;
             m_uc   = uncached({t_ptag, m_a[11:0]});
             m_ucd  = p == 0 && m_ld && m_try && !m_id[LW] && lucd[m_id[LW-1:0]];
             m_u    = align(uc_q, m_off, m_spos, m_s0, m_s01, m_s3, m_sen);
@@ -822,7 +838,7 @@ module OOO_LSU4
             w_bm   <= m_bm;
             w_lq   <= m_lq;
             w_exc  <= m_bad || (t_hit && !m_perm) || (t_hit && at_uc);
-            w_cause <= m_mis ? 2'd0 : m_bad ? 2'd2 : (t_hit && !m_perm) ? (t_af ? 2'd1 : 2'd2) : 2'd1;
+            w_cause <= m_mis ? 2'd0 : m_bad ? 2'd2 : (t_hit && !m_perm) ? ((t_af || m_permt) ? 2'd1 : 2'd2) : 2'd1;
             w_amo  <= m_amo;
             w_sc   <= m_sc;
             w_lr   <= m_at == 4'd2;

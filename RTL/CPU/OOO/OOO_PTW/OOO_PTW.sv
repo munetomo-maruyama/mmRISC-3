@@ -19,8 +19,10 @@
 //   Svpbmt), a pointer with D, A or U, no leaf at level 0, a superpage not
 //   aligned, a leaf not accessed (A). It is written as an entry with no
 //   permission. An access fault: an entry's address outside the cacheable memory
-//   [CBASE, CTOP) (no PMP yet: step P1), or a leaf whose page is beyond PAW bits;
-//   written with AF. A larger page is written as the 4 KB of it asked for.
+//   [CBASE, CTOP), or one PMP denies (step 1.8 P1: the entry's address out on
+//   pt_addr with pt_chk in S_REQ, checked as S mode's read; the answer, pmp_fail,
+//   in the same cycle: the core's fetch checker, the fetch held for it), or a
+//   leaf whose page is beyond PAW bits; written with AF. A larger page is written as the 4 KB of it asked for.
 //
 //   The answer (tlb_done with tlb_we and done_id for the asker's first try) waits
 //   for a cycle without the miss handler's fill_done (hold): both name an asker on
@@ -56,6 +58,8 @@ module OOO_PTW
         // ---- an entry read through the D$'s miss handler
         output logic                  pt_req,       // one cycle; the answer comes later, one at a time
         output logic [PAW-1:3]        pt_addr,
+        output logic                  pt_chk,       // PMP: pt_addr to be checked now (step 1.8 P1)
+        input  logic                  pmp_fail,
         input  logic                  pt_done,
         input  logic [63:0]           pt_data,
 
@@ -128,7 +132,8 @@ module OOO_PTW
     end
 
     assign busy     = st != S_IDLE;
-    assign pt_req   = st == S_REQ && !cancel && !e_bad;
+    assign pt_req   = st == S_REQ && !cancel && !e_bad && !pmp_fail;
+    assign pt_chk   = st == S_REQ;
     assign pt_addr  = e_addr[PAW-1:3];
     assign tlb_done = st == S_DONE && !hold && !cancel;
     assign tlb_we   = tlb_done;
@@ -152,7 +157,7 @@ module OOO_PTW
         else begin
             case (st)
                 S_IDLE:  if (req && !cancel) st <= S_REQ;
-                S_REQ:   st <= cancel ? S_IDLE : e_bad ? S_DONE : S_WAIT;
+                S_REQ:   st <= cancel ? S_IDLE : (e_bad || pmp_fail) ? S_DONE : S_WAIT;
                 S_WAIT:  if (pt_done) st <= cancel ? S_IDLE : (pte_bad || pte_leaf || lvl == 2'd0) ? S_DONE : S_REQ;
                          else if (cancel) st <= S_DROP;
                 S_DONE:  if (cancel || !hold) st <= S_IDLE;
@@ -168,7 +173,7 @@ module OOO_PTW
                 vpn_r     <= 27'(req_vpn);
                 id_r      <= req_id;
             end
-            S_REQ: if (e_bad) fault(1'b1);
+            S_REQ: if (e_bad || pmp_fail) fault(1'b1);
             S_WAIT: if (pt_done) begin
                 if (pte_bad)                                fault(1'b0);
                 else if (pte_leaf) begin

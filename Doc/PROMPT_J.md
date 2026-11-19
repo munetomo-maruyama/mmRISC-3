@@ -10940,5 +10940,54 @@ Start V2
 <!-- answer -->
 **Claude Codeの回答**
 
-The documents are done except the core mutations' result, which is still running.
+V2 is done: instruction fetch is now translated with Sv39. Together with V1, the core runs paging in full: all 155 riscv-tests -v- programs pass in lock-step on both tops. 54 of the 56 riscv-arch-test Sv39 tests pass; I left two out (below).
+
+**What changed**
+- **ITLB:** an OOO_DTLB3 in OOO_FRONT, looked up at F0 with the fetch address. The fetch address is a register there, so the I$ can keep its tag compare at F0, now against a physical tag. OOO_FETCH2 is unchanged:
+  - an ITLB miss simply holds the I$ request while the walker fetches the entry;
+  - a page without execute permission is answered with zeros, and its fault travels with the block (stored per FTQ entry) to decode;
+  - the faulting instruction raises cause 12 or 1 with tval = its pc. If it straddles into the faulting page, tval is pc+2, as Spike does.
+- **OOO_ICACHE:** the tags are now physical (28 bits), and fills read the physical line. A request without fetch permission neither hits nor fills.
+- **OOO_CORE:** one walker serves both sides, with the LSU first. The fetch's walks write the ITLB, the LSU's write the DTLBs.
+
+**A bug from V1, found by the -v- programs:** when a load or store was retried after a walk or a miss, the core zero-extended its address. A high S-mode address such as the test kernel's 0xffff…ffe0… then looked non-canonical and page-faulted. It is now sign-extended. The unit bench had always sign-extended it, which is why it didn't show earlier.
+
+**Bench fixes**
+- The trace's pc is now sign-extended.
+- The lock-step's reference now reads instructions through Spike's page tables.
+- An instruction fetch fault is compared without its instruction bits: the core has zeros there, while the reference's own fetch may read the page the walk refused.
+
+**Two arch tests left out:** `Sv_sv39_canonical_Smode/Umode` jump to a non-canonical address. Spike reports that full address as epc and tval, which the core's 39-bit pc can't hold. The spec lets mepc and mtval hold another invalid address instead, but a sign-extended 39-bit pc can only produce a valid one. The reason is recorded in b4/build.sh. Non-canonical data addresses are still compared (vm.S and the VA_all_ones/zeros tests).
+
+**Verification**
+
+| Check | Result |
+|---|---|
+| riscv-tests -v- | 155 of 155 PASS on both tops; now in run_core |
+| riscv-arch-test Sv39 groups | 54 of 56 PASS on both tops |
+| b4/dir/vmx.S (new) | its 5 fetch faults match Spike, including the page-crossing one (epc 0x2ffe, tval 0x3000) |
+| run_core | 12 of 12 runs PASS |
+| run_front, unit regression, lock-step self-test | PASS |
+| `verilator -Wall` | the same warnings as before |
+| CoreMark timed window | 1,211,530 cycles, unchanged to the cycle |
+| Unit mutations | 52 of 52 detected (I$, 5 new) |
+| Core mutations | 14 of 14 detected (11 new) |
+
+**Estimated cost:** about +0.4k LUTs, so about +1.1k with V1, inside the 2k step 1.8's plan allowed for the walker and ITLB. The timing risk is the I$'s F0 path, which now reads the ITLB before its own tag compare. V3's Vivado run will measure it. If F0 is too long, the hit can move to F1, at the cost of a 256-bit way select there.
+
+The record is in Plan/OOC 29.88 (English and Japanese), STRATEGY, Doc/UARCH and the READMEs. Committed and pushed as 22bd8d1; Ref/ count on the remote is 0.
+
+Next is P1, PMP checks: mmRISC-2's MMU_PMP on the load/store, fetch and walker addresses. After that comes V3, the Vivado run at 20 ns with V and P together.
+<!-- /answer -->
+
+## 265. 2026-11-19 01:00:46 JST
+
+```text
+Start P1
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+That text already says 258 is caught and run_core passes. Both are waiting on the run in progress, and I'll correct the text if either says otherwise.
 <!-- /answer -->

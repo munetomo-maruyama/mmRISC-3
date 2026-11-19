@@ -69,10 +69,12 @@ TOP[ubtb2]=OOO_UBTB2;   SRC[ubtb2]="$R/OOO_UBTB2/OOO_UBTB2.sv"
 TOP[lsu]=OOO_LSU;       SRC[lsu]="$R/OOO_LSU/OOO_LSU.sv"
 TOP[lsu2]=OOO_LSU2;     SRC[lsu2]="$R/OOO_DCH/OOO_DCH.sv $R/OOO_DTLB2/OOO_DTLB2.sv $R/OOO_LSU2/OOO_LSU2.sv"; GV[lsu2]="--public-flat-rw"
 TOP[lsu3]=OOO_LSU3;     SRC[lsu3]="$R/OOO_DCH2/OOO_DCH2.sv $R/OOO_DTLB2/OOO_DTLB2.sv $R/OOO_LSU3/OOO_LSU3.sv"; GV[lsu3]="--public-flat-rw -GCBASE=0 -GCTOP=1099511627775"   # (its pages all cacheable: what is not, the core runs)
-TOP[lsu4]=OOO_LSU4;     SRC[lsu4]="$R/OOO_DCH2/OOO_DCH2.sv $R/OOO_DTLB3/OOO_DTLB3.sv $R/OOO_LSU4/OOO_LSU4.sv"; GV[lsu4]="--public-flat-rw -GCBASE=0 -GCTOP=1099511627775"   # (stores split, step 1.5b G1; OOO_DTLB3, step 1.8 V1)
+TOP[lsu4]=OOO_LSU4;     SRC[lsu4]="$R/OOO_DCH2/OOO_DCH2.sv $R/OOO_DTLB3/OOO_DTLB3.sv $R/OOO_PMP/OOO_PMP.sv $R/OOO_LSU4/OOO_LSU4.sv"; GV[lsu4]="--public-flat-rw -GCBASE=0 -GCTOP=1099511627775"   # (stores split, step 1.5b G1; OOO_DTLB3, step 1.8 V1)
 TOP[dcad]=LSU_DC;       SRC[dcad]="$R/OOO_LSU/OOO_LSU.sv $R/OOO_DCAD/OOO_DCAD.sv $CA/CACHE_TAG_ARRAY/CACHE_TAG_ARRAY.sv $CA/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv $CA/DCACHE/DCACHE.sv $HERE/LSU_DC.sv"
 TOP[icache]=OOO_ICACHE; SRC[icache]="$R/OOO_ICACHE/OOO_ICACHE.sv"   # (the I$, step 1.7 H1)
 TOP[dmiss2]=DMISS_DC;  SRC[dmiss2]="$R/OOO_DCH2/OOO_DCH2.sv $R/OOO_DMISS2/OOO_DMISS2.sv $HERE/DMISS_DC.sv"; GV[dmiss2]="--public-flat-rw"   # (the D$ written back, step 1.7b W1)
+TOP[pmp]=OOO_PMP;       SRC[pmp]="$R/OOO_PMP/OOO_PMP.sv"   # (PMP, step 1.8 P1: blocks of 8 bytes at most)
+TOP[pmp32]=OOO_PMP;     SRC[pmp32]="$R/OOO_PMP/OOO_PMP.sv"; GV[pmp32]="-GLB=3"; XC[pmp32]="-DPMP_LB=3"; TB[pmp32]=tb_pmp   # (... the fetch's 32)
 TOP[ptw]=OOO_PTW;       SRC[ptw]="$R/OOO_PTW/OOO_PTW.sv"   # (the Sv39 walker, step 1.8 V1)
 TOP[rob]=OOO_ROB;       SRC[rob]="$R/OOO_ROB/OOO_ROB.sv"
 TOP[fbuf]=OOO_FBUF;     SRC[fbuf]="$R/OOO_RARE/OOO_RARE.sv $R/OOO_FBUF/OOO_FBUF.sv"
@@ -90,7 +92,7 @@ XC[dec]="-I$SP/include -I$SP/include/riscv -I$SP/include/softfloat -I$SP/include
 XL[dec]="-L$SP/lib -lriscv -ldisasm -lsoftfloat -lfesvr -Wl,-rpath,$SP/lib -lpthread -ldl"
 TOP[fetch]=OOO_FETCH;   SRC[fetch]="$R/OOO_UBTB/OOO_UBTB.sv $R/OOO_PREDEC/OOO_PREDEC.sv $R/OOO_TAGE/OOO_TAGE.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FETCH/OOO_FETCH.sv"
 TOP[fetch2]=OOO_FETCH2; SRC[fetch2]="$R/OOO_UBTB2/OOO_UBTB2.sv $R/OOO_RAS/OOO_RAS.sv $R/OOO_FDEC2/OOO_FDEC2.sv $R/OOO_TAGE2/OOO_TAGE2.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_FETCH2/OOO_FETCH2.sv"
-TESTS=${*:-alu2 alu1 alum exu exu2 fuse prf fprf fprf80 prf2 rename rename2 fren fren80 ctrl dsreg stage fers trap sys csru mdup fpuw fpuw80 pmul iq iq2 iq2n2 iq3 fiq fiq16 busy sched iqpl iqpl2 ubtb ubtb2 lsu lsu2 lsu3 lsu4 dcad icache dmiss2 ptw rob fbuf fbuf2 fbuf3 fdec fdec2 ftq predec ras btb tage fetch fetch2 dec}
+TESTS=${*:-alu2 alu1 alum exu exu2 fuse prf fprf fprf80 prf2 rename rename2 fren fren80 ctrl dsreg stage fers trap sys csru mdup fpuw fpuw80 pmul iq iq2 iq2n2 iq3 fiq fiq16 busy sched iqpl iqpl2 ubtb ubtb2 lsu lsu2 lsu3 lsu4 dcad icache dmiss2 ptw pmp pmp32 rob fbuf fbuf2 fbuf3 fdec fdec2 ftq predec ras btb tage fetch fetch2 dec}
 
 fail=0
 for t in $TESTS; do

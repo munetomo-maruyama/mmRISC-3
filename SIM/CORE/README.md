@@ -318,3 +318,10 @@ programs (155, in run_core's -p- list: 329) and riscv-arch-test's Sv39 groups (`
 tops; `b4/dir/vmx.S` (the fetch's faults, an instruction across two pages, an I$ synonym, SFENCE.VMA, satp). `ICacheModel`
 reads the physical address; the trace's pc is sign extended from bit 38. The -v- programs found a bug of V1: a try's
 address in the core was zero extended.
+
+## PMP (step 1.8 P1, 2026-11-19)
+
+`Plan/OOC.md` 29.89. CORE_CSR's 8 PMP entries are checked: each LSU port, the fetch word by word, the walker's entries.
+riscv-arch-test's PMP group (`b4/build.sh PMP`: 81 of the 82 that fit pass on both tops; `PMP_Sm_cfg_A_tor_zero`, an
+access at physical address 0 that Spike faults for having no memory there, is left out) and `b4/dir/pmpx.S` (PMP on the
+fetch word by word, an instruction across two blocks). The lock-step's reference has 8 PMP regions now, the core's.
