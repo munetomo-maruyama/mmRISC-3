@@ -136,8 +136,8 @@ MUT = [
     (C, ".disp_ftq(dv_ftq)", ".disp_ftq({dv_ftq[3:1], dv_ftq[1]})", "ROB: µop 0 with µop 1's block (FTQ pops)"),
     (C, ".disp_wr(dv_iqwr)", ".disp_wr(4'b1111)", 'IQ: every µop wakes for its destination'),
     # the ALU ports
-    (C, "if (byp_v[q] && byp_t[q] == ex[p].t1) a = byp_d[q];", '', 'bypass: none for the first source'),
-    (C, "if (byp_v[q] && byp_t[q] == ex[p].t2) b = byp_d[q];", '', 'bypass: none for the second source'),
+    (C, "if (byp_v[q] && ex_m1[q]) a = byp_d[q];", '', 'bypass: none for the first source'),
+    (C, "if (byp_v[q] && ex_m2[q]) b = byp_d[q];", '', 'bypass: none for the second source'),
     (C, "byp_v[q] = wb_v[q];", "byp_v[q] = (q == 0) && wb_v[q];", 'bypass: port 1\'s result not forwarded'),
     (C, "wbi_v[1] = pm_w || (ex_v[1] && ex[1].wr);", "wbi_v[1] = pm_w || ex_v[1];", 'WB: a µop of port 1 without a destination forwards'),
     (C, "assign x_wv  = ex_v[0] && ex[0].wr && ex[0].rec.kind != K_MDU;", "assign x_wv  = ex_v[0] && ex[0].rec.kind != K_MDU;",
@@ -158,7 +158,7 @@ MUT = [
     (C, 'm_ea[m] = m_a[m] + {{52{m_ex[m].rec.imm[11]}}, m_ex[m].rec.imm[11:0]};', 'm_ea[m] = m_a[m];', 'LSU: the offset left out'),
     (C, '.rr_size({rr_rec[NAP+1].msize, rr_rec[NAP].msize})', ".rr_size({2'd3, 2'd3})", 'LSU: every access a double word'),
     (C, '.rr_uns({rr_rec[NAP+1].uns, rr_rec[NAP].uns})', ".rr_uns(2'b00)", 'LSU: lbu / lhu / lwu sign-extended'),
-    (C, 'if (byp_v[q] && byp_t[q] == m_ex[m].t1) m_a[m] = byp_d[q];', '', 'port 2: no bypass for the base'),
+    (C, 'if (byp_v[q] && m_m1[q]) m_a[m] = byp_d[q];', '', 'port 2: no bypass for the base'),
     (C, 'byp_v[NAP + m] = lw_v[m];', "byp_v[NAP + m] = 1'b0;", "bypass: the LSU's result not forwarded"),
     (C, "lw_v[m] <= ld_nv[m] && !ld_fp[m] && ld_nt[m][TAGW-1:0] != '0 && !flush_all;", "lw_v[m] <= ld_nv[m] && !ld_fp[m] && !flush_all;", 'bypass: a load to x0 forwarded (tag 0)'),
     (C, "prf_we[NAP + m] = ld_nv[m] && !ld_fp[m];", "prf_we[NAP + m] = 1'b0;", 'register file: loads not written'),
@@ -404,6 +404,9 @@ MUT = [
     # the store search's offset and bytes compared at E (step 1.8 V3b, Plan/OOC.md 29.91): b4/dir/atomic.S part 7
     (L4, "if (sc_dec && sc_fail && sc_sq == SW'(i)) e_om[i] = 1'b0;", "if (1'b0) e_om[i] = 1'b0;", "V3b: an SC failing in the load's E still has its bytes for the search"),
     (L4, "e_om[i] = (sw0_v && sw0_sq == SW'(i)) ? swm : swa[i] == e_a[11:3] && (smask[i] & lm) != 8'd0;", "e_om[i] = swa[i] == e_a[11:3] && (smask[i] & lm) != 8'd0;", "V3b: a store writing its entry in the load's E not seen by the search"),
+    # the bypass's compare at RR (step 1.8 V3c, Plan/OOC.md 29.93)
+    (C, "for (int q = 0; q < NAP; q++) byp_nt[q] = wbi_t[q];", "for (int q = 0; q < NAP; q++) byp_nt[q] = ex[q].dst;", "V3c: the bypass's compare with EX's tag, not the MDU's, the multiplier's or the FP -> integer result's"),
+    (C, "ex_m2[q] <= byp_nt[q] == rr_t2;", "ex_m2[q] <= byp_nt[q] == rr_t1;", "V3c: the second operand's compare with the first's tag"),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),

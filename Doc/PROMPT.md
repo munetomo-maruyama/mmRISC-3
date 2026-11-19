@@ -10894,3 +10894,45 @@ Next: please run `synth_ooo.bat OOO_CPU` at 20 ns again. The worst should then b
 ```text
 Ran Vivado.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+V3b worked, but OOO_CPU still misses 20 ns by 0.203 ns. V3's failing LSU → FP file path is gone; now another existing path, ALU port 0's bypass, is the worst.
+
+**Results**
+
+| Item | V3 | with V3b |
+|---|---|---|
+| WNS | −0.340 ns | **−0.203 ns** (TNS −0.315 ns, 2 endpoints) |
+| Hold | +0.028 ns | +0.028 ns (none failing) |
+| LUTs | 106,051 | 106,056 (+5) |
+| FF | 27,571 | 27,586 |
+
+- The LSU → FP file path now has +0.984 ns.
+- The LSU's worst is its own W (DTLB → D$ hit → `w_ok`), +0.277 ns: P1's worry, met.
+
+**The failing path**
+- Inside ALU port 0's EX, in order (32 levels, 73 % route):
+  - the bypass: each operand's tag against the 4 ALUs' WB tags and the 2 loads', a 7-way select
+  - the ALU's adder
+  - port 0's write select (MDU, multiplier, FP → integer)
+  - the integer register file
+- The family that had +0.355 ns at U3b and +0.021 ns at V3. RTL unchanged; it closed in as the design grew.
+- Ports 2 and 3 into the same write are at −0.193 and −0.025 ns: also at the edge.
+
+**Proposal: V3c, the bypass's compare at RR**
+- Both tags EX compares are registers that always take their inputs: the operand's from RR, the sources' from what enters WB (EX's `wbi_t`) and the loads' tags at M (`ld_nt`).
+- So make the same compare a cycle earlier at RR, into a register (6 bits an operand). EX selects with "valid AND match" as now, so the result is the same to the bit, every cycle.
+- Effect: the 7-bit compares and a level of the select leave EX, about 2 ns of the 7 ns before the operand. It acts on all 4 ports and both operands, so ports 2 and 3's paths go too.
+- Cost: 48 FF; the compares are only moved.
+- After it the worst should be the LSU's W at +0.277 ns: met, with a few hundred ps.
+
+The analysis is in Plan/OOC 29.92 (EN/JA) and STRATEGY, committed with the reports and pushed as 76e5e44 (Ref/ on the remote: 0). The RTL is unchanged.
+<!-- /answer -->
+
+## 269. 2026-11-19 21:30:03 JST
+
+```text
+Start V3c
+```

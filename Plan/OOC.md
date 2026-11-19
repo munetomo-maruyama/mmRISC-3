@@ -6355,3 +6355,19 @@ The cost: 32 flip-flops and about 50 LUTs (the moved compares are the same numbe
 **Proposed: V3c, the bypass's compare at RR**. Each ALU port's bypass compares at EX two registered tags, the operand's (`ex[p].t1`, `t2`, from RR) and each source's (`wb_d`'s tag, from `wbi_t` at EX; `lw_t`, from `ld_nt` at M); both registers always take their inputs (`OOO_STAGE`'s `en` 1, `lw_t` without an enable). So the compare can be made a cycle earlier on those inputs, `wbi_t[q] == rr_t1` and `ld_nt[m] == rr_t1` at RR, into a register (6 bits an operand), and EX selects with `byp_v[q] && m1[q]` as now with the compare: **the same to the bit**, every cycle. Taken off EX: the 7-bit compares and the first level of the select (about 2 ns of the 7 ns before the operand); the 4 ports and both operands alike, so ports 2 and 3's paths go too. The cost: 48 flip-flops, the compares moved (the same number). RR's path gains a compare after `wbi_t` (port 0's: the MDU's or the FP → integer result's tag, from registers). Then the worst should be the LSU's W at +0.277 ns: met, with a few hundred ps.
 
 **Next**: V3c (the author's go), then `OOO_CPU` at 20 ns again.
+
+### 29.93 Step 1.8 V3c: the bypass's compare at RR (2026-11-19)
+
+The author's go ("Start V3c"), as 29.92 proposed. 29.92's failing path began with the bypass: at EX, each ALU port compared both operands' tags with the 6 sources' (the 4 ALU ports' WB registers, the 2 loads' `lw` registers), then selected.
+
+**The change** (`OOO_CORE`): the tags compared at EX are all registers that take their inputs every cycle: the operand's (`ex[p].t1`, `t2`: RR's `rr_t1`, `rr_t2` through `OOO_STAGE`, `en` 1), each ALU source's (`wb_d`'s tag: `wbi_t[q]` through the WB stage, `en` 1) and each load's (`lw_t`: `ld_nt[m]` at M, no enable). So `byp_nt` holds the sources' tags of the next cycle (`wbi_t[q]`, `ld_nt[m]`), RR compares its sources with them, and the result is registered (`ex_m1`, `ex_m2`: 6 bits each, a port); EX selects with `byp_v[q] && ex_m1[q]` as it did with `byp_v[q] && byp_t[q] == ex[p].t1`: **the same to the bit**. The LSU ports' bases (`m_a`) the same (`m_m1`), so E's address is earlier too (V3b put the search's compare behind it). `byp_t` and `lw_t` are gone (nothing else read them).
+
+The cost: 2 x 2 x 6 + 2 x 6 = 60 flip-flops, less `lw_t`'s 14; the compares are as many as before, moved to RR, where port 0's and port 1's `wbi_t` come through the MDU's, the multiplier's and the FP -> integer result's choice (registers). Taken off EX: the 7-bit compares and the first level of the select, about 2 ns of the 7 ns before an operand on 29.92's path; on all 4 ALU ports and both LSU ports.
+
+**Tests**:
+- **Identical to the cycle**: with every state at zero, the 834 runs of 29.91 give the same cycles on V3c and on V3b (HEAD), none failing. With the random start, 252 of run_core's runs moved by a few cycles (ls-18 and br-15 back to their values before V3b: the flip-flops added and taken out shift Verilator's random first values again). CoreMark's 15 timed windows are V3b's to the cycle (`results/coremark.txt` unchanged).
+- run_core **12 runs PASS**; CoreMark PASS; `verilator -Wall` on `OOO_CPU`: the same warnings as HEAD. No unit bench holds `OOO_CORE`: the unit regression was not run again.
+
+**Mutations** (core): the 3 on the bypass's lines retargeted (22, 23: none for the first / second source; 42: no bypass for a base), **263, 264 new** (the compare with EX's tag, not the MDU's, the multiplier's or the FP -> integer result's; the second operand's compare with the first's tag), with the 5 other bypass mutations (24, 43, 44, 127, 136): **10 of 10**; the core's list is 265.
+
+**Next**: `OOO_CPU` at 20 ns again (the author's Vivado run).

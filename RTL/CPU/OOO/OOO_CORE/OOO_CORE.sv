@@ -957,20 +957,20 @@ module OOO_CORE
     // the bypass sources: the ALU ports' WB registers and the loads' (OOO_LSU3's results in M, through a
     // register here: a wrong value of a miss replays what used it at the load's commit, D-12)
     logic [1:0]                lw_v;
-    logic [1:0][TAGW-1:0]      lw_t;
     logic [1:0][63:0]          lw_d;
     logic [NAP+1:0]            byp_v;
-    logic [NAP+1:0][TAGW-1:0]  byp_t;
     logic [NAP+1:0][63:0]      byp_d;
+    // (step 1.8 V3b's next, V3c, Plan/OOC.md 29.93) each source's tag of the next cycle, as its register takes it now
+    // (the WB stages' input, the loads' in M): RR compares its sources with them into a register, which EX takes in
+    // place of the compare it made (the same to the bit: these registers and RR -> EX always take their inputs)
+    logic [NAP+1:0][TAGW-1:0]  byp_nt;
     always @(*) begin
         for (int q = 0; q < NAP; q++) begin
             byp_v[q] = wb_v[q];
-            byp_t[q] = wb_d[q][WBW-1 -: TAGW];
             byp_d[q] = wb_d[q][63:0];
         end
         for (int m = 0; m < 2; m++) begin
             byp_v[NAP + m] = lw_v[m];                   // (a load to x0 has tag 0: never forwarded, the PRF reads it as 0)
-            byp_t[NAP + m] = lw_t[m];
             byp_d[NAP + m] = lw_d[m];
         end
     end
@@ -1038,15 +1038,24 @@ module OOO_CORE
             (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
              .in_valid(rr_v), .in_bm(rr_bm), .in_data(rx), .out_valid(ex_v[p]), .out_bm(ex_bm), .out_data(ex[p]));
 
+        // the bypass's compare at RR, registered (V3c)
+        logic [NAP+1:0]  ex_m1, ex_m2;
+        always_ff @(posedge clk) begin
+            for (int q = 0; q < NAP + 2; q++) begin
+                ex_m1[q] <= byp_nt[q] == rr_t1;
+                ex_m2[q] <= byp_nt[q] == rr_t2;
+            end
+        end
         logic [63:0]     a, b, pc64, imm64;
         logic [VA-1:1]   pc;
         always @(*) begin
-            // the bypass: the write-back registers (the results of the cycle before), else the RR read
+            // the bypass: the write-back registers (the results of the cycle before), else the RR read; which
+            // source holds each operand's tag compared at RR (ex_m1, ex_m2: its WB or load register's tag == ex[p].t1, t2)
             a = ex[p].v1;
             b = ex[p].v2;
             for (int q = 0; q < NAP + 2; q++) begin
-                if (byp_v[q] && byp_t[q] == ex[p].t1) a = byp_d[q];
-                if (byp_v[q] && byp_t[q] == ex[p].t2) b = byp_d[q];
+                if (byp_v[q] && ex_m1[q]) a = byp_d[q];
+                if (byp_v[q] && ex_m2[q]) b = byp_d[q];
             end
             ex_a[p] = a;
             ex_b[p] = b;
@@ -1272,10 +1281,12 @@ module OOO_CORE
             (.clk(clk), .rst_n(rst_n), .flush(flush_all), .kill(kill), .clr(clr), .en(1'b1),
              .in_valid(m_rr_v[m]), .in_bm(m_rr_bm[m]), .in_data(rx), .out_valid(m_ex_v[m]), .out_bm(m_ex_bm[m]),
              .out_data(m_ex[m]));
+        logic [NAP+1:0]  m_m1;                                  // the bypass's compare at RR, registered (V3c)
+        always_ff @(posedge clk) for (int q = 0; q < NAP + 2; q++) m_m1[q] <= byp_nt[q] == t1;
         always @(*) begin
             m_a[m] = m_ex[m].v1;
             for (int q = 0; q < NAP + 2; q++)
-                if (byp_v[q] && byp_t[q] == m_ex[m].t1) m_a[m] = byp_d[q];
+                if (byp_v[q] && m_m1[q]) m_a[m] = byp_d[q];
             m_ea[m] = m_a[m] + {{52{m_ex[m].rec.imm[11]}}, m_ex[m].rec.imm[11:0]};
         end
     end
@@ -1449,8 +1460,11 @@ module OOO_CORE
         if (!rst_n) lw_v <= '0;
         else for (int m = 0; m < 2; m++) lw_v[m] <= ld_nv[m] && !ld_fp[m] && ld_nt[m][TAGW-1:0] != '0 && !flush_all;
     end
+    always @(*) begin
+        for (int q = 0; q < NAP; q++) byp_nt[q] = wbi_t[q];
+        for (int m = 0; m < 2; m++) byp_nt[NAP + m] = ld_nt[m][TAGW-1:0];
+    end
     always_ff @(posedge clk) begin
-        for (int m = 0; m < 2; m++) lw_t[m] <= ld_nt[m][TAGW-1:0];
         lw_d <= ld_db;                                  // (boxed: the trace's value of an FP load; an integer one is not)
     end
 

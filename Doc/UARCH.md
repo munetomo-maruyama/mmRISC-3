@@ -76,8 +76,8 @@ flowchart LR
 | D2 | the group rotated to its oldest slot; `OOO_RENAME2`'s first stage; the control's go (a checkpoint free) |
 | DS | `OOO_RENAME2`'s second stage, `OOO_BUSY`; the ROB, the issue queue, its payload (`OOO_IQPL2`) and the LQ / SQ written |
 | IS | wakeup and select in one cycle, 6 ports; a load's dependents woken 2 cycles after it |
-| RR | the register file and the payload read |
-| EX | the bypass from the write-back registers, the ALU, a branch resolved against its prediction; a memory µop's address, the D$'s arrays read, the SQ's offsets and bytes compared (step 1.8 V3b) |
+| RR | the register file and the payload read; the bypass's tags compared (step 1.8 V3c) |
+| EX | the bypass from the write-back registers (selected by RR's compare), the ALU, a branch resolved against its prediction; a memory µop's address, the D$'s arrays read, the SQ's offsets and bytes compared (step 1.8 V3b) |
 | M | (memory) tags, way, the SQ's youngest older match chosen, aligned: the result |
 | WB | the bypass source of the next cycle; the register file written as the result enters it |
 | commit | 4 a cycle: the committed rename state, the free list, the LQ / SQ, the FTQ pops (one TAGE update a cycle), traps |
