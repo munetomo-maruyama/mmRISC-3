@@ -77,8 +77,8 @@ flowchart LR
 | DS | `OOO_RENAME2`'s second stage, `OOO_BUSY`; the ROB, the issue queue, its payload (`OOO_IQPL2`) and the LQ / SQ written |
 | IS | wakeup and select in one cycle, 6 ports; a load's dependents woken 2 cycles after it |
 | RR | the register file and the payload read |
-| EX | the bypass from the write-back registers, the ALU, a branch resolved against its prediction; a memory µop's address, the D$'s arrays read |
-| M | (memory) tags, way, the SQ searched, aligned: the result |
+| EX | the bypass from the write-back registers, the ALU, a branch resolved against its prediction; a memory µop's address, the D$'s arrays read, the SQ's offsets and bytes compared (step 1.8 V3b) |
+| M | (memory) tags, way, the SQ's youngest older match chosen, aligned: the result |
 | WB | the bypass source of the next cycle; the register file written as the result enters it |
 | commit | 4 a cycle: the committed rename state, the free list, the LQ / SQ, the FTQ pops (one TAGE update a cycle), traps |
 
@@ -128,7 +128,7 @@ that, with the history and the RAS put back.
   entry and is tried again at the event that may have changed it (a fill, a store's data, the head).
 - **Stores** complete when they have both address and data; after commit they drain on their own pipeline with their
   own copy of the tags: a hit is written, a miss filled first (write allocate). Forwarding from the youngest older
-  store, its page offset searched, the rest checked for the store chosen.
+  store, its page offset searched (compared at EX since step 1.8 V3b, chosen at M), the rest checked for the store chosen.
 - **The D$** is virtually indexed and physically tagged: 256 sets by the virtual 13:6, so the 2 bits above the page
   (vx) go with each miss and SQ entry; `OOO_DMISS2` searches the line's 3 other sets and makes a synonym invalid (writing
   it out if dirty) before the fill. Dirty lines are written out as one line write; FENCE.I walks the 2,048 lines.

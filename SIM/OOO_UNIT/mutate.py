@@ -1134,8 +1134,8 @@ M = [
     ('M1189', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', 'm_mis   <= misal(e_size, e_a[2:0]);', "m_mis   <= 1'b0;", 'misaligned not an exception (as M973)'),
     ('M1190', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', 'm_older <= sring(sq_head, e_st);', 'm_older <= sring(sq_head, sq_tail_q);', 'a load searches younger stores too (as M974)'),
     ('M1191', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "for (int i = 0; i < NSQ; i++) m_below[i] <= SW'(i) < e_st[SW-1:0];", "for (int i = 0; i < NSQ; i++) m_below[i] <= 1'b1;", "the ring's order forgotten (as M975)"),
-    ('M1192', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "sm[i] = m_older[i] && swa[i] == m_wa && (smask[i] & m_lmask) != 8'd0;", 'sm[i] = m_older[i] && swa[i] == m_wa;', 'no bytes in common still matches (as M976)'),
-    ('M1193', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "sm[i] = m_older[i] && swa[i] == m_wa && (smask[i] & m_lmask) != 8'd0;", "sm[i] = m_older[i] && (smask[i] & m_lmask) != 8'd0;", 'the offset not compared (as M977)'),
+    ('M1192', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "e_om[i] = (sw0_v && sw0_sq == SW'(i)) ? swm : swa[i] == e_a[11:3] && (smask[i] & lm) != 8'd0;", "e_om[i] = (sw0_v && sw0_sq == SW'(i)) ? swm : swa[i] == e_a[11:3];", 'no bytes in common still matches (as M976; at E since V3b)'),
+    ('M1193', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "e_om[i] = (sw0_v && sw0_sq == SW'(i)) ? swm : swa[i] == e_a[11:3] && (smask[i] & lm) != 8'd0;", "e_om[i] = (sw0_v && sw0_sq == SW'(i)) ? swm : (smask[i] & lm) != 8'd0;", 'the offset not compared (as M977; at E since V3b)'),
     ('M1194', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "if (smb != '0) begin", "if (1'b0) begin", "the ring's wrap not taken (as M978)"),
     ('M1195', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', 'sel[w] = hit[w] && !f_any;', 'sel[w] = hit[w];', "a store's data ORed with the D$'s (as M979)"),
     ('M1196', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', 'hit[w] = a_t[p][w][TW] && a_t[p][w][TW-1:0] == t_ptag;', 'hit[w] = a_t[p][w][TW-1:0] == t_ptag;', 'the valid bit not looked at (as M980)'),
@@ -1509,6 +1509,10 @@ M = [
     ('M1550', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "((t_af || m_permt) ? 2'd1 : 2'd2)", "(t_af ? 2'd1 : 2'd2)", "LSU4: PMP's access fault said to be a page fault"),
     ('M1551', 'OOO_PTW/OOO_PTW.sv', 'ptw', "S_REQ: if (e_bad || pmp_fail) fault(1'b1);", "S_REQ: if (e_bad) fault(1'b1);", "PTW: an entry PMP denies not a fault"),
     ('M1552', 'OOO_PTW/OOO_PTW.sv', 'ptw', "assign pt_req   = st == S_REQ && !cancel && !e_bad && !pmp_fail;", "assign pt_req   = st == S_REQ && !cancel && !e_bad;", "PTW: an entry PMP denies read"),
+    # 2026-11-19: step 1.8 V3b, the store search's offset and bytes compared at E (Plan/OOC.md 29.91) (an SC failing in the load's E: the core's, tb_lsu4 issues no atomic)
+    ('M1553', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "e_om[i] = (sw0_v && sw0_sq == SW'(i)) ? swm : swa[i] == e_a[11:3] && (smask[i] & lm) != 8'd0;", "e_om[i] = swa[i] == e_a[11:3] && (smask[i] & lm) != 8'd0;", "LSU4: a store writing its entry in the load's E not seen by the search"),
+    ('M1554', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "swm = sw0_wa == e_a[11:3] && (sw0_mask & lm) != 8'd0;", "swm = sw0_wa == e_a[11:3];", "LSU4: the store written in the load's E matched without bytes in common"),
+    ('M1555', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "swm = sw0_wa == e_a[11:3] && (sw0_mask & lm) != 8'd0;", "swm = (sw0_mask & lm) != 8'd0;", "LSU4: the store written in the load's E matched at any offset"),
 ]
 
 

@@ -109,6 +109,8 @@ struct Sim {
     Op zd; bool have_zd = false;          // a store's data in the cycle a recovery kills the store
     std::map<long, long> dat_c;           // a store's id -> the cycle its data went
     long n_sdw = 0, n_dfirst = 0, n_dlate = 0, n_zd = 0, n_dexc = 0, n_fpd = 0, n_both = 0;
+    long n_srch = 0, n_ebyp = 0;          // the search at M (V3b: compared at E): checked, matches of a store written in the load's E
+    bool p_sw = false; int p_swq = 0;     // (an SC failing in the load's E: the core's, b4/dir/atomic.S part 7; no atomic here)
     bool stop = false;
     // the privilege (step 1.8 V1): changed at a flush
     bool au = false, as = true, mx = false;
@@ -620,6 +622,31 @@ struct Sim {
             if (!there) { wq.push_back(vp); w_id[vp] = d.walk_id; }
             if (w_delay == 0) w_delay = 4 + (int)(rng() % 16);
         }
+        // the search's match at M (step 1.8 V3b: the offset and bytes compared at E, Plan/OOC.md
+        // 29.91) must be what M's own state gives, as the search was made before: the entries'
+        // offsets and bytes now, with the load's
+        {
+            auto* r = d.rootp;
+            for (int p = 0; p < 2; p++) {
+                bool mv = p ? r->OOO_LSU4__DOT__g_port__BRA__1__KET____DOT__m_v : r->OOO_LSU4__DOT__g_port__BRA__0__KET____DOT__m_v;
+                if (!mv) continue;
+                unsigned older = p ? r->OOO_LSU4__DOT__g_port__BRA__1__KET____DOT__m_older : r->OOO_LSU4__DOT__g_port__BRA__0__KET____DOT__m_older;
+                unsigned om    = p ? r->OOO_LSU4__DOT__g_port__BRA__1__KET____DOT__m_om    : r->OOO_LSU4__DOT__g_port__BRA__0__KET____DOT__m_om;
+                unsigned wa    = p ? r->OOO_LSU4__DOT__g_port__BRA__1__KET____DOT__m_wa    : r->OOO_LSU4__DOT__g_port__BRA__0__KET____DOT__m_wa;
+                unsigned lm    = p ? r->OOO_LSU4__DOT__g_port__BRA__1__KET____DOT__m_lmask : r->OOO_LSU4__DOT__g_port__BRA__0__KET____DOT__m_lmask;
+                n_srch++;
+                for (int i = 0; i < 16; i++) {
+                    if (!((older >> i) & 1)) continue;
+                    bool ref = r->OOO_LSU4__DOT__swa[i] == wa && (r->OOO_LSU4__DOT__smask[i] & lm) != 0;
+                    if (ref != (bool)((om >> i) & 1)) {
+                        err("the search's match at M");
+                        printf("  port %d entry %d: got %d, expected %d (written in the load's E %d)\n", p, i, (int)((om >> i) & 1), ref, p_sw && p_swq == i);
+                    }
+                    if (ref && p_sw && p_swq == i) n_ebyp++;
+                }
+            }
+            p_sw = r->OOO_LSU4__DOT__sw0_v; p_swq = r->OOO_LSU4__DOT__sw0_sq;
+        }
         // the array is written by a fill's word or a store that counts, nothing else: a word
         // written and tried again would be in a line being filled by then
         if (d.rootp->OOO_LSU4__DOT__dw_en && !d.rf_en && !d.dirty_set) err("the data array written by no one");
@@ -762,12 +789,13 @@ int main(int argc, char** argv)
                "written %ld; exceptions %ld, recoveries %ld, flushes %ld, queue full %ld; synonyms made invalid %ld\n",
                m ? "translated" : "physical", s.n_ld, s.n_st, s.n_fwd, s.n_part, s.n_alias, s.n_try, s.n_rp,
                s.n_miss, s.n_stm, s.n_cl, s.n_evict, s.n_walk, s.n_tflush, s.n_two, s.n_p1, s.n_p1first, s.n_noov, s.n_recq, s.n_written, s.n_exc, s.n_rest, s.n_fl, s.n_full, s.n_syn);
+        printf("%s: the search at M checked %ld times; a store written in the load's E matching %ld\n", m ? "translated" : "physical", s.n_srch, s.n_ebyp);
         printf("%s: stores written into each way:", m ? "translated" : "physical");
         long wmin = s.n_wway[0];
         for (int w = 0; w < WAYS; w++) { printf(" %ld", s.n_wway[w]); if (s.n_wway[w] < wmin) wmin = s.n_wway[w]; }
         printf("\n");
         if (wmin < 50 ||
-            s.n_fwd < 1000 || s.n_part < 100 || s.n_rp < 1000 || s.n_miss < 100 || s.n_stm < 100 || s.n_evict < 100 || s.n_two < 1000 || s.n_p1first < 1000 || s.n_noov < 100 ||
+            s.n_fwd < 1000 || s.n_part < 100 || s.n_rp < 1000 || s.n_miss < 100 || s.n_stm < 100 || s.n_evict < 100 || s.n_two < 1000 || s.n_p1first < 1000 || s.n_noov < 100 || s.n_ebyp < 500 ||
             s.n_written < 1000 || s.n_exc < 50 || s.n_dfirst < 1000 || s.n_dlate < 1000 || s.n_zd < 50 || s.n_sdw < 100 || s.n_fpd < 1000 || s.n_both < 100 || s.n_pair_chk < 100 || s.n_rest < 100 || s.n_fl < 50 || (m == 1 && (s.n_syn < 100 || s.n_solo_bad < 50 || s.n_remap < 10 || s.n_walk < 100 || s.n_alias < 100 || s.n_tflush < 10 ||
             s.n_cause[1] < 20 || s.n_cause[2] < 50 || s.n_priv < 20 || s.n_umode < 3 || s.n_mxr < 20 || s.n_sum < 20 || s.n_user < 20)) || s.n_cause[0] < 20 || s.n_tv < 50 || s.n_pmpd < 20) {
             printf("the coverage is too low\n");

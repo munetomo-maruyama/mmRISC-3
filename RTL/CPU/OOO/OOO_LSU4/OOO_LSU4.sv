@@ -11,7 +11,7 @@
 //
 //   RR  a µop from the queue, or one tried again on port 0 (rt_*)
 //   E   the address (OOO_EXU2's ag); the arrays read its low bits at the end of the
-//       stage
+//       stage; the SQ's entries compared with its offset and bytes (step 1.8 V3b)
 //   M   the arrays' data, aligned in each way; the tags compared; the DTLB; the SQ
 //       searched; the result chosen; a store written into the SQ
 //   W   what came of it: complete, or wait, a miss, a walk
@@ -568,6 +568,10 @@ module OOO_LSU4
     logic [1:0]           w_lives, w_oks, w_excs, w_sds;
     logic                 w_ask1;     // port 1 needs a line or a walk
     logic                 w_try0, m_st0;
+    logic                 sw0_v;      // port 0's M writes an SQ entry's offset and bytes (m_sw), for E's compare
+    logic [SW-1:0]        sw0_sq;
+    logic [8:0]           sw0_wa;
+    logic [7:0]           sw0_mask;
     logic [1:0][LW-1:0]   w_lqs;
     logic [1:0]           w_ucs;      // a load for a device, waiting for its turn
     logic [1:0][ROBW-1:0] w_robs;
@@ -595,6 +599,20 @@ module OOO_LSU4
         assign e_a     = e_addr[p];
         assign a_rd[p] = e_a[13:3];
         assign e_live  = e_v && !drop(e_try, e_bm);
+        // the search's offset and bytes, compared at E (step 1.8 V3b, Plan/OOC.md 29.91): each
+        // entry as M would see it, the store that writes its entry in this cycle (port 0's M)
+        // and an SC that fails in it taken in, so that M's search is the same to the cycle
+        logic [NSQ-1:0] e_om;
+        always @(*) begin
+            logic [7:0] lm;
+            logic       swm;
+            lm  = bmask(e_size, e_a[2:0]);
+            swm = sw0_wa == e_a[11:3] && (sw0_mask & lm) != 8'd0;
+            for (int i = 0; i < NSQ; i++) begin
+                e_om[i] = (sw0_v && sw0_sq == SW'(i)) ? swm : swa[i] == e_a[11:3] && (smask[i] & lm) != 8'd0;
+                if (sc_dec && sc_fail && sc_sq == SW'(i)) e_om[i] = 1'b0;
+            end
+        end
         if (p == 0) begin : g_e0
             always_ff @(posedge clk or negedge rst_n) begin
                 if (!rst_n) e_v <= 1'b0;
@@ -655,11 +673,13 @@ module OOO_LSU4
         logic [PAW-1:0]  m_a;                  // the address as far as it is used
         logic [63:VA-1]  m_hi;                 // Sv39: all the same
         logic            m_mis;
-        logic [8:0]      m_wa;                 // for the search
+        /* verilator lint_off UNUSEDSIGNAL */      // (port 0's: a store's entry; the search's compare is E's)
+        logic [8:0]      m_wa;
+        /* verilator lint_on UNUSEDSIGNAL */
         logic [7:0]      m_lmask;
         logic [2:0]      m_off, m_spos;
         logic            m_s0, m_s01, m_s3, m_sen;
-        logic [NSQ-1:0]  m_older, m_below;
+        logic [NSQ-1:0]  m_older, m_below, m_om;
         always_ff @(posedge clk or negedge rst_n) begin
             if (!rst_n) m_v <= 1'b0;
             else        m_v <= e_live;
@@ -694,6 +714,7 @@ module OOO_LSU4
             m_sen   <= !e_uns && e_size != 2'd3;
             m_older <= sring(sq_head, e_st);
             for (int i = 0; i < NSQ; i++) m_below[i] <= SW'(i) < e_st[SW-1:0];
+            m_om    <= e_om;
         end
         assign m_live = m_v && !drop(m_try, m_bm);
         assign m_ids[p] = m_id;
@@ -714,13 +735,13 @@ module OOO_LSU4
              .tlb_u(tlb_u), .tlb_r(tlb_r), .tlb_w(tlb_w), .tlb_x(tlb_x), .tlb_af(tlb_af), .tlb_flush(tlb_flush));
 
         // the search: the youngest older store with this offset, that has bytes of the
-        // load: the first one going back from the load's place in the ring
+        // load (m_om: compared at E): the first one going back from the load's place in the ring
         logic [NSQ-1:0] sm, smb;
         logic           f_any;
         logic [SW-1:0]  f_idx;
         always @(*) begin
             for (int i = 0; i < NSQ; i++)
-                sm[i] = m_older[i] && swa[i] == m_wa && (smask[i] & m_lmask) != 8'd0;
+                sm[i] = m_older[i] && m_om[i];
             smb   = sm & m_below;
             f_any = sm != '0;
             f_idx = '0;
@@ -798,6 +819,10 @@ module OOO_LSU4
                     if (sc_dec && sc_fail && sc_sq == SW'(i)) smask[i] <= 8'd0;    // an SC that fails stores no byte
                 end
             end
+            assign sw0_v    = m_sw;
+            assign sw0_sq   = m_sq;
+            assign sw0_wa   = m_wa;
+            assign sw0_mask = m_lmask;
             assign at_mset = m_v && (m_amo || m_sc);
             assign at_msq  = m_sq;
             always_ff @(posedge clk or negedge rst_n) begin

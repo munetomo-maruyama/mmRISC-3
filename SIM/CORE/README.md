@@ -325,3 +325,13 @@ address in the core was zero extended.
 riscv-arch-test's PMP group (`b4/build.sh PMP`: 81 of the 82 that fit pass on both tops; `PMP_Sm_cfg_A_tor_zero`, an
 access at physical address 0 that Spike faults for having no memory there, is left out) and `b4/dir/pmpx.S` (PMP on the
 fetch word by word, an instruction across two blocks). The lock-step's reference has 8 PMP regions now, the core's.
+
+## The store search at E (step 1.8 V3b, 2026-11-19)
+
+`Plan/OOC.md` 29.91. `OOO_LSU4` compares the SQ's offsets and bytes with a load's at E (V3's failing path started with
+that compare at M); M's result is unchanged to the cycle. `b4/dir/atomic.S` has a part 7: SCs that fail with one load of
+their word right behind, at 1 to 13 adds after the SC's address, so that some load is at E in the SC's W, the cycle its
+bytes go (one load an SC: a load that meets the SC's entry before its W waits, is tried again and replayed at its commit,
+and what follows it is fetched again: a first version with ten loads behind each SC never let the late ones commit).
+Core mutations 261 (an SC failing in the load's E keeps its bytes for the search) and 262 (a store writing its entry in
+the load's E not seen).

@@ -6321,3 +6321,23 @@ Not proposed: a `phys_opt_design` after routing (a tool change for 0.34 ns that 
 **The budget** (the author's): unchanged from 29.86 (FP registers / queue to 64 / 12: about 1.5k; mmRISC-2's C2 / C3 for the FPU: about 1.1k; the debug's size). "One PMP checker shared" (0.8k) is taken (P1: the walker shares the fetch's).
 
 **Next**: V3b (the author's go), then `OOO_CPU` at 20 ns again.
+
+### 29.91 Step 1.8 V3b: the store search's compare at E (2026-11-19)
+
+The author's go ("Start V3b"), as 29.90 proposed. V3's 26 failing endpoints were one path, a load at M through the store search into the FP file, and the search's first step was the 9-bit compare of every SQ entry's offset with the load's (`swa[i] == m_wa`, the address register's fan-out of 50, then a CARRY4).
+
+**The change** (`OOO_LSU4`): each port's `sm[i]` was `m_older[i] && swa[i] == m_wa && (smask[i] & m_lmask) != 0`. The offset compare and the bytes' overlap need only E's address (`e_a[11:3]` and `bmask(e_size, e_a[2:0])`, the adder that gives the D$ its address at E) and the SQ's `swa` / `smask`: they are made at E (`e_om`) and registered (`m_om`, 16 bits a port); M keeps `m_older`, `m_below`, the priority and the rest. So that M's result is today's to the cycle, E sees each entry as M would:
+- **a store writing its entry at M in the load's E** (port 0's `m_sw`: `sw0_v`, `sw0_sq`, `sw0_wa`, `sw0_mask` out of port 0's block) is compared from those registers in place of the entry's old values (one compare a port, shared by the 16 entries);
+- **an SC that fails in the load's E** (`sc_dec && sc_fail`, which clears the entry's bytes at that edge) clears the entry's bit.
+
+The cost: 32 flip-flops and about 50 LUTs (the moved compares are the same number; the store's compare and the 16 muxes a port are new). E's path gains the compare after the address's low 12 bits; V3's run had no E path among its worst (`OOO_LSU4`'s worst in +1.021 ns, from `u_l2`). M loses the compare and the fan-out of 50, about 2.5 to 3 ns by V3's path.
+
+**Tests**:
+- **Identical to the cycle**: with every state at zero (`+verilator+rand+reset+0`), 834 runs (B2's 80 programs with two seeds, B3, B4's riscv-arch-test and directed tests) give the same cycles on V3b and on HEAD. With the random start (`+2`, run_core's) 251 of the 3033 runs moved, most by a few cycles (ls-18 7,248 → 7,267; br-15 by 154 at most), as at P1 (29.89): 32 new flip-flops shift Verilator's random first values, and the predictors' first contents with them. CoreMark's timed window on `OOO_CORE` is unchanged (1,211,530); the runs with misses moved by up to 0.2 %, for the same reason.
+- **`tb_lsu4`** checks the search itself now: every cycle, each port's match at M against the search made from M's own state (the entries' offsets and bytes then, the load's), as the RTL did before; a store written in the load's E matching 2,020 / 1,550 times (a floor of 500). An SC is not among them: `tb_lsu4` issues no atomic (the atomics are checked in the core).
+- **`b4/dir/atomic.S` part 7** (new): an SC that fails, a store to its word before it and one load of the word behind it, its address 1 to 13 adds after the SC's (whose time a division sets), 13 variants 16 times. A first version with ten loads behind each SC never let the case through: a load that meets the SC's entry before its W waits for it (`sat`), is tried again and replayed at its commit, so what follows it is fetched again and the late loads' values never commit. With one load an SC, some load is at E in the SC's W: the mutated core forwards the failed SC's data and lock-step fails.
+- run_core **12 runs PASS** (329 -p- and -v-); CoreMark PASS; the unit regression PASS (61); `verilator -Wall` on `OOO_CPU`: the same warnings as HEAD (port 1's `m_wa`, now unused there, waived). The lock-step's code is unchanged and its self-test was not run again.
+
+**Mutations**: unit, the 101 of `tb_lsu4` (its bench changed): M1192, M1193 retargeted to E's line, **M1553 to M1555 new** (a store writing its entry in the load's E not seen, matched without bytes in common, matched at any offset; the second only by the new check: a false match makes the load wait and its value is right): **101 of 101**; 1,435 in the list. Core: **261, 262 new** (an SC failing in the load's E keeps its bytes for the search; a store writing its entry in the load's E not seen): **2 of 2**; the core's list is 263.
+
+**Next**: `OOO_CPU` at 20 ns again (the author's Vivado run), V3's measure with V3b.

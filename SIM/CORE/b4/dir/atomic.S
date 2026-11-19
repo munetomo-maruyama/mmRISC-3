@@ -22,7 +22,32 @@
 #    try writes the address into the AMO's SQ entry and no other. 4 loads
 #    and 5 stores an iteration (the AMO 1 of each): the LQ index runs one
 #    ahead of the SQ's each time round (16 entries each).
+# 7. SCs that fail (no reservation), a store to their word before each and
+#    one load of it right behind, its address 1 to 13 adds after the SC's
+#    (whose time a division sets), so that for some the load is at E as the
+#    SC fails at W: the search, compared at E since step 1.8 V3b (Plan/OOC.md
+#    29.91), takes the SC's bytes away in that cycle too. One load an SC: a
+#    load that meets the SC's entry before its W waits, is tried again and
+#    replayed at its commit, and what follows it is fetched again.
 #---------------------------------------------------------------------------
+    # part 7: a store to the word, an SC of it that fails, one load of it k adds after the SC's address
+    .macro SCLD k
+    sd      s3, 0(s2)               # what the load must see (the SC stores nothing)
+    addi    t0, s3, 77
+    divu    t0, t0, s8              # a slow value, its time varying
+    andi    t0, t0, 0
+    add     a0, s2, t0              # the SC's address, when the division is done
+    xor     a2, s6, s3              # the SC's data, not the word's
+    sc.d    a3, a2, (a0)            # fails: no reservation
+    add     a1, a0, zero
+    .rept   \k
+    add     a1, a1, zero
+    .endr
+    ld      t1, 0(a1)
+    add     s5, s5, a3
+    add     s5, s5, t1
+    .endm
+
     .section .text.init
     .globl _start
 _start:
@@ -222,6 +247,28 @@ _start:
     add     s5, s5, a2
     ld      a2, 32(s2)
     add     s5, s5, a2
+
+    # ---- 7. SCs that fail, a load of their word right behind
+    la      s2, scw
+    li      s3, 0
+    li      s4, 16
+    li      s6, 0x3c3c3c3c3c3c3c3c
+    li      s8, 7
+10: SCLD    0
+    SCLD    1
+    SCLD    2
+    SCLD    3
+    SCLD    4
+    SCLD    5
+    SCLD    6
+    SCLD    7
+    SCLD    8
+    SCLD    9
+    SCLD    10
+    SCLD    11
+    SCLD    12
+    addi    s3, s3, 1
+    bne     s3, s4, 10b
     sd      s5, 0(s0)
 
     li      t0, 1
@@ -255,4 +302,5 @@ area:  .space 12 * 16384
 lrsc:  .dword 0, 0
     .balign 64
 buf:   .space 64
+scw:   .dword 0, 0                  # part 7's word
 sig:   .space 512

@@ -17,7 +17,7 @@
 # riscv-arch-test, 209 since E1c, illegal.S, dcrace.S, atomic.S, devld.S;
 # F, D, Zcd, the FP Sm / Exceptions tests and Plan/fpu's DSP kernels since step
 # 1.8 U2; riscv-tests' -p- programs as run_core.sh runs them, 146 with rv64ua,
-# 170 with rv64uf / ud and rv64mi-p-csr, 171 with rv64si-p-dirty and b4/dir/vm.S since step 1.8 V1),
+# 170 with rv64uf / ud and rv64mi-p-csr, 171 with rv64si-p-dirty and b4/dir/vm.S since step 1.8 V1; atomic.S's part 7 since V3b),
 # on OOO_CPU then the interrupts' programs (b4/irq, the Interrupts groups,
 # each to exit 0: -exit0, step 1.8 I1, Plan/OOC.md 29.78; a mutation with a
 # 5th field CPU runs on OOO_CPU, as OOO_DMISS2's, OOO_CPU's, OOO_ICACHE's and CPU_PLIC's do), last on CoreMark (g14 sf + -flto; at most 2,000 replays: about
@@ -401,6 +401,9 @@ MUT = [
     (FR, ".priv(pw_chk ? 2'd1 : it_priv)", ".priv(it_priv)", "P1: the walker's entries checked with the fetch's privilege"),
     (FR, "assign ic_req_valid = f_req_v && it_hit && !pw_chk;", "assign ic_req_valid = f_req_v && it_hit;", "P1: a fetch in the walker's check's cycle"),
     (C, "tr_ep  <= tr_eff;", "tr_ep  <= priv;", "P1: PMP without MPRV"),
+    # the store search's offset and bytes compared at E (step 1.8 V3b, Plan/OOC.md 29.91): b4/dir/atomic.S part 7
+    (L4, "if (sc_dec && sc_fail && sc_sq == SW'(i)) e_om[i] = 1'b0;", "if (1'b0) e_om[i] = 1'b0;", "V3b: an SC failing in the load's E still has its bytes for the search"),
+    (L4, "e_om[i] = (sw0_v && sw0_sq == SW'(i)) ? swm : swa[i] == e_a[11:3] && (smask[i] & lm) != 8'd0;", "e_om[i] = swa[i] == e_a[11:3] && (smask[i] & lm) != 8'd0;", "V3b: a store writing its entry in the load's E not seen by the search"),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),

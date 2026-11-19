@@ -10794,3 +10794,58 @@ Next is V3: please run `synth_ooo.bat OOO_CPU` to build OOO_CPU at 20 ns with V1
 ```text
 Ran Vivado.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+V3 just misses 20 ns (WNS −0.340 ns). The cause is one existing path, not the logic V and P added. The LUTs came in on plan.
+
+**Results (against U3b)**
+
+| Item | U3b | V3 |
+|---|---|---|
+| WNS | +0.216 ns | **−0.340 ns** (TNS −3.885 ns, 26 endpoints) |
+| Hold | +0.028 ns | +0.028 ns (none failing) |
+| LUTs | 101,637 | **106,051** (+4,414) |
+| FF | 26,595 | 27,571 |
+| DSP / BRAM | 42 / 284.5 | 42 / 284.5 |
+
+**The failing path**
+- All 26 are the same path: a load on LSU port 1 writing the FP register file at M. 16 levels, 81 % of the delay route.
+- In order: the address at M → the store search's offset compare (`swa[i] == m_wa`, fan-out 50) → the forwarding source's index `f_idx` (fan-out 190) → the store data's mux → `align` → OR with the D$ word → NaN box → the FP file.
+- The RTL is unchanged since U3b, where the same path had +1.543 ns. The LSU's surroundings grew by 4.4k and placement moved.
+- `lw_d` (+0.187 ns) and the FPU's load bypass (+0.560 ns), from the same start, have almost no margin either: the load's data at M is on the edge wherever it goes.
+- V2's worry, the I$'s F0 path, and P1's LSU path (DTLB → PMP) are not among the 100 worst.
+
+**The next slowest paths**
+- ROB head → IQ: +0.007 ns
+- `lw_t` → integer file: +0.021 ns
+- fetch → FBUF: +0.159 ns
+- ITLB → shared PMP → the walker's state: +0.287 ns (new)
+
+**LUTs**
+- +4.4k for V and P. 29.76 planned 4.5k, so about on plan.
+- My estimates in 29.87 to 29.89 (3.4k) were low, mainly by CORE_CSR's +1.9k:
+  - the PMP masks' registers, removed before as nothing read them, are kept since P1 (FF +424);
+  - Vivado places the checker logic that depends on the entries alone in u_csr (the +0.287 ns path's cells are there).
+- At the end of step 1.8: about 109.4k, about 114.7k with LiteX, 7.0k above the 107.7k ceiling, as in 29.86.
+
+**Proposal: V3b**
+- Of the store search's three terms, the offset compare and the bytes' overlap depend only on E's address. Compare them at the end of E into a register per entry (16 bits a port).
+- To give exactly today's M result, cycle for cycle:
+  - a store writing its entry at M in the load's E cycle is compared from its M registers;
+  - an SC failing in that cycle clears its bytes in the register too.
+- Effect: the 9-bit compare and its fan-out of 50, about 2.5 to 3 ns, leave M; M's path should come to about 17 ns, and `lw_d` and the FPU's bypass gain the same.
+- Cost: about 50 LUTs, 32 FF.
+- No cycle moves, so CoreMark and the regressions should be identical.
+- Remaining concerns: E's path (adder → compare) has an unknown margin in this run; after the fix the worst will be the +0.007 to +0.29 ns paths, so it meets with little margin.
+- A `phys_opt_design` after routing could cover 0.34 ns, but leaves K and J no margin and LiteX's flow would need the same; not recommended.
+
+The analysis is in Plan/OOC 29.90 (EN/JA) and STRATEGY, committed with the reports and pushed as 2a84ee0 (Ref/ on the remote: 0). The RTL is unchanged.
+<!-- /answer -->
+
+## 267. 2026-11-19 16:02:16 JST
+
+```text
+Start V3b
+```
