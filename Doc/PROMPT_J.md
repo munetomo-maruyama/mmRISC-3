@@ -10989,5 +10989,51 @@ Start P1
 <!-- answer -->
 **Claude Codeの回答**
 
-That text already says 258 is caught and run_core passes. Both are waiting on the run in progress, and I'll correct the text if either says otherwise.
+P1 is done: PMP now checks every load, store, instruction fetch and page-table read. The arch-test PMP group passes 81 of the 82 tests this core can run, in lock-step on both tops; I left one out (below).
+
+**How it is built**
+- **New checker OOO_PMP:** based on mmRISC-2's MMU_PMP, for 40-bit physical addresses. It can also answer for each 4-byte word of a block on its own.
+- **Three checkers:**
+  - one per LSU port, at M, using the effective privilege (MPRV included). A denial is an access fault, after any translation fault.
+  - one for the fetch, at F0, on the 32-byte fetch block word by word.
+  - the walker shares the fetch's checker. In the cycle it checks a page-table entry (as an S-mode read), the fetch is held. Sharing it saves about 0.8k LUTs.
+- **The I$** now applies "may not fetch" at F1, so the ITLB and PMP decision stays off its F0 path.
+
+**Things the tests turned up**
+- **Fetch checked word by word:** my first version checked the fetch block only at its two ends, and 22 PMP tests failed. They place a one-word region inside a block of code, and Spike checks each 16-bit piece of an instruction.
+  - So each FTQ block now carries 8 denial bits, plus the previous block's last word for an instruction that crosses blocks.
+  - An instruction's two halves are checked in Spike's order. tval is the pc, or pc+2 when the second half is denied.
+  - A block that is only partly denied is still fetched, and its allowed instructions run.
+- **Reference fixed:** Spike had 16 PMP regions configured, so it kept entries 8 to 15, which the core reads as 0. It now has 8, matching the core.
+- **My own tests fixed:** vm.S and vmx.S didn't program PMP. Spike opens entry 0 at reset, while the core resets every entry to OFF as the spec requires, so their S and U code was denied only in the core. They now program PMP, as riscv-tests and the arch tests do. vm.S also now has the page-table walk denied by PMP, which caught the one core mutation that had slipped through.
+
+**One arch test left out:** `PMP_Sm_cfg_A_tor_zero` accesses physical address 0. Spike faults because it has no memory there (a physical-memory-attribute check), while the core sends anything outside memory to the device bus. Those attributes follow the SoC's memory map, so they belong to step 2. The reason is recorded in b4/build.sh.
+
+**Cycle counts that moved:** a few B2 programs ran a few cycles differently in M mode, where P1 checks nothing it could deny. With all state starting at zero, all 81 B2 programs match V2's bench to the cycle. So the change comes from the predictors' random starting contents, which shift whenever signals are added; it is not a PMP effect.
+
+**Verification**
+
+| Check | Result |
+|---|---|
+| riscv-arch-test PMP group | 81 of 82 PASS on both tops (45 failed before P1) |
+| b4/dir/pmpx.S (new) | its 3 fetch access faults match Spike, including the cross-block cases |
+| tb_pmp (new) | 0 mismatches over 640,000 accesses and 5.12 million single words, against a reference written from the spec |
+| run_core | 12 of 12 runs PASS |
+| run_front, unit regression, lock-step self-test | PASS |
+| `verilator -Wall` | the same 33 warnings as before |
+| CoreMark timed window | 1,211,530 cycles, unchanged to the cycle |
+| Unit mutations | 179 of 179 detected (16 new) |
+| Core mutations | 13 of 13 detected (8 new) |
+
+**Estimated cost:** about +2.3k LUTs, in line with the plan's 2.5k for three checkers. Together with V1 and V2 that is about +3.4k in step 1.8's MMU and PMP work, before measurement. The new long paths are the LSU's DTLB → PMP → exception at M, and the fetch's ITLB → PMP → "may fetch" signal at F0.
+
+The record is in Plan/OOC 29.89 (English and Japanese), STRATEGY, Doc/UARCH and the READMEs. Committed and pushed as 292bab0; Ref/ count on the remote is 0.
+
+Next is V3: please run `synth_ooo.bat OOO_CPU` to build OOO_CPU at 20 ns with V1, V2 and P1. That run measures the timing, especially the I$ F0 path and the LSU's M stage, and the LUTs. With those numbers we can look at the LUT budget again, as recommended in 29.86.
 <!-- /answer -->
+
+## 266. 2026-11-19 15:22:42 JST
+
+```text
+Ran Vivado.
+```

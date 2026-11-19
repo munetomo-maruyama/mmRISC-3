@@ -6274,3 +6274,50 @@ The author's go ("Start P1"). Physical memory protection on every access: the lo
 **The LUTs** (an estimate; V3 measures): three checkers, each 8 entries' compares of 36 to 38 bits (a magnitude compare for TOR, an equality and a masked equality): about 0.6k each for the LSU's, about 0.8k for the fetch's with its 8 words' matches and priorities; the FTQ's 9 bits more a block (about 0.3k of flip-flops and their muxes): **about +2.3k**, as 29.76's +2.5k for three. **The timing risks**: the LSU's M now has the DTLB's physical tag into PMP into `m_perm` (the hit path's own result is not behind it, only the exception and the completion's registers); the fetch's F0 has the ITLB into PMP into `ic_req_tok` and the fault queue (registers: the I$'s data path no longer waits for it).
 
 **Next**: V3, `OOO_CPU` at 20 ns with V1, V2 and P1 (the author's Vivado run), and the LUT budget looked at again (29.86's recommendation).
+
+### 29.90 Step 1.8 V3 at 20 ns: −0.340 ns, 106,051 LUTs (2026-11-19)
+
+**The run** (by the author, `synth_ooo.bat OOO_CPU`, the RTL of 29.89: V1, V2 and P1): **106,051 LUTs** after place and route (89,281 logic + 16,656 LUT RAM; 107,338 after synthesis), 27,571 FF, 42 DSP, 284.5 tiles of block RAM; **WNS −0.340 ns, TNS −3.885 ns, 26 endpoints failing**, all between flip-flops; hold +0.028 ns, none failing. V3 is not passed.
+
+**The failing paths**: all 26 are one path: **a load on LSU port 1 at M into the FP file** (bank 2, port 1's FP load write), 16 levels, 19.7 ns, 81 % route:
+
+port 1's address at M (`m_a[11:3]`, merged with `m_wa`; fan-out 50) → the store search's offset compare (`swa[i] == m_wa`, a CARRY4) → the youngest older store's index (`f_idx`, fan-out 190) → the store data's mux (`sdr(f_idx)`) → `align` → OR with the D$ way's word (`ld_d`) → NaN box (`ld_db`) → `u_fprf`'s write data (placed at the far right, 2 ns of one route).
+
+None of it changed since U3b (29.86: the same path +1.543 ns, 13 levels); the design grew by 4.4k LUTs around the LSU, and placement moved. The same start reaches `lw_d` (+0.187 ns) and `OOO_FPUW`'s load bypass (+0.560 ns): the load's data at M is on the edge everywhere it goes.
+
+**The next paths** (the 100 worst, one a family):
+
+| slack | levels | path |
+|---|---|---|
+| +0.007 ns | 17 | `OOO_ROB`'s head → `OOO_IQ3`'s entries' `rq` (U3b: `OOO_ROB`'s worst out +0.645 ns) |
+| +0.021 ns | 32 | `lw_t` → the integer file's write (as U3b's +0.355, integer port 3's W) |
+| +0.159 ns | 24 | `OOO_FETCH2`'s `hge` → `OOO_FBUF3`'s `hj` |
+| +0.287 ns | 24 | **new**: F0's `pc_q` → the ITLB → the physical address → the shared PMP checker → `pmp_fail` → `OOO_PTW`'s state → `r_ptag`'s reset (the checker's input muxed between the fetch and the walker: the ITLB's address reaches the walker only through the mux) |
+
+V2's risk, the I$'s F0 path, is not among them; P1's LSU path (DTLB → PMP → `m_perm`) is not either.
+
+**The LUTs against U3b (29.86)**: **+4,414 LUTs, +976 FF**: 29.76 planned +2.0k for V (walker, ITLB) and +2.5k for P (three checkers): **4.5k, as measured**. 29.87 to 29.89 estimated 3.4k; by Vivado's rows (its rebuilt hierarchy places logic where it likes):
+
+| block | LUTs | FF | what |
+|---|---|---|---|
+| `CORE_CSR` | +1,921 | +424 | the PMP masks' registers (removed before, nothing read them: 8 x 54 = 432), and the checkers' logic that depends on the entries alone (the +0.287 ns path's cells for the fetch's checker sit in `u_csr`) |
+| `OOO_LSU4` | +1,000 | +249 | two `OOO_DTLB3`s (the DTLBs were removed before with `tr_on` 0), two checkers, the causes and tvals |
+| `OOO_PTW` | +556 | +118 | new |
+| `OOO_FRONT` | +517 | +102 | the ITLB 169, the fetch's checker and fault queue |
+| `OOO_ICACHE` | +260 | +5 | the physical tags (28 bits) |
+| `OOO_DMISS2` | −108 | +106 | the entry reads |
+| the rest | +268 | | the core's own logic and the blocks it spreads into (`OOO_CTRL` −1,574, `OOO_BUSY` −626, `OOO_IQ3` +899, `OOO_ROB` +830, `OOO_RENAME2` +428, `OOO_FIQ` +335 ...): only the sum counts |
+
+**The chip at the end of step 1.8**: 106.1k + 3.3k (K 0.3k, J 3k, as 29.76) = **about 109.4k (82 %)**; with LiteX's SoC (5.3k) **about 114.7k (86 %), 7.0k above the ceiling of 107.7k**, as 29.86 said (V and P came in on the plan). The ceiling is still the Arty's experience, not measured on this device.
+
+**Proposed: V3b, the store search's match at E**. Each LSU port's `sm[i]` (an older store with the load's offset and some of its bytes) is made from three terms; two of them, the offset's compare and the bytes' overlap, need only E's address (`e_a[11:3]`, `bmask(e_size, e_a[2:0])`, from the same adder that gives the D$ its address at E) and the SQ's `swa` / `smask`. They move to E's end, into a register per entry (16 a port), so that M starts from the match vector (with `m_older`, `m_below` as now) and the priority. To give M's search of today exactly, cycle for cycle:
+- a store that writes its entry at M in the load's E (port 0's `m_sw`) is compared from its M registers (`m_wa`, `m_lmask`) in place of the entry's old values;
+- an SC that fails in the load's E clears its entry's bytes in the register too (`smask[i] <= 0` today).
+
+Taken off M: the 9-bit compare and its fan-out of 50 (about 2.5 to 3 ns of the 19.7: logic 0.7 ns, routes 2.7 ns). M's path should come to about 17 ns; `lw_d` and `OOO_FPUW`'s bypass gain the same. The cost: about 50 LUTs and 32 FF. The risk: E's path (the adder into the compare; the worst into `OOO_LSU4` is +1.021 ns, from `u_l2`, not the adder). No cycle moves, so CoreMark and the regressions must come out identical; `tb_lsu4`'s forwarding cases and the core's mutations on the search (retargeted) check it. After it the worst should be the +0.007 to +0.29 ns paths above: met, with little margin; a run moves such paths by a few hundred ps.
+
+Not proposed: a `phys_opt_design` after routing (a tool change for 0.34 ns that leaves K and J no margin, and LiteX's own flow would have to do the same); writing the FP file from a register at W (the FP load +1 cycle and a bypass more in `OOO_FPUW`, and `lw_d` and the bypass still at the edge).
+
+**The budget** (the author's): unchanged from 29.86 (FP registers / queue to 64 / 12: about 1.5k; mmRISC-2's C2 / C3 for the FPU: about 1.1k; the debug's size). "One PMP checker shared" (0.8k) is taken (P1: the walker shares the fetch's).
+
+**Next**: V3b (the author's go), then `OOO_CPU` at 20 ns again.
