@@ -6371,3 +6371,25 @@ The cost: 2 x 2 x 6 + 2 x 6 = 60 flip-flops, less `lw_t`'s 14; the compares are 
 **Mutations** (core): the 3 on the bypass's lines retargeted (22, 23: none for the first / second source; 42: no bypass for a base), **263, 264 new** (the compare with EX's tag, not the MDU's, the multiplier's or the FP -> integer result's; the second operand's compare with the first's tag), with the 5 other bypass mutations (24, 43, 44, 127, 136): **10 of 10**; the core's list is 265.
 
 **Next**: `OOO_CPU` at 20 ns again (the author's Vivado run).
+
+### 29.94 Step 1.8 V3 a third time, with V3c: −0.578 ns, 105,207 LUTs (2026-11-21)
+
+**The run** (by the author, `synth_ooo.bat OOO_CPU`, the RTL of 29.93): **105,207 LUTs** after place and route (88,441 logic + 16,656 LUT RAM; 106,556 after synthesis), 27,572 FF, 42 DSP, 284.5 tiles of block RAM; **WNS −0.578 ns, TNS −23.0 ns, 72 endpoints failing**; hold +0.028 ns, none failing. The LUTs −849 on 29.92's run, spread (`OOO_FRONT` −446, `OOO_PMUL` −249, ...): synthesis, not the RTL.
+
+**V3c worked**: 29.92's path (ALU port 0's bypass → the ALU → the integer file) went from −0.203 to **+0.501 ns** (now from `ex_m1`); ports 1 to 3's WB into the same write +0.57 to +0.71 ns. The LSU's W +0.480 ns.
+
+**The failing paths**, three families, the first two one path, **the branch kill**:
+
+`br_rob[0]` (the resolution's register; the report names `csr_crob`, the same register `ex[0].rec.rob` merged by Vivado) → `OOO_ROB`'s choice of the oldest misprediction (`live(br_rob)`, `rdist` of the two against the head, `r0` / `r1`) → `restore_ckpt` → `OOO_CTRL`'s `kill` (`bit_of`, fan-out to every stage) → `OOO_LSU4`'s W (`drop()`: `(w_bm & kill)`) →
+- **`miss_valid` → `OOO_DMISS2`'s miss queue** (`aq_line`, `aq_id`, `aq_vx` enables: 57 endpoints, −0.518 ns, 16 levels, 85 % route);
+- **the store completion** (`st_now` → `cmp_st_rob`) **→ `OOO_ROB`'s `done`, `exc`, `cause`** (13, −0.578 ns, 19 levels).
+
+The kill path is old (29.23 took the trap out of it); it was +0.486 ns into `done` at 29.92's run, and moves by half a ns with placement. The third: **F0's ITLB → the fetch's fault queue** (`pc_q` → `OOO_DTLB3`'s LUT RAM → the hit and X → `fq_f`'s write data, 2 endpoints, −0.131 ns; V2 / P1's risk).
+
+**Proposed: V3d, both from registers, the same to the bit**:
+- **The kill from EX's end**: `br_valid` already drops a branch killed or flushed in its EX (`(ex_bms & kill) == 0`, `!flush_all`), so a branch in the resolution's register is out of the ROB only after a trap or replay in that cycle, the one cycle where `OOO_CTRL` holds the kill off (`!flush_q`). And of two live mispredictions the older is the same against any head. So the choice can be made at EX's end, on `e_br_*` with the head of that cycle, and registered as the kill itself (a one-hot of `NCKPT` bits and a valid): `kill = (k_v && !flush_q) ? k_q : 0`, `restore_k` the same (the LSU's `restore`). `OOO_ROB` keeps its own choice with `live` for its tail and `restore_ckpt` for the rest of the restore (renaming, the front end). Taken off the path: the live check, the compare, the choice and the decode, about 6 to 7 ns before `kill` (its fan-out stays). To be checked: with every state at zero, the 834 runs to the cycle, and a bench check that the new kill equals the old in every cycle without `flush_q`.
+- **The fault queue written at F1**: `fq_f` is read only when the I$ answers, at F2 at the earliest; so its write (the index, the ITLB's X and AF, PMP's 8 words) goes through a register and lands at F1's end, in time. Taken off F0: the queue's write behind the ITLB and PMP.
+
+The cost: about 10 flip-flops for the kill, 15 for the queue's write. After them, the worst would be the bypass (+0.501 ns) and the LSU's W (+0.480 ns), as far as this run tells.
+
+**Next**: V3d (the author's go), then `OOO_CPU` at 20 ns again.

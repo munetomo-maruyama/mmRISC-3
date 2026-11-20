@@ -10936,3 +10936,43 @@ The analysis is in Plan/OOC 29.92 (EN/JA) and STRATEGY, committed with the repor
 ```text
 Start V3c
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+V3c is in: the bypass's tag compare has moved from EX to RR. The result is the same to the bit as before.
+
+**The change (OOO_CORE)**
+- The tags EX compared were all registers that take their input every cycle:
+  - the operand's tag: from RR
+  - the ALU results' tags: from `wbi_t`, entering WB
+  - the loads' tags: from M's `ld_nt`
+- So RR compares its sources with the next cycle's source tags, `byp_nt`, into a register (`ex_m1`, `ex_m2`).
+- EX selects with "valid AND match", as now.
+- It covers the 4 ALU ports and the bases of the 2 LSU ports. On the LSU side, E's address, where V3b added a compare, comes earlier too.
+- `byp_t` and `lw_t`, no longer used, are removed.
+- Expected: about 2 ns off the bypass part of EX on 29.92's path. Cost: about +46 FF.
+
+**Verification**
+
+| Item | Result |
+|---|---|
+| Cycle identity | with every state at zero, all 834 runs identical to HEAD (V3b) to the cycle, none failing |
+| run_core | 12 runs PASS |
+| CoreMark | PASS; all 15 timed windows as V3b's (`results/coremark.txt` unchanged) |
+| `verilator -Wall` | the same warnings as HEAD |
+| Core mutations | 10 of 10 detected (3 retargeted, 263 and 264 new, the 5 other bypass ones again) |
+
+- **The random start's drift:** 252 of run_core's runs moved a few cycles, as at V3b: flip-flops added and removed shift the random first values. ls-18 and br-15 are back to their values before V3b.
+- **The unit regression:** no unit bench holds OOO_CORE, so it was not run again.
+
+Plan/OOC 29.93 (EN/JA), STRATEGY, Doc/UARCH and the READMEs updated; committed and pushed as 6d0310c (Ref/ on the remote: 0).
+
+Next: please run `synth_ooo.bat OOO_CPU` at 20 ns again. If it works, the worst becomes the LSU's W (+0.277 ns in V3b's run), with a few hundred ps.
+<!-- /answer -->
+
+## 270. 2026-11-21 01:19:28 JST
+
+```text
+OOO_CPU合成完了した。
+```
