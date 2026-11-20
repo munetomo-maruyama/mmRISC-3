@@ -69,7 +69,7 @@ flowchart LR
 | Stage | Work |
 |---|---|
 | F0 | next fetch address from the uBTB (32 × 3) |
-| F1 | the I$, TAGE and the BTB read; tags compared, the way chosen |
+| F1 | the I$, TAGE and the BTB read; tags compared, the way chosen; the request's fetch fault written into its queue (step 1.8 V3d) |
 | F2 | from registers: predecode of 16 parcels, TAGE's decision, the override of the uBTB, the RAS; the block into the fetch buffer (8 blocks) and the FTQ (32) |
 | D1a | `OOO_FBUF3`: up to 4 instructions from up to 2 blocks, raw |
 | D1b | `OOO_DEC`: 4 decoders (`CORE_DECOMP` + `CORE_DEC`); the rare classes (FP, AMO, MISC-MEM, SYSTEM) in slot 0 only |
@@ -77,7 +77,7 @@ flowchart LR
 | DS | `OOO_RENAME2`'s second stage, `OOO_BUSY`; the ROB, the issue queue, its payload (`OOO_IQPL2`) and the LQ / SQ written |
 | IS | wakeup and select in one cycle, 6 ports; a load's dependents woken 2 cycles after it |
 | RR | the register file and the payload read; the bypass's tags compared (step 1.8 V3c) |
-| EX | the bypass from the write-back registers (selected by RR's compare), the ALU, a branch resolved against its prediction; a memory µop's address, the D$'s arrays read, the SQ's offsets and bytes compared (step 1.8 V3b) |
+| EX | the bypass from the write-back registers (selected by RR's compare), the ALU, a branch resolved against its prediction, the oldest misprediction chosen for the kill (step 1.8 V3d); a memory µop's address, the D$'s arrays read, the SQ's offsets and bytes compared (step 1.8 V3b) |
 | M | (memory) tags, way, the SQ's youngest older match chosen, aligned: the result |
 | WB | the bypass source of the next cycle; the register file written as the result enters it |
 | commit | 4 a cycle: the committed rename state, the free list, the LQ / SQ, the FTQ pops (one TAGE update a cycle), traps |

@@ -6393,3 +6393,20 @@ The kill path is old (29.23 took the trap out of it); it was +0.486 ns into `don
 The cost: about 10 flip-flops for the kill, 15 for the queue's write. After them, the worst would be the bypass (+0.501 ns) and the LSU's W (+0.480 ns), as far as this run tells.
 
 **Next**: V3d (the author's go), then `OOO_CPU` at 20 ns again.
+
+### 29.95 Step 1.8 V3d: the kill from EX's end, the fault queue written at F1 (2026-11-21)
+
+The author's go ("Start V3d"), as 29.94 proposed.
+
+**The kill** (`OOO_CORE`, `OOO_CTRL`): `OOO_CTRL`'s `kill` and the rest of its restore (`restore_id`, the LQ / SQ / FTQ tails, `restore_port`) took `OOO_ROB`'s choice of the oldest live misprediction (`restore_k`, `restore_ckpt`), made in the cycle after EX from the resolution's registers (`br_*`). Now `OOO_CORE` makes the same choice at EX's end, on `e_br_*`, and registers it: `k_m[p] = e_br_valid[p] && e_br_mispred[p] && !flush_all && (ex_bms[p] & kill) == 0` (what `br_valid && br_mispred` will be), the older of the two by `k_d` (the distance from `head_rob`), `k_v` (any) and `k_ckpt` (its checkpoint) into `OOO_CTRL`'s `rob_restore_k` / `rob_restore_ckpt`. Why it is the same: a branch in `br_*` was live at its EX's end (not killed, not flushed); it leaves the ROB before the next cycle only by a trap or replay of that cycle, and then `flush_q` holds the kill and the restore off in exactly that cycle. Of two live mispredictions the older is the older against any head (commit moves the head only past older entries, both stay younger). `OOO_ROB` keeps its own choice, with `live`, for its tail (`restore`, `restore_rob`); its `restore_k` / `restore_ckpt` outputs are open. Off the path: `live`, the two distances, their compare and the choice (about 6 to 7 ns before `kill` on 29.94's path); `bit_of`'s decode of 4 bits and the fan-out stay. Cost: 5 flip-flops.
+
+**The fault queue** (`OOO_FRONT`): a request's fault (the ITLB's X and AF, PMP's 8 words) and its slot (`fq_h + fq_n`) go into registers at F0's end (`fq_wd`, `fq_wi`, `fq_wv`) and `fq_f` is written at F1's end. It is read only with the I$'s answer, 2 cycles after the request at the earliest (`OOO_ICACHE`, as `ICacheModel`), so every read sees the value it saw before. Cost: 13 flip-flops.
+
+**Tests**:
+- **The kill against the ROB's**: a build with `OOO_ROB`'s `restore_k` / `restore_ckpt` wired out compares them with `k_v` / `k_ckpt` in every cycle without `flush_all`: **100,777 restores, 0 mismatches** over 1,917 runs (B2 on 2 seeds and without misses, B3 on 2 seeds, B4 on 2 seeds, riscv-tests' -p- and -v-), every run passing.
+- **Identical to the cycle** with every state at zero: the 834 core runs of 29.91 against HEAD (V3c), and the 5 runs of run_front (a copy of `tb_front` with `randReset(0)`: the bench sets the random start itself, so `+verilator+rand+reset+0` does nothing there). With the random start, 284 of run_core's runs and run_front's `ma_fetch` moved a few cycles (18 flip-flops shift Verilator's first values, as at 29.91 / 29.93). CoreMark's timed windows unchanged (`results/coremark.txt`).
+- run_core **12 runs PASS**, run_front PASS, CoreMark PASS; `verilator -Wall` on `OOO_CPU`: the same warnings as HEAD.
+
+**Mutations** (core, 265 to 269 new): the kill's checkpoint always port 1's; port 0's misprediction kills nothing; a misprediction killed in EX still restoring; the fault written at the queue's head; the queue's slot taken in the write's cycle: **5 of 5**, with V2's and P1's 19 on the fetch's faults (242 to 260): **24 of 24**. Two first tries were equivalent and replaced: since step 1.2 D only port 0 resolves branches (ALU1 to 3 have no branch unit), so the choice between the two ports is never exercised (in `OOO_ROB` neither: `br_valid[1]` is never 1, checked over B2 and B3); and a write with no request lands on a slot no answer reads before the next request writes it (the queue holds at most 3). The core's list is 270.
+
+**Next**: `OOO_CPU` at 20 ns again (the author's Vivado run). After the kill, 29.94's run puts the bypass (+0.501 ns) and the LSU's W (+0.480 ns) next.

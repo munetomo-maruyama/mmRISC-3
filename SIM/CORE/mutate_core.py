@@ -407,6 +407,12 @@ MUT = [
     # the bypass's compare at RR (step 1.8 V3c, Plan/OOC.md 29.93)
     (C, "for (int q = 0; q < NAP; q++) byp_nt[q] = wbi_t[q];", "for (int q = 0; q < NAP; q++) byp_nt[q] = ex[q].dst;", "V3c: the bypass's compare with EX's tag, not the MDU's, the multiplier's or the FP -> integer result's"),
     (C, "ex_m2[q] <= byp_nt[q] == rr_t2;", "ex_m2[q] <= byp_nt[q] == rr_t1;", "V3c: the second operand's compare with the first's tag"),
+    # the kill registered from EX's end, the fetch's fault queue written at F1 (step 1.8 V3d, Plan/OOC.md 29.95)
+    (C, "k_ckpt <= (k_m[0] && (!k_m[1] || k_d[0] <= k_d[1])) ? e_br_ckpt[0] : e_br_ckpt[1];", "k_ckpt <= e_br_ckpt[1];", "V3d: the kill's checkpoint always port 1's (port 0 resolves every branch since step 1.2 D)"),
+    (C, "else        k_v <= k_m != 2'b00;", "else        k_v <= k_m[1];", "V3d: port 0's misprediction kills nothing"),
+    (C, "k_m[p] = e_br_valid[p] && e_br_mispred[p] && !flush_all && (ex_bms[p] & kill) == '0;", "k_m[p] = e_br_valid[p] && e_br_mispred[p] && !flush_all;", "V3d: a misprediction killed in EX still restores"),
+    (FR, "fq_wi <= fq_h + fq_n[1:0];", "fq_wi <= fq_h;", "V3d: a fetch fault written at the queue's head"),
+    (FR, "if (fq_wv) fq_f[fq_wi] <= fq_wd;", "if (fq_wv) fq_f[fq_h + fq_n[1:0]] <= fq_wd;", "V3d: the fault queue's slot taken in the write's cycle, not the request's"),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),

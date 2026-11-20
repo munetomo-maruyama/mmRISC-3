@@ -745,9 +745,10 @@ module OOO_CORE
     logic [1:0][FTQW-1:0]      e_rs_ftq;
     logic                      e_bt_valid;
     logic [VA-1:1]             e_bt_pc, e_bt_tgt;
-    logic                      rob_restore, rob_restore_k, rob_trap, trap, head_ns, iss_ns, ns_ok, ns_busy, irq;
+    logic                      rob_restore, rob_trap, trap, head_ns, iss_ns, ns_ok, ns_busy, irq;
+    logic                      k_v;                     // the kill's misprediction, chosen at EX's end (step 1.8 V3d, below)
+    logic [CW-1:0]             k_ckpt;
     logic                      replay /*verilator public_flat_rd*/;      // (counted by SIM/CORE/tb_core)
-    logic [CW-1:0]             rob_restore_ckpt;
     logic [VA-1:1]             rob_replay_pc, replay_pc, trap_vec;
     logic [ROBW-1:0]           head_rob;
     logic [4:0]                trap_cause;
@@ -769,7 +770,7 @@ module OOO_CORE
          .lq_avail(lq_avail), .sq_avail(sq_avail), .ck_lq_tail(ck_lq_tail), .ck_sq_tail(ck_sq_tail), .d_go(d_go), .d_bmask(d_bmask),
          .br_valid(br_valid), .br_mispred(br_mispred), .br_ckpt(br_ckpt), .br_next(br_next),
          .cl_valid(br_valid & ~br_mispred), .cl_ckpt(br_ckpt),
-         .rob_restore(rob_restore), .rob_restore_k(rob_restore_k), .rob_restore_ckpt(rob_restore_ckpt), .trap(trap), .replay(replay),
+         .rob_restore(rob_restore), .rob_restore_k(k_v), .rob_restore_ckpt(k_ckpt), .trap(trap), .replay(replay),
          .replay_pc(replay_pc), .trap_vec(trap_vec), .head_ns(head_ns),     // (trap, trap_vec, replay_pc: OOO_TRAP)
          .cmt_valid(cmt_valid), .cmt_wr(cmt_wr), .cmt_old(cmt_old), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n),
          .cmt_ftq(cmt_ftq), .iss_ns(iss_ns), .ns_ok(ns_ok), .ns_busy(ns_busy),
@@ -807,7 +808,7 @@ module OOO_CORE
          .disp_rob(disp_rob),
          .cmp_valid(cmp_valid), .cmp_rob(cmp_rob), .cmp_exc(cmp_exc), .cmp_cause(cmp_cause), .cmp_rp(cmp_rp),
          .br_valid(br_valid), .br_rob(br_rob), .br_mispred(br_mispred), .br_ckpt(br_ckpt),
-         .restore(rob_restore), .restore_k(rob_restore_k), .restore_rob(rob_restore_rob), .restore_ckpt(rob_restore_ckpt),
+         .restore(rob_restore), .restore_k(), .restore_rob(rob_restore_rob), .restore_ckpt(),
          .head_rob(head_rob), .head_ns(head_ns), .head_valid(head_valid), .head_fused(head_fused), .irq(irq),
          .cmt_valid(cmt_valid), .cmt_wr(cmt_wr), .cmt_arch(cmt_arch), .cmt_new(cmt_new), .cmt_old(cmt_old),
          .cmt_pc(cmt_pc), .cmt_ftq(cmt_ftq), .cmt_x(cmt_fx), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_instret(cmt_instret),
@@ -1764,6 +1765,27 @@ module OOO_CORE
                         ((ex_v[0] && ex[0].rec.is_jalr && !ex[0].rec.ret) ? (ex_bms[0] & kill) == '0 : (ex_bms[1] & kill) == '0);
         end
     end
+    // the kill's choice, made here at EX's end and registered (step 1.8 V3d, Plan/OOC.md 29.94 / 29.95): OOO_ROB
+    // chooses the oldest live misprediction of this register in the next cycle (restore_k, restore_ckpt), and
+    // OOO_CTRL's kill, the LSU's restore and the restore's checkpoint (its id, the LQ / SQ / FTQ tails) came
+    // from that choice, behind OOO_ROB's live check and age compare. A branch here is in the ROB in the next
+    // cycle but after a trap or replay of this cycle (one killed or flushed now is dropped, as br_valid), and in
+    // that cycle OOO_CTRL holds the kill and the restore off (flush_q); of two live ones the older is the same
+    // against any head. So the same choice is made now, against this cycle's head, without the live check:
+    // the same to the bit wherever it is used. OOO_ROB keeps its own (restore, restore_rob: its tail, the front end)
+    logic [1:0]                k_m;                     // a misprediction leaving EX into br_* (as br_valid && br_mispred)
+    logic [1:0][ROBW-1:0]      k_d;                     // its distance from the head
+    always @(*) begin
+        for (int p = 0; p < 2; p++) begin
+            k_m[p] = e_br_valid[p] && e_br_mispred[p] && !flush_all && (ex_bms[p] & kill) == '0;
+            k_d[p] = (e_br_rob[p] >= head_rob) ? ROBW'(e_br_rob[p] - head_rob) : ROBW'(e_br_rob[p] + ROBW'(NROB) - head_rob);
+        end
+    end
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) k_v <= 1'b0;
+        else        k_v <= k_m != 2'b00;
+    end
+    always_ff @(posedge clk) k_ckpt <= (k_m[0] && (!k_m[1] || k_d[0] <= k_d[1])) ? e_br_ckpt[0] : e_br_ckpt[1];
     always_ff @(posedge clk) begin
         br_mispred <= e_br_mispred;
         br_ckpt    <= e_br_ckpt;

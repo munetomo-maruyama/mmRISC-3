@@ -335,9 +335,20 @@ module OOO_FRONT
             fq_n <= n;
         end
     end
-    always_ff @(posedge clk)
-        if (ic_req_valid && ic_req_ready)
-            fq_f[fq_h + fq_n[1:0]] <= !it_xok ? {it_afo ? 2'd2 : 2'd1, 8'd0} : {2'd0, pmpw};   // (a pop now moves only the head)
+    // written a cycle late, at F1's end, from registers (step 1.8 V3d, Plan/OOC.md 29.95): it is read only with
+    // the I$'s answer, at F2 at the earliest, so the ITLB's and PMP's decision is not on F0's path into it
+    logic       fq_wv;
+    logic [1:0] fq_wi;
+    logic [9:0] fq_wd;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) fq_wv <= 1'b0;
+        else        fq_wv <= ic_req_valid && ic_req_ready;
+    end
+    always_ff @(posedge clk) begin
+        fq_wi <= fq_h + fq_n[1:0];                                  // (a pop now moves only the head)
+        fq_wd <= !it_xok ? {it_afo ? 2'd2 : 2'd1, 8'd0} : {2'd0, pmpw};
+        if (fq_wv) fq_f[fq_wi] <= fq_wd;
+    end
     // each FTQ block's fault, written with its push (the block goes out with the I$'s answer)
     // ({the block before's word 7 denied, the translation's fault, the words denied})
     logic [10:0] bf [NFTQ];

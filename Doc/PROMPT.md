@@ -10976,3 +10976,53 @@ Next: please run `synth_ooo.bat OOO_CPU` at 20 ns again. If it works, the worst 
 ```text
 OOO_CPU合成完了した。
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+V3c fixed the bypass path (−0.203 → +0.501 ns). But this run's WNS is −0.578 ns, worse than the last. The cause is old paths that moved with placement; the RTL was not changed for them.
+
+**Results**
+
+| Item | with V3b | with V3c |
+|---|---|---|
+| WNS | −0.203 ns | **−0.578 ns** (TNS −23.0 ns, 72 endpoints) |
+| Hold | +0.028 ns | +0.028 ns (none failing) |
+| LUTs | 106,056 | 105,207 (−849, spread over the blocks: synthesis) |
+| Bypass path | −0.203 ns | +0.501 ns |
+| The LSU's W | +0.277 ns | +0.480 ns |
+
+**The failing paths (3 families)**
+- **The branch kill (70 endpoints):**
+  - The common part: the branch resolution's register → the ROB's choice of the oldest misprediction (the live check, the distance from the head) → the checkpoint's decode → kill → the LSU's W drop.
+  - Then two ways:
+    - the D$ miss request → OOO_DMISS2's miss queue (57, −0.518 ns)
+    - the store completion → the ROB's done / exc / cause (13, −0.578 ns)
+  - 85 % route. The path had +0.486 ns in 29.92's run; it moves by about 0.5 ns with placement.
+  - The report's start `csr_crob` is the branch resolution's register with the same value, which Vivado merged into one.
+- **F0's ITLB → the fetch fault queue's write (2, −0.131 ns):** V2 / P1's worry.
+
+**Proposal: V3d (both the same to the bit)**
+- **The kill from a register at EX's end**
+  - `br_valid` already drops a branch killed or flushed in EX.
+  - So the ROB's live check matters only in the cycle after a trap or replay, where OOO_CTRL already holds the kill off.
+  - And which of two live mispredictions is older does not depend on where the head is.
+  - So make the choice and the decode at EX's end and register the kill's one-hot itself: about 6 to 7 ns off before kill.
+  - The ROB's own tail and restore keep today's choice.
+- **The fault queue written at F1**
+  - The queue is read only at the I$'s answer, F2 at the earliest.
+  - So its write goes through a register and lands at F1's end: off the back of F0's ITLB → PMP.
+- **Cost:** about 25 FF.
+- **Checks:**
+  - with every state at zero, the 834 runs identical to the cycle;
+  - a bench check that the new kill equals the old in every cycle without `flush_q`.
+- As far as this run tells, the worst afterwards is the bypass at +0.501 ns and the LSU's W at +0.480 ns.
+
+The analysis is in Plan/OOC 29.94 (EN/JA) and STRATEGY, committed with the reports and pushed as d2155a5 (Ref/ on the remote: 0). The RTL is unchanged.
+<!-- /answer -->
+
+## 271. 2026-11-21 01:30:44 JST
+
+```text
+Start V3d
+```
