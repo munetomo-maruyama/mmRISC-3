@@ -11026,3 +11026,36 @@ The analysis is in Plan/OOC 29.94 (EN/JA) and STRATEGY, committed with the repor
 ```text
 Start V3d
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+V3d is implemented, checked and documented, committed and pushed (dbdf139). Ref/ is not on the remote (0 files).
+
+**The changes (both the same to the bit)**
+- **The kill chosen at EX's end:** the oldest misprediction is chosen at EX's end and registered as `k_v` / `k_ckpt` into OOO_CTRL. OOO_ROB used to choose it in the next cycle. This takes `live`, the distance compare and the choice off 29.94's path (−0.578 ns). OOO_ROB keeps its own choice for its tail.
+- **The fault queue written at F1:** the write into `fq_f` is a cycle later, off the back of F0's ITLB and PMP. It is read only when the I$ answers, 2 cycles after the request at the earliest, so every read sees the value it saw before.
+- 18 flip-flops added.
+
+**Checks**
+- **The kill matches:** the new kill against the ROB's choice in every cycle without a flush: 1,917 runs, 100,777 restores, 0 mismatches.
+- **Identical at a zero start:** with every state at zero, the 834 core runs and the 5 front runs give HEAD's cycles exactly.
+  - tb_front sets the random start itself (`randReset(2)`), so `+verilator+rand+reset+0` does nothing there. I checked with a copy in the scratchpad set to `randReset(0)`.
+- **Moves under the random start:** 284 of run_core's runs and run_front's ma_fetch (33 cycles) moved. The added flip-flops shift Verilator's first values; not a design change.
+- run_core (12 runs), run_front and CoreMark all PASS. CoreMark's timed windows are unchanged, lint's warnings the same as HEAD.
+- **Mutations:** 24 of 24 detected; 265 to 269 are new.
+  - The first 3 I wrote were equivalent (the mutation changes nothing) and went undetected.
+  - 265 and 266: since step 1.2 D only port 0 resolves branches, so the choice between two ports never happens (`br_valid[1]` never 1, checked on B2 and B3).
+  - 269: a write with no request lands on a slot nobody reads before the next request writes it.
+  - All 3 were replaced with mutations that change behaviour.
+
+Docs updated: Plan/OOC(_J) 29.95, STRATEGY(_J) 1.8, Doc/UARCH(_J)'s F1 / EX rows, the RTL README(_J).
+
+Next, please run `synth_ooo.bat OOO_CPU` at 20 ns again. If 29.94's run holds, the next worst after the kill are the bypass (+0.501 ns) and the LSU's W (+0.480 ns).
+<!-- /answer -->
+
+## 272. 2026-11-21 18:24:04 JST
+
+```text
+Ran Vivado for OOO_CPU.
+```
