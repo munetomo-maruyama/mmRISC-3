@@ -11059,3 +11059,39 @@ Next, please run `synth_ooo.bat OOO_CPU` at 20 ns again. If 29.94's run holds, t
 ```text
 Ran Vivado for OOO_CPU.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+OOO_CPU meets 20 ns. V3, with V1, V2 and P1, is done.
+
+**Results**
+- **Timing:** WNS +0.073 ns, TNS 0, hold +0.028 ns, 0 failing endpoints.
+- **timing_blocks.rpt:** written only when a path fails, so not written this time; it shows as deleted in git.
+- **Resources:** 105,954 LUTs (+747 on the last run), 27,680 FF, 42 DSP, 284.5 BRAM tiles.
+  - Most of the increase is OOO_CTRL (+851), with OOO_ROB −456: the restore's source moved from the ROB to the core's `k_ckpt`, so Vivado merges in other places. The rest is synthesis spreading across modules.
+
+**What V3d did**
+- The kill path, −0.578 ns last time, is gone from the worst list; `k_ckpt` to the ROB has +2.128 ns.
+- The ITLB path behind the fault queue has +1.043 ns.
+
+**The worst paths now (all met)**
+- **Inside EX, +0.073 ns:** the bypass select (`ex_m1`) → the branch's 64-bit compare → the misprediction → `k_ckpt`'s choice, 31 levels. 13 of the 20 worst end at `k_ckpt`'s replicas.
+- **F2's predecode → the uBTB's `pc_q`, +0.383 ns:** the old fetch loop.
+- **A spare move:** only port 0 resolves branches, so taking port 1's resolution out makes `k_ckpt <= e_br_ckpt[0]`, taking the misprediction off this path entirely, the same to the bit. Not needed now; noted in 29.96 for when a later step brings this path back.
+
+**The LUT outlook:** about 109.3k at step 1.8's end, about 114.6k with LiteX: about 6.9k above the 107.7k ceiling, as estimated at U3b. Your decision when we get there.
+
+The analysis is in Plan/OOC(_J) 29.96 and STRATEGY(_J), committed with the reports and pushed as c3d6902. Ref/ on the remote: 0.
+
+The next step is K1 (the PMU's events).
+- Wire the OoO core's events into `CORE_CSR`'s 2 HPM counters: instructions by class at commit, mispredictions, I$ / D$ misses, TLB misses and page-table walks, and so on.
+- Also Sscofpmf's overflow interrupt and what OpenSBI's perf needed on mmRISC-2.
+- I make the events' list and numbering first, for you to confirm before I implement.
+<!-- /answer -->
+
+## 273. 2026-11-21 18:29:35 JST
+
+```text
+Start K1
+```
