@@ -115,6 +115,7 @@ module OOO_ROB
         output logic                        head_ns,     // a non-speculative µop at the head, not run yet
         output logic                        head_valid,  // the ROB is not empty
         output logic                        head_fused,  // the head is a fused pair
+        output logic                        head_mem,    // the head is a load or a store (the PMU, step 1.8 K1)
         input  logic                        irq,         // OOO_TRAP: take an interrupt before the head now
 
         // commit
@@ -274,6 +275,7 @@ module OOO_ROB
         head_ns    = has[0] && pk[0][FTQW+3] && !done[hi[0]];
         head_valid = has[0];
         head_fused = pk[0][FTQW+4];
+        head_mem   = has[0] && (pk[0][FTQW+6] || pk[0][FTQW+5]);
         // the µop the front end's history and RAS go back to (OOO_FERS): the
         // head for a trap, the marked one for a replay
         begin

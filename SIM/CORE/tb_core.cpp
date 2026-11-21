@@ -164,12 +164,15 @@ static bool run(const Opts& o, const std::string& elf)
     ICacheModel ic(b.mem(), o.seed * 7 + 1, o.miss);
 #ifdef CPU_TOP
     Axi4Mem ax(b.mem(), o.seed * 13 + 5, o.mlat);
-    long ic_reqs = 0, ic_misses = 0;                    // (OOO_ICACHE's, from its registers)
+    long ic_reqs = 0, ic_misses = 0, ic_fills = 0;      // (OOO_ICACHE's, from its registers; a miss that may not be fetched
+                                                        //  is answered with zeros, not filled)
     AxiLite al(b.mem(), o.seed * 17 + 3);
 #else
     DMissModel dm(b.mem(), o.seed * 13 + 5, o.dhit >= 100 ? 0 : 12);     // (-dhit 100: fills at once, else up to 12 cycles late)
     uint64_t tohost_line = b.symbol("tohost") >> 6;
     UcModel uc(b.mem(), o.seed * 19 + 7);                                   // (HTIF's tohost: not cached, step 1.3 E1b)
+    long ev_icm = 0, ev_dmf = 0;                        // the models' misses and fills seen: the PMU's events 7, 8
+    long ev_icm1 = 0, ev_dmf1 = 0;                      // ... as they were two clock edges back (what hpm_ev has counted)
 #endif
     std::unique_ptr<Top> d(new Top);
 #ifdef CPU_TOP
@@ -199,6 +202,31 @@ static bool run(const Opts& o, const std::string& elf)
     for (int i = 0; i < 80; i++) d->rootp->CORE(u_prf__DOT__lvt)[i] = 0;
     long restores = 0, replays = 0;
     bool res_bad = false;
+    // the PMU's events (step 1.8 K1, Plan/OOC.md 29.97): hpm_ev holds the last cycle's; every cycle the 4 slots at
+    // renaming add up to 4, the instructions and µops retired are the trace's of the cycle before, and at the end
+    // the exceptions and interrupts are the trace's traps
+    long ev_sum[31] = {}, ev_ninsn = 0, ev_nuop = 0, ev_nld = 0, ev_nst = 0, tr_exc = 0, tr_irq = 0, ev_i8 = 0, ev_rs_last = 0, ev_rp_last = 0;
+    // ... and the events made from the core's signals of the cycle before (tb_core.vlt), with the bench's own
+    // account of renaming's recovery: the slot classes, the ROB's head, the walker, the branch resolutions
+    struct EvPrev { int go = 0, offer = 0, cmt = 0, rs = 0, st = 0, id = 0, dw = 0; bool rk = false, fa = false, ff = false, hv = false, mem = false, rr = false, rc = false; } evp;
+    bool ev_rec = false;
+    // the ROB's ld / st bits of an instruction (bit 0 a load, bit 1 a store): loads and FP loads, LR (a load), SC (a
+    // store), the other AMOs both, stores and FP stores; an encoding that does not exist is neither
+    auto mem_kind = [](uint32_t i) -> int {
+        if ((i & 3) != 3) { int q = i & 3, f = (i >> 13) & 7; return (q == 0 || q == 2) && f != 0 && f != 4 ? (f < 4 ? 1 : 2) : 0; }
+        int op = i & 0x7f, f3 = (i >> 12) & 7, f5 = i >> 27;
+        if (op == 0x03) return f3 != 7 ? 1 : 0;
+        if (op == 0x23) return f3 <= 3 ? 2 : 0;
+        if (op == 0x07) return f3 == 2 || f3 == 3 ? 1 : 0;
+        if (op == 0x27) return f3 == 2 || f3 == 3 ? 2 : 0;
+        if (op == 0x2f && (f3 == 2 || f3 == 3)) {
+            if (f5 == 2) return ((i >> 20) & 31) == 0 ? 1 : 0;
+            if (f5 == 3) return 2;
+            if (f5 == 0 || f5 == 1 || f5 == 4 || f5 == 8 || f5 == 12 || f5 == 16 || f5 == 20 || f5 == 24 || f5 == 28) return 3;
+        }
+        return 0;
+    };
+    auto is_mem = [&](uint32_t i) { return mem_kind(i) != 0; };
     // after the exit: 3,000 cycles more for the SQ and the writes to drain, then the memory the D$ wrote through must be
     // the program's (Bench::arch: the committed stores) but for HTIF's lines (step 1.3 E2, Plan/OOC.md 29.34)
     long drain_left = -1;
@@ -243,6 +271,11 @@ static bool run(const Opts& o, const std::string& elf)
             d->dc_pt_done = q.pt_done; d->dc_pt_data = q.pt_data;   // a page table's entry (step 1.8 V1)
         }
         d->irq_m_soft = 0; d->irq_m_timer = 0; d->irq_m_ext = 0; d->irq_s_ext = 0; d->mtime = 0;
+        // the memory side's events (step 1.8 K1): a miss of the I$ model, a fill of the D$ model (the cycle after);
+        // no L2 here
+        d->ev_mem = (ic.misses != ev_icm ? 1u : 0u) | (dm.fills != ev_dmf ? 2u : 0u);
+        ev_icm1 = ev_icm; ev_dmf1 = ev_dmf;
+        ev_icm = ic.misses; ev_dmf = dm.fills;
         d->fl_take = 1; d->fl_done = flq_q;
 #endif
         d->eval();
@@ -278,8 +311,56 @@ static bool run(const Opts& o, const std::string& elf)
                 }
             }
         }
-        restores += d->rootp->CORE(restore);
-        replays += d->rootp->CORE(replay);
+        ev_rs_last = d->rootp->CORE(restore); ev_rp_last = d->rootp->CORE(replay);    // (in hpm_ev a cycle later)
+        restores += ev_rs_last;
+        replays += ev_rp_last;
+        {
+            int ev[31];
+            for (int e = 0; e < 31; e++) { ev[e] = (int)((d->rootp->CORE(hpm_ev)[e / 8] >> (4 * (e % 8))) & 15); ev_sum[e] += ev[e]; }
+            std::string why;
+            if (ev[12] + ev[17] + ev[20] + ev[21] != 4 * ev[1])
+                why = "PMU: slots " + std::to_string(ev[12]) + " + " + std::to_string(ev[17]) + " + " + std::to_string(ev[20]) +
+                      " + " + std::to_string(ev[21]) + ", not 4";
+            else if (ev[2] != ev_ninsn || ev[22] != ev_nuop || ev[3] != ev_nld || ev[4] != ev_nst)
+                why = "PMU: " + std::to_string(ev[2]) + " instructions, " + std::to_string(ev[22]) + " uops, " + std::to_string(ev[3]) +
+                      " loads, " + std::to_string(ev[4]) + " stores retired; the trace " + std::to_string(ev_ninsn) + ", " +
+                      std::to_string(ev_nuop) + ", " + std::to_string(ev_nld) + ", " + std::to_string(ev_nst);
+            if (!why.empty()) { std::printf("cycle %llu: %s\n", (unsigned long long)cyc, why.c_str()); res_bad = true; break; }
+            int st = (int)d->rootp->CORE(u_ptw__DOT__st), id = (int)d->rootp->CORE(u_ptw__DOT__id_r);
+            if (why.empty() && ev[1]) {                     // (from the first cycle hpm_ev holds after reset)
+                int e[31] = {};
+                bool recn = ev_rec || evp.fa || evp.rk;
+                e[20] = evp.go;
+                if (recn) e[21] = 4 - evp.go; else { e[17] = evp.offer - evp.go; e[12] = 4 - evp.offer; }
+                e[11] = evp.hv && evp.cmt == 0 && evp.mem; e[14] = evp.hv && evp.cmt == 0 && !evp.mem; e[30] = !evp.hv;
+                bool wst = evp.st == 0 && st == 1;          // (OOO_PTW: S_IDLE to S_REQ)
+                e[9] = wst && (id >> 5); e[10] = wst && !(id >> 5);
+                e[27] = evp.st != 0 && !(evp.id >> 5); e[28] = evp.st != 0 && (evp.id >> 5);
+                e[5] = evp.rs & 1;
+                e[23] = evp.dw & 1; e[24] = (evp.dw >> 1) & 1; e[25] = (evp.dw >> 2) & 1; e[26] = evp.rr; e[29] = evp.rc;
+                static const int CK[] = {5, 9, 10, 11, 12, 14, 17, 20, 21, 23, 24, 25, 26, 27, 28, 29, 30};
+                for (int k : CK) if (ev[k] != e[k]) { why = "PMU: event " + std::to_string(k) + " is " + std::to_string(ev[k]) +
+                                                            ", the bench's " + std::to_string(e[k]); break; }
+            }
+            ev_rec = evp.ff || evp.rk || (ev_rec && evp.go == 0);
+            evp.st = st; evp.id = id;
+            if (!why.empty()) { std::printf("cycle %llu: %s\n", (unsigned long long)cyc, why.c_str()); res_bad = true; break; }
+            {
+                auto pc4 = [](unsigned v) { return (int)((v & 1) + ((v >> 1) & 1) + ((v >> 2) & 1) + ((v >> 3) & 1)); };
+                evp.go = pc4(d->rootp->CORE(r_go)); evp.offer = pc4(d->rootp->CORE(r_valid)); evp.cmt = d->rootp->CORE(cmt_valid);
+                evp.rk = d->rootp->CORE(restore_k); evp.fa = d->rootp->CORE(flush_all); evp.ff = d->rootp->CORE(fe_flush);
+                evp.hv = d->rootp->CORE(head_valid); evp.rs = d->rootp->CORE(rs_valid);
+                evp.dw = d->rootp->CORE(ev_dwait); evp.rr = d->rootp->CORE(ev_rreg); evp.rc = d->rootp->CORE(ev_rckpt);
+                evp.mem = evp.hv && is_mem(d->rootp->CORE(sh_insn)[d->rootp->CORE(head_rob)]);
+            }
+            ev_i8 += ev[2] == 8;
+            ev_ninsn = 0; ev_nuop = 0; ev_nld = 0; ev_nst = 0;
+            if (n > 0 && s[0].trap) { if (s[0].cause >> 63) tr_irq++; else tr_exc++; }
+            else for (int k = 0; k < n; k++) {
+                ev_nuop++; ev_ninsn += s[k].pair ? 2 : 1;
+                int mk = mem_kind(s[k].insn[0]); ev_nld += mk & 1; ev_nst += mk >> 1;
+            }
+        }
         if (n > 0 && !s[0].trap) {
             if (bypc_last >= 0) bypc[s[n-1].pc] += (long)cyc - bypc_last;
             bypc_last = (long)cyc;
@@ -302,6 +383,7 @@ static bool run(const Opts& o, const std::string& elf)
         if (d->rootp->OOO_CPU__DOT__u_icache__DOT__s1_v && !d->rootp->OOO_CPU__DOT__u_icache__DOT__s1_rp) {
             ic_reqs++;
             if (!d->rootp->OOO_CPU__DOT__u_icache__DOT__s1_hit) ic_misses++;
+            if (!d->rootp->OOO_CPU__DOT__u_icache__DOT__s1_hit && d->rootp->OOO_CPU__DOT__u_icache__DOT__s1_tok) ic_fills++;
         }
 #endif
 #ifdef CPU_TOP
@@ -408,8 +490,38 @@ static bool run(const Opts& o, const std::string& elf)
             if (res_bad) break;
         }
     }
+    // the PMU's events against the bench's own counts (the drain after the exit has brought the last ones in)
+    // the fills: on the core against the models' counts as hpm_ev has them (two edges back); on OOO_CPU after the
+    // drain only (a run that stops at its pass symbol may end with a fill asked for and not yet counted; in the
+    // drain the loop at the exit hits the I$): I$ fills against OOO_ICACHE's misses that may be fetched, L2 reads
+    // against the I$'s and the D$'s reads, L2 misses against memory's line reads
+#ifdef CPU_TOP
+    long b_icm = ic_fills, b_dcf = ev_sum[8], b_l2r = ev_sum[7] + ev_sum[8], b_l2m = ax.reads;
+    bool fill_bad = continue_clock && (ev_sum[7] != b_icm || ev_sum[18] != b_l2r || ev_sum[19] != b_l2m);
+#else
+    long b_icm = ev_icm1, b_dcf = ev_dmf1, b_l2r = 0, b_l2m = 0;
+    bool fill_bad = ev_sum[7] != b_icm || ev_sum[8] != b_dcf || ev_sum[18] != 0 || ev_sum[19] != 0;
+#endif
+    if (!res_bad && b.passed() && (ev_sum[15] != tr_exc || ev_sum[16] != tr_irq || ev_sum[6] != restores - ev_rs_last ||
+                                   ev_sum[13] != replays - ev_rp_last || fill_bad)) {
+        std::printf("PMU: exceptions %ld, interrupts %ld, restores %ld, replays %ld, I$ fills %ld, D$ fills %ld, L2 reads %ld, misses %ld; "
+                    "the bench %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld\n",
+                    ev_sum[15], ev_sum[16], ev_sum[6], ev_sum[13], ev_sum[7], ev_sum[8], ev_sum[18], ev_sum[19],
+                    tr_exc, tr_irq, restores, replays, b_icm, b_dcf, b_l2r, b_l2m);
+        res_bad = true;
+    }
     std::string name = elf.substr(elf.rfind('/') + 1);
     std::printf("%s\n", b.summary(name).c_str());
+    if (ev_i8) std::printf("    PMU: 8 instructions retired in %ld cycles\n", ev_i8);
+    if (o.verbose && ev_sum[1]) {
+        double sl = 4.0 * (double)ev_sum[1];
+        std::printf("    PMU: slots %.1f %% retiring, %.1f %% bad speculation, %.1f %% front end, %.1f %% back end "
+                    "(ROB %ld, queues %ld, LQ / SQ %ld, registers %ld, checkpoints %ld cycles); head waits %ld memory %ld other, "
+                    "ROB empty %ld; walks %ld fetch %ld LSU; fills I$ %ld D$ %ld; L2 %ld reads %ld misses\n",
+                    100.0 * ev_sum[22] / sl, 100.0 * (ev_sum[20] - ev_sum[22] + ev_sum[21]) / sl, 100.0 * ev_sum[12] / sl,
+                    100.0 * ev_sum[17] / sl, ev_sum[23], ev_sum[24], ev_sum[25], ev_sum[26], ev_sum[29], ev_sum[11], ev_sum[14],
+                    ev_sum[30], ev_sum[9], ev_sum[10], ev_sum[7], ev_sum[8], ev_sum[18], ev_sum[19]);
+    }
     if (o.verbose)
 #ifdef CPU_TOP
         std::printf("    %ld restores (mispredicted branches and jalr), %ld replays, I$ %ld / %ld missed, memory %ld line reads %ld line writes, uncached %ld reads %ld writes\n",

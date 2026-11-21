@@ -27,10 +27,10 @@ MM=${MMIO_RTL:-$(cd ../../RTL/CPU/MMIO && pwd)}
 FP=${FPU_RTL:-$(cd ../../RTL/CPU/FPU && pwd)}
 if [ "$1" = cpu ]; then
     L2KB=${L2KB:-512}
-    TOP=OOO_CPU; O=${OBJ:-$HERE/obj/cpu}; DEF="+define+DCACHE_SIM_UC -GL2_SIZE=$((L2KB * 1024)) -GCLINT_TICK_DIV=1 $HERE/tb_cpu.vlt"; CDEF="-DCPU_TOP -DL2_SETS=$((L2KB * 4))"
+    TOP=OOO_CPU; O=${OBJ:-$HERE/obj/cpu}; DEF="+define+DCACHE_SIM_UC -GL2_SIZE=$((L2KB * 1024)) -GCLINT_TICK_DIV=1 $HERE/tb_cpu.vlt $HERE/tb_core.vlt"; CDEF="-DCPU_TOP -DL2_SETS=$((L2KB * 4))"
     XSRC="$R/OOO_DMISS2/OOO_DMISS2.sv $R/OOO_ICACHE/OOO_ICACHE.sv $R/OOO_MARB/OOO_MARB.sv $CA/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv $CA/CPU_L2/L2_TAG_ARRAY.sv $CA/CPU_L2/CPU_L2.sv $MM/CPU_CLINT/CPU_CLINT.sv $MM/CPU_PLIC/CPU_PLIC.sv $MM/CPU_MMIO/CPU_MMIO.sv $R/OOO_CPU/OOO_CPU.sv"
 else
-    TOP=OOO_CORE; O=${OBJ:-$HERE/obj/core}; DEF=""; CDEF=""; XSRC=""
+    TOP=OOO_CORE; O=${OBJ:-$HERE/obj/core}; DEF="$HERE/tb_core.vlt"; CDEF=""; XSRC=""
 fi
 rm -rf $O; mkdir -p $O
 verilator --cc --exe --build -O2 -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT --x-assign unique --x-initial unique --Mdir $O \

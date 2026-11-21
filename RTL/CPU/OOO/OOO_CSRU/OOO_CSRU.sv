@@ -50,7 +50,8 @@ module OOO_CSRU
         parameter int          PMP_CSRS     = 16,
         parameter int          TRIGGERS     = 4,
         parameter int          HPM_COUNTERS = 2,    // G0b L1 (Doc/UARCH.md 6.3): 4 -> 2
-        parameter int          HPM_EVENTS   = 20
+        parameter int          HPM_EVENTS   = 31,   // step 1.8 K1 (Plan/OOC.md 29.97): the OoO core's 30 events
+        parameter int          HPM_EVW      = 4     // ... a count each, 0 .. 8 a cycle
     )
     (
         input  logic                        clk,
@@ -92,8 +93,8 @@ module OOO_CSRU
         input  logic                        irq_m_ext,
         input  logic                        irq_s_ext,
         input  logic [63:0]                 mtime,
-        input  logic [2:0]                  instret_inc,    // OOO_ROB cmt_instret
-        input  logic [HPM_EVENTS-1:0]       hpm_ev,
+        input  logic [3:0]                  instret_inc,    // OOO_ROB cmt_instret (0 .. 8: 4 bits since step 1.8 K1)
+        input  logic [HPM_EVENTS-1:0][HPM_EVW-1:0] hpm_ev,
 
         // the rest of CORE_CSR, as it is
         output logic [1:0]                  priv,
@@ -166,7 +167,7 @@ module OOO_CSRU
     // that wrote mcountinhibit counts under the old IR bit (rd_data[2]): not
     // counted when it cleared IR, counted although inhibited when it set it
     logic       ir_skip, ir_force;
-    logic [2:0] ir_inc;
+    logic [3:0] ir_inc;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             ir_skip  <= 1'b0;
@@ -174,17 +175,18 @@ module OOO_CSRU
         end else if (wr_en && (ex_addr == 12'hB02 || ex_addr == 12'h320)) begin
             ir_skip  <= ex_addr == 12'hB02 || (rd_data[2] && !wdata[2]);
             ir_force <= ex_addr == 12'h320 && !rd_data[2] && wdata[2];
-        end else if (instret_inc != 3'd0) begin
+        end else if (instret_inc != 4'd0) begin
             ir_skip  <= 1'b0;
             ir_force <= 1'b0;
         end
     end
-    assign ir_inc = (ir_skip && instret_inc != 3'd0) ? instret_inc - 3'd1 : instret_inc;
+    assign ir_inc = (ir_skip && instret_inc != 4'd0) ? instret_inc - 4'd1 : instret_inc;
 
     // (rd_exists / rd_readonly are the debugger's, trap_to_s is in the vector already)
     /* verilator lint_off PINCONNECTEMPTY */
     CORE_CSR #(.HART_ID(HART_ID), .MISA(MISA), .PMP_ENTRIES(PMP_ENTRIES), .PMP_CSRS(PMP_CSRS),
-               .TRIGGERS(TRIGGERS), .HPM_COUNTERS(HPM_COUNTERS), .HPM_EVENTS(HPM_EVENTS)) u_csr
+               .TRIGGERS(TRIGGERS), .HPM_COUNTERS(HPM_COUNTERS), .HPM_EVENTS(HPM_EVENTS),
+               .HPM_EVW(HPM_EVW)) u_csr
         (.clk(clk), .rst_n(rst_n),
          .rd_addr(dbg_access ? dbg_addr : ex_addr), .rd_data(rd_data), .rmw_data(rmw_data),
          .rd_exists(), .rd_readonly(),

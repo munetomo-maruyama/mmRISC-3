@@ -44,14 +44,16 @@ Since step 1.8 V2 (`Plan/OOC.md` 29.88) the reference's instruction is read thro
   store reaches its memory, through the store queue and the D$, so a loop polling `tohost` can run more times in the
   core: **loads of `tohost` and `fromhost` take the core's value** (the reference's register is overwritten, as for
   the counters), and the reference runs the same loop (added 2026-10-29).
-- **Counters**: reads of `cycle`, `time`, `mcycle` and the HPM counters take the core's value (the reference's register
-  is overwritten), since only those differ by nature. `instret` is compared (a fused pair counts 2). So do reads of
+- **Counters**: reads of `cycle`, `time`, `mcycle`, the HPM counters and `scountovf` (their OF bits, step 1.8 K1:
+  Spike's counters count no events) take the core's value (the reference's register is overwritten), since only those
+  differ by nature. `instret` is compared (a fused pair counts 2). So do reads of
   the HPM events (what each number counts is the implementation's) and of `mvendorid` / `marchid` / `mimpid`.
 - **The core's legal CSR choices** (`LockstepCfg`, 2026-10-31, B4 of `Plan/CORE.md` 5.7): where mmRISC-2's CORE_CSR
   and Spike make different WARL choices, the reference is put where the core is after each CSR instruction: `misa`
   read-only (reads give `misa`, a write is undone in Spike); `mcountinhibit` kept by LOCKSTEP (Spike has none), and
   while its IR bit is set each instruction's count is taken back from Spike's `minstret` (the writing instruction
-  counts under the old bit); `medeleg`'s bit 18 cleared after a write; a reserved mode written to `mtvec` / `stvec`
+  counts under the old bit); while `minstretcfg` (Smcntrpmf) freezes `minstret` at a level, a step that leaves
+  `minstret` as it was is a trap only if it wrote `mcause` or `scause` (step 1.8 K1); `medeleg`'s bit 18 cleared after a write; a reserved mode written to `mtvec` / `stvec`
   made direct (Spike clears bit 1 only). riscv-arch-test's Sm tests found each. `SIM/CORE`'s stand-in test, where
   the core is a second Spike, turns them off.
 - **Misaligned accesses trap** (as in mmRISC-2), and the reference is set the same way.

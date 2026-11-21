@@ -1,12 +1,17 @@
 //---------------------------------------------------------------------------
 // CORE_CSR.sv
 //
-// (mmRISC-3: taken from mmRISC-2 Rev.02 with three changes, RTL/CPU/CORE/README.md:
-// instret_inc counts the instructions retired in a cycle, 0 .. 4, two
+// (mmRISC-3: taken from mmRISC-2 Rev.02 with five changes, RTL/CPU/CORE/README.md:
+// instret_inc counts the instructions retired in a cycle (0 .. 8 since step 1.8 K1: 4 µops, a fused pair 2), two
 // µops of up to two instructions each; it was one bit. mconfigptr (0xF15,
 // read-only 0), which the privileged spec 1.12 requires, is there.
 // instret_force counts instret_inc although mcountinhibit.IR is set: the
-// commit of the instruction that set it, written a cycle or more before.)
+// commit of the instruction that set it, written a cycle or more before.
+// hpm_ev gives a count per event and cycle, HPM_EVW bits (step 1.8 K1,
+// Plan/OOC.md 29.97: a 4-wide core retires up to 8 instructions a cycle);
+// a counter adds it, and the add's carry sets OF. HPM_EVW = 1 is mmRISC-2's.
+// The instruction that writes minstretcfg is counted under the old filter
+// (its commit is the next one), as one that writes mcountinhibit.)
 //
 // CSR file, privilege level and trap state (CPU_CORE_SPEC.md 7, 8, 14).
 //
@@ -72,7 +77,8 @@ module CORE_CSR
         // PMU: counters mhpmcounter3 .. mhpmcounter(3+HPM_COUNTERS-1), and
         // the number of event inputs (event 0 is "nothing")
         parameter int          HPM_COUNTERS = 4,
-        parameter int          HPM_EVENTS   = 20
+        parameter int          HPM_EVENTS   = 20,
+        parameter int          HPM_EVW      = 1     // (mmRISC-3) the bits of an event's count a cycle
     )
     (
         input  logic        clk,
@@ -144,9 +150,9 @@ module CORE_CSR
         output logic [64*PMP_ENTRIES-1:0] pmpmask_out,   // pmpaddr ^ (pmpaddr + 1)
 
         // counters
-        input  logic [2:0]  instret_inc,   // (mmRISC-3: 0 .. 4 a cycle)
+        input  logic [3:0]  instret_inc,   // (mmRISC-3: 0 .. 8 a cycle)
         input  logic        instret_force, // (mmRISC-3: count although IR is inhibited)
-        input  logic [HPM_EVENTS-1:0] hpm_ev,   // the events of this cycle
+        input  logic [HPM_EVENTS-1:0][HPM_EVW-1:0] hpm_ev,   // the events of this cycle, a count each
 
         // floating point state
         input  logic        fflags_we,     // accumulate the flags of one op
@@ -305,12 +311,13 @@ module CORE_CSR
     logic [HPM_N-1:0] hpm_of, hpm_minh, hpm_sinh, hpm_uinh;
     logic [HPM_N-1:0] inhibit_hpm;
     logic        mip_lcofip, mie_lcofie;
-    logic [HPM_EVENTS-1:0] hpm_ev_q;      // the events of the last cycle
+    logic [HPM_EVENTS-1:0][HPM_EVW-1:0] hpm_ev_q;   // the events of the last cycle
     logic [1:0]  hpm_priv_q;              //   and the level they happened at
     logic [31:0] hpm_ovf;                 // OF of each counter, at its number
     logic [31:3] hpm_inh;                 // mcountinhibit of the counters
     // Smcntrpmf: the levels mcycle and minstret do not count at
     logic        cy_minh, cy_sinh, cy_uinh, ir_minh, ir_sinh, ir_uinh;
+    logic        ir_cw, ir_cw_filt;           // (mmRISC-3) minstretcfg written: its own commit filtered as before
     logic        cy_filt, ir_filt;
 
     // Sdtrig. A trigger has the fields of mcontrol that are not hard wired
@@ -833,6 +840,8 @@ module CORE_CSR
             hpm_priv_q   <= PRIV_M;
             {cy_minh, cy_sinh, cy_uinh} <= 3'b000;
             {ir_minh, ir_sinh, ir_uinh} <= 3'b000;
+            ir_cw        <= 1'b0;
+            ir_cw_filt   <= 1'b0;
             stimecmp     <= {64{1'b1}};      // never, until written
             stip_cmp     <= 1'b0;
             fflags       <= 5'd0;
@@ -844,7 +853,10 @@ module CORE_CSR
             end
         end else begin
             if (!inhibit_cy && !cy_filt)                mcycle   <= mcycle + 64'd1;
-            if (instret_inc != 3'd0 && (!inhibit_ir || instret_force) && !ir_filt) minstret <= minstret + 64'(instret_inc);
+            if (instret_inc != 4'd0 && (!inhibit_ir || instret_force) && !(ir_cw ? ir_cw_filt : ir_filt)) minstret <= minstret + 64'(instret_inc);
+            // (mmRISC-3, step 1.8 K1) the instruction that writes minstretcfg commits next, alone (a CSR µop at the
+            // head): counted under the old filter, as Spike, as one that writes mcountinhibit (instret_force)
+            if (instret_inc != 4'd0) ir_cw <= 1'b0;
             // the counters of events: what happened last cycle, at the
             // level it happened at, unless the counter is inhibited or its
             // mhpmevent leaves that level out. Wrapping sets OF; OF going
@@ -852,11 +864,12 @@ module CORE_CSR
             hpm_ev_q   <= hpm_ev;
             hpm_priv_q <= priv_r;
             for (int i = 0; i < HPM_COUNTERS; i++) begin
-                if (hpm_ev_q[hpm_sel[i]] && !inhibit_hpm[i] &&
+                automatic logic [64:0] hpm_sum = {1'b0, hpm_cnt[i]} + 65'(hpm_ev_q[hpm_sel[i]]);
+                if (hpm_ev_q[hpm_sel[i]] != '0 && !inhibit_hpm[i] &&
                     !((hpm_priv_q == PRIV_M) ? hpm_minh[i] :
                       (hpm_priv_q == PRIV_S) ? hpm_sinh[i] : hpm_uinh[i])) begin
-                    hpm_cnt[i] <= hpm_cnt[i] + 64'd1;
-                    if (&hpm_cnt[i]) begin
+                    hpm_cnt[i] <= hpm_sum[63:0];
+                    if (hpm_sum[64]) begin          // (mmRISC-3: a wrap, which a count of more than 1 makes without all ones)
                         hpm_of[i] <= 1'b1;
                         if (!hpm_of[i]) mip_lcofip <= 1'b1;
                     end
@@ -1023,7 +1036,11 @@ module CORE_CSR
                     end
                     CSR_STIMECMP     : stimecmp <= wr_data;
                     CSR_MCYCLECFG    : {cy_minh, cy_sinh, cy_uinh} <= wr_data[62:60];
-                    CSR_MINSTRETCFG  : {ir_minh, ir_sinh, ir_uinh} <= wr_data[62:60];
+                    CSR_MINSTRETCFG  : begin
+                        {ir_minh, ir_sinh, ir_uinh} <= wr_data[62:60];
+                        ir_cw      <= 1'b1;
+                        ir_cw_filt <= ir_filt;
+                    end
                     // a value past the last trigger is not taken (that is
                     // how a debugger counts them)
                     CSR_TSELECT      : if (wr_data < 64'(TRIGGERS))

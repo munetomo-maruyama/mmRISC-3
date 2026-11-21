@@ -181,7 +181,13 @@ module OOO_CTRL
         output logic [ND-1:0][TAGW-1:0]        free_tag,
         output logic [2:0]                  lq_commit,  // OOO_LSU
         output logic [2:0]                  sq_commit,
-        output logic [1:0]                  ftq_pop     // OOO_FTQ
+        output logic [1:0]                  ftq_pop,    // OOO_FTQ
+        // what dispatch and renaming wait for (the PMU's events, step 1.8 K1, Plan/OOC.md 29.97): one of
+        // the ROB, an issue queue, the LQ / SQ (in that order) while the DS register is held; renaming's
+        // first µop held for physical registers, or a group cut short by its checkpoints
+        output logic [2:0]                  ev_dwait,
+        output logic                        ev_rreg,
+        output logic                        ev_rckpt
     );
 
     logic [NCKPT-1:0] ck_bm  [NCKPT];          // the mask of each checkpoint's branch
@@ -263,6 +269,12 @@ module OOO_CTRL
         end
         d_ok = !flush_q && !restore_k && rob_avail >= nall && iq_avail >= nall && lq_avail >= nld && sq_avail >= nst;
         d_go = d_ok ? ds_v : '0;
+        ev_dwait = '0;
+        if (ds_v != '0 && !flush_q && !restore_k) begin
+            if (rob_avail < nall)                      ev_dwait[0] = 1'b1;
+            else if (iq_avail < nall)                  ev_dwait[1] = 1'b1;
+            else if (lq_avail < nld || sq_avail < nst) ev_dwait[2] = 1'b1;
+        end
         for (int k = 0; k < ND; k++) d_bmask[k] = ds_bm[k] & ~clr;
         ds_valid = ds_v;
     end
@@ -285,6 +297,8 @@ module OOO_CTRL
             for (int m = 0; m < k; m++) if (r_go[m] && r_ckpt[m]) r_bm[k] = r_bm[k] | bit_of(r_ckpt_id[m]);
             if (r_valid[k] && r_ckpt[k] && nck != 2'd2) nck = nck + 2'd1;
         end
+        ev_rreg  = r_valid[0] && ds_free && !flush_q && !restore_k && !r_ren_ready;
+        ev_rckpt = r_valid[0] && ds_free && !flush_q && !restore_k && r_ren_ready && r_go != r_valid;
     end
 
     // ---- state

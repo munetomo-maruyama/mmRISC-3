@@ -366,6 +366,9 @@ the free list; renaming gets them (about 0.3k LUTs).
 
 - Exceptions and interrupts are taken at the ROB head, between µops. A pair commits as one µop and counts 2 in
   `minstret` and the PMU.
+- **The PMU's events** (step 1.8 K1, `Plan/OOC.md` 29.97 / 29.98): 30 events, each a count per cycle (0 to 8) added to
+  mhpmcounter3 / 4; the 4 slots at renaming go each cycle to used, recovery, back end or front end (Top-Down's first
+  level with µops retired), with dispatch's and renaming's reasons and the ROB head's waits beside them.
 - **An exception inside a fused pair** (for example a page fault of the load of ALU + load): the pair is thrown away
   and fetched again with fusion off for that group, so the two instructions run one at a time and `mepc` / `mtval`
   and the registers are exact (with one write per pair, the first half's result may never have been written).

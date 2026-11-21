@@ -152,9 +152,10 @@ module OOO_CPU
     logic             irq_m_soft, irq_m_timer, irq_m_ext, irq_s_ext;      // registered (I2)
     logic             mm_m_soft, mm_m_timer, mm_m_ext, mm_s_ext;          // CPU_MMIO's
     logic [63:0]      mtime;
+    logic [3:0]       ev_mem;                       // the PMU's events from here (step 1.8 K1, below)
     OOO_CORE #(.VA(VA), .PAW(PAW), .DWAYS(DWAYS)) u_core
         (.clk(clk), .rst_n(rst_n), .boot(boot), .boot_pc(boot_pc),
-         .irq_m_soft(irq_m_soft), .irq_m_timer(irq_m_timer), .irq_m_ext(irq_m_ext), .irq_s_ext(irq_s_ext), .mtime(mtime),
+         .irq_m_soft(irq_m_soft), .irq_m_timer(irq_m_timer), .irq_m_ext(irq_m_ext), .irq_s_ext(irq_s_ext), .mtime(mtime), .ev_mem(ev_mem),
          .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ptag(ic_req_ptag), .ic_req_tok(ic_req_tok), .ic_req_ready(ic_req_ready),
          .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data),
          .dc_miss_valid(dc_miss_valid), .dc_miss_line(dc_miss_line), .dc_miss_vx(dc_miss_vx), .dc_miss_id(dc_miss_id),
@@ -281,10 +282,14 @@ module OOO_CPU
          .m_rready(l_rready));
 
     /* verilator lint_off UNUSEDSIGNAL */      // (the memory side's other AXI4 fields are the bus's: constants)
-    logic             l2_awlock, l2_arlock, l2_ready, l2_ev_read, l2_ev_miss;
+    logic             l2_awlock, l2_arlock, l2_ready;
     logic [3:0]       l2_awcache, l2_arcache, l2_awqos, l2_arqos;
     logic [2:0]       l2_awprot, l2_arprot;
     /* verilator lint_on UNUSEDSIGNAL */
+    // the PMU's events (step 1.8 K1, Plan/OOC.md 29.97): an I$ line fill asked for (event 7), a read of OOO_DMISS2's
+    // (8: its line fills, the walker's entries' reads among them), an L2 read and an L2 miss (18, 19)
+    logic             l2_ev_read, l2_ev_miss;
+    assign ev_mem = {l2_ev_miss, l2_ev_read, d_arvalid && d_arready, i_arvalid && i_arready};
     CPU_L2 #(.ADDR_WIDTH(PAW), .ID_WIDTH(4), .SIZE_BYTES(L2_SIZE), .WAYS(4)) u_l2
         (.clk(clk), .rst_n(rst_n),
          .s_axi4_awid(l_awid), .s_axi4_awaddr(l_awaddr), .s_axi4_awlen(l_awlen), .s_axi4_awsize(l_awsize),

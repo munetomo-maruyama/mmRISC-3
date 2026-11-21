@@ -15,7 +15,7 @@
 //     character is device 1, command 1 (Plan/icount/port/minilib.c). The
 //     DUT's test bench answers it when the store reaches its memory.
 //   - Reads of the counters that differ by nature (cycle, time, mcycle, the
-//     HPM counters), of the HPM events (the implementation's) and of the
+//     HPM counters and their OF bits in scountovf), of the HPM events (the implementation's) and of the
 //     implementation's identity (mvendorid, marchid, mimpid) take the DUT's
 //     value: the reference's register is set to it after the step.
 //   - Where the core's CSRs make other legal choices than Spike's

@@ -335,3 +335,15 @@ bytes go (one load an SC: a load that meets the SC's entry before its W waits, i
 and what follows it is fetched again: a first version with ten loads behind each SC never let the late ones commit).
 Core mutations 261 (an SC failing in the load's E keeps its bytes for the search) and 262 (a store writing its entry in
 the load's E not seen).
+
+## The PMU's events (step 1.8 K1, 2026-11-22)
+
+`Plan/OOC.md` 29.98. `OOO_CORE` makes 30 events, each a count per cycle (0 to 8), counted by `CORE_CSR`'s mhpmcounter3 /
+4 two cycles late. `tb_core` checks them every cycle: the 4 slots at renaming (events 12, 17, 20, 21) add up to 4;
+instructions, µops, loads and stores retired (2, 22, 3, 4) are the trace's commits of the cycle before; events 5, 9 to 12,
+14, 17, 20, 21, 23 to 30 against a reference the bench makes from the core's signals of the cycle before (`tb_core.vlt`
+makes them readable). At the end of a run that passed: exceptions and interrupts against the trace's traps, restores,
+replays, and the I$ / D$ fills against the models (on `OOO_CPU`, after the drain: the L2's reads and misses too). `-v`
+prints a PMU line (the slots in %, the waits, walks, fills). `b4/dir/pmu.S` checks the counters themselves: exact counts,
+the privilege filters, mcountinhibit, a wrap with LCOFI in M and in S, scountovf, mcounteren / scounteren, Smcntrpmf.
+Core mutations 270 to 297.

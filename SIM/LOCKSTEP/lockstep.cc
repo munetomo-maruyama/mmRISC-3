@@ -5,7 +5,8 @@
 // simif_t of our own (one RAM region, no devices), stepped one instruction
 // at a time, its commit log (log_reg_write / log_mem_write, keyed reg << 4 |
 // type: 0 integer, 1 FP, 4 CSR) read after each step. Whether the step
-// retired an instruction or took a trap is told by minstret.
+// retired an instruction or took a trap is told by minstret (and, while
+// minstretcfg filters it, by a write of mcause or scause).
 //---------------------------------------------------------------------------
 #include "lockstep.h"
 
@@ -128,6 +129,7 @@ bool irq_csr(unsigned csr) { return csr == CSR_MIP || csr == CSR_SIP; }
 bool counter_csr(unsigned csr)
 {
     return csr == CSR_CYCLE || csr == CSR_TIME || csr == CSR_MCYCLE ||
+           csr == CSR_SCOUNTOVF ||           // (the counters' OF bits: Spike's counters count no events, step 1.8 K1)
            (csr >= CSR_HPMCOUNTER3 && csr <= CSR_HPMCOUNTER31) ||
            (csr >= CSR_MHPMCOUNTER3 && csr <= CSR_MHPMCOUNTER31);
 }
@@ -266,7 +268,7 @@ struct Lockstep::Impl {
         auto wval = [&](uint64_t old) { return (f3 & 3) == 1 ? src : (f3 & 3) == 2 ? old | src : old & ~src; };
         uint64_t pre = (csr_wr && (csr == CSR_MISA || csr == CSR_MTVEC || csr == CSR_STVEC)) ? proc->get_csr(csr) : 0;
         bool ir_off = (ih & 4) != 0;                       // mcountinhibit.IR
-        reg_t inst0 = proc->get_csr(CSR_MINSTRET);
+        reg_t inst0 = proc->get_csr(CSR_MINSTRET), ir_cfg0 = proc->get_csr(CSR_MINSTRETCFG);
         // the interrupts (lockstep.h): the DUT's alone, or none; mie hides them for a CSR instruction on mip / sip
         auto mip = s->mip;
         reg_t mip0 = mip->read(), mie0 = 0;
@@ -289,7 +291,11 @@ struct Lockstep::Impl {
             uint64_t a = std::get<0>(m), e = a + std::get<2>(m);
             if ((a < tohost + 8 && e > tohost) || (a < fromhost + 8 && e > fromhost)) htif_load = true;
         }
-        if (proc->get_csr(CSR_MINSTRET) == inst0) {          // a trap, not retired
+        // (minstretcfg's MINH / SINH / UINH, Smcntrpmf, can freeze minstret: then a trap is one that wrote
+        //  mcause or scause, step 1.8 K1)
+        bool ir_cfg = ((proc->get_csr(CSR_MINSTRETCFG) | ir_cfg0) >> 60) & 7;
+        bool cause_w = s->log_reg_write.count(((reg_t)CSR_MCAUSE << 4) | 4) || s->log_reg_write.count(((reg_t)CSR_SCAUSE << 4) | 4);
+        if (proc->get_csr(CSR_MINSTRET) == inst0 && (!ir_cfg || cause_w)) {          // a trap, not retired
             r.trap = true;
             r.cause = (s->prv == PRV_S) ? proc->get_csr(CSR_SCAUSE) : proc->get_csr(CSR_MCAUSE);
             return r;

@@ -41,6 +41,10 @@
 //   - the FTQ pops: the blocks before the latest committed µop's (its own
 //     after a replay), at most 2 a cycle, against a mirror of the FTQ's
 //     head; random commits whose blocks move on by 0 to 2 a µop
+//   - the PMU's reasons (step 1.8 K1, Plan/OOC.md 29.97): ev_dwait, the DS
+//     register held for the ROB, else the issue queue, else the LQ / SQ
+//     (not in recovery); ev_rreg, renaming's first µop held for registers;
+//     ev_rckpt, the group cut short by its checkpoint ids
 //---------------------------------------------------------------------------
 #include "VOOO_CTRL.h"
 #include <algorithm>
@@ -75,6 +79,7 @@ int main(int argc, char** argv)
     long seq = 0;
     int ck_next = 0;
     int res_pct = 30;            // the chance a port resolves a branch in a cycle
+    long nev[5] = {};            // the PMU's reasons seen: dispatch for the ROB, the queue, the LQ / SQ; renaming for registers, checkpoints
     long nren = 0, ndisp = 0, nclr = 0, nrestore = 0, nflush = 0, nckstall = 0, npop = 0, nnsok = 0;
     bool flushq = false;         // trap / replay in the cycle before: the back end flushes now
     bool ns_busy = false, ns_ok_q = false;
@@ -167,6 +172,16 @@ int main(int argc, char** argv)
         if ((rv & 1) && dsfree && ren_ready && !flushq && !rs && ok0) { go = 1; if ((rv & 2) && ok1) go = 3; }   // (a trap or replay does not stop it: 29.35)
         if ((rv & 1) && dsfree && ren_ready && !flushq && !rs && (!ok0 || ((rv & 2) && !ok1))) nckstall++;
         if ((unsigned)d.r_go != go) FAIL("r_go %u, expected %u", (unsigned)d.r_go, go);
+        {
+            unsigned edw = 0;
+            if (nall > 0 && !flushq && !rs) { if (ra < nall) edw = 1; else if (ia < nall) edw = 2; else if (la < nld || sa < nst) edw = 4; }
+            bool err = (rv & 1) && dsfree && !flushq && !rs && !ren_ready;
+            bool eck = (rv & 1) && dsfree && !flushq && !rs && ren_ready && go != rv;
+            if ((unsigned)d.ev_dwait != edw || (bool)d.ev_rreg != err || (bool)d.ev_rckpt != eck)
+                FAIL("PMU reasons: dwait %u rreg %d rckpt %d, expected %u %d %d", (unsigned)d.ev_dwait, (int)d.ev_rreg, (int)d.ev_rckpt, edw, err, eck);
+            for (int b = 0; b < 3; b++) nev[b] += (edw >> b) & 1;
+            nev[3] += err; nev[4] += eck;
+        }
         if (go && !d.ds_load) FAIL("ds_load 0 with µops renamed now");
         if ((dsv & ~dgo) && d.ds_load) FAIL("ds_load 1 while the DS register keeps µops (ds %u, go %u)", dsv, dgo);
         // recovery
@@ -244,7 +259,8 @@ int main(int argc, char** argv)
         // what no longer matters: dispatched non-branches and resolved branches at the front
         while (!fl.empty() && fl.front().disp && (!fl.front().ck || fl.front().resolved)) fl.pop_front();
     }
-    printf("tb_ctrl: %ld cycles, %ld µops renamed, %ld dispatched, %ld cleared, %ld restores, %ld flushes, %ld stalls on a checkpoint id, %ld FTQ pops, %ld cycles of ns_ok, %ld mismatches: %s\n",
-           cyc, nren, ndisp, nclr, nrestore, nflush, nckstall, npop, nnsok, bad, bad ? "FAIL" : "PASS");
+    printf("tb_ctrl: %ld cycles, %ld µops renamed, %ld dispatched, %ld cleared, %ld restores, %ld flushes, %ld stalls on a checkpoint id, %ld FTQ pops, %ld cycles of ns_ok, PMU reasons %ld / %ld / %ld / %ld / %ld, %ld mismatches: %s\n",
+           cyc, nren, ndisp, nclr, nrestore, nflush, nckstall, npop, nnsok, nev[0], nev[1], nev[2], nev[3], nev[4], bad, bad ? "FAIL" : "PASS");
+    for (int b = 0; b < 5; b++) if (nev[b] < 1000) { printf("tb_ctrl: PMU reason %d seen %ld times (floor 1000)\n", b, nev[b]); return 1; }
     return bad ? 1 : 0;
 }

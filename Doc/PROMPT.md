@@ -11095,3 +11095,64 @@ The next step is K1 (the PMU's events).
 ```text
 Start K1
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+K1's design (the events' list and numbering) is in Plan/OOC(_J) 29.97, committed and pushed (147baf6, Ref/ on the remote: 0). The RTL is unchanged so far.
+
+**What is there**
+- CORE_CSR already has the PMU: 2 counters, Sscofpmf's overflow interrupt (LCOFI), Smcntrpmf and the rest.
+- OOO_CORE only ties the event input `hpm_ev` to 0.
+- Lock-step already takes the core's value for reads of the counters and of mhpmevent.
+
+**The main change (CORE_CSR)**
+- A 4-wide core retires up to 4 µops (8 instructions) a cycle, so one bit per event cannot count them.
+- So `hpm_ev` becomes a count per event (4 bits, 0 to 8), the counter adds it, and OF comes from the add's carry.
+
+**The slots at renaming (Top-Down's first level)**
+- Each of the 4 slots a cycle goes into exactly one of:
+  - **used**: a µop renamed;
+  - **recovery**: from a restore or trap until renaming starts again, the slots not used;
+  - **back end**: a µop was there but resources were short;
+  - **front end**: no µop came.
+- They add up to 4 every cycle, checked by the bench every cycle.
+- With µops retired, this tells where CoreMark/MHz is lost.
+
+**The events (30)**
+- 1 to 10, 15, 16, 18, 19, 27, 28 mean what they mean on mmRISC-2, so its scripts and the device tree's raw events carry over: cycles, instructions, loads, stores, branches, mispredictions, I$ / D$ / ITLB / DTLB misses, exceptions, interrupts, L2, the walker.
+- The rest are for the OoO core:
+  - the ROB head's waits (memory or not), replays;
+  - the 4 slot classes, µops retired;
+  - what dispatch waits for (ROB, issue queues, LQ / SQ);
+  - what renaming waits for (physical registers, checkpoints);
+  - the cycles the ROB is empty.
+
+**The checks planned**
+- tb_core checks every cycle (the slots' sum, retired counts against the commits).
+- A new `b4/dir/pmu.S` for the level filters, overflow and LCOFI (M and delegated to S), scountovf, counteren, Smcntrpmf.
+- Mutations on each event.
+- OpenSBI's and perf's quirks are checked at L1, where OpenSBI comes onto the bench.
+
+**The cost expected:** about +0.4k LUTs, +0.2k FF. Every event is registered where it is made, so timing hardly moves.
+
+Tell me if you want any event's number or meaning changed.
+<!-- /answer -->
+
+## 274. 2026-11-21 18:41:03 JST
+
+```text
+Implement as is
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Lint matches HEAD. The final chain (run_core, CoreMark, 28 core and 12 unit mutations) is running in the background. When it finishes I'll read every mutation line, fill in Plan/OOC 29.98 and the READMEs, and commit.
+<!-- /answer -->
+
+## 275. 2026-11-21 22:14:52 JST
+
+```text
+Please try again.
+```

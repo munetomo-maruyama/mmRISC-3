@@ -1513,6 +1513,19 @@ M = [
     ('M1553', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "e_om[i] = (sw0_v && sw0_sq == SW'(i)) ? swm : swa[i] == e_a[11:3] && (smask[i] & lm) != 8'd0;", "e_om[i] = swa[i] == e_a[11:3] && (smask[i] & lm) != 8'd0;", "LSU4: a store writing its entry in the load's E not seen by the search"),
     ('M1554', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "swm = sw0_wa == e_a[11:3] && (sw0_mask & lm) != 8'd0;", "swm = sw0_wa == e_a[11:3];", "LSU4: the store written in the load's E matched without bytes in common"),
     ('M1555', 'OOO_LSU4/OOO_LSU4.sv', 'lsu4', "swm = sw0_wa == e_a[11:3] && (sw0_mask & lm) != 8'd0;", "swm = (sw0_mask & lm) != 8'd0;", "LSU4: the store written in the load's E matched at any offset"),
+    # 2026-11-21: step 1.8 K1, the PMU's events (Plan/OOC.md 29.98): CORE_CSR's counts, OOO_CSRU's widths, OOO_CTRL's reasons
+    ('M1556', 'CORE:CORE_CSR/CORE_CSR.sv', 'csru', 'if (hpm_sum[64]) begin', 'if (&hpm_cnt[i]) begin', 'CSR: a wrap seen only through all ones (a count of 2 or more steps over it)'),
+    ('M1557', 'CORE:CORE_CSR/CORE_CSR.sv', 'csru', "automatic logic [64:0] hpm_sum = {1'b0, hpm_cnt[i]} + 65'(hpm_ev_q[hpm_sel[i]]);", "automatic logic [64:0] hpm_sum = {1'b0, hpm_cnt[i]} + 65'(hpm_ev_q[hpm_sel[i]] != '0);", "CSR: an event's count taken as 1"),
+    ('M1558', 'CORE:CORE_CSR/CORE_CSR.sv', 'csru', "automatic logic [64:0] hpm_sum = {1'b0, hpm_cnt[i]} + 65'(hpm_ev_q[hpm_sel[i]]);", "automatic logic [64:0] hpm_sum = {1'b0, hpm_cnt[i]} + 65'(hpm_ev[hpm_sel[i]]);", "CSR: the count of this cycle's events, not the registered ones"),
+    ('M1559', 'OOO_CSRU/OOO_CSRU.sv', 'csru', 'logic [3:0] ir_inc;', 'logic [2:0] ir_inc;', 'CSRU: 8 instructions a cycle lost (ir_inc 3 bits)'),
+    ('M1560', 'CORE:CORE_CSR/CORE_CSR.sv', 'csru', 'ir_cw_filt <= ir_filt;', "ir_cw_filt <= 1'b0;", "CSR: minstretcfg's writer counted although the old filter stops it"),
+    ('M1561', 'CORE:CORE_CSR/CORE_CSR.sv', 'csru', '!(ir_cw ? ir_cw_filt : ir_filt)) minstret', '!ir_filt) minstret', "CSR: minstretcfg's writer counted under the new filter"),
+    ('M1562', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "if (rob_avail < nall)                      ev_dwait[0] = 1'b1;", "if (rob_avail <= nall)                     ev_dwait[0] = 1'b1;", 'CTRL: dispatch said to wait for the ROB when it has just room'),
+    ('M1563', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "else if (iq_avail < nall)                  ev_dwait[1] = 1'b1;", "if (iq_avail < nall)                       ev_dwait[1] = 1'b1;", "CTRL: the queue's wait counted with the ROB's"),
+    ('M1564', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "else if (lq_avail < nld || sq_avail < nst) ev_dwait[2] = 1'b1;", "else if (lq_avail < nld)                   ev_dwait[2] = 1'b1;", "CTRL: the SQ's wait not counted"),
+    ('M1565', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', "if (ds_v != '0 && !flush_q && !restore_k) begin", "if (ds_v != '0) begin", "CTRL: dispatch's waits counted in recovery"),
+    ('M1566', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', 'ev_rreg  = r_valid[0] && ds_free && !flush_q && !restore_k && !r_ren_ready;', 'ev_rreg  = r_valid[0] && !flush_q && !restore_k && !r_ren_ready;', "CTRL: the registers' wait counted while the DS register is held"),
+    ('M1567', 'OOO_CTRL/OOO_CTRL.sv', 'ctrl', 'ev_rckpt = r_valid[0] && ds_free && !flush_q && !restore_k && r_ren_ready && r_go != r_valid;', 'ev_rckpt = r_valid[0] && ds_free && !flush_q && !restore_k && r_go != r_valid;', 'CTRL: a wait for registers counted as one for a checkpoint'),
 ]
 
 

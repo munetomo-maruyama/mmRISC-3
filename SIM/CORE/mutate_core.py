@@ -108,6 +108,7 @@ DE = 'OOO_DEC/OOO_DEC.sv'
 IQ = 'OOO_IQ3/OOO_IQ3.sv'
 SY = 'OOO_SYS/OOO_SYS.sv'
 PL = '../MMIO/CPU_PLIC/CPU_PLIC.sv'   # (RTL/CPU/MMIO, from OOO's copy: on OOO_CPU, step 1.8 I2)
+RB = 'OOO_ROB/OOO_ROB.sv'      # (the PMU's head_mem, step 1.8 K1)
 L4 = L3
 CPU = True                      # a 5th field: the mutation runs on OOO_CPU (with the interrupts' programs)
 MUT = [
@@ -413,6 +414,35 @@ MUT = [
     (C, "k_m[p] = e_br_valid[p] && e_br_mispred[p] && !flush_all && (ex_bms[p] & kill) == '0;", "k_m[p] = e_br_valid[p] && e_br_mispred[p] && !flush_all;", "V3d: a misprediction killed in EX still restores"),
     (FR, "fq_wi <= fq_h + fq_n[1:0];", "fq_wi <= fq_h;", "V3d: a fetch fault written at the queue's head"),
     (FR, "if (fq_wv) fq_f[fq_wi] <= fq_wd;", "if (fq_wv) fq_f[fq_h + fq_n[1:0]] <= fq_wd;", "V3d: the fault queue's slot taken in the write's cycle, not the request's"),
+    # the PMU's events (step 1.8 K1, Plan/OOC.md 29.98): tb_core's account every cycle and at the end, b4/dir/pmu.S
+    (C, "hpm_ev[1]  <= 4'd1;", "hpm_ev[1]  <= 4'd2;", 'K1: cycles counted 2 a cycle'),
+    (C, 'hpm_ev[2]  <= cmt_instret;', "hpm_ev[2]  <= 4'(cmt_ld_n);", "K1: instructions retired: the loads'"),
+    (C, "hpm_ev[3]  <= 4'(cmt_ld_n);", "hpm_ev[3]  <= 4'(cmt_st_n);", "K1: loads retired: the stores'"),
+    (C, "hpm_ev[4]  <= 4'(cmt_st_n);", "hpm_ev[4]  <= 4'(cmt_st_n != 3'd0);", 'K1: stores retired counted 1 a cycle'),
+    (C, "hpm_ev[5]  <= 4'(rs_valid[0]);", "hpm_ev[5]  <= 4'(rs_valid[1]);", "K1: branches resolved: port 1's"),
+    (C, "hpm_ev[6]  <= 4'(restore);", "hpm_ev[6]  <= 4'(fe_redirect);", 'K1: mispredictions with the traps and replays'),
+    (C, "hpm_ev[7]  <= 4'(ev_mem[0]);", "hpm_ev[7]  <= 4'(ev_mem[1]);", "K1: I$ fills: the D$'s"),
+    (C, "hpm_ev[8]  <= 4'(ev_mem[1]);", "hpm_ev[8]  <= 4'(ev_mem[0]);", "K1: D$ fills: the I$'s"),
+    (C, "hpm_ev[9]  <= 4'(w_start && !w_req);", "hpm_ev[9]  <= 4'(w_start);", "K1: the fetch's walks with the LSU's"),
+    (C, "hpm_ev[10] <= 4'(w_start && w_req);", "hpm_ev[10] <= 4'(w_req);", "K1: the LSU's walks: every ask, the dropped ones too"),
+    (C, "hpm_ev[11] <= 4'(head_valid && cmt_valid == '0 && head_mem);", "hpm_ev[11] <= 4'(head_valid && head_mem);", "K1: the head's wait on memory counted when it commits"),
+    (RB, 'head_mem   = has[0] && (pk[0][FTQW+6] || pk[0][FTQW+5]);', 'head_mem   = has[0] && pk[0][FTQW+6];', 'K1: a store at the head not a memory µop'),
+    (C, "hpm_ev[12] <= ev_recn ? 4'd0 : 4'(3'(ND) - ev_offer);", "hpm_ev[12] <= ev_recn ? 4'd0 : 4'(3'(ND) - ev_used);", "K1: the front end's slots with the back end's"),
+    (C, "hpm_ev[13] <= 4'(replay);", "hpm_ev[13] <= 4'(fe_flush);", 'K1: replays with the traps'),
+    (C, "hpm_ev[14] <= 4'(head_valid && cmt_valid == '0 && !head_mem);", "hpm_ev[14] <= 4'(cmt_valid == '0 && !head_mem);", "K1: the head's other wait counted with the ROB empty"),
+    (C, "hpm_ev[15] <= 4'(csr_trap && !csr_int);", "hpm_ev[15] <= 4'(csr_trap);", 'K1: exceptions with the interrupts'),
+    (C, "hpm_ev[16] <= 4'(csr_trap && csr_int);", "hpm_ev[16] <= 4'(irq_pend);", 'K1: interrupts: the cycles one is pending'),
+    (C, "hpm_ev[17] <= ev_recn ? 4'd0 : 4'(ev_offer - ev_used);", "hpm_ev[17] <= ev_recn ? 4'd0 : 4'(ev_offer);", "K1: the back end's slots with the used ones"),
+    (C, "hpm_ev[18] <= 4'(ev_mem[2]);", "hpm_ev[18] <= 4'(ev_mem[3]);", 'K1: L2 reads: its misses', 'CPU'),
+    (CP, 'assign ev_mem = {l2_ev_miss, l2_ev_read, d_arvalid && d_arready, i_arvalid && i_arready};', 'assign ev_mem = {l2_ev_miss, l2_ev_read, d_arvalid, i_arvalid && i_arready};', 'K1: a D$ read counted each cycle it waits'),
+    (C, "hpm_ev[20] <= 4'(ev_used);", "hpm_ev[20] <= 4'(ev_offer);", 'K1: the slots used: the µops offered'),
+    (C, "ev_rec <= fe_flush || restore_k || (ev_rec && r_go == '0);", 'ev_rec <= fe_flush || restore_k;', 'K1: recovery not held until renaming starts again'),
+    (C, 'ev_recn  = ev_rec || flush_all || restore_k;', 'ev_recn  = ev_rec;', "K1: the restore's and flush's own cycles not recovery"),
+    (C, "hpm_ev[22] <= 4'(pop4(cmt_valid));", "hpm_ev[22] <= 4'(cmt_valid[0]);", 'K1: µops retired counted 1 a cycle'),
+    (C, "hpm_ev[23] <= 4'(ev_dwait[0]);", "hpm_ev[23] <= 4'(ev_dwait[1]);", "K1: dispatch's wait for the ROB: the queue's"),
+    (C, "hpm_ev[26] <= 4'(ev_rreg);", "hpm_ev[26] <= 4'(ev_rckpt);", "K1: renaming's wait for registers: for a checkpoint"),
+    (C, 'if (w_start) w_own_f <= !w_req;', 'if (w_start) w_own_f <= w_req;', "K1: the walker's busy cycles given to the other side"),
+    (C, "hpm_ev[30] <= 4'(!head_valid);", "hpm_ev[30] <= 4'(cmt_valid == '0);", 'K1: the ROB empty: no commit'),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),

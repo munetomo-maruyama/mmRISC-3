@@ -132,6 +132,9 @@ module OOO_CORE
         input  logic                        irq_m_ext,
         input  logic                        irq_s_ext,
         input  logic [63:0]                 mtime,
+        // the memory side's events for the PMU (step 1.8 K1, Plan/OOC.md 29.97: OOO_CPU's): an I$ line fill asked
+        // for, a D$ line fill asked for, an L2 read, an L2 miss
+        input  logic [3:0]                  ev_mem,
         input  logic [VA-1:1]               boot_pc,
         // I$
         output logic                        ic_req_valid,
@@ -761,6 +764,8 @@ module OOO_CORE
     logic [ND-1:0][3:0]        disp_lq, disp_sq;
     logic [ND-1:0][4:0]        disp_st;
 
+    logic [2:0]                ev_dwait;                // what dispatch and renaming wait for (the PMU's events)
+    logic                      ev_rreg, ev_rckpt;
     /* verilator lint_off PINCONNECTEMPTY */   // (what OOO_TRAP and interrupts take: not yet)
     OOO_CTRL #(.NCKPT(NCKPT), .CW(CW), .VA(VA), .FTQW(FTQW), .LW(4), .TAGW(TAGW), .ND(ND)) u_ctrl
         (.clk(clk), .rst_n(rst_n),
@@ -777,7 +782,8 @@ module OOO_CORE
          .fe_flush(fe_flush), .flush_all(flush_all), .restore(restore), .restore_k(restore_k), .restore_id(restore_id),
          .restore_port(restore_port), .restore_lq_tail(restore_lq_tail), .restore_sq_tail(restore_sq_tail), .restore_ftq(restore_ftq),
          .kill(kill), .clr(clr), .fe_redirect(fe_redirect), .fe_pc(fe_pc), .live(),
-         .free_valid(free_valid), .free_tag(free_tag), .lq_commit(lq_commit), .sq_commit(sq_commit), .ftq_pop(ftq_pop));
+         .free_valid(free_valid), .free_tag(free_tag), .lq_commit(lq_commit), .sq_commit(sq_commit), .ftq_pop(ftq_pop),
+         .ev_dwait(ev_dwait), .ev_rreg(ev_rreg), .ev_rckpt(ev_rckpt));
 
     // the ROB
     // completion: 0 port 0's EX, 1 port 1's EX, 2 the LSU's loads, 3 its stores, 4 port 0's multiplier and
@@ -789,7 +795,7 @@ module OOO_CORE
     logic [NCMP-1:0][4:0]      cmp_cause;
     logic [ND-1:0]             disp_go;
     assign disp_go = d_go;
-    logic                      head_valid, head_fused;
+    logic                      head_valid, head_fused, head_mem;
     logic [ROBW-1:0]           rob_restore_rob;
     logic [3:0]                cmt_instret;
     logic [ND-1:0][2:0]        disp_len;                    // halfwords
@@ -809,7 +815,7 @@ module OOO_CORE
          .cmp_valid(cmp_valid), .cmp_rob(cmp_rob), .cmp_exc(cmp_exc), .cmp_cause(cmp_cause), .cmp_rp(cmp_rp),
          .br_valid(br_valid), .br_rob(br_rob), .br_mispred(br_mispred), .br_ckpt(br_ckpt),
          .restore(rob_restore), .restore_k(), .restore_rob(rob_restore_rob), .restore_ckpt(),
-         .head_rob(head_rob), .head_ns(head_ns), .head_valid(head_valid), .head_fused(head_fused), .irq(irq),
+         .head_rob(head_rob), .head_ns(head_ns), .head_valid(head_valid), .head_fused(head_fused), .head_mem(head_mem), .irq(irq),
          .cmt_valid(cmt_valid), .cmt_wr(cmt_wr), .cmt_arch(cmt_arch), .cmt_new(cmt_new), .cmt_old(cmt_old),
          .cmt_pc(cmt_pc), .cmt_ftq(cmt_ftq), .cmt_x(cmt_fx), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_instret(cmt_instret),
          .trap(rob_trap), .trap_cause(trap_cause), .trap_pc(trap_pc), .replay(replay), .replay_pc(rob_replay_pc),
@@ -826,6 +832,7 @@ module OOO_CORE
     logic [NTV-1:0][ROBW-1:0]  tv_rob;
     logic [NTV-1:0][63:0]      tv_val;
     logic                      irq_pend, x_ret, x_sret, csr_trap, csr_int, csr_mret, csr_sret, wfi_wake;
+    logic [30:0][3:0]          hpm_ev /*verilator public_flat_rd*/;    // the PMU's events, registered (below; checked by SIM/CORE/tb_core)
     logic [4:0]                irq_cause, csr_cause;
     logic [VA-1:1]             tvec, mepc, sepc, csr_epc;
     logic [63:0]               csr_tval;
@@ -1173,7 +1180,7 @@ module OOO_CORE
          .mret_en(csr_mret), .sret_en(csr_sret), .tvec(tvec), .mepc(mepc), .sepc(sepc),
          .irq_pend(irq_pend), .irq_cause(irq_cause), .wfi_wake(wfi_wake),
          .irq_m_soft(irq_m_soft), .irq_m_timer(irq_m_timer), .irq_m_ext(irq_m_ext), .irq_s_ext(irq_s_ext), .mtime(mtime),
-         .instret_inc(cmt_instret[2:0]), .hpm_ev('0),
+         .instret_inc(cmt_instret), .hpm_ev(hpm_ev),
          .priv(priv), .satp(satp), .mstatus_sum(m_sum), .mstatus_mxr(m_mxr), .mstatus_mprv(m_mprv),
          .mstatus_mpp(m_mpp), .mstatus_tvm(m_tvm), .mstatus_tw(m_tw), .mstatus_tsr(m_tsr),
          .menvcfg_cbze(menv_cbze), .senvcfg_cbze(senv_cbze), .pmpcfg(pmpcfg), .pmpaddr(pmpaddr), .pmpmask(pmpmask),
@@ -1388,9 +1395,7 @@ module OOO_CORE
     assign it_au = priv == 2'd0;
     assign it_as = priv == 2'd1;
     // the walker (its signals declared above, with the fetch's)
-    /* verilator lint_off UNUSEDSIGNAL */      // (its state: for a look from the bench)
-    logic            w_busy;
-    /* verilator lint_on UNUSEDSIGNAL */
+    logic            w_busy;                            // (the PMU's events 9, 10, 27, 28)
     // one walker for both sides (step 1.8 V2): the LSU's ask (one cycle, dropped if the walker is busy) first, else the
     // fetch's (held until its entry is in); bit 5 of the id says the fetch's. Every walk's end is an event for the LSU;
     // the DTLBs are written by the LSU's walks, the ITLB by the fetch's
@@ -1801,6 +1806,67 @@ module OOO_CORE
         rs_taken   <= e_rs_taken;
         bt_pc      <= e_bt_pc;
         bt_tgt     <= e_bt_tgt;
+    end
+
+    // ---- the PMU's events (step 1.8 K1, Plan/OOC.md 29.97): each made here and registered into hpm_ev, a count
+    // each, which CORE_CSR registers again (hpm_ev_q): counted two cycles after they happen (a CSR instruction
+    // runs at the ROB's head, so the difference of two reads is exact). The 4 slots a cycle at renaming go to
+    // one class each: used (r_go); in recovery (from a restore or a trap / replay until renaming takes µops
+    // again) the rest; else the µops offered and not renamed to the back end, the slots with none to the front
+    // end. So 12 + 17 + 20 + 21 = 4 a cycle.
+    function automatic logic [2:0] pop4(input logic [3:0] v);
+        return 3'(v[0]) + 3'(v[1]) + 3'(v[2]) + 3'(v[3]);
+    endfunction
+    logic       ev_rec;                         // renaming in recovery
+    logic       w_own_f;                        // the walk on is the fetch's
+    logic [2:0] ev_used, ev_offer;
+    logic       ev_recn, w_start;
+    always @(*) begin
+        ev_used  = pop4(r_go);
+        ev_offer = pop4(r_valid);
+        ev_recn  = ev_rec || flush_all || restore_k;
+        w_start  = !w_busy && (w_req || iw_req) && !(tlb_flush_all || flush_all);   // (OOO_PTW leaves S_IDLE)
+    end
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            ev_rec  <= 1'b0;
+            w_own_f <= 1'b0;
+            hpm_ev  <= '0;
+        end else begin
+            ev_rec <= fe_flush || restore_k || (ev_rec && r_go == '0);
+            if (w_start) w_own_f <= !w_req;
+            hpm_ev[0]  <= 4'd0;                                         // nothing
+            hpm_ev[1]  <= 4'd1;                                         // cycles
+            hpm_ev[2]  <= cmt_instret;                                  // instructions retired
+            hpm_ev[3]  <= 4'(cmt_ld_n);                                 // loads retired
+            hpm_ev[4]  <= 4'(cmt_st_n);                                 // stores retired
+            hpm_ev[5]  <= 4'(rs_valid[0]);                              // conditional branches resolved (port 0's)
+            hpm_ev[6]  <= 4'(restore);                                  // mispredictions (restores)
+            hpm_ev[7]  <= 4'(ev_mem[0]);                                // I$ line fills
+            hpm_ev[8]  <= 4'(ev_mem[1]);                                // D$ line fills
+            hpm_ev[9]  <= 4'(w_start && !w_req);                        // walks for the fetch
+            hpm_ev[10] <= 4'(w_start && w_req);                         // walks for the LSU
+            hpm_ev[11] <= 4'(head_valid && cmt_valid == '0 && head_mem);    // the head waits on a load or store
+            hpm_ev[12] <= ev_recn ? 4'd0 : 4'(3'(ND) - ev_offer);      // slots: the front end
+            hpm_ev[13] <= 4'(replay);                                   // replays
+            hpm_ev[14] <= 4'(head_valid && cmt_valid == '0 && !head_mem);   // the head waits, not on memory
+            hpm_ev[15] <= 4'(csr_trap && !csr_int);                     // exceptions
+            hpm_ev[16] <= 4'(csr_trap && csr_int);                      // interrupts
+            hpm_ev[17] <= ev_recn ? 4'd0 : 4'(ev_offer - ev_used);     // slots: the back end
+            hpm_ev[18] <= 4'(ev_mem[2]);                                // L2 reads
+            hpm_ev[19] <= 4'(ev_mem[3]);                                // L2 misses
+            hpm_ev[20] <= 4'(ev_used);                                  // slots: used
+            hpm_ev[21] <= ev_recn ? 4'(3'(ND) - ev_used) : 4'd0;       // slots: recovery
+            hpm_ev[22] <= 4'(pop4(cmt_valid));                          // µops retired
+            hpm_ev[23] <= 4'(ev_dwait[0]);                              // dispatch waits for the ROB
+            hpm_ev[24] <= 4'(ev_dwait[1]);                              // ... an issue queue
+            hpm_ev[25] <= 4'(ev_dwait[2]);                              // ... the LQ or the SQ
+            hpm_ev[26] <= 4'(ev_rreg);                                  // renaming waits for physical registers
+            hpm_ev[27] <= 4'(w_busy && !w_own_f);                       // the walker works for the LSU
+            hpm_ev[28] <= 4'(w_busy && w_own_f);                        // ... for the fetch
+            hpm_ev[29] <= 4'(ev_rckpt);                                 // renaming waits for a checkpoint
+            hpm_ev[30] <= 4'(!head_valid);                              // the ROB empty
+        end
     end
 
     /* verilator lint_off PINCONNECTEMPTY */

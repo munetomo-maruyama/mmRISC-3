@@ -1,0 +1,19 @@
+// tb_core.vlt : Verilator's configuration for OOO_CORE in tb_core.cpp, both tops (build_core.sh)
+// the PMU's events against the bench's own account (step 1.8 K1, Plan/OOC.md 29.97): renaming's slots, the
+// recovery, the ROB's head, the walker's state and owner, the branch resolutions, OOO_CTRL's reasons (their
+// logic is checked by SIM/OOO_UNIT/tb_ctrl; here their way into the events)
+`verilator_config
+public_flat_rd -module "OOO_CORE" -var "r_go"
+public_flat_rd -module "OOO_CORE" -var "r_valid"
+public_flat_rd -module "OOO_CORE" -var "fe_flush"
+public_flat_rd -module "OOO_CORE" -var "flush_all"
+public_flat_rd -module "OOO_CORE" -var "restore_k"
+public_flat_rd -module "OOO_CORE" -var "head_valid"
+public_flat_rd -module "OOO_CORE" -var "head_rob"
+public_flat_rd -module "OOO_CORE" -var "cmt_valid"
+public_flat_rd -module "OOO_CORE" -var "rs_valid"
+public_flat_rd -module "OOO_CORE" -var "ev_dwait"
+public_flat_rd -module "OOO_CORE" -var "ev_rreg"
+public_flat_rd -module "OOO_CORE" -var "ev_rckpt"
+public_flat_rd -module "OOO_PTW" -var "st"
+public_flat_rd -module "OOO_PTW" -var "id_r"

@@ -11340,3 +11340,70 @@ OOO_CPU が 20 ns を満たしました。V1・V2・P1 込みでの V3 はこれ
 ```text
 Start K1
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+K1 の設計（イベントの一覧と番号）を Plan/OOC(_J) 29.97 にまとめ、コミットして push しました（147baf6、リモートの Ref/ は0件）。RTL はまだ変えていません。
+
+**今あるもの**
+- CORE_CSR にはすでに PMU の機能がそろっています。カウンタ2つ、Sscofpmf のオーバーフロー割り込み（LCOFI）、Smcntrpmf などです。
+- OOO_CORE はイベント入力 `hpm_ev` を0に固定しているだけです。
+- ロックステップは、カウンタと mhpmevent の読み出しですでにコアの値を使っています。
+
+**主な変更（CORE_CSR）**
+- 4ワイドのコアは1サイクルに最大4µop（命令では最大8）をリタイアするので、イベントごとに1ビットでは数えきれません。
+- そこで `hpm_ev` をイベントごとの数（4ビット、0〜8）に広げ、カウンタはその数を足します。オーバーフロー（OF）は加算の桁上がりで立てます。
+
+**リネームのスロット分類（Top-Down の第1レベル）**
+- 1サイクル4スロットを、次の4つのどれか1つに必ず入れます。
+  - **使用**: リネームしたµop
+  - **回復**: リストアやトラップから、リネームが再開するまでに使わなかったスロット
+  - **バックエンド**: µop は来ていたが、資源不足でリネームできなかったスロット
+  - **フロントエンド**: µop が来なかったスロット
+- 4つを足すと毎サイクル4になるので、ベンチで毎サイクル確かめます。
+- リタイアしたµop と合わせると、CoreMark/MHz がどこで失われているかが分かります。
+
+**イベント（30個）**
+- 1〜10、15、16、18、19、27、28 は mmRISC-2 と同じ意味なので、そのスクリプトとデバイスツリーの raw イベントがそのまま使えます。サイクル、命令、ロード、ストア、分岐、予測ミス、I$／D$／ITLB／DTLB のミス、例外、割り込み、L2、ウォーカーです。
+- 残りは OoO コア向けです。
+  - ROB の先頭の待ち（メモリか、それ以外か）、リプレイ
+  - スロットの4分類、リタイアしたµop
+  - ディスパッチが何を待っているか（ROB、発行キュー、LQ／SQ）
+  - リネームが何を待っているか（物理レジスタ、チェックポイント）
+  - ROB が空のサイクル
+
+**検証の計画**
+- tb_core で毎サイクル検査します（スロットの合計、リタイア数をコミットと突き合わせ）。
+- 新しい `b4/dir/pmu.S` で、レベルごとのフィルタ、オーバーフローと LCOFI（M と S への委譲）、scountovf、counteren、Smcntrpmf を確かめます。
+- 各イベントにミューテーションを入れます。
+- OpenSBI と perf の癖は、OpenSBI がベンチに載る L1 で確かめます。
+
+**コストの見込み**: LUT 約+0.4k、FF 約+0.2k です。どのイベントも作るところでレジスタに入れるので、タイミングへの影響はほぼありません。
+
+番号や中身を変えたいイベントがあれば教えてください。
+<!-- /answer -->
+
+## 274. 2026-11-21 18:41:03 JST
+
+```text
+Implement as is
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+Lint matches HEAD. The final chain (run_core, CoreMark, 28 core and 12 unit mutations) is running in the background. When it finishes I'll read every mutation line, fill in Plan/OOC 29.98 and the READMEs, and commit.
+<!-- /answer -->
+
+## 275. 2026-11-21 22:14:52 JST
+
+```text
+もう一度試してください
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+The docs are done except for the final mutation count in Plan/OOC 29.98. I'm waiting for chain5 (run_core, CoreMark, mutations 272, 273 and M1559) to report.
+<!-- /answer -->
