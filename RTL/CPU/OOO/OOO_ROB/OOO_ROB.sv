@@ -38,7 +38,9 @@
 // the ROB empties (flush_all for the rest of the core). A trap wins over a
 // restore in the same cycle. irq (OOO_TRAP) takes an interrupt before the
 // head: nothing commits, and the ROB empties as for a trap (head_fused
-// tells OOO_TRAP that an exception at the head is inside a fused pair).
+// tells OOO_TRAP that an exception at the head is inside a fused pair); so
+// does a debug halt (step 1.8 J1). one (a debugger's step) lets the head
+// alone commit in a cycle.
 //
 // Replay after commit (Doc/UARCH.md 6.3, D-12): a load that could not give
 // its result in its expected cycle (ld_cancel) had its dependents woken on
@@ -117,6 +119,7 @@ module OOO_ROB
         output logic                        head_fused,  // the head is a fused pair
         output logic                        head_mem,    // the head is a load or a store (the PMU, step 1.8 K1)
         input  logic                        irq,         // OOO_TRAP: take an interrupt before the head now
+        input  logic                        one,         // OOO_TRAP: commit the head alone (a step, step 1.8 J1)
 
         // commit
         output logic [ND-1:0]                  cmt_valid,
@@ -259,7 +262,7 @@ module OOO_ROB
         for (int k = 0; k < ND; k++) hi[k] = hk[k][ROBW-1:0];
         for (int k = 0; k < ND; k++) has[k] = hk[k] != tail;
         for (int k = 0; k < ND; k++) begin
-            c[k]   = (k == 0 ? !irq : c[k-1] && !rp[hi[k-1]]) && has[k] && done[hi[k]] && !exc[hi[k]];
+            c[k]   = (k == 0 ? !irq : c[k-1] && !rp[hi[k-1]] && !one) && has[k] && done[hi[k]] && !exc[hi[k]];
             crp[k] = c[k] && rp[hi[k]];
         end
         nc = '0;

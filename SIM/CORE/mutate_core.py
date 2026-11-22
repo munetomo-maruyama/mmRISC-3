@@ -17,10 +17,12 @@
 # riscv-arch-test, 209 since E1c, illegal.S, dcrace.S, atomic.S, devld.S;
 # F, D, Zcd, the FP Sm / Exceptions tests and Plan/fpu's DSP kernels since step
 # 1.8 U2; riscv-tests' -p- programs as run_core.sh runs them, 146 with rv64ua,
-# 170 with rv64uf / ud and rv64mi-p-csr, 171 with rv64si-p-dirty and b4/dir/vm.S since step 1.8 V1; atomic.S's part 7 since V3b; cboz.S since step 1.8 L1),
+# 170 with rv64uf / ud and rv64mi-p-csr, 171 with rv64si-p-dirty and b4/dir/vm.S since step 1.8 V1; atomic.S's part 7 since V3b; cboz.S since step 1.8 L1;
+# trig.S and rv64mi-p-breakpoint since step 1.8 J1, b4 to exit 0: -exit0),
 # on OOO_CPU then the interrupts' programs (b4/irq, the Interrupts groups,
 # each to exit 0: -exit0, step 1.8 I1, Plan/OOC.md 29.78; a mutation with a
-# 5th field CPU runs on OOO_CPU, as OOO_DMISS2's, OOO_CPU's, OOO_ICACHE's and CPU_PLIC's do), last on CoreMark (g14 sf + -flto; at most 2,000 replays: about
+# 5th field CPU runs on OOO_CPU, as OOO_DMISS2's, OOO_CPU's, OOO_ICACHE's and CPU_PLIC's do), the debugger since step 1.8 J1 (B3's
+# programs, ebrk.S, trig.S and the rv64mi / si -p- ones with tb_core -dbg 200 -dbgf 15: dbgmodel.h), last on CoreMark (g14 sf + -flto; at most 2,000 replays: about
 # 250 now, 21,000 with loads issued past older stores). DETECTED when a run
 # fails.
 # Every line of the result is to be read: grep NOT.
@@ -95,7 +97,10 @@ RV = os.environ.get('RVTESTS', os.path.join(HERE, '../../../mmRISC-2/SIM/SIM_COR
 RPROGS = sorted(os.path.join(RV, t) for t in os.listdir(RV)
                 if (__import__('re').fullmatch(r'rv64(ui|um|ua|uf|ud|uc|uzba|uzbb|uzbc|uzbs|uzicond|mi|si)-p-[a-z0-9_]+', t) or
                     __import__('re').fullmatch(r'rv64(ui|um|ua|uf|ud|uc|uzba|uzbb|uzbc|uzbs|uzicond)-v-[a-z0-9_]+', t)) and
-                t not in ('rv64mi-p-breakpoint',) and not t.startswith('rv64ua-p-amocas_'))
+                not t.startswith('rv64ua-p-amocas_'))
+DPROGS = [os.path.join(HERE, 'b4/work/dir', t) for t in ('ebrk.elf', 'trig.elf')]  # (the debugger's stage, step 1.8 J1)
+MSPROGS = sorted(os.path.join(RV, t) for t in os.listdir(RV)
+                 if __import__('re').fullmatch(r'rv64(mi|si)-p-[a-z0-9_]+', t))
 CS = 'OOO_CSRU/OOO_CSRU.sv'
 
 C = 'OOO_CORE/OOO_CORE.sv'
@@ -109,6 +114,8 @@ IQ = 'OOO_IQ3/OOO_IQ3.sv'
 SY = 'OOO_SYS/OOO_SYS.sv'
 PL = '../MMIO/CPU_PLIC/CPU_PLIC.sv'   # (RTL/CPU/MMIO, from OOO's copy: on OOO_CPU, step 1.8 I2)
 RB = 'OOO_ROB/OOO_ROB.sv'      # (the PMU's head_mem, step 1.8 K1)
+TR = 'OOO_TRAP/OOO_TRAP.sv'    # (debug, step 1.8 J1)
+DB = 'OOO_DBG/OOO_DBG.sv'
 L4 = L3
 CPU = True                      # a 5th field: the mutation runs on OOO_CPU (with the interrupts' programs)
 MUT = [
@@ -241,14 +248,14 @@ MUT = [
     (L3, "m_ucd  = p == 0 && m_ld && m_try && !m_id[LW] && lucd[m_id[LW-1:0]];", "m_ucd  = 1'b0;", 'uncached: the device\'s word never taken'),
     (DM, "if (miss_valid && !asked(miss_line, miss_vx, aq_n) && n != (QW + 1)'(NAQ)) begin", "if (1'b0) begin", 'OOO_DMISS2: a load\'s miss never filled'),
     (DM, "tw_en   = st == S_SINV || st == S_INV || st == S_TAG;", "tw_en   = st == S_SINV || st == S_TAG;", 'OOO_DMISS2: the victim\'s tag valid while its words are replaced'),
-    (DM, "assign aq_pop = st == S_IDLE && !u_pend && !fl_req && !p_pend && aq_n != '0 && wr_quiet;", "assign aq_pop = st == S_IDLE && !u_pend && !fl_req && !p_pend && aq_n != '0;", 'OOO_DMISS2: a fill before the write out has its answer'),
-    (DM, "if (ev_go ? int'(ev_way) == w : dirty_set && int'(dirty_way) == w)", "if (ev_go ? int'(ev_way) == w : 1'b0 && int'(dirty_way) == w)", 'OOO_DMISS2: a store never makes its line dirty'),
+    (DM, "assign aq_pop = st == S_IDLE && !u_pend && !dv_pend && !fl_req && !p_pend && !d_pend && aq_n != '0 && wr_quiet;", "assign aq_pop = st == S_IDLE && !u_pend && !dv_pend && !fl_req && !p_pend && !d_pend && aq_n != '0;", 'OOO_DMISS2: a fill before the write out has its answer'),
+    (DM, "if (ev_go ? int'(ev_way) == w : st == S_DWR ? int'(p_way) == w : dirty_set && int'(dirty_way) == w)", "if (ev_go ? int'(ev_way) == w : st == S_DWR ? int'(p_way) == w : 1'b0 && int'(dirty_way) == w)", 'OOO_DMISS2: a store never makes its line dirty'),
     (DM, "assign ev_go  = ((st == S_INV || st == S_SINV) && ev_dirty) ||", "assign ev_go  = ((st == S_SINV) && ev_dirty) ||", 'OOO_DMISS2: a dirty victim not written out'),
     (DM, "e_line <= {tagr[ev_way][TW-1:0], t_set[5:0]};", "e_line <= {f_line[PAW-1:12], t_set[5:0]};", 'OOO_DMISS2: a victim written out at the new line\'s address'),
     (DM, "assign m_axi4_wvalid  = e_on && e_aw && e_w < e_c;", "assign m_axi4_wvalid  = e_on && e_aw;", 'OOO_DMISS2: a beat before its word is in the buffer'),
     (DM, "S_FL:   if (!ev_dirty || !e_on) begin", "S_FL:   if (1'b1) begin", 'OOO_DMISS2: FENCE.I\'s walk passes a dirty line'),
     (DM, "assign fl_done = st == S_FLW && wr_quiet;", "assign fl_done = st == S_FLW;", 'OOO_DMISS2: FENCE.I done before the last write out is answered'),
-    (DM, "rf_addr = {f_vx, f_line[11:6], f_beat};", "rf_addr = {f_vx, f_line[11:6], 3'd0};", 'OOO_DMISS2: every word of a fill to the line\'s first'),
+    (DM, "rf_addr = st == S_DWR ? {p_set, p_word} : {f_vx, f_line[11:6], f_beat};", "rf_addr = st == S_DWR ? {p_set, p_word} : {f_vx, f_line[11:6], 3'd0};", 'OOO_DMISS2: every word of a fill to the line\'s first'),
     (CP, ".dc_vr_way(dc_vr_way)", ".dc_vr_way(2'd0)", 'W2: the victim\'s copy read in way 0'),
     (CP, ".miss_vx(dc_miss_vx)", ".miss_vx(2'd0)", "C2: a load's miss filled in the set of vx 0"),
     (CP, ".st_miss_vx(dc_st_miss_vx)", ".st_miss_vx(2'd0)", "C2: a store's miss filled in the set of vx 0"),
@@ -317,8 +324,8 @@ MUT = [
     (C, ".mtime(mtime),", ".mtime(64'd0),", 'I1: the CSRs\' time at 0 (Sstc compares with it)', CPU),
     (CP, ".ext_irq({irq_src, 1'b0})", ".ext_irq({irq_src[30:1], 2'b0})", "I1: the PLIC's sources one off"),
     (CP, "<= {mm_m_soft, mm_m_timer, mm_m_ext, mm_s_ext};", "<= {mm_m_soft, mm_m_timer, mm_s_ext, mm_m_ext};", "I1: the PLIC's contexts swapped"),
-    (DM, "assign m_axil_awaddr  = u_a;", "assign m_axil_awaddr  = {u_a[PAW-1:3], 3'b000};", "I1: a device's write at its word's address (the PLIC's register at +4 missed)"),
-    (DM, "assign m_axil_araddr  = u_a;", "assign m_axil_araddr  = {u_a[PAW-1:3], 3'b000};", "I1: a device's read at its word's address (the claim at +4 missed)"),
+    (DM, "assign m_axil_awaddr  = u_db ? q_a : u_a;", "assign m_axil_awaddr  = u_db ? q_a : {u_a[PAW-1:3], 3'b000};", "I1: a device's write at its word's address (the PLIC's register at +4 missed)"),
+    (DM, "assign m_axil_araddr  = u_db ? q_a : u_a;", "assign m_axil_araddr  = u_db ? q_a : {u_a[PAW-1:3], 3'b000};", "I1: a device's read at its word's address (the claim at +4 missed)"),
     (L3, "low_byte(d2_m)};", "3'b000};", "I1: a store to a device at its word's address", CPU),
     (L3, "if (ev || (w_ucs[0] && w_lqs[0] == LW'(e)) || (w_ucs[1] && w_lqs[1] == LW'(e))) lretry[e] <= 1'b1;", "if (ev) lretry[e] <= 1'b1;", 'I1: a load for a device that waits is tried only at an event (devld.S hangs)'),
     (SY, "OP_WFI:    ill = priv == PRIV_U || (priv == PRIV_S && tw);", "OP_WFI:    ill = priv != PRIV_M && tw;", 'I1: WFI in U mode waits (Spike: illegal)', CPU),
@@ -329,7 +336,7 @@ MUT = [
     (PL, "t_id[c][k]   = t_id[c][2*k + 1];", "t_id[c][k]   = t_id[c][2*k];", "I2: the PLIC's tree keeps the right child's priority with the left one's number"),
     (CP, "else        {irq_m_soft, irq_m_timer, irq_m_ext, irq_s_ext} <=", "else if (0) {irq_m_soft, irq_m_timer, irq_m_ext, irq_s_ext} <=", "I2: the interrupt lines' registers never loaded"),
     # step 1.8 U2 (Plan/OOC.md 29.82): the renamed FPU in the core
-    (C, "fexc[j]  = f_ok[j] && (fs == 2'b00 || ", "fexc[j]  = f_ok[j] && (1'b0 || ", 'U2: an FP instruction with FS off runs'),
+    (C, "fexc[j]  = f_ok[j] && ((fs == 2'b00 && !dbg_mode) || ", "fexc[j]  = f_ok[j] && ((1'b0 && !dbg_mode) || ", 'U2: an FP instruction with FS off runs'),
     (C, "(rm == 3'd5 || rm == 3'd6 || (rm == 3'd7 && frm >= 3'd5))", "(rm == 3'd5 || rm == 3'd6)", 'U2: a dynamic rounding mode with frm reserved runs'),
     (C, "|| g_fp_op[s] == FOP_CVT_I_F);", ");", 'U2: fcvt to an integer taken for an FP result'),
     (C, "(g_fp_op[s] == FOP_MV_F_X || g_fp_op[s] == FOP_CVT_F_I);", "(g_fp_op[s] == FOP_MV_F_X);", 'U2: fcvt from an integer sent to OOO_FIQ'),
@@ -377,7 +384,7 @@ MUT = [
     (C, "tr_mxr <= m_mxr;", "tr_mxr <= 1'b0;", "V1: MXR ignored"),
     (C, "tr_on  <= satp[63:60] == 4'd8 && tr_eff != 2'd3;", "tr_on  <= satp[63:60] == 4'd8;", "V1: M mode translated"),
     (C, "assign tlb_flush_all = tlb_flush || satp_q != satp;", "assign tlb_flush_all = tlb_flush;", "V1: a change of satp leaves the DTLBs"),
-    (C, "ld_ccause[m] <= cmp_ld_cause[m] == 2'd2 ? 5'd13 :", "ld_ccause[m] <= cmp_ld_cause[m] == 2'd2 ? 5'd5 :", "V1: a load's page fault reported as an access fault"),
+    (C, "cmp_ld_cause[m] == 2'd2 ? 5'd13 : cmp_ld_cause[m] == 2'd1", "cmp_ld_cause[m] == 2'd2 ? 5'd5 : cmp_ld_cause[m] == 2'd1", "V1: a load's page fault reported as an access fault"),
     (C, "cmp_st_cause == 2'd2 ? 5'd15 :", "cmp_st_cause == 2'd2 ? 5'd13 :", "V1: a store's page fault reported as a load's"),
     (C, ".satp_ppn(satp[43:0])", ".satp_ppn({satp[42:0], 1'b0})", "V1: the walk's root a page off"),
     (DM, "pt_data   = st == S_PANS ? vr_data : p_q;", "pt_data   = p_q;", "V1: an entry found in the D$ answered from the last fill", CPU),
@@ -389,7 +396,7 @@ MUT = [
     (FR, "bf[push_idx] <= {bf_w7, fq_f[fq_h]};", "bf[push_idx] <= '0;", "V2: a block's fetch fault lost"),
     (FR, "bfk = g_bsel[k] ? g_bf1 : g_bf0;", "bfk = g_bf0;", "V2: the fault of the group's first block for all"),
     (C, "ipc                  = g_pc[s] + (VA - 1)'(g_ifx[s]);", "ipc                  = g_pc[s];", "V2: an instruction across into a faulting page: tval its pc"),
-    (C, "d2[j].cause          = ifl ? (g_ifault[s] == 2'd1 ? 5'd12 : 5'd1) :", "d2[j].cause          = ifl ? 5'd12 :", "V2: a fetch's access fault reported as a page fault"),
+    (C, "d2[j].cause          = trg ? 5'd24 : ifl ? (g_ifault[s] == 2'd1 ? 5'd12 : 5'd1) :", "d2[j].cause          = trg ? 5'd24 : ifl ? 5'd12 :", "V2: a fetch's access fault reported as a page fault"),
     (C, "assign it_on = satp[63:60] == 4'd8 && priv != 2'd3;", "assign it_on = satp[63:60] == 4'd8 && tr_eff != 2'd3;", "V2: fetch translated with MPRV's privilege"),
     (C, "assign it_au = priv == 2'd0;", "assign it_au = 1'b1;", "V2: S runs user pages"),
     (C, ".req_id(w_req ? {1'b0, w_rid} : 6'b100000)", ".req_id(w_req ? {1'b0, w_rid} : 6'b000000)", "V2: the fetch's walk taken for the LSU's"),
@@ -460,6 +467,35 @@ MUT = [
     (L4, "d1_m    <= d0_z ? 8'hff : smask[dp[SW-1:0]];", "d1_m    <= smask[dp[SW-1:0]];", 'L1: one byte of each word zeroed'),
     (L4, "assign m_cbo  = m_v && m_at == 4'd1;", "assign m_cbo  = 1'b0;", "L1: CBO.ZERO's entry not marked"),
     (L4, "assign at_uc  = m_at != 4'd0 && m_uc;", "assign at_uc  = m_at[3:1] != 3'd0 && m_uc;", 'L1: CBO.ZERO outside the memory not an access fault'),
+    # step 1.8 J1: debug (the debugger's stage, dbgmodel.h; b4/dir/trig.S, rv64mi-p-breakpoint)
+    (TR, "hcause  = rh_pend ? 3'd5 : d_haltreq ? 3'd3 : 3'd4;", "hcause  = rh_pend ? 3'd5 : 3'd4;", 'J1: a haltreq halt with the cause of a step'),
+    (TR, "vec     = d_resumed ? dpc :", "vec     = d_resumed ? DBG_PC :", 'J1: the resume fetches from DBG_PC, not dpc'),
+    (TR, "one       = step_pend;", "one       = 1'b0;", 'J1: a step commits 4 at once'),
+    (TR, "irq_t   = irq_q && head_valid && !ns_busy && !dmode && !step_pend && !hreq;", "irq_t   = irq_q && head_valid && !ns_busy && !dmode && !hreq;", 'J1: an interrupt while stepping'),
+    (TR, "csr_trap  = irq_t || (exc && !head_fused && !ebk && !tdbg && !dmode);", "csr_trap  = irq_t || (exc && !head_fused && !ebk && !tdbg);", "J1: debug mode's EBREAKs trap (mepc, mcause written)"),
+    (TR, "tdbg    = trg && (tm & t_act) != '0;", "tdbg    = 1'b0;", "J1: the debugger's trigger as a breakpoint"),
+    (TR, "csr_cause = irq_t ? irq_cause_q : tbrk ? 5'd3 : rob_cause;", "csr_cause = irq_t ? irq_cause_q : rob_cause;", "J1: a trigger's breakpoint with the core's cause (24 / 26)"),
+    (TR, "trig_fired = tdbg ? (tm & t_act) : tbrk ? (tm & ~t_act) : '0;", "trig_fired = tdbg ? (tm & t_act) : '0;", "J1: a breakpoint's hit not set"),
+    (TR, "if (rh_first) rh_pend <= d_resethalt;", "", 'J1: resethaltreq not taken'),
+    (TR, "(priv == 2'b11 ? d_ebm : priv == 2'b01 ? d_ebs : priv == 2'b00 && d_ebu)", "(priv == 2'b11 ? d_ebm : d_ebs)", "J1: an EBREAK in U by dcsr.ebreaks"),
+    (TR, "end else if (step_pend && !dmode && (cmt_instret != 4'd0 || take)) begin", "end else if (step_pend && !dmode && cmt_instret != 4'd0) begin", 'J1: a step whose instruction traps does not halt at the handler'),
+    (DB, "w[1] = csrr(q_n, DS0);", "w[1] = csrr(5'd1, DS0);", 'J1: a GPR written into x1'),
+    (DB, "w[2] = fmvxd(5'd1, q_n);", "w[2] = fmvxd(5'd1, 5'd0);", 'J1: an FPR read from f0'),
+    (DB, "S_RGET: q_d <= q_wr ? {c_rdata[63:32], q_d[31:0]} : c_rdata;", "S_RGET: q_d <= q_wr ? {32'd0, q_d[31:0]} : c_rdata;", "J1: a 32-bit write's upper half 0"),
+    (DB, "assign done_seq = armed && d_take && d_take_pc != DBG_PC;", "assign done_seq = armed && d_take;", 'J1: a sequence taken as done at a park EBREAK'),
+    (DB, "q_err <= !c_exists || (q_wr && c_addr[11:10] == 2'b11);", "q_err <= !c_exists;", 'J1: a write of a read-only CSR without the error'),
+    (IC, "ic_resp_data <= s1_dbg ? (s1_db0 ? dbg_words : {8{32'h0010_0073}}) :", "ic_resp_data <= s1_dbg ? {8{32'h0010_0073}} :", "J1: DBG_PC's block always the park"),
+    (L4, "((!m_ld || m_amo) && trig_st[i])", "(!m_ld && trig_st[i])", "J1: an AMO past a store trigger"),
+    (L4, "w_cause <= m_tg ? 2'd3 : m_mis ? 2'd0 :", "w_cause <= m_mis ? 2'd0 : m_tg ? 2'd3 :", 'J1: misaligned before a data trigger'),
+    (C, "if (t_ex[i] && g_pc[k] == t_a[i][VA-1:1]) tx[k] = 1'b1;", "if (t_ex[i] && g_pc[k][VA-1:2] == t_a[i][VA-1:2]) tx[k] = 1'b1;", 'J1: an execute trigger on a 4-byte word'),
+    (C, "automatic logic en = ((priv == 2'b11 && c[5]) || (priv == 2'b01 && c[4]) || (priv == 2'b00 && c[3])) &&",
+        "automatic logic en = ((priv == 2'b11 && c[5]) || (priv == 2'b01 && c[3]) || (priv == 2'b00 && c[3])) &&", "J1: a trigger in S by its u bit"),
+    (C, "fexc[j]  = f_ok[j] && ((fs == 2'b00 && !dbg_mode) ||", "fexc[j]  = f_ok[j] && (fs == 2'b00 ||", "J1: FS off in debug mode (an FPR's sequence faults)"),
+    (C, "tr_valid   = dbg_mode ? '0 : cmt_valid;", "tr_valid   = cmt_valid;", "J1: debug mode's sequences traced"),
+    (C, "if (dbg_mode)                                               // debug mode (step 1.8 J1): cycles alone",
+        "if (1'b0)                                               // debug mode (step 1.8 J1): cycles alone", "J1: the PMU's events counted in debug mode"),
+    (C, ".instret_inc(dbg_mode ? 4'd0 : cmt_instret)", ".instret_inc(cmt_instret)", "J1: debug mode's sequences in minstret"),
+    (C, "!dbg_mode && (c[6] || trig_a0_ok);", "!dbg_mode && (c[6] || tctl_mte);", 'J1: action 0 without the MIE / SIE rule'),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),
@@ -507,8 +543,14 @@ def run(i, m):
         det = r.returncode != 0
         if not det:
             det = subprocess.run([t, '+verilator+rand+reset+2'] + HPROGS, capture_output=True, timeout=900).returncode != 0
+        if not det:                         # the debugger (step 1.8 J1)
+            det = subprocess.run([t, '+verilator+rand+reset+2', '-dbg', '200', '-dbgf', '15', '-max', '2000000'] + DPROGS + HPROGS + MSPROGS,
+                                 capture_output=True, timeout=1800).returncode != 0
         if not det:
-            det = subprocess.run([t, '+verilator+rand+reset+2', '-max', '3000000'] + APROGS + RPROGS,
+            det = subprocess.run([t, '+verilator+rand+reset+2', '-max', '3000000', '-exit0'] + APROGS,
+                                 capture_output=True, timeout=1800).returncode != 0
+        if not det:
+            det = subprocess.run([t, '+verilator+rand+reset+2', '-max', '3000000'] + RPROGS,
                                  capture_output=True, timeout=1800).returncode != 0
         if not det and cpu:
             det = subprocess.run([t, '+verilator+rand+reset+2', '-max', '3000000', '-exit0'] + IPROGS,

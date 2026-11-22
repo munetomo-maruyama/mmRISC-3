@@ -64,20 +64,28 @@ public:
     // the answer: 8 words, parcel 2k in the low half of word k
     void resp_data(uint32_t w[8]) const
     {
+        if (rq_dbg) { for (int k = 0; k < 8; k++) w[k] = rq_w[k]; return; }
         if (!rq_ok) { for (int k = 0; k < 8; k++) w[k] = 0; return; }
         m.read(rq_pc & ~31ull, w, 32);
     }
+    // debug mode (step 1.8 J1, as OOO_ICACHE): a request in physical page 0 is answered from the core's words
+    // (DBG_PC's block, 0x800; any other block 8 EBREAKs), never a miss. Set before clock()
+    void debug(bool mode, const uint32_t words[8]) { dbg_mode = mode; for (int k = 0; k < 8; k++) dbg_w[k] = words[k]; }
     // the clock edge: acc = a request accepted in this cycle at the halfword address pc, its physical page ptag,
     // whether it may be fetched (tok)
     void clock(bool acc, uint64_t pc, uint64_t ptag = ~0ull, bool tok = true)
     {
         bool nv = false; uint64_t npc = 0; bool nok = true;
         if (miss_cnt > 0 && --miss_cnt == 0) { nv = true; npc = miss_pc; }
-        if (s1_v && !s1_miss) { nv = true; npc = s1_pc; nok = s1_ok; }
+        bool ndbg = false;
+        if (s1_v && !s1_miss) { nv = true; npc = s1_pc; nok = s1_ok; ndbg = s1_dbg; }
+        if (ndbg) for (int k = 0; k < 8; k++) rq_w[k] = (s1_pc & 0xfe0) == 0x800 ? dbg_w[k] : 0x00100073u;
+        rq_dbg = ndbg;
         if (s1_v && s1_miss) { miss_cnt = 2 + (int)(rng() % miss_lat); miss_pc = s1_pc; misses++; }
         rq_v = nv; rq_pc = npc; rq_ok = nok;
         uint64_t pa = ptag == ~0ull ? pc << 1 : (ptag << 12) | ((pc << 1) & 0xfff);   // (a byte address)
-        s1_v = acc; s1_pc = pa; s1_ok = tok; s1_miss = acc && tok && (int)(rng() % 100) < miss_pct;
+        s1_v = acc; s1_pc = pa; s1_ok = tok; s1_dbg = acc && dbg_mode && (pa >> 12) == 0;
+        s1_miss = acc && tok && !s1_dbg && (int)(rng() % 100) < miss_pct;
         reqs += acc;
     }
     long reqs = 0, misses = 0;
@@ -86,6 +94,8 @@ private:
     std::mt19937_64 rng;
     int miss_pct, miss_lat;
     bool s1_v = false, s1_miss = false, rq_v = false, s1_ok = true, rq_ok = true;
+    bool dbg_mode = false, s1_dbg = false, rq_dbg = false;
+    uint32_t dbg_w[8] = {}, rq_w[8] = {};
     uint64_t s1_pc = 0, rq_pc = 0, miss_pc = 0;
     int miss_cnt = 0;
 };

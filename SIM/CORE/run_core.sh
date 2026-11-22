@@ -19,13 +19,17 @@
 # and riscv-tests' -p- programs of mmRISC-2 ($RVTESTS: rv64ui / um / ua / uf /
 # ud / uc / uzba / uzbb / uzbc / uzbs / uzicond / mi / si; ua since E1c, not its
 # amocas: Zacas; uf, ud and rv64mi-p-csr since U2; rv64si-p-dirty since step 1.8 V1,
-# Plan/OOC.md 29.87: paging's data side) but one that Phase 1
-# cannot run: rv64mi-p-breakpoint (the triggers' firing is not wired); and since step 1.8 V2
+# Plan/OOC.md 29.87: paging's data side; rv64mi-p-breakpoint since step 1.8 J1, the triggers wired); and since step 1.8 V2
 # (Plan/OOC.md 29.88) their -v- programs (every rv64u* test under paging, 155); on
 # both tops, to their HTIF exit; with b4/dir/illegal.S (the exceptions
 # found at decode), b4/dir/dcrace.S (the D$'s races behind the L2) and
 # b4/dir/atomic.S (the atomics, step 1.4 E1c), b4/dir/devld.S (device loads at the
-# head alone, step 1.8 I1), b4/dir/vm.S (Sv39's data side, step 1.8 V1), b4/dir/vmx.S (its fetch side, V2), b4/dir/pmpx.S (PMP on the fetch word by word, P1), b4/dir/pmu.S (the PMU's counters and events, K1), b4/dir/cboz.S (CBO.ZERO, L1). The interrupts (step 1.8 I1, Plan/OOC.md 29.78): b4/irq and
+# head alone, step 1.8 I1), b4/dir/vm.S (Sv39's data side, step 1.8 V1), b4/dir/vmx.S (its fetch side, V2), b4/dir/pmpx.S (PMP on the fetch word by word, P1), b4/dir/pmu.S (the PMU's counters and events, K1), b4/dir/cboz.S (CBO.ZERO, L1), b4/dir/trig.S (the triggers, J1), b4/dir/ebrk.S (EBREAK in M, S, U: the debugger's vehicle, J1). The b4 set runs with -exit0 since J1:
+# its self-checking programs' verdicts count (a wrong value the reference takes from the core, as
+# tdata1's, would otherwise fail on both sides alike).
+# The debugger (step 1.8 J1, dbgmodel.h): b4/dir/ebrk.S (EBREAK in M, S, U), trig.S, b3 and the rv64mi / si -p-
+# programs with -dbg 200 -dbgf 15 (halts, steps, registers, memory on OOO_CPU, EBREAK, its triggers,
+# resethaltreq, SSIP pending in steps), on both tops. The interrupts (step 1.8 I1, Plan/OOC.md 29.78): b4/irq and
 # the Interrupts groups on OOO_CPU alone (its CLINT and PLIC; OOO_CORE has none).
 # The restores of the first run are what mutate_core.py holds the mutated
 # cores to.
@@ -48,7 +52,8 @@ A=$(ls b4/work/*/*.elf | grep -vE '/(irq|Interrupts[A-Za-z]*)/' | sort -V)
 I=$(ls b4/work/irq/*.elf b4/work/InterruptsSm/*.elf b4/work/InterruptsS/*.elf | sort -V)     # (OOO_CPU's CLINT and PLIC: step 1.8 I1)
 RV=${RVTESTS:-../../../mmRISC-2/SIM/SIM_CORE/rvtests}
 R=$(ls $RV | grep -E '^rv64(ui|um|ua|uf|ud|uc|uzba|uzbb|uzbc|uzbs|uzicond|mi|si)-p-[a-z0-9_]+$|^rv64(ui|um|ua|uf|ud|uc|uzba|uzbb|uzbc|uzbs|uzicond)-v-[a-z0-9_]+$' |
-    grep -vE '^rv64mi-p-breakpoint$|^rv64ua-p-amocas_' | sed "s|^|$RV/|")
+    grep -vE '^rv64ua-p-amocas_' | sed "s|^|$RV/|")
+MS=$(ls $RV | grep -E '^rv64(mi|si)-p-[a-z0-9_]+$' | sed "s|^|$RV/|")     # (the debugger's runs)
 {
 $T +verilator+rand+reset+2 -exit pass -v -restores-out results/core_restores.txt $P
 $T +verilator+rand+reset+2 -exit pass -seed 2 $P
@@ -57,11 +62,13 @@ $T +verilator+rand+reset+2 $H
 $T +verilator+rand+reset+2 -seed 2 -dhit 30 $H
 cpu +verilator+rand+reset+2 -exit pass -v $P
 cpu +verilator+rand+reset+2 $H
-$T +verilator+rand+reset+2 $A
-$T +verilator+rand+reset+2 -seed 2 -dhit 30 $A
+$T +verilator+rand+reset+2 -exit0 $A
+$T +verilator+rand+reset+2 -exit0 -seed 2 -dhit 30 $A
 $T +verilator+rand+reset+2 $R
-cpu +verilator+rand+reset+2 $A $I
+$T +verilator+rand+reset+2 -dbg 200 -dbgf 15 -max 2000000 b4/work/dir/ebrk.elf b4/work/dir/trig.elf $H $MS
+cpu +verilator+rand+reset+2 -exit0 $A $I
 cpu +verilator+rand+reset+2 $R
+cpu +verilator+rand+reset+2 -dbg 200 -dbgf 15 -max 2000000 b4/work/dir/ebrk.elf b4/work/dir/trig.elf $H $MS
 } | tee results/core.txt
-[ "$(grep -c ' 0 failures: PASS' results/core.txt)" = $([ "$CPU" = 1 ] && echo 12 || echo 8) ] || exit 1
+[ "$(grep -c ' 0 failures: PASS' results/core.txt)" = $([ "$CPU" = 1 ] && echo 14 || echo 9) ] || exit 1
 echo "run_core: PASS"

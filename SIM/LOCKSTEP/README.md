@@ -63,6 +63,15 @@ Since step 1.8 V2 (`Plan/OOC.md` 29.88) the reference's instruction is read thro
   garbage); CBO.ZERO is one store of 64 zero bytes at its block on both sides (`st_size` 64: Spike's 64 byte stores
   folded, the core's record of its address widened by the test bench), and its fault's tval is the address given,
   the core's choice (Spike's is the block's base; the specification names neither).
+- **Debug** (step 1.8 J1, `Plan/OOC.md` 29.102): the reference is told nothing of a halt, and what the core runs in
+  debug mode is not traced; a debugger's writes (registers, CSRs, memory, pc) are put into the reference by the
+  bench (`pc()`, `set_pc()`, `x()` / `set_x()`, `f()` / `set_f()`: an FPR written makes FS dirty, as the core;
+  `csr()` / `set_csr()`, `peek()` / `poke()`, `next_insn()`; `pending()`: a trigger's extra record below is kept, the
+  reference past it, `pc()` giving its pc); while the debugger steps the core, the reference takes no interrupt
+  (`step_no_irq`: dcsr.stepie 0; mie hidden for the step, or for an instruction on mie itself the pending bits). Spike has 4 triggers (`trigger_count`). A trap is also seen by
+  mepc / sepc: both set to another value before the step (bit 2 differs: with misa.C off they read bit 1 as 0),
+  a trap writes the instruction's pc there; a trigger's breakpoint, which Spike takes inside `step(1)` and then
+  runs the handler's first instruction in the same step, leaves that instruction's record for the next commit.
 - **Misaligned accesses trap** (as in mmRISC-2), and the reference is set the same way.
 - **The reference is mmRISC-2's machine**: its instruction set (`rv64imafdc_zicboz_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zihpm_zba_zbb_zbc_zbs_smcntrpmf_sscofpmf_sstc`, kept by mmRISC-3) and 16 PMP entries (8 implemented, 8 reading 0), M / S / U modes; one RAM region from 0x8000_0000 (64 MB), no devices.
 - **Interrupts** (since step 1.8 I1, `Plan/OOC.md` 29.78): the core's trace reports one taken before the head (`tr_int`,

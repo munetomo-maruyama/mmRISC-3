@@ -26,6 +26,13 @@
 // through a register each (step 1.8 I2: the PLIC's choice and the CLINT's compare are not
 // added to the core's paths; an interrupt comes a cycle later), mtime directly (a register); irq_src are the platform's sources (1 to 31; LiteX's in step 2, the bench's here).
 //
+// Debug (step 1.8 J1, Plan/OOC.md 29.101): the ports of mmRISC-2's Debug Module's hart side
+// (hart_*, reg_*: OOO_CORE's OOO_DBG and OOO_TRAP) and its bus master (bm_*: Access Memory and
+// SBA), which goes to OOO_DMISS2's debugger port: inside [CBASE, CTOP) through the D$, as the
+// core sees memory; outside it a device access on the peripheral bus (CPU_MMIO's CLINT and
+// PLIC among them). In debug mode the I$ answers physical page 0 from OOO_DBG's words. The DM
+// itself (JTAG, its registers) is outside, in RTL/CPU/DBG.
+//
 // Simulation (DCACHE_SIM_UC): sim_uc_line names one line not cached (OOO_LSU3's
 // uc_line): the test bench's tohost, which HTIF must see in the memory and set back to
 // 0 there (Plan/CORE.md 5.1 rule 2).
@@ -39,7 +46,9 @@ module OOO_CPU
         parameter int PAW     = 40,
         parameter int L2_SIZE = 512 * 1024,
         parameter int DWAYS   = 8,          // the D$'s ways (256 sets: 128 KB since step 1.7c C5)
-        parameter int CLINT_TICK_DIV = 100  // clk cycles a step of mtime (50 MHz / 100: 500 kHz, as mmRISC-2)
+        parameter int CLINT_TICK_DIV = 100, // clk cycles a step of mtime (50 MHz / 100: 500 kHz, as mmRISC-2)
+        parameter logic [PAW-1:0] CBASE = 40'h00_8000_0000,  // the cacheable memory (OOO_LSU4's): [CBASE, CTOP)
+        parameter logic [PAW-1:0] CTOP  = 40'h01_0000_0000
     )
     (
         input  logic                        clk,
@@ -48,6 +57,29 @@ module OOO_CPU
         input  logic [VA-1:1]               boot_pc,
         // the platform's interrupt sources (the PLIC's 1 to 31; bit 0 is not a source)
         input  logic [31:1]                 irq_src,
+        // debug: the Debug Module's hart side and bus master (step 1.8 J1)
+        input  logic                        hart_haltreq,
+        input  logic                        hart_resumereq,     // a pulse
+        input  logic                        hart_resethaltreq,
+        output logic                        hart_halted,
+        output logic                        hart_running,
+        output logic                        hart_resumed,       // a pulse
+        input  logic                        reg_req,            // a pulse
+        input  logic                        reg_wr,
+        input  logic [15:0]                 reg_regno,
+        input  logic                        reg_size64,
+        input  logic [63:0]                 reg_wdata,
+        output logic                        reg_ack,            // a pulse
+        output logic [63:0]                 reg_rdata,
+        output logic                        reg_err,
+        input  logic                        bm_req,             // a pulse
+        input  logic                        bm_wr,
+        input  logic [PAW-1:0]              bm_addr,
+        input  logic [1:0]                  bm_size,
+        input  logic [63:0]                 bm_wdata,           // (its low bits)
+        output logic                        bm_ack,             // a pulse
+        output logic [63:0]                 bm_rdata,
+        output logic [2:0]                  bm_err,             // 2: a device's error answer
         // the memory bus (the L2's)
         output logic [3:0]                  m_axi4_awid,
         output logic [PAW-1:0]              m_axi4_awaddr,
@@ -129,12 +161,15 @@ module OOO_CPU
     logic [PAW-12:0]  dc_tw_tag;
     logic [10:0]      dc_rf_addr;
     logic [63:0]      dc_rf_data;
+    logic [7:0]       dc_rf_strb;
+    logic             dbg_mode, dbg_mem_wr, bm_wq;
+    logic [255:0]     dbg_words;
     logic             dc_uc_req, dc_uc_we, dc_uc_done;
     logic [PAW-1:0]   dc_uc_addr;
-    /* verilator lint_off UNUSEDSIGNAL */      // (the bus takes the strobes; the SQ's state is OOO_SYS's)
+    /* verilator lint_off UNUSEDSIGNAL */      // (the bus takes the strobes)
     logic [1:0]       dc_uc_size;
-    logic             dc_sq_drained;
     /* verilator lint_on UNUSEDSIGNAL */
+    logic             dc_sq_drained;           // (the debugger's memory accesses while halted)
     logic [63:0]      dc_uc_wdata, dc_uc_rdata;
     logic [7:0]       dc_uc_wmask;
     logic [10:0]      dc_vr_addr;
@@ -162,7 +197,7 @@ module OOO_CPU
          .dc_st_miss_valid(dc_st_miss_valid), .dc_st_miss_line(dc_st_miss_line), .dc_st_miss_vx(dc_st_miss_vx), .dc_fill_done(dc_fill_done),
          .dc_done_v(dc_done_v), .dc_done_id(dc_done_id), .dc_tw_en(dc_tw_en), .dc_tw_way(dc_tw_way), .dc_tw_set(dc_tw_set),
          .dc_tw_tag(dc_tw_tag), .dc_rf_en(dc_rf_en), .dc_rf_way(dc_rf_way), .dc_rf_addr(dc_rf_addr), .dc_rf_data(dc_rf_data),
-         .dc_dirty_set(dc_dirty_set), .dc_dirty_way(dc_dirty_way), .dc_dirty_idx(dc_dirty_idx), .dc_sq_drained(dc_sq_drained),
+         .dc_rf_strb(dc_rf_strb), .dc_dirty_set(dc_dirty_set), .dc_dirty_way(dc_dirty_way), .dc_dirty_idx(dc_dirty_idx), .dc_sq_drained(dc_sq_drained),
 `ifdef DCACHE_SIM_UC
          .dc_uc_line_v(1'b1), .dc_uc_line(sim_uc_line),
 `else
@@ -173,7 +208,12 @@ module OOO_CPU
          .dc_wt_valid(), .dc_wt_addr(), .dc_wt_data(), .dc_wt_mask(),     // (a store written into the D$: the bench's)
          .dc_vr_addr(dc_vr_addr), .dc_vr_way(dc_vr_way), .dc_vr_data(dc_vr_data),
          .dc_pt_req(dc_pt_req), .dc_pt_addr(dc_pt_addr), .dc_pt_done(dc_pt_done), .dc_pt_data(dc_pt_data),
-         .fl_req(fl_req), .fl_take(fl_take), .fl_done(fl_done), .ic_flush(ic_flush), .ic_done(ic_done)
+         .fl_req(fl_req), .fl_take(fl_take), .fl_done(fl_done), .ic_flush(ic_flush), .ic_done(ic_done),
+         .hart_haltreq(hart_haltreq), .hart_resumereq(hart_resumereq), .hart_resethaltreq(hart_resethaltreq),
+         .hart_halted(hart_halted), .hart_running(hart_running), .hart_resumed(hart_resumed),
+         .reg_req(reg_req), .reg_wr(reg_wr), .reg_regno(reg_regno), .reg_size64(reg_size64), .reg_wdata(reg_wdata),
+         .reg_ack(reg_ack), .reg_rdata(reg_rdata), .reg_err(reg_err),
+         .dbg_mode(dbg_mode), .dbg_words(dbg_words), .dbg_mem_wr(dbg_mem_wr)
 `ifdef OOO_TRACE
          ,
          .tr_valid(tr_valid), .tr_pc(tr_pc), .tr_insn(tr_insn), .tr_pair(tr_pair), .tr_insn2(tr_insn2), .tr_wr(tr_wr), .tr_fwr(tr_fwr), .tr_rd(tr_rd), .tr_val(tr_val),
@@ -181,6 +221,28 @@ module OOO_CPU
          .tr_st_data(tr_st_data), .tr_st_size(tr_st_size)
 `endif
         );
+
+    // ---- the debugger's memory accesses: while the hart is halted, an access waits for the SQ to drain (the
+    // stores committed before the halt are in memory first: what the debugger reads, and what it writes over);
+    // a write done tells OOO_DBG (a fence.i before the resume)
+    logic bm_dberr, bm_pend, db_req;
+    logic [PAW-1:0] bm_aq;                  // the access held (the DM holds its own only for the request's cycle)
+    logic [1:0]     bm_sq;
+    logic [63:0]    bm_dq;
+    always_ff @(posedge clk) if (bm_req) begin bm_aq <= bm_addr; bm_sq <= bm_size; bm_dq <= bm_wdata; end
+    assign bm_err = bm_dberr ? 3'd2 : 3'd0;
+    assign db_req = bm_pend && (!dbg_mode || dc_sq_drained);
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            bm_wq   <= 1'b0;
+            bm_pend <= 1'b0;
+        end else begin
+            if (bm_req) bm_wq <= bm_wr;
+            if (bm_req) bm_pend <= 1'b1;
+            else if (db_req) bm_pend <= 1'b0;
+        end
+    end
+    assign dbg_mem_wr = bm_ack && bm_wq;
 
     // ---- the D$'s and the I$'s buses into the L2
     logic [3:0]       d_awid, d_arid, i_arid, l_awid, l_arid, l_bid, l_rid;
@@ -206,12 +268,14 @@ module OOO_CPU
          .st_miss_valid(dc_st_miss_valid), .st_miss_line(dc_st_miss_line), .st_miss_vx(dc_st_miss_vx), .fill_done(dc_fill_done),
          .done_v(dc_done_v), .done_id(dc_done_id), .tw_en(dc_tw_en), .tw_way(dc_tw_way), .tw_set(dc_tw_set),
          .tw_tag(dc_tw_tag), .rf_en(dc_rf_en), .rf_way(dc_rf_way), .rf_addr(dc_rf_addr), .rf_data(dc_rf_data),
-         .dirty_set(dc_dirty_set), .dirty_way(dc_dirty_way), .dirty_idx(dc_dirty_idx),
+         .rf_strb(dc_rf_strb), .dirty_set(dc_dirty_set), .dirty_way(dc_dirty_way), .dirty_idx(dc_dirty_idx),
          .vr_addr(dc_vr_addr), .vr_way(dc_vr_way), .vr_data(dc_vr_data),
          .uc_req(dc_uc_req), .uc_we(dc_uc_we), .uc_addr(dc_uc_addr), .uc_wdata(dc_uc_wdata), .uc_wmask(dc_uc_wmask),
          .uc_done(dc_uc_done), .uc_rdata(dc_uc_rdata),
          .fl_req(fl_req), .fl_take(fl_take), .fl_done(fl_done),
          .pt_req(dc_pt_req), .pt_addr(dc_pt_addr), .pt_done(dc_pt_done), .pt_data(dc_pt_data),
+         .db_req(db_req), .db_we(bm_wq), .db_dev(bm_aq < CBASE || bm_aq >= CTOP), .db_addr(bm_aq),
+         .db_size(bm_sq), .db_wdata(bm_dq), .db_done(bm_ack), .db_rdata(bm_rdata), .db_err(bm_dberr),
          .m_axi4_awid(d_awid), .m_axi4_awaddr(d_awaddr), .m_axi4_awlen(d_awlen),
          .m_axi4_awsize(d_awsize), .m_axi4_awburst(d_awburst), .m_axi4_awvalid(d_awvalid),
          .m_axi4_awready(d_awready), .m_axi4_wdata(d_wdata), .m_axi4_wstrb(d_wstrb),
@@ -255,6 +319,7 @@ module OOO_CPU
         (.clk(clk), .rst_n(rst_n),
          .ic_req_valid(ic_req_valid), .ic_req_pc(ic_req_pc), .ic_req_ptag(ic_req_ptag), .ic_req_tok(ic_req_tok), .ic_req_ready(ic_req_ready),
          .ic_resp_valid(ic_resp_valid), .ic_resp_data(ic_resp_data), .ic_flush(ic_flush), .ic_done(ic_done),
+         .dbg_mode(dbg_mode), .dbg_words(dbg_words),
          .m_axi4_arid(i_arid), .m_axi4_araddr(i_araddr), .m_axi4_arlen(i_arlen), .m_axi4_arsize(i_arsize),
          .m_axi4_arburst(i_arburst), .m_axi4_arvalid(i_arvalid), .m_axi4_arready(i_arready),
          .m_axi4_rdata(i_rdata), .m_axi4_rresp(i_rresp), .m_axi4_rlast(i_rlast), .m_axi4_rvalid(i_rvalid),

@@ -166,6 +166,7 @@ module OOO_CORE
         input  logic [$clog2(DWAYS)-1:0]   dc_rf_way,
         input  logic [10:0]                 dc_rf_addr,
         input  logic [63:0]                 dc_rf_data,
+        input  logic [7:0]                  dc_rf_strb,     // its bytes (step 1.8 J1: the debugger's write)
         output logic                        dc_dirty_set,
         output logic [$clog2(DWAYS)-1:0]   dc_dirty_way,
         output logic [7:0]                  dc_dirty_idx,
@@ -198,7 +199,25 @@ module OOO_CORE
         input  logic                        fl_take,
         input  logic                        fl_done,
         output logic                        ic_flush,   // FENCE.I: invalidate the I$ (until ic_done)
-        input  logic                        ic_done
+        input  logic                        ic_done,
+        // debug (step 1.8 J1, Plan/OOC.md 29.101): mmRISC-2's DM (hart_*, reg_*), the I$'s answer in debug mode
+        input  logic                        hart_haltreq,
+        input  logic                        hart_resumereq,     // a pulse
+        input  logic                        hart_resethaltreq,
+        output logic                        hart_halted,
+        output logic                        hart_running,
+        output logic                        hart_resumed,       // a pulse
+        input  logic                        reg_req,            // a pulse
+        input  logic                        reg_wr,
+        input  logic [15:0]                 reg_regno,
+        input  logic                        reg_size64,
+        input  logic [63:0]                 reg_wdata,
+        output logic                        reg_ack,            // a pulse
+        output logic [63:0]                 reg_rdata,
+        output logic                        reg_err,
+        output logic                        dbg_mode,           // OOO_ICACHE: page 0 from dbg_words
+        output logic [255:0]                dbg_words,
+        input  logic                        dbg_mem_wr          // a debugger's write to memory done
 `ifdef OOO_TRACE
         ,
         // the commit trace: up to 2 µops a cycle, slot 0 the older
@@ -465,6 +484,12 @@ module OOO_CORE
     // with 4 µops a group no pairing is left; ALU + branch has been off since 5.21)
     /* verilator lint_off UNUSEDSIGNAL */
     logic                no_fuse;               // OOO_TRAP: a pair being fetched again (no pairs now)
+    // the triggers (Sdtrig, step 1.8 J1): CORE_CSR's 4, each enabled now for execute, loads, stores (its m / s / u for
+    // the level, MTE for action 0 in M, none in debug mode), its action, its address: registers (a change of them
+    // comes with a trap, an MRET or a CSR write, each fetching again)
+    logic [3:0]          t_ex, t_ld, t_st, t_act;
+    logic [3:0][63:0]    t_a;
+    logic [3:0]          tx;                    // a decode slot's pc matches an execute trigger
     /* verilator lint_on UNUSEDSIGNAL */
     logic [ND-1:0]       r_valid, r_ckpt, r_go, ren_wr;
     logic [ND-1:0][1:0]  ren_use;
@@ -488,12 +513,18 @@ module OOO_CORE
             fpst[j]  = f_ok[j] && g_port[s] == 2'd2 && !g_fp_we_rd[s];
             fi2f[j]  = fpar[j] && (g_fp_op[s] == FOP_MV_F_X || g_fp_op[s] == FOP_CVT_F_I);
             ff2i[j]  = fpar[j] && ((g_fp_op[s] >= FOP_EQ && g_fp_op[s] <= FOP_MV_X_F) || g_fp_op[s] == FOP_CVT_I_F);
-            fexc[j]  = f_ok[j] && (fs == 2'b00 || (fpar[j] && (rm == 3'd5 || rm == 3'd6 || (rm == 3'd7 && frm >= 3'd5))));
+            fexc[j]  = f_ok[j] && ((fs == 2'b00 && !dbg_mode) || (fpar[j] && (rm == 3'd5 || rm == 3'd6 || (rm == 3'd7 && frm >= 3'd5))));
             fwr_d[j] = f_ok[j] && g_fp_we_rd[s] && !fexc[j];
             fren_src[j] = {g_rs3[s], g_rs2[s], g_rs1[s]};
             fren_dst[j] = g_frd[s];
         end
     end
+    always @(*)
+        for (int k = 0; k < 4; k++) begin
+            tx[k] = 1'b0;
+            for (int i = 0; i < 4; i++)
+                if (t_ex[i] && g_pc[k] == t_a[i][VA-1:1]) tx[k] = 1'b1;    // (t_ex only for a canonical, even address)
+        end
     always @(*) begin
         for (int j = 0; j < ND; j++) begin
             r_valid[j] = r_v[j];
@@ -506,7 +537,7 @@ module OOO_CORE
     end
     always @(*) begin
         logic [1:0] s;
-        logic       jmp, link_rd, link_rs1, sysop_v, at, ifl, cbo, cbx;
+        logic       jmp, link_rd, link_rs1, sysop_v, at, ifl, cbo, cbx, trg;
         logic [2:0] sysop;
         logic [VA-1:1] ipc;
         for (int j = 0; j < ND; j++) begin
@@ -577,10 +608,12 @@ module OOO_CORE
             // (an FP instruction with FS off or a reserved rounding mode too), EBREAK, ECALL
             ifl                  = g_ifault[s] != 2'd0;
             ipc                  = g_pc[s] + (VA - 1)'(g_ifx[s]);
-            d2[j].exc            = ifl || g_illegal[s] || fexc[j] || cbx || g_sys[s][4] || g_sys[s][3];
-            d2[j].cause          = ifl ? (g_ifault[s] == 2'd1 ? 5'd12 : 5'd1) :
+            trg                  = tx[s];       // an execute trigger: before every other exception (OOO_TRAP: 24)
+            d2[j].exc            = trg || ifl || g_illegal[s] || fexc[j] || cbx || g_sys[s][4] || g_sys[s][3];
+            d2[j].cause          = trg ? 5'd24 : ifl ? (g_ifault[s] == 2'd1 ? 5'd12 : 5'd1) :
                                    (g_illegal[s] || fexc[j] || cbx) ? 5'd2 : g_sys[s][4] ? 5'd3 : (5'd8 | 5'(priv));
-            d2[j].tval           = ifl ? {{(64 - VA){ipc[VA-1]}}, ipc, 1'b0}
+            d2[j].tval           = trg ? {{(64 - VA){g_pc[s][VA-1]}}, g_pc[s], 1'b0}
+                                 : ifl ? {{(64 - VA){ipc[VA-1]}}, ipc, 1'b0}
                                  : (g_illegal[s] || fexc[j] || cbx) ? {32'd0, g_insn[s]}     // (an RVC one: the upper half 0, OOO_FBUF)
                                  : g_sys[s][4] ? {{(64 - VA){g_pc[s][VA-1]}}, g_pc[s], 1'b0} : 64'd0;
             d2[j].ns             = g_nonspec[s];
@@ -824,7 +857,7 @@ module OOO_CORE
          .cmp_valid(cmp_valid), .cmp_rob(cmp_rob), .cmp_exc(cmp_exc), .cmp_cause(cmp_cause), .cmp_rp(cmp_rp),
          .br_valid(br_valid), .br_rob(br_rob), .br_mispred(br_mispred), .br_ckpt(br_ckpt),
          .restore(rob_restore), .restore_k(), .restore_rob(rob_restore_rob), .restore_ckpt(),
-         .head_rob(head_rob), .head_ns(head_ns), .head_valid(head_valid), .head_fused(head_fused), .head_mem(head_mem), .irq(irq),
+         .head_rob(head_rob), .head_ns(head_ns), .head_valid(head_valid), .head_fused(head_fused), .head_mem(head_mem), .irq(irq), .one(d_one),
          .cmt_valid(cmt_valid), .cmt_wr(cmt_wr), .cmt_arch(cmt_arch), .cmt_new(cmt_new), .cmt_old(cmt_old),
          .cmt_pc(cmt_pc), .cmt_ftq(cmt_ftq), .cmt_x(cmt_fx), .cmt_ld_n(cmt_ld_n), .cmt_st_n(cmt_st_n), .cmt_instret(cmt_instret),
          .trap(rob_trap), .trap_cause(trap_cause), .trap_pc(trap_pc), .replay(replay), .replay_pc(rob_replay_pc),
@@ -841,6 +874,17 @@ module OOO_CORE
     logic [NTV-1:0][ROBW-1:0]  tv_rob;
     logic [NTV-1:0][63:0]      tv_val;
     logic                      irq_pend, x_ret, x_sret, csr_trap, csr_int, csr_mret, csr_sret, wfi_wake;
+    logic                      d_resume, d_enter, d_resumed, d_take, d_one, d_wake;    // debug (OOO_TRAP, OOO_DBG)
+    logic [2:0]                d_cause;
+    logic                      dc_access, dc_wr, dc_exists;                            // the CSRs' debugger port
+    logic [3:0]                trig_fired;                                             // the triggers that fired (hit)
+    logic                      trig_a0_ok;                                             // action 0 may fire now (CORE_CSR)
+    logic [11:0]               dc_addr;
+    logic [63:0]               dc_wdata;
+    logic                      dcsr_step, dcsr_ebm, dcsr_ebs, dcsr_ebu;                // dcsr's, dpc (the CSRs)
+    /* verilator lint_off UNUSEDSIGNAL */
+    logic [63:0]               dbg_rdata, dpc;
+    /* verilator lint_on UNUSEDSIGNAL */
     logic [30:0][3:0]          hpm_ev /*verilator public_flat_rd*/;    // the PMU's events, registered (below; checked by SIM/CORE/tb_core)
     logic [4:0]                irq_cause, csr_cause;
     logic [VA-1:1]             tvec, mepc, sepc, csr_epc;
@@ -856,7 +900,22 @@ module OOO_CORE
          .x_ret(x_ret), .x_sret(x_sret), .tv_valid(tv_valid), .tv_rob(tv_rob), .tv_val(tv_val),
          .irq_pend(irq_pend), .irq_cause(irq_cause), .tvec(tvec), .mepc(mepc), .sepc(sepc),
          .csr_trap(csr_trap), .csr_epc(csr_epc), .csr_int(csr_int), .csr_cause(csr_cause), .csr_tval(csr_tval),
-         .csr_mret(csr_mret), .csr_sret(csr_sret), .no_fuse(no_fuse));
+         .csr_mret(csr_mret), .csr_sret(csr_sret), .no_fuse(no_fuse),
+         .d_haltreq(hart_haltreq), .d_resethalt(hart_resethaltreq), .d_resume(d_resume), .d_step(dcsr_step),
+         .d_ebm(dcsr_ebm), .d_ebs(dcsr_ebs), .d_ebu(dcsr_ebu), .priv(priv), .dpc(dpc[VA-1:1]),
+         .dmode(dbg_mode), .d_enter(d_enter), .d_cause(d_cause), .d_resumed(d_resumed), .d_take(d_take),
+         .one(d_one), .d_wake(d_wake),
+         .t_ex(t_ex), .t_dat(t_ld | t_st), .t_act(t_act), .t_a(t_a), .trig_fired(trig_fired));
+
+    // ---- debug (step 1.8 J1): OOO_DBG answers the DM; halt, step and EBREAK are OOO_TRAP's
+    OOO_DBG #(.VA(VA)) u_dbg
+        (.clk(clk), .rst_n(rst_n),
+         .hart_resumereq(hart_resumereq), .hart_halted(hart_halted), .hart_running(hart_running),
+         .hart_resumed(hart_resumed), .reg_req(reg_req), .reg_wr(reg_wr), .reg_regno(reg_regno),
+         .reg_size64(reg_size64), .reg_wdata(reg_wdata), .reg_ack(reg_ack), .reg_rdata(reg_rdata), .reg_err(reg_err),
+         .dmode(dbg_mode), .d_take(d_take), .d_take_pc(trap_pc), .d_take_cause(trap_cause), .d_resumed(d_resumed),
+         .d_resume(d_resume), .c_access(dc_access), .c_wr(dc_wr), .c_addr(dc_addr), .c_wdata(dc_wdata),
+         .c_rdata(dbg_rdata), .c_exists(dc_exists), .words(dbg_words), .mem_wr(dbg_mem_wr));
     always @(*) begin
         for (int j = 0; j < ND; j++) begin                        // an exception at decode
             tv_valid[j] = disp_go[j] && ds[j].exc;
@@ -1171,10 +1230,9 @@ module OOO_CORE
     logic            m_tw, m_tsr, m_tvm;
     logic            m_sum, m_mxr, m_mprv;
     logic [1:0]      m_mpp;
-    /* verilator lint_off UNUSEDSIGNAL */      // (satp's ASID; debug, triggers: Phase 2)
+    /* verilator lint_off UNUSEDSIGNAL */      // (satp's ASID; the triggers' dmode bits; dpc's upper bits)
     logic [63:0]     satp;
-    logic            dcsr_step, dcsr_ebm, dcsr_ebs, dcsr_ebu, tctl_mte;
-    logic [63:0]     dbg_rdata, dpc;
+    logic            tctl_mte;
     logic [31:0]     trig_cfg;
     logic [255:0]    trig_addr;
     /* verilator lint_on UNUSEDSIGNAL */
@@ -1189,15 +1247,36 @@ module OOO_CORE
          .mret_en(csr_mret), .sret_en(csr_sret), .tvec(tvec), .mepc(mepc), .sepc(sepc),
          .irq_pend(irq_pend), .irq_cause(irq_cause), .wfi_wake(wfi_wake),
          .irq_m_soft(irq_m_soft), .irq_m_timer(irq_m_timer), .irq_m_ext(irq_m_ext), .irq_s_ext(irq_s_ext), .mtime(mtime),
-         .instret_inc(cmt_instret), .hpm_ev(hpm_ev),
+         .instret_inc(dbg_mode ? 4'd0 : cmt_instret), .hpm_ev(hpm_ev),     // (debug mode's sequences not counted)
          .priv(priv), .satp(satp), .mstatus_sum(m_sum), .mstatus_mxr(m_mxr), .mstatus_mprv(m_mprv),
          .mstatus_mpp(m_mpp), .mstatus_tvm(m_tvm), .mstatus_tw(m_tw), .mstatus_tsr(m_tsr),
          .menvcfg_cbze(menv_cbze), .senvcfg_cbze(senv_cbze), .pmpcfg(pmpcfg), .pmpaddr(pmpaddr), .pmpmask(pmpmask),
          .fflags_we(f_fl_set != 5'd0), .fflags_set(f_fl_set), .fs_dirty(f_dirty), .frm(frm), .fs(fs),
-         .dbg_access(1'b0), .dbg_addr(12'd0), .dbg_enter(1'b0), .dbg_cause(3'd0), .dbg_pc(64'd0), .dbg_resume(1'b0),
+         .dbg_access(dc_access), .dbg_wr(dc_wr), .dbg_addr(dc_addr), .dbg_wdata(dc_wdata), .dbg_exists(dc_exists),
+         .dbg_mode(dbg_mode), .dbg_enter(d_enter), .dbg_cause(d_cause),
+         .dbg_pc({{(65 - VA){csr_epc[VA-1]}}, csr_epc[VA-2:1], 1'b0}), .dbg_resume(d_resumed),
          .dbg_rdata(dbg_rdata), .dcsr_step(dcsr_step), .dcsr_ebreakm(dcsr_ebm), .dcsr_ebreaks(dcsr_ebs),
-         .dcsr_ebreaku(dcsr_ebu), .dpc(dpc), .trig_cfg(trig_cfg), .trig_addr(trig_addr), .tcontrol_mte(tctl_mte),
-         .trig_fired(4'd0));
+         .dcsr_ebreaku(dcsr_ebu), .dpc(dpc), .trig_cfg(trig_cfg), .trig_addr(trig_addr), .tcontrol_mte(tctl_mte), .trig_a0_ok(trig_a0_ok),
+         .trig_fired(trig_fired));
+
+    // the triggers' enables (above): from the CSRs' registers and the level, a cycle late (see there)
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            t_ex <= '0; t_ld <= '0; t_st <= '0; t_act <= '0;
+        end else
+            for (int i = 0; i < 4; i++) begin
+                // trig_cfg: {dmode, action, m, s, u, execute, store, load}
+                automatic logic [6:0]  c = trig_cfg[8*i +: 7];
+                automatic logic en = ((priv == 2'b11 && c[5]) || (priv == 2'b01 && c[4]) || (priv == 2'b00 && c[3])) &&
+                                     !dbg_mode && (c[6] || trig_a0_ok);         // (action 0: MTE, MIE / SIE: CORE_CSR)
+                t_ex[i]  <= en && c[2] && !trig_addr[64*i] &&                   // (a canonical, even address)
+                            (&trig_addr[64*i+VA-1 +: 65-VA] || !(|trig_addr[64*i+VA-1 +: 65-VA]));
+                t_st[i]  <= en && c[1];
+                t_ld[i]  <= en && c[0];
+                t_act[i] <= c[6];
+            end
+    end
+    always_ff @(posedge clk) for (int i = 0; i < 4; i++) t_a[i] <= trig_addr[64*i +: 64];
 
     logic            sys_cv, sys_rp, sys_exc, sys_tv_v;
     logic [ROBW-1:0] sys_rob, sys_tv_rob;
@@ -1207,7 +1286,7 @@ module OOO_CORE
          .sys_valid(x_sys), .sys_op(ex[0].rec.xop[2:0]), .sys_rob(ex[0].rec.rob), .sys_inst(x_ins), .priv(priv),
          .tw(m_tw), .tsr(m_tsr), .tvm(m_tvm), .sq_drained(sq_drained), .fl_req(fl_req), .fl_take(fl_take),
          .fl_done(fl_done), .ic_flush(ic_flush), .ic_done(ic_done), .tlb_flush(tlb_flush), .x_ret(x_ret),
-         .x_sret(x_sret), .wfi_wake(wfi_wake), .cmp_valid(sys_cv), .cmp_rob(sys_rob), .cmp_rp(sys_rp),
+         .x_sret(x_sret), .wfi_wake(wfi_wake || d_wake), .cmp_valid(sys_cv), .cmp_rob(sys_rob), .cmp_rp(sys_rp),
          .cmp_exc(sys_exc), .tv_valid(sys_tv_v), .tv_rob(sys_tv_rob), .tv_val(sys_tv));
 
     logic            pm_v, pm_we, md_v, md_we;
@@ -1446,7 +1525,8 @@ module OOO_CORE
          .miss_valid(dc_miss_valid), .miss_line(dc_miss_line), .miss_vx(dc_miss_vx), .miss_id(dc_miss_id),
          .st_miss_valid(dc_st_miss_valid), .st_miss_line(dc_st_miss_line), .st_miss_vx(dc_st_miss_vx), .fill_done(dc_fill_done),
          .done_v(dc_done_v || (w_done && !w_did[5])), .done_id((w_done && !w_did[5]) ? w_did[4:0] : dc_done_id), .tw_en(dc_tw_en), .tw_way(dc_tw_way), .tw_set(dc_tw_set),
-         .tw_tag(dc_tw_tag), .rf_en(dc_rf_en), .rf_way(dc_rf_way), .rf_addr(dc_rf_addr), .rf_data(dc_rf_data),
+         .tw_tag(dc_tw_tag), .rf_en(dc_rf_en), .rf_way(dc_rf_way), .rf_addr(dc_rf_addr), .rf_data(dc_rf_data), .rf_strb(dc_rf_strb),
+         .trig_ld(t_ld), .trig_st(t_st), .trig_a(t_a),
          .dirty_set(dc_dirty_set), .dirty_way(dc_dirty_way), .dirty_idx(dc_dirty_idx),
          .tlb_miss(w_req), .tlb_miss_vpn(w_vpn), .walk_id(w_rid), .tlb_done(w_done), .tlb_we(w_we && !w_did[5]), .tlb_vpn(w_tvpn),
          .tlb_ptag(w_ptag), .tlb_u(w_u), .tlb_r(w_r), .tlb_w(w_w), .tlb_x(w_x), .tlb_af(w_af), .tlb_flush(tlb_flush_all),
@@ -1672,7 +1752,8 @@ module OOO_CORE
         ld_crob <= cmp_ld_rob;
         ld_ce   <= cmp_ld_e;
         ld_crp  <= cmp_ld_rp;
-        for (int m = 0; m < 2; m++) ld_ccause[m] <= cmp_ld_cause[m] == 2'd2 ? 5'd13 : cmp_ld_cause[m] == 2'd1 ? 5'd5 : 5'd4;
+        for (int m = 0; m < 2; m++) ld_ccause[m] <= cmp_ld_cause[m] == 2'd3 ? 5'd26 :     // (a data trigger: OOO_TRAP, step 1.8 J1)
+                                                    cmp_ld_cause[m] == 2'd2 ? 5'd13 : cmp_ld_cause[m] == 2'd1 ? 5'd5 : 5'd4;
     end
     // the wait table's write: a load that waited for a store's data is marked by its ROB entry when it completes
     // (cmp_ld_sd comes with its replay), and its pc goes to the table at its commit, as the last µop of the cycle
@@ -1728,7 +1809,7 @@ module OOO_CORE
         cmp_rp    = {2'b00, csr_crp, 2'b00, sys_rp, 1'b0, 1'b0, ld_crp, (NAP)'(0)};
         // the LSU's: misaligned (4 a load, 6 a store or AMO), an access fault (5, 7), a page fault (13, 15; step 1.8 V1)
         cmp_cause = {5'd0, 5'd0, 5'd2, 5'd0, 5'd0, 5'd2, 5'd0,
-                     cmp_st_cause == 2'd2 ? 5'd15 : cmp_st_cause == 2'd1 ? 5'd7 : 5'd6, ld_ccause[1], ld_ccause[0], (5 * NAP)'(0)};
+                     cmp_st_cause == 2'd3 ? 5'd26 : cmp_st_cause == 2'd2 ? 5'd15 : cmp_st_cause == 2'd1 ? 5'd7 : 5'd6, ld_ccause[1], ld_ccause[0], (5 * NAP)'(0)};
     end
     assign cmp_valid[NCMP-1:NAP] = {fw_valid, iw_ack, csr_cv, br_valid, sys_cv, pm_v || md_v, cmp_st_v, ld_cv};
     assign cmp_rob[NCMP-1:NAP]   = {fw_rob, iw_rob, csr_crob, br_rob, sys_rob, pm_v ? pm_rob : md_rob, cmp_st_rob, ld_crob};
@@ -1875,6 +1956,8 @@ module OOO_CORE
             hpm_ev[28] <= 4'(w_busy && w_own_f);                        // ... for the fetch
             hpm_ev[29] <= 4'(ev_rckpt);                                 // renaming waits for a checkpoint
             hpm_ev[30] <= 4'(!head_valid);                              // the ROB empty
+            if (dbg_mode)                                               // debug mode (step 1.8 J1): cycles alone
+                for (int e = 0; e < 31; e++) if (e != 1) hpm_ev[e] <= 4'd0;
         end
     end
 
@@ -1926,13 +2009,13 @@ module OOO_CORE
     end
     always @(*) begin
         logic [ROBW-1:0] ik;
-        tr_valid   = cmt_valid;
+        tr_valid   = dbg_mode ? '0 : cmt_valid;     // (debug mode's sequences, step 1.8 J1: not the program's)
         tr_pc      = cmt_pc;
         tr_wr      = cmt_wr | fcmt_wr;
         tr_fwr     = fcmt_wr;
         for (int k = 0; k < ND; k++) tr_rd[k] = fcmt_wr[k] ? fcmt_arch[k] : cmt_arch[k];
-        tr_trap    = rob_trap || irq;
-        tr_int     = irq;
+        tr_trap    = (rob_trap || irq) && !dbg_mode && !d_enter;
+        tr_int     = irq && !d_enter;
         tr_cause   = csr_cause;              // (OOO_TRAP's: irq_cause a cycle late)
         tr_trap_pc = trap_pc;
         ik = head_rob;

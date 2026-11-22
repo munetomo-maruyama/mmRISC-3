@@ -56,6 +56,7 @@ int main(int argc, char** argv)
 {
     Verilated::commandArgs(argc, argv);
     d.clk = 0; d.rst_n = 1; d.ic_req_valid = 0; d.ic_req_pc = 0; d.ic_req_ptag = 0; d.ic_req_tok = 1; d.ic_flush = 0;
+    d.dbg_mode = 0; for (int k = 0; k < 8; k++) d.dbg_words[k] = 0;   // (debug mode: tb_core -dbg)
     d.m_axi4_arready = 0; d.m_axi4_rvalid = 0; d.m_axi4_rdata = 0; d.m_axi4_rresp = 0; d.m_axi4_rlast = 0;
     d.eval(); d.rst_n = 0; d.eval(); d.rst_n = 1; d.eval();
 

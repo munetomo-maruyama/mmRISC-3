@@ -116,6 +116,9 @@ int main(int argc, char** argv)
         d.head_rob = h.idx; d.rob_replay = replay; d.rob_replay_pc = rpc; d.cmt_instret = instret;
         d.restore = restore; d.restore_rob = restore_rob; d.ns_busy = ns_busy; d.flush_all = flush_all;
         d.x_ret = x_mret; d.x_sret = x_sret; d.tv_valid = tvv; d.tv_rob = tvr;
+        // debug (step 1.8 J1): never asked here (SIM/CORE tb_core -dbg tests it)
+        d.d_haltreq = 0; d.d_resethalt = 0; d.d_resume = 0; d.d_step = 0; d.d_ebm = 0; d.d_ebs = 0; d.d_ebu = 0;
+        d.priv = 3; d.dpc = 0;
         for (int k = 0; k < 3; k++) { d.tv_val[2 * k] = (uint32_t)tvd[k]; d.tv_val[2 * k + 1] = (uint32_t)(tvd[k] >> 32); }
         d.irq_pend = irq_pend; d.irq_cause = icause; d.mepc = mepc; d.sepc = sepc;
         d.tvec = 0; d.eval();

@@ -39,6 +39,12 @@
 // a time, as OOO_PTW), a word of the lines above: its value checked against the program's (no
 // store goes to its line while it is out); a line found in its own set, in another (a synonym),
 // or filled into the set of its physical 13:12.
+// Since step 1.8 J1 (Plan/OOC.md 29.101): the debugger's accesses (db_*, one at a time): 1 to 8 bytes
+// of a line above, read (its value the program's: the D$'s word dirty or not, or the fill's) or
+// written (the program's bytes changed when it is done: the line found or filled, the bytes written
+// through the fill's port and the line dirty, to be written out later), and device accesses (the
+// device memory, its error answer told back: its word 15 answers SLVERR). No store goes to a debugger's line while it is out,
+// and no debugger write comes while FENCE.I is asked (as no store does).
 //---------------------------------------------------------------------------
 #include "VDMISS_DC.h"
 #include "VDMISS_DC___024root.h"
@@ -124,6 +130,10 @@ int main(int argc, char** argv)
     long n_syn = 0, n_syd = 0;
     bool pt_on = false, pt_filled = false; uint64_t pt_l = 0, pt_exp = 0;     // an entry out (step 1.8 V1)
     long n_pt = 0, n_ptfill = 0, n_ptsyn = 0, n_ptown = 0;
+    bool db_on = false, db_we = false, db_dv = false, db_filled = false, db_xerr = false; uint64_t db_l = 0, db_a = 0, db_v = 0, db_mk = 0;   // the debugger's (J1)
+    int db_sz = 0;
+    long n_dbr = 0, n_dbw = 0, n_dbd = 0, n_dbfill = 0, n_dberr = 0;
+    auto szm = [](int s) { return s == 3 ? ~0ull : ((1ull << (8 << s)) - 1); };
     auto err = [&](const char* m, uint64_t x = 0) { if (bad++ < 12) printf("cycle %ld: %s (%llx)\n", cyc, m, (unsigned long long)x); };
     int pst = 40, pld = 60, lat = 20;
     const long N = 600000;
@@ -131,7 +141,7 @@ int main(int argc, char** argv)
         bool quiet = cyc >= N;
         if (cyc % 20000 == 0) { pst = 5 + rng() % 70; pld = 10 + rng() % 80; lat = (rng() % 3 == 0) ? 1 : 20; }
         // ---- FENCE.I: quiet (no store) a few cycles, ask until taken, wait for done
-        if (fmode == 0 && (cyc >= f_at || cyc == N + 100)) { fmode = 1; f_quiet = cyc + rng() % 4; }
+        if (fmode == 0 && ((cyc >= f_at && !quiet) || cyc == N + 100)) { fmode = 1; f_quiet = cyc + rng() % 4; }   // (the last one at N + 100: a walk of 2,048 lines fits the tail)
         if (fmode == 1 && cyc >= f_quiet) fmode = 2;
         bool stores_off = fmode != 0 || quiet;
 
@@ -145,16 +155,45 @@ int main(int argc, char** argv)
         if (!quiet && !pt_on && rng() % 40 == 0) {
             uint64_t l = pick(cyc);
             int wd = rng() % 8;
+            if (db_on && !db_dv && db_we && l == db_l) l = pool[0] == l ? pool[1] : pool[0];   // (not the line a debugger's write has out)
             d.pt_req = 1; d.pt_addr = (l << 3) | (uint64_t)wd;
             pt_on = true; pt_filled = false; pt_l = l; pt_exp = at(ref, l).w[wd];
             pend.insert((l << 2) | ((l >> 6) & 3));         // (filled, it goes into the set of its own 13:12)
             if (find(l, (int)((l >> 6) & 3)) >= 0) n_ptown++;
             else if (places(l)) n_ptsyn++;
         }
+        // the debugger: a read, a write (not while FENCE.I is asked), or a device access (none of the LSU's out)
+        d.db_req = 0;
+        if (!quiet && !db_on && rng() % 80 == 0) {
+            int k = rng() % 20;
+            uint64_t l = pick(cyc);
+            int sz = rng() % 4; uint64_t off = (rng() % 8) & ~((1ull << sz) - 1);
+            int wd = rng() % 8;
+            if (k < 3) {
+                if (!uc_wait) {
+                    uint64_t kk = rng() % 16, a = (0x100000ull + kk * 8) | off;
+                    db_on = true; db_dv = true; db_we = rng() & 1; db_a = a; db_sz = sz; db_v = rng() & szm(sz); db_xerr = kk == 15;
+                    d.db_req = 1; d.db_we = db_we; d.db_dev = 1; d.db_addr = a; d.db_size = sz; d.db_wdata = db_v;
+                    uc_a = a;
+                    if (!db_we) db_v = ((dev.count(a >> 3) ? dev[a >> 3] : 0) >> (8 * off)) & szm(sz);
+                    else { uint64_t o = dev.count(a >> 3) ? dev[a >> 3] : 0, m = szm(sz) << (8 * off);
+                           dev[a >> 3] = (o & ~m) | ((db_v << (8 * off)) & m); }
+                    n_dbd++;
+                }
+            } else if (!(k < 8 && (stores_off || (pt_on && l == pt_l)))) {
+                db_on = true; db_dv = false; db_we = k < 8; db_l = l; db_a = (l << 6) | (wd << 3) | off; db_sz = sz;
+                db_filled = false; db_mk = szm(sz) << (8 * off);
+                db_v = rng() & szm(sz);
+                d.db_req = 1; d.db_we = db_we; d.db_dev = 0; d.db_addr = db_a; d.db_size = sz; d.db_wdata = db_v;
+                if (!db_we) db_v = (at(ref, l).w[wd] >> (8 * off)) & szm(sz);
+                pend.insert((l << 2) | ((l >> 6) & 3));    // (filled, it goes into the set of its own 13:12)
+            }
+        }
         if (!stores_off && (long)(rng() % 100) < pst) {
             uint64_t l = pick(cyc);
             int x = pvx(l), w = find(l, x);
             if (pt_on && l == pt_l) w = -2;                // (no store into an entry's line while it is out)
+            if (db_on && !db_dv && l == db_l) w = -2;      // (nor into the debugger's)
             if (w == -2) { }
             else if (w >= 0) {
                 st_l = l; st_w = w; st_s = sof(l, x); st_word = rng() % 8; st_dat = rng(); st_m = rng() % 3 ? (uint8_t)(rng() & 0xff) : 0xff;
@@ -176,7 +215,7 @@ int main(int argc, char** argv)
             }
         }
         d.rd_addr = ra;
-        if (!quiet && !uc_wait && rng() % 200 == 0) {
+        if (!quiet && !uc_wait && !(db_on && db_dv) && rng() % 200 == 0) {
             uint64_t k = rng() % 16, a = 0x100000ull + k * 8 + ((k * 5) & 7);     // (a byte's address, from the word's number: the bus takes it as it is, step 1.8 I1)
             bool we = rng() & 1;
             d.uc_req = 1; d.uc_we = we; d.uc_addr = a; d.uc_wdata = rng(); d.uc_wmask = (uint8_t)(rng() | 1);
@@ -193,8 +232,11 @@ int main(int argc, char** argv)
         d.m_axi4_awready = !aw_on && !b_pend && rng() % 3 != 0;
         d.m_axi4_wready = aw_on && rng() % 4 != 0;
         d.m_axi4_bvalid = b_pend && cyc >= b_at; d.m_axi4_bresp = 0;
-        d.m_axil_awready = rng() & 1; d.m_axil_wready = uaw && (rng() & 1); d.m_axil_bvalid = ub && (rng() & 1); d.m_axil_bresp = 0;
-        d.m_axil_arready = rng() & 1; d.m_axil_rvalid = uar && (rng() & 1); d.m_axil_rresp = 0;
+        // (the device's word 15 answers SLVERR: the debugger is told, step 1.8 J1; the LSU's accesses ignore it)
+        d.m_axil_awready = rng() & 1; d.m_axil_wready = uaw && (rng() & 1); d.m_axil_bvalid = ub && (rng() & 1);
+        d.m_axil_bresp = (ua >> 3) == ((0x100000ull >> 3) + 15) ? 2 : 0;
+        d.m_axil_arready = rng() & 1; d.m_axil_rvalid = uar && (rng() & 1);
+        d.m_axil_rresp = (uaa >> 3) == ((0x100000ull >> 3) + 15) ? 2 : 0;
         d.m_axil_rdata = dev.count(uaa >> 3) ? dev[uaa >> 3] : 0;
         d.eval();
 
@@ -221,6 +263,7 @@ int main(int argc, char** argv)
             for (int i = 0; i < 8; i++) if (R.w[i] != M.w[i]) { err("a fill reads a line memory does not have", l); break; }
             if (aw_on || b_pend) n_wrar++;
             if (pt_on && l == pt_l) pt_filled = true;
+            if (db_on && !db_dv && l == db_l) db_filled = true;
             ar_on = true; ar_line = l; r_beat = 0; r_at = cyc + (lat == 1 ? rng() % 2 : (rng() % 10 == 0 ? 40 : rng() % 21)); n_fill++;
             r_tight = (aw_on || d.m_axi4_awvalid) && w_beat == 0; r_ar = cyc;
         }
@@ -279,6 +322,18 @@ int main(int argc, char** argv)
             n_pt++; if (pt_filled) n_ptfill++;
             pt_on = false;
         }
+        bool dbw_done = false;                          // a debugger's write done: the program's bytes changed at this edge
+        if (d.db_done) {
+            if (!db_on) err("a debugger's answer not asked for");
+            else {
+                if ((bool)d.db_err != (db_dv && db_xerr)) err(d.db_err ? "a debugger's access with an error" : "a debugger's access without the device's error", db_a);
+                if (d.db_err) n_dberr++;
+                if (!db_we && !d.db_err && d.db_rdata != db_v) { err("a debugger's read", db_a); if (bad < 12) printf("    got %016llx, expected %016llx\n", (unsigned long long)d.db_rdata, (unsigned long long)db_v); }
+                if (db_we && !db_dv) dbw_done = true;
+                if (!db_dv) { if (db_we) n_dbw++; else n_dbr++; if (db_filled) n_dbfill++; }
+            }
+            db_on = false;
+        }
         int tww = d.tw_way, tws = d.tw_set; uint32_t twt = d.tw_tag; bool twe = d.tw_en;
 
         // ---- the edge
@@ -287,6 +342,11 @@ int main(int argc, char** argv)
             uint64_t v = rd_word(c.p, c.w);
             if (v != c.exp) { err("a load's value", c.a); if (bad < 12) printf("    got %016llx, the program's %016llx\n", (unsigned long long)v, (unsigned long long)c.exp); }
             n_ld++;
+        }
+        if (dbw_done) {                                 // (after the loads of this cycle: they read before the edge)
+            uint64_t& w = at(ref, db_l).w[(db_a >> 3) & 7];
+            w = (w & ~db_mk) | ((db_v << (8 * (db_a & 7))) & db_mk);
+            dirty.insert(db_l);
         }
         d.clk = 0; d.eval();
         if (twe) {
@@ -315,13 +375,17 @@ int main(int argc, char** argv)
     if (fmode != 0) err("the last FENCE.I not done");
     if (uc_wait) err("a device access not answered");
     if (pt_on) err("an entry not answered");
+    if (db_on) err("a debugger's access not answered");
     printf("tb_dmiss2: %ld loads checked, %ld stores (%ld missed), %ld fills (%ld behind a write out), %ld dirty victims written out, "
            "%ld lines cleaned by %ld FENCE.I, %ld dirty victims' fills with the first beat the cycle after AR, %ld stores the cycle before their line's tag went, "
            "%ld load answers, %ld asks of a tag-0 line with a way of its set as reset left it, %ld synonyms taken out (%ld dirty), "
-           "%ld/%ld device reads/writes, %ld entries read (%ld filled; found in their own set %ld, in another %ld), %ld mismatches: ",
-           n_ld, n_st, n_stmiss, n_fill, n_wrar, n_vict, n_clean, n_fl, n_gate, n_race, n_done, n_t0, n_syn, n_syd, n_ucr, n_ucw, n_pt, n_ptfill, n_ptown, n_ptsyn, bad);
+           "%ld/%ld device reads/writes, %ld entries read (%ld filled; found in their own set %ld, in another %ld), "
+           "debugger %ld reads, %ld writes (%ld filled), %ld device accesses (%ld with an error), %ld mismatches: ",
+           n_ld, n_st, n_stmiss, n_fill, n_wrar, n_vict, n_clean, n_fl, n_gate, n_race, n_done, n_t0, n_syn, n_syd, n_ucr, n_ucw, n_pt, n_ptfill, n_ptown, n_ptsyn,
+           n_dbr, n_dbw, n_dbfill, n_dbd, n_dberr, bad);
     bool ok = bad == 0 && n_vict > 1000 && n_clean > 100 && n_fl > 20 && n_gate > 100 && n_race > 50 && n_done > 1000 && n_ucr > 100 && n_wrar > 100 && n_t0 > 100 &&
-              n_syn > 500 && n_syd > 200 && n_pt > 1000 && n_ptfill > 300 && n_ptown > 300 && n_ptsyn > 100;
+              n_syn > 500 && n_syd > 200 && n_pt > 1000 && n_ptfill > 300 && n_ptown > 300 && n_ptsyn > 100 &&
+              n_dbr > 1000 && n_dbw > 500 && n_dbfill > 300 && n_dbd > 200 && n_dberr > 10;
     printf("%s\n", ok ? "PASS" : "FAIL");
     return ok ? 0 : 1;
 }

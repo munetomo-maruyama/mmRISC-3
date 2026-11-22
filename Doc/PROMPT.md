@@ -11286,3 +11286,129 @@ Next is J1 (debug). Start J1?
 ```text
 Start J1
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+For J1, as with K1, I wrote the design first: Plan/OOC 29.101 (English and Japanese), pushed as 5e6429a. No RTL has changed yet. I checked that origin/dev holds no file under Ref/.
+
+**The design in outline**
+- **The DM as it is:** mmRISC-2's DM, DTM, CDC and cJTAG are copied into `RTL/CPU/DBG/` and used unchanged.
+  - No program buffer, as in mmRISC-2 (progbufsize 0). The fetch from the DM's ROM planned in 29.76 is dropped. OpenOCD works without a program buffer, as mmRISC-2's SIM_OCD showed.
+- **Halt, resume, step, EBREAK:** taken at the ROB head, by the same mechanism as an interrupt.
+  - While stepping: no fusion, one commit, no interrupts.
+  - A WFI waiting is woken by haltreq. resethaltreq is supported.
+
+**Three points for you to decide** (the recommendation first in each)
+1. **Register access:** recommended, through short sequences of instructions the core executes.
+   - A GPR through `csrw` / `csrr dscratch0`; an FPR with x1 saved in dscratch1.
+   - The instruction words arrive as the I$'s answer, with `OOO_DBG`'s words, for the debug address 0x800.
+   - The sequences are neither counted as instructions nor traced.
+   - The alternative is direct ports as in mmRISC-2, but they put muxes on the RR / WB paths that limited V3 three times, and about 0.4k more LUTs.
+2. **Memory (Access Memory, SBA):** recommended, through `OOO_DMISS2`, as the walker's tables are.
+   - Coherent with the write-back D$, dirty lines included, and usable while the hart runs.
+   - A resume after a debugger write does FENCE.I's work first, so software breakpoints work.
+   - The alternative is a bus master on the bus: simpler, but the D$'s contents are not seen while the hart runs.
+3. **Triggers:** as mmRISC-2's, 4 of type 2, exact match.
+   - Execute triggers compared at D2, load / store triggers at the LSU's M.
+
+**Tests and cost**
+- **Tests:**
+  - a debugger model in `tb_core`, in lock-step;
+  - `trig.S` and `rv64mi-p-breakpoint` on both tops;
+  - OpenOCD co-simulation (`SIM/OCD`, JTAG and cJTAG) and `SIM/DBG`;
+  - mutations.
+- **Cost:** about +2.6k LUTs: about 108.2k at 1.8's end, about 113.5k with LiteX.
+- **Order:** J1a builds the core's side; J1b joins the DM and checks it with OpenOCD. Then J2 (20 ns) completes step 1.8.
+
+Implement this design (the three recommendations) as is, or change a choice?
+<!-- /answer -->
+
+## 280. 2026-11-22 16:04:40 JST
+
+```text
+教えてほしい。推奨案の「レジスタのアクセス: コアが実行する短い命令の列で行う案」はプログラムバッファを使う方法とは異なるのか？また、OpenOCDは対応できるのか？
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The mechanism is almost the same as a program buffer's, but what the debugger sees is different. OpenOCD handles it the same way it handled mmRISC-2.
+
+## How it differs from a program buffer
+
+**What is the same:** in both, the hart executes instructions in debug mode and returns to halted at the final EBREAK. It is the mechanism by which DMs such as Rocket's carry out abstract commands (fetching from a debug ROM).
+
+**What differs:** who writes the instructions, and whether the debugger sees them.
+
+| | Program buffer | Recommended (a sequence made inside) |
+|---|---|---|
+| Who writes the instructions | the debugger (OpenOCD) writes any instructions into `progbuf0..N` and has them executed with `postexec` | `OOO_DBG` makes fixed sequences itself (`csrw dscratch0, xN` and the like) |
+| What the debugger sees | `progbufsize` > 0; any instruction can be executed | `progbufsize` = 0; only the abstract command Access Register is seen |
+| The DM | progbuf's registers, postexec and exceptions during execution added to `DBG_DM` | `DBG_DM` as mmRISC-2's; only how `hart_reg_*` is answered changes, inside the core |
+
+To the DM and OpenOCD it is exactly mmRISC-2. The sequences are only the core's internal way of answering `hart_reg_*`.
+
+## Can OpenOCD handle it
+
+Yes. mmRISC-2 passed OpenOCD's tests without a program buffer, and this takes the same form.
+
+- **Registers:** with progbufsize 0, OpenOCD reads and writes GPRs, FPRs and CSRs through the abstract command Access Register.
+- **Memory:** through SBA, or the abstract command Access Memory.
+- **The rest:** halt, step, software and hardware breakpoints, watchpoints and reset halt were all checked in mmRISC-2's `SIM_OCD`.
+
+What cannot be done without a program buffer also shows in mmRISC-2's `openocd.log`:
+
+- **No fence:** OpenOCD warns "We won't be able to execute fence instructions": it cannot itself execute FENCE.I after writing memory. In the recommended design the core does FENCE.I's work at the resume after a debugger write, so software breakpoints work.
+- **Probing CSRs that do not exist:** OpenOCD tries to probe CSRs such as vlenb and mtopi with the program buffer. A few lines of "Unable to insert program into progbuf" errors appear, then it concludes they are absent and moves on. Harmless, as in mmRISC-2.
+- **Executing any instruction:** the debugger cannot have instructions of its own executed, as with `riscv exec_progbuf`.
+- **Memory by virtual address:** not through progbuf. OpenOCD translates addresses in software instead (`virt2phys_mode sw`).
+
+## The option of a real program buffer too
+
+In the recommended design the core already fetches `OOO_DBG`'s words from the debug address and executes them. So a real program buffer (2 words and impebreak, say) is cheap to add later.
+
+- `DBG_DM` gets progbuf's registers, postexec, and cmderr set on an exception during execution.
+- `OOO_DBG` only puts those words out on the fetch as well.
+- Estimated at about +0.2k LUTs.
+
+With it, OpenOCD could execute fences, and those errors would stop. But OpenOCD does not need it to work.
+
+Implement J1 as it is (no program buffer), or add a program buffer too?
+<!-- /answer -->
+
+## 281. 2026-11-22 16:06:49 JST
+
+```text
+Implement as is
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+run_core passes all 14 runs, including the debugger runs with every feature on. The 26 core mutations are still running.
+<!-- /answer -->
+
+## 282. 2026-11-22 19:37:00 JST
+
+```text
+Check the zero comparison (b4xjnxllo), unit regression (bf71a1qgz) and CoreMark comparison (b35x0m9r1); then run run_core and the J1 mutations, fill Plan/OOC 29.102, commit.
+```
+
+## 283. 2026-11-22 20:48:00 JST
+
+```text
+Check run_core and the J1 core mutations (task bmdqwe8c4); read every NOT line, fill Plan/OOC 29.102 placeholders, append it, commit and push (Ref/ check), wrap up.
+```
+
+## 284. 2026-11-22 22:10:00 JST
+
+```text
+Check run_core in task bcpt4igt7 (scratchpad runcore_j1.txt); if it passed, run a debugger seed sweep (seeds 3-6, b3 + rv64mi/si -p-, both tops, -dbg 150 -dbgf 7) with obj binaries beside the mutations; then when mutations finish read every NOT line, fill Plan/OOC 29.102, append, commit, push, Ref/ check, wrap up.
+```
+
+## 285. 2026-11-23 00:27:00 JST
+
+```text
+Check run_core and the J1 core mutations (task bl97oge0v, scratchpad runcore_j1.txt / mut_j1.txt); read every NOT line; fill Plan/OOC 29.102 placeholders (update the draft for ebrk.S, -dbgf 8, the bench and lock-step fixes, the two OOO_DMISS2 RTL bugs, unit mutations 33/33), append, commit, push, Ref/ check, wrap up.
+```

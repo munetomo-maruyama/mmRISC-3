@@ -11531,3 +11531,129 @@ K1とL1を入れた`OOO_CPU`は、Vivadoで20 nsを満たしました。結果�
 ```text
 Start J1
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+J1はK1のときと同じく、まず設計を書きました。Plan/OOC 29.101(英日)として、5e6429aでpush済みです。RTLはまだ変えていません。origin/devにRef/のファイルがないことも確認しました。
+
+**設計の骨子**
+- **DMはそのまま:** mmRISC-2のDM、DTM、CDC、cJTAGを`RTL/CPU/DBG/`にコピーし、変えずに使います。
+  - mmRISC-2と同じくプログラムバッファはなし(progbufsize 0)です。29.76で計画したDMのROMからのフェッチはやめます。OpenOCDはプログラムバッファなしで動くことを、mmRISC-2のSIM_OCDで確認済みです。
+- **停止・再開・ステップ・EBREAK:** ROBの先頭で、割り込みと同じ仕組みで取ります。
+  - ステップの間は融合なし、コミットは1つ、割り込みなしです。
+  - WFIで待っているときはhaltreqで起こします。resethaltreqにも対応します。
+
+**作者に決めていただきたい3点**(どれも推奨案を先に書いています)
+1. **レジスタのアクセス:** コアが実行する短い命令の列で行う案を推奨します。
+   - GPRは`csrw`/`csrr dscratch0`、FPRはx1をdscratch1に退避して読み書きします。
+   - 命令の語は、デバッグ用のアドレス0x800をI$が`OOO_DBG`の語で答える形で届けます。
+   - この列は命令数にも数えず、トレースにも出しません。
+   - 別案はmmRISC-2のような直接のポートです。ただ、V3を3回制限したRR/WBの経路にマルチプレクサが載り、LUTも約0.4k多くなります。
+2. **メモリ(Access Memory、SBA):** ウォーカーの表と同じく`OOO_DMISS2`経由にする案を推奨します。
+   - ライトバックのD$とダーティなラインも含めて一貫し、ハートが走っていても使えます。
+   - デバッガが書いた後の再開ではFENCE.I相当を行うので、ソフトウェアブレークポイントが効きます。
+   - 別案はバス上のマスタです。より単純ですが、ハートが走っている間はD$の中身が見えません。
+3. **トリガ:** mmRISC-2のとおり、タイプ2を4つ、完全一致で作ります。
+   - 実行のトリガはD2で、ロード/ストアのトリガはLSUのMで比べます。
+
+**テストとコスト**
+- **テスト:**
+  - `tb_core`にデバッガのモデルを入れ、ロックステップで確かめます。
+  - `trig.S`と`rv64mi-p-breakpoint`を両トップで通します。
+  - OpenOCDの協調シミュレーション(`SIM/OCD`、JTAGとcJTAG)と`SIM/DBG`を動かします。
+  - ミューテーションも行います。
+- **コスト:** LUT約+2.6kです。1.8の終わりに約108.2k、LiteX込みで約113.5kになります。
+- **順序:** J1aでコアの側を作り、J1bでDMをつないでOpenOCDで確かめます。その後J2(20 ns)で手順1.8が完了します。
+
+この設計(推奨の3点)のまま実装してよいですか?それとも選択を変えますか?
+<!-- /answer -->
+
+## 280. 2026-11-22 16:04:40 JST
+
+```text
+教えてほしい。推奨案の「レジスタのアクセス: コアが実行する短い命令の列で行う案」はプログラムバッファを使う方法とは異なるのか？また、OpenOCDは対応できるのか？
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+仕組みはプログラムバッファとほぼ同じですが、デバッガから見える形が違います。OpenOCDはmmRISC-2と同じやり方で対応できます。
+
+#### プログラムバッファとの違い
+
+**同じところ:** どちらも、ハートがデバッグモードで命令を実行し、最後のEBREAKで停止に戻ります。RocketなどのDMが抽象コマンドを実現している方式(デバッグROMからのフェッチ)と同じ仕組みです。
+
+**違うところ:** 誰が命令を書くのか、と、デバッガに見えるのか、です。
+
+| | プログラムバッファ | 推奨案(内部で作る列) |
+|---|---|---|
+| 命令を書く者 | デバッガ(OpenOCD)が`progbuf0..N`に好きな命令を書き、`postexec`で実行させる | `OOO_DBG`が決まった列(`csrw dscratch0, xN`など)を自分で作る |
+| デバッガからの見え方 | `progbufsize` > 0。任意の命令を実行できる | `progbufsize` = 0。見えるのは抽象コマンドのAccess Registerだけ |
+| DM | progbufのレジスタ、postexec、実行中の例外の扱いを`DBG_DM`に足す | `DBG_DM`はmmRISC-2のまま。`hart_reg_*`への答え方がコアの中で変わるだけ |
+
+DMとOpenOCDから見ると、mmRISC-2とまったく同じです。命令の列は、コアが`hart_reg_*`に答えるための内部の実装にすぎません。
+
+#### OpenOCDは対応できるか
+
+できます。mmRISC-2はプログラムバッファなしでOpenOCDの試験にPASSしており、そのときと同じ形になります。
+
+- **レジスタ:** progbufsizeが0なら、OpenOCDはGPR、FPR、CSRを抽象コマンドのAccess Registerで読み書きします。
+- **メモリ:** SBAか、抽象コマンドのAccess Memoryを使います。
+- **その他の操作:** 停止、ステップ、ソフトウェアとハードウェアのブレークポイント、ウォッチポイント、reset haltは、mmRISC-2の`SIM_OCD`で全部確認済みです。
+
+プログラムバッファがないためにできないことも、mmRISC-2の`openocd.log`に出ています。
+
+- **fenceを実行できない:** OpenOCDは「We won't be able to execute fence instructions」と警告します。メモリに書いた後のFENCE.Iを自分で実行できない、という意味です。推奨案では、デバッガが書いた後の再開時にコアがFENCE.I相当を行うので、ソフトウェアブレークポイントは効きます。
+- **存在しないCSRの探り:** vlenbやmtopiのような存在しないCSRを、OpenOCDはプログラムバッファで探ろうとします。そのとき「Unable to insert program into progbuf」のエラーが数行出ますが、無いと判断して先へ進みます。mmRISC-2と同じで害はありません。
+- **任意の命令の実行:** `riscv exec_progbuf`のように、デバッガが好きな命令を実行させることはできません。
+- **仮想アドレスでのメモリアクセス:** progbuf経由ではできません。OpenOCDはソフトウェアでアドレスを変換して対応します(`virt2phys_mode sw`)。
+
+#### 本物のプログラムバッファも付けるという選択肢
+
+推奨案でも、コアはデバッグ用のアドレスから`OOO_DBG`の語をフェッチして実行します。なので、本物のプログラムバッファ(例えば2語とimpebreak)を後から足すのは安く済みます。
+
+- `DBG_DM`に、progbufのレジスタ、postexec、実行中の例外でcmderrを立てる処理を足します。
+- `OOO_DBG`は、その語もフェッチに出すだけです。
+- 見積りでLUT約+0.2kです。
+
+付ければ、OpenOCDがfenceを実行でき、さきほどのエラーも出なくなります。ただしOpenOCDが動くためには必要ありません。
+
+J1はこのまま(プログラムバッファなし)で実装しますか?それともプログラムバッファも付けますか?
+<!-- /answer -->
+
+## 281. 2026-11-22 16:06:49 JST
+
+```text
+Implement as is
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+The second mutation pass caught 25 of 26. The one miss (339, action 0 without the MIE rule) exposed a bug in my trig.S edit: a misplaced label had skipped part 2 (the MTE/MIE checks) since I added part 1b. With the label fixed, the mutant fails at once, and trig.S passes on Spike and both tops. Mutation 339 is now running through the real runner, followed by a last run_core to make `results/core.txt` consistent. The 29.102 entry, the READMEs and the prompt log are ready to commit once both finish.
+<!-- /answer -->
+
+## 282. 2026-11-22 19:37:00 JST
+
+```text
+Check the zero comparison (b4xjnxllo), unit regression (bf71a1qgz) and CoreMark comparison (b35x0m9r1); then run run_core and the J1 mutations, fill Plan/OOC 29.102, commit.
+```
+
+## 283. 2026-11-22 20:48:00 JST
+
+```text
+Check run_core and the J1 core mutations (task bmdqwe8c4); read every NOT line, fill Plan/OOC 29.102 placeholders, append it, commit and push (Ref/ check), wrap up.
+```
+
+## 284. 2026-11-22 22:10:00 JST
+
+```text
+Check run_core in task bcpt4igt7 (scratchpad runcore_j1.txt); if it passed, run a debugger seed sweep (seeds 3-6, b3 + rv64mi/si -p-, both tops, -dbg 150 -dbgf 7) with obj binaries beside the mutations; then when mutations finish read every NOT line, fill Plan/OOC 29.102, append, commit, push, Ref/ check, wrap up.
+```
+
+## 285. 2026-11-23 00:27:00 JST
+
+```text
+Check run_core and the J1 core mutations (task bl97oge0v, scratchpad runcore_j1.txt / mut_j1.txt); read every NOT line; fill Plan/OOC 29.102 placeholders (update the draft for ebrk.S, -dbgf 8, the bench and lock-step fixes, the two OOO_DMISS2 RTL bugs, unit mutations 33/33), append, commit, push, Ref/ check, wrap up.
+```

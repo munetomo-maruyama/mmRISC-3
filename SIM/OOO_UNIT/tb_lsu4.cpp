@@ -143,7 +143,7 @@ struct Sim {
     }
     void zero() {
         d.done_v = 0; d.tr_on = tr; d.lq_alloc = d.sq_alloc = 0; d.rr_valid = 0; d.rr_at = 0; d.lq_commit = d.sq_commit = 0;
-        d.restore = 0; d.kill = 0; d.flush_all = 0; d.fill_done = 0; d.tw_en = 0; d.rf_en = 0; d.tlb_done = 0; d.tlb_we = 0; d.tlb_flush = 0; d.vr_addr = 0; d.vr_way = 0;
+        d.restore = 0; d.kill = 0; d.flush_all = 0; d.fill_done = 0; d.tw_en = 0; d.rf_en = 0; d.rf_strb = 0xff; d.tlb_done = 0; d.tlb_we = 0; d.tlb_flush = 0; d.vr_addr = 0; d.vr_way = 0;
         d.uc_done = 0;                      // (no device here: an input left alone starts at anything, and made ev 1 for ever)
         d.allow_u = au; d.allow_s = as; d.mxr = mx;
         set_pmp();

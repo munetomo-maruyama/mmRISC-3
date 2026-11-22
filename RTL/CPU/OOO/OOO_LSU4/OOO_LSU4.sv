@@ -93,7 +93,9 @@
 // makes the cause of a load or of a store of it) and gives its tval, the virtual address, from W (tv_*, a
 // port each: every exception, misaligned too). A page fault: an address not canonical with translation on,
 // or no permission in an entry without AF; an access fault: an entry with AF, or an atomic outside the
-// cacheable memory.
+// cacheable memory. A data trigger (Sdtrig, step 1.8 J1, Plan/OOC.md 29.101): the access's virtual address equal to
+// that of a trigger enabled for its kind (trig_*: a load, a store, an AMO both) is the exception (cause 3, before the
+// others of the access; its tval the address); the core's OOO_TRAP tells a breakpoint from a debug halt.
 //
 // CBO.ZERO (Zicboz, step 1.8 L1, Plan/OOC.md 29.99): a store of the core's class with an SQ entry, at the ROB
 // head (rr_at 1); translated and checked as a store of its byte (PMP: that byte), an access fault outside the
@@ -184,7 +186,7 @@ module OOO_LSU4
         output logic                     cmp_st_valid,  // a store: translated, with its data
         output logic [ROBW-1:0]          cmp_st_rob,
         output logic                     cmp_st_exc,
-        output logic [1:0][1:0]          cmp_ld_cause,  // with an exception: 0 misaligned, 1 an access fault, 2 a page fault
+        output logic [1:0][1:0]          cmp_ld_cause,  // with an exception: 0 misaligned, 1 an access fault, 2 a page fault, 3 a trigger
         output logic [1:0]               cmp_st_cause,  // (a store's, an AMO's, an SC's)
         output logic [1:0]               tv_v,       // an exception in W: its tval, the virtual address (a port each)
         output logic [1:0][ROBW-1:0]     tv_rob,
@@ -229,6 +231,11 @@ module OOO_LSU4
         input  logic [$clog2(DWAYS)-1:0] rf_way,
         input  logic [10:0]              rf_addr,
         input  logic [63:0]              rf_data,
+        input  logic [7:0]               rf_strb,    // its bytes (a fill's 8; the debugger's write through it, step 1.8 J1)
+        // the data triggers (Sdtrig, step 1.8 J1): each enabled for loads / stores now (OOO_CORE's registers), its address
+        input  logic [3:0]               trig_ld,
+        input  logic [3:0]               trig_st,
+        input  logic [3:0][63:0]         trig_a,
         output logic                     dirty_set,
         output logic [$clog2(DWAYS)-1:0] dirty_way,
         output logic [7:0]               dirty_idx,
@@ -772,6 +779,7 @@ module OOO_LSU4
         logic [63:0] m_f, m_w [DWAYS];
         logic [63:0] m_dw;                  // the hit way's word
         logic        f_cv, f_ok, m_hit;
+        logic        m_tg;                     // a data trigger matches (step 1.8 J1)
         logic        m_bad, m_perm, m_permt, m_pmpf;    // (m_permt: the translation's alone; m_pmpf: PMP denies)
         // PMP on the physical address (step 1.8 P1)
         /* verilator lint_off PINCONNECTEMPTY */   // (each word alone: the fetch's)
@@ -796,6 +804,12 @@ module OOO_LSU4
                      st_r[f_idx] == t_ptag;                                       // (not CBO.ZERO's: the load waits)
             f_ok   = f_cv && sdv[f_idx];                                                          // ... with its data
             m_bad  = m_mis || (tr_on && !(&m_hi || !(|m_hi)));
+            // a data trigger (step 1.8 J1): the access's virtual address equal to an enabled trigger's, a load's (LR and
+            // an AMO are loads here) or a store's (an SC's, an AMO's, CBO.ZERO's); before every other exception of the access
+            m_tg   = 1'b0;
+            for (int i = 0; i < 4; i++)
+                if (((m_ld && trig_ld[i]) || ((!m_ld || m_amo) && trig_st[i])) && {m_hi, m_a[VA-2:0]} == trig_a[i])
+                    m_tg = 1'b1;
             m_permt = m_ld ? t_r && (!m_amo || t_w) : t_w;
             m_perm = m_permt && !m_pmpf;
             m_uc   = uncached({t_ptag, m_a[11:0]});
@@ -857,7 +871,7 @@ module OOO_LSU4
         logic            w_v, w_ld, w_try, w_ok, w_exc, w_miss, w_walk, w_live, w_uc, w_sd;
         logic            w_amo;
         logic            at_uc;
-        logic [1:0]      w_cause;              // with w_exc: 0 misaligned, 1 an access fault, 2 a page fault
+        logic [1:0]      w_cause;              // with w_exc: 0 misaligned, 1 an access fault, 2 a page fault, 3 a data trigger
         logic [63:0]     w_va;
         /* verilator lint_off UNUSEDSIGNAL */      // (port 0's: which atomic)
         logic            w_sc, w_lr;
@@ -879,13 +893,13 @@ module OOO_LSU4
             w_rob  <= m_rob;
             w_bm   <= m_bm;
             w_lq   <= m_lq;
-            w_exc  <= m_bad || (t_hit && !m_perm) || (t_hit && at_uc);
-            w_cause <= m_mis ? 2'd0 : m_bad ? 2'd2 : (t_hit && !m_perm) ? ((t_af || m_permt) ? 2'd1 : 2'd2) : 2'd1;
+            w_exc  <= m_tg || m_bad || (t_hit && !m_perm) || (t_hit && at_uc);
+            w_cause <= m_tg ? 2'd3 : m_mis ? 2'd0 : m_bad ? 2'd2 : (t_hit && !m_perm) ? ((t_af || m_permt) ? 2'd1 : 2'd2) : 2'd1;
             w_amo  <= m_amo;
             w_sc   <= m_sc;
             w_lr   <= m_at == 4'd2;
             w_va   <= {m_hi, m_a[VA-2:0]};
-            w_walk <= !m_bad && !t_hit;
+            w_walk <= !m_bad && !m_tg && !t_hit;
             // a store is done with its translation; a load for a device waits for its turn, then takes uc_q
             w_ok   <= m_ucd || (t_hit && m_perm && !m_bad && !at_uc && (!m_ld || (!m_uc && (f_any ? f_ok : m_hit))));
             w_miss <= m_ld && t_hit && m_perm && !m_bad && !f_any && !m_hit && !m_uc;
@@ -1192,7 +1206,7 @@ module OOO_LSU4
         dw_way  = rf_en ? rf_way : d2_way;
         dw_addr = rf_en ? rf_addr : {d2_x, d2_a};
         dw_data = rf_en ? rf_data : d2_d;
-        dw_strb = rf_en ? 8'hff : d2_m;
+        dw_strb = rf_en ? rf_strb : d2_m;
         st_miss_valid = d2_v && !d2_uc && !d2_hit && !tw_en && !d2_st;
         st_miss_line  = d2_line;
         st_miss_vx    = d2_x;

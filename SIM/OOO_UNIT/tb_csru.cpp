@@ -102,7 +102,7 @@ int main(int argc, char** argv)
         for (int w = 0; w < 4; w++) d.hpm_ev[w] = 0;
         for (int e = 0; e < 31; e++) d.hpm_ev[e / 8] |= (uint32_t)ev[e] << (4 * (e % 8));
         d.fflags_we = 0; d.fflags_set = 0; d.fs_dirty = 0;
-        d.dbg_access = 0; d.dbg_addr = 0; d.dbg_enter = 0; d.dbg_cause = 0; d.dbg_pc = 0; d.dbg_resume = 0; d.trig_fired = 0;
+        d.dbg_access = 0; d.dbg_wr = 0; d.dbg_wdata = 0; d.dbg_mode = 0; d.dbg_addr = 0; d.dbg_enter = 0; d.dbg_cause = 0; d.dbg_pc = 0; d.dbg_resume = 0; d.trig_fired = 0;
         d.eval();
 
         if (op) {

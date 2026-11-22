@@ -69,8 +69,10 @@ typedef VOOO_CORE___024root TopRoot;
 
 #include "bench.h"
 #include "ports.h"
+#include "dbgmodel.h"
 
 #include <algorithm>
+#include <functional>
 #include <cstdio>
 #include <cstdlib>
 #include <map>
@@ -104,6 +106,8 @@ struct Opts {
                                         //  between its ticks: 500k cycles at HZ 100, step 1.8 L1)
     bool console = false;               // -console: HTIF's characters printed as they come
     uint64_t progress = 0;              // -progress: the run's line every so many cycles
+    long dbg = 0;                       // -dbg n: a debugger halts the hart every n cycles on average (dbgmodel.h)
+    int dbgf = 0;                       // -dbgf m: its features (dbgmodel.h: 1 EBREAK, 2 its triggers, 4 resethaltreq, 8 SSIP in steps)
 };
 static FILE* rs_out_f = nullptr;
 
@@ -187,6 +191,21 @@ static bool run(const Opts& o, const std::string& elf)
     d->sim_uc_line = b.symbol("tohost") >> 6;          // HTIF's line: not cached (Plan/CORE.md 5.1 rule 2)
 #endif
     d->clk = 0; d->boot = 0; d->boot_pc = 0;
+    // debug (step 1.8 J1): no debugger unless -dbg (below)
+    d->hart_haltreq = 0; d->hart_resumereq = 0; d->hart_resethaltreq = 0;
+    d->reg_req = 0; d->reg_wr = 0; d->reg_regno = 0; d->reg_size64 = 0; d->reg_wdata = 0;
+#ifdef CPU_TOP
+    d->bm_req = 0; d->bm_wr = 0; d->bm_addr = 0; d->bm_size = 0; d->bm_wdata = 0;
+#else
+    d->dbg_mem_wr = 0; d->dc_rf_strb = 0xff;
+#endif
+#ifdef CPU_TOP
+    const bool dbg_mem = true;
+#else
+    const bool dbg_mem = false;                         // (no OOO_DMISS2: the debugger's memory accesses are OOO_CPU's)
+#endif
+    std::unique_ptr<DbgModel<Top>> dbg;
+    if (o.dbg > 0) dbg.reset(new DbgModel<Top>(b, o.seed * 23 + 11 + std::hash<std::string>()(elf), o.dbg, dbg_mem, o.dbgf));
     bool icf_q = false;                                 // FENCE.I: the I$ model holds nothing, its invalidate is done a cycle later
 #ifndef CPU_TOP
     bool flq_q = false;                                 // FENCE.I: Memory has every committed store, nothing to write back
@@ -208,6 +227,18 @@ static bool run(const Opts& o, const std::string& elf)
         d->rootp->CORE(u_prf__DOT__g_bank__BRA__2__KET____DOT__g_two__DOT__hi)[w] = 0;
     }
     for (int i = 0; i < 80; i++) d->rootp->CORE(u_prf__DOT__lvt)[i] = 0;
+    // ... and the FP file, as Spike's FP registers start (a debugger reads them: step 1.8 J1)
+    for (int w = 0; w < 64; w++) {
+        d->rootp->CORE(u_fprf__DOT__g_bank__BRA__0__KET____DOT__g_two__DOT__lo)[w] = 0;
+        d->rootp->CORE(u_fprf__DOT__g_bank__BRA__1__KET____DOT__g_two__DOT__lo)[w] = 0;
+        d->rootp->CORE(u_fprf__DOT__g_bank__BRA__2__KET____DOT__g_two__DOT__lo)[w] = 0;
+    }
+    for (int w = 0; w < 16; w++) {
+        d->rootp->CORE(u_fprf__DOT__g_bank__BRA__0__KET____DOT__g_two__DOT__hi)[w] = 0;
+        d->rootp->CORE(u_fprf__DOT__g_bank__BRA__1__KET____DOT__g_two__DOT__hi)[w] = 0;
+        d->rootp->CORE(u_fprf__DOT__g_bank__BRA__2__KET____DOT__g_two__DOT__hi)[w] = 0;
+    }
+    for (int i = 0; i < 80; i++) d->rootp->CORE(u_fprf__DOT__lvt)[i] = 0;
     long restores = 0, replays = 0;
     bool res_bad = false;
     // the PMU's events (step 1.8 K1, Plan/OOC.md 29.97): hpm_ev holds the last cycle's; every cycle the 4 slots at
@@ -216,7 +247,7 @@ static bool run(const Opts& o, const std::string& elf)
     long ev_sum[31] = {}, ev_ninsn = 0, ev_nuop = 0, ev_nld = 0, ev_nst = 0, tr_exc = 0, tr_irq = 0, ev_i8 = 0, ev_rs_last = 0, ev_rp_last = 0;
     // ... and the events made from the core's signals of the cycle before (tb_core.vlt), with the bench's own
     // account of renaming's recovery: the slot classes, the ROB's head, the walker, the branch resolutions
-    struct EvPrev { int go = 0, offer = 0, cmt = 0, rs = 0, st = 0, id = 0, dw = 0; bool rk = false, fa = false, ff = false, hv = false, mem = false, rr = false, rc = false; } evp;
+    struct EvPrev { int go = 0, offer = 0, cmt = 0, rs = 0, st = 0, id = 0, dw = 0; bool rk = false, fa = false, ff = false, hv = false, mem = false, rr = false, rc = false, dm = false; } evp;
     bool ev_rec = false;
     // the ROB's ld / st bits of an instruction (bit 0 a load, bit 1 a store): loads and FP loads, LR (a load), SC (a
     // store), the other AMOs both, stores and FP stores, CBO.ZERO (a store); an encoding that does not exist is neither
@@ -290,7 +321,9 @@ static bool run(const Opts& o, const std::string& elf)
         ev_icm = ic.misses; ev_dmf = dm.fills;
         d->fl_take = 1; d->fl_done = flq_q;
 #endif
+        if (dbg) dbg->drive(d.get());
         d->eval();
+        if (dbg) dbg->sample(d.get());
         // the commit trace
         TraceSlot s[4];
         int n = 0;
@@ -323,14 +356,18 @@ static bool run(const Opts& o, const std::string& elf)
                 }
             }
         }
+        if (dbg) dbg->trace(s, n);
         ev_rs_last = d->rootp->CORE(restore); ev_rp_last = d->rootp->CORE(replay);    // (in hpm_ev a cycle later)
+        if (d->hart_halted) { ev_rs_last = 0; ev_rp_last = 0; }   // (debug mode's: not counted, step 1.8 J1)
         restores += ev_rs_last;
         replays += ev_rp_last;
         {
             int ev[31];
             for (int e = 0; e < 31; e++) { ev[e] = (int)((d->rootp->CORE(hpm_ev)[e / 8] >> (4 * (e % 8))) & 15); ev_sum[e] += ev[e]; }
             std::string why;
-            if (ev[12] + ev[17] + ev[20] + ev[21] != 4 * ev[1])
+            if (evp.dm) {                                   // debug mode (step 1.8 J1): cycles alone counted
+                for (int e = 0; e < 31; e++) if (e != 1 && ev[e]) { why = "PMU: event " + std::to_string(e) + " counted in debug mode"; break; }
+            } else if (ev[12] + ev[17] + ev[20] + ev[21] != 4 * ev[1])
                 why = "PMU: slots " + std::to_string(ev[12]) + " + " + std::to_string(ev[17]) + " + " + std::to_string(ev[20]) +
                       " + " + std::to_string(ev[21]) + ", not 4";
             else if (ev[2] != ev_ninsn || ev[22] != ev_nuop || ev[3] != ev_nld || ev[4] != ev_nst)
@@ -339,7 +376,7 @@ static bool run(const Opts& o, const std::string& elf)
                       std::to_string(ev_nuop) + ", " + std::to_string(ev_nld) + ", " + std::to_string(ev_nst);
             if (!why.empty()) { std::printf("cycle %llu: %s\n", (unsigned long long)cyc, why.c_str()); res_bad = true; break; }
             int st = (int)d->rootp->CORE(u_ptw__DOT__st), id = (int)d->rootp->CORE(u_ptw__DOT__id_r);
-            if (why.empty() && ev[1]) {                     // (from the first cycle hpm_ev holds after reset)
+            if (why.empty() && ev[1] && !evp.dm) {          // (from the first cycle hpm_ev holds after reset)
                 int e[31] = {};
                 bool recn = ev_rec || evp.fa || evp.rk;
                 e[20] = evp.go;
@@ -364,6 +401,7 @@ static bool run(const Opts& o, const std::string& elf)
                 evp.hv = d->rootp->CORE(head_valid); evp.rs = d->rootp->CORE(rs_valid);
                 evp.dw = d->rootp->CORE(ev_dwait); evp.rr = d->rootp->CORE(ev_rreg); evp.rc = d->rootp->CORE(ev_rckpt);
                 evp.mem = evp.hv && is_mem(d->rootp->CORE(sh_insn)[d->rootp->CORE(head_rob)]);
+                evp.dm = d->hart_halted;                    // (debug mode: OOO_TRAP dmode)
             }
             ev_i8 += ev[2] == 8;
             ev_ninsn = 0; ev_nuop = 0; ev_nld = 0; ev_nst = 0;
@@ -391,6 +429,7 @@ static bool run(const Opts& o, const std::string& elf)
         bool acc = d->ic_req_valid && ic.ready();
         uint64_t rpc = d->ic_req_pc;
         uint64_t rpt = d->ic_req_ptag; bool rtok = d->ic_req_tok;      // (the ITLB's, step 1.8 V2)
+        { uint32_t w[8]; for (int k = 0; k < 8; k++) w[k] = d->dbg_words[k]; ic.debug(d->dbg_mode, w); }   // (step 1.8 J1)
 #else
         if (d->rootp->OOO_CPU__DOT__u_icache__DOT__s1_v && !d->rootp->OOO_CPU__DOT__u_icache__DOT__s1_rp) {
             ic_reqs++;
@@ -503,16 +542,18 @@ static bool run(const Opts& o, const std::string& elf)
         }
     }
     // the PMU's events against the bench's own counts (the drain after the exit has brought the last ones in)
+    // (with a debugger, -dbg, the fills are not compared: those of debug mode are not counted, and a fill asked before
+    // a halt may come in it)
     // the fills: on the core against the models' counts as hpm_ev has them (two edges back); on OOO_CPU after the
     // drain only (a run that stops at its pass symbol may end with a fill asked for and not yet counted; in the
     // drain the loop at the exit hits the I$): I$ fills against OOO_ICACHE's misses that may be fetched, L2 reads
     // against the I$'s and the D$'s reads, L2 misses against memory's line reads
 #ifdef CPU_TOP
     long b_icm = ic_fills, b_dcf = ev_sum[8], b_l2r = ev_sum[7] + ev_sum[8], b_l2m = ax.reads;
-    bool fill_bad = continue_clock && (ev_sum[7] != b_icm || ev_sum[18] != b_l2r || ev_sum[19] != b_l2m);
+    bool fill_bad = continue_clock && !dbg && (ev_sum[7] != b_icm || ev_sum[18] != b_l2r || ev_sum[19] != b_l2m);
 #else
     long b_icm = ev_icm1, b_dcf = ev_dmf1, b_l2r = 0, b_l2m = 0;
-    bool fill_bad = ev_sum[7] != b_icm || ev_sum[8] != b_dcf || ev_sum[18] != 0 || ev_sum[19] != 0;
+    bool fill_bad = !dbg && (ev_sum[7] != b_icm || ev_sum[8] != b_dcf || ev_sum[18] != 0 || ev_sum[19] != 0);
 #endif
     if (!res_bad && b.passed() && (ev_sum[15] != tr_exc || ev_sum[16] != tr_irq || ev_sum[6] != restores - ev_rs_last ||
                                    ev_sum[13] != replays - ev_rp_last || fill_bad)) {
@@ -524,6 +565,8 @@ static bool run(const Opts& o, const std::string& elf)
     }
     std::string name = elf.substr(elf.rfind('/') + 1);
     std::printf("%s\n", b.summary(name).c_str());
+    if (dbg) std::printf("    debugger: %ld halts, %ld steps, %ld register accesses, %ld memory accesses, %ld EBREAKs, %ld triggers, %ld reset halts\n",
+                         dbg->sessions, dbg->steps, dbg->regs, dbg->mems, dbg->ebreaks, dbg->trigs, dbg->resets);
     if (ev_i8) std::printf("    PMU: 8 instructions retired in %ld cycles\n", ev_i8);
     if (o.verbose && ev_sum[1]) {
         double sl = 4.0 * (double)ev_sum[1];
@@ -588,6 +631,8 @@ int main(int argc, char** argv)
         else if (a == "-exit0") o.exit0 = true;
         else if (a == "-hang" && i + 1 < argc) o.hang = strtoull(argv[++i], nullptr, 0);
         else if (a == "-console") o.console = true;
+        else if (a == "-dbg" && i + 1 < argc) o.dbg = atol(argv[++i]);
+        else if (a == "-dbgf" && i + 1 < argc) o.dbgf = atoi(argv[++i]);
         else if (a == "-progress" && i + 1 < argc) o.progress = strtoull(argv[++i], nullptr, 0);
         else if (a == "-restores-out" && i + 1 < argc) o.rs_out = argv[++i];
         else if (a == "-restores-max" && i + 1 < argc) o.rs_max = atof(argv[++i]);

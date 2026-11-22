@@ -62,6 +62,15 @@ module DMISS_DC
         input  logic [PAW-1:3]        pt_addr,
         output logic                  pt_done,
         output logic [63:0]           pt_data,
+        input  logic                  db_req,      // the debugger (step 1.8 J1)
+        input  logic                  db_we,
+        input  logic                  db_dev,
+        input  logic [PAW-1:0]        db_addr,
+        input  logic [1:0]            db_size,
+        input  logic [63:0]           db_wdata,
+        output logic                  db_done,
+        output logic [63:0]           db_rdata,
+        output logic                  db_err,
 
         // the memory bus (AXI4)
         output logic [3:0]            m_axi4_awid,
@@ -115,6 +124,7 @@ module DMISS_DC
     logic [$clog2(WAYS)-1:0] rf_way;
     logic [10:0] rf_addr;
     logic [63:0] rf_data;
+    logic [7:0]  rf_strb;
     logic [10:0] vr_addr;
     logic [$clog2(WAYS)-1:0] vr_way;
     logic [63:0] vr_data;
@@ -131,7 +141,7 @@ module DMISS_DC
          .sb_set(8'd0), .sb_tag(sb_tag),
          .tw_en(tw_en), .tw_way(tw_way), .tw_set(tw_set), .tw_tag(tw_tag),
          .dw_en(rf_en || st_ok), .dw_way(rf_en ? rf_way : st_way), .dw_addr(rf_en ? rf_addr : st_addr),
-         .dw_data(rf_en ? rf_data : st_data), .dw_strb(rf_en ? 8'hff : st_strb),
+         .dw_data(rf_en ? rf_data : st_data), .dw_strb(rf_en ? rf_strb : st_strb),
          .vr_addr(vr_addr), .vr_way(vr_way), .vr_data(vr_data));
 
     OOO_DMISS2 #(.PAW(PAW), .IW(5), .WAYS(WAYS)) u_dmiss
@@ -140,13 +150,15 @@ module DMISS_DC
          .st_miss_valid(st_miss_valid), .st_miss_line(st_miss_line), .st_miss_vx(st_miss_vx),
          .fill_done(fill_done), .done_v(done_v), .done_id(done_id),
          .tw_en(tw_en), .tw_way(tw_way), .tw_set(tw_set), .tw_tag(tw_tag),
-         .rf_en(rf_en), .rf_way(rf_way), .rf_addr(rf_addr), .rf_data(rf_data),
+         .rf_en(rf_en), .rf_way(rf_way), .rf_addr(rf_addr), .rf_data(rf_data), .rf_strb(rf_strb),
          .dirty_set(st_ok), .dirty_way(st_way), .dirty_idx(st_addr[10:3]),
          .vr_addr(vr_addr), .vr_way(vr_way), .vr_data(vr_data),
          .uc_req(uc_req), .uc_we(uc_we), .uc_addr(uc_addr), .uc_wdata(uc_wdata), .uc_wmask(uc_wmask),
          .uc_done(uc_done), .uc_rdata(uc_rdata),
          .fl_req(fl_req), .fl_take(fl_take), .fl_done(fl_done),
          .pt_req(pt_req), .pt_addr(pt_addr), .pt_done(pt_done), .pt_data(pt_data),
+         .db_req(db_req), .db_we(db_we), .db_dev(db_dev), .db_addr(db_addr), .db_size(db_size), .db_wdata(db_wdata),
+         .db_done(db_done), .db_rdata(db_rdata), .db_err(db_err),
          .m_axi4_awid(m_axi4_awid), .m_axi4_awaddr(m_axi4_awaddr), .m_axi4_awlen(m_axi4_awlen),
          .m_axi4_awsize(m_axi4_awsize), .m_axi4_awburst(m_axi4_awburst), .m_axi4_awvalid(m_axi4_awvalid),
          .m_axi4_awready(m_axi4_awready), .m_axi4_wdata(m_axi4_wdata), .m_axi4_wstrb(m_axi4_wstrb),

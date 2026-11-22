@@ -11,7 +11,13 @@
 // Plan/OOC.md 29.97: a 4-wide core retires up to 8 instructions a cycle);
 // a counter adds it, and the add's carry sets OF. HPM_EVW = 1 is mmRISC-2's.
 // The instruction that writes minstretcfg is counted under the old filter
-// (its commit is the next one), as one that writes mcountinhibit.)
+// (its commit is the next one), as one that writes mcountinhibit.
+// dbg_mode (step 1.8 J1, Plan/OOC.md 29.101): in debug mode the core executes
+// short sequences of its own (a register's move through dscratch0 / 1), so an
+// instruction there has the debugger's rights (dcsr, dpc, dscratch0 / 1 exist
+// for it), and entering debug mode sets the level to M (dcsr.prv keeps the
+// one left; the resume goes back to it). trig_a0_ok: whether triggers of action 0
+// may fire at this level (tcontrol.MTE and mstatus.MIE in M, as Spike).)
 //
 // CSR file, privilege level and trap state (CPU_CORE_SPEC.md 7, 8, 14).
 //
@@ -166,6 +172,7 @@ module CORE_CSR
         // core makes while the hart is halted; an instruction sees them as
         // not implemented.
         input  logic        dbg_access,    // rd / wr come from the debugger
+        input  logic        dbg_mode,      // the hart is in debug mode: ex / wr have the debugger's rights (mmRISC-3)
         input  logic        dbg_enter,     // the hart enters debug mode
         input  logic [2:0]  dbg_cause,     //   why (dcsr.cause)
         input  logic [63:0] dbg_pc,        //   the instruction not executed
@@ -181,6 +188,7 @@ module CORE_CSR
         output logic [8*TRIGGERS-1:0]  trig_cfg,
         output logic [64*TRIGGERS-1:0] trig_addr,  // tdata2
         output logic        tcontrol_mte,          // M mode triggers of action 0 on
+        output logic        trig_a0_ok,            // triggers of action 0 may fire at this level (mmRISC-3, below)
         input  logic [TRIGGERS-1:0]    trig_fired  // set hit (with the trap / halt)
     );
 
@@ -332,6 +340,8 @@ module CORE_CSR
     logic                 tc_mte, tc_mpte;
     logic [63:0]          tdata1_val;
     logic                 t_writable;    // the selected trigger may be written
+    logic                 dbg_rt;        // the debugger's rights: its port, or an instruction in debug mode
+    assign dbg_rt = dbg_access | dbg_mode;
     logic [4:0]  fflags;
     logic [2:0]  frm;
 
@@ -490,8 +500,12 @@ module CORE_CSR
                          t_m[tselect], 1'b0, t_s[tselect], t_u[tselect],
                          t_exec[tselect], t_store[tselect], t_load[tselect]};
     // a trigger of the debugger is written by the debugger alone
-    assign t_writable = ~t_dmode[tselect] | dbg_access;
+    assign t_writable = ~t_dmode[tselect] | dbg_rt;
     assign tcontrol_mte = tc_mte;
+    // (mmRISC-3, step 1.8 J1) action 0 at this level: in M with tcontrol.MTE and mstatus.MIE, in S unless the
+    // breakpoint is delegated with sstatus.SIE 0 (Debug Spec 1.0 5.1's two ways together, as Spike has them)
+    assign trig_a0_ok   = priv_r == PRIV_M ? (tc_mte & mstatus_mie) :
+                          priv_r == PRIV_S ? (~medeleg[3] | mstatus_sie) : 1'b1;
     always @(*) begin
         for (int i = 0; i < TRIGGERS; i++) begin
             trig_cfg[8*i +: 8]   = {t_dmode[i], t_action[i], t_m[i], t_s[i], t_u[i],
@@ -568,7 +582,7 @@ module CORE_CSR
     /* verilator lint_off UNUSEDSIGNAL */
     logic        rd_denied_unused;
     /* verilator lint_on UNUSEDSIGNAL */
-    assign {ex_exists, ex_denied} = csr_check(ex_addr, 1'b0, priv_r, mcounteren,
+    assign {ex_exists, ex_denied} = csr_check(ex_addr, dbg_mode, priv_r, mcounteren,
                                               scounteren, menvcfg_stce, mstatus_tvm);
     assign {rd_exists, rd_denied_unused} = csr_check(rd_addr, dbg_access, priv_r,
                                               mcounteren, scounteren, menvcfg_stce,
@@ -885,11 +899,12 @@ module CORE_CSR
             if (fs_dirty)  mstatus_fs <= 2'b11;
 
             if (dbg_enter) begin
-                // nothing else changes: debug mode runs at M privilege, but
-                // no instruction runs in it here (no program buffer)
+                // debug mode runs at M privilege (mmRISC-3 executes its own
+                // sequences there; mmRISC-2 ran nothing in it)
                 dpc        <= {dbg_pc[63:1], 1'b0};
                 dcsr_cause <= dbg_cause;
                 dcsr_prv   <= priv_r;
+                priv_r     <= PRIV_M;
             end else if (dbg_resume) begin
                 // dret: back to the level in dcsr.prv; below M that clears
                 // MPRV, as an MRET to that level does
@@ -1049,8 +1064,8 @@ module CORE_CSR
                         if (wr_data[63:60] == 4'd2) begin
                             // dmode only from the debugger; action 1 (enter
                             // debug mode) only for a trigger of the debugger
-                            t_dmode [tselect] <= dbg_access & wr_data[59];
-                            t_action[tselect] <= dbg_access & wr_data[59] &
+                            t_dmode [tselect] <= dbg_rt & wr_data[59];
+                            t_action[tselect] <= dbg_rt & wr_data[59] &
                                                  (wr_data[15:12] == 4'd1);
                             t_hit   [tselect] <= wr_data[20];
                             t_m     [tselect] <= wr_data[6];
@@ -1113,7 +1128,7 @@ module CORE_CSR
                                         (wr_data[63:60] == 4'd8))
                                         satp <= {wr_data[63:60], wr_data[59:44],
                                                  wr_data[43:0]};
-                    CSR_DCSR      : if (dbg_access) begin
+                    CSR_DCSR      : if (dbg_rt) begin
                         dcsr_ebreakm_r <= wr_data[15];
                         dcsr_ebreaks_r <= wr_data[13];
                         dcsr_ebreaku_r <= wr_data[12];
@@ -1121,9 +1136,9 @@ module CORE_CSR
                         // prv is WARL: 2 (hypervisor) does not exist
                         if (wr_data[1:0] != 2'b10) dcsr_prv <= wr_data[1:0];
                     end
-                    CSR_DPC       : if (dbg_access) dpc       <= {wr_data[63:1], 1'b0};
-                    CSR_DSCRATCH0 : if (dbg_access) dscratch0 <= wr_data;
-                    CSR_DSCRATCH1 : if (dbg_access) dscratch1 <= wr_data;
+                    CSR_DPC       : if (dbg_rt) dpc       <= {wr_data[63:1], 1'b0};
+                    CSR_DSCRATCH0 : if (dbg_rt) dscratch0 <= wr_data;
+                    CSR_DSCRATCH1 : if (dbg_rt) dscratch1 <= wr_data;
                     CSR_MCYCLE    : mcycle     <= wr_data;
                     CSR_MINSTRET  : minstret   <= wr_data;
                     default       : begin

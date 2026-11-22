@@ -43,6 +43,11 @@
 // asked before the flush (the D$'s writes not yet in memory) is swept away; ic_done
 // the cycle after the sweep, until ic_flush goes. A way that does not hit gives zeros
 // from its block RAM (its output reset), so a hit's 32 bytes are the ways' OR.
+//
+// Debug mode (step 1.8 J1, Plan/OOC.md 29.101): while dbg_mode, a request in physical
+// page 0 (DBG_PC's, 0x800; no memory there) is answered from OOO_DBG: DBG_PC's 32-byte
+// block by dbg_words, any other block by 8 EBREAKs; no lookup counts (no miss, no fill),
+// and whether it may be fetched is not asked (debug mode's own fetch).
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -69,6 +74,8 @@ module OOO_ICACHE
         output logic [255:0]          ic_resp_data,
         input  logic                  ic_flush,     // FENCE.I: invalidate (until ic_done)
         output logic                  ic_done,
+        input  logic                  dbg_mode,     // debug mode: page 0 answered from dbg_words (step 1.8 J1)
+        input  logic [255:0]          dbg_words,    // DBG_PC's block (OOO_DBG)
 
         // ---- the fills (AXI4, reads only)
         output logic [3:0]            m_axi4_arid,
@@ -159,8 +166,9 @@ module OOO_ICACHE
     logic            s1_tok;                    // it may be fetched: else answered with zeros, no fill
     logic            s1_miss;
     logic [255:0]    s1_data;
+    logic            s1_dbg, s1_db0;            // debug mode's page 0; DBG_PC's block
 
-    assign s1_miss      = s1_v && !s1_rp && !s1_hit && s1_tok;
+    assign s1_miss      = s1_v && !s1_rp && !s1_hit && s1_tok && !s1_dbg;
     assign ic_req_ready = !busy && !s1_miss && !cl && !ic_flush;
 
     always @(*) begin
@@ -182,12 +190,14 @@ module OOO_ICACHE
             arv           <= 1'b0;
             rr            <= '0;
             ic_resp_valid <= 1'b0;
+            s1_dbg        <= 1'b0;
             ic_done       <= 1'b0;
             rp            <= 1'b0;
             cl            <= 1'b1;
             fc            <= '0;
         end else begin
             s1_v          <= acc || rp;
+            if (acc || rp) s1_dbg <= acc && dbg_mode && ic_req_ptag == '0;
             ic_resp_valid <= s1_v && !s1_miss;
             if (s1_miss) begin
                 busy <= 1'b1;
@@ -223,8 +233,11 @@ module OOO_ICACHE
             s1_pc  <= ic_req_pc[6+SW-1:5];
             s1_ptag <= ic_req_ptag;
             s1_tok <= ic_req_tok;
+            s1_db0 <= ic_req_pc[11:5] == 7'h40;
         end
-        if (s1_v && !s1_miss) ic_resp_data <= s1_tok ? s1_data : '0;   // (one that may not be fetched: zeros)
+        if (s1_v && !s1_miss)
+            ic_resp_data <= s1_dbg ? (s1_db0 ? dbg_words : {8{32'h0010_0073}}) :
+                            s1_tok ? s1_data : '0;   // (one that may not be fetched: zeros)
         if (s1_miss) begin
             m_set  <= s1_pc[6+SW-1:6];
             m_line <= {s1_ptag, s1_pc[11:6]};

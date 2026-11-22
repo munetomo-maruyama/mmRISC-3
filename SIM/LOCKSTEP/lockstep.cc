@@ -159,6 +159,7 @@ struct Lockstep::Impl {
     bool htif_load = false;     // the last step read tohost or fromhost
     bool dev_load = false;      // the last step read a device
     int irq = -1;               // the interrupt the DUT took at this record (its cause), or -1
+    bool no_irq = false;        // the DUT is stepped by its debugger: no interrupt at all (step 1.8 J1)
     uint64_t last_pa = 0;       // the last store's physical address
     uint64_t ih = 0;            // mcountinhibit as the core has it (LockstepCfg)
     bool exited = false;
@@ -175,6 +176,7 @@ struct Lockstep::Impl {
         cfg.priv = c.priv.c_str();
         cfg.misaligned = false;                    // misaligned accesses trap, as in mmRISC-2
         cfg.pmpregions = c.pmp_regions;
+        cfg.trigger_count = 4;                     // the core's 4 (CORE_CSR TRIGGERS; Sdtrig, step 1.8 J1)
         cfg.mem_layout = {mem_cfg_t(c.mem_base, c.mem_size)};
         cfg.start_pc = e.entry;
         cfg.hartids = {0};
@@ -265,9 +267,20 @@ struct Lockstep::Impl {
     }
 
     // one step of the reference, as a Commit record
+    // a trigger's trap (Sdtrig, step 1.8 J1): Spike takes it inside step(1) and goes on to run the handler's first
+    // instruction in the same step (the matched_t catch does not end it); that instruction's record is kept here and
+    // given as the next commit
+    bool pend_v = false, pend_htif = false, pend_dev = false;
+    Commit pend;
+
     Commit step()
     {
         state_t* s = proc->get_state();
+        if (pend_v) {
+            pend_v = false; htif_load = pend_htif; dev_load = pend_dev; nsteps++;
+            htif();
+            return pend;
+        }
         Commit r;
         r.pc = s->pc;
         r.insn = fetch(r.pc);
@@ -284,13 +297,24 @@ struct Lockstep::Impl {
         auto mip = s->mip;
         reg_t mip0 = mip->read(), mie0 = 0;
         // (an interrupt is taken before the instruction runs: mip goes back as it was)
-        bool hide_mie = irq < 0 && csr_op && irq_csr(csr);
+        // (the debugger stepping the DUT, no_irq: mie hidden, or, for an instruction on mie itself, the pending bits)
+        bool no_irq_mip = irq < 0 && no_irq && csr_op && (csr == CSR_MIE || csr == CSR_SIE);
+        bool hide_mie = irq < 0 && ((csr_op && irq_csr(csr)) || (no_irq && !no_irq_mip));
         if (hide_mie) { mie0 = proc->get_csr(CSR_MIE); proc->put_csr(CSR_MIE, 0); }
         // (SSIP is software's alone, a CSR write's in both: the reference takes it where it would; a core
         //  taking it late is then a mismatch, the check of a CSR write's replay; the other bits come from the
         //  devices and the DUT's time, and only the DUT's interrupt is given)
-        else mip->backdoor_write_with_mask(~(reg_t)0, irq >= 0 ? (reg_t)1 << irq : (mip0 & MIP_SSIP));
+        else mip->backdoor_write_with_mask(~(reg_t)0, irq >= 0 ? (reg_t)1 << irq : no_irq_mip ? (reg_t)0 : (mip0 & MIP_SSIP));
         mem->dev_load = false;
+        // a trap is seen by mepc / sepc set to this pc: both hold another value before the step (and get back what they
+        // held if it is still there; bit 2 differs: with misa.C off they read bit 1 as 0); not for MRET / SRET and the
+        // CSR instructions on them, which read them
+        bool sent = r.insn != 0x30200073u && r.insn != 0x10200073u && !(csr_op && (csr == CSR_MEPC || csr == CSR_SEPC));
+        reg_t m_old = proc->get_csr(CSR_MEPC), s_old = proc->get_csr(CSR_SEPC), m_sv = 0, s_sv = 0;
+        if (sent) {
+            proc->put_csr(CSR_MEPC, r.pc ^ 4); m_sv = proc->get_csr(CSR_MEPC);
+            proc->put_csr(CSR_SEPC, r.pc ^ 4); s_sv = proc->get_csr(CSR_SEPC);
+        }
         proc->step(1);
         nsteps++;
         if (hide_mie) proc->put_csr(CSR_MIE, mie0);
@@ -306,7 +330,27 @@ struct Lockstep::Impl {
         //  mcause or scause, step 1.8 K1)
         bool ir_cfg = ((proc->get_csr(CSR_MINSTRETCFG) | ir_cfg0) >> 60) & 7;
         bool cause_w = s->log_reg_write.count(((reg_t)CSR_MCAUSE << 4) | 4) || s->log_reg_write.count(((reg_t)CSR_SCAUSE << 4) | 4);
-        if (proc->get_csr(CSR_MINSTRET) == inst0 && (!ir_cfg || cause_w)) {          // a trap, not retired
+        bool trap_m = sent && proc->get_csr(CSR_MEPC) == r.pc, trap_s = sent && proc->get_csr(CSR_SEPC) == r.pc;
+        if (sent && proc->get_csr(CSR_MEPC) == m_sv) proc->put_csr(CSR_MEPC, m_old);
+        if (sent && proc->get_csr(CSR_SEPC) == s_sv) proc->put_csr(CSR_SEPC, s_old);
+        if ((proc->get_csr(CSR_MINSTRET) == inst0 && (!ir_cfg || cause_w)) || trap_m || trap_s) {   // a trap, not retired
+            // (a trigger's: the handler's first instruction already run, its record kept for the next commit)
+            reg_t tv = proc->get_csr(trap_s ? CSR_STVEC : CSR_MTVEC) & ~3ull;
+            if ((trap_m || trap_s) && irq < 0 && proc->get_csr(trap_s ? CSR_SCAUSE : CSR_MCAUSE) == 3 && s->pc != tv) {
+                pend = Commit{};
+                pend.pc = tv; pend.insn = fetch(tv);
+                for (auto& w : s->log_reg_write) {
+                    unsigned type = w.first & 0xf, reg = (unsigned)(w.first >> 4);
+                    if ((type == 0 && reg != 0) || type == 1) { pend.rd = (int)reg; pend.rd_fp = type == 1; pend.rd_val = w.second.v[0]; }
+                }
+                for (auto& m : s->log_mem_write) {
+                    pend.st = true;
+                    pend.st_addr = std::get<0>(m); pend.st_data = std::get<1>(m); pend.st_size = std::get<2>(m);
+                    pend.st_pa = pa_of(pend.st_addr);
+                }
+                pend_htif = htif_load; pend_dev = dev_load; htif_load = false; dev_load = false;
+                pend_v = true;
+            }
             r.trap = true;
             r.cause = (s->prv == PRV_S) ? proc->get_csr(CSR_SCAUSE) : proc->get_csr(CSR_MCAUSE);
             // CBO.ZERO's fault: the given address in tval (the core's, mmRISC-2's and QEMU's choice; Spike's is the block's
@@ -365,6 +409,43 @@ uint64_t Lockstep::steps() const { return p->nsteps; }
 const std::string& Lockstep::output() const { return p->out; }
 Commit Lockstep::step_ref() { return p->step(); }
 uint64_t Lockstep::last_st_pa() const { return p->last_pa; }
+
+// debug (step 1.8 J1)
+uint64_t Lockstep::pc() const { return p->pend_v ? p->pend.pc : p->proc->get_state()->pc; }
+bool Lockstep::pending() const { return p->pend_v; }
+void Lockstep::set_pc(uint64_t v) { p->proc->get_state()->pc = v; }
+uint64_t Lockstep::x(int n) const { return n ? (uint64_t)p->proc->get_state()->XPR[n] : 0; }
+void Lockstep::set_x(int n, uint64_t v) { if (n) p->proc->get_state()->XPR.write(n, v); }
+uint64_t Lockstep::f(int n) const { return p->proc->get_state()->FPR[n].v[0]; }
+void Lockstep::set_f(int n, uint64_t v)
+{
+    freg_t r; r.v[0] = v; r.v[1] = ~0ull;
+    p->proc->get_state()->FPR.write(n, r);
+    p->proc->get_state()->sstatus->dirty(SSTATUS_FS);
+}
+bool Lockstep::peek(uint64_t pa, int size, uint64_t* v) const
+{
+    char* m = p->mem->addr_to_mem(pa);
+    if (!m || !p->mem->addr_to_mem(pa + size - 1)) return false;
+    *v = 0; std::memcpy(v, m, size); return true;
+}
+bool Lockstep::csr(unsigned addr, uint64_t* v) const
+{
+    auto& m = p->proc->get_state()->csrmap;
+    auto i = m.find(addr);
+    if (i == m.end()) return false;
+    *v = i->second->read(); return true;
+}
+void Lockstep::set_csr(unsigned addr, uint64_t v) { p->proc->put_csr(addr, v); }
+uint32_t Lockstep::next_insn() { return p->fetch(p->proc->get_state()->pc); }
+void Lockstep::step_no_irq(bool on) { p->no_irq = on; }
+bool Lockstep::fs_on() const { return p->proc->get_state()->sstatus->enabled(SSTATUS_FS); }
+bool Lockstep::poke(uint64_t pa, int size, uint64_t v)
+{
+    char* m = p->mem->addr_to_mem(pa);
+    if (!m || !p->mem->addr_to_mem(pa + size - 1)) return false;
+    std::memcpy(m, &v, size); return true;
+}
 
 bool Lockstep::check(const Commit& d, std::string* why)
 {

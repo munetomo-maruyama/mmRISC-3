@@ -114,6 +114,23 @@ public:
     const std::string& output() const;   // characters printed through HTIF
     uint64_t last_st_pa() const;         // the physical address of the last store checked (its virtual one translated
                                          //  by the reference's tables: the bench's architectural memory, step 1.8 V1)
+    // debug (step 1.8 J1): the reference's state where the DUT is halted (its next instruction not stepped), for a
+    // debugger's reads to be checked against and its writes to be put into it as well
+    uint64_t pc() const;                 // the next pc (a pending record's: below)
+    bool     pending() const;            // the next record is kept from the last step (a trigger's breakpoint: Spike
+                                         //  ran the handler's first instruction already; its state is past it)
+    void     set_pc(uint64_t v);
+    uint64_t x(int n) const;             // x0 .. x31
+    void     set_x(int n, uint64_t v);
+    uint64_t f(int n) const;             // f0 .. f31 (the low 64 bits)
+    void     set_f(int n, uint64_t v);   // (NaN-boxed; mstatus.FS made dirty, as the core does)
+    bool     peek(uint64_t pa, int size, uint64_t* v) const;    // the memory (RAM only), size 1, 2, 4, 8
+    bool     poke(uint64_t pa, int size, uint64_t v);
+    bool     csr(unsigned addr, uint64_t* v) const;             // a CSR's value (false: Spike has none)
+    void     set_csr(unsigned addr, uint64_t v);
+    bool     fs_on() const;              // mstatus.FS not Off
+    uint32_t next_insn();                // the instruction at pc (a compressed one in the low 16)
+    void     step_no_irq(bool on);       // the DUT is stepped by its debugger: no interrupt (dcsr.stepie 0), SSIP neither
 private:
     struct Impl;
     std::unique_ptr<Impl> p;

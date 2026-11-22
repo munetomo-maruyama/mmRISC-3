@@ -57,6 +57,17 @@
 //              and the word is taken from its beat. So the tables are cached, and the
 //              walk reads what the D$ has, dirty or not. A device or FENCE.I goes first,
 //              then an entry, then the lines asked for.
+//   a debugger the DM's Access Memory and SBA (db_*, step 1.8 J1, Plan/OOC.md 29.101): one
+//              access of 1, 2, 4 or 8 bytes by its physical address, its data in the low
+//              bits, after an entry. Outside the cacheable memory (db_dev, OOO_CPU's
+//              decision) a device access as the LSU's (one beat on AXI4-Lite; an error
+//              answer is db_err). Else as an entry: a read takes the word where its line
+//              is (dirty or not) or from the fill's beat; a write finds its line (filled
+//              first if it is in no set, then looked for again) and writes its bytes
+//              through the fill's port (rf_*, with rf_strb: a store in the LSU waits for
+//              it, so no store's dirty bit is written in that cycle) and makes the line
+//              dirty. So the debugger sees and changes memory as the core does, whether
+//              the hart runs or not.
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -91,6 +102,7 @@ module OOO_DMISS2
         output logic [$clog2(WAYS)-1:0] rf_way,
         output logic [10:0]           rf_addr,      // {set, word}
         output logic [63:0]           rf_data,
+        output logic [7:0]            rf_strb,      // the bytes (a fill's 8; a debugger's write its own)
         input  logic                  dirty_set,    // a store written into the D$
         input  logic [$clog2(WAYS)-1:0] dirty_way,
         input  logic [7:0]            dirty_idx,
@@ -110,6 +122,17 @@ module OOO_DMISS2
         input  logic [PAW-1:3]        pt_addr,
         output logic                  pt_done,
         output logic [63:0]           pt_data,
+
+        // ---- the debugger (step 1.8 J1): Access Memory, SBA
+        input  logic                  db_req,       // a pulse, one at a time
+        input  logic                  db_we,
+        input  logic                  db_dev,       // outside the cacheable memory
+        input  logic [PAW-1:0]        db_addr,
+        input  logic [1:0]            db_size,      // 1, 2, 4, 8 bytes
+        input  logic [63:0]           db_wdata,     // (its low bits)
+        output logic                  db_done,      // a pulse
+        output logic [63:0]           db_rdata,     // (its low bits, the rest 0)
+        output logic                  db_err,       // a device's error answer
 
         // ---- OOO_SYS: FENCE.I's FLUSH of the D$
         input  logic                  fl_req,
@@ -157,18 +180,14 @@ module OOO_DMISS2
         output logic [7:0]            m_axil_wstrb,
         output logic                  m_axil_wvalid,
         input  logic                  m_axil_wready,
-        /* verilator lint_off UNUSEDSIGNAL */
-        input  logic [1:0]            m_axil_bresp,
-        /* verilator lint_on UNUSEDSIGNAL */
+        input  logic [1:0]            m_axil_bresp,     // (the debugger's error: db_err)
         input  logic                  m_axil_bvalid,
         output logic                  m_axil_bready,
         output logic [PAW-1:0]        m_axil_araddr,
         output logic                  m_axil_arvalid,
         input  logic                  m_axil_arready,
         input  logic [63:0]           m_axil_rdata,
-        /* verilator lint_off UNUSEDSIGNAL */
         input  logic [1:0]            m_axil_rresp,
-        /* verilator lint_on UNUSEDSIGNAL */
         input  logic                  m_axil_rvalid,
         output logic                  m_axil_rready
     );
@@ -179,7 +198,7 @@ module OOO_DMISS2
     localparam int QW = $clog2(NAQ);
 
     typedef enum logic [4:0] { S_IDLE, S_LOOK, S_SINV, S_SYW, S_INV, S_AR, S_R, S_TAG, S_DONE, S_UAW, S_UW, S_UB, S_UAR, S_UR, S_FL, S_FLW,
-                               S_PRD, S_PANS } st_t;
+                               S_PRD, S_PANS, S_DWR } st_t;
     st_t            st;
     logic [FW-1:0]  fi;                 // FENCE.I's walk: {set, way}
 
@@ -256,6 +275,8 @@ module OOO_DMISS2
         end
     end
 
+    logic [7:0]     p_set;              // where an entry's (or the debugger's) line is
+    logic [WB-1:0]  p_way;
     // ---- the dirty lines: a bit a line (a store sets; a line's write out clears: a fill's victim, a synonym, the walk's).
     // Never both in one cycle: no store is written in the cycle of a tag's write (S_INV, S_SINV), nor during the walk.
     // So one write port: a RAM a way (LUT RAM; at 256 sets, 1,024 flip-flops and their mux before)
@@ -269,7 +290,8 @@ module OOO_DMISS2
         (* ram_style = "distributed" *) logic dm [256];
         initial for (int s = 0; s < 256; s++) dm[s] = 1'b0;
         always_ff @(posedge clk)
-            if (ev_go ? int'(ev_way) == w : dirty_set && int'(dirty_way) == w) dm[ev_go ? t_set : dirty_idx] <= !ev_go;
+            if (ev_go ? int'(ev_way) == w : st == S_DWR ? int'(p_way) == w : dirty_set && int'(dirty_way) == w)
+                dm[ev_go ? t_set : st == S_DWR ? p_set : dirty_idx] <= !ev_go;
         assign dtyr[w] = dm[t_set];
     end
 
@@ -310,8 +332,6 @@ module OOO_DMISS2
         end
     end
     // (an entry found in the D$ is read in S_PRD: no write out is on then)
-    logic [7:0]     p_set;              // where the entry's line is
-    logic [WB-1:0]  p_way;
     logic [2:0]     p_word;
     assign vr_addr        = st == S_PRD ? {p_set, p_word} : {e_set, e_k[2:0]};
     assign vr_way         = st == S_PRD ? p_way : e_way;
@@ -341,8 +361,17 @@ module OOO_DMISS2
     logic [7:0]     u_m;
     logic           f_have;
     logic [WB-1:0]  f_hw;               // ... its way
-    logic           f_pt;               // the line in hand is an entry's (pt_*)
+    logic           f_pt;               // the line in hand is an entry's (pt_*), or the debugger's
+    logic           f_db;               // ... the debugger's
     logic           p_pend;             // an entry asked for, not begun
+    logic           d_pend, dv_pend;    // the debugger's access asked for, not begun: in memory, a device's
+    logic           u_db;               // the device access in hand is the debugger's
+    logic           q_we;               // the debugger's access
+    logic [PAW-1:0] q_a;
+    logic [1:0]     q_s;
+    logic [63:0]    q_d;
+    logic [7:0]     q_m;                // its bytes in the word
+    logic           d_go;               // it begins (in memory)
     logic [PAW-1:3] p_a;
     logic [63:0]    p_q;                // its word, from the fill's beat
     logic [WB-1:0]  f_free;
@@ -364,31 +393,38 @@ module OOO_DMISS2
                 end
     end
     logic p_go;                         // an entry begins
-    assign p_go   = st == S_IDLE && !u_pend && !fl_req && p_pend && wr_quiet;
-    assign aq_pop = st == S_IDLE && !u_pend && !fl_req && !p_pend && aq_n != '0 && wr_quiet;
+    assign p_go   = st == S_IDLE && !u_pend && !dv_pend && !fl_req && p_pend && wr_quiet;
+    assign d_go   = st == S_IDLE && !u_pend && !dv_pend && !fl_req && !p_pend && d_pend && wr_quiet;
+    assign aq_pop = st == S_IDLE && !u_pend && !dv_pend && !fl_req && !p_pend && !d_pend && aq_n != '0 && wr_quiet;
     assign ev_go  = ((st == S_INV || st == S_SINV) && ev_dirty) || (st == S_FL && ev_dirty && !e_on);
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            st <= S_IDLE; u_pend <= 1'b0; fi <= '0; p_pend <= 1'b0;
+            st <= S_IDLE; u_pend <= 1'b0; fi <= '0; p_pend <= 1'b0; d_pend <= 1'b0; dv_pend <= 1'b0; u_db <= 1'b0;
         end else begin
             if (uc_req) u_pend <= 1'b1;
             if (pt_req) p_pend <= 1'b1;
             else if (p_go) p_pend <= 1'b0;
+            if (db_req) begin d_pend <= !db_dev; dv_pend <= db_dev; end
+            else if (d_go) d_pend <= 1'b0;
             case (st)
-                S_IDLE: if (u_pend)             begin u_pend <= 1'b0; st <= u_we ? S_UAW : S_UAR; end
-                        else if (fl_req && !u_pend) begin fi <= '0; st <= S_FL; end   // (as fl_take)
-                        else if (p_go || aq_pop) st <= S_LOOK;
-                // an entry: read where its line is, else filled (no synonym to take out: it is in no set)
-                S_LOOK: st <= f_pt ? ((f_have || y_any) ? S_PRD : S_INV) : f_have ? S_DONE : y_any ? S_SINV : S_INV;
+                S_IDLE: if (u_pend)             begin u_pend <= 1'b0; u_db <= 1'b0; st <= u_we ? S_UAW : S_UAR; end
+                        else if (dv_pend)       begin dv_pend <= 1'b0; u_db <= 1'b1; st <= q_we ? S_UAW : S_UAR; end
+                        else if (fl_req) begin fi <= '0; st <= S_FL; end              // (as fl_take)
+                        else if (p_go || d_go || aq_pop) st <= S_LOOK;
+                // an entry: read where its line is, else filled (no synonym to take out: it is in no set);
+                // the debugger's write: written where its line is, else filled and looked for again
+                S_LOOK: st <= f_pt ? ((f_have || y_any) ? ((f_db && q_we) ? S_DWR : S_PRD) : S_INV)
+                                   : f_have ? S_DONE : y_any ? S_SINV : S_INV;
                 S_PRD:  st <= S_PANS;
                 S_PANS: st <= S_IDLE;
+                S_DWR:  st <= S_IDLE;
                 S_SINV: st <= S_SYW;                // the synonym's tag invalid, its write out begun if dirty
                 S_SYW:  if (wr_quiet) st <= S_INV;  // memory has it before it is read back
                 S_INV:  st <= S_AR;
                 S_AR:   if (m_axi4_arready) st <= S_R;
                 S_R:    if (m_axi4_rvalid && m_axi4_rready && f_beat == 3'd7) st <= S_TAG;
                 S_TAG:  st <= S_DONE;
-                S_DONE: st <= S_IDLE;
+                S_DONE: st <= (f_db && q_we) ? S_LOOK : S_IDLE;
                 S_UAW:  if (m_axil_awready) st <= S_UW;
                 S_UW:   if (m_axil_wready) st <= S_UB;
                 S_UB:   if (m_axil_bvalid) st <= S_IDLE;
@@ -410,13 +446,30 @@ module OOO_DMISS2
             f_vx   <= aq_vx[0];
             f_id   <= aq_id[0];
             f_pt   <= 1'b0;
+            f_db   <= 1'b0;
         end
         if (p_go) begin
             f_line <= p_a[PAW-1:6];
             f_vx   <= p_a[13:12];
             f_id   <= '0;
             f_pt   <= 1'b1;
+            f_db   <= 1'b0;
             p_word <= p_a[5:3];
+        end
+        if (d_go) begin
+            f_line <= q_a[PAW-1:6];
+            f_vx   <= q_a[13:12];
+            f_id   <= '0;
+            f_pt   <= 1'b1;
+            f_db   <= 1'b1;
+            p_word <= q_a[5:3];
+        end
+        if (db_req) begin
+            q_we <= db_we;
+            q_a  <= db_addr;
+            q_s  <= db_size;
+            q_d  <= db_wdata << {db_addr[2:0], 3'b000};
+            q_m  <= (db_size == 2'd0 ? 8'h01 : db_size == 2'd1 ? 8'h03 : db_size == 2'd2 ? 8'h0f : 8'hff) << db_addr[2:0];
         end
         if (pt_req) p_a <= pt_addr;
         if (st == S_LOOK) begin
@@ -440,15 +493,26 @@ module OOO_DMISS2
         tw_way  = st == S_SINV ? y_way : f_way;
         tw_set  = t_set;
         tw_tag  = st == S_TAG ? {1'b1, f_line[PAW-1:12]} : {1'b0, tagr[tw_way][TW-1:0]};
-        rf_en   = m_axi4_rvalid && m_axi4_rready;
-        rf_way  = f_way;
-        rf_addr = {f_vx, f_line[11:6], f_beat};
-        rf_data = m_axi4_rdata;
+        rf_en   = (m_axi4_rvalid && m_axi4_rready) || st == S_DWR;
+        rf_way  = st == S_DWR ? p_way : f_way;
+        rf_addr = st == S_DWR ? {p_set, p_word} : {f_vx, f_line[11:6], f_beat};
+        rf_data = st == S_DWR ? q_d : m_axi4_rdata;
+        rf_strb = st == S_DWR ? q_m : 8'hff;
         fill_done = st == S_DONE;
         done_v    = st == S_DONE && f_id[IW];
         done_id   = f_id[IW-1:0];
-        pt_done   = (st == S_DONE && f_pt) || st == S_PANS;
+        pt_done   = ((st == S_DONE && f_pt) || st == S_PANS) && !f_db;
         pt_data   = st == S_PANS ? vr_data : p_q;
+    end
+    // the debugger's answer: its bytes from the word, in the low bits
+    logic [63:0] db_w;
+    always @(*) begin
+        db_w     = st == S_UR ? m_axil_rdata : st == S_PANS ? vr_data : p_q;
+        db_rdata = (db_w >> {q_a[2:0], 3'b000}) &
+                   (q_s == 2'd0 ? 64'hff : q_s == 2'd1 ? 64'hffff : q_s == 2'd2 ? 64'hffff_ffff : '1);
+        db_done  = (f_db && ((st == S_DONE && !q_we) || st == S_PANS || st == S_DWR)) ||
+                   (u_db && ((st == S_UB && m_axil_bvalid) || (st == S_UR && m_axil_rvalid)));
+        db_err   = u_db && ((st == S_UB && m_axil_bresp != 2'b00) || (st == S_UR && m_axil_rresp != 2'b00));
     end
     assign m_axi4_arid    = '0;
     assign m_axi4_araddr  = {f_line, 6'd0};
@@ -460,20 +524,20 @@ module OOO_DMISS2
 
     // the device: the access's own byte address, its bytes in their lanes of the word (a 32-bit
     // register of the PLIC is chosen by bit 2, not by the strobes: step 1.8 I1, Plan/OOC.md 29.78)
-    assign m_axil_awaddr  = u_a;
+    assign m_axil_awaddr  = u_db ? q_a : u_a;
     assign m_axil_awvalid = st == S_UAW;
-    assign m_axil_wdata   = u_d;
-    assign m_axil_wstrb   = u_m;
+    assign m_axil_wdata   = u_db ? q_d : u_d;
+    assign m_axil_wstrb   = u_db ? q_m : u_m;
     assign m_axil_wvalid  = st == S_UW;
     assign m_axil_bready  = st == S_UB;
-    assign m_axil_araddr  = u_a;
+    assign m_axil_araddr  = u_db ? q_a : u_a;
     assign m_axil_arvalid = st == S_UAR;
     assign m_axil_rready  = st == S_UR;
-    assign uc_done  = (st == S_UB && m_axil_bvalid) || (st == S_UR && m_axil_rvalid);
+    assign uc_done  = !u_db && ((st == S_UB && m_axil_bvalid) || (st == S_UR && m_axil_rvalid));
     assign uc_rdata = m_axil_rdata;
 
     // FENCE.I: taken at once, done when the walk is over and the last write out has its answer
-    assign fl_take = st == S_IDLE && !u_pend;
+    assign fl_take = st == S_IDLE && !u_pend && !dv_pend;
     assign fl_done = st == S_FLW && wr_quiet;
 
 endmodule : OOO_DMISS2

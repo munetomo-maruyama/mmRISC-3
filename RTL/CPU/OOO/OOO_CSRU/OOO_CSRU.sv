@@ -36,6 +36,13 @@
 // The rest of CORE_CSR's outputs (the level, satp, mstatus bits, PMP, the
 // FP state, debug and triggers) go out as they are, for the MMU, the FPU
 // and debug at the assembly.
+//
+// Debug (step 1.8 J1, Plan/OOC.md 29.101): the debugger's port (dbg_access,
+// OOO_DBG's, only while the hart is halted and no sequence of its runs, so
+// never with a CSR µop in EX) reads a CSR by dbg_addr (dbg_rdata, dbg_exists)
+// and writes it with dbg_wr (dbg_wdata) through CORE_CSR's one write port. In
+// debug mode (dbg_mode) the CSR µops are OOO_DBG's sequences: they have the
+// debugger's rights (dscratch0 / 1).
 //---------------------------------------------------------------------------
 
 `timescale 1ns/1ps
@@ -117,7 +124,11 @@ module OOO_CSRU
         output logic [2:0]                  frm,
         output logic [1:0]                  fs,
         input  logic                        dbg_access,
+        input  logic                        dbg_wr,
         input  logic [11:0]                 dbg_addr,
+        input  logic [63:0]                 dbg_wdata,
+        output logic                        dbg_exists,
+        input  logic                        dbg_mode,
         input  logic                        dbg_enter,
         input  logic [2:0]                  dbg_cause,
         input  logic [63:0]                 dbg_pc,
@@ -131,6 +142,7 @@ module OOO_CSRU
         output logic [8*TRIGGERS-1:0]       trig_cfg,
         output logic [64*TRIGGERS-1:0]      trig_addr,
         output logic                        tcontrol_mte,
+        output logic                        trig_a0_ok,
         input  logic [TRIGGERS-1:0]         trig_fired
     );
 
@@ -189,9 +201,10 @@ module OOO_CSRU
                .HPM_EVW(HPM_EVW)) u_csr
         (.clk(clk), .rst_n(rst_n),
          .rd_addr(dbg_access ? dbg_addr : ex_addr), .rd_data(rd_data), .rmw_data(rmw_data),
-         .rd_exists(), .rd_readonly(),
+         .rd_exists(dbg_exists), .rd_readonly(),
          .ex_addr(ex_addr), .ex_exists(ex_exists), .ex_readonly(ex_readonly), .ex_denied(ex_denied),
-         .wr_en(wr_en), .wr_addr(ex_addr), .wr_data(wdata),
+         .wr_en(wr_en || (dbg_access && dbg_wr)), .wr_addr(dbg_access ? dbg_addr : ex_addr),
+         .wr_data(dbg_access ? dbg_wdata : wdata),
          .trap_en(trap_en), .trap_int(trap_int), .trap_cause(trap_cause),
          .trap_epc({{(65 - VA){trap_epc[VA-1]}}, trap_epc[VA-2:1], 1'b0}), .trap_tval(trap_tval),
          .trap_vector(tvec64), .trap_to_s(),
@@ -205,10 +218,10 @@ module OOO_CSRU
          .pmpcfg_out(pmpcfg), .pmpaddr_out(pmpaddr), .pmpmask_out(pmpmask),
          .instret_inc(ir_inc), .instret_force(ir_force), .hpm_ev(hpm_ev),
          .fflags_we(fflags_we), .fflags_set(fflags_set), .fs_dirty(fs_dirty), .frm_out(frm), .fs_out(fs),
-         .dbg_access(dbg_access), .dbg_enter(dbg_enter), .dbg_cause(dbg_cause), .dbg_pc(dbg_pc),
+         .dbg_access(dbg_access), .dbg_mode(dbg_mode), .dbg_enter(dbg_enter), .dbg_cause(dbg_cause), .dbg_pc(dbg_pc),
          .dbg_resume(dbg_resume), .dcsr_step(dcsr_step), .dcsr_ebreakm(dcsr_ebreakm),
          .dcsr_ebreaks(dcsr_ebreaks), .dcsr_ebreaku(dcsr_ebreaku), .dpc_out(dpc),
-         .trig_cfg(trig_cfg), .trig_addr(trig_addr), .tcontrol_mte(tcontrol_mte), .trig_fired(trig_fired));
+         .trig_cfg(trig_cfg), .trig_addr(trig_addr), .tcontrol_mte(tcontrol_mte), .trig_a0_ok(trig_a0_ok), .trig_fired(trig_fired));
     /* verilator lint_on PINCONNECTEMPTY */
     assign dbg_rdata = rd_data;
 

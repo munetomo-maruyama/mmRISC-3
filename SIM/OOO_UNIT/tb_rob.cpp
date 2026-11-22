@@ -155,7 +155,7 @@ int main(int argc, char** argv)
         d.disp_len = dlen; d.disp_ftq = dftq; d.disp_x = nd ? dx8 : (uint32_t)(rng() & 0xffff);
         d.cmp_valid = cv; d.cmp_rob = crob; d.cmp_exc = cexc; d.cmp_cause = ccause; d.cmp_rp = crp;
         d.br_valid = bv; d.br_rob = brob; d.br_mispred = bmis; d.br_ckpt = bck;
-        d.irq = irq;
+        d.irq = irq; d.one = 0;                         // (a step, step 1.8 J1: tb_core -dbg)
         d.eval();
 
         // ---------- outputs

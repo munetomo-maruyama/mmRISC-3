@@ -33,6 +33,38 @@
 //               from mepc / sepc (not pc + length) and tells the CSRs
 //               (csr_mret / csr_sret: the mstatus bits and the level)
 //
+// Debug mode (step 1.8 J1, Plan/OOC.md 29.101; RISC-V Debug Spec 1.0, 4.1):
+//   halt        a halt request (resethaltreq once after the reset: dcsr.cause
+//               5; the DM's haltreq: 3; a step done: 4) is taken at the head
+//               as an interrupt is (hlt, on irq: nothing commits, not while
+//               an issued non-speculative µop is at the head), before any
+//               interrupt; d_enter: dpc = the head's pc, dcsr.cause, dcsr.prv
+//               (CORE_CSR, which sets the level to M), and fetch from DBG_PC
+//   EBREAK      an exception at the head of cause 3 (EBREAK, C.EBREAK: no
+//               other µop raises 3) with dcsr.ebreakm / s / u set for the
+//               level enters debug mode in place of the trap (cause 1)
+//   in debug    dmode: OOO_ICACHE answers any fetch in physical page 0 with
+//               OOO_DBG's words, DBG_PC's block a sequence of its own or
+//               EBREAKs (the park), the rest EBREAKs. Every exception at the
+//               head is taken without the CSRs (no trap entry) and fetches
+//               DBG_PC again (d_take: a park EBREAK, a sequence's last
+//               EBREAK, or an exception in a sequence, by its pc and cause),
+//               or, with d_resume, fetches from dpc and leaves debug mode
+//               (d_resumed: the CSRs' dbg_resume, the level dcsr.prv). The
+//               park keeps a µop coming to the head, so a resume always finds
+//               one. No interrupt and no halt is taken in debug mode
+//   step        a resume with dcsr.step: one instruction commits (one: the
+//               head alone, fusion off, no interrupt), or traps, then the
+//               next µop at the head halts (cause 4). WFI wakes for it
+//               (d_wake: also for a halt request)
+//   triggers    (Sdtrig) a µop that matched one at decode (an execute
+//               trigger, cause 24) or in the LSU (a data trigger, 26) has
+//               that exception; at the head the triggers it matched are
+//               found again (their address against its tval, the pc or the
+//               virtual address; the enables cannot have changed since):
+//               one of action 1 halts (dcsr.cause 2), else a breakpoint
+//               (cause 3, tval the address); trig_fired sets their hit
+//
 // tval: every unit that reports an exception reports its tval with it
 // (address, instruction bits, or 0) on a tv_* port; the oldest one by ROB
 // position is kept until it traps or is flushed (flush_all, or a restore
@@ -50,7 +82,8 @@ module OOO_TRAP
         parameter int VA   = 39,
         parameter int NROB = 24,
         parameter int ROBW = 5,
-        parameter int NTV  = 3          // tval ports (the dispatch slots, the LSU, ...)
+        parameter int NTV  = 3,         // tval ports (the dispatch slots, the LSU, ...)
+        parameter logic [VA-1:1] DBG_PC = (VA-1)'(64'h800 >> 1)   // debug mode's fetch (step 1.8 J1)
     )
     (
         input  logic                        clk,
@@ -101,7 +134,30 @@ module OOO_TRAP
         output logic                        csr_sret,       //   ... for SRET
 
         // OOO_FUSE
-        output logic                        no_fuse
+        output logic                        no_fuse,
+
+        // debug (step 1.8 J1): the DM's requests, OOO_DBG, the CSRs' dcsr / dpc
+        input  logic                        d_haltreq,      // the DM's haltreq (a level)
+        input  logic                        d_resethalt,    // the DM's resethaltreq: looked at once after the reset
+        input  logic                        d_resume,       // OOO_DBG: resume at the next take in debug mode (until d_resumed)
+        input  logic                        d_step,         // dcsr.step
+        input  logic                        d_ebm,          // dcsr.ebreakm / s / u
+        input  logic                        d_ebs,
+        input  logic                        d_ebu,
+        input  logic [1:0]                  priv,
+        input  logic [VA-1:1]               dpc,
+        output logic                        dmode,          // in debug mode (halted)
+        output logic                        d_enter,        // the CSRs' dbg_enter (dpc = csr_epc)
+        output logic [2:0]                  d_cause,
+        output logic                        d_resumed,      // the CSRs' dbg_resume; the DM's resumeack
+        output logic                        d_take,         // an exception taken in debug mode, not resuming (OOO_DBG)
+        output logic                        one,            // OOO_ROB: the head alone commits (a step)
+        output logic                        d_wake,         // OOO_SYS: WFI wakes (a halt request, a step)
+        input  logic [3:0]                  t_ex,           // the triggers enabled for execute (OOO_CORE's registers)
+        input  logic [3:0]                  t_dat,          // ... for loads or stores
+        input  logic [3:0]                  t_act,          // their action (1: debug mode)
+        input  logic [3:0][63:0]            t_a,            // their address
+        output logic [3:0]                  trig_fired      // the CSRs: hit
     );
 
     function automatic logic [ROBW-1:0] rdist(input logic [ROBW-1:0] i, input logic [ROBW-1:0] h);
@@ -129,21 +185,73 @@ module OOO_TRAP
     logic            x_pend, x_s;       // an MRET (SRET: x_s) at the head has run
     logic [1:0]      nf_cnt;            // instructions committed since the refetch
 
+    // debug
+    logic            rh_first, rh_pend;  // the first cycle after the reset; resethaltreq seen then
+    logic            step_pend;          // a step: from its resume to its halt
+    logic            step_done;          // ... its instruction committed or trapped
+    logic            nf_r;               // no_fuse for a pair fetched again
+    logic            hreq, hlt, irq_t, ebk, dexc, trg, tdbg, tbrk;
+    logic [3:0]      tm;                 // the triggers the head's µop matched
+    logic [2:0]      hcause;
+
     logic exc, refetch;
     always @(*) begin
-        irq     = irq_q && head_valid && !ns_busy;
+        hreq    = !dmode && (rh_pend || d_haltreq || step_done);
+        hcause  = rh_pend ? 3'd5 : d_haltreq ? 3'd3 : 3'd4;
+        hlt     = hreq && head_valid && !ns_busy;
+        irq_t   = irq_q && head_valid && !ns_busy && !dmode && !step_pend && !hreq;
+        irq     = irq_t || hlt;
         exc     = rob_trap && !irq;
-        refetch = exc && head_fused;
+        ebk     = exc && !dmode && rob_cause == 5'd3 &&
+                  (priv == 2'b11 ? d_ebm : priv == 2'b01 ? d_ebs : priv == 2'b00 && d_ebu);
+        dexc    = exc && dmode;
+        trg     = exc && !dmode && (rob_cause == 5'd24 || rob_cause == 5'd26);
+        for (int i = 0; i < 4; i++) tm[i] = (rob_cause == 5'd24 ? t_ex[i] : t_dat[i]) && t_a[i] == tv_d;
+        tdbg    = trg && (tm & t_act) != '0;
+        tbrk    = trg && !tdbg;
+        trig_fired = tdbg ? (tm & t_act) : tbrk ? (tm & ~t_act) : '0;
+        d_enter   = hlt || ebk || tdbg;
+        d_cause   = hlt ? hcause : ebk ? 3'd1 : 3'd2;
+        d_resumed = dexc && d_resume;
+        d_take    = dexc && !d_resume;
+        refetch = exc && head_fused && !dmode && !ebk && !tdbg;
         take    = irq || exc;
-        vec     = refetch ? rob_pc : tvec;
+        vec     = d_resumed ? dpc : (d_enter || dexc) ? DBG_PC : refetch ? rob_pc : tvec;
         rp_pc     = !x_pend ? rob_replay_pc : x_s ? sepc : mepc;
-        csr_trap  = irq || (exc && !head_fused);
+        csr_trap  = irq_t || (exc && !head_fused && !ebk && !tdbg && !dmode);
         csr_epc   = rob_pc;
-        csr_int   = irq;
-        csr_cause = irq ? irq_cause_q : rob_cause;
-        csr_tval  = irq ? 64'd0 : tv_d;     // the head is the oldest, and it reported (bug injection: no check needed)
+        csr_int   = irq_t;
+        csr_cause = irq_t ? irq_cause_q : tbrk ? 5'd3 : rob_cause;
+        csr_tval  = irq_t ? 64'd0 : tv_d;   // the head is the oldest, and it reported (bug injection: no check needed)
         csr_mret  = rob_replay && x_pend && !x_s;
         csr_sret  = rob_replay && x_pend && x_s;
+        one       = step_pend;
+        no_fuse   = nf_r || step_pend;
+        d_wake    = d_haltreq || rh_pend || step_pend;
+    end
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            dmode     <= 1'b0;
+            rh_first  <= 1'b1;
+            rh_pend   <= 1'b0;
+            step_pend <= 1'b0;
+            step_done <= 1'b0;
+        end else begin
+            rh_first <= 1'b0;
+            if (rh_first) rh_pend <= d_resethalt;
+            if (d_enter) begin
+                dmode     <= 1'b1;
+                rh_pend   <= 1'b0;
+                step_pend <= 1'b0;
+                step_done <= 1'b0;
+            end else if (d_resumed) begin
+                dmode     <= 1'b0;
+                step_pend <= d_step;
+            end else if (step_pend && !dmode && (cmt_instret != 4'd0 || take)) begin
+                step_done <= 1'b1;
+            end
+        end
     end
 
     // the oldest tval: a report older than (or at) the one kept replaces it;
@@ -189,18 +297,18 @@ module OOO_TRAP
         if (!rst_n) begin
             x_pend  <= 1'b0;
             x_s     <= 1'b0;
-            no_fuse <= 1'b0;
+            nf_r    <= 1'b0;
             nf_cnt  <= '0;
         end else begin
             if (x_ret)                          begin x_pend <= 1'b1; x_s <= x_sret; end
             else if (rob_replay || flush_all)   x_pend <= 1'b0;
             if (refetch) begin
-                no_fuse <= 1'b1;
+                nf_r    <= 1'b1;
                 nf_cnt  <= '0;
             end else if (take) begin
-                no_fuse <= 1'b0;
-            end else if (no_fuse) begin
-                if (4'(nf_cnt) + cmt_instret >= 4'd2) no_fuse <= 1'b0;
+                nf_r    <= 1'b0;
+            end else if (nf_r) begin
+                if (4'(nf_cnt) + cmt_instret >= 4'd2) nf_r <= 1'b0;
                 nf_cnt <= nf_cnt + 2'(cmt_instret);
             end
         end

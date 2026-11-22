@@ -373,6 +373,11 @@ the free list; renaming gets them (about 0.3k LUTs).
   and fetched again with fusion off for that group, so the two instructions run one at a time and `mepc` / `mtval`
   and the registers are exact (with one write per pair, the first half's result may never have been written).
 - Debug halts and single steps are taken at commit; no fusion while single-stepping or with triggers armed.
+  **Built** (step 1.8 J1, `Plan/OOC.md` 29.101 / 29.102): mmRISC-2's Debug Module unchanged (`RTL/CPU/DBG`, no
+  program buffer); a halt taken at the head as an interrupt, EBREAK into debug mode by dcsr, the step one commit with
+  no interrupt; registers accessed through short sequences the core runs in debug mode (fetched from 0x800, the I$
+  answering from `OOO_DBG`'s words), memory through the D$'s miss handler (coherent with the write-back D$); the
+  4 triggers (type 2) at D2 (execute) and the LSU's M (loads, stores), resolved at the head (a breakpoint or a halt).
 - **Built** (`OOO_TRAP`, `Plan/OOC.md` 22): an interrupt is not taken while the head is a non-speculative µop that has
   issued (its effect has happened) and wins over the head's exception; the refetch of a pair keeps fusion off until two
   instructions have committed; mtval is the tval of the oldest exception reported; MRET's replay fetches from mepc.

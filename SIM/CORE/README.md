@@ -358,3 +358,25 @@ its pages with it): `b4/dir/cboz.S` checks it in M mode bare, in S mode under Sv
 younger store and loads in its line, its page and access faults and CBZE's illegal instruction in S and U. The bench
 widens the core's record of it to a 64-byte store of zeros (LOCKSTEP's) and zeroes its line in the architectural
 memory; it counts as a store retired (event 4). Core mutations 298 to 313.
+
+## Debug (step 1.8 J1, 2026-11-22)
+
+`Plan/OOC.md` 29.102. `dbgmodel.h` is a debugger on the core's debug ports (in place of `RTL/CPU/DBG`'s Debug Module:
+`hart_*`, `reg_*`, and `bm_*` on `OOO_CPU`), in lock-step: `-dbg n` halts the hart every n cycles on average, checks
+dpc against the reference's pc and dcsr.cause against the halt, then makes a few random accesses, each checked
+against the reference or put into it (a GPR / FPR read, 64 or 32 bits; a GPR, FPR or scratch CSR written, read back
+and written back; CSRs both keep alike; the errors: no such CSR, a read-only one, past the FPRs; on `OOO_CPU` memory
+read, written, read back and written back, text or data, cached or dirty), then resumes or steps 1 to 3 times (each
+step one instruction, traced, or a trap and a halt at the handler; never an interrupt; dpc the reference's pc).
+`-dbgf m` adds 1: dcsr.ebreakm / s / u, drawn again at each resume (an EBREAK halts, cause 1, checked against the
+bit of dcsr.prv; the debugger steps over it in both), 2: an execute trigger of the debugger's on dpc in trigger 3
+(the program's kept and put back; the hart halts again at once, cause 2), 4: resethaltreq in half the runs (a halt
+before the first instruction, cause 5, nothing committed before it), 8: SSIP pending and enabled through some steps
+(the steps take none). minstret is among the CSRs compared (debug mode's sequences not counted). While halted the PMU's events are checked to be 0 but cycles, the restores and replays of debug mode are
+not counted, and the fills are not compared at the end; the FP file starts at 0 as Spike's (a debugger reads it).
+`b4/dir/ebrk.S` is the debugger's vehicle for EBREAK (in M, S with C.EBREAK, and U). `b4/dir/trig.S` checks the triggers of action 0 (execute on a compressed instruction and on a word's second halfword, tcontrol.MTE and mstatus.MIE,
+loads, stores, a misaligned load's breakpoint first, AMOs, FP loads, two at one instruction, tselect, S and U
+modes, hit, tval); `rv64mi-p-breakpoint` runs. run_core runs the b4 set with `-exit0` (the self-checking programs'
+verdicts count, though the reference takes values such as `tdata1`'s from the core) and adds the debugger's runs:
+ebrk.S, trig.S, b3 and the rv64mi / si -p- programs with `-dbg 200 -dbgf 15` on both tops. Core mutations 314 to 339; `SIM/OCD` runs
+OpenOCD on `OOO_CPU` with the Debug Module.

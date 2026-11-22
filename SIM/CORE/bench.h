@@ -146,6 +146,11 @@ public:
     const std::string& error() const { return err; }
     std::string summary(const std::string& name) const;
     uint64_t cycles = 0, insns = 0, uops = 0;
+    // the debugger's model (tb_core -dbg, step 1.8 J1): the reference to check its reads against and to put its
+    // writes into (nullptr without lock-step), a failure of its own, the watchdog told the hart is halted
+    Lockstep* refp() { return ref.get(); }
+    void dbg_fail(const std::string& why) { fail(why); }
+    void touch() { last_commit_cycle = cycles; }
 private:
     void fail(const std::string& why);
     void finish();

@@ -11,6 +11,7 @@
 #               / OOC_FBUF / OOC_FTQ / OOC_FRONT / OOC_DEC / OOC_IQPL / OOC_LSUDC / OOC_CTRL / OOC_DSREG / OOC_FERS / OOC_TRAP / OOC_SYS / OOC_CSRU / OOC_MDUP / OOC_PMUL
 #               / OOC_FE (the whole front end, OOO_FRONT; not in synth_ooo.bat's loop)
 #               / OOO_CPU (B7: the whole core with its D$, below; not in the loop)
+#               / DBG_TOP (step 1.8 J1: the debug logic, RTL/CPU/DBG: the DM, the DTM, the CDC, cJTAG; not in the loop)
 #               / MM2_CPU_CORE (the calibration: mmRISC-2's whole CPU_CORE, below)
 #                                                          OOC_ALU2
 #     period    clock period in ns                         20.0 (50 MHz)
@@ -57,6 +58,7 @@ set core   ../../RTL/CPU/CORE
 set cache  ../../RTL/CPU/CACHE
 set mmio   ../../RTL/CPU/MMIO
 set fpu    ../../RTL/CPU/FPU
+set dbg    ../../RTL/CPU/DBG
 
 set top    [expr {[llength $argv] > 0 ? [lindex $argv 0] : "OOC_ALU2"}]
 set period [expr {[llength $argv] > 1 ? [lindex $argv 1] : 20.0}]
@@ -102,7 +104,7 @@ read_verilog -sv [list \
     $rtl/OOO_PREDEC/OOO_PREDEC.sv $rtl/OOO_TAGE/OOO_TAGE.sv $rtl/OOO_BTB/OOO_BTB.sv $rtl/OOO_RAS/OOO_RAS.sv \
     $rtl/OOO_FETCH/OOO_FETCH.sv $rtl/OOO_TAGE2/OOO_TAGE2.sv $rtl/OOO_FETCH2/OOO_FETCH2.sv $rtl/OOO_FRONT/OOO_FRONT.sv $core/CORE_DECOMP/CORE_DECOMP.sv $core/CORE_DEC/CORE_DEC.sv \
     $rtl/OOO_RARE/OOO_RARE.sv $rtl/OOO_DEC/OOO_DEC.sv $rtl/OOO_IQPL/OOO_IQPL.sv $rtl/OOO_IQPL2/OOO_IQPL2.sv $rtl/OOO_DCAD/OOO_DCAD.sv $rtl/OOO_CTRL/OOO_CTRL.sv \
-    $rtl/OOO_DSREG/OOO_DSREG.sv $rtl/OOO_FERS/OOO_FERS.sv $rtl/OOO_TRAP/OOO_TRAP.sv $rtl/OOO_SYS/OOO_SYS.sv \
+    $rtl/OOO_DSREG/OOO_DSREG.sv $rtl/OOO_FERS/OOO_FERS.sv $rtl/OOO_TRAP/OOO_TRAP.sv $rtl/OOO_DBG/OOO_DBG.sv $rtl/OOO_SYS/OOO_SYS.sv \
     $rtl/OOO_ALUF/OOO_ALUF.sv $rtl/OOO_ALUR/OOO_ALUR.sv $rtl/OOO_EXU/OOO_EXU.sv $rtl/OOO_PRF2/OOO_PRF2.sv \
     $rtl/OOO_STAGE/OOO_STAGE.sv $rtl/OOO_CORE/OOO_CORE.sv $rtl/OOO_DMISS2/OOO_DMISS2.sv $rtl/OOO_ICACHE/OOO_ICACHE.sv $rtl/OOO_MARB/OOO_MARB.sv $rtl/OOO_CPU/OOO_CPU.sv \
     $core/CORE_CSR/CORE_CSR.sv $rtl/OOO_CSRU/OOO_CSRU.sv $core/CORE_MDU/CORE_MDU.sv $rtl/OOO_MDUP/OOO_MDUP.sv $rtl/OOO_PMUL/OOO_PMUL.sv \
@@ -110,6 +112,7 @@ read_verilog -sv [list \
     $cache/DCACHE/DCACHE.sv $cache/CPU_L2/L2_TAG_ARRAY.sv $cache/CPU_L2/CPU_L2.sv \
     $mmio/CPU_CLINT/CPU_CLINT.sv $mmio/CPU_PLIC/CPU_PLIC.sv $mmio/CPU_MMIO/CPU_MMIO.sv \
     $fpu/FPU_ROUND/FPU_ROUND.sv $fpu/FPU_PIPE/FPU_PIPE.sv $rtl/OOO_FREN/OOO_FREN.sv $rtl/OOO_FIQ/OOO_FIQ.sv $rtl/OOO_FPUW/OOO_FPUW.sv \
+    $dbg/DBG_CDC/DBG_CDC.sv $dbg/DBG_CJTAG/DBG_CJTAG.sv $dbg/DBG_DTM/DBG_DTM.sv $dbg/DBG_DM/DBG_DM.sv $dbg/DBG_TOP/DBG_TOP.sv \
     ./rtl/OOC_WRAP.sv]
 }
 
