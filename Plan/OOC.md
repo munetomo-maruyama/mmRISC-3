@@ -6561,3 +6561,62 @@ The author's go ("Start L1"). **Gate S1-C is met**: on `OOO_CPU`, in lock-step w
 All within the 0.3 ns that one placement swings (28.10). `OOO_CPU` at 20 ns holds with K1 and L1.
 
 **Next**: J1 (debug), as 29.76 orders.
+
+### 29.101 Step 1.8 J1: debug, the design (2026-11-22)
+
+The author's go ("Start J1"). As with K1 (29.97), the design first, for the author to confirm: three choices below change what is built.
+
+**What is there**:
+- mmRISC-2's debug logic (`mmRISC-2/RTL/CPU/CPU_DBG`, `CPU_DBG_SPEC.md`, Debug Spec 1.0): `DBG_CJTAG` (OScan1), `DBG_DTM` (the TAP, IDCODE, dtmcs, dmi), `DBG_CDC` (TCK to the system clock), `DBG_DM` (the DM's registers, the abstract commands Access Register and Access Memory, SBA, authentication, haltsum0, resethaltreq, hartreset, ndmreset), `DBG_BUSMST` (SBA's AXI4 / AXI4-Lite), `DBG_CACHE` (its D$ port). It has no program buffer (progbufsize 0): Access Register goes to the hart on `hart_reg_*` (a request, a register number, the data; an answer or an error), and halt / resume on `hart_haltreq`, `hart_resumereq`, `hart_resethaltreq`, `hart_halted`, `hart_running`, `hart_resumed`. OpenOCD (riscv-openocd, installed here) ran on it with mmRISC-2's core in `SIM/SIM_OCD` (Verilator, remote_bitbang): halt, registers, step, software and hardware breakpoints, watchpoints, reset halt, memory, authentication.
+- `CORE_CSR` (mmRISC-3's copy) has dcsr (ebreakm / s / u, step, prv, cause; stepie, stopcount, stoptime 0), dpc, dscratch0 / 1 (visible only to `dbg_access`), the 4 triggers of type 2 (exact address match, before the instruction or access; action 0 a breakpoint, 1 debug mode only with dmode from the debugger; tcontrol.MTE), with `dbg_enter` / `dbg_resume` / `trig_fired`. `OOO_CSRU` passes them on; `OOO_CORE` ties them off (no debug today).
+
+29.76 planned a program buffer with a fetch from the DM's ROM. mmRISC-2's DM has none and OpenOCD does without one, so the DM is kept as it is, and what the hart needs is built in the core (choice 1).
+
+**The DM, unchanged**: `DBG_CJTAG`, `DBG_DTM`, `DBG_CDC` and `DBG_DM` copied into `RTL/CPU/DBG/` as `RTL/CPU/CACHE`, `MMIO` and `FPU` were (their own README there), with `CPU_DBG`'s wrapper made for `OOO_CPU`: the JTAG / cJTAG pins, `rst_dbg_n` (the DM's own power-on reset, 4.2 of its spec), `ndmreset` out, the authentication inputs. The hart's reset (ndmreset, hartreset) resets `OOO_CPU` as mmRISC-2's did its core, caches and bus side; `hart_not_ready` while the L2 clears its tags.
+
+**Halt, resume, step: at the ROB head, as an interrupt** (`OOO_TRAP`, `OOO_CTRL`, a new `OOO_DBG` beside them):
+- **halt** (haltreq, cause 3): taken at the head between µops as an interrupt is (29.78: nothing commits; not while the head is a non-speculative µop that has issued): the ROB emptied, `dbg_enter` with dpc = the head's pc, dcsr.cause, dcsr.prv; mepc / mcause untouched. The front end then fetches nothing of the program (choice 1 says what it fetches). WFI waiting: haltreq wakes it (as a pending interrupt does), WFI commits, the next µop halts (dpc after the WFI, Debug Spec 4.1). The ROB empty with nothing coming (a fetch fault queued, ...) still halts: the fault's µop reaches the head.
+- **EBREAK** with dcsr.ebreakm / s / u for the privilege (cause 1): EBREAK already traps at decode (cause 3 at the head); `OOO_TRAP` enters debug mode in place of the trap, dpc = the EBREAK's pc.
+- **resethaltreq** (cause 5): the first µop after reset halts; a haltreq held by the DM through reset as mmRISC-2's (4.2: the L2's clearing).
+- **resume**: fetch from dpc at dcsr.prv (`dbg_resume`: the level, MPRV cleared below M), as MRET's replay redirects.
+- **step** (cause 4): after resume, one instruction commits and the next µop halts. Fusion off while stepping (`no_fuse`: a pair is two instructions), commit limited to the head's µop, interrupts off (stepie 0). If that instruction traps, the trap is taken and the handler's first µop halts (dpc = the vector), as mmRISC-2 did.
+- **priority**: resethaltreq, haltreq, step; a halt wins over the head's exception and over an interrupt (taken before the instruction, which runs again after resume).
+
+**Choice 1: registers through instructions the core executes** (recommended), in place of mmRISC-2's way (its pipeline empty and in order, it borrowed a register file's read port for a cycle and wrote through a write port). In the OoO core a GPR is a physical register through the rename map, in a file of LVT banks; a direct access needs a read of the map and a mux on a port's read and write (the RR and WB paths: V3c's and 29.92's), for something done a few times a second. Instead, while halted, `OOO_DBG` answers `hart_reg_*` by having the core execute a short sequence, as a program buffer would, generated inside:
+- a GPR read: `csrw dscratch0, xN`, then `OOO_DBG` reads dscratch0 through `dbg_access`; a write: dscratch0 written through `dbg_access`, then `csrr xN, dscratch0` (renamed and committed as any: the map, the file and the free list stay right);
+- an FPR: the same through x1, saved in dscratch1 (`csrw dscratch1, x1; fmv.x.d x1, fN; csrw dscratch0, x1; csrr x1, dscratch1`, and the reverse; mstatus.FS made dirty by `fmv.d.x` as by any FP write);
+- a CSR (dcsr, dpc, the triggers among them): `CORE_CSR`'s debugger port, as mmRISC-2 (`dbg_access`: read and write in a cycle while halted, the CSR unit idle); a CSR that does not exist or a write to a read-only one: the error (cmderr 3);
+- a 32-bit write keeps the upper half (read, merge, write), as mmRISC-2.
+
+Each sequence ends with EBREAK, which in debug mode leaves the hart halted (no trap, dpc kept, Debug Spec 4.1: an exception in the sequence is the error, cmderr 3). The words reach the core as a fetch: `OOO_CTRL` redirects to a debug address (`DBG_PC`, outside memory: 0x0000_0800, as the spec's example ROMs), and `OOO_ICACHE` answers a block there from `OOO_DBG`'s words in place of its arrays (a mux into its answer register: the answer's flip-flops start 29.100's worst path, the mux is on their input; no ITLB, PMP or memory for that block: debug mode is M, and the spec lets debug mode's own fetch skip PMP). What executes in debug mode is the core's, not the program's: not counted in minstret nor the events (instret and the PMU's counts masked), not traced (lock-step does not see it), its CSR writes to dscratch through `dbg_access`. About 20 to 40 cycles an access, against OpenOCD's microseconds per JTAG scan.
+
+Alternative (b): mmRISC-2's way, direct ports: the map's architectural read and a mux on port 0's register read address and a WB write (the LVT through it), the FP map and file the same; faster per access, about +0.4k LUTs more, muxes on the RR / WB paths that limited V3 three times.
+
+**Choice 2: memory through `OOO_DMISS2`, as the walker's tables** (recommended). Access Memory and SBA share the DM's bus master interface (`bm_*`: a request, an ack, one access at a time). `OOO_DMISS2` already reads a physical word for `OOO_PTW` coherently with the write-back D$ (29.87: its line found in the 4 sets of its index, the word read from the D$'s copy, dirty or not; else filled). A third client of that port (`db_*`), after the walker:
+- a read: as the walker's (found: from the D$'s copy; else the line filled, the word from its beat);
+- a write: the line found or filled, the word merged by the bytes (8 / 16 / 32 / 64) through the fill's write port (`rf_*`) and the line made dirty;
+- outside the cacheable memory: a device access (`uc_*`, one beat on AXI4-Lite; `CPU_MMIO`'s CLINT and PLIC answer inside);
+- coherent whether the hart runs or not (a write while it runs may meet a store to the same line: no order is promised, as the spec allows for SBA; Access Memory while running as mmRISC-2 allowed);
+- the I$: after any debugger write, the resume does FENCE.I's work first (the D$'s FLUSH to the L2, the I$ invalidated), so a software breakpoint (an EBREAK written over an instruction) is fetched.
+
+Alternative (b): `DBG_BUSMST` on the bus (a third master of `OOO_MARB`, beside the D$'s on AXI4-Lite), the D$ flushed at a halt and invalidated with the I$ at a resume after a write (an invalidate of the D$ is new: a walk of its tags); simpler, but memory as the D$ holds it is not seen while the hart runs.
+
+**Choice 3: the triggers as mmRISC-2's** (4 of type 2, exact match; recommended as is, no range match):
+- execute: each slot's pc against the 4 tdata2 at D2 (16 compares of 39 bits, with m / s / u for the privilege and MTE in M), marked as an exception of decode (as EBREAK's, after the fetch's faults): at the head action 0 traps (cause 3, tval the pc), action 1 halts (cause 2);
+- load / store: the virtual address against the 4 at the LSU's M from `m_a` (a register), into W's exception (before misaligned, page and access faults of the same access, as the privileged spec orders): a store's data never drains (it traps at the head before its commit), a load's result is dropped; 29.100's third worst path (+0.409 ns) ends at `w_cause`, so the compare is registered first if Vivado asks, the exception a cycle later;
+- hit set when the trap or halt is taken at the head (`trig_fired`), not on a flushed path; tcontrol.MTE cleared on a trap to M, as `CORE_CSR` does.
+
+**Lock-step**: Spike has its own debug mode, not driven here: the reference is told nothing of a halt; what executes in debug mode is not traced; a debugger's write into a register, a CSR or memory is pushed into the reference before the resume (the bench sees it on `hart_reg_*` / `bm_*`); a resume continues the comparison. Triggers of action 0 (breakpoint traps) are compared as Spike's (its type 2 triggers; tselect..tinfo then read as Spike's, not the core's: 29.99's rule taken back once they work).
+
+**Tests**:
+- `tb_core` with a debugger model on `hart_*` / `bm_*` (no JTAG): halt, resume, step (into a trap, out of WFI), EBREAK in M / S / U, every GPR and FPR read and written, CSRs and their errors, memory (cached, dirty, a device), a software breakpoint, triggers of both actions on execute, load and store, resethaltreq; random halts and steps over riscv-tests and CoreMark in lock-step (the run unchanged by them);
+- `b4/dir/trig.S` (action 0 triggers, MTE) and `rv64mi-p-breakpoint` on both tops;
+- `SIM/OCD`: mmRISC-2's `SIM_OCD` on `OOO_CPU` with `CPU_DBG` (OpenOCD by remote_bitbang, JTAG and cJTAG): its test_ocd.tcl (halt, registers, step, software and hardware breakpoints, watchpoints, reset halt, ndmreset, authentication) plus a dirty line read and an FPR;
+- `SIM/DBG`: mmRISC-2's `SIM_DBG` (the DTM and DM alone) as it was, for the copy;
+- mutations in `OOO_DBG`, the halt and step at the head, the triggers, `OOO_DMISS2`'s port.
+
+**Cost**: the DM, DTM, CDC and cJTAG about 1.5k LUTs (mmRISC-2's, by their FF and logic; to be measured), `OOO_DBG` and the head's halt and step about 0.4k, `OOO_DMISS2`'s third client about 0.2k, the triggers about 0.5k (16 + 8 compares): **about +2.6k LUTs** (29.76: 3k), at 1.8's end about 108.2k, with LiteX about 113.5k.
+
+**Order**: J1a the core's side (halt, resume, step, EBREAK; registers through instructions; `OOO_DMISS2`'s port; triggers) with `tb_core`'s debugger model in lock-step; J1b the DM copied and joined in `OOO_CPU`, `SIM/OCD` and `SIM/DBG`; then J2, `OOO_CPU` at 20 ns: step 1.8 done.
+
+**For the author**: choice 1 (registers through executed instructions, or direct ports), choice 2 (memory through `OOO_DMISS2`, or on the bus), choice 3 (triggers as mmRISC-2's); and 29.76's program buffer left out (progbufsize 0, as mmRISC-2).

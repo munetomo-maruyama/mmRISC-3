@@ -11253,3 +11253,36 @@ Will you tell me when `synth_ooo.bat OOO_CPU` has finished?
 ```text
 Run finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+`OOO_CPU` with K1 and L1 meets 20 ns on Vivado. The result is recorded in Plan/OOC 29.100 and STRATEGY and pushed as bc2bd70; I checked that origin/dev holds no file under Ref/.
+
+**Results**
+- **Timing:** WNS +0.224 ns, TNS 0, hold +0.028 ns, no endpoint failing. V3d was +0.073 ns.
+- **Resources:** 105,608 LUTs, 346 fewer than V3d (107,154 after synthesis); 27,852 FF (+172), 42 DSP, 284.5 BRAM tiles.
+  - K1 and L1's own LUTs are smaller than the spread of synthesis and cannot be told apart. Blocks they did not touch moved more: `OOO_IQ` (−663), `OOO_FRONT` (−501), `OOO_FPUW` (+474).
+  - The blocks they touched changed little: `CORE_CSR` +83 (+52 FF), `OOO_LSU4` −80 (+26 FF).
+  - The FF increase (+172) matches K1's estimate of +0.2k plus L1's about 30.
+
+**Paths**
+- V3d's worst, the `k_ckpt` path (from ALU port 0 through the branch compare), is no longer among the 100 worst endpoints. That is placement, not the RTL.
+- The worst three now:
+  - the I$'s answer through F2's predecode to the uBTB's `pc_q`: +0.224 ns (21 levels);
+  - `pc_q` through the ITLB to the walker's `r_ptag` reset: +0.262 ns;
+  - LSU port 1's DTLB through PMP to `w_cause`: +0.409 ns. An old path; CBO.ZERO's logic is not on it.
+- All within the 0.3 ns that one placement swings.
+
+**The LUT outlook**
+- At step 1.8's end (J1 about +3k) about 108.6k; with LiteX about 113.9k, about 6.2k above the ceiling of 107.7k. A little less than the about 7k over at U3b.
+- The ceiling is an estimate from the Arty, not measured on this device. The budget is yours to decide when it comes.
+
+Next is J1 (debug). Start J1?
+<!-- /answer -->
+
+## 279. 2026-11-22 15:39:34 JST
+
+```text
+Start J1
+```
