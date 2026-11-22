@@ -145,7 +145,10 @@ bool Htif::commit_store(uint64_t addr, uint64_t data, int size)
     // the device first: a character's payload can have bit 0 set too
     unsigned dev = (unsigned)(shadow >> 56), cmd = (unsigned)(shadow >> 48) & 0xff;
     if (dev == 0 && cmd == 0 && (shadow & 1)) { exited = true; code = (int)((shadow << 16) >> 17); }
-    else if (dev == 1 && cmd == 1) out += (char)(shadow & 0xff);
+    else if (dev == 1 && cmd == 1) {
+        out += (char)(shadow & 0xff);
+        if (live) { std::fputc((int)(shadow & 0xff), stdout); std::fflush(stdout); }
+    }
     shadow = 0;
     return true;
 }
@@ -178,6 +181,8 @@ int to_commits(const TraceSlot& s, Commit out[2])
     x = Commit();
     x.pc = s.pc; x.insn = s.insn[0];
     store(x, s.st[0]);
+    // CBO.ZERO: the trace gives its address as a byte store; it zeroes the 64-byte block (LOCKSTEP's record)
+    if (x.st && (x.insn & 0xfff07fffu) == 0x0040200fu) { x.st_addr &= ~63ull; x.st_data = 0; x.st_size = 64; }
     if (!s.pair) {
         x.trap = s.trap; x.cause = s.cause;
         if (!s.trap) write(x);
@@ -210,6 +215,7 @@ Bench::Bench(const BenchCfg& cfg) : c(cfg)
     load_into(img, *a);
     uint64_t th = img.symbol("tohost"), fh = img.symbol("fromhost");
     h.reset(new Htif(th, fh ? fh : th + 8));
+    h->live = c.console;
     m->on_write = [this](uint64_t ad, size_t n) { h->mem_write(ad, n, *m); };
     if (c.lockstep) ref.reset(new Lockstep(c.ref));
     dis.reset(new Dis(c.ref));
@@ -279,6 +285,11 @@ bool Bench::commit(const TraceSlot* s, int n)
             if (!x.st || x.trap) continue;
             // (the physical address, by the reference's tables: step 1.8 V1)
             uint64_t pa = ref ? ref->last_st_pa() : x.st_addr;
+            if (x.st_size > 8) {                        // CBO.ZERO: its block (not HTIF's: tohost is not cleared that way)
+                static const uint8_t z[64] = {};
+                a->poke(pa, z, x.st_size);
+                continue;
+            }
             a->poke(pa, &x.st_data, x.st_size);
             if (h->commit_store(pa, x.st_data, x.st_size) && h->exited) { finish(); return false; }
         }

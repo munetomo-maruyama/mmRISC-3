@@ -43,6 +43,9 @@
 // on the peripheral bus (AxiLite keeps it: it is outside Memory). OOO_CORE's interrupt lines are held at 0.
 // Lock-step makes Spike take the interrupt the core took (SIM/LOCKSTEP). The memory compared
 // after the exit is the RAM's (from 0x8000_0000): the devices' stores are not in Memory.
+// Linux (step 1.8 L1, SIM/LINUX): -hang n (the cycles without a commit before a run fails, 20,000 by
+// default: Linux waits in WFI between its ticks), -console (HTIF's characters printed as they come),
+// -progress n (the run's line every n cycles).
 //---------------------------------------------------------------------------
 #ifdef CPU_TOP                  // OOO_CPU: the core with OOO_DCAD and the D$ on the AXI models (build_core.sh cpu)
 #include "VOOO_CPU.h"
@@ -97,6 +100,10 @@ struct Opts {
     std::string rs_out; std::map<std::string, long> rs_ref; double rs_max = 0;
     long rp_max = -1;                   // -replays-max: fail a run with more replays
     bool exit0 = false;                 // -exit0: fail a run whose exit code is not 0
+    uint64_t hang = 20000;              // -hang: cycles without a commit before the run fails (Linux idles in WFI
+                                        //  between its ticks: 500k cycles at HZ 100, step 1.8 L1)
+    bool console = false;               // -console: HTIF's characters printed as they come
+    uint64_t progress = 0;              // -progress: the run's line every so many cycles
 };
 static FILE* rs_out_f = nullptr;
 
@@ -159,7 +166,8 @@ static bool run(const Opts& o, const std::string& elf)
     cfg.elf = elf;
     cfg.exit_sym = o.exit_sym;
     cfg.max_cycles = o.max;
-    cfg.hang_cycles = 20000;
+    cfg.hang_cycles = o.hang;
+    cfg.console = o.console;
     Bench b(cfg);
     ICacheModel ic(b.mem(), o.seed * 7 + 1, o.miss);
 #ifdef CPU_TOP
@@ -211,7 +219,7 @@ static bool run(const Opts& o, const std::string& elf)
     struct EvPrev { int go = 0, offer = 0, cmt = 0, rs = 0, st = 0, id = 0, dw = 0; bool rk = false, fa = false, ff = false, hv = false, mem = false, rr = false, rc = false; } evp;
     bool ev_rec = false;
     // the ROB's ld / st bits of an instruction (bit 0 a load, bit 1 a store): loads and FP loads, LR (a load), SC (a
-    // store), the other AMOs both, stores and FP stores; an encoding that does not exist is neither
+    // store), the other AMOs both, stores and FP stores, CBO.ZERO (a store); an encoding that does not exist is neither
     auto mem_kind = [](uint32_t i) -> int {
         if ((i & 3) != 3) { int q = i & 3, f = (i >> 13) & 7; return (q == 0 || q == 2) && f != 0 && f != 4 ? (f < 4 ? 1 : 2) : 0; }
         int op = i & 0x7f, f3 = (i >> 12) & 7, f5 = i >> 27;
@@ -224,6 +232,7 @@ static bool run(const Opts& o, const std::string& elf)
             if (f5 == 3) return 2;
             if (f5 == 0 || f5 == 1 || f5 == 4 || f5 == 8 || f5 == 12 || f5 == 16 || f5 == 20 || f5 == 24 || f5 == 28) return 3;
         }
+        if ((i & 0xfff07fffu) == 0x0040200fu) return 2;                 // CBO.ZERO: a store (step 1.8 L1)
         return 0;
     };
     auto is_mem = [&](uint32_t i) { return mem_kind(i) != 0; };
@@ -241,6 +250,9 @@ static bool run(const Opts& o, const std::string& elf)
     if (!tw_lo) { tw_lo = b.symbol("kstart"); tw_hi = b.symbol("kend"); }
     long tw_a = -1, tw_b = -1;
     for (uint64_t cyc = 0; !b.done() || drain_left > 0; cyc++) {
+        if (o.progress && cyc && cyc % o.progress == 0) {
+            std::printf("\n@@ %s\n", b.summary(elf).c_str()); std::fflush(stdout);
+        }
         d->boot = cyc == 2;
         d->boot_pc = b.entry() >> 1;
 #ifndef CPU_TOP
@@ -574,6 +586,9 @@ int main(int argc, char** argv)
         else if (a == "-max" && i + 1 < argc) o.max = strtoull(argv[++i], nullptr, 0);
         else if (a == "-v") o.verbose = true;
         else if (a == "-exit0") o.exit0 = true;
+        else if (a == "-hang" && i + 1 < argc) o.hang = strtoull(argv[++i], nullptr, 0);
+        else if (a == "-console") o.console = true;
+        else if (a == "-progress" && i + 1 < argc) o.progress = strtoull(argv[++i], nullptr, 0);
         else if (a == "-restores-out" && i + 1 < argc) o.rs_out = argv[++i];
         else if (a == "-restores-max" && i + 1 < argc) o.rs_max = atof(argv[++i]);
         else if (a == "-replays-max" && i + 1 < argc) o.rp_max = atol(argv[++i]);

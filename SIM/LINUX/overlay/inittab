@@ -1,0 +1,6 @@
+::sysinit:/bin/busybox mount -t proc proc /proc
+::sysinit:/bin/busybox mount -t devtmpfs devtmpfs /dev
+::sysinit:/bin/busybox mount -t tmpfs tmpfs /tmp
+::sysinit:/bin/busybox mount -t sysfs sysfs /sys
+::sysinit:/bin/busybox --install -s
+/dev/console::sysinit:/bin/sh /root/l1.sh

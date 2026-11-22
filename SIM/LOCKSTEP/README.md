@@ -56,6 +56,13 @@ Since step 1.8 V2 (`Plan/OOC.md` 29.88) the reference's instruction is read thro
   `minstret` as it was is a trap only if it wrote `mcause` or `scause` (step 1.8 K1); `medeleg`'s bit 18 cleared after a write; a reserved mode written to `mtvec` / `stvec`
   made direct (Spike clears bit 1 only). riscv-arch-test's Sm tests found each. `SIM/CORE`'s stand-in test, where
   the core is a second Spike, turns them off.
+- **Linux** (step 1.8 L1, `Plan/OOC.md` 29.99; OpenSBI and the kernel found each): `stimecmp` starts at all ones,
+  the core's value after reset (Spike's is 0; Sstc does not say); reads of the triggers' CSRs (`tselect`, `tdata1` to
+  `tdata3`, `tinfo`) take the core's value (its 4 triggers are mcontrol only, Spike's take 5 types; OpenSBI probes
+  them); Spike's cache-block size is set to 64 (a bare `processor_t` leaves it unset, and `cbo.zero` zeroed a block of
+  garbage); CBO.ZERO is one store of 64 zero bytes at its block on both sides (`st_size` 64: Spike's 64 byte stores
+  folded, the core's record of its address widened by the test bench), and its fault's tval is the address given,
+  the core's choice (Spike's is the block's base; the specification names neither).
 - **Misaligned accesses trap** (as in mmRISC-2), and the reference is set the same way.
 - **The reference is mmRISC-2's machine**: its instruction set (`rv64imafdc_zicboz_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zihpm_zba_zbb_zbc_zbs_smcntrpmf_sscofpmf_sstc`, kept by mmRISC-3) and 16 PMP entries (8 implemented, 8 reading 0), M / S / U modes; one RAM region from 0x8000_0000 (64 MB), no devices.
 - **Interrupts** (since step 1.8 I1, `Plan/OOC.md` 29.78): the core's trace reports one taken before the head (`tr_int`,

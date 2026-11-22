@@ -78,6 +78,8 @@
 // carries CORE_DEC's command in xop. SC and an AMO are answered from outside:
 // OOO_LSU4 writes the result through its port 0 and wakes the issue queue
 // (ext port 1, at_wk_*); its access fault (5 LR, 7 SC / AMO) and tval.
+// CBO.ZERO (step 1.8 L1, Plan/OOC.md 29.99), non-speculative, slot 0: a store
+// with an SQ entry, xop 1; OOO_LSU4 zeroes its line as the entry drains.
 //
 // The renamed FPU (step 1.8 U2, Plan/OOC.md 29.80 to 29.83): FP decoded in every slot
 // (since U2b; a rare class in slot 0 at U2a). OOO_FREN renames the FP
@@ -383,6 +385,7 @@ module OOO_CORE
     // the FP CSR state decode reads (OOO_CSRU's; a CSR write replays what follows it)
     logic [1:0]          fs;
     logic [2:0]          frm;
+    logic                menv_cbze, senv_cbze;  // Zicboz: cbo.zero below M (menvcfg.CBZE), in U too (senvcfg.CBZE)
 
     // the fetch's translation (step 1.8 V2): the current privilege (not MPRV), from CORE_CSR's registers (a trap or a
     // return redirects fetch as they change); the walker shared with the LSU (below)
@@ -503,7 +506,7 @@ module OOO_CORE
     end
     always @(*) begin
         logic [1:0] s;
-        logic       jmp, link_rd, link_rs1, sysop_v, at, ifl;
+        logic       jmp, link_rd, link_rs1, sysop_v, at, ifl, cbo, cbx;
         logic [2:0] sysop;
         logic [VA-1:1] ipc;
         for (int j = 0; j < ND; j++) begin
@@ -518,6 +521,12 @@ module OOO_CORE
             link_rs1 = g_rs1[s] == 5'd1 || g_rs1[s] == 5'd5;
             // an atomic (step 1.4 E1c, slot 0 only): LR a load, SC a store, an AMO both (an LQ entry and an SQ entry)
             at       = g_port[s] == 2'd2 && g_mem_cmd[s] >= 5'd2 && g_mem_cmd[s] <= 5'd12 && !g_is_fp[s] && !g_illegal[s];
+            // CBO.ZERO (step 1.8 L1): a store with an SQ entry, its line zeroed as it drains; xop 1 tells OOO_LSU4.
+            // Below M only as menvcfg.CBZE lets it, in U senvcfg.CBZE too: else an illegal instruction here, as an FP
+            // instruction with FS off (mmRISC-2's CPU_CORE, decision 76; the CSRs' writes and the returns refetch)
+            // (its store bit and SQ entry either way, as an FP store with FS off)
+            cbo      = g_sys[s][2] && !g_illegal[s];
+            cbx      = cbo && priv != 2'b11 && !(menv_cbze && (priv == 2'b01 || senv_cbze));
             d2[j]                = '0;
             d2[j].rec.pred_taken = g_taken[s];
             d2[j].rec.call       = g_is_jalr[s] && link_rd;
@@ -546,7 +555,7 @@ module OOO_CORE
             d2[j].rec.uns        = !g_mem_signed[s];
             d2[j].rec.is_ld      = g_cls[s] == 3'd4 || (at && g_mem_cmd[s] != 5'd3) || fpld[j];
             d2[j].ld             = g_cls[s] == 3'd4 || (at && g_mem_cmd[s] != 5'd3) || fpld[j];
-            d2[j].st             = g_cls[s] == 3'd5 || (at && g_mem_cmd[s] != 5'd2) || fpst[j];
+            d2[j].st             = g_cls[s] == 3'd5 || (at && g_mem_cmd[s] != 5'd2) || fpst[j] || cbo;
             d2[j].rec.fpd        = fpld[j];
             d2[j].rec.fx         = fi2f[j];
             d2[j].fq             = fpar[j] && !fi2f[j];
@@ -563,16 +572,16 @@ module OOO_CORE
             d2[j].wr             = ren_wr[j];
             d2[j].arch           = g_rd[s];
             d2[j].rec.kind       = g_cls[s] == 3'd6 ? K_MDU : g_is_csr[s] ? K_CSR : sysop_v ? K_SYS : K_ALU;
-            d2[j].rec.xop        = g_cls[s] == 3'd6 ? g_mdu_op[s] : at ? g_mem_cmd[s][3:0] : {1'b0, sysop};
+            d2[j].rec.xop        = g_cls[s] == 3'd6 ? g_mdu_op[s] : at ? g_mem_cmd[s][3:0] : cbo ? 4'd1 : {1'b0, sysop};
             // a fetch fault (step 1.8 V2: 12 a page fault, 1 an access fault; tval its pc, + 2 if in its last half), illegal
             // (an FP instruction with FS off or a reserved rounding mode too), EBREAK, ECALL
             ifl                  = g_ifault[s] != 2'd0;
             ipc                  = g_pc[s] + (VA - 1)'(g_ifx[s]);
-            d2[j].exc            = ifl || g_illegal[s] || fexc[j] || g_sys[s][4] || g_sys[s][3];
+            d2[j].exc            = ifl || g_illegal[s] || fexc[j] || cbx || g_sys[s][4] || g_sys[s][3];
             d2[j].cause          = ifl ? (g_ifault[s] == 2'd1 ? 5'd12 : 5'd1) :
-                                   (g_illegal[s] || fexc[j]) ? 5'd2 : g_sys[s][4] ? 5'd3 : (5'd8 | 5'(priv));
+                                   (g_illegal[s] || fexc[j] || cbx) ? 5'd2 : g_sys[s][4] ? 5'd3 : (5'd8 | 5'(priv));
             d2[j].tval           = ifl ? {{(64 - VA){ipc[VA-1]}}, ipc, 1'b0}
-                                 : (g_illegal[s] || fexc[j]) ? {32'd0, g_insn[s]}     // (an RVC one: the upper half 0, OOO_FBUF)
+                                 : (g_illegal[s] || fexc[j] || cbx) ? {32'd0, g_insn[s]}     // (an RVC one: the upper half 0, OOO_FBUF)
                                  : g_sys[s][4] ? {{(64 - VA){g_pc[s][VA-1]}}, g_pc[s], 1'b0} : 64'd0;
             d2[j].ns             = g_nonspec[s];
             d2[j].md             = g_ext_ans[s];
@@ -1164,7 +1173,7 @@ module OOO_CORE
     logic [1:0]      m_mpp;
     /* verilator lint_off UNUSEDSIGNAL */      // (satp's ASID; debug, triggers: Phase 2)
     logic [63:0]     satp;
-    logic            menv_cbze, senv_cbze, dcsr_step, dcsr_ebm, dcsr_ebs, dcsr_ebu, tctl_mte;
+    logic            dcsr_step, dcsr_ebm, dcsr_ebs, dcsr_ebu, tctl_mte;
     logic [63:0]     dbg_rdata, dpc;
     logic [31:0]     trig_cfg;
     logic [255:0]    trig_addr;

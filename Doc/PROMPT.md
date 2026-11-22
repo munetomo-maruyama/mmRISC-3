@@ -11156,3 +11156,29 @@ Lint matches HEAD. The final chain (run_core, CoreMark, 28 core and 12 unit muta
 ```text
 Please try again.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+On the rerun, K1 (the PMU's events) is done. It is pushed to dev as ce3c01e, and Ref/ is not on the remote (0 files).
+
+**Results**
+- **Unit regression (ctrl / csru / rob) and run_core (12 runs):** all PASS.
+- **CoreMark:** PASS; the timed windows are unchanged at 1,211,530 / 1,274,507 / 1,211,996 cycles.
+- **Mutations:** all 40 detected (core 270 to 297, unit M1556 to M1567). The three the first run left:
+  - **272 / 273 (loads and stores miscounted):** the bench did not check events 3 / 4 every cycle, and pmu.S has 4 loads and 4 stores, so swapping them changed nothing. The bench now checks them every cycle (LR a load, SC a store, the other AMOs both).
+  - **M1559:** it cut a top-level input port to 3 bits, but Verilator does not mask its top's inputs, so simulation cannot see it. It now cuts the internal signal `ir_inc` on the same path.
+- **CoreMark's Top-Down:** about 62.7 % retiring, 5.1 % bad speculation, 10.3 % front end, 21.9 % back end. Most of the back end is dispatch waiting for an issue queue.
+
+**A mistake of mine, fixed:** an earlier commit, c3d6902, overwrote Plan/OOC.md and Plan/OOC_J.md with the 29.96 entry alone. About 6,400 lines of history were lost, unnoticed for two commits. I restored them from git: the history to 29.95, then 29.96, 29.97 and 29.98. No other file lost anything the same way, and I left a note against it happening again.
+
+K1's LUT cost is not yet measured in Vivado; the estimate is about +0.4k LUTs.
+
+Measure K1's cost in Vivado first, or go straight to L1 (Linux in lock-step to its prompt)?
+<!-- /answer -->
+
+## 276. 2026-11-22 02:54:15 JST
+
+```text
+Start L1
+```

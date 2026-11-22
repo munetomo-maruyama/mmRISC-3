@@ -17,7 +17,7 @@
 # riscv-arch-test, 209 since E1c, illegal.S, dcrace.S, atomic.S, devld.S;
 # F, D, Zcd, the FP Sm / Exceptions tests and Plan/fpu's DSP kernels since step
 # 1.8 U2; riscv-tests' -p- programs as run_core.sh runs them, 146 with rv64ua,
-# 170 with rv64uf / ud and rv64mi-p-csr, 171 with rv64si-p-dirty and b4/dir/vm.S since step 1.8 V1; atomic.S's part 7 since V3b),
+# 170 with rv64uf / ud and rv64mi-p-csr, 171 with rv64si-p-dirty and b4/dir/vm.S since step 1.8 V1; atomic.S's part 7 since V3b; cboz.S since step 1.8 L1),
 # on OOO_CPU then the interrupts' programs (b4/irq, the Interrupts groups,
 # each to exit 0: -exit0, step 1.8 I1, Plan/OOC.md 29.78; a mutation with a
 # 5th field CPU runs on OOO_CPU, as OOO_DMISS2's, OOO_CPU's, OOO_ICACHE's and CPU_PLIC's do), last on CoreMark (g14 sf + -flto; at most 2,000 replays: about
@@ -443,6 +443,23 @@ MUT = [
     (C, "hpm_ev[26] <= 4'(ev_rreg);", "hpm_ev[26] <= 4'(ev_rckpt);", "K1: renaming's wait for registers: for a checkpoint"),
     (C, 'if (w_start) w_own_f <= !w_req;', 'if (w_start) w_own_f <= w_req;', "K1: the walker's busy cycles given to the other side"),
     (C, "hpm_ev[30] <= 4'(!head_valid);", "hpm_ev[30] <= 4'(cmt_valid == '0);", 'K1: the ROB empty: no commit'),
+    # step 1.8 L1: CBO.ZERO (b4/dir/cboz.S; Linux's clear_page)
+    (C, "fpst[j] || cbo;", "fpst[j];", 'L1: CBO.ZERO without an SQ entry'),
+    (C, "cbo ? 4'd1 :", "cbo ? 4'd0 :", 'L1: CBO.ZERO as a plain store (xop 0)'),
+    (C, "!(menv_cbze && (priv == 2'b01 || senv_cbze))", "!menv_cbze", 'L1: CBO.ZERO in U without senvcfg.CBZE'),
+    (C, "!(menv_cbze && (priv == 2'b01 || senv_cbze))", "!(priv == 2'b01 || senv_cbze)", 'L1: CBO.ZERO in S without menvcfg.CBZE'),
+    (C, "cbx      = cbo && priv != 2'b11 &&", "cbx      = cbo &&", 'L1: CBO.ZERO illegal in M without CBZE'),
+    (L4, "szl[i] ? swa[i][8:3] == e_a[11:6] :", "", "L1: a load in another word of CBO.ZERO's line not held"),
+    (L4, "swm = sw0_z ? sw0_wa[8:3] == e_a[11:6] : sw0_wa", "swm = sw0_wa", "L1: ... CBO.ZERO's entry written in the load's E"),
+    (L4, "!szl[f_idx] &&", "", "L1: a load forwarded from CBO.ZERO's entry (rs2's register)"),
+    (L4, "d1_a    <= d0_z ? {swa[dp[SW-1:0]][8:3], dk} : swa[dp[SW-1:0]];", "d1_a    <= swa[dp[SW-1:0]];", "L1: CBO.ZERO's 8 writes at one word"),
+    (L4, "if (d0_z && dk != 3'd7)", "if (d0_z && dk != 3'd3)", 'L1: 4 words of the line zeroed'),
+    (L4, "d2_d    <= d1_z ? 64'd0 : sdr(d1_p[SW-1:0]);", "d2_d    <= sdr(d1_p[SW-1:0]);", "L1: the drain writes the entry's data (rs2's register), not zeros"),
+    (L4, "d3_v <= (dirty_set || st_uc_go) && (!d2_z || d2_k == 3'd7);", "d3_v <= dirty_set || st_uc_go;", "L1: CBO.ZERO's entry leaves after its first word"),
+    (L4, "dk   <= d2_k;", "", 'L1: the word not taken back with the entry (a miss in the line)'),
+    (L4, "d1_m    <= d0_z ? 8'hff : smask[dp[SW-1:0]];", "d1_m    <= smask[dp[SW-1:0]];", 'L1: one byte of each word zeroed'),
+    (L4, "assign m_cbo  = m_v && m_at == 4'd1;", "assign m_cbo  = 1'b0;", "L1: CBO.ZERO's entry not marked"),
+    (L4, "assign at_uc  = m_at != 4'd0 && m_uc;", "assign at_uc  = m_at[3:1] != 3'd0 && m_uc;", 'L1: CBO.ZERO outside the memory not an access fault'),
 ]
 
 # B5a's (Plan/CORE.md 5.19): ALU + branch fusion is off since 5.21 (OOO_FUSE's KINDS 0, Plan/OOC.md 27.5),

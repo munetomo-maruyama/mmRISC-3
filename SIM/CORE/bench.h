@@ -80,6 +80,7 @@ public:
     bool exited = false;
     int code = 0;
     std::string out;
+    bool live = false;         // print each character as it comes (tb_core -console: Linux, step 1.8 L1)
     const uint64_t tohost, fromhost;
 private:
     uint64_t shadow = 0;       // tohost as the committed stores left it
@@ -118,6 +119,7 @@ struct BenchCfg {
     std::string signature;              // file for [begin_signature, end_signature) at the exit
     std::string exit_sym;               // the run ends when the instruction at this symbol commits (B2: programs without memory)
     int         tail = 16;              // commits shown when a run fails
+    bool        console = false;        // HTIF's characters printed as they come (Htif::live)
     LockstepCfg ref;                    // the reference's machine (its elf is set from elf)
 };
 

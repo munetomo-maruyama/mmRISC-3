@@ -37,7 +37,7 @@
 # behind slow writes: step 1.7 H3, Plan/OOC.md 29.58); atomic.S, the atomics
 # (step 1.4 E1c, Plan/OOC.md 29.74); devld.S, loads from a device at the ROB head
 # alone (step 1.8 I1); fprm.S, the rounding mode's traps (U2b); vm.S and vmx.S, Sv39's data
-# and fetch sides (V1, V2); pmpx.S, PMP on the fetch word by word (P1); pmu.S, the PMU's counters and events (K1).
+# and fetch sides (V1, V2); pmpx.S, PMP on the fetch word by word (P1); pmu.S, the PMU's counters and events (K1); cboz.S, CBO.ZERO (L1).
 # b4/irq/irq.S: the interrupts (OOO_CPU only).
 # -mno-relax: binutils 2.43 picks how to fill a code alignment by the relax
 # option at the end of the file, and the tests' .option pop sets it back

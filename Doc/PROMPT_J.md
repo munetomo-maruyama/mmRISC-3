@@ -11405,5 +11405,31 @@ Lint matches HEAD. The final chain (run_core, CoreMark, 28 core and 12 unit muta
 <!-- answer -->
 **Claude Codeの回答**
 
-The docs are done except for the final mutation count in Plan/OOC 29.98. I'm waiting for chain5 (run_core, CoreMark, mutations 272, 273 and M1559) to report.
+再実行の結果、K1(PMUのイベント)が完了しました。コミット ce3c01e として dev に push 済みで、Ref/ がリモートに無いこと(0件)も確認しました。
+
+**検証結果**
+- **ユニット回帰(ctrl / csru / rob)と run_core(12実行):** すべて PASS。
+- **CoreMark:** PASS。計測区間は 1,211,530 / 1,274,507 / 1,211,996 サイクルで、変わっていません。
+- **ミューテーション:** 40件すべて検出しました(コア 270〜297、ユニット M1556〜M1567)。最初の実行で残った3件は次のとおり対処しました。
+  - **272 / 273(ロードとストアの数え違い):** ベンチがイベント3/4を毎サイクルは照合しておらず、pmu.S もロード4・ストア4で、入れ替えても数が変わりませんでした。ベンチに毎サイクルの照合を足しました(LR はロード、SC はストア、その他の AMO は両方)。
+  - **M1559:** トップの入力ポートを3ビットに削る変異でしたが、Verilator はトップの入力をマスクしないため、シミュレーションでは見えません。同じ経路の内部信号 `ir_inc` を削る変異に替えました。
+- **CoreMark の Top-Down:** リタイア約62.7%、誤った投機5.1%、フロントエンド10.3%、バックエンド21.9%です。バックエンドの大半は、ディスパッチが発行キューを待つサイクルです。
+
+**私のミスの修正:** 以前のコミット c3d6902 で、Plan/OOC.md と Plan/OOC_J.md を 29.96 の項だけで上書きしていました。約6,400行の履歴が消えたまま、2コミット気づいていませんでした。git の履歴から 29.95 までを戻し、29.96・29.97・29.98 を後ろに付けて復元しました。他のファイルに同じ消失がないことも確認済みで、再発防止のメモも残しました。
+
+K1 の LUT のコストはまだ Vivado で測っていません。見積りは約 +0.4k LUT です。
+
+先に Vivado で K1 のコストを測りますか、それともそのまま L1(ロックステップで Linux をプロンプトまで)に進みますか。
+<!-- /answer -->
+
+## 276. 2026-11-22 02:54:15 JST
+
+```text
+Start L1
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+Waiting for the final mutation run and run_core.
 <!-- /answer -->

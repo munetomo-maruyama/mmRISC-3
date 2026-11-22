@@ -95,6 +95,12 @@
 // or no permission in an entry without AF; an access fault: an entry with AF, or an atomic outside the
 // cacheable memory.
 //
+// CBO.ZERO (Zicboz, step 1.8 L1, Plan/OOC.md 29.99): a store of the core's class with an SQ entry, at the ROB
+// head (rr_at 1); translated and checked as a store of its byte (PMP: that byte), an access fault outside the
+// cacheable memory, as an atomic. Its entry (szl) is its line's: a younger load in that line finds it (the
+// line's offset, whatever its bytes) and waits for it to leave, not forwarded; it drains as 8 words of zeros
+// (dk), each a store's write (a miss fills the line first), and leaves after the last.
+//
 // PMP (step 1.8 P1, Plan/OOC.md 29.89): an OOO_PMP a port, in M, on the physical address ({t_ptag, the
 // offset}) with the access's size and kind (an AMO reads and writes) and the effective privilege
 // (pmp_priv: MPRV with MPP); a denial is an access fault, after the translation's own faults.
@@ -146,7 +152,8 @@ module OOO_LSU4
         input  logic [1:0][TAGW-1:0]     rr_dst,
         input  logic [1:0][ROBW-1:0]     rr_rob,
         input  logic [1:0][NCK-1:0]      rr_bm,
-        input  logic [3:0]               rr_at,      // port 0's: 0, or an atomic (2 LR, 3 SC, 4..12 an AMO; CORE_DEC's command)
+        input  logic [3:0]               rr_at,      // port 0's: 0, or an atomic (2 LR, 3 SC, 4..12 an AMO; CORE_DEC's command),
+                                                     //  or 1 CBO.ZERO
         output logic                     rt_v,       // a try goes in port 0's RR: the operand takes rt_base, offset 0
         output logic [PAW-1:0]           rt_base,
 
@@ -425,6 +432,7 @@ module OOO_LSU4
     logic [8:0]     swa   [NSQ];         // the word's address in the page
     logic [1:0]     svx   [NSQ];         // the virtual 13:12: its set's top bits in the D$
     logic [7:0]     smask [NSQ];
+    logic [NSQ-1:0] szl;                     // CBO.ZERO's entry: its line, zeroed as it drains (step 1.8 L1)
 
     // what stays of the µop for a try: at its first M
     localparam int KW = PAW + 2 + 1 + TAGW + ROBW + (SW + 1) + 4;
@@ -569,6 +577,7 @@ module OOO_LSU4
     logic                 w_ask1;     // port 1 needs a line or a walk
     logic                 w_try0, m_st0;
     logic                 sw0_v;      // port 0's M writes an SQ entry's offset and bytes (m_sw), for E's compare
+    logic                 sw0_z;      // ... CBO.ZERO's: its line
     logic [SW-1:0]        sw0_sq;
     logic [8:0]           sw0_wa;
     logic [7:0]           sw0_mask;
@@ -607,9 +616,11 @@ module OOO_LSU4
             logic [7:0] lm;
             logic       swm;
             lm  = bmask(e_size, e_a[2:0]);
-            swm = sw0_wa == e_a[11:3] && (sw0_mask & lm) != 8'd0;
+            swm = sw0_z ? sw0_wa[8:3] == e_a[11:6] : sw0_wa == e_a[11:3] && (sw0_mask & lm) != 8'd0;
             for (int i = 0; i < NSQ; i++) begin
-                e_om[i] = (sw0_v && sw0_sq == SW'(i)) ? swm : swa[i] == e_a[11:3] && (smask[i] & lm) != 8'd0;
+                // (CBO.ZERO's entry: any byte of its line)
+                e_om[i] = (sw0_v && sw0_sq == SW'(i)) ? swm :
+                          szl[i] ? swa[i][8:3] == e_a[11:6] : swa[i] == e_a[11:3] && (smask[i] & lm) != 8'd0;
                 if (sc_dec && sc_fail && sc_sq == SW'(i)) e_om[i] = 1'b0;
             end
         end
@@ -668,6 +679,9 @@ module OOO_LSU4
         logic [3:0]      m_at;
         logic            m_amo, m_sc;
         /* verilator lint_off UNUSEDSIGNAL */      // (port 0's)
+        logic            m_cbo;
+        /* verilator lint_on UNUSEDSIGNAL */
+        /* verilator lint_off UNUSEDSIGNAL */      // (port 0's)
         logic            m_sw;
         /* verilator lint_on UNUSEDSIGNAL */
         logic [PAW-1:0]  m_a;                  // the address as far as it is used
@@ -720,6 +734,7 @@ module OOO_LSU4
         assign m_ids[p] = m_id;
         assign m_amo  = m_v && m_at[3:2] != 2'd0;
         assign m_sc   = m_v && m_at == 4'd3;
+        assign m_cbo  = m_v && m_at == 4'd1;       // CBO.ZERO (the core's xop 1): a store of its line's zeros
         assign m_sw   = m_v && (!m_ld || m_amo);   // a store's (an AMO's) SQ entry written
         // the first M keeps what a try needs
         assign m_kpw[p] = m_v && !m_try;
@@ -777,7 +792,8 @@ module OOO_LSU4
             end
             m_f    = align(sdr(f_idx), m_off, m_spos, m_s0, m_s01, m_s3, m_sen);
             m_hit  = hit != '0;
-            f_cv   = (sm_f[f_idx] & m_lmask) == m_lmask && sp[f_idx] && !sat[f_idx] && st_r[f_idx] == t_ptag;   // it can forward
+            f_cv   = (sm_f[f_idx] & m_lmask) == m_lmask && sp[f_idx] && !sat[f_idx] && !szl[f_idx] &&   // it can forward
+                     st_r[f_idx] == t_ptag;                                       // (not CBO.ZERO's: the load waits)
             f_ok   = f_cv && sdv[f_idx];                                                          // ... with its data
             m_bad  = m_mis || (tr_on && !(&m_hi || !(|m_hi)));
             m_permt = m_ld ? t_r && (!m_amo || t_w) : t_w;
@@ -823,6 +839,7 @@ module OOO_LSU4
             assign sw0_sq   = m_sq;
             assign sw0_wa   = m_wa;
             assign sw0_mask = m_lmask;
+            assign sw0_z    = m_cbo;
             assign at_mset = m_v && (m_amo || m_sc);
             assign at_msq  = m_sq;
             always_ff @(posedge clk or negedge rst_n) begin
@@ -1044,6 +1061,17 @@ module OOO_LSU4
         end
     end
 
+    // CBO.ZERO's entry: from its first M (port 0's, sw0_*); none when the entry is given out
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) szl <= '0;
+        else begin
+            for (int i = 0; i < NSQ; i++) begin
+                if (salloc[i])                     szl[i] <= 1'b0;
+                else if (sw0_v && sw0_sq == SW'(i)) szl[i] <= sw0_z;
+            end
+        end
+    end
+
     // an AMO's or SC's entry from its first M until it is decided (an SC's W, an AMO's new value): a load waits
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) sat <= '0;
@@ -1130,6 +1158,9 @@ module OOO_LSU4
 
     // ---- the drain
     sptr_t         dp;                         // the next store to start
+    logic [2:0]    dk;                         // ... its word, if CBO.ZERO's (8 words of zeros, then it leaves)
+    logic          d0_z, d1_z, d2_z;
+    logic [2:0]    d1_k, d2_k;
     logic          d_wait;                     // after a miss, for a fill
     logic          d0_v, d1_v, d2_v, d_back;
     logic          d1_st, d2_st;               // a tag was written since its lookup began
@@ -1145,6 +1176,7 @@ module OOO_LSU4
     logic [PAW-1:6] d2_line;
     assign d0_v   = dp != sq_cmt && !d_wait && !d_back;
     assign d0_set = {svx[dp[SW-1:0]], swa[dp[SW-1:0]][8:3]};
+    assign d0_z   = szl[dp[SW-1:0]];
     always @(*) begin
         d1_tag = st_r[d1_p[SW-1:0]];
         d1_way = '0;
@@ -1177,16 +1209,20 @@ module OOO_LSU4
     end
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            dp <= '0; d_wait <= 1'b0; d1_v <= 1'b0; d2_v <= 1'b0; d3_v <= 1'b0;
+            dp <= '0; dk <= '0; d_wait <= 1'b0; d1_v <= 1'b0; d2_v <= 1'b0; d3_v <= 1'b0;
         end else begin
-            d3_v <= dirty_set || st_uc_go;
+            d3_v <= (dirty_set || st_uc_go) && (!d2_z || d2_k == 3'd7);     // (CBO.ZERO's entry: after its last word)
             if (d_back) begin
                 dp   <= d2_p;
+                dk   <= d2_k;
                 d1_v <= 1'b0;
                 d2_v <= 1'b0;
                 if (st_miss_valid) d_wait <= 1'b1;
             end else begin
-                if (d0_v) dp <= dp + 1'b1;
+                if (d0_v) begin
+                    if (d0_z && dk != 3'd7) dk <= dk + 3'd1;
+                    else begin dp <= dp + 1'b1; dk <= 3'd0; end
+                end
                 d1_v <= d0_v;
                 d2_v <= d1_v;
             end
@@ -1197,16 +1233,20 @@ module OOO_LSU4
         d1_st   <= tw_en;
         d2_st   <= d1_st || tw_en;
         d1_p    <= dp;
-        d1_a    <= swa[dp[SW-1:0]];
+        d1_a    <= d0_z ? {swa[dp[SW-1:0]][8:3], dk} : swa[dp[SW-1:0]];
         d1_x    <= svx[dp[SW-1:0]];
-        d1_m    <= smask[dp[SW-1:0]];
+        d1_m    <= d0_z ? 8'hff : smask[dp[SW-1:0]];
+        d1_z    <= d0_z;
+        d1_k    <= d0_z ? dk : 3'd0;
+        d2_z    <= d1_z;
+        d2_k    <= d1_k;
         d2_p    <= d1_p;
         d2_a    <= d1_a;
         d2_x    <= d1_x;
         d2_m    <= d1_m;
         d2_hit  <= d_hit != '0;
         d2_way  <= d1_way;
-        d2_d    <= sdr(d1_p[SW-1:0]);
+        d2_d    <= d1_z ? 64'd0 : sdr(d1_p[SW-1:0]);
         d2_line <= {d1_tag, d1_a[8:3]};
         d2_uc   <= uncached({d1_tag, d1_a, 3'b000});
     end

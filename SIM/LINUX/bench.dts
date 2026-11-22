@@ -1,0 +1,128 @@
+/* Device tree of the simulation bench (SIM/CORE's tb_core on OOO_CPU), for
+ * Linux in lock-step (step 1.8 L1, Plan/OOC.md 29.99).
+ *
+ * mmRISC-2's tree for the Arty (mmRISC-2/LitexSystem/software/mmrisc_arty.dts)
+ * with what the bench does not have taken out, and what it has put in:
+ *   - the CPU node as mmRISC-2's: mmRISC-3 keeps its instruction set, its
+ *     CORE_CSR (8 PMP entries, Sstc, Sscofpmf, Smcntrpmf) and Sv39;
+ *   - timebase-frequency 50 MHz: the bench builds OOO_CPU's CLINT with
+ *     CLINT_TICK_DIV 1 (SIM/CORE/build_core.sh), mtime a step every cycle
+ *     (on the board 100: 500 kHz, mmRISC-2's tree); with 500 kHz here Linux's
+ *     clock ran 100 times fast, a tick every 5,000 cycles;
+ *   - the memory: the bench's 64 MB at 0x8000_0000 (SIM/CORE/bench.h, and
+ *     the lock-step reference's);
+ *   - the CLINT and the PLIC at mmRISC-2's addresses (OOO_CPU's CPU_MMIO; the
+ *     lock-step reference takes the core's value for their loads); no
+ *     interrupt source is wired to the PLIC on the bench;
+ *   - no LiteX device (UART, SD card, Ethernet, timer, ROM): the console is
+ *     HTIF (tohost / fromhost, OpenSBI's own symbols), which the bench and
+ *     the reference both answer; Linux reaches it through OpenSBI's debug
+ *     console (earlycon=sbi, hvc0);
+ *   - the PMU node as mmRISC-2's, with the events of step 1.8 K1 where the
+ *     meaning is the same (Plan/OOC.md 29.97: 12 and 17 are now slots, not
+ *     cycles: stalled-cycles-* left out);
+ *   - the initramfs at 0x8200_0000; build.sh writes its end below.
+ */
+/dts-v1/;
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	compatible = "mmrisc,mmrisc-3-bench";
+	model = "mmRISC-3 on the simulation bench";
+	chosen {
+		bootargs = "earlycon=sbi console=hvc0 rdinit=/init";
+		linux,initrd-start = <0x82000000>;
+		linux,initrd-end = <INITRD_END>;
+		stdout-path = "/htif";
+	};
+	htif {
+		compatible = "ucb,htif0";
+	};
+	L13: cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		timebase-frequency = <50000000>;
+		L6: cpu@0 {
+			clock-frequency = <50000000>;
+			compatible = "mmrisc,mmrisc-3", "riscv";
+			device_type = "cpu";
+			mmu-type = "riscv,sv39";
+			reg = <0x0>;
+			riscv,isa = "rv64imafdc_zicboz_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zihpm_zba_zbb_zbc_zbs_smcntrpmf_sscofpmf_sstc";
+			riscv,isa-base = "rv64i";
+			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
+				"zicboz", "zicntr", "zicond", "zicsr", "zifencei", "zihintntl",
+				"zihintpause", "zihpm", "zba", "zbb", "zbc", "zbs", "smcntrpmf", "sscofpmf",
+				"sstc";
+			riscv,cboz-block-size = <64>;
+			riscv,pmpgranularity = <4>;
+			riscv,pmpregions = <8>;
+			status = "okay";
+			L4: interrupt-controller {
+				#interrupt-cells = <1>;
+				compatible = "riscv,cpu-intc";
+				interrupt-controller;
+			};
+		};
+	};
+	L8: memory@80000000 {
+		device_type = "memory";
+		reg = <0x80000000 0x4000000>;	/* 64 MB */
+	};
+	/* The PMU for OpenSBI's SBI PMU extension (Linux's perf): mhpmcounter3 / 4
+	 * (map 0x18, CORE_CSR's 2 counters since G0b L1) count any of the core's
+	 * events (Plan/OOC.md 29.97); cycles and instructions are the fixed
+	 * counters 0 and 2. */
+	pmu {
+		compatible = "riscv,pmu";
+		riscv,event-to-mhpmevent =
+			<0x00004 0x0 8>,	/* cache-misses: D$ fills */
+			<0x00005 0x0 5>,	/* branch-instructions */
+			<0x00006 0x0 6>,	/* branch-misses */
+			<0x10000 0x0 3>,	/* L1-dcache-loads */
+			<0x10001 0x0 8>,	/* L1-dcache-load-misses (every fill) */
+			<0x10002 0x0 4>,	/* L1-dcache-stores */
+			<0x10009 0x0 7>,	/* L1-icache-load-misses */
+			<0x10010 0x0 18>,	/* LLC-loads: L2 reads (L1 fills) */
+			<0x10011 0x0 19>,	/* LLC-load-misses: L2 misses */
+			<0x10019 0x0 10>,	/* dTLB-load-misses */
+			<0x10021 0x0 9>,	/* iTLB-load-misses */
+			<0x10028 0x0 5>,	/* branch-loads */
+			<0x10029 0x0 6>;	/* branch-load-misses */
+		riscv,event-to-mhpmcounters =
+			<0x00001 0x00001 0x01>,
+			<0x00002 0x00002 0x04>,
+			<0x00004 0x00006 0x18>,
+			<0x10000 0x10002 0x18>,
+			<0x10009 0x10009 0x18>,
+			<0x10010 0x10011 0x18>,
+			<0x10019 0x10019 0x18>,
+			<0x10021 0x10021 0x18>,
+			<0x10028 0x10029 0x18>;
+		riscv,raw-event-to-mhpmcounters =
+			<0x0 0x0 0xffffffff 0xffffffe0 0x18>;
+	};
+	L12: soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "mmrisc,mmrisc-3-soc", "simple-bus";
+		ranges;
+		L2: clint@2000000 {
+			compatible = "riscv,clint0";
+			interrupts-extended = <&L4 3 &L4 7>;
+			reg = <0x2000000 0x10000>;
+			reg-names = "control";
+		};
+		L1: interrupt-controller@c000000 {
+			#interrupt-cells = <1>;
+			compatible = "riscv,plic0";
+			interrupt-controller;
+			interrupts-extended = <&L4 11 &L4 9>;
+			reg = <0xc000000 0x4000000>;
+			reg-names = "control";
+			riscv,max-priority = <7>;
+			riscv,ndev = <31>;
+		};
+	};
+};

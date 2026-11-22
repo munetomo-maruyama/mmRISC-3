@@ -347,3 +347,14 @@ replays, and the I$ / D$ fills against the models (on `OOO_CPU`, after the drain
 prints a PMU line (the slots in %, the waits, walks, fills). `b4/dir/pmu.S` checks the counters themselves: exact counts,
 the privilege filters, mcountinhibit, a wrap with LCOFI in M and in S, scountovf, mcounteren / scounteren, Smcntrpmf.
 Core mutations 270 to 297.
+
+## Linux and CBO.ZERO (step 1.8 L1, 2026-11-22)
+
+`Plan/OOC.md` 29.99. `SIM/LINUX` builds one ELF of OpenSBI, the kernel and an initramfs that `tb_core` runs on
+`OOO_CPU` like a test, to the shell's prompt and a power-off (HTIF's exit). For that run: `-hang n` (cycles without a
+commit before a run fails, 20,000 by default; Linux waits in WFI between its ticks), `-console` (HTIF's characters as
+they come), `-progress n` (the run's line every n cycles). The boot found CBO.ZERO missing in the core (Linux zeroes
+its pages with it): `b4/dir/cboz.S` checks it in M mode bare, in S mode under Sv39, on a line that misses, with a
+younger store and loads in its line, its page and access faults and CBZE's illegal instruction in S and U. The bench
+widens the core's record of it to a 64-byte store of zeros (LOCKSTEP's) and zeroes its line in the architectural
+memory; it counts as a store retired (event 4). Core mutations 298 to 313.

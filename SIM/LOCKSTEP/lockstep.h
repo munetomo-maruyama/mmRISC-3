@@ -15,12 +15,13 @@
 //     character is device 1, command 1 (Plan/icount/port/minilib.c). The
 //     DUT's test bench answers it when the store reaches its memory.
 //   - Reads of the counters that differ by nature (cycle, time, mcycle, the
-//     HPM counters and their OF bits in scountovf), of the HPM events (the implementation's) and of the
+//     HPM counters and their OF bits in scountovf), of the HPM events (the implementation's), of the
+//     triggers (tselect, tdata1-3, tinfo: the core's are mcontrol only) and of the
 //     implementation's identity (mvendorid, marchid, mimpid) take the DUT's
 //     value: the reference's register is set to it after the step.
 //   - Where the core's CSRs make other legal choices than Spike's
 //     (LockstepCfg: misa read-only, mcountinhibit, medeleg's bit 18, the
-//     reserved modes of mtvec / stvec), the reference is put where the core
+//     reserved modes of mtvec / stvec, stimecmp's value after reset), the reference is put where the core
 //     is after each CSR instruction; mcountinhibit is kept here (Spike has
 //     none), and while its IR bit is set each instruction's count is taken
 //     back from minstret (the writing instruction counts under the old bit).
@@ -29,6 +30,9 @@
 //     sees it and puts tohost back to 0, so a loop polling tohost runs more
 //     times than in the reference; with the core's value the reference runs
 //     the same loop.
+//   - CBO.ZERO is a store of 64 zero bytes at its block (st_size 64): Spike's
+//     64 byte stores are folded into it, the DUT's record gives the block. Its
+//     fault's tval is the address given (rs1), not Spike's block base.
 //   - The first half of a fused pair whose result is not written (one write
 //     per pair, OOO_FUSE W1) sets rd_skip: only its pc and instruction are
 //     compared.
@@ -89,6 +93,7 @@ struct LockstepCfg {
         {0x02000000ull, 0x10000ull},        // the CLINT (OOO_CPU's CPU_MMIO)
         {0x0c000000ull, 0x400000ull},       // the PLIC
         {0x11000000ull, 0x1000ull}};        // the bench's interrupt sources (SIM/CORE)
+    uint64_t    stimecmp_reset = ~0ull;        // stimecmp after reset (the core's; Spike: 0)
     bool        tvec_mode0 = true;             // mtvec / stvec: a reserved mode is written as
                                                //  direct (Spike: bit 1 cleared)
 };

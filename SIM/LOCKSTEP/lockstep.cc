@@ -120,10 +120,16 @@ public:
 bool impl_csr(unsigned csr)
 {
     return csr == CSR_MVENDORID || csr == CSR_MARCHID || csr == CSR_MIMPID ||
-           (csr >= CSR_MHPMEVENT3 && csr <= CSR_MHPMEVENT31);
+           (csr >= CSR_MHPMEVENT3 && csr <= CSR_MHPMEVENT31) ||
+           // Sdtrig: the core's 4 triggers are mcontrol (type 2) only, Spike's take types 2 to 6; OpenSBI probes
+           // them at its start (tinfo, tdata1's type through tselect), nothing here sets one (step 1.8 L1)
+           (csr >= CSR_TSELECT && csr <= CSR_TINFO);
 }
 
 // the pending interrupts: the DUT's lines are not the reference's (it takes only the DUT's)
+// CBO.ZERO (Zicboz): MISC-MEM, funct3 2, rd 0, the immediate 4
+bool cbo_zero(uint32_t insn) { return (insn & 0xfff07fffu) == 0x0040200fu; }
+
 bool irq_csr(unsigned csr) { return csr == CSR_MIP || csr == CSR_SIP; }
 
 bool counter_csr(unsigned csr)
@@ -183,8 +189,13 @@ struct Lockstep::Impl {
         devnull = std::fopen("/dev/null", "w");
         proc.reset(new processor_t(isa.get(), &cfg, mem.get(), 0, false, devnull, sout));
         mem->harts[0] = proc.get();
+        proc->get_mmu()->set_cache_blocksz(64);    // CBO.ZERO's block (sim_t sets it from --blocksz; unset, cbo.zero
+                                                    //  zeroed at a base of garbage: step 1.8 L1), the core's 64 bytes
         proc->enable_log_commits();                 // fills log_reg_write / log_mem_write
         proc->get_state()->pc = e.entry;
+        // stimecmp's reset value is not specified (Sstc): the core's CORE_CSR starts at all ones ("never"), Spike's
+        // at 0; OpenSBI reads it when it probes the hart (step 1.8 L1)
+        if (c.stimecmp_reset) proc->put_csr(CSR_STIMECMP, c.stimecmp_reset);
     }
     ~Impl() { proc.reset(); if (devnull) std::fclose(devnull); }
 
@@ -298,6 +309,10 @@ struct Lockstep::Impl {
         if (proc->get_csr(CSR_MINSTRET) == inst0 && (!ir_cfg || cause_w)) {          // a trap, not retired
             r.trap = true;
             r.cause = (s->prv == PRV_S) ? proc->get_csr(CSR_SCAUSE) : proc->get_csr(CSR_MCAUSE);
+            // CBO.ZERO's fault: the given address in tval (the core's, mmRISC-2's and QEMU's choice; Spike's is the block's
+            // base, the byte it stored first; the specification names neither, step 1.8 L1)
+            if (cbo_zero(r.insn) && (r.cause == 5 || r.cause == 7 || r.cause == 13 || r.cause == 15))
+                proc->put_csr(s->prv == PRV_S ? CSR_STVAL : CSR_MTVAL, src);
             return r;
         }
         for (auto& w : s->log_reg_write) {
@@ -309,6 +324,11 @@ struct Lockstep::Impl {
         for (auto& m : s->log_mem_write) {
             r.st = true;
             r.st_addr = std::get<0>(m); r.st_data = std::get<1>(m); r.st_size = std::get<2>(m);
+            r.st_pa = pa_of(r.st_addr);
+        }
+        // CBO.ZERO: Spike's 64 stores of a byte are one store of 64 zero bytes at the block (lockstep.h)
+        if (cbo_zero(r.insn) && r.st) {
+            r.st_addr &= ~63ull; r.st_data = 0; r.st_size = 64;
             r.st_pa = pa_of(r.st_addr);
         }
         // the core's legal choices (LockstepCfg)
@@ -362,7 +382,8 @@ bool Lockstep::check(const Commit& d, std::string* why)
     // a page the walk refused, as one not accessed: step 1.8 V2)
     bool ifault = r.trap && (r.cause == 1 || r.cause == 12);
     if (!ifault && (d.insn & mask) != r.insn) return bad("instruction: DUT " + hex(d.insn) + ", reference " + hex(r.insn));
-    if (d.trap != r.trap) return bad(std::string("trap: DUT ") + (d.trap ? "yes" : "no") + ", reference " + (r.trap ? "yes" : "no"));
+    if (d.trap != r.trap) return bad(std::string("trap: DUT ") + (d.trap ? "yes" : "no") + ", reference " + (r.trap ? "yes" : "no") +
+                                     " (cause " + hex(d.trap ? d.cause : r.cause) + ")");
     if (r.trap) {
         if (d.cause != r.cause) return bad("cause: DUT " + hex(d.cause) + ", reference " + hex(r.cause));
         return true;
