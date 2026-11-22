@@ -6546,3 +6546,18 @@ The author's go ("Start L1"). **Gate S1-C is met**: on `OOO_CPU`, in lock-step w
 **Cost**: not measured; the entry's bit and the drain's word (about 30 FF), a line compare beside the word compare per entry and port, the CBZE check: about +0.1k LUTs. The search's compare at E is on V3b's path (29.91).
 
 **Next**: J1 (debug), as 29.76 orders; or first an `OOO_CPU` Vivado run with K1 and L1 (their LUTs, and the LSU's compare at E). The author's choice.
+
+### 29.100 Step 1.8: `OOO_CPU` on Vivado with K1 and L1: met, +0.224 ns, 105,608 LUTs (2026-11-22)
+
+**The run** (by the author, `synth_ooo.bat OOO_CPU`, the RTL of 4c2d7bf: K1's events and L1's CBO.ZERO on V3d's): **105,608 LUTs** after place and route (88,836 logic + 16,656 LUT RAM; 107,154 after synthesis), 27,852 FF, 42 DSP, 284.5 tiles of block RAM; **WNS +0.224 ns, TNS 0, no endpoint failing; hold +0.028 ns**. No file was added and `OOO_CPU`'s ports are V3d's, so `synth_ooo.tcl` ran unchanged.
+
+**The LUTs**: −346 on 29.96's V3d (−387 after synthesis), FF +172. K1 and L1's own LUTs are below the spread of synthesis: blocks they did not touch moved more (`OOO_IQ` −663, `OOO_FRONT` −501, `OOO_FPUW` +474, `OOO_ROB` −303), while the ones they did moved little (`CORE_CSR` +83 with +52 FF: the event counts' adders; `OOO_CTRL` +60; `OOO_LSU4` −80 with +26 FF: the entries' line marks and the drain's word). The FF (+172) are as 29.97's +0.2k for K1 plus L1's about 30. At step 1.8's end (J1 about +3k) about 108.6k, with LiteX's SoC (5.3k) about 113.9k, about 6.2k above the ceiling of 107.7k (an estimate from the Arty, not measured on this device); the author's decision when it comes.
+
+**The paths**: V3d's worst (ALU port 0's bypass → the branch compare → the misprediction → `k_ckpt`'s choice, +0.073 ns) is no longer among the 100 worst endpoints: placement (29.96 had noted a margin for it, not needed). The worst now:
+- +0.224 ns, 21 levels: the I$'s answer (`ic_resp_data`) → F2's predecode → the uBTB's `pc_q` (28 endpoints; at V3d +0.383 ns from `u_fdec/c_v`, the same stage);
+- +0.262 ns, 22 levels: the uBTB's `pc_q` → the ITLB → the walker's `r_ptag` reset (28 endpoints; +0.664 ns at V3d);
+- +0.409 ns, 18 levels: LSU port 1's DTLB → its PMP compare → `CORE_CSR`'s PMP configuration → `w_cause` (old: at V3d +1.176 ns to `w_uc`, moved by placement; CBO.ZERO's logic is not on it).
+
+All within the 0.3 ns that one placement swings (28.10). `OOO_CPU` at 20 ns holds with K1 and L1.
+
+**Next**: J1 (debug), as 29.76 orders.

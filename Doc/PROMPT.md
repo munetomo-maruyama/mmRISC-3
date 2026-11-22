@@ -11182,3 +11182,74 @@ Measure K1's cost in Vivado first, or go straight to L1 (Linux in lock-step to i
 ```text
 Start L1
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+L1 is done and gate S1-C is met. Commit 4c2d7bf is pushed to dev, and I checked that origin/dev holds no file under Ref/.
+
+**Results**
+- **Linux boot:** it boots on `OOO_CPU` in lock-step with Spike at every instruction. The shell's prompt comes up, `uname -a`, `cat /proc/cpuinfo`, `ls /` and `free` run, then `poweroff`: PASS with exit code 0.
+  - 135,186,446 instructions in 138,112,269 cycles (IPC 0.979); the simulation took about 158 minutes.
+- **The image:** OpenSBI fw_jump, mmRISC-2's kernel (7.2.0-rc2 with the SBI console added) and the BusyBox initramfs in one ELF (`SIM/LINUX/build.sh`, `SIM/LINUX/bench.dts`).
+- **OpenSBI's PMU (pmu_sbi):** all 17 checks PASS in lock-step. It checks K1's two counters, called as perf calls them.
+
+**Found and fixed on the way**
+- **A core bug:** the OoO core had no CBO.ZERO, so the kernel's `clear_page` hung.
+  - It now takes an SQ entry. A younger load hitting the same line waits; nothing is forwarded from it.
+  - The drain writes zeros over the whole 64-byte line.
+  - Below M it is an illegal instruction unless menvcfg.CBZE allows it, and in U senvcfg.CBZE as well.
+- **Lock-step fixes:**
+  - stimecmp's reset value is the core's.
+  - Reads of the trigger CSRs take the DUT's value.
+  - Spike's cache block is set to 64.
+  - CBO.ZERO is compared as one 64-byte store on both sides.
+  - CBO.ZERO's fault tval is rs1 on both. The specification says nothing; mmRISC-2 and QEMU use rs1, Spike the block's base.
+
+**Verification**
+- The new test `cboz.S` passes on both tops, with its traps (access, page, illegal in S / U).
+- run_core and the unit tests PASS. CoreMark's windows are unchanged, and lint is as HEAD.
+- Mutations: 16 of 16 detected. 303 and 305 needed the test changed before they were found.
+- Recorded in Plan/OOC 29.99; STRATEGY and the READMEs updated.
+
+The LUTs that CBO.ZERO adds are not yet measured. Run Vivado on OOO_CPU first, or go on to J1?
+<!-- /answer -->
+
+## 277. 2026-11-22 11:33:24 JST
+
+```text
+Vivado first
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+I have not run Vivado: this VM has none, so as before it needs to run on your Windows machine.
+
+**The run is ready**
+- K1 and L1 changed only existing RTL files, with no new ones, so `synth_ooo.tcl`'s file list works as it is.
+- `OOO_CPU`'s ports are unchanged, so the constraints are as well.
+- V3d's reports (`FPGA/OOO_OOC/output/OOO_CPU/`) are in git, so they can be compared even when overwritten.
+
+**The command** (in `FPGA/OOO_OOC`):
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+
+V3d took about 15 minutes to synthesize and about 55 to finish place and route.
+
+**What to look at when it ends**
+- **LUTs:** the increase on V3d's 105,954. K1 was estimated at about +0.4k; CBO.ZERO is not estimated, but it is the SQ's `szl` and the drain's word counter, so it should be small.
+- **Timing:** V3d met it at +0.073 ns. The worst path runs from EX (ALU port 0) to `k_ckpt`'s choice, with little room. If K1's event registers or LSU4's additions make WNS negative, the margin noted in 29.96 (taking out port 1's branch resolution) is there to use.
+
+Answer 276 and prompt 277 are logged in Doc/PROMPT.md but not committed; they go in with the result.
+
+Will you tell me when `synth_ooo.bat OOO_CPU` has finished?
+<!-- /answer -->
+
+## 278. 2026-11-22 13:00:28 JST
+
+```text
+Run finished
+```
