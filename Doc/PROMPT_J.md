@@ -11680,3 +11680,41 @@ Check mutation 339 and the final run_core (task bmt562yuy, scratchpad mut_339.tx
 ```text
 Start J2
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+J2の準備はできましたが、Vivadoはまだ動かしていません。このVMにはVivadoがないので、Windows側で実行をお願いします。
+
+**今回したこと**
+- **`synth_ooo.tcl`の修正:** `DBG_TOP`ではJTAGのTCKに独自のクロック(100 ns)を定義し、`clk`とは非同期の扱いにしました。そのままでは、TCKがデータ入力として扱われ、DTMの側にクロックが付かないためです。
+- **push:** コミット0a6fe1cとしてdevにpushしました。Ref/のファイルは0件です。
+
+**実行していただくもの**(`FPGA/OOO_OOC`で)
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+
+```bash
+synth_ooo.bat DBG_TOP
+```
+
+**終わったら見るもの**
+- **`OOO_CPU`:** 前回(K1・L1入り)はWNS +0.224 ns、LUT 105,608でした。J1で増えたのは主に次のものです。
+  - D2の実行トリガの比較(16個)
+  - LSUのMのデータトリガの比較
+  - 先頭でのトリガの解決
+  - `OOO_DBG`と`OOO_DMISS2`のデバッガのポート
+  - タイミングで注意するのは、LSUのMから`w_cause`への経路です。前回は+0.409 nsで、ここにトリガの比較が加わっています。
+- **`DBG_TOP`:** DM・DTM・CDC・cJTAGの単体の大きさです。mmRISC-2の実績からの見積りは約1.5k LUTで、J1全体の見積り(約+2.6k)に含めていました。
+- **J2の判定:** 両方が20 nsを満たせば、手順1.8は完了です。
+
+2つのVivado実行が終わったら知らせていただけますか?
+<!-- /answer -->
+
+## 288. 2026-11-24 02:15:25 JST
+
+```text
+Runs finished
+```

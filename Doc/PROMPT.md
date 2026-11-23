@@ -11477,3 +11477,36 @@ That check was already done: everything was finished in the previous turn and pu
 ```text
 Start J2
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+J2 is prepared but Vivado has not run yet; this VM has no Vivado, so the runs are on the Windows side.
+
+**Done this time**
+- **`synth_ooo.tcl`:** for `DBG_TOP`, JTAG's TCK gets a clock of its own (100 ns), asynchronous to `clk`. Without it TCK would be taken as a data input and the DTM's side would have no clock.
+- **push:** commit 0a6fe1c on dev; no file under Ref/.
+
+**To run** (in `FPGA/OOO_OOC`)
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+
+```bash
+synth_ooo.bat DBG_TOP
+```
+
+**What to look at afterwards**
+- **`OOO_CPU`:** last time (with K1 and L1) WNS +0.224 ns, 105,608 LUTs. J1 added mainly: the execute trigger compares at D2 (16), the data trigger compares at the LSU's M, the trigger resolution at the head, `OOO_DBG` and `OOO_DMISS2`'s debugger port. The path to watch is the LSU's M -> `w_cause` (+0.409 ns last time), which now has the trigger compare on it.
+- **`DBG_TOP`:** the size of the DM, DTM, CDC and cJTAG alone; about 1.5k LUTs estimated from mmRISC-2, within J1's estimate (about +2.6k).
+- **J2's verdict:** if both meet 20 ns, step 1.8 is done.
+
+Tell me once both Vivado runs have finished?
+<!-- /answer -->
+
+## 288. 2026-11-24 02:15:25 JST
+
+```text
+Runs finished
+```

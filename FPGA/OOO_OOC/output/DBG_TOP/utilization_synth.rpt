@@ -1,0 +1,34 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Tue Nov 24 01:59:51 2026
+| Host         : ARM-Windows running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file ./output/DBG_TOP/utilization_synth.rpt
+| Design       : DBG_TOP
+| Device       : xc7a200tsbg484-1
+| Speed File   : -1
+| Design State : Synthesized
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++-------------------+--------------------------+------------+------------+---------+------+-----+--------+--------+------------+
+|      Instance     |          Module          | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs | RAMB36 | RAMB18 | DSP Blocks |
++-------------------+--------------------------+------------+------------+---------+------+-----+--------+--------+------------+
+| DBG_TOP           |                    (top) |        859 |        859 |       0 |    0 | 853 |      0 |      0 |          0 |
+|   u_cdc           |                  DBG_CDC |        236 |        236 |       0 |    0 | 155 |      0 |      0 |          0 |
+|     (u_cdc)       |                  DBG_CDC |        190 |        190 |       0 |    0 | 151 |      0 |      0 |          0 |
+|   u_cjtag         |                DBG_CJTAG |         57 |         57 |       0 |    0 |  27 |      0 |      0 |          0 |
+|   u_dm            |                   DBG_DM |        468 |        468 |       0 |    0 | 525 |      0 |      0 |          0 |
+|   u_dtm           |                  DBG_DTM |         80 |         80 |       0 |    0 |  68 |      0 |      0 |          0 |
+|   u_sync_auth_key | DBG_SYNC__parameterized0 |         10 |         10 |       0 |    0 |  64 |      0 |      0 |          0 |
++-------------------+--------------------------+------------+------------+---------+------+-----+--------+--------+------------+
+
+

@@ -1,0 +1,8 @@
+DBG_TOP   (period 20.0 ns, I/O delay 6.0 ns each side on the ports)
+after synthesis: 859 LUTs (859 logic + 0 LUT RAM; 996 LUT cells), 853 FF, 0 DSP, 0 LUT RAM cells, 0.0 BRAM tiles
+after place and route: 836 LUTs (836 logic + 0 LUT RAM; 996 LUT cells), WNS 9.170 ns, register to register 12.689 ns (3 logic levels)
+instances (after place and route):
+    u_cdc                  DBG_CDC                 229 LUTs (229 logic + 0 LUT RAM), 155 FF
+    u_dm                   DBG_DM                  467 LUTs (467 logic + 0 LUT RAM), 525 FF
+    u_dtm                  DBG_DTM                  79 LUTs (79 logic + 0 LUT RAM), 68 FF
+    u_sync_auth_key        DBG_SYNC__parameterized0     10 LUTs (10 logic + 0 LUT RAM), 64 FF
