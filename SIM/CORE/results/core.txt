@@ -658,7 +658,7 @@ rv64uzbs-bseti.elf           PASS  exit 0  317 insns  317 uops  632 cycles  IPC 
 rv64uzicond-czero_eqz.elf    PASS  exit 0  416 insns  416 uops  826 cycles  IPC 0.504
 rv64uzicond-czero_nez.elf    PASS  exit 0  415 insns  415 uops  871 cycles  IPC 0.476
 tb_core: 96 files, 0 failures: PASS
-htif.elf                     PASS  exit 0  210 insns  210 uops  1497 cycles  IPC 0.140
+htif.elf                     PASS  exit 0  210 insns  210 uops  1488 cycles  IPC 0.141
 rv64uc-rvc.elf               PASS  exit 0  255 insns  255 uops  759 cycles  IPC 0.336
 rv64ui-add.elf               PASS  exit 0  464 insns  464 uops  943 cycles  IPC 0.492
 rv64ui-addi.elf              PASS  exit 0  239 insns  239 uops  543 cycles  IPC 0.440
@@ -824,21 +824,21 @@ br-2.elf                     PASS  exit 0  12369 insns  12369 uops  14573 cycles
 br-3.elf                     PASS  exit 0  17656 insns  17656 uops  22646 cycles  IPC 0.780
     PMU: slots 20.1 % retiring, 39.7 % bad speculation, 35.6 % front end, 4.5 % back end (ROB 3, queues 1136, LQ / SQ 0, registers 15, checkpoints 51 cycles); head waits 0 memory 3767 other, ROB empty 9610; walks 0 fetch 0 LSU; fills I$ 178 D$ 0; L2 178 reads 178 misses
     695 restores (mispredicted branches and jalr), 0 replays, I$ 178 / 16796 missed, memory 178 line reads 0 line writes, uncached 0 reads 0 writes
-br-4.elf                     PASS  exit 0  11590 insns  11590 uops  13471 cycles  IPC 0.860
-    PMU: slots 22.1 % retiring, 21.2 % bad speculation, 42.8 % front end, 13.8 % back end (ROB 0, queues 2286, LQ / SQ 0, registers 23, checkpoints 11 cycles); head waits 0 memory 1419 other, ROB empty 5650; walks 0 fetch 0 LSU; fills I$ 131 D$ 0; L2 131 reads 131 misses
-    209 restores (mispredicted branches and jalr), 0 replays, I$ 131 / 8227 missed, memory 131 line reads 0 line writes, uncached 0 reads 0 writes
-br-5.elf                     PASS  exit 0  11685 insns  11685 uops  15260 cycles  IPC 0.766
-    PMU: slots 20.1 % retiring, 28.3 % bad speculation, 47.2 % front end, 4.3 % back end (ROB 4, queues 501, LQ / SQ 0, registers 32, checkpoints 683 cycles); head waits 0 memory 2154 other, ROB empty 6749; walks 0 fetch 0 LSU; fills I$ 140 D$ 0; L2 140 reads 140 misses
-    356 restores (mispredicted branches and jalr), 0 replays, I$ 140 / 11288 missed, memory 140 line reads 0 line writes, uncached 0 reads 0 writes
-br-6.elf                     PASS  exit 0  7787 insns  7787 uops  11468 cycles  IPC 0.679
-    PMU: slots 18.6 % retiring, 24.6 % bad speculation, 51.4 % front end, 5.4 % back end (ROB 0, queues 699, LQ / SQ 0, registers 2, checkpoints 237 cycles); head waits 0 memory 1551 other, ROB empty 5764; walks 0 fetch 0 LSU; fills I$ 142 D$ 0; L2 142 reads 142 misses
-    220 restores (mispredicted branches and jalr), 0 replays, I$ 142 / 7797 missed, memory 142 line reads 0 line writes, uncached 0 reads 0 writes
-br-7.elf                     PASS  exit 0  9257 insns  9257 uops  13204 cycles  IPC 0.701
-    PMU: slots 18.9 % retiring, 23.6 % bad speculation, 53.9 % front end, 3.6 % back end (ROB 2, queues 452, LQ / SQ 0, registers 3, checkpoints 354 cycles); head waits 0 memory 1906 other, ROB empty 6178; walks 0 fetch 0 LSU; fills I$ 144 D$ 0; L2 144 reads 144 misses
-    265 restores (mispredicted branches and jalr), 0 replays, I$ 144 / 9653 missed, memory 144 line reads 0 line writes, uncached 0 reads 0 writes
-br-8.elf                     PASS  exit 0  14086 insns  14086 uops  14642 cycles  IPC 0.962
-    PMU: slots 24.2 % retiring, 22.2 % bad speculation, 38.6 % front end, 15.0 % back end (ROB 0, queues 2638, LQ / SQ 0, registers 5, checkpoints 98 cycles); head waits 0 memory 1680 other, ROB empty 5841; walks 0 fetch 0 LSU; fills I$ 131 D$ 0; L2 131 reads 131 misses
-    240 restores (mispredicted branches and jalr), 0 replays, I$ 131 / 8606 missed, memory 131 line reads 0 line writes, uncached 0 reads 0 writes
+br-4.elf                     PASS  exit 0  11590 insns  11590 uops  13462 cycles  IPC 0.861
+    PMU: slots 22.2 % retiring, 21.3 % bad speculation, 42.7 % front end, 13.9 % back end (ROB 0, queues 2289, LQ / SQ 0, registers 24, checkpoints 11 cycles); head waits 0 memory 1414 other, ROB empty 5647; walks 0 fetch 0 LSU; fills I$ 130 D$ 0; L2 130 reads 130 misses
+    209 restores (mispredicted branches and jalr), 0 replays, I$ 130 / 8227 missed, memory 130 line reads 0 line writes, uncached 0 reads 0 writes
+br-5.elf                     PASS  exit 0  11685 insns  11685 uops  15230 cycles  IPC 0.767
+    PMU: slots 20.1 % retiring, 28.1 % bad speculation, 47.4 % front end, 4.3 % back end (ROB 4, queues 501, LQ / SQ 0, registers 32, checkpoints 683 cycles); head waits 0 memory 2154 other, ROB empty 6719; walks 0 fetch 0 LSU; fills I$ 141 D$ 0; L2 141 reads 141 misses
+    356 restores (mispredicted branches and jalr), 0 replays, I$ 141 / 11284 missed, memory 141 line reads 0 line writes, uncached 0 reads 0 writes
+br-6.elf                     PASS  exit 0  7787 insns  7787 uops  11471 cycles  IPC 0.679
+    PMU: slots 18.6 % retiring, 25.0 % bad speculation, 51.0 % front end, 5.4 % back end (ROB 0, queues 699, LQ / SQ 0, registers 2, checkpoints 240 cycles); head waits 0 memory 1547 other, ROB empty 5771; walks 0 fetch 0 LSU; fills I$ 141 D$ 0; L2 141 reads 141 misses
+    220 restores (mispredicted branches and jalr), 0 replays, I$ 141 / 7798 missed, memory 141 line reads 0 line writes, uncached 0 reads 0 writes
+br-7.elf                     PASS  exit 0  9257 insns  9257 uops  13247 cycles  IPC 0.699
+    PMU: slots 18.9 % retiring, 23.8 % bad speculation, 53.8 % front end, 3.6 % back end (ROB 2, queues 452, LQ / SQ 0, registers 3, checkpoints 354 cycles); head waits 0 memory 1904 other, ROB empty 6223; walks 0 fetch 0 LSU; fills I$ 143 D$ 0; L2 143 reads 143 misses
+    265 restores (mispredicted branches and jalr), 0 replays, I$ 143 / 9653 missed, memory 143 line reads 0 line writes, uncached 0 reads 0 writes
+br-8.elf                     PASS  exit 0  14086 insns  14086 uops  14626 cycles  IPC 0.963
+    PMU: slots 24.2 % retiring, 22.4 % bad speculation, 38.4 % front end, 15.0 % back end (ROB 0, queues 2638, LQ / SQ 0, registers 5, checkpoints 98 cycles); head waits 0 memory 1676 other, ROB empty 5829; walks 0 fetch 0 LSU; fills I$ 130 D$ 0; L2 130 reads 130 misses
+    240 restores (mispredicted branches and jalr), 0 replays, I$ 130 / 8608 missed, memory 130 line reads 0 line writes, uncached 0 reads 0 writes
 br-9.elf                     PASS  exit 0  10898 insns  10898 uops  13798 cycles  IPC 0.790
     PMU: slots 20.7 % retiring, 25.1 % bad speculation, 49.3 % front end, 4.9 % back end (ROB 8, queues 832, LQ / SQ 0, registers 0, checkpoints 93 cycles); head waits 0 memory 1973 other, ROB empty 6319; walks 0 fetch 0 LSU; fills I$ 146 D$ 0; L2 146 reads 146 misses
     281 restores (mispredicted branches and jalr), 0 replays, I$ 146 / 9915 missed, memory 146 line reads 0 line writes, uncached 0 reads 0 writes
@@ -851,45 +851,45 @@ br-11.elf                    PASS  exit 0  8328 insns  8328 uops  12310 cycles  
 br-12.elf                    PASS  exit 0  9275 insns  9275 uops  13005 cycles  IPC 0.713
     PMU: slots 19.2 % retiring, 27.0 % bad speculation, 52.5 % front end, 1.3 % back end (ROB 7, queues 207, LQ / SQ 0, registers 1, checkpoints 65 cycles); head waits 0 memory 1895 other, ROB empty 6258; walks 0 fetch 0 LSU; fills I$ 133 D$ 0; L2 133 reads 133 misses
     301 restores (mispredicted branches and jalr), 0 replays, I$ 133 / 10023 missed, memory 133 line reads 0 line writes, uncached 0 reads 0 writes
-br-13.elf                    PASS  exit 0  8422 insns  8422 uops  12129 cycles  IPC 0.694
-    PMU: slots 18.9 % retiring, 26.4 % bad speculation, 53.6 % front end, 1.1 % back end (ROB 0, queues 183, LQ / SQ 0, registers 0, checkpoints 7 cycles); head waits 0 memory 1722 other, ROB empty 5981; walks 0 fetch 0 LSU; fills I$ 133 D$ 0; L2 133 reads 133 misses
-    282 restores (mispredicted branches and jalr), 0 replays, I$ 133 / 9311 missed, memory 133 line reads 0 line writes, uncached 0 reads 0 writes
-br-14.elf                    PASS  exit 0  11617 insns  11617 uops  14086 cycles  IPC 0.825
-    PMU: slots 21.4 % retiring, 32.2 % bad speculation, 42.2 % front end, 4.2 % back end (ROB 10, queues 665, LQ / SQ 0, registers 42, checkpoints 60 cycles); head waits 0 memory 2130 other, ROB empty 6669; walks 0 fetch 0 LSU; fills I$ 130 D$ 0; L2 130 reads 130 misses
-    346 restores (mispredicted branches and jalr), 0 replays, I$ 130 / 10326 missed, memory 130 line reads 0 line writes, uncached 0 reads 0 writes
+br-13.elf                    PASS  exit 0  8422 insns  8422 uops  12100 cycles  IPC 0.696
+    PMU: slots 18.9 % retiring, 26.4 % bad speculation, 53.6 % front end, 1.1 % back end (ROB 0, queues 183, LQ / SQ 0, registers 0, checkpoints 7 cycles); head waits 0 memory 1721 other, ROB empty 5953; walks 0 fetch 0 LSU; fills I$ 132 D$ 0; L2 132 reads 132 misses
+    282 restores (mispredicted branches and jalr), 0 replays, I$ 132 / 9311 missed, memory 132 line reads 0 line writes, uncached 0 reads 0 writes
+br-14.elf                    PASS  exit 0  11617 insns  11617 uops  14025 cycles  IPC 0.828
+    PMU: slots 21.5 % retiring, 32.2 % bad speculation, 42.1 % front end, 4.2 % back end (ROB 10, queues 665, LQ / SQ 0, registers 42, checkpoints 60 cycles); head waits 0 memory 2125 other, ROB empty 6614; walks 0 fetch 0 LSU; fills I$ 129 D$ 0; L2 129 reads 129 misses
+    346 restores (mispredicted branches and jalr), 0 replays, I$ 129 / 10327 missed, memory 129 line reads 0 line writes, uncached 0 reads 0 writes
 br-15.elf                    PASS  exit 0  11891 insns  11891 uops  14061 cycles  IPC 0.846
     PMU: slots 21.8 % retiring, 24.4 % bad speculation, 46.3 % front end, 7.4 % back end (ROB 0, queues 674, LQ / SQ 0, registers 0, checkpoints 1139 cycles); head waits 0 memory 1772 other, ROB empty 6084; walks 0 fetch 0 LSU; fills I$ 133 D$ 0; L2 133 reads 133 misses
     275 restores (mispredicted branches and jalr), 0 replays, I$ 133 / 9790 missed, memory 133 line reads 0 line writes, uncached 0 reads 0 writes
-br-16.elf                    PASS  exit 0  5759 insns  5759 uops  9884 cycles  IPC 0.583
-    PMU: slots 17.0 % retiring, 29.5 % bad speculation, 50.8 % front end, 2.7 % back end (ROB 6, queues 375, LQ / SQ 0, registers 7, checkpoints 0 cycles); head waits 0 memory 1358 other, ROB empty 5467; walks 0 fetch 0 LSU; fills I$ 117 D$ 0; L2 117 reads 117 misses
-    227 restores (mispredicted branches and jalr), 0 replays, I$ 117 / 7294 missed, memory 117 line reads 0 line writes, uncached 0 reads 0 writes
-br-17.elf                    PASS  exit 0  17479 insns  17479 uops  17917 cycles  IPC 0.976
-    PMU: slots 24.5 % retiring, 25.5 % bad speculation, 45.6 % front end, 4.4 % back end (ROB 0, queues 870, LQ / SQ 0, registers 0, checkpoints 341 cycles); head waits 0 memory 2464 other, ROB empty 6930; walks 0 fetch 0 LSU; fills I$ 145 D$ 0; L2 145 reads 145 misses
-    358 restores (mispredicted branches and jalr), 0 replays, I$ 145 / 13790 missed, memory 145 line reads 0 line writes, uncached 0 reads 0 writes
+br-16.elf                    PASS  exit 0  5759 insns  5759 uops  9952 cycles  IPC 0.579
+    PMU: slots 16.9 % retiring, 29.5 % bad speculation, 50.9 % front end, 2.7 % back end (ROB 6, queues 375, LQ / SQ 0, registers 7, checkpoints 0 cycles); head waits 0 memory 1362 other, ROB empty 5529; walks 0 fetch 0 LSU; fills I$ 118 D$ 0; L2 118 reads 118 misses
+    227 restores (mispredicted branches and jalr), 0 replays, I$ 118 / 7293 missed, memory 118 line reads 0 line writes, uncached 0 reads 0 writes
+br-17.elf                    PASS  exit 0  17479 insns  17479 uops  17914 cycles  IPC 0.976
+    PMU: slots 24.5 % retiring, 25.7 % bad speculation, 45.4 % front end, 4.4 % back end (ROB 0, queues 870, LQ / SQ 0, registers 0, checkpoints 341 cycles); head waits 0 memory 2467 other, ROB empty 6922; walks 0 fetch 0 LSU; fills I$ 146 D$ 0; L2 146 reads 146 misses
+    358 restores (mispredicted branches and jalr), 0 replays, I$ 146 / 13790 missed, memory 146 line reads 0 line writes, uncached 0 reads 0 writes
 br-18.elf                    PASS  exit 0  6751 insns  6751 uops  12275 cycles  IPC 0.550
     PMU: slots 16.0 % retiring, 33.3 % bad speculation, 49.9 % front end, 0.8 % back end (ROB 0, queues 101, LQ / SQ 0, registers 3, checkpoints 111 cycles); head waits 0 memory 1924 other, ROB empty 6570; walks 0 fetch 0 LSU; fills I$ 134 D$ 0; L2 134 reads 134 misses
     354 restores (mispredicted branches and jalr), 0 replays, I$ 134 / 9329 missed, memory 134 line reads 0 line writes, uncached 0 reads 0 writes
 br-19.elf                    PASS  exit 0  11767 insns  11767 uops  14330 cycles  IPC 0.821
     PMU: slots 21.3 % retiring, 22.3 % bad speculation, 47.3 % front end, 9.1 % back end (ROB 0, queues 1422, LQ / SQ 0, registers 38, checkpoints 422 cycles); head waits 0 memory 1879 other, ROB empty 6028; walks 0 fetch 0 LSU; fills I$ 137 D$ 0; L2 137 reads 137 misses
     272 restores (mispredicted branches and jalr), 0 replays, I$ 137 / 9451 missed, memory 137 line reads 0 line writes, uncached 0 reads 0 writes
-br-20.elf                    PASS  exit 0  9089 insns  9089 uops  11967 cycles  IPC 0.760
-    PMU: slots 20.2 % retiring, 28.9 % bad speculation, 49.1 % front end, 1.8 % back end (ROB 0, queues 257, LQ / SQ 0, registers 0, checkpoints 54 cycles); head waits 0 memory 1644 other, ROB empty 6073; walks 0 fetch 0 LSU; fills I$ 135 D$ 0; L2 135 reads 135 misses
-    288 restores (mispredicted branches and jalr), 0 replays, I$ 135 / 8789 missed, memory 135 line reads 0 line writes, uncached 0 reads 0 writes
-fp-1.elf                     PASS  exit 0  4187 insns  4187 uops  13487 cycles  IPC 0.310
-    PMU: slots 10.9 % retiring, 18.7 % bad speculation, 41.0 % front end, 29.4 % back end (ROB 1241, queues 120, LQ / SQ 3611, registers 1, checkpoints 78 cycles); head waits 3914 memory 2202 other, ROB empty 5526; walks 0 fetch 0 LSU; fills I$ 140 D$ 234; L2 374 reads 374 misses
-    125 restores (mispredicted branches and jalr), 51 replays, I$ 140 / 6424 missed, memory 374 line reads 0 line writes, uncached 0 reads 0 writes
+br-20.elf                    PASS  exit 0  9089 insns  9089 uops  11983 cycles  IPC 0.758
+    PMU: slots 20.2 % retiring, 28.9 % bad speculation, 49.1 % front end, 1.8 % back end (ROB 0, queues 257, LQ / SQ 0, registers 0, checkpoints 54 cycles); head waits 0 memory 1646 other, ROB empty 6087; walks 0 fetch 0 LSU; fills I$ 136 D$ 0; L2 136 reads 136 misses
+    288 restores (mispredicted branches and jalr), 0 replays, I$ 136 / 8789 missed, memory 136 line reads 0 line writes, uncached 0 reads 0 writes
+fp-1.elf                     PASS  exit 0  4187 insns  4187 uops  13367 cycles  IPC 0.313
+    PMU: slots 11.0 % retiring, 18.3 % bad speculation, 41.0 % front end, 29.7 % back end (ROB 1277, queues 122, LQ / SQ 3539, registers 3, checkpoints 78 cycles); head waits 3905 memory 2198 other, ROB empty 5429; walks 0 fetch 0 LSU; fills I$ 139 D$ 234; L2 373 reads 373 misses
+    119 restores (mispredicted branches and jalr), 49 replays, I$ 139 / 6316 missed, memory 373 line reads 0 line writes, uncached 0 reads 0 writes
 fp-2.elf                     PASS  exit 0  9329 insns  9329 uops  16418 cycles  IPC 0.568
     PMU: slots 15.9 % retiring, 17.9 % bad speculation, 33.3 % front end, 32.9 % back end (ROB 1472, queues 1670, LQ / SQ 3395, registers 49, checkpoints 10 cycles); head waits 4360 memory 2437 other, ROB empty 5096; walks 0 fetch 0 LSU; fills I$ 138 D$ 238; L2 376 reads 376 misses
     142 restores (mispredicted branches and jalr), 55 replays, I$ 138 / 6994 missed, memory 376 line reads 0 line writes, uncached 0 reads 0 writes
-fp-3.elf                     PASS  exit 0  12166 insns  12166 uops  25863 cycles  IPC 0.470
-    PMU: slots 13.1 % retiring, 19.0 % bad speculation, 24.7 % front end, 43.1 % back end (ROB 1678, queues 847, LQ / SQ 10199, registers 2, checkpoints 29 cycles); head waits 5488 memory 8500 other, ROB empty 6586; walks 0 fetch 0 LSU; fills I$ 159 D$ 255; L2 414 reads 414 misses
-    179 restores (mispredicted branches and jalr), 149 replays, I$ 159 / 9721 missed, memory 414 line reads 0 line writes, uncached 0 reads 0 writes
+fp-3.elf                     PASS  exit 0  12166 insns  12166 uops  25867 cycles  IPC 0.470
+    PMU: slots 13.1 % retiring, 18.7 % bad speculation, 25.1 % front end, 43.0 % back end (ROB 1805, queues 847, LQ / SQ 10011, registers 2, checkpoints 29 cycles); head waits 5523 memory 8604 other, ROB empty 6442; walks 0 fetch 0 LSU; fills I$ 160 D$ 255; L2 415 reads 415 misses
+    177 restores (mispredicted branches and jalr), 149 replays, I$ 160 / 9677 missed, memory 415 line reads 0 line writes, uncached 0 reads 0 writes
 fp-4.elf                     PASS  exit 0  4899 insns  4899 uops  13906 cycles  IPC 0.352
     PMU: slots 11.7 % retiring, 22.4 % bad speculation, 43.4 % front end, 22.5 % back end (ROB 1143, queues 85, LQ / SQ 3035, registers 8, checkpoints 57 cycles); head waits 3843 memory 2545 other, ROB empty 5360; walks 0 fetch 0 LSU; fills I$ 138 D$ 227; L2 365 reads 365 misses
     162 restores (mispredicted branches and jalr), 68 replays, I$ 138 / 7064 missed, memory 365 line reads 0 line writes, uncached 0 reads 0 writes
-fp-5.elf                     PASS  exit 0  6172 insns  6172 uops  15356 cycles  IPC 0.402
-    PMU: slots 12.5 % retiring, 21.4 % bad speculation, 38.1 % front end, 28.0 % back end (ROB 1446, queues 516, LQ / SQ 3540, registers 1, checkpoints 5 cycles); head waits 3975 memory 2965 other, ROB empty 5594; walks 0 fetch 0 LSU; fills I$ 143 D$ 238; L2 381 reads 381 misses
-    152 restores (mispredicted branches and jalr), 71 replays, I$ 143 / 7441 missed, memory 381 line reads 0 line writes, uncached 0 reads 0 writes
+fp-5.elf                     PASS  exit 0  6172 insns  6172 uops  15419 cycles  IPC 0.400
+    PMU: slots 12.5 % retiring, 21.3 % bad speculation, 38.1 % front end, 28.1 % back end (ROB 1454, queues 516, LQ / SQ 3564, registers 1, checkpoints 5 cycles); head waits 4051 memory 2967 other, ROB empty 5579; walks 0 fetch 0 LSU; fills I$ 144 D$ 238; L2 382 reads 382 misses
+    152 restores (mispredicted branches and jalr), 71 replays, I$ 144 / 7447 missed, memory 382 line reads 0 line writes, uncached 0 reads 0 writes
 fp-6.elf                     PASS  exit 0  4258 insns  4258 uops  14033 cycles  IPC 0.303
     PMU: slots 10.7 % retiring, 22.0 % bad speculation, 43.3 % front end, 24.0 % back end (ROB 2364, queues 39, LQ / SQ 2446, registers 135, checkpoints 0 cycles); head waits 4516 memory 2551 other, ROB empty 5071; walks 0 fetch 0 LSU; fills I$ 131 D$ 223; L2 354 reads 354 misses
     138 restores (mispredicted branches and jalr), 75 replays, I$ 131 / 6542 missed, memory 354 line reads 0 line writes, uncached 0 reads 0 writes
@@ -899,36 +899,36 @@ fp-7.elf                     PASS  exit 0  3309 insns  3309 uops  13200 cycles  
 fp-8.elf                     PASS  exit 0  5081 insns  5081 uops  14071 cycles  IPC 0.361
     PMU: slots 11.9 % retiring, 19.1 % bad speculation, 40.6 % front end, 28.4 % back end (ROB 878, queues 78, LQ / SQ 4046, registers 35, checkpoints 14 cycles); head waits 3560 memory 2052 other, ROB empty 6205; walks 0 fetch 0 LSU; fills I$ 145 D$ 247; L2 392 reads 392 misses
     121 restores (mispredicted branches and jalr), 63 replays, I$ 145 / 6301 missed, memory 392 line reads 0 line writes, uncached 0 reads 0 writes
-fp-9.elf                     PASS  exit 0  5078 insns  5078 uops  14366 cycles  IPC 0.353
-    PMU: slots 11.6 % retiring, 20.8 % bad speculation, 35.7 % front end, 31.9 % back end (ROB 1492, queues 186, LQ / SQ 4021, registers 39, checkpoints 1 cycles); head waits 4235 memory 2550 other, ROB empty 5539; walks 0 fetch 0 LSU; fills I$ 148 D$ 235; L2 383 reads 383 misses
-    121 restores (mispredicted branches and jalr), 64 replays, I$ 148 / 6120 missed, memory 383 line reads 0 line writes, uncached 0 reads 0 writes
-fp-10.elf                    PASS  exit 0  9662 insns  9662 uops  17266 cycles  IPC 0.560
-    PMU: slots 15.6 % retiring, 18.0 % bad speculation, 35.3 % front end, 31.1 % back end (ROB 1668, queues 136, LQ / SQ 4790, registers 3, checkpoints 256 cycles); head waits 4280 memory 3878 other, ROB empty 5756; walks 0 fetch 0 LSU; fills I$ 144 D$ 281; L2 425 reads 425 misses
-    140 restores (mispredicted branches and jalr), 68 replays, I$ 144 / 7693 missed, memory 425 line reads 0 line writes, uncached 0 reads 0 writes
+fp-9.elf                     PASS  exit 0  5078 insns  5078 uops  14074 cycles  IPC 0.361
+    PMU: slots 11.8 % retiring, 20.2 % bad speculation, 36.7 % front end, 31.2 % back end (ROB 1447, queues 186, LQ / SQ 3859, registers 39, checkpoints 1 cycles); head waits 4151 memory 2555 other, ROB empty 5325; walks 0 fetch 0 LSU; fills I$ 149 D$ 235; L2 384 reads 384 misses
+    123 restores (mispredicted branches and jalr), 65 replays, I$ 149 / 6129 missed, memory 384 line reads 0 line writes, uncached 0 reads 0 writes
+fp-10.elf                    PASS  exit 0  9662 insns  9662 uops  17301 cycles  IPC 0.558
+    PMU: slots 15.6 % retiring, 18.3 % bad speculation, 34.9 % front end, 31.3 % back end (ROB 1709, queues 137, LQ / SQ 4805, registers 3, checkpoints 256 cycles); head waits 4244 memory 3857 other, ROB empty 5849; walks 0 fetch 0 LSU; fills I$ 143 D$ 281; L2 424 reads 424 misses
+    140 restores (mispredicted branches and jalr), 68 replays, I$ 143 / 7684 missed, memory 424 line reads 0 line writes, uncached 0 reads 0 writes
 fp-11.elf                    PASS  exit 0  10275 insns  10275 uops  19120 cycles  IPC 0.537
     PMU: slots 15.0 % retiring, 22.1 % bad speculation, 32.1 % front end, 30.8 % back end (ROB 1070, queues 97, LQ / SQ 5675, registers 137, checkpoints 5 cycles); head waits 4273 memory 3676 other, ROB empty 6758; walks 0 fetch 0 LSU; fills I$ 159 D$ 273; L2 432 reads 432 misses
     212 restores (mispredicted branches and jalr), 87 replays, I$ 159 / 8761 missed, memory 432 line reads 0 line writes, uncached 0 reads 0 writes
-fp-12.elf                    PASS  exit 0  9705 insns  9705 uops  21048 cycles  IPC 0.461
-    PMU: slots 13.2 % retiring, 27.0 % bad speculation, 29.4 % front end, 30.4 % back end (ROB 3125, queues 484, LQ / SQ 3900, registers 235, checkpoints 22 cycles); head waits 4693 memory 5110 other, ROB empty 6926; walks 0 fetch 0 LSU; fills I$ 157 D$ 249; L2 406 reads 406 misses
-    234 restores (mispredicted branches and jalr), 146 replays, I$ 157 / 10247 missed, memory 406 line reads 0 line writes, uncached 0 reads 0 writes
-fp-13.elf                    PASS  exit 0  5200 insns  5200 uops  16739 cycles  IPC 0.311
-    PMU: slots 10.4 % retiring, 20.7 % bad speculation, 34.5 % front end, 34.4 % back end (ROB 2737, queues 161, LQ / SQ 4236, registers 12, checkpoints 2 cycles); head waits 5683 memory 3078 other, ROB empty 5703; walks 0 fetch 0 LSU; fills I$ 156 D$ 267; L2 423 reads 423 misses
-    128 restores (mispredicted branches and jalr), 105 replays, I$ 156 / 7335 missed, memory 423 line reads 0 line writes, uncached 0 reads 0 writes
-fp-14.elf                    PASS  exit 0  13550 insns  13550 uops  21517 cycles  IPC 0.630
-    PMU: slots 16.9 % retiring, 19.7 % bad speculation, 33.1 % front end, 30.3 % back end (ROB 715, queues 1235, LQ / SQ 5534, registers 248, checkpoints 15 cycles); head waits 3849 memory 3611 other, ROB empty 7197; walks 0 fetch 0 LSU; fills I$ 163 D$ 261; L2 424 reads 424 misses
-    135 restores (mispredicted branches and jalr), 141 replays, I$ 163 / 9272 missed, memory 424 line reads 0 line writes, uncached 0 reads 0 writes
-fp-15.elf                    PASS  exit 0  2898 insns  2898 uops  12530 cycles  IPC 0.231
-    PMU: slots 9.5 % retiring, 21.0 % bad speculation, 40.0 % front end, 29.4 % back end (ROB 915, queues 19, LQ / SQ 3711, registers 21, checkpoints 2 cycles); head waits 4100 memory 1882 other, ROB empty 5048; walks 0 fetch 0 LSU; fills I$ 139 D$ 221; L2 360 reads 360 misses
-    97 restores (mispredicted branches and jalr), 64 replays, I$ 139 / 5771 missed, memory 360 line reads 0 line writes, uncached 0 reads 0 writes
+fp-12.elf                    PASS  exit 0  9705 insns  9705 uops  21018 cycles  IPC 0.462
+    PMU: slots 13.2 % retiring, 27.2 % bad speculation, 29.5 % front end, 30.0 % back end (ROB 3158, queues 472, LQ / SQ 3818, registers 196, checkpoints 22 cycles); head waits 4683 memory 5108 other, ROB empty 6901; walks 0 fetch 0 LSU; fills I$ 156 D$ 249; L2 405 reads 405 misses
+    234 restores (mispredicted branches and jalr), 146 replays, I$ 156 / 10255 missed, memory 405 line reads 0 line writes, uncached 0 reads 0 writes
+fp-13.elf                    PASS  exit 0  5200 insns  5200 uops  16638 cycles  IPC 0.313
+    PMU: slots 10.5 % retiring, 21.1 % bad speculation, 34.7 % front end, 33.7 % back end (ROB 2631, queues 162, LQ / SQ 4206, registers 12, checkpoints 2 cycles); head waits 5512 memory 3113 other, ROB empty 5731; walks 0 fetch 0 LSU; fills I$ 157 D$ 267; L2 424 reads 424 misses
+    129 restores (mispredicted branches and jalr), 106 replays, I$ 157 / 7345 missed, memory 424 line reads 0 line writes, uncached 0 reads 0 writes
+fp-14.elf                    PASS  exit 0  13550 insns  13550 uops  21540 cycles  IPC 0.629
+    PMU: slots 16.9 % retiring, 19.8 % bad speculation, 33.2 % front end, 30.1 % back end (ROB 716, queues 1233, LQ / SQ 5502, registers 248, checkpoints 15 cycles); head waits 3855 memory 3596 other, ROB empty 7239; walks 0 fetch 0 LSU; fills I$ 164 D$ 261; L2 425 reads 425 misses
+    134 restores (mispredicted branches and jalr), 140 replays, I$ 164 / 9232 missed, memory 425 line reads 0 line writes, uncached 0 reads 0 writes
+fp-15.elf                    PASS  exit 0  2898 insns  2898 uops  12705 cycles  IPC 0.228
+    PMU: slots 9.4 % retiring, 21.0 % bad speculation, 40.1 % front end, 29.5 % back end (ROB 1010, queues 19, LQ / SQ 3682, registers 22, checkpoints 2 cycles); head waits 4222 memory 1895 other, ROB empty 5092; walks 0 fetch 0 LSU; fills I$ 138 D$ 221; L2 359 reads 359 misses
+    96 restores (mispredicted branches and jalr), 61 replays, I$ 138 / 5712 missed, memory 359 line reads 0 line writes, uncached 0 reads 0 writes
 fp-16.elf                    PASS  exit 0  9822 insns  9822 uops  19064 cycles  IPC 0.515
     PMU: slots 14.5 % retiring, 16.7 % bad speculation, 37.9 % front end, 30.9 % back end (ROB 1315, queues 279, LQ / SQ 5619, registers 27, checkpoints 108 cycles); head waits 4335 memory 3585 other, ROB empty 6131; walks 0 fetch 0 LSU; fills I$ 138 D$ 231; L2 369 reads 369 misses
     116 restores (mispredicted branches and jalr), 120 replays, I$ 138 / 9158 missed, memory 369 line reads 0 line writes, uncached 0 reads 0 writes
 fp-17.elf                    PASS  exit 0  11755 insns  11755 uops  27702 cycles  IPC 0.424
     PMU: slots 12.0 % retiring, 26.4 % bad speculation, 30.0 % front end, 31.6 % back end (ROB 2609, queues 1071, LQ / SQ 6516, registers 116, checkpoints 1 cycles); head waits 7120 memory 5913 other, ROB empty 8073; walks 0 fetch 0 LSU; fills I$ 145 D$ 268; L2 413 reads 413 misses
     125 restores (mispredicted branches and jalr), 358 replays, I$ 145 / 12056 missed, memory 413 line reads 0 line writes, uncached 0 reads 0 writes
-fp-18.elf                    PASS  exit 0  4155 insns  4155 uops  13034 cycles  IPC 0.319
-    PMU: slots 11.2 % retiring, 20.6 % bad speculation, 44.6 % front end, 23.7 % back end (ROB 2627, queues 76, LQ / SQ 1792, registers 22, checkpoints 55 cycles); head waits 3650 memory 2916 other, ROB empty 4653; walks 0 fetch 0 LSU; fills I$ 140 D$ 191; L2 331 reads 331 misses
-    114 restores (mispredicted branches and jalr), 56 replays, I$ 140 / 5983 missed, memory 331 line reads 0 line writes, uncached 0 reads 0 writes
+fp-18.elf                    PASS  exit 0  4155 insns  4155 uops  13150 cycles  IPC 0.316
+    PMU: slots 11.1 % retiring, 21.3 % bad speculation, 44.2 % front end, 23.4 % back end (ROB 2475, queues 82, LQ / SQ 1825, registers 22, checkpoints 55 cycles); head waits 3585 memory 2910 other, ROB empty 4844; walks 0 fetch 0 LSU; fills I$ 141 D$ 191; L2 332 reads 332 misses
+    114 restores (mispredicted branches and jalr), 56 replays, I$ 141 / 5948 missed, memory 332 line reads 0 line writes, uncached 0 reads 0 writes
 fp-19.elf                    PASS  exit 0  2914 insns  2914 uops  13029 cycles  IPC 0.224
     PMU: slots 9.2 % retiring, 17.6 % bad speculation, 41.7 % front end, 31.5 % back end (ROB 1750, queues 183, LQ / SQ 3788, registers 2, checkpoints 0 cycles); head waits 4209 memory 2248 other, ROB empty 5190; walks 0 fetch 0 LSU; fills I$ 127 D$ 242; L2 369 reads 369 misses
     68 restores (mispredicted branches and jalr), 73 replays, I$ 127 / 5284 missed, memory 369 line reads 0 line writes, uncached 0 reads 0 writes
@@ -941,15 +941,15 @@ ls-1.elf                     PASS  exit 0  3755 insns  3755 uops  12203 cycles  
 ls-2.elf                     PASS  exit 0  3364 insns  3364 uops  13004 cycles  IPC 0.259
     PMU: slots 9.9 % retiring, 21.1 % bad speculation, 36.2 % front end, 32.7 % back end (ROB 1773, queues 159, LQ / SQ 3271, registers 105, checkpoints 13 cycles); head waits 5186 memory 766 other, ROB empty 5414; walks 0 fetch 0 LSU; fills I$ 114 D$ 244; L2 358 reads 358 misses
     128 restores (mispredicted branches and jalr), 60 replays, I$ 114 / 6281 missed, memory 358 line reads 0 line writes, uncached 0 reads 0 writes
-ls-3.elf                     PASS  exit 0  7109 insns  7109 uops  14263 cycles  IPC 0.498
-    PMU: slots 14.6 % retiring, 19.3 % bad speculation, 38.3 % front end, 27.7 % back end (ROB 510, queues 216, LQ / SQ 4284, registers 5, checkpoints 21 cycles); head waits 3548 memory 914 other, ROB empty 6415; walks 0 fetch 0 LSU; fills I$ 118 D$ 208; L2 326 reads 326 misses
-    135 restores (mispredicted branches and jalr), 53 replays, I$ 118 / 6731 missed, memory 326 line reads 0 line writes, uncached 0 reads 0 writes
-ls-4.elf                     PASS  exit 0  2513 insns  2513 uops  11636 cycles  IPC 0.216
-    PMU: slots 9.4 % retiring, 21.0 % bad speculation, 40.1 % front end, 29.5 % back end (ROB 563, queues 33, LQ / SQ 3720, registers 9, checkpoints 4 cycles); head waits 4262 memory 451 other, ROB empty 5640; walks 0 fetch 0 LSU; fills I$ 105 D$ 228; L2 333 reads 333 misses
-    98 restores (mispredicted branches and jalr), 55 replays, I$ 105 / 5387 missed, memory 333 line reads 0 line writes, uncached 0 reads 0 writes
-ls-5.elf                     PASS  exit 0  4209 insns  4209 uops  12576 cycles  IPC 0.335
-    PMU: slots 11.6 % retiring, 27.0 % bad speculation, 40.3 % front end, 21.1 % back end (ROB 1032, queues 53, LQ / SQ 2392, registers 47, checkpoints 4 cycles); head waits 4106 memory 882 other, ROB empty 5684; walks 0 fetch 0 LSU; fills I$ 111 D$ 214; L2 325 reads 325 misses
-    176 restores (mispredicted branches and jalr), 71 replays, I$ 111 / 6700 missed, memory 325 line reads 0 line writes, uncached 0 reads 0 writes
+ls-3.elf                     PASS  exit 0  7109 insns  7109 uops  14322 cycles  IPC 0.496
+    PMU: slots 14.6 % retiring, 19.1 % bad speculation, 37.9 % front end, 28.4 % back end (ROB 582, queues 216, LQ / SQ 4357, registers 5, checkpoints 21 cycles); head waits 3708 memory 916 other, ROB empty 6311; walks 0 fetch 0 LSU; fills I$ 117 D$ 208; L2 325 reads 325 misses
+    134 restores (mispredicted branches and jalr), 54 replays, I$ 117 / 6728 missed, memory 325 line reads 0 line writes, uncached 0 reads 0 writes
+ls-4.elf                     PASS  exit 0  2513 insns  2513 uops  11507 cycles  IPC 0.218
+    PMU: slots 9.5 % retiring, 20.4 % bad speculation, 40.8 % front end, 29.4 % back end (ROB 561, queues 33, LQ / SQ 3662, registers 9, checkpoints 4 cycles); head waits 4205 memory 454 other, ROB empty 5564; walks 0 fetch 0 LSU; fills I$ 106 D$ 228; L2 334 reads 334 misses
+    101 restores (mispredicted branches and jalr), 55 replays, I$ 106 / 5373 missed, memory 334 line reads 0 line writes, uncached 0 reads 0 writes
+ls-5.elf                     PASS  exit 0  4209 insns  4209 uops  12457 cycles  IPC 0.338
+    PMU: slots 11.7 % retiring, 26.4 % bad speculation, 41.1 % front end, 20.8 % back end (ROB 1024, queues 53, LQ / SQ 2316, registers 47, checkpoints 3 cycles); head waits 4157 memory 850 other, ROB empty 5551; walks 0 fetch 0 LSU; fills I$ 110 D$ 214; L2 324 reads 324 misses
+    171 restores (mispredicted branches and jalr), 75 replays, I$ 110 / 6704 missed, memory 324 line reads 0 line writes, uncached 0 reads 0 writes
 ls-6.elf                     PASS  exit 0  3745 insns  3745 uops  12924 cycles  IPC 0.290
     PMU: slots 10.6 % retiring, 21.5 % bad speculation, 40.2 % front end, 27.7 % back end (ROB 963, queues 116, LQ / SQ 3502, registers 44, checkpoints 0 cycles); head waits 4456 memory 725 other, ROB empty 5968; walks 0 fetch 0 LSU; fills I$ 121 D$ 242; L2 363 reads 363 misses
     138 restores (mispredicted branches and jalr), 67 replays, I$ 121 / 6307 missed, memory 363 line reads 0 line writes, uncached 0 reads 0 writes
@@ -959,24 +959,24 @@ ls-7.elf                     PASS  exit 0  4854 insns  4854 uops  13362 cycles  
 ls-8.elf                     PASS  exit 0  7000 insns  7000 uops  15306 cycles  IPC 0.457
     PMU: slots 13.7 % retiring, 20.5 % bad speculation, 33.9 % front end, 31.9 % back end (ROB 866, queues 304, LQ / SQ 4668, registers 115, checkpoints 13 cycles); head waits 5201 memory 751 other, ROB empty 6318; walks 0 fetch 0 LSU; fills I$ 125 D$ 263; L2 388 reads 388 misses
     140 restores (mispredicted branches and jalr), 72 replays, I$ 125 / 7402 missed, memory 388 line reads 0 line writes, uncached 0 reads 0 writes
-ls-9.elf                     PASS  exit 0  2768 insns  2768 uops  13046 cycles  IPC 0.212
-    PMU: slots 9.0 % retiring, 21.0 % bad speculation, 34.2 % front end, 35.9 % back end (ROB 1260, queues 16, LQ / SQ 4597, registers 0, checkpoints 0 cycles); head waits 5081 memory 523 other, ROB empty 6045; walks 0 fetch 0 LSU; fills I$ 112 D$ 247; L2 359 reads 359 misses
-    117 restores (mispredicted branches and jalr), 64 replays, I$ 112 / 6035 missed, memory 359 line reads 0 line writes, uncached 0 reads 0 writes
-ls-10.elf                    PASS  exit 0  6475 insns  6475 uops  14004 cycles  IPC 0.462
-    PMU: slots 13.9 % retiring, 18.1 % bad speculation, 37.7 % front end, 30.2 % back end (ROB 1639, queues 177, LQ / SQ 3382, registers 211, checkpoints 3 cycles); head waits 5073 memory 901 other, ROB empty 5377; walks 0 fetch 0 LSU; fills I$ 121 D$ 232; L2 353 reads 353 misses
-    126 restores (mispredicted branches and jalr), 64 replays, I$ 121 / 7114 missed, memory 353 line reads 0 line writes, uncached 0 reads 0 writes
+ls-9.elf                     PASS  exit 0  2768 insns  2768 uops  13034 cycles  IPC 0.212
+    PMU: slots 9.0 % retiring, 20.9 % bad speculation, 34.2 % front end, 35.9 % back end (ROB 1260, queues 16, LQ / SQ 4603, registers 0, checkpoints 0 cycles); head waits 5066 memory 523 other, ROB empty 6048; walks 0 fetch 0 LSU; fills I$ 111 D$ 247; L2 358 reads 358 misses
+    117 restores (mispredicted branches and jalr), 64 replays, I$ 111 / 6043 missed, memory 358 line reads 0 line writes, uncached 0 reads 0 writes
+ls-10.elf                    PASS  exit 0  6475 insns  6475 uops  14038 cycles  IPC 0.461
+    PMU: slots 13.9 % retiring, 19.4 % bad speculation, 37.5 % front end, 29.2 % back end (ROB 1575, queues 180, LQ / SQ 3275, registers 209, checkpoints 3 cycles); head waits 4929 memory 894 other, ROB empty 5564; walks 0 fetch 0 LSU; fills I$ 122 D$ 232; L2 354 reads 354 misses
+    128 restores (mispredicted branches and jalr), 64 replays, I$ 122 / 7100 missed, memory 354 line reads 0 line writes, uncached 0 reads 0 writes
 ls-11.elf                    PASS  exit 0  3373 insns  3373 uops  12146 cycles  IPC 0.278
     PMU: slots 10.5 % retiring, 20.7 % bad speculation, 38.8 % front end, 30.0 % back end (ROB 1150, queues 139, LQ / SQ 3287, registers 59, checkpoints 0 cycles); head waits 4639 memory 599 other, ROB empty 5319; walks 0 fetch 0 LSU; fills I$ 121 D$ 210; L2 331 reads 331 misses
     106 restores (mispredicted branches and jalr), 66 replays, I$ 121 / 5996 missed, memory 331 line reads 0 line writes, uncached 0 reads 0 writes
-ls-12.elf                    PASS  exit 0  2419 insns  2419 uops  12663 cycles  IPC 0.191
-    PMU: slots 8.6 % retiring, 17.2 % bad speculation, 39.7 % front end, 34.5 % back end (ROB 1572, queues 95, LQ / SQ 4174, registers 197, checkpoints 0 cycles); head waits 5198 memory 580 other, ROB empty 5578; walks 0 fetch 0 LSU; fills I$ 119 D$ 246; L2 365 reads 365 misses
-    84 restores (mispredicted branches and jalr), 60 replays, I$ 119 / 5331 missed, memory 365 line reads 0 line writes, uncached 0 reads 0 writes
+ls-12.elf                    PASS  exit 0  2419 insns  2419 uops  12626 cycles  IPC 0.192
+    PMU: slots 8.7 % retiring, 17.4 % bad speculation, 39.9 % front end, 34.0 % back end (ROB 1539, queues 100, LQ / SQ 4108, registers 197, checkpoints 0 cycles); head waits 5211 memory 579 other, ROB empty 5529; walks 0 fetch 0 LSU; fills I$ 118 D$ 246; L2 364 reads 364 misses
+    85 restores (mispredicted branches and jalr), 60 replays, I$ 118 / 5341 missed, memory 364 line reads 0 line writes, uncached 0 reads 0 writes
 ls-13.elf                    PASS  exit 0  3945 insns  3945 uops  13062 cycles  IPC 0.302
     PMU: slots 10.8 % retiring, 17.0 % bad speculation, 41.1 % front end, 31.0 % back end (ROB 443, queues 23, LQ / SQ 4571, registers 90, checkpoints 0 cycles); head waits 4332 memory 586 other, ROB empty 6280; walks 0 fetch 0 LSU; fills I$ 127 D$ 245; L2 372 reads 372 misses
     102 restores (mispredicted branches and jalr), 65 replays, I$ 127 / 6173 missed, memory 372 line reads 0 line writes, uncached 0 reads 0 writes
-ls-14.elf                    PASS  exit 0  7902 insns  7902 uops  15729 cycles  IPC 0.502
-    PMU: slots 14.6 % retiring, 20.3 % bad speculation, 36.8 % front end, 28.3 % back end (ROB 1018, queues 353, LQ / SQ 3799, registers 224, checkpoints 531 cycles); head waits 4583 memory 913 other, ROB empty 6374; walks 0 fetch 0 LSU; fills I$ 122 D$ 240; L2 362 reads 362 misses
-    155 restores (mispredicted branches and jalr), 69 replays, I$ 122 / 8017 missed, memory 362 line reads 0 line writes, uncached 0 reads 0 writes
+ls-14.elf                    PASS  exit 0  7902 insns  7902 uops  15533 cycles  IPC 0.509
+    PMU: slots 14.7 % retiring, 20.1 % bad speculation, 37.4 % front end, 27.8 % back end (ROB 874, queues 349, LQ / SQ 3770, registers 214, checkpoints 537 cycles); head waits 4509 memory 873 other, ROB empty 6340; walks 0 fetch 0 LSU; fills I$ 123 D$ 240; L2 363 reads 363 misses
+    143 restores (mispredicted branches and jalr), 71 replays, I$ 123 / 7843 missed, memory 363 line reads 0 line writes, uncached 0 reads 0 writes
 ls-15.elf                    PASS  exit 0  7522 insns  7522 uops  14702 cycles  IPC 0.512
     PMU: slots 14.9 % retiring, 18.9 % bad speculation, 37.2 % front end, 29.0 % back end (ROB 255, queues 20, LQ / SQ 4891, registers 186, checkpoints 8 cycles); head waits 4106 memory 956 other, ROB empty 6198; walks 0 fetch 0 LSU; fills I$ 121 D$ 245; L2 366 reads 366 misses
     148 restores (mispredicted branches and jalr), 54 replays, I$ 121 / 6979 missed, memory 366 line reads 0 line writes, uncached 0 reads 0 writes
@@ -986,12 +986,12 @@ ls-16.elf                    PASS  exit 0  2920 insns  2920 uops  12981 cycles  
 ls-17.elf                    PASS  exit 0  4116 insns  4116 uops  14027 cycles  IPC 0.293
     PMU: slots 10.5 % retiring, 25.2 % bad speculation, 35.6 % front end, 28.8 % back end (ROB 1808, queues 47, LQ / SQ 3210, registers 129, checkpoints 17 cycles); head waits 5115 memory 1023 other, ROB empty 5923; walks 0 fetch 0 LSU; fills I$ 120 D$ 222; L2 342 reads 342 misses
     139 restores (mispredicted branches and jalr), 101 replays, I$ 120 / 7339 missed, memory 342 line reads 0 line writes, uncached 0 reads 0 writes
-ls-18.elf                    PASS  exit 0  3427 insns  3427 uops  12425 cycles  IPC 0.276
-    PMU: slots 10.4 % retiring, 21.0 % bad speculation, 41.3 % front end, 27.2 % back end (ROB 310, queues 19, LQ / SQ 3915, registers 4, checkpoints 15 cycles); head waits 3500 memory 644 other, ROB empty 6564; walks 0 fetch 0 LSU; fills I$ 115 D$ 240; L2 355 reads 355 misses
-    133 restores (mispredicted branches and jalr), 51 replays, I$ 115 / 6153 missed, memory 355 line reads 0 line writes, uncached 0 reads 0 writes
-ls-19.elf                    PASS  exit 0  4514 insns  4514 uops  13416 cycles  IPC 0.336
-    PMU: slots 11.4 % retiring, 19.7 % bad speculation, 36.5 % front end, 32.3 % back end (ROB 2153, queues 46, LQ / SQ 3367, registers 34, checkpoints 19 cycles); head waits 5048 memory 778 other, ROB empty 5647; walks 0 fetch 0 LSU; fills I$ 109 D$ 235; L2 344 reads 344 misses
-    134 restores (mispredicted branches and jalr), 52 replays, I$ 109 / 6219 missed, memory 344 line reads 0 line writes, uncached 0 reads 0 writes
+ls-18.elf                    PASS  exit 0  3427 insns  3427 uops  12311 cycles  IPC 0.278
+    PMU: slots 10.5 % retiring, 20.7 % bad speculation, 41.7 % front end, 27.1 % back end (ROB 305, queues 19, LQ / SQ 3873, registers 4, checkpoints 15 cycles); head waits 3412 memory 638 other, ROB empty 6549; walks 0 fetch 0 LSU; fills I$ 116 D$ 240; L2 356 reads 356 misses
+    133 restores (mispredicted branches and jalr), 48 replays, I$ 116 / 6078 missed, memory 356 line reads 0 line writes, uncached 0 reads 0 writes
+ls-19.elf                    PASS  exit 0  4514 insns  4514 uops  13473 cycles  IPC 0.335
+    PMU: slots 11.4 % retiring, 19.8 % bad speculation, 36.7 % front end, 32.1 % back end (ROB 2068, queues 50, LQ / SQ 3429, registers 29, checkpoints 19 cycles); head waits 5065 memory 788 other, ROB empty 5671; walks 0 fetch 0 LSU; fills I$ 110 D$ 235; L2 345 reads 345 misses
+    135 restores (mispredicted branches and jalr), 55 replays, I$ 110 / 6261 missed, memory 345 line reads 0 line writes, uncached 0 reads 0 writes
 ls-20.elf                    PASS  exit 0  4920 insns  4920 uops  16209 cycles  IPC 0.304
     PMU: slots 10.3 % retiring, 19.4 % bad speculation, 33.3 % front end, 37.0 % back end (ROB 607, queues 42, LQ / SQ 6543, registers 3, checkpoints 17 cycles); head waits 5468 memory 797 other, ROB empty 7299; walks 0 fetch 0 LSU; fills I$ 126 D$ 275; L2 401 reads 401 misses
     115 restores (mispredicted branches and jalr), 100 replays, I$ 126 / 7157 missed, memory 401 line reads 0 line writes, uncached 0 reads 0 writes
@@ -1113,7 +1113,7 @@ D-fcvt.l.s-00.elf            PASS  exit 0  1051 insns  1055 uops  3235 cycles  I
 D-fcvt.s.d-00.elf            PASS  exit 0  7029 insns  7033 uops  21013 cycles  IPC 0.335
 D-fcvt.s.lu-00.elf           PASS  exit 0  917 insns  921 uops  2680 cycles  IPC 0.342
 D-fcvt.s.l-00.elf            PASS  exit 0  917 insns  921 uops  2680 cycles  IPC 0.342
-D-fcvt.s.wu-00.elf           PASS  exit 0  917 insns  921 uops  2681 cycles  IPC 0.342
+D-fcvt.s.wu-00.elf           PASS  exit 0  917 insns  921 uops  2680 cycles  IPC 0.342
 D-fcvt.s.w-00.elf            PASS  exit 0  917 insns  921 uops  2680 cycles  IPC 0.342
 D-fcvt.wu.d-00.elf           PASS  exit 0  3655 insns  3659 uops  14643 cycles  IPC 0.250
 D-fcvt.wu.s-00.elf           PASS  exit 0  1051 insns  1055 uops  3235 cycles  IPC 0.325
@@ -1133,11 +1133,11 @@ D-fle.s-00.elf               PASS  exit 0  1255 insns  1259 uops  3837 cycles  I
 D-flt.d-00.elf               PASS  exit 0  13085 insns  13089 uops  45174 cycles  IPC 0.290
 D-flt.s-00.elf               PASS  exit 0  1255 insns  1259 uops  3837 cycles  IPC 0.327
 D-flw-00.elf                 PASS  exit 0  917 insns  921 uops  2638 cycles  IPC 0.348
-D-fmadd.d-00.elf             PASS  exit 0  30887 insns  30891 uops  83329 cycles  IPC 0.371
+D-fmadd.d-00.elf             PASS  exit 0  30887 insns  30891 uops  83322 cycles  IPC 0.371
 D-fmadd.d-01.elf             PASS  exit 0  30887 insns  30891 uops  84679 cycles  IPC 0.365
 D-fmadd.d-02.elf             PASS  exit 0  30895 insns  30899 uops  85135 cycles  IPC 0.363
 D-fmadd.d-03.elf             PASS  exit 0  30887 insns  30891 uops  85185 cycles  IPC 0.363
-D-fmadd.d-04.elf             PASS  exit 0  30887 insns  30891 uops  84680 cycles  IPC 0.365
+D-fmadd.d-04.elf             PASS  exit 0  30887 insns  30891 uops  84724 cycles  IPC 0.365
 D-fmadd.d-05.elf             PASS  exit 0  30895 insns  30899 uops  85047 cycles  IPC 0.363
 D-fmadd.d-06.elf             PASS  exit 0  30887 insns  30891 uops  85018 cycles  IPC 0.363
 D-fmadd.d-07.elf             PASS  exit 0  30887 insns  30891 uops  84409 cycles  IPC 0.366
@@ -1146,7 +1146,7 @@ D-fmadd.d-09.elf             PASS  exit 0  22727 insns  22731 uops  62690 cycles
 D-fmadd.s-00.elf             PASS  exit 0  2185 insns  2189 uops  5832 cycles  IPC 0.375
 D-fmax.d-00.elf              PASS  exit 0  30887 insns  30891 uops  72389 cycles  IPC 0.427
 D-fmax.d-01.elf              PASS  exit 0  917 insns  921 uops  2674 cycles  IPC 0.343
-D-fmax.s-00.elf              PASS  exit 0  1757 insns  1761 uops  4576 cycles  IPC 0.384
+D-fmax.s-00.elf              PASS  exit 0  1757 insns  1761 uops  4598 cycles  IPC 0.382
 D-fmin.d-00.elf              PASS  exit 0  30887 insns  30891 uops  72389 cycles  IPC 0.427
 D-fmin.d-01.elf              PASS  exit 0  917 insns  921 uops  2674 cycles  IPC 0.343
 D-fmin.s-00.elf              PASS  exit 0  1757 insns  1761 uops  4576 cycles  IPC 0.384
@@ -1181,7 +1181,7 @@ D-fnmadd.d-06.elf            PASS  exit 0  30887 insns  30891 uops  85106 cycles
 D-fnmadd.d-07.elf            PASS  exit 0  30887 insns  30891 uops  84546 cycles  IPC 0.365
 D-fnmadd.d-08.elf            PASS  exit 0  30895 insns  30899 uops  85132 cycles  IPC 0.363
 D-fnmadd.d-09.elf            PASS  exit 0  22727 insns  22731 uops  62658 cycles  IPC 0.363
-D-fnmadd.s-00.elf            PASS  exit 0  2185 insns  2189 uops  5861 cycles  IPC 0.373
+D-fnmadd.s-00.elf            PASS  exit 0  2185 insns  2189 uops  5827 cycles  IPC 0.375
 D-fnmsub.d-00.elf            PASS  exit 0  30887 insns  30891 uops  83013 cycles  IPC 0.372
 D-fnmsub.d-01.elf            PASS  exit 0  30887 insns  30891 uops  84620 cycles  IPC 0.365
 D-fnmsub.d-02.elf            PASS  exit 0  30895 insns  30899 uops  85022 cycles  IPC 0.363
@@ -1192,7 +1192,7 @@ D-fnmsub.d-06.elf            PASS  exit 0  30887 insns  30891 uops  85106 cycles
 D-fnmsub.d-07.elf            PASS  exit 0  30887 insns  30891 uops  84546 cycles  IPC 0.365
 D-fnmsub.d-08.elf            PASS  exit 0  30895 insns  30899 uops  85132 cycles  IPC 0.363
 D-fnmsub.d-09.elf            PASS  exit 0  22727 insns  22731 uops  62658 cycles  IPC 0.363
-D-fnmsub.s-00.elf            PASS  exit 0  2185 insns  2189 uops  5861 cycles  IPC 0.373
+D-fnmsub.s-00.elf            PASS  exit 0  2185 insns  2189 uops  5827 cycles  IPC 0.375
 D-fsd-00.elf                 PASS  exit 0  4225 insns  4229 uops  8131 cycles  IPC 0.520
 D-fsgnjn.d-00.elf            PASS  exit 0  30887 insns  30891 uops  72414 cycles  IPC 0.427
 D-fsgnjn.s-00.elf            PASS  exit 0  1757 insns  1761 uops  4595 cycles  IPC 0.382
@@ -1208,16 +1208,16 @@ D-fsub.d-02.elf              PASS  exit 0  30887 insns  30891 uops  78407 cycles
 D-fsub.d-03.elf              PASS  exit 0  30887 insns  30891 uops  77971 cycles  IPC 0.396
 D-fsub.d-04.elf              PASS  exit 0  28847 insns  28851 uops  72885 cycles  IPC 0.396
 D-fsub.s-00.elf              PASS  exit 0  1757 insns  1761 uops  4576 cycles  IPC 0.384
-D-fsw-00.elf                 PASS  exit 0  1315 insns  1319 uops  3624 cycles  IPC 0.363
+D-fsw-00.elf                 PASS  exit 0  1315 insns  1319 uops  3622 cycles  IPC 0.363
 Exceptions_F-00.elf          PASS  exit 0  53638 insns  54183 uops  106151 cycles  IPC 0.505
 Exceptions_Sm-00.elf         PASS  exit 0  18061 insns  18170 uops  30684 cycles  IPC 0.589
 Exceptions_Sm_medeleg_m-00.elf PASS  exit 0  137537 insns  138371 uops  223647 cycles  IPC 0.615
 Exceptions_Sm_medeleg_s-00.elf PASS  exit 0  139959 insns  140827 uops  230748 cycles  IPC 0.607
-Exceptions_Sm_medeleg_u-00.elf PASS  exit 0  140042 insns  140912 uops  230438 cycles  IPC 0.608
-Exceptions_S-00.elf          PASS  exit 0  17446 insns  17546 uops  30000 cycles  IPC 0.582
-Exceptions_U-00.elf          PASS  exit 0  13315 insns  13383 uops  21155 cycles  IPC 0.629
-Exceptions_Zaamo-00.elf      PASS  exit 0  83391 insns  83863 uops  136551 cycles  IPC 0.611
-Exceptions_Zalrsc-00.elf     PASS  exit 0  8121 insns  8164 uops  14050 cycles  IPC 0.578
+Exceptions_Sm_medeleg_u-00.elf PASS  exit 0  140042 insns  140912 uops  230680 cycles  IPC 0.607
+Exceptions_S-00.elf          PASS  exit 0  17446 insns  17546 uops  29849 cycles  IPC 0.584
+Exceptions_U-00.elf          PASS  exit 0  13315 insns  13383 uops  21163 cycles  IPC 0.629
+Exceptions_Zaamo-00.elf      PASS  exit 0  83391 insns  83863 uops  136562 cycles  IPC 0.611
+Exceptions_Zalrsc-00.elf     PASS  exit 0  8121 insns  8164 uops  14054 cycles  IPC 0.578
 Exceptions_Zc-00.elf         PASS  exit 0  19266 insns  19352 uops  27267 cycles  IPC 0.707
 F-fadd.s-00.elf              PASS  exit 0  30887 insns  30891 uops  77222 cycles  IPC 0.400
 F-fadd.s-01.elf              PASS  exit 0  30887 insns  30891 uops  78032 cycles  IPC 0.396
@@ -1234,7 +1234,7 @@ F-fcvt.s.w-00.elf            PASS  exit 0  3011 insns  3015 uops  8904 cycles  I
 F-fcvt.wu.s-00.elf           PASS  exit 0  3655 insns  3659 uops  14598 cycles  IPC 0.250
 F-fcvt.w.s-00.elf            PASS  exit 0  3655 insns  3659 uops  14586 cycles  IPC 0.251
 F-fdiv.s-00.elf              PASS  exit 0  30887 insns  30891 uops  114031 cycles  IPC 0.271
-F-fdiv.s-01.elf              PASS  exit 0  30887 insns  30891 uops  122990 cycles  IPC 0.251
+F-fdiv.s-01.elf              PASS  exit 0  30887 insns  30891 uops  122987 cycles  IPC 0.251
 F-fdiv.s-02.elf              PASS  exit 0  30887 insns  30891 uops  122901 cycles  IPC 0.251
 F-fdiv.s-03.elf              PASS  exit 0  30887 insns  30891 uops  88134 cycles  IPC 0.350
 F-fdiv.s-04.elf              PASS  exit 0  28847 insns  28851 uops  87244 cycles  IPC 0.331
@@ -1244,7 +1244,7 @@ F-flt.s-00.elf               PASS  exit 0  13085 insns  13089 uops  45689 cycles
 F-flw-00.elf                 PASS  exit 0  3353 insns  3357 uops  7025 cycles  IPC 0.477
 F-fmadd.s-00.elf             PASS  exit 0  30887 insns  30891 uops  83264 cycles  IPC 0.371
 F-fmadd.s-01.elf             PASS  exit 0  30887 insns  30891 uops  84679 cycles  IPC 0.365
-F-fmadd.s-02.elf             PASS  exit 0  30895 insns  30899 uops  85157 cycles  IPC 0.363
+F-fmadd.s-02.elf             PASS  exit 0  30895 insns  30899 uops  85137 cycles  IPC 0.363
 F-fmadd.s-03.elf             PASS  exit 0  30887 insns  30891 uops  85047 cycles  IPC 0.363
 F-fmadd.s-04.elf             PASS  exit 0  30887 insns  30891 uops  84677 cycles  IPC 0.365
 F-fmadd.s-05.elf             PASS  exit 0  30895 insns  30899 uops  84832 cycles  IPC 0.364
@@ -1262,16 +1262,16 @@ F-fmsub.s-02.elf             PASS  exit 0  30895 insns  30899 uops  85137 cycles
 F-fmsub.s-03.elf             PASS  exit 0  30887 insns  30891 uops  85047 cycles  IPC 0.363
 F-fmsub.s-04.elf             PASS  exit 0  30887 insns  30891 uops  84677 cycles  IPC 0.365
 F-fmsub.s-05.elf             PASS  exit 0  30895 insns  30899 uops  84832 cycles  IPC 0.364
-F-fmsub.s-06.elf             PASS  exit 0  30887 insns  30891 uops  85046 cycles  IPC 0.363
+F-fmsub.s-06.elf             PASS  exit 0  30887 insns  30891 uops  85051 cycles  IPC 0.363
 F-fmsub.s-07.elf             PASS  exit 0  30887 insns  30891 uops  84777 cycles  IPC 0.364
 F-fmsub.s-08.elf             PASS  exit 0  30895 insns  30899 uops  85176 cycles  IPC 0.363
-F-fmsub.s-09.elf             PASS  exit 0  22727 insns  22731 uops  62650 cycles  IPC 0.363
+F-fmsub.s-09.elf             PASS  exit 0  22727 insns  22731 uops  62656 cycles  IPC 0.363
 F-fmul.s-00.elf              PASS  exit 0  30887 insns  30891 uops  76814 cycles  IPC 0.402
 F-fmul.s-01.elf              PASS  exit 0  30887 insns  30891 uops  78032 cycles  IPC 0.396
 F-fmul.s-02.elf              PASS  exit 0  30887 insns  30891 uops  78403 cycles  IPC 0.394
 F-fmul.s-03.elf              PASS  exit 0  30887 insns  30891 uops  77907 cycles  IPC 0.396
 F-fmul.s-04.elf              PASS  exit 0  28847 insns  28851 uops  72874 cycles  IPC 0.396
-F-fmv.w.x-00.elf             PASS  exit 0  2715 insns  2719 uops  7921 cycles  IPC 0.343
+F-fmv.w.x-00.elf             PASS  exit 0  2715 insns  2719 uops  7920 cycles  IPC 0.343
 F-fmv.x.w-00.elf             PASS  exit 0  1919 insns  1923 uops  6603 cycles  IPC 0.291
 F-fnmadd.s-00.elf            PASS  exit 0  30887 insns  30891 uops  83299 cycles  IPC 0.371
 F-fnmadd.s-01.elf            PASS  exit 0  30887 insns  30891 uops  84591 cycles  IPC 0.365
@@ -1282,10 +1282,10 @@ F-fnmadd.s-05.elf            PASS  exit 0  30895 insns  30899 uops  85004 cycles
 F-fnmadd.s-06.elf            PASS  exit 0  30887 insns  30891 uops  85044 cycles  IPC 0.363
 F-fnmadd.s-07.elf            PASS  exit 0  30887 insns  30891 uops  84435 cycles  IPC 0.366
 F-fnmadd.s-08.elf            PASS  exit 0  30895 insns  30899 uops  84697 cycles  IPC 0.365
-F-fnmadd.s-09.elf            PASS  exit 0  22727 insns  22731 uops  62684 cycles  IPC 0.363
+F-fnmadd.s-09.elf            PASS  exit 0  22727 insns  22731 uops  62711 cycles  IPC 0.362
 F-fnmsub.s-00.elf            PASS  exit 0  30887 insns  30891 uops  83299 cycles  IPC 0.371
 F-fnmsub.s-01.elf            PASS  exit 0  30887 insns  30891 uops  84591 cycles  IPC 0.365
-F-fnmsub.s-02.elf            PASS  exit 0  30895 insns  30899 uops  84905 cycles  IPC 0.364
+F-fnmsub.s-02.elf            PASS  exit 0  30895 insns  30899 uops  84879 cycles  IPC 0.364
 F-fnmsub.s-03.elf            PASS  exit 0  30887 insns  30891 uops  85139 cycles  IPC 0.363
 F-fnmsub.s-04.elf            PASS  exit 0  30887 insns  30891 uops  84577 cycles  IPC 0.365
 F-fnmsub.s-05.elf            PASS  exit 0  30895 insns  30899 uops  85004 cycles  IPC 0.363
@@ -1310,11 +1310,11 @@ I-add-00.elf                 PASS  exit 0  5623 insns  5627 uops  12179 cycles  
 I-andi-00.elf                PASS  exit 0  3881 insns  3885 uops  7608 cycles  IPC 0.510
 I-and-00.elf                 PASS  exit 0  5615 insns  5619 uops  12195 cycles  IPC 0.460
 I-auipc-00.elf               PASS  exit 0  1144 insns  1148 uops  2860 cycles  IPC 0.400
-I-beq-00.elf                 PASS  exit 0  6814 insns  6818 uops  24735 cycles  IPC 0.275
+I-beq-00.elf                 PASS  exit 0  6814 insns  6818 uops  24854 cycles  IPC 0.274
 I-bgeu-00.elf                PASS  exit 0  6917 insns  6921 uops  19291 cycles  IPC 0.359
 I-bge-00.elf                 PASS  exit 0  6919 insns  6923 uops  19374 cycles  IPC 0.357
 I-bltu-00.elf                PASS  exit 0  6927 insns  6931 uops  21035 cycles  IPC 0.329
-I-blt-00.elf                 PASS  exit 0  6930 insns  6934 uops  21132 cycles  IPC 0.328
+I-blt-00.elf                 PASS  exit 0  6930 insns  6934 uops  21107 cycles  IPC 0.328
 I-bne-00.elf                 PASS  exit 0  7035 insns  7039 uops  16864 cycles  IPC 0.417
 I-fence-00.elf               PASS  exit 0  1192 insns  1196 uops  4737 cycles  IPC 0.252
 I-jalr-00.elf                PASS  exit 0  3562 insns  3566 uops  5925 cycles  IPC 0.601
@@ -1331,7 +1331,7 @@ I-nop-00.elf                 PASS  exit 0  895 insns  899 uops  2576 cycles  IPC
 I-ori-00.elf                 PASS  exit 0  3881 insns  3885 uops  7643 cycles  IPC 0.508
 I-or-00.elf                  PASS  exit 0  5615 insns  5619 uops  12022 cycles  IPC 0.467
 I-sb-00.elf                  PASS  exit 0  3782 insns  3786 uops  8039 cycles  IPC 0.470
-I-sd-00.elf                  PASS  exit 0  3622 insns  3626 uops  5082 cycles  IPC 0.713
+I-sd-00.elf                  PASS  exit 0  3622 insns  3626 uops  5083 cycles  IPC 0.713
 I-sh-00.elf                  PASS  exit 0  3706 insns  3710 uops  7759 cycles  IPC 0.478
 I-slliw-00.elf               PASS  exit 0  2325 insns  2329 uops  4934 cycles  IPC 0.471
 I-slli-00.elf                PASS  exit 0  3051 insns  3055 uops  6243 cycles  IPC 0.489
@@ -1345,16 +1345,16 @@ I-sraiw-00.elf               PASS  exit 0  2325 insns  2329 uops  4954 cycles  I
 I-srai-00.elf                PASS  exit 0  3059 insns  3063 uops  6230 cycles  IPC 0.491
 I-sraw-00.elf                PASS  exit 0  5615 insns  5619 uops  12098 cycles  IPC 0.464
 I-sra-00.elf                 PASS  exit 0  5623 insns  5627 uops  12522 cycles  IPC 0.449
-I-srliw-00.elf               PASS  exit 0  2325 insns  2329 uops  4945 cycles  IPC 0.470
+I-srliw-00.elf               PASS  exit 0  2325 insns  2329 uops  4946 cycles  IPC 0.470
 I-srli-00.elf                PASS  exit 0  3059 insns  3063 uops  6230 cycles  IPC 0.491
 I-srlw-00.elf                PASS  exit 0  5623 insns  5627 uops  12006 cycles  IPC 0.468
-I-srl-00.elf                 PASS  exit 0  5623 insns  5627 uops  11959 cycles  IPC 0.470
+I-srl-00.elf                 PASS  exit 0  5623 insns  5627 uops  11981 cycles  IPC 0.469
 I-subw-00.elf                PASS  exit 0  5623 insns  5627 uops  12215 cycles  IPC 0.460
 I-sub-00.elf                 PASS  exit 0  5623 insns  5627 uops  11878 cycles  IPC 0.473
-I-sw-00.elf                  PASS  exit 0  3660 insns  3664 uops  7719 cycles  IPC 0.474
+I-sw-00.elf                  PASS  exit 0  3660 insns  3664 uops  7701 cycles  IPC 0.475
 I-xori-00.elf                PASS  exit 0  3881 insns  3885 uops  7565 cycles  IPC 0.513
 I-xor-00.elf                 PASS  exit 0  5623 insns  5627 uops  12252 cycles  IPC 0.459
-M-divuw-00.elf               PASS  exit 0  5623 insns  5627 uops  12720 cycles  IPC 0.442
+M-divuw-00.elf               PASS  exit 0  5623 insns  5627 uops  12739 cycles  IPC 0.441
 M-divu-00.elf                PASS  exit 0  5631 insns  5635 uops  14106 cycles  IPC 0.399
 M-divw-00.elf                PASS  exit 0  5623 insns  5627 uops  12897 cycles  IPC 0.436
 M-div-00.elf                 PASS  exit 0  5623 insns  5627 uops  14519 cycles  IPC 0.387
@@ -1412,25 +1412,25 @@ PMP_Sv_sv39_pmp_on_pa_Umode-00.elf PASS  exit 0  5261 insns  5292 uops  11063 cy
 PMP_Sv_sv39_pmp_on_pte_Smode-00.elf PASS  exit 0  3174 insns  3190 uops  6779 cycles  IPC 0.468
 PMP_Sv_sv39_pmp_on_pte_Umode-00.elf PASS  exit 0  3096 insns  3112 uops  6549 cycles  IPC 0.473
 PMP_S_cfg_A_off-00.elf       PASS  exit 0  900 insns  903 uops  2632 cycles  IPC 0.342
-PMP_S_cfg_XWR-00.elf         PASS  exit 0  7538 insns  7584 uops  14175 cycles  IPC 0.532
-PMP_S_cfg_XWR_unlocked-00.elf PASS  exit 0  7538 insns  7584 uops  14120 cycles  IPC 0.534
-PMP_S_csr_access-00.elf      PASS  exit 0  40607 insns  40928 uops  74645 cycles  IPC 0.544
+PMP_S_cfg_XWR-00.elf         PASS  exit 0  7538 insns  7584 uops  14171 cycles  IPC 0.532
+PMP_S_cfg_XWR_unlocked-00.elf PASS  exit 0  7538 insns  7584 uops  14096 cycles  IPC 0.535
+PMP_S_csr_access-00.elf      PASS  exit 0  40607 insns  40928 uops  74663 cycles  IPC 0.544
 PMP_S_mprv_check-01-00.elf   PASS  exit 0  2330 insns  2339 uops  5335 cycles  IPC 0.437
 PMP_S_mprv_check-02-00.elf   PASS  exit 0  1066 insns  1067 uops  3059 cycles  IPC 0.348
-PMP_S_na4_legal_lxwr-00.elf  PASS  exit 0  3770 insns  3792 uops  8067 cycles  IPC 0.467
-PMP_S_napot_legal_lxwr-01-00.elf PASS  exit 0  6634 insns  6671 uops  11913 cycles  IPC 0.557
-PMP_S_napot_legal_lxwr-02-00.elf PASS  exit 0  5293 insns  5321 uops  9963 cycles  IPC 0.531
+PMP_S_na4_legal_lxwr-00.elf  PASS  exit 0  3770 insns  3792 uops  8026 cycles  IPC 0.470
+PMP_S_napot_legal_lxwr-01-00.elf PASS  exit 0  6634 insns  6671 uops  11925 cycles  IPC 0.556
+PMP_S_napot_legal_lxwr-02-00.elf PASS  exit 0  5293 insns  5321 uops  10006 cycles  IPC 0.529
 PMP_S_tor_legal_lxwr-01-00.elf PASS  exit 0  1777 insns  1784 uops  4145 cycles  IPC 0.429
-PMP_S_tor_legal_lxwr-02-00.elf PASS  exit 0  2743 insns  2756 uops  5943 cycles  IPC 0.462
+PMP_S_tor_legal_lxwr-02-00.elf PASS  exit 0  2743 insns  2756 uops  5923 cycles  IPC 0.463
 PMP_U_cfg_A_off-00.elf       PASS  exit 0  899 insns  902 uops  2625 cycles  IPC 0.342
 PMP_U_cfg_XWR-00.elf         PASS  exit 0  7532 insns  7578 uops  14123 cycles  IPC 0.533
 PMP_U_cfg_XWR_unlocked-00.elf PASS  exit 0  7532 insns  7578 uops  13975 cycles  IPC 0.539
-PMP_U_csr_access-00.elf      PASS  exit 0  40527 insns  40848 uops  73093 cycles  IPC 0.554
+PMP_U_csr_access-00.elf      PASS  exit 0  40527 insns  40848 uops  73079 cycles  IPC 0.555
 PMP_U_mprv_check-01-00.elf   PASS  exit 0  2330 insns  2339 uops  5333 cycles  IPC 0.437
 PMP_U_mprv_check-02-00.elf   PASS  exit 0  1066 insns  1067 uops  3077 cycles  IPC 0.346
 PMP_U_na4_legal_lxwr-00.elf  PASS  exit 0  3764 insns  3786 uops  7831 cycles  IPC 0.481
-PMP_U_napot_legal_lxwr-01-00.elf PASS  exit 0  6631 insns  6668 uops  11908 cycles  IPC 0.557
-PMP_U_napot_legal_lxwr-02-00.elf PASS  exit 0  5290 insns  5318 uops  9954 cycles  IPC 0.531
+PMP_U_napot_legal_lxwr-01-00.elf PASS  exit 0  6631 insns  6668 uops  11902 cycles  IPC 0.557
+PMP_U_napot_legal_lxwr-02-00.elf PASS  exit 0  5290 insns  5318 uops  9951 cycles  IPC 0.532
 PMP_U_tor_legal_lxwr-01-00.elf PASS  exit 0  1774 insns  1781 uops  4097 cycles  IPC 0.433
 PMP_U_tor_legal_lxwr-02-00.elf PASS  exit 0  2740 insns  2753 uops  5904 cycles  IPC 0.464
 PMP_Zaamo_cfg_wr-00.elf      PASS  exit 0  12979 insns  13052 uops  22851 cycles  IPC 0.568
@@ -1451,8 +1451,8 @@ PMP_Zca_zcd_legal_lxwr-00.elf PASS  exit 0  3423 insns  3436 uops  6173 cycles  
 Sm_F-00.elf                  PASS  exit 0  13679 insns  13740 uops  31747 cycles  IPC 0.431
 Sm_Zicntr-00.elf             PASS  exit 0  7048 insns  7083 uops  15506 cycles  IPC 0.455
 Sm_csr_insufficient_priv-00.elf PASS  exit 0  3511 insns  3528 uops  6611 cycles  IPC 0.531
-Sm_csr_ro-00.elf             PASS  exit 0  91815 insns  92328 uops  145884 cycles  IPC 0.629
-Sm_csr_ro-01.elf             PASS  exit 0  91815 insns  92328 uops  145893 cycles  IPC 0.629
+Sm_csr_ro-00.elf             PASS  exit 0  91815 insns  92328 uops  145893 cycles  IPC 0.629
+Sm_csr_ro-01.elf             PASS  exit 0  91815 insns  92328 uops  145884 cycles  IPC 0.629
 Sm_inst-00.elf               PASS  exit 0  1008 insns  1011 uops  2678 cycles  IPC 0.376
 Sm_mcause-00.elf             PASS  exit 0  811 insns  812 uops  2359 cycles  IPC 0.344
 Sm_mcsr_access-00.elf        PASS  exit 0  6243 insns  6269 uops  14081 cycles  IPC 0.443
@@ -1484,8 +1484,8 @@ Svbare_Svbare_Smode-00.elf   PASS  exit 0  796 insns  798 uops  2275 cycles  IPC
 Svbare_Svbare_Umode-00.elf   PASS  exit 0  929 insns  933 uops  2656 cycles  IPC 0.350
 Sv_ExceptionsSm_sv39_exceptions_mprv_S_Mmode-00.elf PASS  exit 0  9224 insns  9257 uops  19508 cycles  IPC 0.473
 Sv_ExceptionsSm_sv39_exceptions_mprv_U_Mmode-00.elf PASS  exit 0  8984 insns  9017 uops  17774 cycles  IPC 0.505
-Sv_ExceptionsSm_sv39_medeleg_Smode-00.elf PASS  exit 0  14121 insns  14213 uops  29061 cycles  IPC 0.486
-Sv_ExceptionsSm_sv39_medeleg_Umode-00.elf PASS  exit 0  13717 insns  13813 uops  28888 cycles  IPC 0.475
+Sv_ExceptionsSm_sv39_medeleg_Smode-00.elf PASS  exit 0  14121 insns  14213 uops  28622 cycles  IPC 0.493
+Sv_ExceptionsSm_sv39_medeleg_Umode-00.elf PASS  exit 0  13717 insns  13813 uops  28589 cycles  IPC 0.480
 Sv_ExceptionsZaamoSm_sv39_exceptions_Zaamo_mprv_S_Mmode-00.elf PASS  exit 0  5370 insns  5387 uops  11060 cycles  IPC 0.486
 Sv_ExceptionsZaamoSm_sv39_medeleg_Zaamo_Smode-00.elf PASS  exit 0  9817 insns  9883 uops  20859 cycles  IPC 0.471
 Sv_ExceptionsZaamoSm_sv39_medeleg_Zaamo_Umode-00.elf PASS  exit 0  9413 insns  9483 uops  21016 cycles  IPC 0.448
@@ -1493,10 +1493,10 @@ Sv_ExceptionsZaamo_sv39_exceptions_Zaamo_Smode-00.elf PASS  exit 0  1546 insns  
 Sv_ExceptionsZaamo_sv39_exceptions_Zaamo_Umode-00.elf PASS  exit 0  2222 insns  2235 uops  6045 cycles  IPC 0.368
 Sv_ExceptionsZalrscSm_sv39_exceptions_Zalrsc_mprv_S_Mmode-00.elf PASS  exit 0  8352 insns  8385 uops  17178 cycles  IPC 0.486
 Sv_ExceptionsZalrscSm_sv39_medeleg_Zalrsc_Smode-00.elf PASS  exit 0  12072 insns  12151 uops  25425 cycles  IPC 0.475
-Sv_ExceptionsZalrscSm_sv39_medeleg_Zalrsc_Umode-00.elf PASS  exit 0  11668 insns  11751 uops  25270 cycles  IPC 0.462
+Sv_ExceptionsZalrscSm_sv39_medeleg_Zalrsc_Umode-00.elf PASS  exit 0  11668 insns  11751 uops  25260 cycles  IPC 0.462
 Sv_ExceptionsZalrsc_sv39_exceptions_Zalrsc_Smode-00.elf PASS  exit 0  2052 insns  2060 uops  4984 cycles  IPC 0.412
 Sv_ExceptionsZalrsc_sv39_exceptions_Zalrsc_Umode-00.elf PASS  exit 0  2712 insns  2728 uops  6959 cycles  IPC 0.390
-Sv_Exceptions_sv39_exceptions_Smode-00.elf PASS  exit 0  2374 insns  2384 uops  5416 cycles  IPC 0.438
+Sv_Exceptions_sv39_exceptions_Smode-00.elf PASS  exit 0  2374 insns  2384 uops  5436 cycles  IPC 0.437
 Sv_Exceptions_sv39_exceptions_Umode-00.elf PASS  exit 0  3034 insns  3052 uops  7516 cycles  IPC 0.404
 Sv_Sm_sv39_mstatus_mprv_Smode-00.elf PASS  exit 0  1140 insns  1141 uops  2618 cycles  IPC 0.435
 Sv_Sm_sv39_mstatus_mprv_Umode-00.elf PASS  exit 0  1116 insns  1117 uops  2641 cycles  IPC 0.423
@@ -1513,20 +1513,20 @@ Sv_sv39_invalid_pte_Umode-00.elf PASS  exit 0  3043 insns  3060 uops  7295 cycle
 Sv_sv39_misaligned_page_Smode-00.elf PASS  exit 0  1950 insns  1958 uops  4551 cycles  IPC 0.428
 Sv_sv39_misaligned_page_Umode-00.elf PASS  exit 0  2284 insns  2296 uops  5749 cycles  IPC 0.397
 Sv_sv39_mstatus_mxr_Smode-00.elf PASS  exit 0  2942 insns  2953 uops  6646 cycles  IPC 0.443
-Sv_sv39_mstatus_mxr_Umode-00.elf PASS  exit 0  3928 insns  3951 uops  9526 cycles  IPC 0.412
+Sv_sv39_mstatus_mxr_Umode-00.elf PASS  exit 0  3928 insns  3951 uops  9488 cycles  IPC 0.414
 Sv_sv39_nleaf_pte_DAU_Smode-00.elf PASS  exit 0  4430 insns  4450 uops  8504 cycles  IPC 0.521
 Sv_sv39_nleaf_pte_DAU_Umode-00.elf PASS  exit 0  5416 insns  5448 uops  11524 cycles  IPC 0.470
 Sv_sv39_nleaf_pte_level0_Smode-00.elf PASS  exit 0  1442 insns  1447 uops  3563 cycles  IPC 0.405
 Sv_sv39_nleaf_pte_level0_Umode-00.elf PASS  exit 0  1605 insns  1612 uops  4109 cycles  IPC 0.391
-Sv_sv39_nleaf_pte_reserved_Smode-00.elf PASS  exit 0  12918 insns  12980 uops  22115 cycles  IPC 0.584
+Sv_sv39_nleaf_pte_reserved_Smode-00.elf PASS  exit 0  12918 insns  12980 uops  22116 cycles  IPC 0.584
 Sv_sv39_pte_reserved_field_Smode-00.elf PASS  exit 0  4634 insns  4657 uops  9266 cycles  IPC 0.500
 Sv_sv39_pte_reserved_rwx_Smode-00.elf PASS  exit 0  4238 insns  4258 uops  8414 cycles  IPC 0.504
-Sv_sv39_pte_reserved_rwx_Umode-00.elf PASS  exit 0  5224 insns  5256 uops  11516 cycles  IPC 0.454
+Sv_sv39_pte_reserved_rwx_Umode-00.elf PASS  exit 0  5224 insns  5256 uops  11545 cycles  IPC 0.452
 Sv_sv39_pte_rsw_Smode-00.elf PASS  exit 0  1925 insns  1927 uops  4268 cycles  IPC 0.451
 Sv_sv39_pte_rsw_Umode-00.elf PASS  exit 0  3392 insns  3412 uops  8531 cycles  IPC 0.398
-Sv_sv39_satp_access_Smode-00.elf PASS  exit 0  1580 insns  1587 uops  4697 cycles  IPC 0.336
+Sv_sv39_satp_access_Smode-00.elf PASS  exit 0  1580 insns  1587 uops  4708 cycles  IPC 0.336
 Sv_sv39_spage_access_Umode-00.elf PASS  exit 0  3043 insns  3060 uops  7281 cycles  IPC 0.418
-Sv_sv39_spage_mstatus_sum_set_Smode-00.elf PASS  exit 0  3626 insns  3640 uops  7881 cycles  IPC 0.460
+Sv_sv39_spage_mstatus_sum_set_Smode-00.elf PASS  exit 0  3626 insns  3640 uops  7887 cycles  IPC 0.460
 Sv_sv39_svnapot_not_supported_Smode-00.elf PASS  exit 0  1450 insns  1455 uops  3608 cycles  IPC 0.402
 Sv_sv39_svpbmt_disabled_Smode-00.elf PASS  exit 0  2605 insns  2617 uops  6011 cycles  IPC 0.433
 Sv_sv39_upage_mstatus_sum_set_Smode-00.elf PASS  exit 0  6434 insns  6463 uops  12529 cycles  IPC 0.514
@@ -1539,7 +1539,7 @@ Zaamo-amomaxu.d-00.elf       PASS  exit 0  9381 insns  9385 uops  16570 cycles  
 Zaamo-amomaxu.w-00.elf       PASS  exit 0  9425 insns  9429 uops  19368 cycles  IPC 0.487
 Zaamo-amomax.d-00.elf        PASS  exit 0  9397 insns  9401 uops  16401 cycles  IPC 0.573
 Zaamo-amomax.w-00.elf        PASS  exit 0  9417 insns  9421 uops  19505 cycles  IPC 0.483
-Zaamo-amominu.d-00.elf       PASS  exit 0  9389 insns  9393 uops  16734 cycles  IPC 0.561
+Zaamo-amominu.d-00.elf       PASS  exit 0  9389 insns  9393 uops  16688 cycles  IPC 0.563
 Zaamo-amominu.w-00.elf       PASS  exit 0  9425 insns  9429 uops  19422 cycles  IPC 0.485
 Zaamo-amomin.d-00.elf        PASS  exit 0  9373 insns  9377 uops  16699 cycles  IPC 0.561
 Zaamo-amomin.w-00.elf        PASS  exit 0  9433 insns  9437 uops  19575 cycles  IPC 0.482
@@ -1561,14 +1561,14 @@ Zba-sh2add.uw-00.elf         PASS  exit 0  5623 insns  5627 uops  12657 cycles  
 Zba-sh3add-00.elf            PASS  exit 0  5623 insns  5627 uops  12722 cycles  IPC 0.442
 Zba-sh3add.uw-00.elf         PASS  exit 0  5631 insns  5635 uops  12801 cycles  IPC 0.440
 Zba-slli.uw-00.elf           PASS  exit 0  3065 insns  3069 uops  5998 cycles  IPC 0.511
-Zbb-andn-00.elf              PASS  exit 0  5623 insns  5627 uops  12425 cycles  IPC 0.453
+Zbb-andn-00.elf              PASS  exit 0  5623 insns  5627 uops  12426 cycles  IPC 0.453
 Zbb-clzw-00.elf              PASS  exit 0  1783 insns  1787 uops  3962 cycles  IPC 0.450
 Zbb-clz-00.elf               PASS  exit 0  1950 insns  1954 uops  4306 cycles  IPC 0.453
-Zbb-cpopw-00.elf             PASS  exit 0  1780 insns  1784 uops  3944 cycles  IPC 0.451
+Zbb-cpopw-00.elf             PASS  exit 0  1780 insns  1784 uops  3915 cycles  IPC 0.455
 Zbb-cpop-00.elf              PASS  exit 0  1958 insns  1962 uops  4338 cycles  IPC 0.451
 Zbb-ctzw-00.elf              PASS  exit 0  1791 insns  1795 uops  3963 cycles  IPC 0.452
 Zbb-ctz-00.elf               PASS  exit 0  1958 insns  1962 uops  4345 cycles  IPC 0.451
-Zbb-maxu-00.elf              PASS  exit 0  5623 insns  5627 uops  12562 cycles  IPC 0.448
+Zbb-maxu-00.elf              PASS  exit 0  5623 insns  5627 uops  12563 cycles  IPC 0.448
 Zbb-max-00.elf               PASS  exit 0  5623 insns  5627 uops  12412 cycles  IPC 0.453
 Zbb-minu-00.elf              PASS  exit 0  5615 insns  5619 uops  12388 cycles  IPC 0.453
 Zbb-min-00.elf               PASS  exit 0  5631 insns  5635 uops  12730 cycles  IPC 0.442
@@ -1590,7 +1590,7 @@ Zbc-clmulr-00.elf            PASS  exit 0  5623 insns  5627 uops  12355 cycles  
 Zbc-clmul-00.elf             PASS  exit 0  5631 insns  5635 uops  12213 cycles  IPC 0.461
 Zbs-bclri-00.elf             PASS  exit 0  3065 insns  3069 uops  6007 cycles  IPC 0.510
 Zbs-bclr-00.elf              PASS  exit 0  5631 insns  5635 uops  12599 cycles  IPC 0.447
-Zbs-bexti-00.elf             PASS  exit 0  3065 insns  3069 uops  6105 cycles  IPC 0.502
+Zbs-bexti-00.elf             PASS  exit 0  3065 insns  3069 uops  6082 cycles  IPC 0.504
 Zbs-bext-00.elf              PASS  exit 0  5623 insns  5627 uops  12716 cycles  IPC 0.442
 Zbs-binvi-00.elf             PASS  exit 0  3065 insns  3069 uops  6081 cycles  IPC 0.504
 Zbs-binv-00.elf              PASS  exit 0  5623 insns  5627 uops  12562 cycles  IPC 0.448
@@ -1606,7 +1606,7 @@ Zca-c.andi-00.elf            PASS  exit 0  2455 insns  2459 uops  5168 cycles  I
 Zca-c.and-00.elf             PASS  exit 0  3967 insns  3971 uops  9075 cycles  IPC 0.437
 Zca-c.beqz-00.elf            PASS  exit 0  1233 insns  1237 uops  3564 cycles  IPC 0.346
 Zca-c.bnez-00.elf            PASS  exit 0  1209 insns  1213 uops  3365 cycles  IPC 0.359
-Zca-c.jalr-00.elf            PASS  exit 0  1713 insns  1717 uops  3512 cycles  IPC 0.488
+Zca-c.jalr-00.elf            PASS  exit 0  1713 insns  1717 uops  3511 cycles  IPC 0.488
 Zca-c.jr-00.elf              PASS  exit 0  1621 insns  1625 uops  3440 cycles  IPC 0.471
 Zca-c.j-00.elf               PASS  exit 0  4342 insns  4346 uops  3758 cycles  IPC 1.155
 Zca-c.ldsp-00.elf            PASS  exit 0  1603 insns  1607 uops  3595 cycles  IPC 0.446
@@ -1626,14 +1626,14 @@ Zca-c.srli-00.elf            PASS  exit 0  3155 insns  3159 uops  6291 cycles  I
 Zca-c.subw-00.elf            PASS  exit 0  3967 insns  3971 uops  9103 cycles  IPC 0.436
 Zca-c.sub-00.elf             PASS  exit 0  3967 insns  3971 uops  9075 cycles  IPC 0.437
 Zca-c.swsp-00.elf            PASS  exit 0  3456 insns  3460 uops  8477 cycles  IPC 0.408
-Zca-c.sw-00.elf              PASS  exit 0  2363 insns  2367 uops  6149 cycles  IPC 0.384
+Zca-c.sw-00.elf              PASS  exit 0  2363 insns  2367 uops  6113 cycles  IPC 0.387
 Zca-c.xor-00.elf             PASS  exit 0  3967 insns  3971 uops  9075 cycles  IPC 0.437
 Zcd-c.fldsp-00.elf           PASS  exit 0  3872 insns  3876 uops  9516 cycles  IPC 0.407
 Zcd-c.fld-00.elf             PASS  exit 0  2649 insns  2653 uops  5708 cycles  IPC 0.464
 Zcd-c.fsdsp-00.elf           PASS  exit 0  3714 insns  3718 uops  6958 cycles  IPC 0.534
 Zcd-c.fsd-00.elf             PASS  exit 0  2443 insns  2447 uops  4934 cycles  IPC 0.495
 Zicntr-csrrc-00.elf          PASS  exit 0  8923 insns  8927 uops  16634 cycles  IPC 0.536
-Zicntr-csrrs-00.elf          PASS  exit 0  8923 insns  8927 uops  16644 cycles  IPC 0.536
+Zicntr-csrrs-00.elf          PASS  exit 0  8923 insns  8927 uops  16634 cycles  IPC 0.536
 Zicond-czero.eqz-00.elf      PASS  exit 0  5623 insns  5627 uops  12031 cycles  IPC 0.467
 Zicond-czero.nez-00.elf      PASS  exit 0  5623 insns  5627 uops  12126 cycles  IPC 0.464
 Zicsr-csrrci-00.elf          PASS  exit 0  1607 insns  1611 uops  5880 cycles  IPC 0.273
@@ -1641,7 +1641,7 @@ Zicsr-csrrc-00.elf           PASS  exit 0  2403 insns  2407 uops  9329 cycles  I
 Zicsr-csrrsi-00.elf          PASS  exit 0  1607 insns  1611 uops  5890 cycles  IPC 0.273
 Zicsr-csrrs-00.elf           PASS  exit 0  2403 insns  2407 uops  9318 cycles  IPC 0.258
 Zicsr-csrrwi-00.elf          PASS  exit 0  1607 insns  1611 uops  5953 cycles  IPC 0.270
-Zicsr-csrrw-00.elf           PASS  exit 0  2403 insns  2407 uops  9375 cycles  IPC 0.256
+Zicsr-csrrw-00.elf           PASS  exit 0  2403 insns  2407 uops  9380 cycles  IPC 0.256
 Zifencei-fence.i-00.elf      PASS  exit 0  1102 insns  1106 uops  2844 cycles  IPC 0.387
 atomic.elf                   PASS  exit 0  17970 insns  17980 uops  50450 cycles  IPC 0.356
 cboz.elf                     PASS  exit 0  6734 insns  6743 uops  7499 cycles  IPC 0.898
@@ -1696,7 +1696,7 @@ D-fcvt.l.s-00.elf            PASS  exit 0  1051 insns  1055 uops  3271 cycles  I
 D-fcvt.s.d-00.elf            PASS  exit 0  7029 insns  7033 uops  21195 cycles  IPC 0.332
 D-fcvt.s.lu-00.elf           PASS  exit 0  917 insns  921 uops  2722 cycles  IPC 0.337
 D-fcvt.s.l-00.elf            PASS  exit 0  917 insns  921 uops  2722 cycles  IPC 0.337
-D-fcvt.s.wu-00.elf           PASS  exit 0  917 insns  921 uops  2724 cycles  IPC 0.337
+D-fcvt.s.wu-00.elf           PASS  exit 0  917 insns  921 uops  2722 cycles  IPC 0.337
 D-fcvt.s.w-00.elf            PASS  exit 0  917 insns  921 uops  2722 cycles  IPC 0.337
 D-fcvt.wu.d-00.elf           PASS  exit 0  3655 insns  3659 uops  14642 cycles  IPC 0.250
 D-fcvt.wu.s-00.elf           PASS  exit 0  1051 insns  1055 uops  3271 cycles  IPC 0.321
@@ -1716,11 +1716,11 @@ D-fle.s-00.elf               PASS  exit 0  1255 insns  1259 uops  3876 cycles  I
 D-flt.d-00.elf               PASS  exit 0  13085 insns  13089 uops  44984 cycles  IPC 0.291
 D-flt.s-00.elf               PASS  exit 0  1255 insns  1259 uops  3876 cycles  IPC 0.324
 D-flw-00.elf                 PASS  exit 0  917 insns  921 uops  2688 cycles  IPC 0.341
-D-fmadd.d-00.elf             PASS  exit 0  30887 insns  30891 uops  83417 cycles  IPC 0.370
+D-fmadd.d-00.elf             PASS  exit 0  30887 insns  30891 uops  83415 cycles  IPC 0.370
 D-fmadd.d-01.elf             PASS  exit 0  30887 insns  30891 uops  85004 cycles  IPC 0.363
 D-fmadd.d-02.elf             PASS  exit 0  30895 insns  30899 uops  84609 cycles  IPC 0.365
 D-fmadd.d-03.elf             PASS  exit 0  30887 insns  30891 uops  84337 cycles  IPC 0.366
-D-fmadd.d-04.elf             PASS  exit 0  30887 insns  30891 uops  85192 cycles  IPC 0.363
+D-fmadd.d-04.elf             PASS  exit 0  30887 insns  30891 uops  85229 cycles  IPC 0.362
 D-fmadd.d-05.elf             PASS  exit 0  30895 insns  30899 uops  84476 cycles  IPC 0.366
 D-fmadd.d-06.elf             PASS  exit 0  30887 insns  30891 uops  84396 cycles  IPC 0.366
 D-fmadd.d-07.elf             PASS  exit 0  30887 insns  30891 uops  84561 cycles  IPC 0.365
@@ -1729,7 +1729,7 @@ D-fmadd.d-09.elf             PASS  exit 0  22727 insns  22731 uops  62236 cycles
 D-fmadd.s-00.elf             PASS  exit 0  2185 insns  2189 uops  5916 cycles  IPC 0.369
 D-fmax.d-00.elf              PASS  exit 0  30887 insns  30891 uops  72693 cycles  IPC 0.425
 D-fmax.d-01.elf              PASS  exit 0  917 insns  921 uops  2699 cycles  IPC 0.340
-D-fmax.s-00.elf              PASS  exit 0  1757 insns  1761 uops  4687 cycles  IPC 0.375
+D-fmax.s-00.elf              PASS  exit 0  1757 insns  1761 uops  4703 cycles  IPC 0.374
 D-fmin.d-00.elf              PASS  exit 0  30887 insns  30891 uops  72693 cycles  IPC 0.425
 D-fmin.d-01.elf              PASS  exit 0  917 insns  921 uops  2699 cycles  IPC 0.340
 D-fmin.s-00.elf              PASS  exit 0  1757 insns  1761 uops  4687 cycles  IPC 0.375
@@ -1764,7 +1764,7 @@ D-fnmadd.d-06.elf            PASS  exit 0  30887 insns  30891 uops  84448 cycles
 D-fnmadd.d-07.elf            PASS  exit 0  30887 insns  30891 uops  85104 cycles  IPC 0.363
 D-fnmadd.d-08.elf            PASS  exit 0  30895 insns  30899 uops  84504 cycles  IPC 0.366
 D-fnmadd.d-09.elf            PASS  exit 0  22727 insns  22731 uops  62293 cycles  IPC 0.365
-D-fnmadd.s-00.elf            PASS  exit 0  2185 insns  2189 uops  5939 cycles  IPC 0.368
+D-fnmadd.s-00.elf            PASS  exit 0  2185 insns  2189 uops  5948 cycles  IPC 0.367
 D-fnmsub.d-00.elf            PASS  exit 0  30887 insns  30891 uops  83168 cycles  IPC 0.371
 D-fnmsub.d-01.elf            PASS  exit 0  30887 insns  30891 uops  84901 cycles  IPC 0.364
 D-fnmsub.d-02.elf            PASS  exit 0  30895 insns  30899 uops  84524 cycles  IPC 0.366
@@ -1775,7 +1775,7 @@ D-fnmsub.d-06.elf            PASS  exit 0  30887 insns  30891 uops  84448 cycles
 D-fnmsub.d-07.elf            PASS  exit 0  30887 insns  30891 uops  85104 cycles  IPC 0.363
 D-fnmsub.d-08.elf            PASS  exit 0  30895 insns  30899 uops  84504 cycles  IPC 0.366
 D-fnmsub.d-09.elf            PASS  exit 0  22727 insns  22731 uops  62293 cycles  IPC 0.365
-D-fnmsub.s-00.elf            PASS  exit 0  2185 insns  2189 uops  5939 cycles  IPC 0.368
+D-fnmsub.s-00.elf            PASS  exit 0  2185 insns  2189 uops  5948 cycles  IPC 0.367
 D-fsd-00.elf                 PASS  exit 0  4225 insns  4229 uops  8253 cycles  IPC 0.512
 D-fsgnjn.d-00.elf            PASS  exit 0  30887 insns  30891 uops  72717 cycles  IPC 0.425
 D-fsgnjn.s-00.elf            PASS  exit 0  1757 insns  1761 uops  4674 cycles  IPC 0.376
@@ -1791,16 +1791,16 @@ D-fsub.d-02.elf              PASS  exit 0  30887 insns  30891 uops  78184 cycles
 D-fsub.d-03.elf              PASS  exit 0  30887 insns  30891 uops  78452 cycles  IPC 0.394
 D-fsub.d-04.elf              PASS  exit 0  28847 insns  28851 uops  73185 cycles  IPC 0.394
 D-fsub.s-00.elf              PASS  exit 0  1757 insns  1761 uops  4687 cycles  IPC 0.375
-D-fsw-00.elf                 PASS  exit 0  1315 insns  1319 uops  3743 cycles  IPC 0.351
+D-fsw-00.elf                 PASS  exit 0  1315 insns  1319 uops  3742 cycles  IPC 0.351
 Exceptions_F-00.elf          PASS  exit 0  53638 insns  54183 uops  106350 cycles  IPC 0.504
 Exceptions_Sm-00.elf         PASS  exit 0  18061 insns  18170 uops  31120 cycles  IPC 0.580
 Exceptions_Sm_medeleg_m-00.elf PASS  exit 0  137537 insns  138371 uops  223261 cycles  IPC 0.616
 Exceptions_Sm_medeleg_s-00.elf PASS  exit 0  139959 insns  140827 uops  230478 cycles  IPC 0.607
-Exceptions_Sm_medeleg_u-00.elf PASS  exit 0  140042 insns  140912 uops  230665 cycles  IPC 0.607
-Exceptions_S-00.elf          PASS  exit 0  17446 insns  17546 uops  29871 cycles  IPC 0.584
-Exceptions_U-00.elf          PASS  exit 0  13315 insns  13383 uops  21077 cycles  IPC 0.632
-Exceptions_Zaamo-00.elf      PASS  exit 0  83391 insns  83863 uops  136091 cycles  IPC 0.613
-Exceptions_Zalrsc-00.elf     PASS  exit 0  8121 insns  8164 uops  14137 cycles  IPC 0.574
+Exceptions_Sm_medeleg_u-00.elf PASS  exit 0  140042 insns  140912 uops  230662 cycles  IPC 0.607
+Exceptions_S-00.elf          PASS  exit 0  17446 insns  17546 uops  29800 cycles  IPC 0.585
+Exceptions_U-00.elf          PASS  exit 0  13315 insns  13383 uops  21079 cycles  IPC 0.632
+Exceptions_Zaamo-00.elf      PASS  exit 0  83391 insns  83863 uops  136089 cycles  IPC 0.613
+Exceptions_Zalrsc-00.elf     PASS  exit 0  8121 insns  8164 uops  14141 cycles  IPC 0.574
 Exceptions_Zc-00.elf         PASS  exit 0  19266 insns  19352 uops  27255 cycles  IPC 0.707
 F-fadd.s-00.elf              PASS  exit 0  30887 insns  30891 uops  77311 cycles  IPC 0.400
 F-fadd.s-01.elf              PASS  exit 0  30887 insns  30891 uops  78284 cycles  IPC 0.395
@@ -1817,7 +1817,7 @@ F-fcvt.s.w-00.elf            PASS  exit 0  3011 insns  3015 uops  8944 cycles  I
 F-fcvt.wu.s-00.elf           PASS  exit 0  3655 insns  3659 uops  14666 cycles  IPC 0.249
 F-fcvt.w.s-00.elf            PASS  exit 0  3655 insns  3659 uops  14780 cycles  IPC 0.247
 F-fdiv.s-00.elf              PASS  exit 0  30887 insns  30891 uops  113711 cycles  IPC 0.272
-F-fdiv.s-01.elf              PASS  exit 0  30887 insns  30891 uops  122989 cycles  IPC 0.251
+F-fdiv.s-01.elf              PASS  exit 0  30887 insns  30891 uops  122987 cycles  IPC 0.251
 F-fdiv.s-02.elf              PASS  exit 0  30887 insns  30891 uops  123288 cycles  IPC 0.251
 F-fdiv.s-03.elf              PASS  exit 0  30887 insns  30891 uops  87583 cycles  IPC 0.353
 F-fdiv.s-04.elf              PASS  exit 0  28847 insns  28851 uops  87666 cycles  IPC 0.329
@@ -1827,7 +1827,7 @@ F-flt.s-00.elf               PASS  exit 0  13085 insns  13089 uops  45613 cycles
 F-flw-00.elf                 PASS  exit 0  3353 insns  3357 uops  7166 cycles  IPC 0.468
 F-fmadd.s-00.elf             PASS  exit 0  30887 insns  30891 uops  83144 cycles  IPC 0.371
 F-fmadd.s-01.elf             PASS  exit 0  30887 insns  30891 uops  85023 cycles  IPC 0.363
-F-fmadd.s-02.elf             PASS  exit 0  30895 insns  30899 uops  84449 cycles  IPC 0.366
+F-fmadd.s-02.elf             PASS  exit 0  30895 insns  30899 uops  84446 cycles  IPC 0.366
 F-fmadd.s-03.elf             PASS  exit 0  30887 insns  30891 uops  84314 cycles  IPC 0.366
 F-fmadd.s-04.elf             PASS  exit 0  30887 insns  30891 uops  85019 cycles  IPC 0.363
 F-fmadd.s-05.elf             PASS  exit 0  30895 insns  30899 uops  84475 cycles  IPC 0.366
@@ -1848,13 +1848,13 @@ F-fmsub.s-05.elf             PASS  exit 0  30895 insns  30899 uops  84475 cycles
 F-fmsub.s-06.elf             PASS  exit 0  30887 insns  30891 uops  84328 cycles  IPC 0.366
 F-fmsub.s-07.elf             PASS  exit 0  30887 insns  30891 uops  84899 cycles  IPC 0.364
 F-fmsub.s-08.elf             PASS  exit 0  30895 insns  30899 uops  84448 cycles  IPC 0.366
-F-fmsub.s-09.elf             PASS  exit 0  22727 insns  22731 uops  62245 cycles  IPC 0.365
+F-fmsub.s-09.elf             PASS  exit 0  22727 insns  22731 uops  62266 cycles  IPC 0.365
 F-fmul.s-00.elf              PASS  exit 0  30887 insns  30891 uops  77314 cycles  IPC 0.400
 F-fmul.s-01.elf              PASS  exit 0  30887 insns  30891 uops  78284 cycles  IPC 0.395
 F-fmul.s-02.elf              PASS  exit 0  30887 insns  30891 uops  78184 cycles  IPC 0.395
 F-fmul.s-03.elf              PASS  exit 0  30887 insns  30891 uops  78513 cycles  IPC 0.393
 F-fmul.s-04.elf              PASS  exit 0  28847 insns  28851 uops  73175 cycles  IPC 0.394
-F-fmv.w.x-00.elf             PASS  exit 0  2715 insns  2719 uops  7755 cycles  IPC 0.350
+F-fmv.w.x-00.elf             PASS  exit 0  2715 insns  2719 uops  7778 cycles  IPC 0.349
 F-fmv.x.w-00.elf             PASS  exit 0  1919 insns  1923 uops  6665 cycles  IPC 0.288
 F-fnmadd.s-00.elf            PASS  exit 0  30887 insns  30891 uops  83016 cycles  IPC 0.372
 F-fnmadd.s-01.elf            PASS  exit 0  30887 insns  30891 uops  84829 cycles  IPC 0.364
@@ -1865,10 +1865,10 @@ F-fnmadd.s-05.elf            PASS  exit 0  30895 insns  30899 uops  84540 cycles
 F-fnmadd.s-06.elf            PASS  exit 0  30887 insns  30891 uops  84481 cycles  IPC 0.366
 F-fnmadd.s-07.elf            PASS  exit 0  30887 insns  30891 uops  84813 cycles  IPC 0.364
 F-fnmadd.s-08.elf            PASS  exit 0  30895 insns  30899 uops  84729 cycles  IPC 0.365
-F-fnmadd.s-09.elf            PASS  exit 0  22727 insns  22731 uops  62385 cycles  IPC 0.364
+F-fnmadd.s-09.elf            PASS  exit 0  22727 insns  22731 uops  62386 cycles  IPC 0.364
 F-fnmsub.s-00.elf            PASS  exit 0  30887 insns  30891 uops  83016 cycles  IPC 0.372
 F-fnmsub.s-01.elf            PASS  exit 0  30887 insns  30891 uops  84829 cycles  IPC 0.364
-F-fnmsub.s-02.elf            PASS  exit 0  30895 insns  30899 uops  84634 cycles  IPC 0.365
+F-fnmsub.s-02.elf            PASS  exit 0  30895 insns  30899 uops  84622 cycles  IPC 0.365
 F-fnmsub.s-03.elf            PASS  exit 0  30887 insns  30891 uops  84251 cycles  IPC 0.367
 F-fnmsub.s-04.elf            PASS  exit 0  30887 insns  30891 uops  85026 cycles  IPC 0.363
 F-fnmsub.s-05.elf            PASS  exit 0  30895 insns  30899 uops  84540 cycles  IPC 0.365
@@ -1893,11 +1893,11 @@ I-add-00.elf                 PASS  exit 0  5623 insns  5627 uops  12216 cycles  
 I-andi-00.elf                PASS  exit 0  3881 insns  3885 uops  7648 cycles  IPC 0.507
 I-and-00.elf                 PASS  exit 0  5615 insns  5619 uops  12108 cycles  IPC 0.464
 I-auipc-00.elf               PASS  exit 0  1144 insns  1148 uops  2829 cycles  IPC 0.404
-I-beq-00.elf                 PASS  exit 0  6814 insns  6818 uops  24481 cycles  IPC 0.278
+I-beq-00.elf                 PASS  exit 0  6814 insns  6818 uops  24485 cycles  IPC 0.278
 I-bgeu-00.elf                PASS  exit 0  6917 insns  6921 uops  19190 cycles  IPC 0.360
-I-bge-00.elf                 PASS  exit 0  6919 insns  6923 uops  19477 cycles  IPC 0.355
+I-bge-00.elf                 PASS  exit 0  6919 insns  6923 uops  19433 cycles  IPC 0.356
 I-bltu-00.elf                PASS  exit 0  6927 insns  6931 uops  20900 cycles  IPC 0.331
-I-blt-00.elf                 PASS  exit 0  6930 insns  6934 uops  21299 cycles  IPC 0.325
+I-blt-00.elf                 PASS  exit 0  6930 insns  6934 uops  21296 cycles  IPC 0.325
 I-bne-00.elf                 PASS  exit 0  7035 insns  7039 uops  16796 cycles  IPC 0.419
 I-fence-00.elf               PASS  exit 0  1192 insns  1196 uops  4773 cycles  IPC 0.250
 I-jalr-00.elf                PASS  exit 0  3562 insns  3566 uops  6079 cycles  IPC 0.586
@@ -1914,7 +1914,7 @@ I-nop-00.elf                 PASS  exit 0  895 insns  899 uops  2590 cycles  IPC
 I-ori-00.elf                 PASS  exit 0  3881 insns  3885 uops  7680 cycles  IPC 0.505
 I-or-00.elf                  PASS  exit 0  5615 insns  5619 uops  12046 cycles  IPC 0.466
 I-sb-00.elf                  PASS  exit 0  3782 insns  3786 uops  8058 cycles  IPC 0.469
-I-sd-00.elf                  PASS  exit 0  3622 insns  3626 uops  4929 cycles  IPC 0.735
+I-sd-00.elf                  PASS  exit 0  3622 insns  3626 uops  4953 cycles  IPC 0.731
 I-sh-00.elf                  PASS  exit 0  3706 insns  3710 uops  7834 cycles  IPC 0.473
 I-slliw-00.elf               PASS  exit 0  2325 insns  2329 uops  4880 cycles  IPC 0.476
 I-slli-00.elf                PASS  exit 0  3051 insns  3055 uops  6345 cycles  IPC 0.481
@@ -1928,13 +1928,13 @@ I-sraiw-00.elf               PASS  exit 0  2325 insns  2329 uops  4906 cycles  I
 I-srai-00.elf                PASS  exit 0  3059 insns  3063 uops  6196 cycles  IPC 0.494
 I-sraw-00.elf                PASS  exit 0  5615 insns  5619 uops  12121 cycles  IPC 0.463
 I-sra-00.elf                 PASS  exit 0  5623 insns  5627 uops  12208 cycles  IPC 0.461
-I-srliw-00.elf               PASS  exit 0  2325 insns  2329 uops  4915 cycles  IPC 0.473
+I-srliw-00.elf               PASS  exit 0  2325 insns  2329 uops  4922 cycles  IPC 0.472
 I-srli-00.elf                PASS  exit 0  3059 insns  3063 uops  6197 cycles  IPC 0.494
 I-srlw-00.elf                PASS  exit 0  5623 insns  5627 uops  12037 cycles  IPC 0.467
-I-srl-00.elf                 PASS  exit 0  5623 insns  5627 uops  12206 cycles  IPC 0.461
+I-srl-00.elf                 PASS  exit 0  5623 insns  5627 uops  12205 cycles  IPC 0.461
 I-subw-00.elf                PASS  exit 0  5623 insns  5627 uops  11892 cycles  IPC 0.473
 I-sub-00.elf                 PASS  exit 0  5623 insns  5627 uops  12216 cycles  IPC 0.460
-I-sw-00.elf                  PASS  exit 0  3660 insns  3664 uops  7735 cycles  IPC 0.473
+I-sw-00.elf                  PASS  exit 0  3660 insns  3664 uops  7733 cycles  IPC 0.473
 I-xori-00.elf                PASS  exit 0  3881 insns  3885 uops  7632 cycles  IPC 0.509
 I-xor-00.elf                 PASS  exit 0  5623 insns  5627 uops  12183 cycles  IPC 0.462
 M-divuw-00.elf               PASS  exit 0  5623 insns  5627 uops  12864 cycles  IPC 0.437
@@ -1995,16 +1995,16 @@ PMP_Sv_sv39_pmp_on_pa_Umode-00.elf PASS  exit 0  5261 insns  5292 uops  11243 cy
 PMP_Sv_sv39_pmp_on_pte_Smode-00.elf PASS  exit 0  3174 insns  3190 uops  6867 cycles  IPC 0.462
 PMP_Sv_sv39_pmp_on_pte_Umode-00.elf PASS  exit 0  3096 insns  3112 uops  6737 cycles  IPC 0.460
 PMP_S_cfg_A_off-00.elf       PASS  exit 0  900 insns  903 uops  2663 cycles  IPC 0.338
-PMP_S_cfg_XWR-00.elf         PASS  exit 0  7538 insns  7584 uops  14296 cycles  IPC 0.527
-PMP_S_cfg_XWR_unlocked-00.elf PASS  exit 0  7538 insns  7584 uops  14158 cycles  IPC 0.532
-PMP_S_csr_access-00.elf      PASS  exit 0  40607 insns  40928 uops  74882 cycles  IPC 0.542
+PMP_S_cfg_XWR-00.elf         PASS  exit 0  7538 insns  7584 uops  14287 cycles  IPC 0.528
+PMP_S_cfg_XWR_unlocked-00.elf PASS  exit 0  7538 insns  7584 uops  14247 cycles  IPC 0.529
+PMP_S_csr_access-00.elf      PASS  exit 0  40607 insns  40928 uops  74880 cycles  IPC 0.542
 PMP_S_mprv_check-01-00.elf   PASS  exit 0  2330 insns  2339 uops  5380 cycles  IPC 0.433
 PMP_S_mprv_check-02-00.elf   PASS  exit 0  1066 insns  1067 uops  3092 cycles  IPC 0.345
-PMP_S_na4_legal_lxwr-00.elf  PASS  exit 0  3770 insns  3792 uops  8206 cycles  IPC 0.459
-PMP_S_napot_legal_lxwr-01-00.elf PASS  exit 0  6634 insns  6671 uops  11897 cycles  IPC 0.558
-PMP_S_napot_legal_lxwr-02-00.elf PASS  exit 0  5293 insns  5321 uops  10057 cycles  IPC 0.526
+PMP_S_na4_legal_lxwr-00.elf  PASS  exit 0  3770 insns  3792 uops  8210 cycles  IPC 0.459
+PMP_S_napot_legal_lxwr-01-00.elf PASS  exit 0  6634 insns  6671 uops  12004 cycles  IPC 0.553
+PMP_S_napot_legal_lxwr-02-00.elf PASS  exit 0  5293 insns  5321 uops  10119 cycles  IPC 0.523
 PMP_S_tor_legal_lxwr-01-00.elf PASS  exit 0  1777 insns  1784 uops  4248 cycles  IPC 0.418
-PMP_S_tor_legal_lxwr-02-00.elf PASS  exit 0  2743 insns  2756 uops  5987 cycles  IPC 0.458
+PMP_S_tor_legal_lxwr-02-00.elf PASS  exit 0  2743 insns  2756 uops  6017 cycles  IPC 0.456
 PMP_U_cfg_A_off-00.elf       PASS  exit 0  899 insns  902 uops  2654 cycles  IPC 0.339
 PMP_U_cfg_XWR-00.elf         PASS  exit 0  7532 insns  7578 uops  14185 cycles  IPC 0.531
 PMP_U_cfg_XWR_unlocked-00.elf PASS  exit 0  7532 insns  7578 uops  14121 cycles  IPC 0.533
@@ -2012,8 +2012,8 @@ PMP_U_csr_access-00.elf      PASS  exit 0  40527 insns  40848 uops  73098 cycles
 PMP_U_mprv_check-01-00.elf   PASS  exit 0  2330 insns  2339 uops  5382 cycles  IPC 0.433
 PMP_U_mprv_check-02-00.elf   PASS  exit 0  1066 insns  1067 uops  3099 cycles  IPC 0.344
 PMP_U_na4_legal_lxwr-00.elf  PASS  exit 0  3764 insns  3786 uops  8077 cycles  IPC 0.466
-PMP_U_napot_legal_lxwr-01-00.elf PASS  exit 0  6631 insns  6668 uops  11919 cycles  IPC 0.556
-PMP_U_napot_legal_lxwr-02-00.elf PASS  exit 0  5290 insns  5318 uops  10113 cycles  IPC 0.523
+PMP_U_napot_legal_lxwr-01-00.elf PASS  exit 0  6631 insns  6668 uops  11922 cycles  IPC 0.556
+PMP_U_napot_legal_lxwr-02-00.elf PASS  exit 0  5290 insns  5318 uops  10075 cycles  IPC 0.525
 PMP_U_tor_legal_lxwr-01-00.elf PASS  exit 0  1774 insns  1781 uops  4226 cycles  IPC 0.420
 PMP_U_tor_legal_lxwr-02-00.elf PASS  exit 0  2740 insns  2753 uops  5971 cycles  IPC 0.459
 PMP_Zaamo_cfg_wr-00.elf      PASS  exit 0  12979 insns  13052 uops  22968 cycles  IPC 0.565
@@ -2034,8 +2034,8 @@ PMP_Zca_zcd_legal_lxwr-00.elf PASS  exit 0  3423 insns  3436 uops  6287 cycles  
 Sm_F-00.elf                  PASS  exit 0  13679 insns  13740 uops  31942 cycles  IPC 0.428
 Sm_Zicntr-00.elf             PASS  exit 0  7048 insns  7083 uops  15659 cycles  IPC 0.450
 Sm_csr_insufficient_priv-00.elf PASS  exit 0  3511 insns  3528 uops  6449 cycles  IPC 0.544
-Sm_csr_ro-00.elf             PASS  exit 0  91815 insns  92328 uops  145527 cycles  IPC 0.631
-Sm_csr_ro-01.elf             PASS  exit 0  91815 insns  92328 uops  145533 cycles  IPC 0.631
+Sm_csr_ro-00.elf             PASS  exit 0  91815 insns  92328 uops  145533 cycles  IPC 0.631
+Sm_csr_ro-01.elf             PASS  exit 0  91815 insns  92328 uops  145527 cycles  IPC 0.631
 Sm_inst-00.elf               PASS  exit 0  1008 insns  1011 uops  2708 cycles  IPC 0.372
 Sm_mcause-00.elf             PASS  exit 0  811 insns  812 uops  2394 cycles  IPC 0.339
 Sm_mcsr_access-00.elf        PASS  exit 0  6243 insns  6269 uops  14159 cycles  IPC 0.441
@@ -2067,8 +2067,8 @@ Svbare_Svbare_Smode-00.elf   PASS  exit 0  796 insns  798 uops  2261 cycles  IPC
 Svbare_Svbare_Umode-00.elf   PASS  exit 0  929 insns  933 uops  2725 cycles  IPC 0.341
 Sv_ExceptionsSm_sv39_exceptions_mprv_S_Mmode-00.elf PASS  exit 0  9224 insns  9257 uops  19707 cycles  IPC 0.468
 Sv_ExceptionsSm_sv39_exceptions_mprv_U_Mmode-00.elf PASS  exit 0  8984 insns  9017 uops  17887 cycles  IPC 0.502
-Sv_ExceptionsSm_sv39_medeleg_Smode-00.elf PASS  exit 0  14121 insns  14213 uops  28647 cycles  IPC 0.493
-Sv_ExceptionsSm_sv39_medeleg_Umode-00.elf PASS  exit 0  13717 insns  13813 uops  28573 cycles  IPC 0.480
+Sv_ExceptionsSm_sv39_medeleg_Smode-00.elf PASS  exit 0  14121 insns  14213 uops  28620 cycles  IPC 0.493
+Sv_ExceptionsSm_sv39_medeleg_Umode-00.elf PASS  exit 0  13717 insns  13813 uops  28560 cycles  IPC 0.480
 Sv_ExceptionsZaamoSm_sv39_exceptions_Zaamo_mprv_S_Mmode-00.elf PASS  exit 0  5370 insns  5387 uops  11238 cycles  IPC 0.478
 Sv_ExceptionsZaamoSm_sv39_medeleg_Zaamo_Smode-00.elf PASS  exit 0  9817 insns  9883 uops  21080 cycles  IPC 0.466
 Sv_ExceptionsZaamoSm_sv39_medeleg_Zaamo_Umode-00.elf PASS  exit 0  9413 insns  9483 uops  21064 cycles  IPC 0.447
@@ -2076,10 +2076,10 @@ Sv_ExceptionsZaamo_sv39_exceptions_Zaamo_Smode-00.elf PASS  exit 0  1546 insns  
 Sv_ExceptionsZaamo_sv39_exceptions_Zaamo_Umode-00.elf PASS  exit 0  2222 insns  2235 uops  6108 cycles  IPC 0.364
 Sv_ExceptionsZalrscSm_sv39_exceptions_Zalrsc_mprv_S_Mmode-00.elf PASS  exit 0  8352 insns  8385 uops  17335 cycles  IPC 0.482
 Sv_ExceptionsZalrscSm_sv39_medeleg_Zalrsc_Smode-00.elf PASS  exit 0  12072 insns  12151 uops  25296 cycles  IPC 0.477
-Sv_ExceptionsZalrscSm_sv39_medeleg_Zalrsc_Umode-00.elf PASS  exit 0  11668 insns  11751 uops  25171 cycles  IPC 0.464
+Sv_ExceptionsZalrscSm_sv39_medeleg_Zalrsc_Umode-00.elf PASS  exit 0  11668 insns  11751 uops  25351 cycles  IPC 0.460
 Sv_ExceptionsZalrsc_sv39_exceptions_Zalrsc_Smode-00.elf PASS  exit 0  2052 insns  2060 uops  5093 cycles  IPC 0.403
 Sv_ExceptionsZalrsc_sv39_exceptions_Zalrsc_Umode-00.elf PASS  exit 0  2712 insns  2728 uops  7144 cycles  IPC 0.380
-Sv_Exceptions_sv39_exceptions_Smode-00.elf PASS  exit 0  2374 insns  2384 uops  5395 cycles  IPC 0.440
+Sv_Exceptions_sv39_exceptions_Smode-00.elf PASS  exit 0  2374 insns  2384 uops  5414 cycles  IPC 0.438
 Sv_Exceptions_sv39_exceptions_Umode-00.elf PASS  exit 0  3034 insns  3052 uops  7508 cycles  IPC 0.404
 Sv_Sm_sv39_mstatus_mprv_Smode-00.elf PASS  exit 0  1140 insns  1141 uops  2649 cycles  IPC 0.430
 Sv_Sm_sv39_mstatus_mprv_Umode-00.elf PASS  exit 0  1116 insns  1117 uops  2575 cycles  IPC 0.433
@@ -2096,20 +2096,20 @@ Sv_sv39_invalid_pte_Umode-00.elf PASS  exit 0  3043 insns  3060 uops  7347 cycle
 Sv_sv39_misaligned_page_Smode-00.elf PASS  exit 0  1950 insns  1958 uops  4612 cycles  IPC 0.423
 Sv_sv39_misaligned_page_Umode-00.elf PASS  exit 0  2284 insns  2296 uops  5764 cycles  IPC 0.396
 Sv_sv39_mstatus_mxr_Smode-00.elf PASS  exit 0  2942 insns  2953 uops  6716 cycles  IPC 0.438
-Sv_sv39_mstatus_mxr_Umode-00.elf PASS  exit 0  3928 insns  3951 uops  9533 cycles  IPC 0.412
+Sv_sv39_mstatus_mxr_Umode-00.elf PASS  exit 0  3928 insns  3951 uops  9520 cycles  IPC 0.413
 Sv_sv39_nleaf_pte_DAU_Smode-00.elf PASS  exit 0  4430 insns  4450 uops  8586 cycles  IPC 0.516
 Sv_sv39_nleaf_pte_DAU_Umode-00.elf PASS  exit 0  5416 insns  5448 uops  11736 cycles  IPC 0.461
 Sv_sv39_nleaf_pte_level0_Smode-00.elf PASS  exit 0  1442 insns  1447 uops  3670 cycles  IPC 0.393
 Sv_sv39_nleaf_pte_level0_Umode-00.elf PASS  exit 0  1605 insns  1612 uops  4312 cycles  IPC 0.372
-Sv_sv39_nleaf_pte_reserved_Smode-00.elf PASS  exit 0  12918 insns  12980 uops  22196 cycles  IPC 0.582
+Sv_sv39_nleaf_pte_reserved_Smode-00.elf PASS  exit 0  12918 insns  12980 uops  22262 cycles  IPC 0.580
 Sv_sv39_pte_reserved_field_Smode-00.elf PASS  exit 0  4634 insns  4657 uops  9271 cycles  IPC 0.500
 Sv_sv39_pte_reserved_rwx_Smode-00.elf PASS  exit 0  4238 insns  4258 uops  8493 cycles  IPC 0.499
-Sv_sv39_pte_reserved_rwx_Umode-00.elf PASS  exit 0  5224 insns  5256 uops  11665 cycles  IPC 0.448
+Sv_sv39_pte_reserved_rwx_Umode-00.elf PASS  exit 0  5224 insns  5256 uops  11726 cycles  IPC 0.446
 Sv_sv39_pte_rsw_Smode-00.elf PASS  exit 0  1925 insns  1927 uops  4321 cycles  IPC 0.445
 Sv_sv39_pte_rsw_Umode-00.elf PASS  exit 0  3392 insns  3412 uops  8651 cycles  IPC 0.392
-Sv_sv39_satp_access_Smode-00.elf PASS  exit 0  1580 insns  1587 uops  4718 cycles  IPC 0.335
+Sv_sv39_satp_access_Smode-00.elf PASS  exit 0  1580 insns  1587 uops  4741 cycles  IPC 0.333
 Sv_sv39_spage_access_Umode-00.elf PASS  exit 0  3043 insns  3060 uops  7344 cycles  IPC 0.414
-Sv_sv39_spage_mstatus_sum_set_Smode-00.elf PASS  exit 0  3626 insns  3640 uops  7928 cycles  IPC 0.457
+Sv_sv39_spage_mstatus_sum_set_Smode-00.elf PASS  exit 0  3626 insns  3640 uops  7979 cycles  IPC 0.454
 Sv_sv39_svnapot_not_supported_Smode-00.elf PASS  exit 0  1450 insns  1455 uops  3702 cycles  IPC 0.392
 Sv_sv39_svpbmt_disabled_Smode-00.elf PASS  exit 0  2605 insns  2617 uops  6053 cycles  IPC 0.430
 Sv_sv39_upage_mstatus_sum_set_Smode-00.elf PASS  exit 0  6434 insns  6463 uops  12693 cycles  IPC 0.507
@@ -2122,7 +2122,7 @@ Zaamo-amomaxu.d-00.elf       PASS  exit 0  9381 insns  9385 uops  16708 cycles  
 Zaamo-amomaxu.w-00.elf       PASS  exit 0  9425 insns  9429 uops  19309 cycles  IPC 0.488
 Zaamo-amomax.d-00.elf        PASS  exit 0  9397 insns  9401 uops  16420 cycles  IPC 0.572
 Zaamo-amomax.w-00.elf        PASS  exit 0  9417 insns  9421 uops  19479 cycles  IPC 0.483
-Zaamo-amominu.d-00.elf       PASS  exit 0  9389 insns  9393 uops  16814 cycles  IPC 0.558
+Zaamo-amominu.d-00.elf       PASS  exit 0  9389 insns  9393 uops  16810 cycles  IPC 0.559
 Zaamo-amominu.w-00.elf       PASS  exit 0  9425 insns  9429 uops  19508 cycles  IPC 0.483
 Zaamo-amomin.d-00.elf        PASS  exit 0  9373 insns  9377 uops  16455 cycles  IPC 0.570
 Zaamo-amomin.w-00.elf        PASS  exit 0  9433 insns  9437 uops  19508 cycles  IPC 0.484
@@ -2144,14 +2144,14 @@ Zba-sh2add.uw-00.elf         PASS  exit 0  5623 insns  5627 uops  12970 cycles  
 Zba-sh3add-00.elf            PASS  exit 0  5623 insns  5627 uops  12877 cycles  IPC 0.437
 Zba-sh3add.uw-00.elf         PASS  exit 0  5631 insns  5635 uops  12902 cycles  IPC 0.436
 Zba-slli.uw-00.elf           PASS  exit 0  3065 insns  3069 uops  6093 cycles  IPC 0.503
-Zbb-andn-00.elf              PASS  exit 0  5623 insns  5627 uops  12819 cycles  IPC 0.439
+Zbb-andn-00.elf              PASS  exit 0  5623 insns  5627 uops  12821 cycles  IPC 0.439
 Zbb-clzw-00.elf              PASS  exit 0  1783 insns  1787 uops  4029 cycles  IPC 0.443
 Zbb-clz-00.elf               PASS  exit 0  1950 insns  1954 uops  4286 cycles  IPC 0.455
-Zbb-cpopw-00.elf             PASS  exit 0  1780 insns  1784 uops  3980 cycles  IPC 0.447
+Zbb-cpopw-00.elf             PASS  exit 0  1780 insns  1784 uops  3971 cycles  IPC 0.448
 Zbb-cpop-00.elf              PASS  exit 0  1958 insns  1962 uops  4240 cycles  IPC 0.462
 Zbb-ctzw-00.elf              PASS  exit 0  1791 insns  1795 uops  4004 cycles  IPC 0.447
 Zbb-ctz-00.elf               PASS  exit 0  1958 insns  1962 uops  4307 cycles  IPC 0.455
-Zbb-maxu-00.elf              PASS  exit 0  5623 insns  5627 uops  12772 cycles  IPC 0.440
+Zbb-maxu-00.elf              PASS  exit 0  5623 insns  5627 uops  12774 cycles  IPC 0.440
 Zbb-max-00.elf               PASS  exit 0  5623 insns  5627 uops  13004 cycles  IPC 0.432
 Zbb-minu-00.elf              PASS  exit 0  5615 insns  5619 uops  12803 cycles  IPC 0.439
 Zbb-min-00.elf               PASS  exit 0  5631 insns  5635 uops  12963 cycles  IPC 0.434
@@ -2173,7 +2173,7 @@ Zbc-clmulr-00.elf            PASS  exit 0  5623 insns  5627 uops  12470 cycles  
 Zbc-clmul-00.elf             PASS  exit 0  5631 insns  5635 uops  12406 cycles  IPC 0.454
 Zbs-bclri-00.elf             PASS  exit 0  3065 insns  3069 uops  6100 cycles  IPC 0.502
 Zbs-bclr-00.elf              PASS  exit 0  5631 insns  5635 uops  12987 cycles  IPC 0.434
-Zbs-bexti-00.elf             PASS  exit 0  3065 insns  3069 uops  6117 cycles  IPC 0.501
+Zbs-bexti-00.elf             PASS  exit 0  3065 insns  3069 uops  6114 cycles  IPC 0.501
 Zbs-bext-00.elf              PASS  exit 0  5623 insns  5627 uops  12903 cycles  IPC 0.436
 Zbs-binvi-00.elf             PASS  exit 0  3065 insns  3069 uops  6080 cycles  IPC 0.504
 Zbs-binv-00.elf              PASS  exit 0  5623 insns  5627 uops  12860 cycles  IPC 0.437
@@ -2189,7 +2189,7 @@ Zca-c.andi-00.elf            PASS  exit 0  2455 insns  2459 uops  5210 cycles  I
 Zca-c.and-00.elf             PASS  exit 0  3967 insns  3971 uops  9393 cycles  IPC 0.422
 Zca-c.beqz-00.elf            PASS  exit 0  1233 insns  1237 uops  3650 cycles  IPC 0.338
 Zca-c.bnez-00.elf            PASS  exit 0  1209 insns  1213 uops  3377 cycles  IPC 0.358
-Zca-c.jalr-00.elf            PASS  exit 0  1713 insns  1717 uops  3586 cycles  IPC 0.478
+Zca-c.jalr-00.elf            PASS  exit 0  1713 insns  1717 uops  3587 cycles  IPC 0.478
 Zca-c.jr-00.elf              PASS  exit 0  1621 insns  1625 uops  3538 cycles  IPC 0.458
 Zca-c.j-00.elf               PASS  exit 0  4342 insns  4346 uops  3790 cycles  IPC 1.146
 Zca-c.ldsp-00.elf            PASS  exit 0  1603 insns  1607 uops  3624 cycles  IPC 0.442
@@ -2209,14 +2209,14 @@ Zca-c.srli-00.elf            PASS  exit 0  3155 insns  3159 uops  6298 cycles  I
 Zca-c.subw-00.elf            PASS  exit 0  3967 insns  3971 uops  9390 cycles  IPC 0.422
 Zca-c.sub-00.elf             PASS  exit 0  3967 insns  3971 uops  9393 cycles  IPC 0.422
 Zca-c.swsp-00.elf            PASS  exit 0  3456 insns  3460 uops  8460 cycles  IPC 0.409
-Zca-c.sw-00.elf              PASS  exit 0  2363 insns  2367 uops  6035 cycles  IPC 0.392
+Zca-c.sw-00.elf              PASS  exit 0  2363 insns  2367 uops  6043 cycles  IPC 0.391
 Zca-c.xor-00.elf             PASS  exit 0  3967 insns  3971 uops  9393 cycles  IPC 0.422
 Zcd-c.fldsp-00.elf           PASS  exit 0  3872 insns  3876 uops  9660 cycles  IPC 0.401
 Zcd-c.fld-00.elf             PASS  exit 0  2649 insns  2653 uops  5669 cycles  IPC 0.467
 Zcd-c.fsdsp-00.elf           PASS  exit 0  3714 insns  3718 uops  6896 cycles  IPC 0.539
 Zcd-c.fsd-00.elf             PASS  exit 0  2443 insns  2447 uops  5023 cycles  IPC 0.486
 Zicntr-csrrc-00.elf          PASS  exit 0  8923 insns  8927 uops  16663 cycles  IPC 0.535
-Zicntr-csrrs-00.elf          PASS  exit 0  8923 insns  8927 uops  16668 cycles  IPC 0.535
+Zicntr-csrrs-00.elf          PASS  exit 0  8923 insns  8927 uops  16663 cycles  IPC 0.535
 Zicond-czero.eqz-00.elf      PASS  exit 0  5623 insns  5627 uops  12244 cycles  IPC 0.459
 Zicond-czero.nez-00.elf      PASS  exit 0  5623 insns  5627 uops  12375 cycles  IPC 0.454
 Zicsr-csrrci-00.elf          PASS  exit 0  1607 insns  1611 uops  5952 cycles  IPC 0.270
@@ -2225,7 +2225,7 @@ Zicsr-csrrsi-00.elf          PASS  exit 0  1607 insns  1611 uops  5991 cycles  I
 Zicsr-csrrs-00.elf           PASS  exit 0  2403 insns  2407 uops  9489 cycles  IPC 0.253
 Zicsr-csrrwi-00.elf          PASS  exit 0  1607 insns  1611 uops  6011 cycles  IPC 0.267
 Zicsr-csrrw-00.elf           PASS  exit 0  2403 insns  2407 uops  9542 cycles  IPC 0.252
-Zifencei-fence.i-00.elf      PASS  exit 0  1102 insns  1106 uops  2902 cycles  IPC 0.380
+Zifencei-fence.i-00.elf      PASS  exit 0  1102 insns  1106 uops  2904 cycles  IPC 0.379
 atomic.elf                   PASS  exit 0  17970 insns  17980 uops  50356 cycles  IPC 0.357
 cboz.elf                     PASS  exit 0  6734 insns  6743 uops  7323 cycles  IPC 0.920
 dcrace.elf                   PASS  exit 0  36331 insns  36331 uops  187331 cycles  IPC 0.194
@@ -2272,7 +2272,7 @@ rv64mi-p-scall               PASS  exit 0  96 insns  98 uops  478 cycles  IPC 0.
 rv64mi-p-zicntr              PASS  exit 0  121 insns  123 uops  567 cycles  IPC 0.213
 rv64si-p-csr                 PASS  exit 0  196 insns  199 uops  1148 cycles  IPC 0.171
 rv64si-p-dirty               PASS  exit 0  203 insns  208 uops  1184 cycles  IPC 0.171
-rv64si-p-ma_fetch            PASS  exit 0  127 insns  129 uops  589 cycles  IPC 0.216
+rv64si-p-ma_fetch            PASS  exit 0  127 insns  129 uops  588 cycles  IPC 0.216
 rv64si-p-sbreak              PASS  exit 0  105 insns  108 uops  545 cycles  IPC 0.193
 rv64si-p-scall               PASS  exit 0  112 insns  115 uops  609 cycles  IPC 0.184
 rv64si-p-wfi                 PASS  exit 0  92 insns  94 uops  482 cycles  IPC 0.191
@@ -2590,11 +2590,11 @@ rv64uzicond-p-czero_nez      PASS  exit 0  461 insns  463 uops  1209 cycles  IPC
 rv64uzicond-v-czero_eqz      PASS  exit 0  6853 insns  6857 uops  10864 cycles  IPC 0.631
 rv64uzicond-v-czero_nez      PASS  exit 0  6852 insns  6856 uops  10858 cycles  IPC 0.631
 tb_core: 330 files, 0 failures: PASS
-ebrk.elf                     PASS  exit 1  2694 insns  2859 uops  53176 cycles  IPC 0.051
-    debugger: 156 halts, 110 steps, 2767 register accesses, 0 memory accesses, 75 EBREAKs, 21 triggers, 1 reset halts
-trig.elf                     PASS  exit 0  896 insns  910 uops  12738 cycles  IPC 0.070
-    debugger: 30 halts, 12 steps, 490 register accesses, 0 memory accesses, 0 EBREAKs, 6 triggers, 1 reset halts
-htif.elf                     PASS  exit 0  210 insns  210 uops  3291 cycles  IPC 0.064
+ebrk.elf                     PASS  exit 1  2683 insns  2847 uops  53239 cycles  IPC 0.050
+    debugger: 156 halts, 110 steps, 2779 register accesses, 0 memory accesses, 76 EBREAKs, 22 triggers, 1 reset halts
+trig.elf                     PASS  exit 8  645 insns  654 uops  8241 cycles  IPC 0.078
+    debugger: 20 halts, 6 steps, 298 register accesses, 0 memory accesses, 0 EBREAKs, 4 triggers, 1 reset halts
+htif.elf                     PASS  exit 0  210 insns  210 uops  3229 cycles  IPC 0.065
     debugger: 7 halts, 3 steps, 111 register accesses, 0 memory accesses, 0 EBREAKs, 1 triggers, 0 reset halts
 rv64uc-rvc.elf               PASS  exit 0  255 insns  255 uops  1800 cycles  IPC 0.142
     debugger: 3 halts, 3 steps, 74 register accesses, 0 memory accesses, 0 EBREAKs, 0 triggers, 1 reset halts
@@ -2834,10 +2834,10 @@ D-fcvt.d.l-00.elf            PASS  exit 0  3019 insns  3023 uops  19565 cycles  
 D-fcvt.d.s-00.elf            PASS  exit 0  3953 insns  3957 uops  23696 cycles  IPC 0.167
 D-fcvt.d.wu-00.elf           PASS  exit 0  2715 insns  2719 uops  18054 cycles  IPC 0.150
 D-fcvt.d.w-00.elf            PASS  exit 0  2723 insns  2727 uops  18186 cycles  IPC 0.150
-D-fcvt.lu.d-00.elf           PASS  exit 0  3655 insns  3659 uops  25439 cycles  IPC 0.144
+D-fcvt.lu.d-00.elf           PASS  exit 0  3655 insns  3659 uops  25456 cycles  IPC 0.144
 D-fcvt.lu.s-00.elf           PASS  exit 0  1051 insns  1055 uops  11467 cycles  IPC 0.092
 D-fcvt.l.d-00.elf            PASS  exit 0  3655 insns  3659 uops  25353 cycles  IPC 0.144
-D-fcvt.l.s-00.elf            PASS  exit 0  1051 insns  1055 uops  11467 cycles  IPC 0.092
+D-fcvt.l.s-00.elf            PASS  exit 0  1051 insns  1055 uops  11463 cycles  IPC 0.092
 D-fcvt.s.d-00.elf            PASS  exit 0  7029 insns  7033 uops  37952 cycles  IPC 0.185
 D-fcvt.s.lu-00.elf           PASS  exit 0  917 insns  921 uops  10756 cycles  IPC 0.085
 D-fcvt.s.l-00.elf            PASS  exit 0  917 insns  921 uops  10756 cycles  IPC 0.085
@@ -2845,11 +2845,11 @@ D-fcvt.s.wu-00.elf           PASS  exit 0  917 insns  921 uops  10756 cycles  IP
 D-fcvt.s.w-00.elf            PASS  exit 0  917 insns  921 uops  10756 cycles  IPC 0.085
 D-fcvt.wu.d-00.elf           PASS  exit 0  3655 insns  3659 uops  25580 cycles  IPC 0.143
 D-fcvt.wu.s-00.elf           PASS  exit 0  1051 insns  1055 uops  11467 cycles  IPC 0.092
-D-fcvt.w.d-00.elf            PASS  exit 0  3655 insns  3659 uops  25474 cycles  IPC 0.143
+D-fcvt.w.d-00.elf            PASS  exit 0  3655 insns  3659 uops  25497 cycles  IPC 0.143
 D-fcvt.w.s-00.elf            PASS  exit 0  1051 insns  1055 uops  11467 cycles  IPC 0.092
-D-fdiv.d-00.elf              PASS  exit 0  30887 insns  30891 uops  199448 cycles  IPC 0.155
+D-fdiv.d-00.elf              PASS  exit 0  30887 insns  30891 uops  199472 cycles  IPC 0.155
 D-fdiv.d-01.elf              PASS  exit 0  30887 insns  30891 uops  222456 cycles  IPC 0.139
-D-fdiv.d-02.elf              PASS  exit 0  30887 insns  30891 uops  222374 cycles  IPC 0.139
+D-fdiv.d-02.elf              PASS  exit 0  30887 insns  30891 uops  222348 cycles  IPC 0.139
 D-fdiv.d-03.elf              PASS  exit 0  30887 insns  30891 uops  134540 cycles  IPC 0.230
 D-fdiv.d-04.elf              PASS  exit 0  28847 insns  28851 uops  140377 cycles  IPC 0.205
 D-fdiv.s-00.elf              PASS  exit 0  1757 insns  1761 uops  13867 cycles  IPC 0.127
@@ -2933,7 +2933,7 @@ D-fsqrt.s-00.elf             PASS  exit 0  1225 insns  1229 uops  12071 cycles  
 D-fsub.d-00.elf              PASS  exit 0  30887 insns  30891 uops  122365 cycles  IPC 0.252
 D-fsub.d-01.elf              PASS  exit 0  30887 insns  30891 uops  124921 cycles  IPC 0.247
 D-fsub.d-02.elf              PASS  exit 0  30887 insns  30891 uops  124988 cycles  IPC 0.247
-D-fsub.d-03.elf              PASS  exit 0  30887 insns  30891 uops  124998 cycles  IPC 0.247
+D-fsub.d-03.elf              PASS  exit 0  30887 insns  30891 uops  125015 cycles  IPC 0.247
 D-fsub.d-04.elf              PASS  exit 0  28847 insns  28851 uops  117271 cycles  IPC 0.246
 D-fsub.s-00.elf              PASS  exit 0  1757 insns  1761 uops  13328 cycles  IPC 0.132
 D-fsw-00.elf                 PASS  exit 0  1315 insns  1319 uops  12145 cycles  IPC 0.108
@@ -2944,17 +2944,17 @@ Exceptions_Sm_medeleg_s-00.elf PASS  exit 0  139959 insns  140827 uops  231917 c
 Exceptions_Sm_medeleg_u-00.elf PASS  exit 0  140042 insns  140912 uops  232023 cycles  IPC 0.604
 Exceptions_S-00.elf          PASS  exit 0  17446 insns  17546 uops  42455 cycles  IPC 0.411
 Exceptions_U-00.elf          PASS  exit 0  13315 insns  13383 uops  33888 cycles  IPC 0.393
-Exceptions_Zaamo-00.elf      PASS  exit 0  83391 insns  83863 uops  144283 cycles  IPC 0.578
-Exceptions_Zalrsc-00.elf     PASS  exit 0  8121 insns  8164 uops  23677 cycles  IPC 0.343
-Exceptions_Zc-00.elf         PASS  exit 0  19266 insns  19352 uops  42632 cycles  IPC 0.452
+Exceptions_Zaamo-00.elf      PASS  exit 0  83391 insns  83863 uops  144260 cycles  IPC 0.578
+Exceptions_Zalrsc-00.elf     PASS  exit 0  8121 insns  8164 uops  23661 cycles  IPC 0.343
+Exceptions_Zc-00.elf         PASS  exit 0  19266 insns  19352 uops  42715 cycles  IPC 0.451
 F-fadd.s-00.elf              PASS  exit 0  30887 insns  30891 uops  121555 cycles  IPC 0.254
 F-fadd.s-01.elf              PASS  exit 0  30887 insns  30891 uops  124872 cycles  IPC 0.247
-F-fadd.s-02.elf              PASS  exit 0  30887 insns  30891 uops  124737 cycles  IPC 0.248
+F-fadd.s-02.elf              PASS  exit 0  30887 insns  30891 uops  124749 cycles  IPC 0.248
 F-fadd.s-03.elf              PASS  exit 0  30887 insns  30891 uops  125095 cycles  IPC 0.247
 F-fadd.s-04.elf              PASS  exit 0  28847 insns  28851 uops  117471 cycles  IPC 0.246
 F-fclass.s-00.elf            PASS  exit 0  1919 insns  1923 uops  15617 cycles  IPC 0.123
 F-fcvt.lu.s-00.elf           PASS  exit 0  3655 insns  3659 uops  25242 cycles  IPC 0.145
-F-fcvt.l.s-00.elf            PASS  exit 0  3655 insns  3659 uops  25437 cycles  IPC 0.144
+F-fcvt.l.s-00.elf            PASS  exit 0  3655 insns  3659 uops  25426 cycles  IPC 0.144
 F-fcvt.s.lu-00.elf           PASS  exit 0  3011 insns  3015 uops  19192 cycles  IPC 0.157
 F-fcvt.s.l-00.elf            PASS  exit 0  3011 insns  3015 uops  19272 cycles  IPC 0.156
 F-fcvt.s.wu-00.elf           PASS  exit 0  3011 insns  3015 uops  19193 cycles  IPC 0.157
@@ -2968,13 +2968,13 @@ F-fdiv.s-03.elf              PASS  exit 0  30887 insns  30891 uops  118926 cycle
 F-fdiv.s-04.elf              PASS  exit 0  28847 insns  28851 uops  116213 cycles  IPC 0.248
 F-feq.s-00.elf               PASS  exit 0  13085 insns  13089 uops  66956 cycles  IPC 0.195
 F-fle.s-00.elf               PASS  exit 0  13085 insns  13089 uops  66091 cycles  IPC 0.198
-F-flt.s-00.elf               PASS  exit 0  13085 insns  13089 uops  66190 cycles  IPC 0.198
+F-flt.s-00.elf               PASS  exit 0  13085 insns  13089 uops  66175 cycles  IPC 0.198
 F-flw-00.elf                 PASS  exit 0  3353 insns  3357 uops  18221 cycles  IPC 0.184
 F-fmadd.s-00.elf             PASS  exit 0  30887 insns  30891 uops  132927 cycles  IPC 0.232
-F-fmadd.s-01.elf             PASS  exit 0  30887 insns  30891 uops  135470 cycles  IPC 0.228
+F-fmadd.s-01.elf             PASS  exit 0  30887 insns  30891 uops  135501 cycles  IPC 0.228
 F-fmadd.s-02.elf             PASS  exit 0  30895 insns  30899 uops  133636 cycles  IPC 0.231
 F-fmadd.s-03.elf             PASS  exit 0  30887 insns  30891 uops  135323 cycles  IPC 0.228
-F-fmadd.s-04.elf             PASS  exit 0  30887 insns  30891 uops  135618 cycles  IPC 0.228
+F-fmadd.s-04.elf             PASS  exit 0  30887 insns  30891 uops  135604 cycles  IPC 0.228
 F-fmadd.s-05.elf             PASS  exit 0  30895 insns  30899 uops  133632 cycles  IPC 0.231
 F-fmadd.s-06.elf             PASS  exit 0  30887 insns  30891 uops  135394 cycles  IPC 0.228
 F-fmadd.s-07.elf             PASS  exit 0  30887 insns  30891 uops  135672 cycles  IPC 0.228
@@ -3073,11 +3073,11 @@ I-sraiw-00.elf               PASS  exit 0  2325 insns  2329 uops  16815 cycles  
 I-srai-00.elf                PASS  exit 0  3059 insns  3063 uops  19720 cycles  IPC 0.155
 I-sraw-00.elf                PASS  exit 0  5615 insns  5619 uops  28991 cycles  IPC 0.194
 I-sra-00.elf                 PASS  exit 0  5623 insns  5627 uops  29226 cycles  IPC 0.192
-I-srliw-00.elf               PASS  exit 0  2325 insns  2329 uops  16787 cycles  IPC 0.139
+I-srliw-00.elf               PASS  exit 0  2325 insns  2329 uops  16772 cycles  IPC 0.139
 I-srli-00.elf                PASS  exit 0  3059 insns  3063 uops  19617 cycles  IPC 0.156
 I-srlw-00.elf                PASS  exit 0  5623 insns  5627 uops  29171 cycles  IPC 0.193
 I-srl-00.elf                 PASS  exit 0  5623 insns  5627 uops  29029 cycles  IPC 0.194
-I-subw-00.elf                PASS  exit 0  5623 insns  5627 uops  29022 cycles  IPC 0.194
+I-subw-00.elf                PASS  exit 0  5623 insns  5627 uops  29024 cycles  IPC 0.194
 I-sub-00.elf                 PASS  exit 0  5623 insns  5627 uops  29344 cycles  IPC 0.192
 I-sw-00.elf                  PASS  exit 0  3660 insns  3664 uops  18004 cycles  IPC 0.203
 I-xori-00.elf                PASS  exit 0  3881 insns  3885 uops  23196 cycles  IPC 0.167
@@ -3089,7 +3089,7 @@ M-div-00.elf                 PASS  exit 0  5623 insns  5627 uops  29555 cycles  
 M-mulhsu-00.elf              PASS  exit 0  5623 insns  5627 uops  29283 cycles  IPC 0.192
 M-mulhu-00.elf               PASS  exit 0  5623 insns  5627 uops  29092 cycles  IPC 0.193
 M-mulh-00.elf                PASS  exit 0  5623 insns  5627 uops  29434 cycles  IPC 0.191
-M-mulw-00.elf                PASS  exit 0  5615 insns  5619 uops  29151 cycles  IPC 0.193
+M-mulw-00.elf                PASS  exit 0  5615 insns  5619 uops  29135 cycles  IPC 0.193
 M-mul-00.elf                 PASS  exit 0  5631 insns  5635 uops  29079 cycles  IPC 0.194
 M-remuw-00.elf               PASS  exit 0  5615 insns  5619 uops  29093 cycles  IPC 0.193
 M-remu-00.elf                PASS  exit 0  5631 insns  5635 uops  29628 cycles  IPC 0.190
@@ -3106,10 +3106,10 @@ PMP_Sm_cfg_L_access_all-00.elf PASS  exit 0  1978 insns  1979 uops  49607 cycles
 PMP_Sm_cfg_L_modify_napot-00.elf PASS  exit 0  769 insns  770 uops  10278 cycles  IPC 0.075
 PMP_Sm_cfg_L_modify_off-00.elf PASS  exit 0  769 insns  770 uops  10219 cycles  IPC 0.075
 PMP_Sm_cfg_L_modify_tor-00.elf PASS  exit 0  769 insns  770 uops  10278 cycles  IPC 0.075
-PMP_Sm_cfg_XWR_all-01-00.elf PASS  exit 0  8187 insns  8226 uops  59916 cycles  IPC 0.137
-PMP_Sm_cfg_XWR_all-02-00.elf PASS  exit 0  7394 insns  7428 uops  58425 cycles  IPC 0.127
-PMP_Sm_cfg_XWR_all-03-00.elf PASS  exit 0  7555 insns  7590 uops  58736 cycles  IPC 0.129
-PMP_Sm_cfg_XWR_all-04-00.elf PASS  exit 0  9314 insns  9360 uops  61628 cycles  IPC 0.151
+PMP_Sm_cfg_XWR_all-01-00.elf PASS  exit 0  8187 insns  8226 uops  59950 cycles  IPC 0.137
+PMP_Sm_cfg_XWR_all-02-00.elf PASS  exit 0  7394 insns  7428 uops  58352 cycles  IPC 0.127
+PMP_Sm_cfg_XWR_all-03-00.elf PASS  exit 0  7555 insns  7590 uops  58804 cycles  IPC 0.128
+PMP_Sm_cfg_XWR_all-04-00.elf PASS  exit 0  9314 insns  9360 uops  61621 cycles  IPC 0.151
 PMP_Sm_cfg_na4_all-00.elf    PASS  exit 0  2437 insns  2445 uops  13611 cycles  IPC 0.179
 PMP_Sm_cfg_napot_all-00.elf  PASS  exit 0  2541 insns  2549 uops  13806 cycles  IPC 0.184
 PMP_Sm_cfg_tor_all-00.elf    PASS  exit 0  1730 insns  1734 uops  12585 cycles  IPC 0.137
@@ -3118,8 +3118,8 @@ PMP_Sm_cfg_tor_check-02-00.elf PASS  exit 0  834 insns  835 uops  12488 cycles  
 PMP_Sm_cfg_tor_check-03-00.elf PASS  exit 0  826 insns  827 uops  12419 cycles  IPC 0.067
 PMP_Sm_grain-00.elf          PASS  exit 0  933 insns  934 uops  11292 cycles  IPC 0.083
 PMP_Sm_grain_check-00.elf    PASS  exit 0  698 insns  699 uops  9839 cycles  IPC 0.071
-PMP_Sm_na4_legal_lxwr-00.elf PASS  exit 0  2866 insns  2876 uops  29401 cycles  IPC 0.097
-PMP_Sm_napot_legal_lxwr-01-00.elf PASS  exit 0  6194 insns  6225 uops  27216 cycles  IPC 0.228
+PMP_Sm_na4_legal_lxwr-00.elf PASS  exit 0  2866 insns  2876 uops  29308 cycles  IPC 0.098
+PMP_Sm_napot_legal_lxwr-01-00.elf PASS  exit 0  6194 insns  6225 uops  27198 cycles  IPC 0.228
 PMP_Sm_napot_legal_lxwr-02-00.elf PASS  exit 0  4853 insns  4875 uops  25092 cycles  IPC 0.193
 PMP_Sm_pmpaddr_upper-00.elf  PASS  exit 0  727 insns  728 uops  9812 cycles  IPC 0.074
 PMP_Sm_pmpcfg_walk_01-00.elf PASS  exit 0  682 insns  683 uops  9478 cycles  IPC 0.072
@@ -3144,23 +3144,23 @@ PMP_S_cfg_XWR-00.elf         PASS  exit 0  7538 insns  7584 uops  37733 cycles  
 PMP_S_cfg_XWR_unlocked-00.elf PASS  exit 0  7538 insns  7584 uops  37472 cycles  IPC 0.201
 PMP_S_csr_access-00.elf      PASS  exit 0  40607 insns  40928 uops  80208 cycles  IPC 0.506
 PMP_S_mprv_check-01-00.elf   PASS  exit 0  2330 insns  2339 uops  23336 cycles  IPC 0.100
-PMP_S_mprv_check-02-00.elf   PASS  exit 0  1066 insns  1067 uops  20289 cycles  IPC 0.053
-PMP_S_na4_legal_lxwr-00.elf  PASS  exit 0  3770 insns  3792 uops  31905 cycles  IPC 0.118
-PMP_S_napot_legal_lxwr-01-00.elf PASS  exit 0  6634 insns  6671 uops  28532 cycles  IPC 0.233
+PMP_S_mprv_check-02-00.elf   PASS  exit 0  1066 insns  1067 uops  20221 cycles  IPC 0.053
+PMP_S_na4_legal_lxwr-00.elf  PASS  exit 0  3770 insns  3792 uops  31874 cycles  IPC 0.118
+PMP_S_napot_legal_lxwr-01-00.elf PASS  exit 0  6634 insns  6671 uops  28440 cycles  IPC 0.233
 PMP_S_napot_legal_lxwr-02-00.elf PASS  exit 0  5293 insns  5321 uops  26549 cycles  IPC 0.199
 PMP_S_tor_legal_lxwr-01-00.elf PASS  exit 0  1777 insns  1784 uops  20194 cycles  IPC 0.088
 PMP_S_tor_legal_lxwr-02-00.elf PASS  exit 0  2743 insns  2756 uops  22133 cycles  IPC 0.124
 PMP_U_cfg_A_off-00.elf       PASS  exit 0  899 insns  902 uops  12865 cycles  IPC 0.070
-PMP_U_cfg_XWR-00.elf         PASS  exit 0  7532 insns  7578 uops  37597 cycles  IPC 0.200
+PMP_U_cfg_XWR-00.elf         PASS  exit 0  7532 insns  7578 uops  37650 cycles  IPC 0.200
 PMP_U_cfg_XWR_unlocked-00.elf PASS  exit 0  7532 insns  7578 uops  37483 cycles  IPC 0.201
-PMP_U_csr_access-00.elf      PASS  exit 0  40527 insns  40848 uops  78756 cycles  IPC 0.515
+PMP_U_csr_access-00.elf      PASS  exit 0  40527 insns  40848 uops  78664 cycles  IPC 0.515
 PMP_U_mprv_check-01-00.elf   PASS  exit 0  2330 insns  2339 uops  23406 cycles  IPC 0.100
-PMP_U_mprv_check-02-00.elf   PASS  exit 0  1066 insns  1067 uops  20252 cycles  IPC 0.053
-PMP_U_na4_legal_lxwr-00.elf  PASS  exit 0  3764 insns  3786 uops  31881 cycles  IPC 0.118
-PMP_U_napot_legal_lxwr-01-00.elf PASS  exit 0  6631 insns  6668 uops  28467 cycles  IPC 0.233
-PMP_U_napot_legal_lxwr-02-00.elf PASS  exit 0  5290 insns  5318 uops  26586 cycles  IPC 0.199
+PMP_U_mprv_check-02-00.elf   PASS  exit 0  1066 insns  1067 uops  20288 cycles  IPC 0.053
+PMP_U_na4_legal_lxwr-00.elf  PASS  exit 0  3764 insns  3786 uops  31877 cycles  IPC 0.118
+PMP_U_napot_legal_lxwr-01-00.elf PASS  exit 0  6631 insns  6668 uops  28584 cycles  IPC 0.232
+PMP_U_napot_legal_lxwr-02-00.elf PASS  exit 0  5290 insns  5318 uops  26513 cycles  IPC 0.200
 PMP_U_tor_legal_lxwr-01-00.elf PASS  exit 0  1774 insns  1781 uops  20083 cycles  IPC 0.088
-PMP_U_tor_legal_lxwr-02-00.elf PASS  exit 0  2740 insns  2753 uops  22181 cycles  IPC 0.124
+PMP_U_tor_legal_lxwr-02-00.elf PASS  exit 0  2740 insns  2753 uops  22063 cycles  IPC 0.124
 PMP_Zaamo_cfg_wr-00.elf      PASS  exit 0  12979 insns  13052 uops  31048 cycles  IPC 0.418
 PMP_Zalrsc_cfg_wr-00.elf     PASS  exit 0  2931 insns  2944 uops  14223 cycles  IPC 0.206
 PMP_Zca_aligned_na4-00.elf   PASS  exit 0  788 insns  789 uops  10060 cycles  IPC 0.078
@@ -3217,12 +3217,12 @@ Sv_ExceptionsSm_sv39_medeleg_Umode-00.elf PASS  exit 0  13717 insns  13813 uops 
 Sv_ExceptionsZaamoSm_sv39_exceptions_Zaamo_mprv_S_Mmode-00.elf PASS  exit 0  5370 insns  5387 uops  20836 cycles  IPC 0.258
 Sv_ExceptionsZaamoSm_sv39_medeleg_Zaamo_Smode-00.elf PASS  exit 0  9817 insns  9883 uops  29866 cycles  IPC 0.329
 Sv_ExceptionsZaamoSm_sv39_medeleg_Zaamo_Umode-00.elf PASS  exit 0  9413 insns  9483 uops  29856 cycles  IPC 0.315
-Sv_ExceptionsZaamo_sv39_exceptions_Zaamo_Smode-00.elf PASS  exit 0  1546 insns  1551 uops  12487 cycles  IPC 0.124
-Sv_ExceptionsZaamo_sv39_exceptions_Zaamo_Umode-00.elf PASS  exit 0  2222 insns  2235 uops  14495 cycles  IPC 0.153
+Sv_ExceptionsZaamo_sv39_exceptions_Zaamo_Smode-00.elf PASS  exit 0  1546 insns  1551 uops  12561 cycles  IPC 0.123
+Sv_ExceptionsZaamo_sv39_exceptions_Zaamo_Umode-00.elf PASS  exit 0  2222 insns  2235 uops  14429 cycles  IPC 0.154
 Sv_ExceptionsZalrscSm_sv39_exceptions_Zalrsc_mprv_S_Mmode-00.elf PASS  exit 0  8352 insns  8385 uops  27272 cycles  IPC 0.306
 Sv_ExceptionsZalrscSm_sv39_medeleg_Zalrsc_Smode-00.elf PASS  exit 0  12072 insns  12151 uops  34418 cycles  IPC 0.351
-Sv_ExceptionsZalrscSm_sv39_medeleg_Zalrsc_Umode-00.elf PASS  exit 0  11668 insns  11751 uops  34124 cycles  IPC 0.342
-Sv_ExceptionsZalrsc_sv39_exceptions_Zalrsc_Smode-00.elf PASS  exit 0  2052 insns  2060 uops  13338 cycles  IPC 0.154
+Sv_ExceptionsZalrscSm_sv39_medeleg_Zalrsc_Umode-00.elf PASS  exit 0  11668 insns  11751 uops  34206 cycles  IPC 0.341
+Sv_ExceptionsZalrsc_sv39_exceptions_Zalrsc_Smode-00.elf PASS  exit 0  2052 insns  2060 uops  13458 cycles  IPC 0.152
 Sv_ExceptionsZalrsc_sv39_exceptions_Zalrsc_Umode-00.elf PASS  exit 0  2712 insns  2728 uops  15337 cycles  IPC 0.177
 Sv_Exceptions_sv39_exceptions_Smode-00.elf PASS  exit 0  2374 insns  2384 uops  13884 cycles  IPC 0.171
 Sv_Exceptions_sv39_exceptions_Umode-00.elf PASS  exit 0  3034 insns  3052 uops  15965 cycles  IPC 0.190
@@ -3235,20 +3235,20 @@ Sv_Sm_sv_mstatus_tvm_test-00.elf PASS  exit 0  1539 insns  1546 uops  11763 cycl
 Sv_sv39_VA_all_ones_Smode-00.elf PASS  exit 0  1072 insns  1074 uops  10767 cycles  IPC 0.100
 Sv_sv39_VA_all_zeros_Smode-00.elf PASS  exit 0  1074 insns  1076 uops  10754 cycles  IPC 0.100
 Sv_sv39_global_pte_Smode-00.elf PASS  exit 0  1270 insns  1272 uops  11516 cycles  IPC 0.110
-Sv_sv39_global_pte_Umode-00.elf PASS  exit 0  2272 insns  2286 uops  14464 cycles  IPC 0.157
-Sv_sv39_invalid_pte_Smode-00.elf PASS  exit 0  2546 insns  2557 uops  14067 cycles  IPC 0.181
+Sv_sv39_global_pte_Umode-00.elf PASS  exit 0  2272 insns  2286 uops  14514 cycles  IPC 0.157
+Sv_sv39_invalid_pte_Smode-00.elf PASS  exit 0  2546 insns  2557 uops  14170 cycles  IPC 0.180
 Sv_sv39_invalid_pte_Umode-00.elf PASS  exit 0  3043 insns  3060 uops  15721 cycles  IPC 0.194
 Sv_sv39_misaligned_page_Smode-00.elf PASS  exit 0  1950 insns  1958 uops  13032 cycles  IPC 0.150
 Sv_sv39_misaligned_page_Umode-00.elf PASS  exit 0  2284 insns  2296 uops  14162 cycles  IPC 0.161
 Sv_sv39_mstatus_mxr_Smode-00.elf PASS  exit 0  2942 insns  2953 uops  15560 cycles  IPC 0.189
 Sv_sv39_mstatus_mxr_Umode-00.elf PASS  exit 0  3928 insns  3951 uops  18308 cycles  IPC 0.215
-Sv_sv39_nleaf_pte_DAU_Smode-00.elf PASS  exit 0  4430 insns  4450 uops  17403 cycles  IPC 0.255
-Sv_sv39_nleaf_pte_DAU_Umode-00.elf PASS  exit 0  5416 insns  5448 uops  20093 cycles  IPC 0.270
+Sv_sv39_nleaf_pte_DAU_Smode-00.elf PASS  exit 0  4430 insns  4450 uops  17443 cycles  IPC 0.254
+Sv_sv39_nleaf_pte_DAU_Umode-00.elf PASS  exit 0  5416 insns  5448 uops  20157 cycles  IPC 0.269
 Sv_sv39_nleaf_pte_level0_Smode-00.elf PASS  exit 0  1442 insns  1447 uops  12101 cycles  IPC 0.119
 Sv_sv39_nleaf_pte_level0_Umode-00.elf PASS  exit 0  1605 insns  1612 uops  12736 cycles  IPC 0.126
 Sv_sv39_nleaf_pte_reserved_Smode-00.elf PASS  exit 0  12918 insns  12980 uops  32449 cycles  IPC 0.398
 Sv_sv39_pte_reserved_field_Smode-00.elf PASS  exit 0  4634 insns  4657 uops  17781 cycles  IPC 0.261
-Sv_sv39_pte_reserved_rwx_Smode-00.elf PASS  exit 0  4238 insns  4258 uops  17053 cycles  IPC 0.249
+Sv_sv39_pte_reserved_rwx_Smode-00.elf PASS  exit 0  4238 insns  4258 uops  17137 cycles  IPC 0.247
 Sv_sv39_pte_reserved_rwx_Umode-00.elf PASS  exit 0  5224 insns  5256 uops  19969 cycles  IPC 0.262
 Sv_sv39_pte_rsw_Smode-00.elf PASS  exit 0  1925 insns  1927 uops  13012 cycles  IPC 0.148
 Sv_sv39_pte_rsw_Umode-00.elf PASS  exit 0  3392 insns  3412 uops  17049 cycles  IPC 0.199
@@ -3257,7 +3257,7 @@ Sv_sv39_spage_access_Umode-00.elf PASS  exit 0  3043 insns  3060 uops  15721 cyc
 Sv_sv39_spage_mstatus_sum_set_Smode-00.elf PASS  exit 0  3626 insns  3640 uops  16744 cycles  IPC 0.217
 Sv_sv39_svnapot_not_supported_Smode-00.elf PASS  exit 0  1450 insns  1455 uops  12101 cycles  IPC 0.120
 Sv_sv39_svpbmt_disabled_Smode-00.elf PASS  exit 0  2605 insns  2617 uops  14606 cycles  IPC 0.178
-Sv_sv39_upage_mstatus_sum_set_Smode-00.elf PASS  exit 0  6434 insns  6463 uops  22051 cycles  IPC 0.292
+Sv_sv39_upage_mstatus_sum_set_Smode-00.elf PASS  exit 0  6434 insns  6463 uops  21969 cycles  IPC 0.293
 Sv_sv39_upage_mstatus_sum_unset_Smode-00.elf PASS  exit 0  9314 insns  9361 uops  26289 cycles  IPC 0.354
 Zaamo-amoadd.d-00.elf        PASS  exit 0  7401 insns  7405 uops  29401 cycles  IPC 0.252
 Zaamo-amoadd.w-00.elf        PASS  exit 0  7437 insns  7441 uops  30035 cycles  IPC 0.248
@@ -3298,13 +3298,13 @@ Zbb-ctzw-00.elf              PASS  exit 0  1791 insns  1795 uops  14307 cycles  
 Zbb-ctz-00.elf               PASS  exit 0  1958 insns  1962 uops  15083 cycles  IPC 0.130
 Zbb-maxu-00.elf              PASS  exit 0  5623 insns  5627 uops  29170 cycles  IPC 0.193
 Zbb-max-00.elf               PASS  exit 0  5623 insns  5627 uops  29151 cycles  IPC 0.193
-Zbb-minu-00.elf              PASS  exit 0  5615 insns  5619 uops  29117 cycles  IPC 0.193
+Zbb-minu-00.elf              PASS  exit 0  5615 insns  5619 uops  29100 cycles  IPC 0.193
 Zbb-min-00.elf               PASS  exit 0  5631 insns  5635 uops  29259 cycles  IPC 0.192
 Zbb-orc.b-00.elf             PASS  exit 0  1625 insns  1629 uops  13543 cycles  IPC 0.120
 Zbb-orn-00.elf               PASS  exit 0  5623 insns  5627 uops  29314 cycles  IPC 0.192
 Zbb-rev8-00.elf              PASS  exit 0  1605 insns  1609 uops  13603 cycles  IPC 0.118
 Zbb-rolw-00.elf              PASS  exit 0  5623 insns  5627 uops  29374 cycles  IPC 0.191
-Zbb-rol-00.elf               PASS  exit 0  5623 insns  5627 uops  29325 cycles  IPC 0.192
+Zbb-rol-00.elf               PASS  exit 0  5623 insns  5627 uops  29349 cycles  IPC 0.192
 Zbb-roriw-00.elf             PASS  exit 0  2339 insns  2343 uops  16745 cycles  IPC 0.140
 Zbb-rori-00.elf              PASS  exit 0  3073 insns  3077 uops  19765 cycles  IPC 0.155
 Zbb-rorw-00.elf              PASS  exit 0  5623 insns  5627 uops  29406 cycles  IPC 0.191
@@ -3324,7 +3324,7 @@ Zbs-binvi-00.elf             PASS  exit 0  3065 insns  3069 uops  19755 cycles  
 Zbs-binv-00.elf              PASS  exit 0  5623 insns  5627 uops  29203 cycles  IPC 0.193
 Zbs-bseti-00.elf             PASS  exit 0  3065 insns  3069 uops  19742 cycles  IPC 0.155
 Zbs-bset-00.elf              PASS  exit 0  5631 insns  5635 uops  29122 cycles  IPC 0.193
-Zca-c.addi4spn-00.elf        PASS  exit 0  2476 insns  2480 uops  16862 cycles  IPC 0.147
+Zca-c.addi4spn-00.elf        PASS  exit 0  2476 insns  2480 uops  16865 cycles  IPC 0.147
 Zca-c.addi16sp-00.elf        PASS  exit 0  1276 insns  1280 uops  12087 cycles  IPC 0.106
 Zca-c.addiw-00.elf           PASS  exit 0  2601 insns  2605 uops  17502 cycles  IPC 0.149
 Zca-c.addi-00.elf            PASS  exit 0  2688 insns  2692 uops  17824 cycles  IPC 0.151
@@ -3345,7 +3345,7 @@ Zca-c.lwsp-00.elf            PASS  exit 0  1602 insns  1606 uops  13038 cycles  
 Zca-c.lw-00.elf              PASS  exit 0  1260 insns  1264 uops  12057 cycles  IPC 0.105
 Zca-c.mv-00.elf              PASS  exit 0  2065 insns  2069 uops  14726 cycles  IPC 0.140
 Zca-c.nop-00.elf             PASS  exit 0  959 insns  963 uops  10620 cycles  IPC 0.090
-Zca-c.or-00.elf              PASS  exit 0  3967 insns  3971 uops  21876 cycles  IPC 0.181
+Zca-c.or-00.elf              PASS  exit 0  3967 insns  3971 uops  21896 cycles  IPC 0.181
 Zca-c.sdsp-00.elf            PASS  exit 0  3481 insns  3485 uops  16268 cycles  IPC 0.214
 Zca-c.sd-00.elf              PASS  exit 0  2357 insns  2361 uops  13989 cycles  IPC 0.168
 Zca-c.slli-00.elf            PASS  exit 0  3309 insns  3313 uops  20221 cycles  IPC 0.164
@@ -3373,7 +3373,7 @@ Zicsr-csrrw-00.elf           PASS  exit 0  2403 insns  2407 uops  19625 cycles  
 Zifencei-fence.i-00.elf      PASS  exit 0  1102 insns  1106 uops  20204 cycles  IPC 0.055
 atomic.elf                   PASS  exit 0  17970 insns  17980 uops  54327 cycles  IPC 0.331
 cboz.elf                     PASS  exit 0  6734 insns  6743 uops  10521 cycles  IPC 0.640
-dcrace.elf                   PASS  exit 0  36331 insns  36331 uops  172156 cycles  IPC 0.211
+dcrace.elf                   PASS  exit 0  36331 insns  36331 uops  173326 cycles  IPC 0.210
 devld.elf                    PASS  exit 0  263 insns  263 uops  2413 cycles  IPC 0.109
 ebrk.elf                     PASS  exit 0  3656 insns  3896 uops  21930 cycles  IPC 0.167
 fprm.elf                     PASS  exit 0  2652 insns  2760 uops  12721 cycles  IPC 0.208
@@ -3419,7 +3419,7 @@ InterruptsSm_trigger_M-00.elf PASS  exit 0  47269 insns  47294 uops  66631 cycle
 InterruptsSm_trigger_S-00.elf PASS  exit 0  66935 insns  67176 uops  105737 cycles  IPC 0.633
 InterruptsSm_trigger_U-00.elf PASS  exit 0  66887 insns  67128 uops  104878 cycles  IPC 0.638
 InterruptsSm_wfi_M-00.elf    PASS  exit 0  1625 insns  1628 uops  15334 cycles  IPC 0.106
-InterruptsSm_wfi_S-00.elf    PASS  exit 0  2335 insns  2350 uops  15350 cycles  IPC 0.152
+InterruptsSm_wfi_S-00.elf    PASS  exit 0  2335 insns  2350 uops  15414 cycles  IPC 0.151
 InterruptsSm_wfi_U-00.elf    PASS  exit 0  707 insns  708 uops  9483 cycles  IPC 0.075
 InterruptsSm_wfi_timeout_S-00.elf PASS  exit 0  2019 insns  2032 uops  12945 cycles  IPC 0.156
 InterruptsSm_wfi_timeout_U-00.elf PASS  exit 0  3331 insns  3356 uops  15487 cycles  IPC 0.215
@@ -3442,7 +3442,7 @@ rv64mi-p-csr                 PASS  exit 0  279 insns  284 uops  3822 cycles  IPC
 rv64mi-p-illegal             PASS  exit 0  360 insns  369 uops  4069 cycles  IPC 0.088
 rv64mi-p-instret_overflow    PASS  exit 0  100 insns  102 uops  2631 cycles  IPC 0.038
 rv64mi-p-ma_addr             PASS  exit 0  720 insns  748 uops  5101 cycles  IPC 0.141
-rv64mi-p-ma_fetch            PASS  exit 0  129 insns  131 uops  2897 cycles  IPC 0.045
+rv64mi-p-ma_fetch            PASS  exit 0  129 insns  131 uops  2905 cycles  IPC 0.044
 rv64mi-p-mcsr                PASS  exit 0  104 insns  106 uops  2650 cycles  IPC 0.039
 rv64mi-p-pmpaddr             PASS  exit 0  98 insns  100 uops  2625 cycles  IPC 0.037
 rv64mi-p-sbreak              PASS  exit 0  111 insns  114 uops  2673 cycles  IPC 0.042
@@ -3450,7 +3450,7 @@ rv64mi-p-scall               PASS  exit 0  96 insns  98 uops  2594 cycles  IPC 0
 rv64mi-p-zicntr              PASS  exit 0  121 insns  123 uops  2698 cycles  IPC 0.045
 rv64si-p-csr                 PASS  exit 0  196 insns  199 uops  3236 cycles  IPC 0.061
 rv64si-p-dirty               PASS  exit 0  203 insns  208 uops  3283 cycles  IPC 0.062
-rv64si-p-ma_fetch            PASS  exit 0  127 insns  129 uops  2812 cycles  IPC 0.045
+rv64si-p-ma_fetch            PASS  exit 0  127 insns  129 uops  2841 cycles  IPC 0.045
 rv64si-p-sbreak              PASS  exit 0  105 insns  108 uops  2653 cycles  IPC 0.040
 rv64si-p-scall               PASS  exit 0  112 insns  115 uops  2713 cycles  IPC 0.041
 rv64si-p-wfi                 PASS  exit 0  92 insns  94 uops  2697 cycles  IPC 0.034
@@ -3473,28 +3473,28 @@ rv64ua-p-amoswap_w           PASS  exit 0  105 insns  107 uops  2651 cycles  IPC
 rv64ua-p-amoxor_d            PASS  exit 0  107 insns  109 uops  2644 cycles  IPC 0.040
 rv64ua-p-amoxor_w            PASS  exit 0  109 insns  111 uops  2647 cycles  IPC 0.041
 rv64ua-p-lrsc                PASS  exit 0  6283 insns  6285 uops  24459 cycles  IPC 0.257
-rv64ua-v-amoadd_d            PASS  exit 0  9828 insns  9835 uops  26098 cycles  IPC 0.377
+rv64ua-v-amoadd_d            PASS  exit 0  9828 insns  9835 uops  26224 cycles  IPC 0.375
 rv64ua-v-amoadd_w            PASS  exit 0  9825 insns  9832 uops  26091 cycles  IPC 0.377
 rv64ua-v-amoand_d            PASS  exit 0  9837 insns  9844 uops  26135 cycles  IPC 0.376
-rv64ua-v-amoand_w            PASS  exit 0  9836 insns  9843 uops  26114 cycles  IPC 0.377
-rv64ua-v-amocas_d            PASS  exit 420  4663 insns  4670 uops  23047 cycles  IPC 0.202
+rv64ua-v-amoand_w            PASS  exit 0  9836 insns  9843 uops  26245 cycles  IPC 0.375
+rv64ua-v-amocas_d            PASS  exit 420  4663 insns  4670 uops  22865 cycles  IPC 0.204
 rv64ua-v-amocas_q            PASS  exit 420  4665 insns  4672 uops  23190 cycles  IPC 0.201
-rv64ua-v-amocas_w            PASS  exit 420  4663 insns  4670 uops  22865 cycles  IPC 0.204
+rv64ua-v-amocas_w            PASS  exit 420  4663 insns  4670 uops  23047 cycles  IPC 0.202
 rv64ua-v-amomax_d            PASS  exit 0  9818 insns  9825 uops  26203 cycles  IPC 0.375
-rv64ua-v-amomax_w            PASS  exit 0  9832 insns  9839 uops  26103 cycles  IPC 0.377
+rv64ua-v-amomax_w            PASS  exit 0  9832 insns  9839 uops  26234 cycles  IPC 0.375
 rv64ua-v-amomaxu_d           PASS  exit 0  9818 insns  9825 uops  26074 cycles  IPC 0.377
 rv64ua-v-amomaxu_w           PASS  exit 0  9832 insns  9839 uops  26234 cycles  IPC 0.375
 rv64ua-v-amomin_d            PASS  exit 0  9818 insns  9825 uops  26074 cycles  IPC 0.377
-rv64ua-v-amomin_w            PASS  exit 0  9850 insns  9857 uops  26162 cycles  IPC 0.377
-rv64ua-v-amominu_d           PASS  exit 0  9824 insns  9831 uops  26221 cycles  IPC 0.375
+rv64ua-v-amomin_w            PASS  exit 0  9850 insns  9857 uops  26292 cycles  IPC 0.375
+rv64ua-v-amominu_d           PASS  exit 0  9824 insns  9831 uops  26093 cycles  IPC 0.376
 rv64ua-v-amominu_w           PASS  exit 0  9838 insns  9845 uops  26077 cycles  IPC 0.377
-rv64ua-v-amoor_d             PASS  exit 0  9817 insns  9824 uops  26177 cycles  IPC 0.375
-rv64ua-v-amoor_w             PASS  exit 0  9817 insns  9824 uops  26045 cycles  IPC 0.377
-rv64ua-v-amoswap_d           PASS  exit 0  9837 insns  9844 uops  26135 cycles  IPC 0.376
-rv64ua-v-amoswap_w           PASS  exit 0  9836 insns  9843 uops  26245 cycles  IPC 0.375
+rv64ua-v-amoor_d             PASS  exit 0  9817 insns  9824 uops  26045 cycles  IPC 0.377
+rv64ua-v-amoor_w             PASS  exit 0  9817 insns  9824 uops  26177 cycles  IPC 0.375
+rv64ua-v-amoswap_d           PASS  exit 0  9837 insns  9844 uops  26265 cycles  IPC 0.375
+rv64ua-v-amoswap_w           PASS  exit 0  9836 insns  9843 uops  26114 cycles  IPC 0.377
 rv64ua-v-amoxor_d            PASS  exit 0  9820 insns  9827 uops  26203 cycles  IPC 0.375
 rv64ua-v-amoxor_w            PASS  exit 0  9822 insns  9829 uops  26205 cycles  IPC 0.375
-rv64ua-v-lrsc                PASS  exit 0  15996 insns  16003 uops  47824 cycles  IPC 0.334
+rv64ua-v-lrsc                PASS  exit 0  15996 insns  16003 uops  47840 cycles  IPC 0.334
 rv64uc-p-rvc                 PASS  exit 0  300 insns  302 uops  3453 cycles  IPC 0.087
 rv64uc-v-rvc                 PASS  exit 0  14863 insns  14872 uops  38034 cycles  IPC 0.391
 rv64ud-p-fadd                PASS  exit 0  215 insns  217 uops  3532 cycles  IPC 0.061
@@ -3510,15 +3510,15 @@ rv64ud-p-move                PASS  exit 0  1035 insns  1037 uops  5589 cycles  I
 rv64ud-p-recoding            PASS  exit 0  143 insns  145 uops  2934 cycles  IPC 0.049
 rv64ud-p-structural          PASS  exit 0  208 insns  210 uops  2791 cycles  IPC 0.075
 rv64ud-v-fadd                PASS  exit 0  11433 insns  11439 uops  26615 cycles  IPC 0.430
-rv64ud-v-fclass              PASS  exit 0  6547 insns  6551 uops  15554 cycles  IPC 0.421
+rv64ud-v-fclass              PASS  exit 0  6547 insns  6551 uops  15806 cycles  IPC 0.414
 rv64ud-v-fcmp                PASS  exit 0  11483 insns  11489 uops  26585 cycles  IPC 0.432
 rv64ud-v-fcvt                PASS  exit 0  11415 insns  11421 uops  26634 cycles  IPC 0.429
 rv64ud-v-fcvt_w              PASS  exit 0  11833 insns  11839 uops  27883 cycles  IPC 0.424
-rv64ud-v-fdiv                PASS  exit 0  11407 insns  11413 uops  26958 cycles  IPC 0.423
-rv64ud-v-fmadd               PASS  exit 0  11459 insns  11465 uops  26544 cycles  IPC 0.432
+rv64ud-v-fdiv                PASS  exit 0  11407 insns  11413 uops  27342 cycles  IPC 0.417
+rv64ud-v-fmadd               PASS  exit 0  11459 insns  11465 uops  26693 cycles  IPC 0.429
 rv64ud-v-fmin                PASS  exit 0  11537 insns  11543 uops  27214 cycles  IPC 0.424
 rv64ud-v-ldst                PASS  exit 0  9849 insns  9856 uops  26387 cycles  IPC 0.373
-rv64ud-v-move                PASS  exit 0  12253 insns  12259 uops  29058 cycles  IPC 0.422
+rv64ud-v-move                PASS  exit 0  12253 insns  12259 uops  28651 cycles  IPC 0.428
 rv64ud-v-recoding            PASS  exit 0  9892 insns  9899 uops  26383 cycles  IPC 0.375
 rv64ud-v-structural          PASS  exit 0  6597 insns  6601 uops  15766 cycles  IPC 0.418
 rv64uf-p-fadd                PASS  exit 0  215 insns  217 uops  3409 cycles  IPC 0.063
@@ -3533,13 +3533,13 @@ rv64uf-p-ldst                PASS  exit 0  111 insns  113 uops  2705 cycles  IPC
 rv64uf-p-move                PASS  exit 0  260 insns  262 uops  3424 cycles  IPC 0.076
 rv64uf-p-recoding            PASS  exit 0  118 insns  120 uops  2857 cycles  IPC 0.041
 rv64uf-v-fadd                PASS  exit 0  11433 insns  11439 uops  26504 cycles  IPC 0.431
-rv64uf-v-fclass              PASS  exit 0  6541 insns  6545 uops  15793 cycles  IPC 0.414
+rv64uf-v-fclass              PASS  exit 0  6541 insns  6545 uops  15522 cycles  IPC 0.421
 rv64uf-v-fcmp                PASS  exit 0  11483 insns  11489 uops  26520 cycles  IPC 0.433
-rv64uf-v-fcvt                PASS  exit 0  11375 insns  11381 uops  26265 cycles  IPC 0.433
-rv64uf-v-fcvt_w              PASS  exit 0  11773 insns  11779 uops  28018 cycles  IPC 0.420
-rv64uf-v-fdiv                PASS  exit 0  11394 insns  11400 uops  26988 cycles  IPC 0.422
-rv64uf-v-fmadd               PASS  exit 0  11459 insns  11465 uops  26539 cycles  IPC 0.432
-rv64uf-v-fmin                PASS  exit 0  11537 insns  11543 uops  27028 cycles  IPC 0.427
+rv64uf-v-fcvt                PASS  exit 0  11375 insns  11381 uops  26328 cycles  IPC 0.432
+rv64uf-v-fcvt_w              PASS  exit 0  11773 insns  11779 uops  27786 cycles  IPC 0.424
+rv64uf-v-fdiv                PASS  exit 0  11394 insns  11400 uops  26727 cycles  IPC 0.426
+rv64uf-v-fmadd               PASS  exit 0  11459 insns  11465 uops  26514 cycles  IPC 0.432
+rv64uf-v-fmin                PASS  exit 0  11537 insns  11543 uops  27243 cycles  IPC 0.423
 rv64uf-v-ldst                PASS  exit 0  9854 insns  9861 uops  26236 cycles  IPC 0.376
 rv64uf-v-move                PASS  exit 0  6649 insns  6653 uops  15979 cycles  IPC 0.416
 rv64uf-v-recoding            PASS  exit 0  11336 insns  11342 uops  26150 cycles  IPC 0.433
@@ -3597,60 +3597,60 @@ rv64ui-p-subw                PASS  exit 0  497 insns  499 uops  3502 cycles  IPC
 rv64ui-p-sw                  PASS  exit 0  554 insns  556 uops  3758 cycles  IPC 0.147
 rv64ui-p-xor                 PASS  exit 0  613 insns  615 uops  3521 cycles  IPC 0.174
 rv64ui-p-xori                PASS  exit 0  247 insns  249 uops  2895 cycles  IPC 0.085
-rv64ui-v-add                 PASS  exit 0  6901 insns  6905 uops  16314 cycles  IPC 0.423
+rv64ui-v-add                 PASS  exit 0  6901 insns  6905 uops  16326 cycles  IPC 0.423
 rv64ui-v-addi                PASS  exit 0  6676 insns  6680 uops  15991 cycles  IPC 0.417
 rv64ui-v-addiw               PASS  exit 0  6673 insns  6677 uops  15974 cycles  IPC 0.418
-rv64ui-v-addw                PASS  exit 0  6896 insns  6900 uops  16310 cycles  IPC 0.423
+rv64ui-v-addw                PASS  exit 0  6896 insns  6900 uops  16297 cycles  IPC 0.423
 rv64ui-v-and                 PASS  exit 0  6976 insns  6980 uops  16248 cycles  IPC 0.429
 rv64ui-v-andi                PASS  exit 0  6647 insns  6651 uops  15778 cycles  IPC 0.421
 rv64ui-v-auipc               PASS  exit 0  6492 insns  6496 uops  15478 cycles  IPC 0.419
-rv64ui-v-beq                 PASS  exit 0  6722 insns  6726 uops  16137 cycles  IPC 0.417
-rv64ui-v-bge                 PASS  exit 0  6740 insns  6744 uops  16227 cycles  IPC 0.415
+rv64ui-v-beq                 PASS  exit 0  6722 insns  6726 uops  16125 cycles  IPC 0.417
+rv64ui-v-bge                 PASS  exit 0  6740 insns  6744 uops  16240 cycles  IPC 0.415
 rv64ui-v-bgeu                PASS  exit 0  6830 insns  6834 uops  16350 cycles  IPC 0.418
 rv64ui-v-blt                 PASS  exit 0  6722 insns  6726 uops  16137 cycles  IPC 0.417
 rv64ui-v-bltu                PASS  exit 0  6808 insns  6812 uops  16251 cycles  IPC 0.419
 rv64ui-v-bne                 PASS  exit 0  6722 insns  6726 uops  16108 cycles  IPC 0.417
-rv64ui-v-fence_i             PASS  exit 0  10084 insns  10091 uops  31100 cycles  IPC 0.324
+rv64ui-v-fence_i             PASS  exit 0  10084 insns  10091 uops  31084 cycles  IPC 0.324
 rv64ui-v-jal                 PASS  exit 0  6486 insns  6490 uops  15468 cycles  IPC 0.419
 rv64ui-v-jalr                PASS  exit 0  6547 insns  6551 uops  15647 cycles  IPC 0.418
 rv64ui-v-lb                  PASS  exit 0  11513 insns  11519 uops  26787 cycles  IPC 0.430
-rv64ui-v-lbu                 PASS  exit 0  11513 insns  11519 uops  26548 cycles  IPC 0.434
-rv64ui-v-ld                  PASS  exit 0  11695 insns  11701 uops  26570 cycles  IPC 0.440
+rv64ui-v-lbu                 PASS  exit 0  11513 insns  11519 uops  26532 cycles  IPC 0.434
+rv64ui-v-ld                  PASS  exit 0  11695 insns  11701 uops  26555 cycles  IPC 0.440
 rv64ui-v-ld_st               PASS  exit 0  15997 insns  16006 uops  41523 cycles  IPC 0.385
 rv64ui-v-lh                  PASS  exit 0  11529 insns  11535 uops  26561 cycles  IPC 0.434
 rv64ui-v-lhu                 PASS  exit 0  11538 insns  11544 uops  26743 cycles  IPC 0.431
-rv64ui-v-lui                 PASS  exit 0  6496 insns  6500 uops  15445 cycles  IPC 0.421
-rv64ui-v-lw                  PASS  exit 0  11543 insns  11549 uops  26520 cycles  IPC 0.435
-rv64ui-v-lwu                 PASS  exit 0  11577 insns  11583 uops  26762 cycles  IPC 0.433
-rv64ui-v-ma_data             PASS  exit 420  2795 insns  2799 uops  13478 cycles  IPC 0.207
+rv64ui-v-lui                 PASS  exit 0  6496 insns  6500 uops  15428 cycles  IPC 0.421
+rv64ui-v-lw                  PASS  exit 0  11543 insns  11549 uops  26532 cycles  IPC 0.435
+rv64ui-v-lwu                 PASS  exit 0  11577 insns  11583 uops  26745 cycles  IPC 0.433
+rv64ui-v-ma_data             PASS  exit 420  2795 insns  2799 uops  13461 cycles  IPC 0.208
 rv64ui-v-or                  PASS  exit 0  7009 insns  7013 uops  16318 cycles  IPC 0.430
 rv64ui-v-ori                 PASS  exit 0  6640 insns  6644 uops  15689 cycles  IPC 0.423
-rv64ui-v-sb                  PASS  exit 0  10207 insns  10214 uops  27028 cycles  IPC 0.378
-rv64ui-v-sd                  PASS  exit 0  10379 insns  10386 uops  27371 cycles  IPC 0.379
+rv64ui-v-sb                  PASS  exit 0  10207 insns  10214 uops  27042 cycles  IPC 0.377
+rv64ui-v-sd                  PASS  exit 0  10379 insns  10386 uops  27359 cycles  IPC 0.379
 rv64ui-v-sh                  PASS  exit 0  10260 insns  10267 uops  27139 cycles  IPC 0.378
 rv64ui-v-simple              PASS  exit 0  6472 insns  6476 uops  15522 cycles  IPC 0.417
-rv64ui-v-sll                 PASS  exit 0  6971 insns  6975 uops  16455 cycles  IPC 0.424
-rv64ui-v-slli                PASS  exit 0  6701 insns  6705 uops  15920 cycles  IPC 0.421
+rv64ui-v-sll                 PASS  exit 0  6971 insns  6975 uops  16469 cycles  IPC 0.423
+rv64ui-v-slli                PASS  exit 0  6701 insns  6705 uops  15935 cycles  IPC 0.421
 rv64ui-v-slliw               PASS  exit 0  6708 insns  6712 uops  16033 cycles  IPC 0.418
-rv64ui-v-sllw                PASS  exit 0  6971 insns  6975 uops  16463 cycles  IPC 0.423
+rv64ui-v-sllw                PASS  exit 0  6971 insns  6975 uops  16445 cycles  IPC 0.424
 rv64ui-v-slt                 PASS  exit 0  6890 insns  6894 uops  16358 cycles  IPC 0.421
-rv64ui-v-slti                PASS  exit 0  6668 insns  6672 uops  15961 cycles  IPC 0.418
-rv64ui-v-sltiu               PASS  exit 0  6668 insns  6672 uops  15974 cycles  IPC 0.417
+rv64ui-v-slti                PASS  exit 0  6668 insns  6672 uops  15974 cycles  IPC 0.417
+rv64ui-v-sltiu               PASS  exit 0  6668 insns  6672 uops  15961 cycles  IPC 0.418
 rv64ui-v-sltu                PASS  exit 0  6907 insns  6911 uops  16278 cycles  IPC 0.424
-rv64ui-v-sra                 PASS  exit 0  6943 insns  6947 uops  16485 cycles  IPC 0.421
-rv64ui-v-srai                PASS  exit 0  6689 insns  6693 uops  15984 cycles  IPC 0.418
-rv64ui-v-sraiw               PASS  exit 0  6735 insns  6739 uops  16086 cycles  IPC 0.419
+rv64ui-v-sra                 PASS  exit 0  6943 insns  6947 uops  16497 cycles  IPC 0.421
+rv64ui-v-srai                PASS  exit 0  6689 insns  6693 uops  16001 cycles  IPC 0.418
+rv64ui-v-sraiw               PASS  exit 0  6735 insns  6739 uops  16099 cycles  IPC 0.418
 rv64ui-v-sraw                PASS  exit 0  6983 insns  6987 uops  16555 cycles  IPC 0.422
 rv64ui-v-srl                 PASS  exit 0  6985 insns  6989 uops  16420 cycles  IPC 0.425
-rv64ui-v-srli                PASS  exit 0  6710 insns  6714 uops  16015 cycles  IPC 0.419
+rv64ui-v-srli                PASS  exit 0  6710 insns  6714 uops  16031 cycles  IPC 0.419
 rv64ui-v-srliw               PASS  exit 0  6717 insns  6721 uops  16020 cycles  IPC 0.419
-rv64ui-v-srlw                PASS  exit 0  6977 insns  6981 uops  16542 cycles  IPC 0.422
-rv64ui-v-st_ld               PASS  exit 0  15307 insns  15316 uops  38531 cycles  IPC 0.397
-rv64ui-v-sub                 PASS  exit 0  6892 insns  6896 uops  16385 cycles  IPC 0.421
+rv64ui-v-srlw                PASS  exit 0  6977 insns  6981 uops  16554 cycles  IPC 0.421
+rv64ui-v-st_ld               PASS  exit 0  15307 insns  15316 uops  38546 cycles  IPC 0.397
+rv64ui-v-sub                 PASS  exit 0  6892 insns  6896 uops  16370 cycles  IPC 0.421
 rv64ui-v-subw                PASS  exit 0  6888 insns  6892 uops  16264 cycles  IPC 0.424
-rv64ui-v-sw                  PASS  exit 0  10267 insns  10274 uops  27133 cycles  IPC 0.378
+rv64ui-v-sw                  PASS  exit 0  10267 insns  10274 uops  27145 cycles  IPC 0.378
 rv64ui-v-xor                 PASS  exit 0  7004 insns  7008 uops  16337 cycles  IPC 0.429
-rv64ui-v-xori                PASS  exit 0  6638 insns  6642 uops  15722 cycles  IPC 0.422
+rv64ui-v-xori                PASS  exit 0  6638 insns  6642 uops  15738 cycles  IPC 0.422
 rv64um-p-div                 PASS  exit 0  149 insns  151 uops  2889 cycles  IPC 0.052
 rv64um-p-divu                PASS  exit 0  147 insns  149 uops  2863 cycles  IPC 0.051
 rv64um-p-divuw               PASS  exit 0  139 insns  141 uops  2801 cycles  IPC 0.050
@@ -3664,19 +3664,19 @@ rv64um-p-rem                 PASS  exit 0  140 insns  142 uops  2820 cycles  IPC
 rv64um-p-remu                PASS  exit 0  141 insns  143 uops  2874 cycles  IPC 0.049
 rv64um-p-remuw               PASS  exit 0  136 insns  138 uops  2768 cycles  IPC 0.049
 rv64um-p-remw                PASS  exit 0  142 insns  144 uops  2787 cycles  IPC 0.051
-rv64um-v-div                 PASS  exit 0  6540 insns  6544 uops  15730 cycles  IPC 0.416
-rv64um-v-divu                PASS  exit 0  6538 insns  6542 uops  15733 cycles  IPC 0.416
+rv64um-v-div                 PASS  exit 0  6540 insns  6544 uops  15743 cycles  IPC 0.415
+rv64um-v-divu                PASS  exit 0  6538 insns  6542 uops  15746 cycles  IPC 0.415
 rv64um-v-divuw               PASS  exit 0  6530 insns  6534 uops  15623 cycles  IPC 0.418
-rv64um-v-divw                PASS  exit 0  6533 insns  6537 uops  15742 cycles  IPC 0.415
-rv64um-v-mul                 PASS  exit 0  6891 insns  6895 uops  16388 cycles  IPC 0.420
-rv64um-v-mulh                PASS  exit 0  6899 insns  6903 uops  16338 cycles  IPC 0.422
-rv64um-v-mulhsu              PASS  exit 0  6899 insns  6903 uops  16350 cycles  IPC 0.422
+rv64um-v-divw                PASS  exit 0  6533 insns  6537 uops  15728 cycles  IPC 0.415
+rv64um-v-mul                 PASS  exit 0  6891 insns  6895 uops  16375 cycles  IPC 0.421
+rv64um-v-mulh                PASS  exit 0  6899 insns  6903 uops  16353 cycles  IPC 0.422
+rv64um-v-mulhsu              PASS  exit 0  6899 insns  6903 uops  16362 cycles  IPC 0.422
 rv64um-v-mulhu               PASS  exit 0  6931 insns  6935 uops  16375 cycles  IPC 0.423
-rv64um-v-mulw                PASS  exit 0  6830 insns  6834 uops  16208 cycles  IPC 0.421
-rv64um-v-rem                 PASS  exit 0  6531 insns  6535 uops  15730 cycles  IPC 0.415
+rv64um-v-mulw                PASS  exit 0  6830 insns  6834 uops  16222 cycles  IPC 0.421
+rv64um-v-rem                 PASS  exit 0  6531 insns  6535 uops  15744 cycles  IPC 0.415
 rv64um-v-remu                PASS  exit 0  6532 insns  6536 uops  15715 cycles  IPC 0.416
-rv64um-v-remuw               PASS  exit 0  6527 insns  6531 uops  15588 cycles  IPC 0.419
-rv64um-v-remw                PASS  exit 0  6533 insns  6537 uops  15767 cycles  IPC 0.414
+rv64um-v-remuw               PASS  exit 0  6527 insns  6531 uops  15600 cycles  IPC 0.418
+rv64um-v-remw                PASS  exit 0  6533 insns  6537 uops  15751 cycles  IPC 0.415
 rv64uzba-p-add_uw            PASS  exit 0  514 insns  516 uops  3524 cycles  IPC 0.146
 rv64uzba-p-sh1add            PASS  exit 0  517 insns  519 uops  3540 cycles  IPC 0.146
 rv64uzba-p-sh1add_uw         PASS  exit 0  521 insns  523 uops  3538 cycles  IPC 0.147
@@ -3686,13 +3686,13 @@ rv64uzba-p-sh3add            PASS  exit 0  517 insns  519 uops  3537 cycles  IPC
 rv64uzba-p-sh3add_uw         PASS  exit 0  521 insns  523 uops  3538 cycles  IPC 0.147
 rv64uzba-p-slli_uw           PASS  exit 0  322 insns  324 uops  3141 cycles  IPC 0.103
 rv64uzba-v-add_uw            PASS  exit 0  6905 insns  6909 uops  16278 cycles  IPC 0.424
-rv64uzba-v-sh1add            PASS  exit 0  6908 insns  6912 uops  16311 cycles  IPC 0.424
-rv64uzba-v-sh1add_uw         PASS  exit 0  6912 insns  6916 uops  16280 cycles  IPC 0.425
-rv64uzba-v-sh2add            PASS  exit 0  6908 insns  6912 uops  16269 cycles  IPC 0.425
-rv64uzba-v-sh2add_uw         PASS  exit 0  6912 insns  6916 uops  16280 cycles  IPC 0.425
-rv64uzba-v-sh3add            PASS  exit 0  6908 insns  6912 uops  16284 cycles  IPC 0.424
+rv64uzba-v-sh1add            PASS  exit 0  6908 insns  6912 uops  16297 cycles  IPC 0.424
+rv64uzba-v-sh1add_uw         PASS  exit 0  6912 insns  6916 uops  16293 cycles  IPC 0.424
+rv64uzba-v-sh2add            PASS  exit 0  6908 insns  6912 uops  16284 cycles  IPC 0.424
+rv64uzba-v-sh2add_uw         PASS  exit 0  6912 insns  6916 uops  16293 cycles  IPC 0.424
+rv64uzba-v-sh3add            PASS  exit 0  6908 insns  6912 uops  16269 cycles  IPC 0.425
 rv64uzba-v-sh3add_uw         PASS  exit 0  6912 insns  6916 uops  16280 cycles  IPC 0.425
-rv64uzba-v-slli_uw           PASS  exit 0  6713 insns  6717 uops  15961 cycles  IPC 0.421
+rv64uzba-v-slli_uw           PASS  exit 0  6713 insns  6717 uops  15948 cycles  IPC 0.421
 rv64uzbb-p-andn              PASS  exit 0  594 insns  596 uops  3574 cycles  IPC 0.166
 rv64uzbb-p-clz               PASS  exit 0  271 insns  273 uops  3059 cycles  IPC 0.089
 rv64uzbb-p-clzw              PASS  exit 0  258 insns  260 uops  3030 cycles  IPC 0.085
@@ -3718,35 +3718,35 @@ rv64uzbb-p-sext_h            PASS  exit 0  274 insns  276 uops  3050 cycles  IPC
 rv64uzbb-p-xnor              PASS  exit 0  602 insns  604 uops  3564 cycles  IPC 0.169
 rv64uzbb-p-zext_h            PASS  exit 0  278 insns  280 uops  3050 cycles  IPC 0.091
 rv64uzbb-v-andn              PASS  exit 0  6985 insns  6989 uops  16335 cycles  IPC 0.428
-rv64uzbb-v-clz               PASS  exit 0  6662 insns  6666 uops  15865 cycles  IPC 0.420
+rv64uzbb-v-clz               PASS  exit 0  6662 insns  6666 uops  15879 cycles  IPC 0.420
 rv64uzbb-v-clzw              PASS  exit 0  6649 insns  6653 uops  15877 cycles  IPC 0.419
 rv64uzbb-v-cpop              PASS  exit 0  6662 insns  6666 uops  15929 cycles  IPC 0.418
-rv64uzbb-v-cpopw             PASS  exit 0  6649 insns  6653 uops  15887 cycles  IPC 0.419
-rv64uzbb-v-ctz               PASS  exit 0  6662 insns  6666 uops  15934 cycles  IPC 0.418
-rv64uzbb-v-ctzw              PASS  exit 0  6650 insns  6654 uops  15957 cycles  IPC 0.417
-rv64uzbb-v-max               PASS  exit 0  6895 insns  6899 uops  16350 cycles  IPC 0.422
+rv64uzbb-v-cpopw             PASS  exit 0  6649 insns  6653 uops  15875 cycles  IPC 0.419
+rv64uzbb-v-ctz               PASS  exit 0  6662 insns  6666 uops  15948 cycles  IPC 0.418
+rv64uzbb-v-ctzw              PASS  exit 0  6650 insns  6654 uops  15941 cycles  IPC 0.417
+rv64uzbb-v-max               PASS  exit 0  6895 insns  6899 uops  16362 cycles  IPC 0.421
 rv64uzbb-v-maxu              PASS  exit 0  6924 insns  6928 uops  16280 cycles  IPC 0.425
 rv64uzbb-v-min               PASS  exit 0  6891 insns  6895 uops  16368 cycles  IPC 0.421
-rv64uzbb-v-minu              PASS  exit 0  6913 insns  6917 uops  16327 cycles  IPC 0.423
+rv64uzbb-v-minu              PASS  exit 0  6913 insns  6917 uops  16342 cycles  IPC 0.423
 rv64uzbb-v-orc_b             PASS  exit 0  6686 insns  6690 uops  15909 cycles  IPC 0.420
 rv64uzbb-v-orn               PASS  exit 0  6994 insns  6998 uops  16311 cycles  IPC 0.429
 rv64uzbb-v-rev8              PASS  exit 0  6704 insns  6708 uops  15919 cycles  IPC 0.421
-rv64uzbb-v-rol               PASS  exit 0  6976 insns  6980 uops  16501 cycles  IPC 0.423
+rv64uzbb-v-rol               PASS  exit 0  6976 insns  6980 uops  16515 cycles  IPC 0.422
 rv64uzbb-v-rolw              PASS  exit 0  6975 insns  6979 uops  16436 cycles  IPC 0.424
 rv64uzbb-v-ror               PASS  exit 0  7003 insns  7007 uops  16513 cycles  IPC 0.424
-rv64uzbb-v-rori              PASS  exit 0  6716 insns  6720 uops  16031 cycles  IPC 0.419
+rv64uzbb-v-rori              PASS  exit 0  6716 insns  6720 uops  16044 cycles  IPC 0.419
 rv64uzbb-v-roriw             PASS  exit 0  6674 insns  6678 uops  15932 cycles  IPC 0.419
 rv64uzbb-v-rorw              PASS  exit 0  6935 insns  6939 uops  16470 cycles  IPC 0.421
 rv64uzbb-v-sext_b            PASS  exit 0  6662 insns  6666 uops  15919 cycles  IPC 0.418
-rv64uzbb-v-sext_h            PASS  exit 0  6665 insns  6669 uops  15903 cycles  IPC 0.419
+rv64uzbb-v-sext_h            PASS  exit 0  6665 insns  6669 uops  15919 cycles  IPC 0.419
 rv64uzbb-v-xnor              PASS  exit 0  6993 insns  6997 uops  16284 cycles  IPC 0.429
 rv64uzbb-v-zext_h            PASS  exit 0  6669 insns  6673 uops  15935 cycles  IPC 0.419
 rv64uzbc-p-clmul             PASS  exit 0  501 insns  503 uops  3592 cycles  IPC 0.139
 rv64uzbc-p-clmulh            PASS  exit 0  506 insns  508 uops  3579 cycles  IPC 0.141
 rv64uzbc-p-clmulr            PASS  exit 0  504 insns  506 uops  3612 cycles  IPC 0.140
 rv64uzbc-v-clmul             PASS  exit 0  6892 insns  6896 uops  16384 cycles  IPC 0.421
-rv64uzbc-v-clmulh            PASS  exit 0  6897 insns  6901 uops  16445 cycles  IPC 0.419
-rv64uzbc-v-clmulr            PASS  exit 0  6895 insns  6899 uops  16432 cycles  IPC 0.420
+rv64uzbc-v-clmulh            PASS  exit 0  6897 insns  6901 uops  16432 cycles  IPC 0.420
+rv64uzbc-v-clmulr            PASS  exit 0  6895 insns  6899 uops  16445 cycles  IPC 0.419
 rv64uzbs-p-bclr              PASS  exit 0  700 insns  702 uops  3809 cycles  IPC 0.184
 rv64uzbs-p-bclri             PASS  exit 0  355 insns  357 uops  3143 cycles  IPC 0.113
 rv64uzbs-p-bext              PASS  exit 0  635 insns  637 uops  3767 cycles  IPC 0.169
@@ -3756,22 +3756,22 @@ rv64uzbs-p-binvi             PASS  exit 0  320 insns  322 uops  3148 cycles  IPC
 rv64uzbs-p-bset              PASS  exit 0  702 insns  704 uops  3876 cycles  IPC 0.181
 rv64uzbs-p-bseti             PASS  exit 0  363 insns  365 uops  3214 cycles  IPC 0.113
 rv64uzbs-v-bclr              PASS  exit 0  7091 insns  7095 uops  16463 cycles  IPC 0.431
-rv64uzbs-v-bclri             PASS  exit 0  6746 insns  6750 uops  15966 cycles  IPC 0.423
+rv64uzbs-v-bclri             PASS  exit 0  6746 insns  6750 uops  15957 cycles  IPC 0.423
 rv64uzbs-v-bext              PASS  exit 0  7026 insns  7030 uops  16406 cycles  IPC 0.428
-rv64uzbs-v-bexti             PASS  exit 0  6716 insns  6720 uops  16010 cycles  IPC 0.419
+rv64uzbs-v-bexti             PASS  exit 0  6716 insns  6720 uops  16024 cycles  IPC 0.419
 rv64uzbs-v-binv              PASS  exit 0  6990 insns  6994 uops  16565 cycles  IPC 0.422
-rv64uzbs-v-binvi             PASS  exit 0  6711 insns  6715 uops  15987 cycles  IPC 0.420
-rv64uzbs-v-bset              PASS  exit 0  7093 insns  7097 uops  16454 cycles  IPC 0.431
+rv64uzbs-v-binvi             PASS  exit 0  6711 insns  6715 uops  16003 cycles  IPC 0.419
+rv64uzbs-v-bset              PASS  exit 0  7093 insns  7097 uops  16470 cycles  IPC 0.431
 rv64uzbs-v-bseti             PASS  exit 0  6754 insns  6758 uops  16014 cycles  IPC 0.422
 rv64uzicond-p-czero_eqz      PASS  exit 0  462 insns  464 uops  3426 cycles  IPC 0.135
 rv64uzicond-p-czero_nez      PASS  exit 0  461 insns  463 uops  3440 cycles  IPC 0.134
 rv64uzicond-v-czero_eqz      PASS  exit 0  6853 insns  6857 uops  16269 cycles  IPC 0.421
-rv64uzicond-v-czero_nez      PASS  exit 0  6852 insns  6856 uops  16202 cycles  IPC 0.423
+rv64uzicond-v-czero_nez      PASS  exit 0  6852 insns  6856 uops  16184 cycles  IPC 0.423
 tb_core: 330 files, 0 failures: PASS
 ebrk.elf                     PASS  exit 1  2621 insns  2780 uops  171475 cycles  IPC 0.015
     debugger: 159 halts, 96 steps, 2504 register accesses, 288 memory accesses, 81 EBREAKs, 14 triggers, 1 reset halts
-trig.elf                     PASS  exit 0  896 insns  910 uops  43464 cycles  IPC 0.021
-    debugger: 34 halts, 20 steps, 518 register accesses, 73 memory accesses, 0 EBREAKs, 5 triggers, 1 reset halts
+trig.elf                     PASS  exit 0  896 insns  910 uops  42217 cycles  IPC 0.021
+    debugger: 40 halts, 16 steps, 523 register accesses, 67 memory accesses, 0 EBREAKs, 3 triggers, 1 reset halts
 htif.elf                     PASS  exit 0  210 insns  210 uops  10542 cycles  IPC 0.020
     debugger: 11 halts, 7 steps, 178 register accesses, 10 memory accesses, 0 EBREAKs, 2 triggers, 0 reset halts
 rv64uc-rvc.elf               PASS  exit 0  255 insns  255 uops  6701 cycles  IPC 0.038
@@ -3812,7 +3812,7 @@ rv64ui-lbu.elf               PASS  exit 0  247 insns  247 uops  5765 cycles  IPC
     debugger: 3 halts, 2 steps, 56 register accesses, 4 memory accesses, 0 EBREAKs, 0 triggers, 0 reset halts
 rv64ui-ld.elf                PASS  exit 0  429 insns  429 uops  9201 cycles  IPC 0.047
     debugger: 7 halts, 4 steps, 135 register accesses, 19 memory accesses, 0 EBREAKs, 1 triggers, 1 reset halts
-rv64ui-ld_st.elf             PASS  exit 0  1409 insns  1409 uops  34858 cycles  IPC 0.040
+rv64ui-ld_st.elf             PASS  exit 0  1409 insns  1409 uops  34843 cycles  IPC 0.040
     debugger: 30 halts, 5 steps, 384 register accesses, 58 memory accesses, 0 EBREAKs, 2 triggers, 1 reset halts
 rv64ui-lh.elf                PASS  exit 0  263 insns  263 uops  5859 cycles  IPC 0.045
     debugger: 4 halts, 3 steps, 59 register accesses, 6 memory accesses, 0 EBREAKs, 1 triggers, 0 reset halts
@@ -3974,7 +3974,7 @@ rv64mi-p-instret_overflow    PASS  exit 0  100 insns  102 uops  10184 cycles  IP
     debugger: 3 halts, 0 steps, 29 register accesses, 17 memory accesses, 0 EBREAKs, 0 triggers, 1 reset halts
 rv64mi-p-ma_addr             PASS  exit 0  720 insns  748 uops  22896 cycles  IPC 0.031
     debugger: 22 halts, 8 steps, 255 register accesses, 38 memory accesses, 0 EBREAKs, 3 triggers, 1 reset halts
-rv64mi-p-ma_fetch            PASS  exit 0  129 insns  131 uops  13737 cycles  IPC 0.009
+rv64mi-p-ma_fetch            PASS  exit 0  129 insns  131 uops  13732 cycles  IPC 0.009
     debugger: 7 halts, 7 steps, 134 register accesses, 17 memory accesses, 0 EBREAKs, 2 triggers, 0 reset halts
 rv64mi-p-mcsr                PASS  exit 0  104 insns  106 uops  10501 cycles  IPC 0.010
     debugger: 3 halts, 1 steps, 32 register accesses, 22 memory accesses, 0 EBREAKs, 0 triggers, 0 reset halts

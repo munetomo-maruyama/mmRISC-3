@@ -1144,11 +1144,14 @@ module OOO_CORE
         OOO_ALU2 #(.FULL(p == 0), .MID(p != 0)) u_alu
             (.s1(a), .s2(b), .imm1(imm64), .pc(pc64), .op1(ex[p].rec.alu_op), .uw1(ex[p].rec.a_uw),
              .shift1(ex[p].rec.a_shift), .word1(ex[p].rec.word_op), .a1_sel(ex[p].rec.a_sel), .b1_imm(ex[p].rec.b_sel),
-             .is_br(p < 2 && ex[p].rec.is_br), .br_op(ex[p].rec.br_op), .br_fused(FUSE_AB && ex[p].rec.fused), .br_res1_a(ex[p].rec.b_res1a),
+             .is_br(p == 0 && ex[p].rec.is_br), .br_op(ex[p].rec.br_op), .br_fused(FUSE_AB && ex[p].rec.fused), .br_res1_a(ex[p].rec.b_res1a),
              .br_o_sel(ex[p].rec.b_osel),
              .res1(ex_res[p]), .take_branch(ex_tk[p]));
         logic isbr;                                             // a branch or jalr: resolved, and completed, a cycle later
-        if (p < 2) begin : g_br
+        // port 0 alone resolves (OOO_DEC gives branches and jumps to ALU0 alone, Plan/OOC.md 29.27); port 1's
+        // resolution, which never acted, is tied off (step 1.8 J2b, Plan/OOC.md 29.104: Vivado could not prove it
+        // idle, and its compare and misprediction stood on the path to k_ckpt's choice)
+        if (p == 0) begin : g_br
             logic [VA-1:1] pc_b, pc_nx, b_tgt, j_tgt, nxt, pnx;
             logic          mis;
             always @(*) begin
@@ -1184,6 +1187,24 @@ module OOO_CORE
             assign isbr = e_br_valid[p];
         end else begin : g_nbr
             assign isbr = 1'b0;
+            if (p == 1) begin : g_nb1
+                always @(*) begin
+                    ex_pc[1]        = '0;
+                    e_br_valid[1]   = 1'b0;
+                    e_br_mispred[1] = 1'b0;
+                    e_br_ckpt[1]    = '0;
+                    e_br_next[1]    = '0;
+                    e_br_rob[1]     = '0;
+                    e_br_e[1]       = '0;
+                    e_br_taken[1]   = 1'b0;
+                    e_br_call[1]    = 1'b0;
+                    e_br_ret[1]     = 1'b0;
+                    e_rs_valid[1]   = 1'b0;
+                    e_rs_ftq[1]     = '0;
+                    e_rs_e[1]       = '0;
+                    e_rs_taken[1]   = 1'b0;
+                end
+            end
         end
         always @(*) begin
             // the register file at the edge the result enters the write-back register (port 0: also the
@@ -1828,13 +1849,11 @@ module OOO_CORE
         tv_val[ND + 2]   = l_tv_va[1];
     end
 
-    // an indirect jump (a jalr not a return) writes the BTB: port 0's first
+    // an indirect jump (a jalr not a return) writes the BTB: port 0's (the only one with jumps, step 1.8 J2b)
     always @(*) begin
-        logic [1:0] ij;
-        for (int p = 0; p < 2; p++) ij[p] = ex_v[p] && ex[p].rec.is_jalr && !ex[p].rec.ret;
-        e_bt_valid = ij != 2'b00;
-        e_bt_pc    = ij[0] ? ex_pc[0] + (VA - 1)'(ex[0].rec.len4) : ex_pc[1] + (VA - 1)'(ex[1].rec.len4);   // its last parcel
-        e_bt_tgt   = ij[0] ? e_br_next[0] : e_br_next[1];
+        e_bt_valid = ex_v[0] && ex[0].rec.is_jalr && !ex[0].rec.ret;
+        e_bt_pc    = ex_pc[0] + (VA - 1)'(ex[0].rec.len4);   // its last parcel
+        e_bt_tgt   = e_br_next[0];
     end
 
     // ---- the resolution through a register (Plan/CORE.md 5.20, Plan/OOC.md 27.3): what EX resolves acts a
@@ -1856,8 +1875,7 @@ module OOO_CORE
                 br_valid[p] <= e_br_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;
                 rs_valid[p] <= e_rs_valid[p] && !flush_all && (ex_bms[p] & kill) == '0;
             end
-            bt_valid <= e_bt_valid && !flush_all &&
-                        ((ex_v[0] && ex[0].rec.is_jalr && !ex[0].rec.ret) ? (ex_bms[0] & kill) == '0 : (ex_bms[1] & kill) == '0);
+            bt_valid <= e_bt_valid && !flush_all && (ex_bms[0] & kill) == '0;
         end
     end
     // the kill's choice, made here at EX's end and registered (step 1.8 V3d, Plan/OOC.md 29.94 / 29.95): OOO_ROB
@@ -1868,19 +1886,18 @@ module OOO_CORE
     // that cycle OOO_CTRL holds the kill and the restore off (flush_q); of two live ones the older is the same
     // against any head. So the same choice is made now, against this cycle's head, without the live check:
     // the same to the bit wherever it is used. OOO_ROB keeps its own (restore, restore_rob: its tail, the front end)
+    // Port 0 alone resolves (step 1.8 J2b, Plan/OOC.md 29.104): the choice of the older of two is gone, and the
+    // checkpoint is port 0's whether it mispredicts or not (used only with k_v), off the misprediction altogether
     logic [1:0]                k_m;                     // a misprediction leaving EX into br_* (as br_valid && br_mispred)
-    logic [1:0][ROBW-1:0]      k_d;                     // its distance from the head
     always @(*) begin
-        for (int p = 0; p < 2; p++) begin
+        for (int p = 0; p < 2; p++)
             k_m[p] = e_br_valid[p] && e_br_mispred[p] && !flush_all && (ex_bms[p] & kill) == '0;
-            k_d[p] = (e_br_rob[p] >= head_rob) ? ROBW'(e_br_rob[p] - head_rob) : ROBW'(e_br_rob[p] + ROBW'(NROB) - head_rob);
-        end
     end
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) k_v <= 1'b0;
         else        k_v <= k_m != 2'b00;
     end
-    always_ff @(posedge clk) k_ckpt <= (k_m[0] && (!k_m[1] || k_d[0] <= k_d[1])) ? e_br_ckpt[0] : e_br_ckpt[1];
+    always_ff @(posedge clk) k_ckpt <= e_br_ckpt[0];
     always_ff @(posedge clk) begin
         br_mispred <= e_br_mispred;
         br_ckpt    <= e_br_ckpt;

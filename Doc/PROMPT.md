@@ -11510,3 +11510,40 @@ Tell me once both Vivado runs have finished?
 ```text
 Runs finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+J2's first run: `DBG_TOP` met 20 ns, but `OOO_CPU` is 0.022 ns short, failing on 2 endpoints.
+
+| | LUTs | FF | WNS | hold |
+|---|---|---|---|---|
+| `OOO_CPU` | 107,104 (+1,496 on the last run) | 28,607 (+755) | **−0.022 ns** (2 endpoints) | +0.028 ns |
+| `DBG_TOP` | 836 | 853 | **+9.170 ns** | +0.097 ns |
+
+**LUTs**
+- **J1 in all:** +2,332 with `DBG_TOP`; the estimate was +2.6k.
+- **`OOO_DBG` (1,714) and `CORE_CSR` (−945):** Vivado put part of the CSR logic on `OOO_DBG`'s side; together +769.
+- **The chip:** 107,940, about 113.2k with LiteX: about 5.5k above the ceiling of 107.7k (the ceiling is an estimate from the Arty, not measured on this board).
+
+**The failing path (34 levels)**
+- **Path:** ALU port 3's WB → the bypass into port 1 → port 1's 64-bit branch compare → port 1's misprediction → `k_ckpt`'s choice.
+- **Cause:** V3d's path brought back by placement. Only port 0 resolves branches, so this part of port 1 never acts; Vivado cannot know that, so it stays.
+- **J1's logic:** not on the worst paths.
+
+**Proposed (J2b): port 1's branch resolution out**
+- The margin noted in 29.96 for this case.
+- **Change:** `g_br` for port 0 alone, `k_ckpt <= e_br_ckpt[0]`. The path itself goes, and a few hundred LUTs with it.
+- **Checks:** a run with an assertion that port 1 gets no branch; then the 2,203 runs with every state at zero identical to HEAD.
+- **Then:** `synth_ooo.bat OOO_CPU` once more; if it meets 20 ns, J2 and step 1.8 are done.
+
+Recorded in Plan/OOC 29.103 and STRATEGY 1.8, pushed to dev with Vivado's reports. The RTL is unchanged so far; no file under Ref/.
+
+Implement J2b as is ("Implement as is" or "Not now")?
+<!-- /answer -->
+
+## 289. 2026-11-24 02:20:39 JST
+
+```text
+Implement as is
+```

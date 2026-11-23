@@ -184,7 +184,7 @@ MUT = [
     (C, "br_taken[p]   = ex[p].rec.is_jalr || ex_tk[p];", "br_taken[p]   = ex_tk[p];", 'FERS: a jalr not taken (the history)'),
     (C, "rs_taken[p]   = ex_tk[p];", "rs_taken[p]   = 1'b1;", 'TAGE: every branch taken'),
     (C, "rs_valid[p]   = ex_v[p] && ex[p].rec.is_br;", "rs_valid[p]   = 1'b0;", 'TAGE: no outcomes'),
-    (C, "bt_valid = ij != 2'b00;", "bt_valid = 1'b0;", 'BTB: never written'),
+    (C, "e_bt_valid = ex_v[0] && ex[0].rec.is_jalr && !ex[0].rec.ret;", "e_bt_valid = 1'b0;", 'BTB: never written'),
     (C, "cmp_valid[p]  = ex_v[p] && ex[p].rec.kind", "cmp_valid[p]  = ex_v[p] && ex[p].wr && ex[p].rec.kind", 'ROB: µops without a destination never complete'),
     (C, "cmp_rob[p]    = ex[p].rec.rob;", "cmp_rob[p]    = ex[0].rec.rob;", 'ROB: port 1 completes port 0\'s entry'),
     # B4: exceptions at decode
@@ -416,7 +416,7 @@ MUT = [
     (C, "for (int q = 0; q < NAP; q++) byp_nt[q] = wbi_t[q];", "for (int q = 0; q < NAP; q++) byp_nt[q] = ex[q].dst;", "V3c: the bypass's compare with EX's tag, not the MDU's, the multiplier's or the FP -> integer result's"),
     (C, "ex_m2[q] <= byp_nt[q] == rr_t2;", "ex_m2[q] <= byp_nt[q] == rr_t1;", "V3c: the second operand's compare with the first's tag"),
     # the kill registered from EX's end, the fetch's fault queue written at F1 (step 1.8 V3d, Plan/OOC.md 29.95)
-    (C, "k_ckpt <= (k_m[0] && (!k_m[1] || k_d[0] <= k_d[1])) ? e_br_ckpt[0] : e_br_ckpt[1];", "k_ckpt <= e_br_ckpt[1];", "V3d: the kill's checkpoint always port 1's (port 0 resolves every branch since step 1.2 D)"),
+    (C, "k_ckpt <= e_br_ckpt[0];", "k_ckpt <= e_br_ckpt[1];", "V3d: the kill's checkpoint always port 1's (0 since J2b: port 0 resolves every branch since step 1.2 D)"),
     (C, "else        k_v <= k_m != 2'b00;", "else        k_v <= k_m[1];", "V3d: port 0's misprediction kills nothing"),
     (C, "k_m[p] = e_br_valid[p] && e_br_mispred[p] && !flush_all && (ex_bms[p] & kill) == '0;", "k_m[p] = e_br_valid[p] && e_br_mispred[p] && !flush_all;", "V3d: a misprediction killed in EX still restores"),
     (FR, "fq_wi <= fq_h + fq_n[1:0];", "fq_wi <= fq_h;", "V3d: a fetch fault written at the queue's head"),
