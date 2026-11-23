@@ -11631,7 +11631,18 @@ Implement as is
 <!-- answer -->
 **Claude Codeの回答**
 
-The second mutation pass caught 25 of 26. The one miss (339, action 0 without the MIE rule) exposed a bug in my trig.S edit: a misplaced label had skipped part 2 (the MTE/MIE checks) since I added part 1b. With the label fixed, the mutant fails at once, and trig.S passes on Spike and both tops. Mutation 339 is now running through the real runner, followed by a last run_core to make `results/core.txt` consistent. The 29.102 entry, the READMEs and the prompt log are ready to commit once both finish.
+この確認はもう済んでいます。前のターンですべて終え、コミット771cc3aとしてdevにpush済みです。
+
+- **ミューテーション339:** 検出済みです。
+- **最後のrun_core:** 14実行すべてPASSでした。
+- **Plan/OOC 29.102:** `cat >>`で追記し、numstatで大きな削除がないことも確かめました。
+- **コミット内容:** J1のファイル一式をまとめてコミットしています。
+- **push:** HEADとorigin/devは一致しています。
+- **Ref/:** origin/devにRef/のファイルはありません(0件)。
+
+作業ツリーの変更は、フックがこのプロンプトを記録した`Doc/PROMPT_J.md`だけです。これは次のコミットに含めます。
+
+次はJ2で、Windows側で`synth_ooo.bat OOO_CPU`と`synth_ooo.bat DBG_TOP`を実行していただく必要があります。J2を始めますか?
 <!-- /answer -->
 
 ## 282. 2026-11-22 19:37:00 JST
@@ -11656,4 +11667,16 @@ Check run_core in task bcpt4igt7 (scratchpad runcore_j1.txt); if it passed, run 
 
 ```text
 Check run_core and the J1 core mutations (task bl97oge0v, scratchpad runcore_j1.txt / mut_j1.txt); read every NOT line; fill Plan/OOC 29.102 placeholders (update the draft for ebrk.S, -dbgf 8, the bench and lock-step fixes, the two OOO_DMISS2 RTL bugs, unit mutations 33/33), append, commit, push, Ref/ check, wrap up.
+```
+
+## 286. 2026-11-23 01:55:00 JST
+
+```text
+Check mutation 339 and the final run_core (task bmt562yuy, scratchpad mut_339.txt / runcore_j1.txt); if both pass, append the 29.102 drafts to Plan/OOC(_J).md with cat >>, check numstat, stage all J1 files (RTL/CPU/DBG, RTL/CPU/OOO, RTL/CPU/CORE, SIM/CORE incl. dbgmodel.h, b4/dir/trig.S, ebrk.S, SIM/LOCKSTEP, SIM/OCD, SIM/OOO_UNIT, FPGA/OOO_OOC tcl and OOC_WRAP, docs, .gitignore), commit, push, Ref/ check, wrap up.
+```
+
+## 287. 2026-11-24 00:57:32 JST
+
+```text
+Start J2
 ```

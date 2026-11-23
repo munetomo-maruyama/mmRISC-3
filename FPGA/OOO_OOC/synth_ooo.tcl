@@ -122,7 +122,12 @@ synth_design -top $synth_top -part $part -mode out_of_context {*}$gargs
 
 create_clock -name clk -period $period [get_ports clk]
 set io_dly [expr {0.3 * $period}]
-set ins [get_ports -quiet -filter {DIRECTION == IN && NAME != clk && NAME != rst_n}]
+# DBG_TOP (step 1.8 J1): JTAG's TCK is a clock of its own (10 MHz here), asynchronous to clk (the DTM's CDC)
+if {$top eq "DBG_TOP"} {
+    create_clock -name tck -period 100.0 [get_ports jtag_tck]
+    set_clock_groups -asynchronous -group clk -group tck
+}
+set ins [get_ports -quiet -filter {DIRECTION == IN && NAME != clk && NAME != rst_n && NAME != jtag_tck}]
 set outs [get_ports -quiet -filter {DIRECTION == OUT}]
 if {[llength $ins]}  { set_input_delay  -clock clk $io_dly $ins }
 if {[llength $outs]} { set_output_delay -clock clk $io_dly $outs }

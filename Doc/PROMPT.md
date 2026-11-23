@@ -11412,3 +11412,68 @@ Check run_core in task bcpt4igt7 (scratchpad runcore_j1.txt); if it passed, run 
 ```text
 Check run_core and the J1 core mutations (task bl97oge0v, scratchpad runcore_j1.txt / mut_j1.txt); read every NOT line; fill Plan/OOC 29.102 placeholders (update the draft for ebrk.S, -dbgf 8, the bench and lock-step fixes, the two OOO_DMISS2 RTL bugs, unit mutations 33/33), append, commit, push, Ref/ check, wrap up.
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+J1 (debug) is done. Commit 771cc3a is pushed to dev, and I checked that origin/dev holds no file under Ref/.
+
+**What was built**
+- **The Debug Module:** mmRISC-2's DM, DTM, CDC and cJTAG copied unchanged into `RTL/CPU/DBG`, with a wrapper for `OOO_CPU`, `DBG_TOP`. No program buffer.
+- **Halt, resume, step, EBREAK:** taken at the ROB head by the same mechanism as an interrupt (`OOO_TRAP`).
+- **Registers:** read and written through short sequences the core runs in debug mode (`OOO_DBG`); their words arrive as the I$'s answer to a fetch of 0x800. CSRs through CORE_CSR's debugger port.
+- **Memory:** through `OOO_DMISS2`'s new port, coherent with the write-back D$ down to dirty lines. A resume after a debugger's write does a fence.i first.
+- **Triggers:** 4. Execute triggers compared at D2, data triggers at the LSU's M, resolved at the ROB head as a breakpoint or a halt.
+  - Action-0 triggers have Spike's MIE rule beside MTE (the Debug Spec allows either).
+
+**Verification**
+- **OpenOCD:** `SIM/OCD` debugs `OOO_CPU`: all 50 checks PASS, with and without authentication.
+- **The bench's debugger:** `tb_core -dbg` checks halts, steps, registers, CSRs, memory, EBREAK, triggers, resethaltreq and an interrupt pending in steps, in lock-step on both tops.
+- **New tests:** `b4/dir/trig.S` and `b4/dir/ebrk.S`; `rv64mi-p-breakpoint` now runs.
+- **Regressions:** run_core 14 runs PASS. b4 now runs with `-exit0`, and two debugger runs were added.
+- **Behaviour unchanged:** with every state at zero, 2,203 runs are identical to HEAD to the cycle. CoreMark's windows are unchanged. The unit regression PASS; lint as HEAD.
+- **Mutations:** core 26 of 26, unit 33 of 33 detected.
+
+**Found and fixed on the way**
+- **Two RTL bugs (both in OOO_DMISS2):** the debugger's read data and error were chosen by a signal left set after a device access.
+- **Lock-step gaps:**
+  - Spike runs on to the handler's first instruction within one step of a trigger's breakpoint;
+  - that trap leaves no mcause in Spike's log;
+  - stepping an instruction on mie needed the reference's interrupt stopped too.
+- **Bench issues:** shortcomings of the debugger model, and a mistake of mine in trig.S (a label skipping a part). All found by mutations and by runs over changed random seeds, and fixed.
+
+**Worth knowing**
+- **A reset empties the caches.** The D$ and the L2 are written back, so a reset (ndmreset) loses what memory does not have yet. Load programs after `reset halt`.
+- **OpenOCD's warnings are harmless.** When OpenOCD probes CSRs that do not exist, a few "progbuf" error lines appear; harmless, as in mmRISC-2.
+- **Six core mutations in mutate_core.py (61, 62, 147, 164, 220, 262) already did not apply at HEAD.** Separate from J1; to be fixed together later.
+
+The LUTs and the 20 ns timing are not yet measured. That is J2, and it needs these two runs on the Windows side:
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+
+```bash
+synth_ooo.bat DBG_TOP
+```
+
+Start J2 (these two Vivado runs)?
+<!-- /answer -->
+
+## 286. 2026-11-23 01:55:00 JST
+
+```text
+Check mutation 339 and the final run_core (task bmt562yuy, scratchpad mut_339.txt / runcore_j1.txt); if both pass, append the 29.102 drafts to Plan/OOC(_J).md with cat >>, check numstat, stage all J1 files (RTL/CPU/DBG, RTL/CPU/OOO, RTL/CPU/CORE, SIM/CORE incl. dbgmodel.h, b4/dir/trig.S, ebrk.S, SIM/LOCKSTEP, SIM/OCD, SIM/OOO_UNIT, FPGA/OOO_OOC tcl and OOC_WRAP, docs, .gitignore), commit, push, Ref/ check, wrap up.
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+That check was already done: everything was finished in the previous turn and pushed to dev as commit 771cc3a (mutation 339 detected, the last run_core 14 runs PASS, Plan/OOC 29.102 appended with `cat >>`, numstat checked, HEAD equal to origin/dev, no file under Ref/). The working tree's only change is `Doc/PROMPT_J.md`, which the hook wrote for this prompt; it goes into the next commit. Next is J2: `synth_ooo.bat OOO_CPU` and `synth_ooo.bat DBG_TOP` on the Windows side. Start J2?
+<!-- /answer -->
+
+## 287. 2026-11-24 00:57:32 JST
+
+```text
+Start J2
+```
