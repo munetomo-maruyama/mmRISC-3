@@ -11585,3 +11585,39 @@ Tell me "Run finished" once the OOO_CPU Vivado run has finished?
 ```text
 Run finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+`OOO_CPU` meets 20 ns. `DBG_TOP` met it already last time, so J2, and with it step 1.8, is done.
+
+| | This run (with J2b) | J2's first run | Before J1 (29.100) |
+|---|---|---|---|
+| WNS | **+0.035 ns** (no failures) | −0.022 ns | +0.224 ns |
+| hold | +0.028 ns | +0.028 ns | +0.028 ns |
+| LUTs | **105,963** | 107,104 | 105,608 |
+| FF | 28,429 | 28,607 | 27,852 |
+
+**LUTs**
+- **Down from last time:** J2b took 1,141 off. Vivado dropped what used port 1's branch resolution in `OOO_CTRL` (−498), `OOO_FRONT` (−409) and `OOO_ROB` (−205).
+- **The chip:** 106,799 with `DBG_TOP` (79.8 %). About 112.1k with LiteX, about 4.4k above the ceiling of 107.7k. The ceiling is an estimate from the Arty, not measured on this board; the whole chip is measured at step 2.6.
+
+**Paths**
+- **Last time's failing path:** port 1's branch compare to `k_ckpt` is gone; `k_ckpt` is not even among the 100 worst endpoints.
+- **The worst now (+0.035 ns):** the TAGE's update into its base table's write. The same RTL gave +0.308 ns last time, so it is placement.
+- **Next:** the uBTB's `pc_q` (+0.372 ns) and the issue queue's ready (+0.931 ns). All in parts untouched since V3, within the 0.3 ns one placement swings.
+
+Recorded in Plan/OOC 29.105 and STRATEGY 1.8, pushed to dev with Vivado's reports (commit 719a344). The first push failed on a passing DNS fault and went through on a retry. No file under Ref/.
+
+**Left**
+- **Six mutations:** six core mutations (61, 62, 147, 164, 220, 262) have had no target text in the RTL since before J1 and have not been hitting anything. They need retargeting.
+- **The next step:** phase 2 (the board), starting with STRATEGY 2.0, "LiteX's own target as it is, Rocket at 100 MHz".
+
+Retarget the six mutations next, or go on to phase 2 ("Yes, retarget them" or "Start phase 2")?
+<!-- /answer -->
+
+## 291. 2026-11-24 15:05:59 JST
+
+```text
+Yes, retarget them
+```

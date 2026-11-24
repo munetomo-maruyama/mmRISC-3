@@ -6691,3 +6691,7 @@ All in the front end and the issue queue, untouched since V3, within the 0.3 ns 
 **Left over**: six core mutations stale since before J1 (61, 62, 147, 164, 220, 262: their text no longer in the RTL), to be retargeted.
 
 **Next**: phase 2, the board (STRATEGY 2.0: LiteX's own target as it is, Rocket at 100 MHz, SD and Ethernet; then 2.1 to 2.6, mmRISC-3 in place of mmRISC-2 at gate S2).
+
+### 29.106 The six stale core mutations retargeted (2026-11-24)
+
+Six of `mutate_core.py`'s 340 mutations had matched no text in the RTL since step 1.8 L1 (CBO.ZERO's `cbx`, `cbo` and `szl` written into their lines) and J1 (`trg` in D2's exception), so they had reported `NOT APPLIED` and tested nothing. Each now names its line as it is, with the same fault: **61** ECALL not an exception and **62** an FP instruction that traps not illegal (D2's `d2[j].exc`, now with `trg` and `cbx`); **147** an AMO without an SQ entry and **220** an FP store without one (D2's `d2[j].st`, now with `cbo`); **164** a younger load forwarding from an undecided AMO or SC (`OOO_LSU4`'s `f_cv`, now with `!szl`); **262** a store writing its entry in the load's E not seen by the search (`e_om`, now over two lines with CBO.ZERO's line compare). **6 of 6 detected**; all 340 now apply to the RTL.
