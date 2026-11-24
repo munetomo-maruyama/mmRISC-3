@@ -217,7 +217,7 @@ DDR3が決めるのはLiteXのクロックで、CPUのクロックではない�
 
 | # | 作業 | 終わりの条件 |
 |---|---|---|
-| 2.0 | **LiteXのターゲットをそのまま**(`Doc/BOARD_J.md` 2): Rocket、100 MHz、SD、Ethernet。Vivadoの実行にボードは要らない | ボードで: BIOS、DDR3-800のメモリテスト、SD、TFTP。基準としてRocketでLinux |
+| 2.0 | **LiteXのターゲットをそのまま**(`Doc/BOARD_J.md` 2): Rocket、100 MHz、SD、Ethernet。Vivadoの実行にボードは要らない。**生成 2026-11-24**(`LitexSystem/docs/BRINGUP_J.md` 1): `LitexSystem/scripts/build_stock.sh`(mmRISC-2のLiteXのワークスペース。Rocket `linux_1_1`、100 MHz、0x8000_0000に512 MiB。SDカードのレジスタをI/Oブロックに)。次はVivadoの実行(`build_nexys_video.bat`) | ボードで: BIOS、DDR3-800のメモリテスト、SD、TFTP。基準としてRocketでLinux |
 | 2.1 | mmRISC-2のものからこのリポジトリの`LitexSystem/`を、LiteXのターゲットの上に。CPUはmmRISC-2、50 MHz。制約 | ボードでLiteX BIOSのプロンプト |
 | 2.2 | JEDECの範囲のDDR3(`Doc/BOARD_J.md` 4): LiteXは100 MHz、CPUは50 MHz、乗り換え経由 | 512 MiBのメモリテスト |
 | 2.3 | J3のmicroSD。RTL8211EとのRGMII | BIOSがSDカードから起動。1 Gb/sでTFTPとDHCP |

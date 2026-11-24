@@ -11621,3 +11621,32 @@ Retarget the six mutations next, or go on to phase 2 ("Yes, retarget them" or "S
 ```text
 Yes, retarget them
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The six stale mutations are retargeted to the RTL as it is now, and all six are detected. All 340 in `mutate_core.py` now hit somewhere in the RTL.
+
+**Why they went stale:** step 1.8 L1 (CBO.ZERO) and J1 (triggers) added new terms to the lines they named. Since then the six had been `NOT APPLIED`, testing nothing.
+
+| No. | Fault put in | Target now |
+|---|---|---|
+| 61 | ECALL not an exception | D2's `d2[j].exc` (with `trg`, `cbx`) |
+| 62 | An FP instruction that traps not illegal | the same |
+| 147 | An AMO without an SQ entry | D2's `d2[j].st` (with `cbo`) |
+| 220 | An FP store without an SQ entry | the same |
+| 164 | A younger load forwarding from an AMO or SC whose result is not decided | `OOO_LSU4`'s `f_cv` (with `!szl`) |
+| 262 | A store writing its entry in the load's E not seen by the search | `e_om` (with CBO.ZERO's line compare, 2 lines) |
+
+Recorded in Plan/OOC 29.106, pushed to dev as commit e4b4561. The push failed three times on a passing DNS fault and went through on the fourth. No file under Ref/.
+
+Nothing is left of step 1.8. Next is phase 2, starting with STRATEGY 2.0: LiteX's own target as it is, Rocket at 100 MHz, checking the SD card and Ethernet.
+
+Go on to phase 2 ("Start phase 2" or "Not now")?
+<!-- /answer -->
+
+## 292. 2026-11-24 15:25:57 JST
+
+```text
+Start phase 2
+```
