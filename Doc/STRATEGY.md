@@ -233,7 +233,7 @@ mmRISC-2, then mmRISC-3.
 
 | # | Work | Done when |
 |---|---|---|
-| 2.0 | **LiteX's own target as it is** (`Doc/BOARD.md` 2): Rocket at 100 MHz, SD and Ethernet. The Vivado run needs no board. **Generated 2026-11-24** (`LitexSystem/docs/BRINGUP.md` 1): `LitexSystem/scripts/build_stock.sh` (mmRISC-2's LiteX workspace; Rocket `linux_1_1`, 100 MHz, 512 MiB at 0x8000_0000; the SD card's registers in the I/O blocks); the Vivado run next (`build_nexys_video.bat`) | On the board: BIOS, memory test at DDR3-800, SD, TFTP; Linux on Rocket as a reference |
+| 2.0 | **LiteX's own target as it is** (`Doc/BOARD.md` 2): Rocket at 100 MHz, SD and Ethernet. The Vivado run needs no board. **Generated 2026-11-24** (`LitexSystem/docs/BRINGUP.md` 1): `LitexSystem/scripts/build_stock.sh` (mmRISC-2's LiteX workspace; Rocket `linux_1_1`, 100 MHz, 512 MiB at 0x8000_0000; the SD card's registers in the I/O blocks); **Rocket's run 2026-11-24** (BRINGUP 2): WNS −5.208 ns at 100 MHz (14,607 endpoints, all inside Rocket: about 65 MHz on the -1 part), 37,563 LUTs, 1.04 W; a lower clock would take the DDR3 below DDR3-600; so VexRiscv-SMP (RV32, Linux-capable, pre-generated) at 100 MHz for the board's checks, generated (`CPU=vexriscv_smp`); its Vivado run next; Linux on Rocket waits for 2.2's crossing | On the board: BIOS, memory test at DDR3-800, SD, TFTP; Linux on Rocket as a reference |
 | 2.1 | `LitexSystem/` in this repository from mmRISC-2's, on LiteX's target; mmRISC-2 as the CPU at 50 MHz; constraints | LiteX BIOS prompt on the board |
 | 2.2 | DDR3 within JEDEC (`Doc/BOARD.md` 4): LiteX at 100 MHz, the CPU at 50 MHz through crossings | Memory test of 512 MiB |
 | 2.3 | microSD on J3; RGMII with the RTL8211E | BIOS boots from the SD card; TFTP and DHCP at 1 Gb/s |

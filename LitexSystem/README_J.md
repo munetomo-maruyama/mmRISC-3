@@ -7,6 +7,7 @@ Digilent Nexys Video(XC7A200T)上のLiteXのSoC。`Doc/STRATEGY_J.md`のフェ�
 |---|---|
 | `scripts/build_stock.sh` | 手順2.0: LiteXのNexys Videoのターゲットそのまま(Rocket、100 MHz、DDR3-800、SDカード、Ethernet)をここで生成。VivadoはWindowsのVMで |
 | `scripts/build_nexys_video.bat` | Windows側の実行。tclの横にコピーされる |
+| `CPU=vexriscv_smp scripts/build_stock.sh` | 同じものをVexRiscv-SMP(RV32、100 MHz)で`build_stock_vexriscv_smp/`へ: このデバイスでRocketは100 MHzを閉じない(`docs/BRINGUP_J.md` 2) |
 | `build_stock/` | 出力(gitには入れない): `gateware/`(Verilog、XDC、tcl、ビットストリーム)、`software/bios/`、`csr.csv`、`csr.json` |
 | `docs/BRINGUP.md` | 立ち上げの記録(手順2.5のもの)、手順ごとの節 |
 

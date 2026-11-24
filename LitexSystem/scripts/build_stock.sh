@@ -7,6 +7,14 @@
 #
 #   ./LitexSystem/scripts/build_stock.sh [extra litex arguments]
 #   SYS_CLK=50e6 ./LitexSystem/scripts/build_stock.sh     (another clock)
+#   CPU=vexriscv_smp ./LitexSystem/scripts/build_stock.sh
+#                  VexRiscv-SMP (RV32IMA, Linux-capable, one core, its
+#                  pre-generated netlist on LiteDRAM's 128-bit port, coherent
+#                  DMA; no hardware breakpoint, as the pre-generated netlists:
+#                  otherwise LiteX runs SpinalHDL), into build_stock_vexriscv_smp/:
+#                  Rocket does not close
+#                  100 MHz on the -1 part (BRINGUP 2), VexRiscv-SMP is what
+#                  linux-on-litex-vexriscv runs at 100 MHz
 #
 # What comes out, in LitexSystem/build_stock/ (not in git):
 #   gateware/digilent_nexys_video.v / .xdc / .tcl  the SoC and its Vivado script
@@ -33,7 +41,12 @@ REPO=$(dirname "$LITEX_SYSTEM")
 LITEX_HOME=${LITEX_HOME:-$(cd "$REPO/../mmRISC-2/LitexRocket" 2>/dev/null && pwd)}
 LITEX_WS="$LITEX_HOME/litex_ws"
 VENV="$LITEX_HOME/.venv"
-BUILD="$LITEX_SYSTEM/build_stock"
+CPU=${CPU:-rocket}
+case "$CPU" in
+    rocket)       BUILD="$LITEX_SYSTEM/build_stock";      CPUARGS="--cpu-type rocket --cpu-variant linux" ;;
+    vexriscv_smp) BUILD="$LITEX_SYSTEM/build_stock_$CPU"; CPUARGS="--cpu-type vexriscv_smp --cpu-variant linux --with-coherent-dma --hardware-breakpoints 0" ;;
+    *)            echo "CPU: rocket or vexriscv_smp"; exit 1 ;;
+esac
 
 [ -d "$VENV" ]     || { echo "no venv at $VENV (mmRISC-2/LitexSystem/scripts/setup_litex.sh)"; exit 1; }
 [ -d "$LITEX_WS" ] || { echo "no LiteX workspace at $LITEX_WS"; exit 1; }
@@ -46,7 +59,7 @@ export PYTHONPATH="$LITEX_WS/pythondata-cpu-rocket${PYTHONPATH:+:$PYTHONPATH}"
 
 python3 "$LITEX_WS/litex-boards/litex_boards/targets/digilent_nexys_video.py" \
     --build --no-compile-gateware \
-    --cpu-type rocket --cpu-variant linux \
+    $CPUARGS \
     --sys-clk-freq "${SYS_CLK:-100e6}" \
     --with-sdcard \
     --with-ethernet \
@@ -77,7 +90,10 @@ PY
 fi
 XDC="$G/digilent_nexys_video.xdc"
 if [ -f "$XDC" ] && grep -q "sdcard_clk" "$XDC" && ! grep -q "IOB TRUE.*sdcard" "$XDC"; then
+    # (a newline first: LiteX's XDC ends without one, and a comment run onto
+    # its last set_clock_groups line made Vivado drop that constraint)
     cat >> "$XDC" <<'EOF2'
+
 # mmRISC-3 step 2.0: SD card PHY registers in the I/O blocks (build_stock.sh)
 set_property IOB TRUE [get_ports {sdcard_clk sdcard_cmd {sdcard_data[*]}}]
 EOF2

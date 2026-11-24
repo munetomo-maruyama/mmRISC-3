@@ -11858,3 +11858,39 @@ Yes, retarget them
 ```text
 Start phase 2
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+フェーズ2の最初の手順(2.0)として、LiteXのNexys Video用ターゲットをそのまま使ってSoCを生成しました。CPUはRocketです。Vivadoはまだ通していないので、100 MHzでタイミングが閉じるかは分かりません。
+
+**生成したSoC**(`LitexSystem/scripts/build_stock.sh`)
+- **CPU:** Rocket(`linux`の1コア構成、RV64IMAFDC、Sv39)を100 MHzで動かします。
+- **周辺:** DDR3-800、J3のSDカード、RGMIIのEthernetです。
+- **メモリマップ:** mmRISC-2と同じで、メインRAMは0x8000_0000から512 MiBです。BIOSは43.6 KiBに収まりました。
+- **Ethernetのアドレス:** このターゲットにはDHCPがないので固定です。ボードが192.168.1.50、TFTPサーバが192.168.1.100で、どちらもBIOSのプロンプトで変えられます。
+- **mmRISC-2から入れた設定:**
+  - SDカードの出力レジスタをI/Oブロックに置きます。Arty版ではこれがないとLinuxでCRCエラーが出ました。
+  - 配置後と配線後の物理最適化を有効にしています。
+- **環境:** LiteXはmmRISC-2のワークスペース(版が固定されたもの)を使います。その仮想環境にはRocketのデータが登録されていなかったので、スクリプトの中でパスを通しました。mmRISC-2の環境自体は変えていません。
+
+記録は`LitexSystem/docs/BRINGUP.md`の1節とSTRATEGY 2.0に書き、コミット7a5a5a6としてdevにpushしました。Ref/のファイルは0件です。
+
+**お願いする実行**(WindowsのVMで、`LitexSystem\build_stock\gateware`に移動して)
+
+```bash
+build_nexys_video.bat
+```
+
+**結果を見るときの注意:** ArtyではRocketを50 MHzで動かしていました(余裕は+0.409 ns)。このデバイスは同じ-1グレードなので、100 MHzでは閉じない可能性があります。ただ、クロックを下げるとDDR3-800が使えません。閉じなかった場合は、ボードの確認には100 MHzのVexRiscvを使い、Rocket上のLinuxは手順2.2(CPUとLiteXの間のクロック乗せ換え)まで待つ案を考えています。
+
+ボードがまだ届いていなくても、このVivado実行はできます。ボードがあれば、次はBIOS、メモリテスト、SD、TFTPを確かめます。
+
+Vivadoの実行が終わったら「Run finished」と知らせていただけますか?
+<!-- /answer -->
+
+## 293. 2026-11-24 16:53:20 JST
+
+```text
+Run finished
+```

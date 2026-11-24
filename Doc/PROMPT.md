@@ -11650,3 +11650,39 @@ Go on to phase 2 ("Start phase 2" or "Not now")?
 ```text
 Start phase 2
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+As the first step of phase 2 (2.0), I generated a SoC from LiteX's own Nexys Video target, as it is, with Rocket as the CPU. It has not been through Vivado yet, so whether it closes at 100 MHz is not known.
+
+**The SoC** (`LitexSystem/scripts/build_stock.sh`)
+- **CPU:** Rocket (the `linux` one-core configuration, RV64IMAFDC, Sv39) at 100 MHz.
+- **Peripherals:** DDR3-800, the SD card on J3, Ethernet over RGMII.
+- **Map:** mmRISC-2's; main RAM from 0x8000_0000, 512 MiB. The BIOS fits in 43.6 KiB.
+- **Ethernet addresses:** this target has no DHCP, so they are fixed: the board 192.168.1.50, the TFTP server 192.168.1.100, both changeable at the BIOS prompt.
+- **Taken from mmRISC-2:**
+  - the SD card's output registers in the I/O blocks (on the Arty, Linux got CRC errors without them);
+  - physical optimisation after placement and after routing.
+- **Environment:** LiteX is mmRISC-2's workspace (pinned versions). Its virtual environment did not have Rocket's data registered, so the script adds the path itself; mmRISC-2's environment is unchanged.
+
+Recorded in section 1 of `LitexSystem/docs/BRINGUP.md` and STRATEGY 2.0, pushed to dev as commit 7a5a5a6. No file under Ref/.
+
+**The run to do** (on the Windows VM, in `LitexSystem\build_stock\gateware`)
+
+```bash
+build_nexys_video.bat
+```
+
+**When reading the result:** on the Arty, Rocket ran at 50 MHz (+0.409 ns of slack). This part is the same -1 grade, so 100 MHz may not close. A lower clock would rule out DDR3-800, though. If it does not close, the idea is to use VexRiscv at 100 MHz for the board's checks, and leave Linux on Rocket for step 2.2 (the clock crossing between the CPU and LiteX).
+
+This Vivado run can be done before the board arrives. With the board, the BIOS, the memory test, SD and TFTP come next.
+
+Tell me "Run finished" once the Vivado run has finished?
+<!-- /answer -->
+
+## 293. 2026-11-24 16:53:20 JST
+
+```text
+Run finished
+```
