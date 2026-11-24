@@ -11547,3 +11547,41 @@ Implement J2b as is ("Implement as is" or "Not now")?
 ```text
 Implement as is
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+J2b is implemented and pushed to dev (commit 9227069, no file under Ref/). The path that failed in 29.103 is gone from the logic, and the behaviour is the same as HEAD to the bit. Whether it meets 20 ns is not known yet: it needs Vivado once more.
+
+**The change (`OOO_CORE`)**
+- The branch resolution (targets, misprediction and the rest) made for port 0 alone; port 1's tied to 0.
+- Port 1's ALU no longer compares for branches, and the BTB's indirect jump comes from port 0 alone.
+- `k_ckpt <= e_br_ckpt[0]`: the choice of two (`k_d` and its compare) is out. The failing path went into this choice.
+- The ports to other blocks stay; their values are constants, so Vivado can drop the logic behind them.
+
+**Checks**
+- **Port 1 gets no branch:** a build with a check ran 2,736 runs with 0 hits (B2 / B3 on 2 seeds, B4, -p- / -v-, the debugger, CoreMark, both tops). The same check on port 0 fires 1,315 times in `br-1` alone, so the check itself works.
+- **Every state at zero:** 2,205 runs identical to HEAD.
+- **CoreMark's windows:** 1,211,530 / 1,211,996, unchanged.
+- **run_core:** PASS (14 runs).
+- **lint:** as HEAD.
+- **Mutations:** the 2 aimed at changed lines (58, 265) rewritten; all 4 related ones detected.
+
+Recorded in Plan/OOC 29.104, STRATEGY 1.8 and `RTL/CPU/OOO`'s READMEs.
+
+**The run to do** (in `FPGA/OOO_OOC`)
+
+```bash
+synth_ooo.bat OOO_CPU
+```
+
+If it meets 20 ns, J2 and step 1.8 are done (`DBG_TOP` met in 29.103).
+
+Tell me "Run finished" once the OOO_CPU Vivado run has finished?
+<!-- /answer -->
+
+## 290. 2026-11-24 14:48:11 JST
+
+```text
+Run finished
+```

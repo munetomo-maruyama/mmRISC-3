@@ -6673,3 +6673,21 @@ As 29.103 proposed (the author: "Implement as is"). **`OOO_CORE`**: `g_br` (the 
 **Results**: with every state at zero, **2,205 runs identical** to HEAD (B2, B3, B4, -p- / -v-, both tops); CoreMark's windows unchanged (1,211,530 on `OOO_CORE` with ideal caches, 1,211,996 on `OOO_CPU`); run_core PASS (14 runs); verilator -Wall as HEAD. **Mutations**: 2 retargeted (58, the BTB never written: now on `e_bt_valid`; 265, the kill's checkpoint always port 1's: now 0) and the two other V3d ones on the kill (266, 267): **4 of 4**. The six stale since before J1 (61, 62, 147, 164, 220, 262) as they were.
 
 **Next**: `synth_ooo.bat OOO_CPU` (the author's): J2 done when it meets 20 ns (`DBG_TOP` met at 29.103).
+
+### 29.105 Step 1.8 J2: `OOO_CPU` with J1 and J2b: met, +0.035 ns, 105,963 LUTs; step 1.8 done (2026-11-24)
+
+**The run** (by the author, `synth_ooo.bat OOO_CPU`, the RTL of 9227069): **105,963 LUTs** after place and route (89,298 logic + 16,550 LUT RAM; 107,332 after synthesis), 28,429 FF, 42 DSP, 284.5 tiles of block RAM; **WNS +0.035 ns, TNS 0, no endpoint failing; hold +0.028 ns**: met, so `timing_blocks.rpt` was not written (the old one removed). With `DBG_TOP` (29.103: 836 LUTs, +9.170 ns) **J2 is done, and with it step 1.8**: interrupts, Sv39, PMP, the renamed FPU, the PMU's events, Linux in lock-step, debug, all at 20 ns.
+
+**The LUTs**: −1,141 on 29.103 (−1,116 after synthesis), FF −178. Where port 1's resolution went: `OOO_CTRL` −498, `OOO_FRONT` −409, `OOO_ROB` −205, `OOO_LSU4` −139, `OOO_IQPL2` −107; the spread of synthesis the other way (`OOO_RENAME2` +345, `OOO_FIQ` +110, `OOO_FPUW` +96). Against 29.100 (before J1): +355 LUTs, +577 FF in `OOO_CPU`. **The chip at the end of step 1.8**: 105,963 + 836 = **106,799 LUTs (79.8 % of 133,800)**; with LiteX's SoC (5.3k) **about 112.1k (83.8 %), about 4.4k above the ceiling of 107.7k** (an estimate from the Arty at 50 MHz, not measured on this device); to be measured at step 2.6 (whole-chip timing), the author's decision then.
+
+**The paths**: 29.103's (port 1's branch compare → `k_ckpt`) is gone, and `k_ckpt` is in none of the 100 worst endpoints. The worst now:
+- +0.035 ns, 19 levels: the TAGE's update (`up_meta_q`) → its base table's write data (`btbl` DI, 20 endpoints; +0.308 ns at 29.103, the same RTL: placement);
+- +0.372 ns, 22 levels: F2's predecode → the uBTB's `pc_q` (+0.224 ns at 29.100);
+- +0.931 ns, 16 levels: `OOO_IQPL2` → `OOO_IQ3`'s ready (+0.273 ns at 29.103);
+- +0.990 ns, 23 levels: the uBTB's `pc_q` → the ITLB → the walker's `r_ptag` reset.
+
+All in the front end and the issue queue, untouched since V3, within the 0.3 ns that one placement swings (28.10). J1's blocks: into `OOO_DBG` +5.412 ns, out of it +0.763 ns (→ `CORE_CSR`'s PMP mask, 23 levels), `OOO_TRAP` +1.362 / +3.692 ns.
+
+**Left over**: six core mutations stale since before J1 (61, 62, 147, 164, 220, 262: their text no longer in the RTL), to be retargeted.
+
+**Next**: phase 2, the board (STRATEGY 2.0: LiteX's own target as it is, Rocket at 100 MHz, SD and Ethernet; then 2.1 to 2.6, mmRISC-3 in place of mmRISC-2 at gate S2).
