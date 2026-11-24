@@ -82,3 +82,34 @@ card and Ethernet (`build_stock_vexriscv_smp/gateware/digilent_nexys_video.bit`)
 there): the BIOS prompt on the UART (115,200 baud), LiteDRAM's calibration and memory test of 512 MiB, the SD card
 (`sdcardboot`, reading a block), TFTP from 192.168.1.100 over the gigabit port; then Linux (linux-on-litex-vexriscv's
 images for this board) as the reference.
+
+## 4. Step 2.0 on the board: the procedure (2026-11-24)
+
+The board is here. **Found before starting**: the LAN is 192.168.0.0/24 (the TFTP server, this Ubuntu VM bridged,
+is 192.168.0.42), not 192.168.1.x; and the BIOS's `eth_local_ip` / `eth_remote_ip` commands exist only with a dynamic
+IP, which this target cannot give (`Doc/BOARD.md` 2), so section 1 was wrong to call them changeable at the prompt.
+`build_stock_vexriscv_smp` is generated again with **the board at 192.168.0.50** (no answer to ARP there before) and
+**the server at 192.168.0.42** (`CPU=vexriscv_smp ETH_IP=192.168.0.50 REMOTE_IP=192.168.0.42`); only the BIOS's
+constants change, so section 3's timing holds, but the bitstream needs Vivado again for TFTP. Section 3's bitstream
+(192.168.1.x) serves for everything but TFTP.
+
+**New here**: `scripts/program_nexys_video.bat` / `.tcl` (the bitstream into the FPGA over J12 from Vivado's hardware
+manager, volatile), `scripts/build_demo.sh` (LiteX's bare-metal demo linked at main RAM, with `boot.json` for the SD
+card and `vex.json` for TFTP: the server's `boot.json` is mmRISC-2's Linux, at addresses that on this SoC are not
+RAM, so it must not be taken).
+
+**The checks, in order** (J12 to the Windows VM for programming, J13 to a terminal at 115,200 8N1, no flow control;
+JP4 on JTAG; no SD card at first):
+1. **Program**: `program_nexys_video.bat` in `build_stock_vexriscv_smp\gateware`. Expected: the LiteX banner, `CPU: VexRiscv SMP-LINUX @ 100MHz`, the
+   identifier `LiteX SoC on Nexys Video` with its build date.
+2. **DDR3**: the BIOS calibrates at boot (`Initializing SDRAM @0x40000000...`, write leveling, read leveling per
+   module, `Memtest OK`, the speeds). Then at `litex>`: `mem_test 0x40000000 0x20000000` (all 512 MiB, a few
+   minutes) and `mem_speed 0x40000000 0x1000000`. Press Q or ESC at the boot to stop the automatic boot.
+3. **UART load** (needs no card or network): `litex_term --kernel demo.bin --kernel-adr 0x40000000 /dev/ttyUSB0`
+   from the demo folder, then `reboot`: the demo's prompt (`help`, `led`, `donut`).
+4. **SD card**: a spare FAT card (not mmRISC-2's `LITEXBOOT`) with `demo.bin` and `boot.json` in its root, written
+   from the Mac (the stale-mount problem of mmRISC-2), in J3 under the board; `sdcard_init`, `sdcardboot`: the demo.
+5. **TFTP** (after the Vivado run of the regenerated SoC): `sudo cp demo.bin vex.json /srv/tftp/` on this VM,
+   the RJ-45 on the gigabit switch; `netboot vex.json`: the demo.
+
+Then Linux as the reference (linux-on-litex-vexriscv's images for this board, to be fetched).

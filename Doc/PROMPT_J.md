@@ -12076,3 +12076,38 @@ build_nexys_video.bat
 ```text
 LitexSystem\build_stock_vexriscv_smp\gatewareで実行完了した。
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+VexRiscv-SMPは100 MHzで制約をすべて満たしました。これで手順2.0のうちVivadoの部分は完了です。
+
+| | VexRiscv-SMP(今回) | Rocket(2節) |
+|---|---|---|
+| WNS | **+0.631 ns**(失敗なし) | −5.208 ns |
+| ホールド | +0.026 ns | +0.034 ns |
+| LUT | 9,262(6.9 %) | 37,563(28.1 %) |
+| FF | 8,433 | 19,417 |
+| 電力 | 0.76 W | 1.04 W |
+
+- **最悪の経路:** CPUではなくLiteDRAMのものです(バンクマシンのtRASのカウンタ、10段、+0.631 ns)。100 MHzで動くLiteX自身の余裕は約0.6 nsしかありません。手順2.2と2.6では、50 MHzのCPUの周りでLiteXを100 MHzのまま動かすので、覚えておくべき点です。
+- **XDCの修正:** 前回直した改行の件は効いていて、落ちていた制約は読まれるようになりました。残っているクリティカルな警告は、LiteXの標準のもの(Ethernetのクロックのネット名)だけです。
+- **再現性:** 取り違えて行われたRocketの2回目の実行は、1回目と桁まで同じ結果でした。
+
+記録は`LitexSystem/docs/BRINGUP.md`の3節とSTRATEGY 2.0に書き、コミットebe0b78としてdevにpushしました。Ref/のファイルは0件です。
+
+**手順2.0の残り(ボードが必要)**
+- UART(115,200ボー)でBIOSのプロンプトが出ること。
+- LiteDRAMのキャリブレーションと、512 MiBのメモリテスト。
+- SDカードの読み出し。
+- ギガビットのポートで、192.168.1.100からのTFTP。
+- 最後に、基準としてLinuxを動かします(このボード用のlinux-on-litex-vexriscvのイメージ)。
+
+ボードがまだなら、先に手順2.1に進めます。2.1ではmmRISC-2のLitexSystemをこのボード用に移し、mmRISC-2を50 MHzで載せます。2.1もVivadoまではボードなしでできます。
+<!-- /answer -->
+
+## 298. 2026-11-24 23:06:54 JST
+
+```text
+Board is here
+```

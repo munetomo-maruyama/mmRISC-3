@@ -35,3 +35,18 @@
 ほかに: 作者による1節のRocketのビルドの2回目の実行(`build_stock/`で、これと取り違えて)は、桁まで同じ結果(WNS −5.208 ns、14,607エンドポイント、LUT 37,563、1.04 W): フローに再現性がある。
 
 **手順2.0のVivadoの部分は完了**: このデバイスで100 MHz、DDR3-800、SDカード、EthernetのLiteX自身のSoCのビットストリーム(`build_stock_vexriscv_smp/gateware/digilent_nexys_video.bit`)。**次はボードで**(届いたら): UART(115,200ボー)でBIOSのプロンプト、LiteDRAMのキャリブレーションと512 MiBのメモリテスト、SDカード(`sdcardboot`、ブロックの読み出し)、ギガビットのポートで192.168.1.100からTFTP。その後、基準としてLinux(このボード用のlinux-on-litex-vexriscvのイメージ)。
+
+## 4. ボードでの手順2.0: 手順(2026-11-24)
+
+ボードが届いた。**始める前に見つけたこと**: LANは192.168.0.0/24(TFTPサーバ、ブリッジ接続のこのUbuntuのVMは192.168.0.42)で、192.168.1.xではない。またBIOSの`eth_local_ip` / `eth_remote_ip`のコマンドは動的なIPのときだけあり、このターゲットはそれを与えられない(`Doc/BOARD_J.md` 2)。1節でプロンプトで変えられると書いたのは誤り。`build_stock_vexriscv_smp`を**ボード192.168.0.50**(事前にそこはARPに応答なし)、**サーバ192.168.0.42**で生成し直した(`CPU=vexriscv_smp ETH_IP=192.168.0.50 REMOTE_IP=192.168.0.42`)。変わるのはBIOSの定数だけなので3節のタイミングは保たれるが、TFTPにはVivadoをもう一度要する。3節のビットストリーム(192.168.1.x)はTFTP以外のすべてに使える。
+
+**ここで新しく**: `scripts/program_nexys_video.bat` / `.tcl`(ビットストリームをVivadoのハードウェアマネージャからJ12でFPGAへ、揮発)、`scripts/build_demo.sh`(メインRAMにリンクしたLiteXのベアメタルのデモ、SDカード用の`boot.json`とTFTP用の`vex.json`付き: サーバの`boot.json`はmmRISC-2のLinuxで、このSoCではRAMでないアドレスなので、取らせてはいけない)。
+
+**確認、この順に**(J12はWindowsのVMへ書き込み用、J13は115,200 8N1、フロー制御なしの端末へ。JP4はJTAG。最初はSDカードなし):
+1. **書き込み**: `build_stock_vexriscv_smp\gateware`で`program_nexys_video.bat`。期待: LiteXのバナー、`CPU: VexRiscv SMP-LINUX @ 100MHz`、ビルド日付きの識別子`LiteX SoC on Nexys Video`。
+2. **DDR3**: BIOSが起動時にキャリブレーションする(`Initializing SDRAM @0x40000000...`、ライトレベリング、モジュールごとのリードレベリング、`Memtest OK`、速度)。その後`litex>`で: `mem_test 0x40000000 0x20000000`(512 MiB全部、数分)と`mem_speed 0x40000000 0x1000000`。起動時にQかESCで自動のブートを止める。
+3. **UARTでのロード**(カードもネットワークも要らない): デモのフォルダで`litex_term --kernel demo.bin --kernel-adr 0x40000000 /dev/ttyUSB0`、その後`reboot`: デモのプロンプト(`help`、`led`、`donut`)。
+4. **SDカード**: 予備のFATのカード(mmRISC-2の`LITEXBOOT`ではない)のルートに`demo.bin`と`boot.json`、Macから書く(mmRISC-2の古いマウントの問題)、ボードの下のJ3へ。`sdcard_init`、`sdcardboot`: デモ。
+5. **TFTP**(生成し直したSoCのVivadoの実行の後): このVMで`sudo cp demo.bin vex.json /srv/tftp/`、RJ-45をギガビットのスイッチへ。`netboot vex.json`: デモ。
+
+その後、基準としてLinux(このボード用のlinux-on-litex-vexriscvのイメージ、取ってくる必要あり)。

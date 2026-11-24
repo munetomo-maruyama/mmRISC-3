@@ -11820,3 +11820,38 @@ Only the prompt log changed this time; nothing committed.
 ```text
 LitexSystem\build_stock_vexriscv_smp\gatewareで実行完了した。
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+VexRiscv-SMP meets every constraint at 100 MHz, so step 2.0's Vivado part is done.
+
+| | VexRiscv-SMP (this run) | Rocket (section 2) |
+|---|---|---|
+| WNS | **+0.631 ns** (no failures) | −5.208 ns |
+| hold | +0.026 ns | +0.034 ns |
+| LUTs | 9,262 (6.9 %) | 37,563 (28.1 %) |
+| FF | 8,433 | 19,417 |
+| Power | 0.76 W | 1.04 W |
+
+- **The worst path:** LiteDRAM's, not the CPU's (a bank machine's tRAS counter, 10 levels, +0.631 ns). LiteX itself has only about 0.6 ns to spare at 100 MHz. Worth remembering for steps 2.2 and 2.6, where LiteX stays at 100 MHz around a CPU at 50 MHz.
+- **The XDC fix:** last time's newline fix works; the dropped constraint is now read. The only critical warnings left are LiteX's stock ones (the Ethernet clocks' net names).
+- **Reproducibility:** the mistaken second Rocket run gave the same result as the first to the digit.
+
+Recorded in section 3 of `LitexSystem/docs/BRINGUP.md` and STRATEGY 2.0, pushed to dev as commit ebe0b78. No file under Ref/.
+
+**What is left of step 2.0 (needs the board)**
+- The BIOS prompt on the UART (115,200 baud).
+- LiteDRAM's calibration and a memory test of 512 MiB.
+- Reading the SD card.
+- TFTP from 192.168.1.100 over the gigabit port.
+- Last, Linux as the reference (linux-on-litex-vexriscv's images for this board).
+
+If the board is not there yet, step 2.1 can come first: mmRISC-2's LitexSystem moved to this board, with mmRISC-2 at 50 MHz. 2.1 can also go as far as Vivado without the board.
+<!-- /answer -->
+
+## 298. 2026-11-24 23:06:54 JST
+
+```text
+Board is here
+```

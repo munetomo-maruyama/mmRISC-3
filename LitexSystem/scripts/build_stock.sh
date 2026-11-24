@@ -31,8 +31,10 @@
 #   mmRISC-2, BRINGUP 13: CRC errors in Linux otherwise); physical
 #   optimisation after placement and routing (AggressiveExplore).
 # Ethernet: the target has no DHCP option (Doc/BOARD.md 2), so the board is
-# ETH_IP (192.168.1.50) and the TFTP server REMOTE_IP (192.168.1.100), both
-# changeable at the litex> prompt (eth_local_ip, eth_remote_ip).
+# ETH_IP (192.168.1.50) and the TFTP server REMOTE_IP (192.168.1.100), fixed
+# in the BIOS (its eth_local_ip / eth_remote_ip commands exist only with a
+# dynamic IP, which this target cannot give): set them for the LAN when
+# generating, e.g. ETH_IP=192.168.0.50 REMOTE_IP=192.168.0.42.
 #---------------------------------------------------------------------------
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -99,7 +101,7 @@ set_property IOB TRUE [get_ports {sdcard_clk sdcard_cmd {sdcard_data[*]}}]
 EOF2
     echo "  SD card registers put in the I/O blocks"
 fi
-cp "$HERE/build_nexys_video.bat" "$G/"
+cp "$HERE/build_nexys_video.bat" "$HERE/program_nexys_video.bat" "$HERE/program_nexys_video.tcl" "$G/"
 echo ""
 echo "SoC built in $BUILD"
 echo "  next (Windows VM): gateware\\build_nexys_video.bat"
