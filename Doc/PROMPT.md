@@ -11686,3 +11686,137 @@ Tell me "Run finished" once the Vivado run has finished?
 ```text
 Run finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Rocket does not close at 100 MHz (WNS −5.208 ns). As the fall-back planned, I generated a SoC with VexRiscv-SMP at 100 MHz. That one has not been through Vivado yet.
+
+**Rocket's run**
+- **Timing:** WNS −5.208 ns, 14,607 endpoints failing. Hold (+0.034 ns) and the other clocks (DDR3, Ethernet) are met.
+- **The failing paths:** all inside Rocket. The worst is the I$'s output → decode → EX's operand registers, 14.66 ns, 15 levels. Rocket on this part tops out at about 65 MHz, consistent with the Arty (50 MHz).
+- **Size and power:** 37,563 LUTs (28 %), 1.04 W, junction 28.4 °C. No cooling worry at this size.
+- **Why not a lower clock:** the DDR3 is made from the same clock, so lowering it takes the DDR3 below its slowest rate (DDR3-600).
+
+**The fall-back SoC** (`CPU=vexriscv_smp ./LitexSystem/scripts/build_stock.sh`)
+- **CPU:** VexRiscv-SMP (RV32IMA, Sv32, one core), the configuration linux-on-litex-vexriscv runs on this board at 100 MHz.
+- **Netlist:** the pre-generated one at hand (hardware breakpoints 0). The default would need sbt downloads to generate one.
+- **Map:** VexRiscv's; main RAM from 0x4000_0000, 512 MiB. DDR3-800, SD and Ethernet as before.
+- **Linux on Rocket (the 64-bit reference):** after step 2.2's clock crossing (Rocket at 50 MHz, LiteX at 100 MHz), or replaced by mmRISC-2's Linux.
+
+**One script bug fixed:** LiteX's XDC has no newline at its end, so the appended comment ran onto the last constraint's line and Vivado dropped that constraint. No effect on this result.
+
+Recorded in section 2 of `LitexSystem/docs/BRINGUP.md` and STRATEGY 2.0, pushed to dev as commit 2d52d77. The push failed twice on a DNS fault and went through on the third. No file under Ref/.
+
+**The run to do** (on the Windows VM, in `LitexSystem\build_stock_vexriscv_smp\gateware`)
+
+```bash
+build_nexys_video.bat
+```
+
+Tell me "Run finished" once the VexRiscv-SMP Vivado run has finished?
+<!-- /answer -->
+
+## 294. 2026-11-24 21:31:50 JST
+
+```text
+Run finished
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+None of the VexRiscv-SMP Vivado run's results can be seen from this VM. Since I could not read them, nothing was recorded in BRINGUP and nothing committed; this time the only change is the prompt log.
+
+**Checked**
+- **In `LitexSystem\build_stock_vexriscv_smp\gateware`:** only the files generated at 17:02. No `.bit`, `vivado.log`, `vivado.jou` or `.rpt`; no sign Vivado ran in this folder.
+- **Elsewhere:** in mmRISC-3 and mmRISC-2's LiteX build directories, the only file written after 17:30 is `Doc/PROMPT_J.md`.
+- **Rocket's last run:** `LitexSystem\build_stock\gateware`'s results are still those of 16:52, not overwritten.
+
+**Possible causes**
+- It ran in another folder. On the Windows side the last run was in `Z:\Documents\CQ\RISCV\mmRISC\mmRISC-3\LitexSystem\build_stock\gateware`; this time the folder ends in `build_stock_vexriscv_smp\gateware`.
+- Vivado stopped right at the start. Even then, a `vivado.log` is normally left in that folder.
+- The share's write-back is late.
+
+Could you check on the Windows side whether the bitstream and the log are in this folder?
+
+```text
+Z:\Documents\CQ\RISCV\mmRISC\mmRISC-3\LitexSystem\build_stock_vexriscv_smp\gateware
+```
+
+If it has not run yet, run this in that folder:
+
+```bash
+build_nexys_video.bat
+```
+<!-- /answer -->
+
+## 295. 2026-11-24 22:29:33 JST
+
+```text
+Ran it, check again
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Looked again (at 22:29), and the VexRiscv-SMP Vivado run's results still cannot be seen from this VM. With no results, nothing is recorded or committed; this time the only change is the prompt log.
+
+**Checked**
+- **`LitexSystem/build_stock_vexriscv_smp/gateware`:** only the files generated at 17:02.
+- **The output files directly:** asked for `vivado.log`, `vivado.jou`, `digilent_nexys_video.bit`, `digilent_nexys_video_timing.rpt` and `digilent_nexys_video.xpr` by name one by one; each came back as not existing, so it does not look like a cached listing.
+- **The whole share:** under `Documents/CQ` the only `digilent_nexys_video*.bit` is Rocket's of 16:52 (`build_stock`).
+- **Unlike last time:** with Rocket, the results written on Windows into `Z:\...\mmRISC-3\LitexSystem\build_stock\gateware` were visible here at once, so the share itself works.
+
+**Likely cause:** this time Vivado ran on the Windows side somewhere other than the share (`Z:`), for instance after copying the folder to a local drive.
+
+**Request:** tell me the path of the folder with the bitstream on the Windows side. If it is outside the share, copy that folder's `digilent_nexys_video_timing.rpt`, `digilent_nexys_video_utilization_place.rpt`, `digilent_nexys_video_power.rpt` and `vivado.log` into the folder below, and I can read them.
+
+```text
+Z:\Documents\CQ\RISCV\mmRISC\mmRISC-3\LitexSystem\build_stock_vexriscv_smp\gateware
+```
+
+If it has not run yet, run this in that folder:
+
+```bash
+build_nexys_video.bat
+```
+<!-- /answer -->
+
+## 296. 2026-11-24 22:45:00 JST
+
+```text
+下記のディレクトリで実行した。 (ls -al of ~/RISCV/mmRISC-3/LitexSystem/build_stock/gateware: digilent_nexys_video.bit and vivado.log of 22:12, vivado_4736.backup.log of 16:52; pwd /home/taka/RISCV/mmRISC-3/LitexSystem/build_stock/gateware)
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The directory you gave explains it: this run was in `build_stock`, that is **Rocket's** folder, and VexRiscv-SMP has not been through Vivado yet.
+
+**Found**
+- **The path:** `~/RISCV/mmRISC-3` is a link to the share, so the place is the same `LitexSystem/build_stock/gateware`.
+- **The contents:** this folder is the Rocket SoC: the `.v` is Rocket's of 15:28, and the tcl reads Rocket's Verilog.
+- **The result:** the same as the first run of 16:52 to the digit: WNS −5.208 ns, 14,607 failing endpoints, 37,563 LUTs, 1.04 W. The build is reproducible.
+- **My oversight:** when I looked at 21:33 it was still running (it finished at 22:12). At 22:29 this folder's bitstream had been rewritten, but I took it for the 16:52 one and missed it. Sorry.
+
+**The run to do:** VexRiscv-SMP is in another folder. On the Windows VM, go to this folder (its name ends in `_vexriscv_smp`):
+
+```text
+Z:\Documents\CQ\RISCV\mmRISC\mmRISC-3\LitexSystem\build_stock_vexriscv_smp\gateware
+```
+
+and run:
+
+```bash
+build_nexys_video.bat
+```
+
+Only the prompt log changed this time; nothing committed.
+<!-- /answer -->
+
+## 297. 2026-11-24 22:58:12 JST
+
+```text
+LitexSystem\build_stock_vexriscv_smp\gatewareで実行完了した。
+```

@@ -11894,3 +11894,185 @@ Vivadoの実行が終わったら「Run finished」と知らせていただけ�
 ```text
 Run finished
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+Rocketは100 MHzでは閉じませんでした(WNS −5.208 ns)。予定していた代わりの案どおり、100 MHzのVexRiscv-SMPでSoCを生成しました。こちらはまだVivadoを通していません。
+
+**Rocketの実行結果**
+- **タイミング:** WNS −5.208 ns、失敗したエンドポイントは14,607です。ホールド(+0.034 ns)と他のクロック(DDR3、Ethernet)は満たしています。
+- **失敗した経路:** すべてRocketの中です。最悪はI$の出力 → デコード → EXのオペランドのレジスタで、14.66 ns、15段です。このデバイスでのRocketは約65 MHzが限度で、Arty(50 MHz)での結果と合っています。
+- **規模と電力:** LUT 37,563(28 %)、1.04 W、ジャンクション28.4 °Cです。この規模なら冷却の心配はありません。
+- **クロックを下げない理由:** DDR3は同じクロックから作っているので、下げるとDDR3の最低速度(DDR3-600)を下回ります。
+
+**代わりのSoC**(`CPU=vexriscv_smp ./LitexSystem/scripts/build_stock.sh`)
+- **CPU:** VexRiscv-SMPです(RV32IMA、Sv32、1コア)。linux-on-litex-vexriscvがこのボードで100 MHzで動かしている構成です。
+- **ネットリスト:** 手元にある生成済みのものを使いました(ハードウェアブレークポイント0)。既定のままだと生成のためにsbtのダウンロードが必要になります。
+- **メモリマップ:** VexRiscvのもので、メインRAMは0x4000_0000から512 MiBです。DDR3-800、SD、Ethernetは前回と同じです。
+- **Rocket上のLinux(64ビットの基準):** 手順2.2のクロック乗せ換え(Rocketを50 MHz、LiteXを100 MHz)の後にするか、mmRISC-2のLinuxで代わりにします。
+
+**スクリプトの不具合を1つ直しました:** LiteXのXDCは末尾に改行がありません。そのため付け足したコメントが最後の制約の行につながり、Vivadoがその制約を1つ落としていました。今回の結果には影響していません。
+
+記録は`LitexSystem/docs/BRINGUP.md`の2節とSTRATEGY 2.0に書き、コミット2d52d77としてdevにpushしました。pushはDNSの不具合で2回失敗し、3回目で通りました。Ref/のファイルは0件です。
+
+**お願いする実行**(WindowsのVMで、`LitexSystem\build_stock_vexriscv_smp\gateware`に移動して)
+
+```bash
+build_nexys_video.bat
+```
+
+VexRiscv-SMPのVivado実行が終わったら「Run finished」と知らせていただけますか?
+<!-- /answer -->
+
+## 294. 2026-11-24 21:31:50 JST
+
+```text
+Run finished
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+VexRiscv-SMPのVivado実行の結果は、このVMからは一つも見えませんでした。結果を読めていないので、BRINGUPの記録もコミットもしていません。今回変えたのは、プロンプトのログへの追記だけです。
+
+**確かめたこと**
+- **`LitexSystem\build_stock_vexriscv_smp\gateware`の中:** 17:02に生成したファイルだけです。`.bit`、`vivado.log`、`vivado.jou`、各`.rpt`はなく、Vivadoがこのフォルダで動いた形跡がありません。
+- **ほかの場所:** mmRISC-3とmmRISC-2のLiteXのビルド先を探しましたが、17:30以降に書かれたファイルは`Doc/PROMPT_J.md`だけでした。
+- **前回のRocket:** `LitexSystem\build_stock\gateware`の結果も16:52のままで、上書きされていません。
+
+**考えられる原因**
+- 実行したフォルダが違う。Windows側では前回`Z:\Documents\CQ\RISCV\mmRISC\mmRISC-3\LitexSystem\build_stock\gateware`で実行されていました。今回は末尾が`build_stock_vexriscv_smp\gateware`のフォルダになります。
+- Vivadoが始まってすぐ止まった。その場合でも、ふつうはそのフォルダに`vivado.log`が残ります。
+- 共有フォルダへの書き戻しが遅れている。
+
+Windows側で次のフォルダにビットストリームとログがあるか見ていただけますか。
+
+```text
+Z:\Documents\CQ\RISCV\mmRISC\mmRISC-3\LitexSystem\build_stock_vexriscv_smp\gateware
+```
+
+まだ実行していなければ、そのフォルダで次を実行してください。
+
+```bash
+build_nexys_video.bat
+```
+<!-- /answer -->
+
+## 295. 2026-11-24 22:29:33 JST
+
+```text
+Ran it, check again
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+もう一度確かめましたが、VexRiscv-SMPのVivado実行の結果は、このVMからはやはり見えません。結果がないので、記録もコミットもしていません。今回変えたのは、プロンプトのログへの追記だけです。
+
+**確かめたこと**(22:29時点)
+- **`LitexSystem/build_stock_vexriscv_smp/gateware`:** 中身は17:02に生成したファイルだけです。
+- **出力ファイルの直接の確認:** `vivado.log`、`vivado.jou`、`digilent_nexys_video.bit`、`digilent_nexys_video_timing.rpt`、`digilent_nexys_video.xpr`の名前で一つずつ問い合わせましたが、どれも「存在しない」と返りました。一覧のキャッシュの問題ではなさそうです。
+- **共有フォルダ全体:** `Documents/CQ`の下に`digilent_nexys_video*.bit`は、16:52のRocketのもの(`build_stock`)が1つあるだけです。
+- **前回との違い:** Rocketのときは、Windowsの`Z:\...\mmRISC-3\LitexSystem\build_stock\gateware`に書いた結果が、このVMからすぐ見えました。共有フォルダ自体は動いています。
+
+**考えられる原因:** 今回はWindows側で、共有フォルダ(`Z:`)ではない場所で動いた可能性が高いと思います。たとえば、フォルダごとローカルのドライブにコピーして実行した場合です。
+
+**お願い:** Windows側でビットストリームがあるフォルダのパスを教えてください。共有フォルダの外にあるなら、そのフォルダの`digilent_nexys_video_timing.rpt`、`digilent_nexys_video_utilization_place.rpt`、`digilent_nexys_video_power.rpt`、`vivado.log`を、次のフォルダにコピーしていただければ読めます。
+
+```text
+Z:\Documents\CQ\RISCV\mmRISC\mmRISC-3\LitexSystem\build_stock_vexriscv_smp\gateware
+```
+
+まだ実行していなければ、そのフォルダで次を実行してください。
+
+```bash
+build_nexys_video.bat
+```
+<!-- /answer -->
+
+## 296. 2026-11-24 22:45:00 JST
+
+```text
+下記のディレクトリで実行した。
+
+<pasted_content id="6b8c">
+taka@ubuntu:~/RISCV/mmRISC-3/LitexSystem/build_stock/gateware$ ls -al
+total 195092
+drwxr-xr-x 1 taka taka     1280 Nov 24 22:11 .
+drwxr-xr-x 1 taka taka      224 Nov 24 15:28 ..
+drwxr-xr-x 1 taka taka      288 Nov 24 21:44 .Xil
+-rw-rw-r-- 1 taka taka      101 Nov 24 15:28 build_digilent_nexys_video.sh
+-rw-rw-r-- 1 taka taka      479 Nov 24 15:28 build_nexys_video.bat
+-rw-r--r-- 1 taka taka      384 Nov 24 21:49 clockInfo.txt
+-rw-r--r-- 1 taka taka      113 Nov 24 22:12 dfx_runtime.txt
+-rw-r--r-- 1 taka taka  9730652 Nov 24 22:12 digilent_nexys_video.bin
+-rw-r--r-- 1 taka taka  9730785 Nov 24 22:12 digilent_nexys_video.bit
+drwxr-xr-x 1 taka taka       96 Nov 24 21:38 digilent_nexys_video.cache
+drwxr-xr-x 1 taka taka       96 Nov 24 21:38 digilent_nexys_video.hw
+drwxr-xr-x 1 taka taka       64 Nov 24 21:38 digilent_nexys_video.ip_user_files
+-rw-r--r-- 1 taka taka      385 Nov 24 22:12 digilent_nexys_video.prm
+-rw-rw-r-- 1 taka taka     3009 Nov 24 15:28 digilent_nexys_video.tcl
+-rw-rw-r-- 1 taka taka  1686745 Nov 24 15:28 digilent_nexys_video.v
+-rw-rw-r-- 1 taka taka    16716 Nov 24 15:28 digilent_nexys_video.xdc
+-rw-r--r-- 1 taka taka    14050 Nov 24 22:11 digilent_nexys_video.xpr
+-rw-r--r-- 1 taka taka    46727 Nov 24 21:58 digilent_nexys_video_clock_utilization.rpt
+-rw-r--r-- 1 taka taka   297404 Nov 24 21:58 digilent_nexys_video_control_sets.rpt
+-rw-r--r-- 1 taka taka    26381 Nov 24 22:11 digilent_nexys_video_drc.rpt
+-rw-r--r-- 1 taka taka   151245 Nov 24 21:58 digilent_nexys_video_io.rpt
+-rw-rw-r-- 1 taka taka      135 Nov 24 15:28 digilent_nexys_video_mem.init
+-rw-r--r-- 1 taka taka 58394752 Nov 24 21:58 digilent_nexys_video_place.dcp
+-rw-r--r-- 1 taka taka    14017 Nov 24 22:11 digilent_nexys_video_power.rpt
+-rw-rw-r-- 1 taka taka   100359 Nov 24 15:28 digilent_nexys_video_rom.init
+-rw-r--r-- 1 taka taka 63055027 Nov 24 22:11 digilent_nexys_video_route.dcp
+-rw-r--r-- 1 taka taka      651 Nov 24 22:11 digilent_nexys_video_route_status.rpt
+-rw-rw-r-- 1 taka taka        0 Nov 24 15:28 digilent_nexys_video_sram.init
+-rw-r--r-- 1 taka taka 53111952 Nov 24 21:48 digilent_nexys_video_synth.dcp
+-rw-r--r-- 1 taka taka   662621 Nov 24 22:11 digilent_nexys_video_timing.rpt
+-rw-r--r-- 1 taka taka   100712 Nov 24 21:48 digilent_nexys_video_timing_synth.rpt
+-rw-r--r-- 1 taka taka    27569 Nov 24 21:58 digilent_nexys_video_utilization_hierarchical_place.rpt
+-rw-r--r-- 1 taka taka    27444 Nov 24 21:48 digilent_nexys_video_utilization_hierarchical_synth.rpt
+-rw-r--r-- 1 taka taka    13193 Nov 24 21:58 digilent_nexys_video_utilization_place.rpt
+-rw-r--r-- 1 taka taka    10503 Nov 24 21:48 digilent_nexys_video_utilization_synth.rpt
+-rw-r--r-- 1 taka taka   378936 Nov 24 22:00 tight_setup_hold_pins.txt
+-rw-r--r-- 1 taka taka     1167 Nov 24 21:38 vivado.jou
+-rw-r--r-- 1 taka taka  1034474 Nov 24 22:12 vivado.log
+-rw-r--r-- 1 taka taka     1167 Nov 24 16:19 vivado_4736.backup.jou
+-rw-r--r-- 1 taka taka  1034477 Nov 24 16:52 vivado_4736.backup.log
+taka@ubuntu:~/RISCV/mmRISC-3/LitexSystem/build_stock/gateware$ pwd
+/home/taka/RISCV/mmRISC-3/LitexSystem/build_stock/gateware
+taka@ubuntu:~/RISCV/mmRISC-3/LitexSystem/build_stock/gateware$
+</pasted_content id="6b8c">
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+教えていただいたディレクトリで原因が分かりました。今回の実行は`build_stock`、つまり**Rocketの**フォルダで行われていて、VexRiscv-SMPはまだVivadoを通っていません。
+
+**分かったこと**
+- **パス:** `~/RISCV/mmRISC-3`は共有フォルダへのリンクなので、場所は同じ`LitexSystem/build_stock/gateware`です。
+- **中身:** このフォルダはRocketのSoCです。`.v`は15:28のRocketのもので、tclもRocketのVerilogを読みます。
+- **結果:** 16:52の1回目と桁まで同じでした。WNS −5.208 ns、失敗したエンドポイント14,607、LUT 37,563、1.04 Wです。ビルドに再現性があることは確かめられました。
+- **私の見落とし:** 21:33に見たときはまだ実行中でした(終わったのは22:12)。22:29には、このフォルダのビットストリームが新しく書かれていたのに、16:52のものだと思い込んで見逃していました。すみません。
+
+**お願いする実行:** VexRiscv-SMPは別のフォルダにあります。WindowsのVMで次のフォルダに移動してください(フォルダ名の末尾が`_vexriscv_smp`です)。
+
+```text
+Z:\Documents\CQ\RISCV\mmRISC\mmRISC-3\LitexSystem\build_stock_vexriscv_smp\gateware
+```
+
+そこで次を実行してください。
+
+```bash
+build_nexys_video.bat
+```
+
+今回変えたのはプロンプトのログだけで、コミットはしていません。
+<!-- /answer -->
+
+## 297. 2026-11-24 22:58:12 JST
+
+```text
+LitexSystem\build_stock_vexriscv_smp\gatewareで実行完了した。
+```

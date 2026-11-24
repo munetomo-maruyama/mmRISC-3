@@ -25,3 +25,13 @@
 **そこで1節の計画どおり**: ボードの確認は**100 MHzのVexRiscv-SMP**で(`CPU=vexriscv_smp ./LitexSystem/scripts/build_stock.sh`、`build_stock_vexriscv_smp/`へ): RV32IMAでSv32、1コア、L1キャッシュ4 KiB、LiteDRAMの128ビットのポートに直接、コヒーレントなDMA(SDカードのもの)。linux-on-litex-vexriscvがこのボードで100 MHzで動かすもの。そのネットリストは生成済みのもの(`..._Ldw128_Cdma_Ood`、`--hardware-breakpoints 0`で: 既定の1ではLiteXがsbtでSpinalHDLを動かし、ダウンロードが要る)。マップはVexRiscvのもの: ROM 0x0000_0000、SRAM 0x1000_0000、メインRAM **0x4000_0000、512 MiB**、CSR 0xF000_0000、Ethernet 0x8000_0000。他は1節のとおり(DDR3-800、SD、192.168.1.50 / .100のEthernet、SDのレジスタをI/Oブロックに)。64ビットの基準のRocket上のLinuxは、2.2の乗せ換え(Rocketを50 MHz、LiteXを100 MHz)を待つか、mmRISC-2自身のものに代えてやめる。
 
 **次**: `build_stock_vexriscv_smp`のVivadoの実行(作者、そこで`build_nexys_video.bat`)。
+
+## 3. 手順2.0: 100 MHzのVexRiscv-SMP: 達成(2026-11-24)
+
+**実行**(作者、`build_stock_vexriscv_smp/gateware`で`build_nexys_video.bat`、8分): **すべての制約を達成: WNS +0.631 ns、TNS 0、ホールド +0.026 ns**。100 MHzの入力 +7.914 ns、DDR3の`clkout3` +1.215 ns、EthernetのRX +1.272 ns。**LUT 9,262(6.9 %)**、FF 8,433、BRAM 27.5タイル、DSP 4。`report_power`は**0.76 W**(ダイナミック0.60 W)、ジャンクション27.5 °C。クリティカルな警告は標準のものだけ(名前の変わった`eth_rx_clk` / `eth_tx_clk`のネットへの`create_clock`)。2節で落ちていた`set_clock_groups`は読まれるようになった(改行の修正が効いている)。
+
+**最悪の経路はCPUではなくLiteDRAMのもの**: バンクマシンのコマンドのアドレス → そのtRASのカウンタのリセット(`bankmachine7 ... trascon_count`)、10段、+0.631 ns。100 MHzのLiteX自身のロジックの余裕は約0.6 ns。2.2と2.6で覚えておく価値がある(そこではLiteXは50 MHzのCPUの周りで100 MHzのまま)。
+
+ほかに: 作者による1節のRocketのビルドの2回目の実行(`build_stock/`で、これと取り違えて)は、桁まで同じ結果(WNS −5.208 ns、14,607エンドポイント、LUT 37,563、1.04 W): フローに再現性がある。
+
+**手順2.0のVivadoの部分は完了**: このデバイスで100 MHz、DDR3-800、SDカード、EthernetのLiteX自身のSoCのビットストリーム(`build_stock_vexriscv_smp/gateware/digilent_nexys_video.bit`)。**次はボードで**(届いたら): UART(115,200ボー)でBIOSのプロンプト、LiteDRAMのキャリブレーションと512 MiBのメモリテスト、SDカード(`sdcardboot`、ブロックの読み出し)、ギガビットのポートで192.168.1.100からTFTP。その後、基準としてLinux(このボード用のlinux-on-litex-vexriscvのイメージ)。

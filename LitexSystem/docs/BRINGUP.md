@@ -61,3 +61,24 @@ default 1 LiteX would run SpinalHDL through sbt, which downloads). Its map is Ve
 64-bit reference, waits for 2.2's crossing (Rocket at 50 MHz, LiteX at 100 MHz) or is dropped for mmRISC-2's own.
 
 **Next**: the Vivado run of `build_stock_vexriscv_smp` (the author's, `build_nexys_video.bat` there).
+
+## 3. Step 2.0: VexRiscv-SMP at 100 MHz: met (2026-11-24)
+
+**The run** (by the author, `build_nexys_video.bat` in `build_stock_vexriscv_smp/gateware`, 8 minutes): **all
+constraints met: WNS +0.631 ns, TNS 0, hold +0.026 ns**; the 100 MHz input +7.914 ns, the DDR3's `clkout3` +1.215
+ns, Ethernet's RX +1.272 ns. **9,262 LUTs (6.9 %)**, 8,433 FF, 27.5 BRAM tiles, 4 DSP; `report_power` **0.76 W**
+(0.60 W dynamic), junction 27.5 °C. The only critical warnings are the stock ones (`create_clock` on the renamed
+`eth_rx_clk` / `eth_tx_clk` nets); section 2's dropped `set_clock_groups` is now read (the newline fix works).
+
+**The worst path is LiteDRAM's, not the CPU's**: a bank machine's command address → its tRAS counter's reset
+(`bankmachine7 ... trascon_count`), 10 levels, +0.631 ns. LiteX's own logic at 100 MHz has about 0.6 ns to spare;
+worth remembering at 2.2 and 2.6, where LiteX stays at 100 MHz around a CPU at 50 MHz.
+
+Also seen: the author's second run of section 1's Rocket build (in `build_stock/`, by mistake for this one) gave the
+same result to the digit (WNS −5.208 ns, 14,607 endpoints, 37,563 LUTs, 1.04 W): the flow is reproducible.
+
+**Step 2.0's Vivado part is done**: a bitstream of LiteX's own SoC on this part at 100 MHz with DDR3-800, the SD
+card and Ethernet (`build_stock_vexriscv_smp/gateware/digilent_nexys_video.bit`). **Next, on the board** (when it is
+there): the BIOS prompt on the UART (115,200 baud), LiteDRAM's calibration and memory test of 512 MiB, the SD card
+(`sdcardboot`, reading a block), TFTP from 192.168.1.100 over the gigabit port; then Linux (linux-on-litex-vexriscv's
+images for this board) as the reference.
