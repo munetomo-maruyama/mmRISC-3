@@ -11855,3 +11855,45 @@ If the board is not there yet, step 2.1 can come first: mmRISC-2's LitexSystem m
 ```text
 Board is here
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The things for the board checks of step 2.0 are ready. Nothing has been checked on the board yet.
+
+**Found and fixed before starting**
+- **IP addresses:** this LAN is 192.168.0.x and the TFTP server (this Ubuntu VM) is 192.168.0.42. The build's 192.168.1.x cannot reach it.
+- **An error in my last explanation:** I wrote that the IP could be changed at the BIOS prompt; that was wrong. Its `eth_local_ip` / `eth_remote_ip` commands are not available with this target.
+- **The fix:** the VexRiscv-SMP SoC regenerated with the board at 192.168.0.50 and the server at 192.168.0.42. Nothing answers at 192.168.0.50 now. Only the BIOS's constants change, so the timing result still holds.
+- **The current bitstream:** its IPs are the old ones, so it cannot do TFTP, but every other check works with it.
+
+**New**
+- **`program_nexys_video.bat`:** programs the FPGA through J12 from Vivado's hardware manager. Lost at power-off.
+- **`build_demo.sh`:** LiteX's bare-metal demo built for main RAM (`build_stock_vexriscv_smp\demo\demo.bin`), with `boot.json` for SD and `vex.json` for TFTP.
+- **Caution:** the server's `/srv/tftp/boot.json` is for mmRISC-2's Linux. It would load to addresses that are not RAM on this SoC, so always give `vex.json` for TFTP.
+
+**The checks**
+- **Set-up:** J12 to the Windows VM (programming). J13 to a terminal (115,200 8N1, no flow control). JP4 on JTAG, and no SD card at first.
+- **In order:**
+  1. **Program:** `program_nexys_video.bat` in `build_stock_vexriscv_smp\gateware`. The banner `CPU: VexRiscv SMP-LINUX @ 100MHz` means success.
+  2. **DDR3:** check that the calibration at boot gives `Memtest OK`. Press Q or ESC during the boot to stop at `litex>`, and run the two below; the test of all 512 MiB takes a few minutes.
+     ```text
+     mem_test 0x40000000 0x20000000
+     mem_speed 0x40000000 0x1000000
+     ```
+  3. **UART load:** in the demo folder run the following and `reboot`. The demo's prompt means the UART load works (`help`, `led`, `donut`).
+     ```bash
+     litex_term --kernel demo.bin --kernel-adr 0x40000000 /dev/ttyUSB0
+     ```
+     `litex_term` is in mmRISC-2's venv. If J13 is on the Windows side, check 1, 2 and 4 with Tera Term or similar.
+  4. **SD card:** write `demo.bin` and `boot.json` into the root of a spare FAT card (not mmRISC-2's `LITEXBOOT`) from the Mac. Put it in J3 under the board and run `sdcard_init`, `sdcardboot`.
+  5. **TFTP:** run Vivado once more on the regenerated SoC and program that bitstream. On this VM `sudo cp demo.bin vex.json /srv/tftp/`, then at `litex>` run `netboot vex.json`.
+
+Recorded in section 4 of `LitexSystem/docs/BRINGUP.md` and STRATEGY 2.0, pushed to dev as commit fd7eac0. No file under Ref/. If something goes wrong, paste the terminal's output as it is.
+<!-- /answer -->
+
+## 299. 2026-11-25 20:31:57 JST
+
+```text
+program_nexys_video.batを実行したがエラーになる。 (Vivado's log: open_hw_target: "ERROR: [Labtoolstcl 44-469] There is no current hw_target.") 一方で、GUIを使うと書き込めた。ターミナルの表示は下記、ここで停止した。 (the LiteX BIOS banner, CPU VexRiscv SMP-LINUX @ 100MHz, SDRAM 512 MiB 16-bit @ 800MT/s, read leveling m0 / m1 b02 delays 09+-07, Memtest OK, write 156.6 MiB/s, read 77.8 MiB/s, serial boot timeout, "Booting from SDCard in SD-Mode...", "Booting from boot.json...")
+```

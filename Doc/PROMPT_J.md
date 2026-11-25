@@ -12111,3 +12111,159 @@ VexRiscv-SMPは100 MHzで制約をすべて満たしました。これで手順2
 ```text
 Board is here
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+ボードでの手順2.0の確認に使うものを用意しました。ボードではまだ何も確かめていません。
+
+**始める前に見つけて直したこと**
+- **IPアドレス:** このLANは192.168.0.xで、TFTPサーバ(このUbuntuのVM)は192.168.0.42です。ビルドの192.168.1.xでは通信できません。
+- **前回の説明の誤り:** BIOSのプロンプトでIPを変えられると書きましたが、誤りでした。その`eth_local_ip`・`eth_remote_ip`コマンドは、このターゲットでは使えません。
+- **対処:** VexRiscv-SMPのSoCを、ボード192.168.0.50、サーバ192.168.0.42で生成し直しました。192.168.0.50に応答する機器は今はありません。変わるのはBIOSの定数だけなので、タイミングの結果はそのまま使えます。
+- **今のビットストリーム:** IPが古いままなのでTFTPには使えませんが、それ以外の確認はすべてできます。
+
+**新しく用意したもの**
+- **`program_nexys_video.bat`:** VivadoのハードウェアマネージャからJ12経由でFPGAに書き込みます。電源を切ると消えます。
+- **`build_demo.sh`:** LiteXのベアメタルのデモをメインRAM用に作りました(`build_stock_vexriscv_smp\demo\demo.bin`)。SD用の`boot.json`とTFTP用の`vex.json`も入っています。
+- **注意:** サーバの`/srv/tftp/boot.json`はmmRISC-2のLinux用です。このSoCではRAMでないアドレスに読み込もうとするので、TFTPでは必ず`vex.json`を指定してください。
+
+**確認の手順**
+- **準備:** J12をWindowsのVMにつなぎます(書き込み用)。J13は端末につなぎます(115,200 8N1、フロー制御なし)。JP4はJTAGにし、最初はSDカードを抜いておきます。
+- **確認の順番:**
+  1. **書き込み:** `build_stock_vexriscv_smp\gateware`で`program_nexys_video.bat`を実行します。`CPU: VexRiscv SMP-LINUX @ 100MHz`のバナーが出れば成功です。
+  2. **DDR3:** 起動時のキャリブレーションで`Memtest OK`が出ることを見ます。起動中にQかESCを押して`litex>`で止め、次の2つを実行します。512 MiB全部の試験には数分かかります。
+     ```text
+     mem_test 0x40000000 0x20000000
+     mem_speed 0x40000000 0x1000000
+     ```
+  3. **UARTでのロード:** demoのフォルダで次を実行し、`reboot`します。デモのプロンプトが出ればUARTでのロードは成功です(`help`、`led`、`donut`が使えます)。
+     ```bash
+     litex_term --kernel demo.bin --kernel-adr 0x40000000 /dev/ttyUSB0
+     ```
+     `litex_term`はmmRISC-2のvenvにあります。J13がWindows側につながっている場合は、Tera Termなどで1、2、4を確かめてください。
+  4. **SDカード:** 予備のFATのカード(mmRISC-2の`LITEXBOOT`以外)のルートに、`demo.bin`と`boot.json`をMacから書きます。ボードの下のJ3に挿し、`sdcard_init`、`sdcardboot`を実行します。
+  5. **TFTP:** 生成し直したSoCでVivadoをもう一度実行し、そのビットストリームを書き込みます。このVMで`sudo cp demo.bin vex.json /srv/tftp/`を実行し、`litex>`で`netboot vex.json`を実行します。
+
+記録は`LitexSystem/docs/BRINGUP.md`の4節とSTRATEGY 2.0に書き、コミットfd7eac0としてdevにpushしました。Ref/のファイルは0件です。うまくいかないところがあれば、端末の出力をそのまま貼ってください。
+<!-- /answer -->
+
+## 299. 2026-11-25 20:31:57 JST
+
+```text
+program_nexys_video.batを実行したがエラーになる。
+
+<pasted_content id="6b8c">
+PS Z:\Documents\CQ\RISCV\mmRISC\mmRISC-3\LitexSystem\build_stock_vexriscv_smp\gateware> .\program_nexys_video.bat
+
+****** Vivado v2025.1 (64-bit)
+  **** SW Build 6140274 on Thu May 22 00:12:29 MDT 2025
+  **** IP Build 6138677 on Thu May 22 03:10:11 MDT 2025
+  **** SharedData Build 6139179 on Tue May 20 17:58:58 MDT 2025
+  **** Start of session at: Wed Nov 25 20:22:29 2026
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+    ** Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+
+source program_nexys_video.tcl
+# open_hw_manager
+open_hw_manager: Time (s): cpu = 00:00:11 ; elapsed = 00:00:07 . Memory (MB): peak = 742.406 ; gain = 251.508
+# connect_hw_server
+INFO: [Labtools 27-2285] Connecting to hw_server url TCP:localhost:3121
+INFO: [Labtools 27-2222] Launching hw_server...
+INFO: [Labtools 27-2221] Launch Output:
+
+****** Xilinx hw_server v2025.1
+  **** Build date : May  6 2025 at 09:15:36
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+
+
+INFO: [Labtools 27-3415] Connecting to cs_server url TCP:localhost:0
+INFO: [Labtools 27-3417] Launching cs_server...
+INFO: [Labtools 27-2221] Launch Output:
+
+
+******** Xilinx cs_server v2025.1.0
+  ****** Build date   : May 14 2025-04:15:27
+    **** Build number : 2025.1.1747163727
+      ** Copyright 2017-2022 Xilinx, Inc. All Rights Reserved.
+      ** Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+
+
+
+connect_hw_server: Time (s): cpu = 00:00:00 ; elapsed = 00:00:06 . Memory (MB): peak = 750.684 ; gain = 8.277
+# open_hw_target
+ERROR: [Labtoolstcl 44-469] There is no current hw_target.
+INFO: [Common 17-206] Exiting Vivado at Wed Nov 25 20:22:48 2026...
+PS Z:\Documents\CQ\RISCV\mmRISC\mmRISC-3\LitexSystem\build_stock_vexriscv_smp\gateware>
+</pasted_content id="6b8c">
+
+一方で、GUIを使うと書き込めた。
+ターミナルの表示は下記、ここで停止した。
+
+        
+
+<pasted_content id="6b8c">
+__   _ __      _  __
+       / /  (_) /____ | |/_/
+      / /__/ / __/ -_)>  <
+     /____/_/\__/\__/_/|_|
+   Build your hardware, easily!
+
+ (c) Copyright 2012-2026 Enjoy-Digital
+ (c) Copyright 2007-2015 M-Labs
+
+ BIOS built on Nov 24 2026 17:02:52
+ BIOS CRC passed (9284f32e)
+
+ LiteX git sha1: 6d8a38cad
+
+--================ SoC =================--
+CPU:            VexRiscv SMP-LINUX @ 100MHz
+BUS:            wishbone 32-bit data/32-bit addr
+CSR:            32-bit data big ordering
+ROM:            128.0KiB
+SRAM:           8.0KiB
+SDRAM:          512.0MiB 16-bit @ 800MT/s (CL-6 CWL-5)
+MAIN RAM:       512.0MiB
+
+--=========== Initialization ===========--
+Ethernet init...
+Local IP: 192.168.1.50
+Initializing SDRAM @0x40000000...
+Switching SDRAM to software control.
+Read leveling:
+  m0, b00: |00000000000000000000000000000000| delays: -
+  m0, b01: |10000000000000000000000000000000| delays: -
+  m0, b02: |00111111111111111000000000000000| delays: 09+-07
+  m0, b03: |00000000000000000001111111111111| delays: 25+-06
+  m0, b04: |00000000000000000000000000000000| delays: -
+  m0, b05: |00000000000000000000000000000000| delays: -
+  m0, b06: |00000000000000000000000000000000| delays: -
+  m0, b07: |00000000000000000000000000000000| delays: -
+  best: m0, b02 delays: 09+-07
+  m1, b00: |00000000000000000000000000000000| delays: -
+  m1, b01: |10000000000000000000000000000000| delays: -
+  m1, b02: |00111111111111110000000000000000| delays: 09+-07
+  m1, b03: |00000000000000000001111111111111| delays: 25+-06
+  m1, b04: |00000000000000000000000000000000| delays: -
+  m1, b05: |00000000000000000000000000000000| delays: -
+  m1, b06: |00000000000000000000000000000000| delays: -
+  m1, b07: |00000000000000000000000000000000| delays: -
+  best: m1, b02 delays: 09+-07
+Switching SDRAM to hardware control.
+Memtest at 0x40000000 (2.0MiB)...
+  Write: 0x40000000-0x40200000 2.0MiB     
+   Read: 0x40000000-0x40200000 2.0MiB     
+Memtest OK
+Memspeed at 0x40000000 (Sequential, 2.0MiB)...
+  Write speed: 156.6MiB/s
+   Read speed: 77.8MiB/s
+--================ Boot ================--
+Booting from serial...
+Press Q or ESC to abort boot completely.
+sL5DdSMmkekro
+             Timeout
+Booting from SDCard in SD-Mode...
+Booting from boot.json...
+</pasted_content id="6b8c">
+```

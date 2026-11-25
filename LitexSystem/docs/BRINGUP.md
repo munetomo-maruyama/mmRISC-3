@@ -113,3 +113,29 @@ JP4 on JTAG; no SD card at first):
    the RJ-45 on the gigabit switch; `netboot vex.json`: the demo.
 
 Then Linux as the reference (linux-on-litex-vexriscv's images for this board, to be fetched).
+
+## 5. Step 2.0 on the board: the BIOS and the DDR3 (2026-11-25)
+
+**Programming**: `program_nexys_video.bat` failed at `open_hw_target` ("There is no current hw_target"): the
+hw_server it had just launched did not list the cable yet. Programmed from the Vivado GUI instead. The tcl now looks
+for the targets again for up to 20 s (`refresh_hw_server`) and opens the first.
+
+**The BIOS** (section 3's bitstream, the BIOS of 2026-11-24 17:02, local IP 192.168.1.50): the banner, `CPU: VexRiscv
+SMP-LINUX @ 100MHz`, `SDRAM: 512.0MiB 16-bit @ 800MT/s (CL-6 CWL-5)`, **the board, the 100 MHz clock, the UART on
+J13 and the BIOS work**.
+
+**The DDR3**: read leveling found its window in bitslip 2 for both byte lanes (m0, m1: delays 9 ± 7 taps, 15 good of
+32), with a second window in bitslip 3 (from tap 19 to the end); `Memtest OK` on the BIOS's 2 MiB; **156.6 MiB/s
+write, 77.8 MiB/s read** (sequential, the CPU's 32-bit Wishbone; not the DDR3's limit). **DDR3-800 calibrates on
+this board's part** (`Doc/BOARD.md` 4, concern 4).
+
+**Where it stopped**: after the serial boot's timeout (the `sL5DdSMmkekro` is its request to `litex_term`, normal
+in another terminal), `Booting from SDCard in SD-Mode...`, `Booting from boot.json...`, then nothing. A card was in
+J3 and the BIOS read its FAT partition and its `boot.json` (so the SD slot, the card's initialisation and LiteSDCard's
+reads work); if the card was mmRISC-2's `LITEXBOOT`, its `boot.json` loads `Image` (15 MB) to 0x8020_0000 and
+`fw_jump.bin` to 0x8000_0000, which on this SoC are not RAM (the Ethernet buffers at 0x8000_0000, nothing above
+0x8000_2000): the load goes to no memory, and the BIOS does not come back. Section 4 asked for no card at first;
+the card's own `boot.json` must be the demo's (`build_demo.sh`).
+
+**Next**: without the card (or Q / ESC at "Press Q or ESC"), `mem_test 0x40000000 0x20000000`; then the UART load,
+the demo's card, TFTP, as section 4.

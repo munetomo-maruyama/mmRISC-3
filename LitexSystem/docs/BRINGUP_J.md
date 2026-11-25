@@ -50,3 +50,15 @@
 5. **TFTP**(生成し直したSoCのVivadoの実行の後): このVMで`sudo cp demo.bin vex.json /srv/tftp/`、RJ-45をギガビットのスイッチへ。`netboot vex.json`: デモ。
 
 その後、基準としてLinux(このボード用のlinux-on-litex-vexriscvのイメージ、取ってくる必要あり)。
+
+## 5. ボードでの手順2.0: BIOSとDDR3(2026-11-25)
+
+**書き込み**: `program_nexys_video.bat`は`open_hw_target`で失敗した(「There is no current hw_target」): 起動したばかりのhw_serverがまだケーブルを挙げていなかった。代わりにVivadoのGUIから書き込んだ。tclは最大20秒ターゲットを探し直し(`refresh_hw_server`)、最初のものを開くようにした。
+
+**BIOS**(3節のビットストリーム、2026-11-24 17:02のBIOS、ローカルIP 192.168.1.50): バナー、`CPU: VexRiscv SMP-LINUX @ 100MHz`、`SDRAM: 512.0MiB 16-bit @ 800MT/s (CL-6 CWL-5)`。**ボード、100 MHzのクロック、J13のUART、BIOSが動く**。
+
+**DDR3**: リードレベリングは両方のバイトレーンでbitslip 2に窓を見つけた(m0、m1: 遅延9 ± 7タップ、32中15が良)。bitslip 3にも2つ目の窓(タップ19から最後まで)。BIOSの2 MiBで`Memtest OK`。**書き込み156.6 MiB/s、読み出し77.8 MiB/s**(連続、CPUの32ビットのWishbone。DDR3の限界ではない)。**このボードの部品でDDR3-800のキャリブレーションが通る**(`Doc/BOARD_J.md` 4、懸念4)。
+
+**止まったところ**: シリアルブートのタイムアウトの後(`sL5DdSMmkekro`は`litex_term`への要求で、別の端末では普通)、`Booting from SDCard in SD-Mode...`、`Booting from boot.json...`、その後何も出ない。J3にカードがあり、BIOSはそのFATのパーティションと`boot.json`を読んだ(つまりSDのスロット、カードの初期化、LiteSDCardの読み出しは動く)。カードがmmRISC-2の`LITEXBOOT`なら、その`boot.json`は`Image`(15 MB)を0x8020_0000へ、`fw_jump.bin`を0x8000_0000へロードする。このSoCではそこはRAMではない(0x8000_0000はEthernetのバッファ、0x8000_2000より上には何もない): ロードはどのメモリにも行かず、BIOSは戻ってこない。4節は最初はカードなしと頼んでいた。カード自身の`boot.json`はデモのもの(`build_demo.sh`)でなければならない。
+
+**次**: カードなしで(または「Press Q or ESC」でQ / ESC)、`mem_test 0x40000000 0x20000000`。その後UARTでのロード、デモのカード、TFTP、4節のとおり。
