@@ -11971,8 +11971,248 @@ Program from Linux with J12 connected to Ubuntu, or keep programming with the GU
 Connected J12 to Ubuntu
 ```
 
+<!-- answer -->
+**Claude Code's answer**
+
+Programming and the memory test are running (the test of all 512 MiB takes a few minutes). Waiting for the result.
+<!-- /answer -->
+
 ## 302. 2026-11-25 21:46:10 JST
 
 ```text
 メモリテストのコマンドは送ることができたのかな？まだメモリテスト中なのかな？
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Yes, the command arrived, and the memory test is already over: `Memtest OK` on all 512 MiB.
+
+**Results** (no card in J3, driven from Linux here)
+- **Programming:** `openFPGALoader` from the Linux VM programmed the FPGA. J13's UART is `/dev/ttyUSB0`, J12's JTAG `/dev/ttyUSB1`.
+- **Calibration:** much as last time; the 2 MiB test `Memtest OK`.
+- **`mem_test 0x40000000 0x20000000`:** all 512 MiB written then read, `Memtest OK`.
+- **`mem_speed` (16 MiB):** 159.6 MiB/s write, 78.0 MiB/s read.
+
+**The DDR3 on this board works well at DDR3-800.**
+
+**Why it looked as if still testing:** a bug in my script. The BIOS sends the `litex>` prompt with colour control codes; the script waited for a plain `litex>`, so it could not find it after the test ended, and waited its full limit (15 minutes) after each command. The script is stopped and now matches with the codes removed. The board is waiting at `litex>`.
+
+Recorded in section 7 of `LitexSystem/docs/BRINGUP.md` and STRATEGY 2.0, pushed to dev as commit d914540. No file under Ref/.
+
+Next is loading the demo over the UART (`litex_term --kernel demo.bin`). The UART is usable from here, so I can go on and run it.
+
+Shall I go on, or will you run it yourself ("Yes, go on" or "I'll do it myself")?
+<!-- /answer -->
+
+## 303. 2026-11-25 21:52:37 JST
+
+```text
+I'll do it myself
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Understood. Here are the commands to run. Nothing holds the UART (`/dev/ttyUSB0`) any more; the board is waiting at `litex>`.
+
+**1. The demo over the UART** (in the Linux VM)
+- `cd LitexSystem/build_stock_vexriscv_smp/demo`, then `litex_term --kernel demo.bin --kernel-adr 0x40000000 /dev/ttyUSB0` (mmRISC-2's venv).
+- In `litex_term`, type `serialboot` at `litex>` (`reboot` also works). `demo.bin` is sent; the demo's prompt means success.
+- The demo has `help`, `led`, `donut` and others. Ctrl-C ends `litex_term`.
+
+**2. The SD card**
+- Copy only `demo.bin` and `boot.json` from that folder to the root of a spare FAT card, from the Mac.
+- Put it in J3 under the board, and type `sdcard_init`, `sdcardboot` at `litex>`.
+- Do not use mmRISC-2's `LITEXBOOT` card; it is what stopped the boot last time.
+
+**3. TFTP** (later: the current bitstream's IPs are 192.168.1.x)
+- In the Windows VM, run `build_nexys_video.bat` in `LitexSystem\build_stock_vexriscv_smp\gateware` (about 8 minutes): the version regenerated for the LAN, 192.168.0.50 / 192.168.0.42.
+- In Linux, `./LitexSystem/scripts/program_nexys_video.sh`, then `sudo cp` the demo's `demo.bin` and `vex.json` to `/srv/tftp/`.
+- Type `netboot vex.json` at `litex>`. The server's `boot.json` is mmRISC-2's; do not use it.
+
+If anything goes wrong, paste the terminal output as it is.
+
+Will you tell me how the demo, SD and TFTP checks went ("Will report")?
+<!-- /answer -->
+
+## 304. 2026-11-25 22:54:36 JST
+
+```text
+●デモはOK。
+●SD Cardは下記でOKか？
+        
+
+<pasted_content id="6b8c">
+__   _ __      _  __
+       / /  (_) /____ | |/_/
+      / /__/ / __/ -_)>  <
+     /____/_/\__/\__/_/|_|
+   Build your hardware, easily!
+
+ (c) Copyright 2012-2026 Enjoy-Digital
+ (c) Copyright 2007-2015 M-Labs
+
+ BIOS built on Nov 24 2026 23:09:14
+ BIOS CRC passed (db4eabaa)
+
+ LiteX git sha1: 6d8a38cad
+
+--================ SoC =================--
+CPU:		VexRiscv SMP-LINUX @ 100MHz
+BUS:		wishbone 32-bit data/32-bit addr
+CSR:		32-bit data big ordering
+ROM:		128.0KiB
+SRAM:		8.0KiB
+SDRAM:		512.0MiB 16-bit @ 800MT/s (CL-6 CWL-5)
+MAIN RAM:	512.0MiB
+
+--=========== Initialization ===========--
+Ethernet init...
+Local IP: 192.168.0.50
+Initializing SDRAM @0x40000000...
+Switching SDRAM to software control.
+Read leveling:
+  m0, b00: |00000000000000000000000000000000| delays: -
+  m0, b01: |10000000000000000000000000000000| delays: -
+  m0, b02: |00111111111111111000000000000000| delays: 09+-07
+  m0, b03: |00000000000000000001111111111111| delays: 25+-06
+  m0, b04: |00000000000000000000000000000000| delays: -
+  m0, b05: |00000000000000000000000000000000| delays: -
+  m0, b06: |00000000000000000000000000000000| delays: -
+  m0, b07: |00000000000000000000000000000000| delays: -
+  best: m0, b02 delays: 09+-07
+  m1, b00: |00000000000000000000000000000000| delays: -
+  m1, b01: |10000000000000000000000000000000| delays: -
+  m1, b02: |00111111111111110000000000000000| delays: 08+-06
+  m1, b03: |00000000000000000001111111111111| delays: 25+-06
+  m1, b04: |00000000000000000000000000000000| delays: -
+  m1, b05: |00000000000000000000000000000000| delays: -
+  m1, b06: |00000000000000000000000000000000| delays: -
+  m1, b07: |00000000000000000000000000000000| delays: -
+  best: m1, b02 delays: 08+-06
+Switching SDRAM to hardware control.
+Memtest at 0x40000000 (2.0MiB)...
+  Write: 0x40000000-0x40200000 2.0MiB     
+   Read: 0x40000000-0x40200000 2.0MiB     
+Memtest OK
+Memspeed at 0x40000000 (Sequential, 2.0MiB)...
+  Write speed: 156.6MiB/s
+   Read speed: 77.8MiB/s
+--================ Boot ================--
+Booting from serial...
+Press Q or ESC to abort boot completely.
+sL5DdSMmkekro
+[LITEX-TERM] Received firmware download request from the device.
+[LITEX-TERM] Uploading demo.bin to 0x40000000 (7072 bytes)...
+[LITEX-TERM] Upload calibration... (inter-frame:  0.00us, length: 251, window: 8)
+[LITEX-TERM] Upload complete (10.6KB/s).
+[LITEX-TERM] Booting the device.
+[LITEX-TERM] Done.
+Executing booted program at 0x40000000
+
+--============== Liftoff! ==============--
+
+LiteX minimal demo app built Nov 24 2026 23:09:16
+
+Available commands:
+help               - Show this command
+reboot             - Reboot CPU
+led                - Led demo
+donut              - Spinning Donut demo
+helloc             - Hello C
+litex-demo-app> sdcard_init
+litex-demo-app> sdcardboot
+litex-demo-app>
+</pasted_content id="6b8c">
+
+ 
+
+●netbootは下記でOKか？
+        
+
+<pasted_content id="6b8c">
+__   _ __      _  __
+       / /  (_) /____ | |/_/
+      / /__/ / __/ -_)>  <
+     /____/_/\__/\__/_/|_|
+   Build your hardware, easily!
+
+ (c) Copyright 2012-2026 Enjoy-Digital
+ (c) Copyright 2007-2015 M-Labs
+
+ BIOS built on Nov 24 2026 23:09:14
+ BIOS CRC passed (db4eabaa)
+
+ LiteX git sha1: 6d8a38cad
+
+--================ SoC =================--
+CPU:            VexRiscv SMP-LINUX @ 100MHz
+BUS:            wishbone 32-bit data/32-bit addr
+CSR:            32-bit data big ordering
+ROM:            128.0KiB
+SRAM:           8.0KiB
+SDRAM:          512.0MiB 16-bit @ 800MT/s (CL-6 CWL-5)
+MAIN RAM:       512.0MiB
+
+--=========== Initialization ===========--
+Ethernet init...
+Local IP: 192.168.0.50
+Initializing SDRAM @0x40000000...
+Switching SDRAM to software control.
+Read leveling:
+  m0, b00: |00000000000000000000000000000000| delays: -
+  m0, b01: |10000000000000000000000000000000| delays: -
+  m0, b02: |00111111111111111000000000000000| delays: 09+-07
+  m0, b03: |00000000000000000001111111111111| delays: 25+-06
+  m0, b04: |00000000000000000000000000000000| delays: -
+  m0, b05: |00000000000000000000000000000000| delays: -
+  m0, b06: |00000000000000000000000000000000| delays: -
+  m0, b07: |00000000000000000000000000000000| delays: -
+  best: m0, b02 delays: 09+-07
+  m1, b00: |00000000000000000000000000000000| delays: -
+  m1, b01: |10000000000000000000000000000000| delays: -
+  m1, b02: |00111111111111110000000000000000| delays: 08+-06
+  m1, b03: |00000000000000000001111111111111| delays: 25+-06
+  m1, b04: |00000000000000000000000000000000| delays: -
+  m1, b05: |00000000000000000000000000000000| delays: -
+  m1, b06: |00000000000000000000000000000000| delays: -
+  m1, b07: |00000000000000000000000000000000| delays: -
+  best: m1, b02 delays: 08+-06
+Switching SDRAM to hardware control.
+Memtest at 0x40000000 (2.0MiB)...
+  Write: 0x40000000-0x40200000 2.0MiB     
+   Read: 0x40000000-0x40200000 2.0MiB     
+Memtest OK
+Memspeed at 0x40000000 (Sequential, 2.0MiB)...
+  Write speed: 156.6MiB/s
+   Read speed: 77.8MiB/s
+--================ Boot ================--
+Booting from serial...
+Press Q or ESC to abort boot completely.
+sL5DdSMmkekro
+             Cancelled
+
+--============== Console ===============--
+
+litex> netboot vex.json
+Booting from network...
+Local IP: 192.168.0.50
+Remote IP: 192.168.0.42
+Booting from vex.json (JSON)...
+Copying demo.bin to 0x40000000... (7072 bytes)
+Executing booted program at 0x40000000
+
+--============== Liftoff! ==============--
+
+LiteX minimal demo app built Nov 24 2026 23:09:16
+
+Available commands:
+help               - Show this command
+reboot             - Reboot CPU
+led                - Led demo
+donut              - Spinning Donut demo
+helloc             - Hello C
+litex-demo-app>
+</pasted_content id="6b8c">
 ```

@@ -80,3 +80,13 @@ J12をこのVMにつないだ: `openFPGALoader -b nexysVideo`が3節のビット
 **このボードでDDR3-800のDDR3は良好。**(スクリプトはプロンプトを素の`litex>`として待ったが、BIOSはANSIのコードで色を付けるので、各コマンドの後に待ち時間いっぱい待った。今はコードを取り除く。)
 
 **次**: UARTでのデモ(`litex_term --kernel`)、デモのSDカード、生成し直したSoCのVivadoの実行の後にTFTP。
+
+## 8. ボードでの手順2.0: UARTとTFTPでデモ(2026-11-25)
+
+作者の実行。生成し直したSoCのビットストリーム(Vivadoを再実行。バナーに`Local IP: 192.168.0.50`)。
+
+- **UARTでデモ: OK。** `litex_term --kernel demo.bin --kernel-adr 0x40000000 /dev/ttyUSB0`: BIOSのシリアルブートが要求し、7,072バイトを10.6 KB/sでアップロード、`Liftoff!`、デモのプロンプト`litex-demo-app>`とそのコマンド(`help`、`led`、`donut`、`helloc`)。
+- **TFTP: OK。** `litex>`で(「Press Q or ESC」でQ): `netboot vex.json`: Local IP 192.168.0.50、Remote IP 192.168.0.42(このVMのtftpd-hpa)、`Copying demo.bin to 0x40000000... (7072 bytes)`、`Liftoff!`、デモのプロンプト。**Ethernet(RGMIIのPHY)とTFTPの経路は動く。**
+- **SDカード: まだ試していない。** `sdcard_init`と`sdcardboot`はデモのプロンプト`litex-demo-app>`で入力されたが、デモはこれらを知らない(何も答えない)。これらはBIOSのコマンドで、`litex>`で使う。もう一度: `demo.bin`と`boot.json`のカードをJ3に挿し、シリアルブートのタイムアウトを待つ(BIOSは自分でSDカードへ進む: 「Booting from SDCard in SD-Mode...」)か、Qを押して`litex>`で`sdcardboot`と入力する。
+
+**次**: `litex>`でSDカード。その後、基準としてVexRiscv-SMPでLinux(linux-on-litex-vexriscvのイメージ)。

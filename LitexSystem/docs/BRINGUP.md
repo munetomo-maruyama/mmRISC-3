@@ -165,3 +165,20 @@ time.
 colours it with ANSI codes, so it waited its full time after each command; it now strips them.)
 
 **Next**: the demo over the UART (`litex_term --kernel`), the demo's SD card, TFTP after the regenerated SoC's Vivado run.
+
+## 8. Step 2.0 on the board: the demo over the UART and over TFTP (2026-11-25)
+
+The author's runs, with the regenerated SoC's bitstream (Vivado rerun; the banner shows `Local IP: 192.168.0.50`).
+
+- **The demo over the UART: OK.** `litex_term --kernel demo.bin --kernel-adr 0x40000000 /dev/ttyUSB0`: the BIOS's
+  serial boot asked for it, 7,072 bytes uploaded at 10.6 KB/s, `Liftoff!`, the demo's prompt `litex-demo-app>` and
+  its commands (`help`, `led`, `donut`, `helloc`).
+- **TFTP: OK.** At `litex>` (Q at "Press Q or ESC"): `netboot vex.json`: Local IP 192.168.0.50, Remote IP
+  192.168.0.42 (this VM's tftpd-hpa), `Copying demo.bin to 0x40000000... (7072 bytes)`, `Liftoff!`, the demo's
+  prompt. **Ethernet (the RGMII PHY) and the TFTP path work.**
+- **SD card: not yet tested.** `sdcard_init` and `sdcardboot` were typed at the demo's prompt `litex-demo-app>`,
+  which does not know them (it answers nothing); they are the BIOS's commands, at `litex>`. Again: the card with
+  `demo.bin` and `boot.json` in J3, then either let the serial boot time out (the BIOS goes on to the SD card by
+  itself: "Booting from SDCard in SD-Mode...") or press Q and type `sdcardboot` at `litex>`.
+
+**Next**: the SD card at `litex>`; then Linux on VexRiscv-SMP as a reference (linux-on-litex-vexriscv's images).
