@@ -139,3 +139,13 @@ the card's own `boot.json` must be the demo's (`build_demo.sh`).
 
 **Next**: without the card (or Q / ESC at "Press Q or ESC"), `mem_test 0x40000000 0x20000000`; then the UART load,
 the demo's card, TFTP, as section 4.
+
+## 6. Programming from the Linux VM (2026-11-25)
+
+Section 5's retry did not help: the batch Vivado's hw_server listed no cable for 20 s (`ERROR: no JTAG cable
+found`), while the GUI programs the board. Not pursued further on the Windows side (the GUI stays the fall-back).
+
+**From this VM instead**: `scripts/program_nexys_video.sh` runs `openFPGALoader -b nexysVideo <bit>` (installed in
+`/usr/local/bin`, its board list has `nexysVideo` on the `digilent_b` cable; the Digilent udev rules are there). J12's
+FT2232H (0403:6010) has to be connected to this VM in Parallels; J13's FT232R (0403:6001) already is
+(`/dev/ttyUSB0`, the author's minicom). With both here, programming and the console are on one side.

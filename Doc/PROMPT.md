@@ -11897,3 +11897,44 @@ Recorded in section 4 of `LitexSystem/docs/BRINGUP.md` and STRATEGY 2.0, pushed 
 ```text
 program_nexys_video.batを実行したがエラーになる。 (Vivado's log: open_hw_target: "ERROR: [Labtoolstcl 44-469] There is no current hw_target.") 一方で、GUIを使うと書き込めた。ターミナルの表示は下記、ここで停止した。 (the LiteX BIOS banner, CPU VexRiscv SMP-LINUX @ 100MHz, SDRAM 512 MiB 16-bit @ 800MT/s, read leveling m0 / m1 b02 delays 09+-07, Memtest OK, write 156.6 MiB/s, read 77.8 MiB/s, serial boot timeout, "Booting from SDCard in SD-Mode...", "Booting from boot.json...")
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The BIOS runs on the board and DDR3-800 calibrates: the first big check is done. Where it stopped is down to the SD card's contents, not a board fault, I think.
+
+**The programming error**
+- **Cause:** the hw_server just launched did not yet recognise the JTAG cable. The GUI could program because it looks for the cable again.
+- **Fix:** `program_nexys_video.tcl` now looks for the cable again for up to 20 s before opening it. Copied into both `gateware` folders, so try `program_nexys_video.bat` as it is next time.
+
+**Confirmed on the board**
+- **BIOS:** `CPU: VexRiscv SMP-LINUX @ 100MHz`. The board, the 100 MHz clock and the UART on J13 are fine.
+- **DDR3:**
+  - calibrated at `512.0MiB 16-bit @ 800MT/s`;
+  - read leveling found a good window of 15 of 32 taps on both byte lanes;
+  - the BIOS's 2 MiB memory test `Memtest OK`;
+  - 156.6 MiB/s write, 77.8 MiB/s read. The low figures are the CPU's 32-bit bus, not the DDR3's limit.
+- **Part of SD:** the card's FAT and `boot.json` were read, so the slot and the card's initialisation work.
+- **The `sL5DdSMmkekro` on the way:** the BIOS's signal to `litex_term`; in another terminal it normally looks garbled like this.
+
+**Why it stopped:** at `Booting from boot.json...`, because a card was in J3. If it was mmRISC-2's `LITEXBOOT`, its `boot.json` loads Linux at 0x8000_0000 and above. On this SoC that is not RAM (main RAM starts at 0x4000_0000), so the BIOS does not come back.
+
+**The next checks**
+1. Take the card out and program again; if not, press Q or ESC at `Press Q or ESC`.
+2. At `litex>`, the memory test of all 512 MiB and the speed (a few minutes).
+   ```text
+   mem_test 0x40000000 0x20000000
+   mem_speed 0x40000000 0x1000000
+   ```
+3. Then from last time's step 3 (loading the demo over the UART, the demo's SD card, TFTP). Put only `demo.bin` and `boot.json` from `build_stock_vexriscv_smp\demo` on the demo's SD card.
+
+Recorded in section 5 of `LitexSystem/docs/BRINGUP.md` and STRATEGY 2.0, pushed to dev as commit 28ff572. No file under Ref/.
+
+Could you paste the results of the next checks ("Will report")?
+<!-- /answer -->
+
+## 300. 2026-11-25 21:22:17 JST
+
+```text
+FPGAにGUIでは書き込めるが、スクリプトではエラーになる。 (program_nexys_video.bat's log: the retry loop ran, "ERROR: no JTAG cable found (J12 on this VM? the Vivado GUI's hardware manager closed?)")
+```

@@ -62,3 +62,9 @@
 **止まったところ**: シリアルブートのタイムアウトの後(`sL5DdSMmkekro`は`litex_term`への要求で、別の端末では普通)、`Booting from SDCard in SD-Mode...`、`Booting from boot.json...`、その後何も出ない。J3にカードがあり、BIOSはそのFATのパーティションと`boot.json`を読んだ(つまりSDのスロット、カードの初期化、LiteSDCardの読み出しは動く)。カードがmmRISC-2の`LITEXBOOT`なら、その`boot.json`は`Image`(15 MB)を0x8020_0000へ、`fw_jump.bin`を0x8000_0000へロードする。このSoCではそこはRAMではない(0x8000_0000はEthernetのバッファ、0x8000_2000より上には何もない): ロードはどのメモリにも行かず、BIOSは戻ってこない。4節は最初はカードなしと頼んでいた。カード自身の`boot.json`はデモのもの(`build_demo.sh`)でなければならない。
 
 **次**: カードなしで(または「Press Q or ESC」でQ / ESC)、`mem_test 0x40000000 0x20000000`。その後UARTでのロード、デモのカード、TFTP、4節のとおり。
+
+## 6. LinuxのVMからの書き込み(2026-11-25)
+
+5節の再試行は効かなかった: バッチのVivadoのhw_serverは20秒間ケーブルを挙げなかった(`ERROR: no JTAG cable found`)。一方でGUIはボードに書き込める。Windows側ではこれ以上追わない(GUIを代わりの手段として残す)。
+
+**代わりにこのVMから**: `scripts/program_nexys_video.sh`が`openFPGALoader -b nexysVideo <bit>`を実行する(`/usr/local/bin`にインストール済み、そのボードの一覧に`digilent_b`のケーブルで`nexysVideo`がある。Digilentのudevのルールもある)。J12のFT2232H(0403:6010)をParallelsでこのVMにつなぐ必要がある。J13のFT232R(0403:6001)はすでにつながっている(`/dev/ttyUSB0`、作者のminicom)。両方ここにあれば、書き込みとコンソールが一つの側にそろう。

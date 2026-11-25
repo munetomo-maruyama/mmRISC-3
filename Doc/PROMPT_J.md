@@ -12267,3 +12267,97 @@ Booting from SDCard in SD-Mode...
 Booting from boot.json...
 </pasted_content id="6b8c">
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+ボードでBIOSが動き、DDR3-800のキャリブレーションも通りました。最初の大きな確認は済んだことになります。止まったのはSDカードの中身のせいで、ボードの故障ではないと考えています。
+
+**書き込みのエラー**
+- **原因:** 起動した直後のhw_serverが、まだJTAGケーブルを認識していませんでした。GUIで書き込めたのは、GUIがケーブルを探し直すからです。
+- **修正:** `program_nexys_video.tcl`を、最大20秒ケーブルを探し直してから開くように直しました。2つの`gateware`フォルダにもコピー済みなので、次回は`program_nexys_video.bat`をそのまま試してください。
+
+**ボードで確かめられたこと**
+- **BIOS:** `CPU: VexRiscv SMP-LINUX @ 100MHz`と出ています。ボード、100 MHzのクロック、J13のUARTは正常です。
+- **DDR3:**
+  - `512.0MiB 16-bit @ 800MT/s`でキャリブレーションが通りました。
+  - リードレベリングは2つのバイトレーンとも、32タップ中15タップの良い窓を見つけています。
+  - BIOSの2 MiBのメモリテストは`Memtest OK`です。
+  - 速度は書き込み156.6 MiB/s、読み出し77.8 MiB/sでした。低めなのはCPUの32ビットバスのせいで、DDR3の限界ではありません。
+- **SDの一部:** カードのFATと`boot.json`を読めているので、スロットとカードの初期化は動いています。
+- **途中の`sL5DdSMmkekro`:** BIOSが`litex_term`に送る合図です。ほかの端末では、このように文字化けして見えるのが普通です。
+
+**止まった理由:** `Booting from boot.json...`で止まったのは、J3にカードが挿さっていたからです。mmRISC-2の`LITEXBOOT`カードなら、その`boot.json`はLinuxを0x8000_0000以降に読み込みます。このSoCではそこはRAMではない(メインRAMは0x4000_0000から)ので、BIOSは戻ってきません。
+
+**次にお願いする確認**
+1. カードを抜いて書き込み直します。抜かない場合は、`Press Q or ESC`が出たところでQかESCを押します。
+2. `litex>`で512 MiB全体のメモリテストと速度測定を実行します(数分かかります)。
+   ```text
+   mem_test 0x40000000 0x20000000
+   mem_speed 0x40000000 0x1000000
+   ```
+3. その後は前回の手順3以降(UARTでのデモのロード、デモのSDカード、TFTP)です。デモのSDカードには、`build_stock_vexriscv_smp\demo`の`demo.bin`と`boot.json`だけを入れてください。
+
+記録は`LitexSystem/docs/BRINGUP.md`の5節とSTRATEGY 2.0に書き、コミット28ff572としてdevにpushしました。Ref/のファイルは0件です。
+
+次の確認の結果を貼っていただけますか(「Will report」)?
+<!-- /answer -->
+
+## 300. 2026-11-25 21:22:17 JST
+
+```text
+FPGAにGUIでは書き込めるが、スクリプトではエラーになる。
+
+<pasted_content id="6b8c">
+PS Z:\Documents\CQ\RISCV\mmRISC\mmRISC-3\LitexSystem\build_stock_vexriscv_smp\gateware> .\program_nexys_video.bat
+
+****** Vivado v2025.1 (64-bit)
+  **** SW Build 6140274 on Thu May 22 00:12:29 MDT 2025
+  **** IP Build 6138677 on Thu May 22 03:10:11 MDT 2025
+  **** SharedData Build 6139179 on Tue May 20 17:58:58 MDT 2025
+  **** Start of session at: Wed Nov 25 20:36:35 2026
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+    ** Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+
+source program_nexys_video.tcl
+# open_hw_manager
+open_hw_manager: Time (s): cpu = 00:00:11 ; elapsed = 00:00:07 . Memory (MB): peak = 741.734 ; gain = 250.980
+# connect_hw_server -allow_non_jtag
+INFO: [Labtools 27-2285] Connecting to hw_server url TCP:localhost:3121
+INFO: [Labtools 27-2222] Launching hw_server...
+INFO: [Labtools 27-2221] Launch Output:
+
+****** Xilinx hw_server v2025.1
+  **** Build date : May  6 2025 at 09:15:36
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+
+
+INFO: [Labtools 27-3415] Connecting to cs_server url TCP:localhost:0
+INFO: [Labtools 27-3417] Launching cs_server...
+INFO: [Labtools 27-2221] Launch Output:
+
+
+******** Xilinx cs_server v2025.1.0
+  ****** Build date   : May 14 2025-04:15:27
+    **** Build number : 2025.1.1747163727
+      ** Copyright 2017-2022 Xilinx, Inc. All Rights Reserved.
+      ** Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+
+
+
+connect_hw_server: Time (s): cpu = 00:00:00 ; elapsed = 00:00:06 . Memory (MB): peak = 750.078 ; gain = 8.344
+# set targets {}
+# for {set i 0} {$i < 20 && [llength $targets] == 0} {incr i} {
+#     refresh_hw_server -quiet
+#     set targets [get_hw_targets -quiet]
+#     if {[llength $targets] == 0} { after 1000 }
+# }
+# if {[llength $targets] == 0} {
+#     puts "ERROR: no JTAG cable found (J12 on this VM? the Vivado GUI's hardware manager closed?)"
+#     exit 1
+# }
+ERROR: no JTAG cable found (J12 on this VM? the Vivado GUI's hardware manager closed?)
+INFO: [Common 17-206] Exiting Vivado at Wed Nov 25 20:37:15 2026...
+PS Z:\Documents\CQ\RISCV\mmRISC\mmRISC-3\LitexSystem\build_stock_vexriscv_smp\gateware>
+</pasted_content id="6b8c">
+```
