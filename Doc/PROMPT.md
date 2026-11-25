@@ -12447,3 +12447,61 @@ Linux first ("Linux first"), or step 2.1 ("Go to step 2.1")?
 ```text
 Linux first
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Linux boots, and step 2.0 is done.
+
+**What was used**
+- linux-on-litex-vexriscv's pre-built images (`linux_2022_03_23.zip`, 5.4 MB): Linux 5.14, OpenSBI 0.8, Buildroot's rootfs.
+- The bundled `rv32.dtb` is another SoC's (64 MiB, other interrupt numbers), so not used: the DTB was made again from this SoC's `csr.json`.
+- `/srv/tftp` holds mmRISC-2's `Image` and `boot.json`, so the files went into a subfolder `vexlinux/` so as not to overwrite them.
+
+**The boot** (`netboot vexlinux/boot.json` at `litex>`)
+- `buildroot login:` 81 s after `netboot` (mostly the TFTP transfer); logged in as root.
+- OpenSBI started as `LiteX / VexRiscv-SMP`; Linux sees 512 MiB; `/proc/cpuinfo` says `rv32i2p0_ma` and `sv32`.
+- **SD card:** Linux's driver (`litex-mmc`) found an SDHC card at 25 MHz; the FAT partition mounted read-only, and `demo.bin`'s md5 matched the original.
+- **Ethernet:** `liteeth` found; this kernel ignores the `ip=` boot parameter, so the IP was set by hand; then `ping` to this VM answered 5 of 5.
+- `Initramfs unpacking failed` during boot refers to the part of the 8 MiB initrd window past the 3.8 MB archive; the rootfs itself is unpacked and works.
+
+**A script to reproduce it**: `LitexSystem/scripts/build_linux_vexriscv.sh` downloads the zip (once), generates the DTB, and makes the TFTP (`vexlinux/`) and SD card sets; it reproduces the booted files byte for byte.
+
+**Step 2.0 in short**: LiteX's own target ran the BIOS, DDR3-800, the UART, TFTP, the SD card and Linux on the board, on VexRiscv-SMP (Rocket does not meet 100 MHz on this part; Linux on Rocket is step 2.2's). The one change from the stock target: the SD card PHY without the card power reset.
+
+Recorded in section 12 of `LitexSystem/docs/BRINGUP.md`, the READMEs and STRATEGY 2.0 (done), pushed to dev (commit 3d61591). No file under Ref/ or build output. The board is still running Linux.
+
+Go on to step 2.1, mmRISC-2's LitexSystem on the Nexys Video ("Start step 2.1")?
+<!-- /answer -->
+
+## 310. 2026-11-26 00:56:58 JST
+
+```text
+Step2.1の前に、自分でもLinux起動を見たい。手順を教えてほしい。
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Everything is ready for watching Linux boot: the FPGA holds the current bitstream, the TFTP files are in `/srv/tftp/vexlinux/`, and nothing holds the UART (`/dev/ttyUSB0`).
+
+**Steps** (in a Linux terminal)
+1. Only if the board was powered off, program the FPGA again: `./LitexSystem/scripts/program_nexys_video.sh` (from the repository).
+2. Open the console (115200 bps, 8N1): `minicom -D /dev/ttyUSB0`. Linux is still running, so Enter should show `root@buildroot:~#`.
+3. To watch from the start, press the board's **CPU RESET** button (the red one); the BIOS starts again.
+4. At `Press Q or ESC to abort boot completely.`, press **Q** at once (otherwise the BIOS boots from the SD card, which holds the demo). The `sL5DdSMmkekro` string is the serial boot's request; ignore it.
+5. At `litex>`, type `netboot vexlinux/boot.json`: four files by TFTP, then OpenSBI's logo and the kernel's messages; `buildroot login:` in about 80 s.
+6. Log in as `root` (no password).
+
+**Things to try**: `cat /proc/cpuinfo`, `free`, `dmesg | grep mmc`; Ethernet with the IP set by hand (`ip addr add 192.168.0.50/24 dev eth0; ip link set eth0 up`, then `ping -c 3 192.168.0.42`); the SD card read-only (`mount -o ro /dev/mmcblk0p1 /mnt; ls -l /mnt; umount /mnt`). Ctrl-A, X ends minicom.
+
+**To boot from the SD card** (optional): copy the five files of `LitexSystem/build_stock_vexriscv_smp/linux/sd/` to the card's root from the Mac (the demo's `boot.json` is overwritten); Linux then boots by itself after a reset with nothing pressed.
+
+Did it boot ("It booted"), or go on to step 2.1 ("Start step 2.1")?
+<!-- /answer -->
+
+## 311. 2026-11-26 01:06:44 JST
+
+```text
+It booted
+```

@@ -179,3 +179,5 @@ LiteSDCardのドライバ(`liblitesdcard/sdcard.c`)で止まりうる所: `sdcar
 | `cat /proc/interrupts` | `eth0` 29、`litex-mmc` 80、`riscv-timer`(UARTはポーリング) |
 
 **手順2.0完了**: LiteXのターゲットそのままを、BIOS、DDR3-800、UART、TFTP、SDカード、Linuxでボードで動かした。CPUはVexRiscv-SMP(このデバイスでRocketは100 MHzを閉じない、2節。Rocket上のLinuxは2.2の乗せ換えを待つ)。元のターゲットからの変更が1つ要る: SDカードのPHYにLiteSDCardのカードのリセットを入れない(10節)。
+
+作者が手でもう一度起動した(2026-11-26): `/dev/ttyUSB0`でminicom、CPU RESETボタン、「Press Q or ESC」でQ、`netboot vexlinux/boot.json`、Buildrootのログイン。

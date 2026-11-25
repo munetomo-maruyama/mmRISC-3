@@ -318,3 +318,6 @@ for byte. The author copied `vexlinux/` to `/srv/tftp` (sudo).
 **Step 2.0 done**: LiteX's own target on the board with the BIOS, DDR3-800, the UART, TFTP, the SD card and Linux,
 the CPU VexRiscv-SMP (Rocket does not close 100 MHz on this part, section 2; Linux on Rocket waits for 2.2's
 crossing). One change from the stock target is needed: the SD card PHY without LiteSDCard's card reset (section 10).
+
+The author booted it again by hand (2026-11-26): minicom on `/dev/ttyUSB0`, the CPU RESET button, Q at "Press Q or
+ESC", `netboot vexlinux/boot.json`, Buildroot's login.

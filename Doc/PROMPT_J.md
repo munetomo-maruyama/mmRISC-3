@@ -12918,3 +12918,103 @@ SDカードから起動できるようになりました。
 ```text
 Linux first
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+Linuxが起動し、手順2.0が完了しました。
+
+**使ったもの**
+- linux-on-litex-vexriscvのビルド済みイメージ(`linux_2022_03_23.zip`、5.4 MB)です。中身はLinux 5.14、OpenSBI 0.8、Buildrootのrootfsです。
+- 同梱の`rv32.dtb`は別のSoC用(メモリ64 MiB、割り込み番号も違う)だったので使っていません。このSoCの`csr.json`からDTBを作り直しました。
+- `/srv/tftp`にはmmRISC-2の`Image`と`boot.json`があるので、上書きしないよう`vexlinux/`というサブフォルダに置きました。
+
+**起動の結果**(`litex>`で`netboot vexlinux/boot.json`)
+- `netboot`から81秒で`buildroot login:`が出て、rootでログインできました。時間の大部分はTFTPの転送です。
+- OpenSBIは`LiteX / VexRiscv-SMP`として起動しました。Linuxから見えるメモリは512 MiB、`/proc/cpuinfo`は`rv32i2p0_ma`と`sv32`です。
+- **SDカード:** Linuxのドライバ(`litex-mmc`)が25 MHzのSDHCとして認識しました。FATのパーティションを読み取り専用でマウントでき、`demo.bin`のmd5は元のファイルと一致しました。
+- **Ethernet:** `liteeth`は認識されています。ただしこのカーネルは起動パラメータの`ip=`に対応していないので、IPは手で設定しました。そのうえで、このVMへの`ping`は5回とも返りました。
+- 起動中に`Initramfs unpacking failed`という表示が出ます。これはinitrdの領域(8 MiB)のうち、アーカイブ(3.8 MB)より後ろの部分についてのものです。rootfs自体は展開されていて、動作に支障はありません。
+
+**再現用のスクリプト**
+- `LitexSystem/scripts/build_linux_vexriscv.sh`を追加しました。zipのダウンロード(初回だけ)、DTBの生成、TFTP用(`vexlinux/`)とSDカード用のファイル一式の作成を行います。
+- 起動に使ったファイルとバイト単位で同じものを作ることを確かめました。
+
+**手順2.0のまとめ**
+- LiteXのターゲットそのままで、BIOS、DDR3-800、UART、TFTP、SDカード、Linuxがボードで動きました。
+- CPUはVexRiscv-SMPです。このデバイスではRocketが100 MHzのタイミングを満たさないためです。Rocket上のLinuxは手順2.2で扱います。
+- 元のターゲットから変えたのは1か所だけで、SDカードのPHYからカードの電源リセットを外したことです。
+
+記録は`LitexSystem/docs/BRINGUP.md`の12節、README、STRATEGYの2.0の行(完了)です。dev(コミット3d61591)にpushしてあり、Ref/以下のファイルやビルドの出力は含まれていません。ボードは今もLinuxが動いたままです。
+
+次は手順2.1(mmRISC-2のLitexSystemをNexys Videoに載せる)に進みますか(「Start step 2.1」)?
+<!-- /answer -->
+
+## 310. 2026-11-26 00:56:58 JST
+
+```text
+Step2.1の前に、自分でもLinux起動を見たい。手順を教えてほしい。
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+Linuxの起動を見るための準備はできています。FPGAには今のビットストリームが書き込まれていて、TFTPのファイルも`/srv/tftp/vexlinux/`に置いてあります。UART(`/dev/ttyUSB0`)を開いているプロセスもありません。
+
+**手順**(Linuxの端末で)
+
+1. ボードの電源を切っていた場合だけ、FPGAに書き込み直します(電源を入れたままなら不要です)。
+   ```bash
+   cd /media/psf/Home/Documents/CQ/RISCV/mmRISC/mmRISC-3
+   ```
+   ```bash
+   ./LitexSystem/scripts/program_nexys_video.sh
+   ```
+
+2. コンソールを開きます(115200 bps、8N1)。
+   ```bash
+   minicom -D /dev/ttyUSB0
+   ```
+   今はLinuxが動いたままなので、Enterを押すと`root@buildroot:~#`が出るはずです。
+
+3. 起動を最初から見るために、ボードの**CPU RESET**ボタン(赤いボタン)を押します。BIOSが最初から起動します。
+
+4. `Press Q or ESC to abort boot completely.`が出たら、すぐに**Q**を押します。
+   - 押さないと、BIOSはSDカードから起動します。今のカードはデモ用なので、デモが立ち上がります。
+   - `sL5DdSMmkekro`という文字列が出ますが、シリアルブートの要求なので気にしなくて大丈夫です。
+
+5. `litex>`のプロンプトで次を入力します。
+   ```
+   netboot vexlinux/boot.json
+   ```
+   4つのファイルがTFTPで転送されます。そのあとOpenSBIのロゴ、Linuxのカーネルのメッセージと続きます。約80秒で`buildroot login:`が出ます。
+
+6. `root`と入力するとログインできます(パスワードはありません)。
+
+**試せること**
+- `cat /proc/cpuinfo`、`free`、`dmesg | grep mmc`
+- Ethernet(IPは手で設定します):
+  ```
+  ip addr add 192.168.0.50/24 dev eth0; ip link set eth0 up
+  ```
+  ```
+  ping -c 3 192.168.0.42
+  ```
+- SDカードの中身を見る(読み取り専用で):
+  ```
+  mount -o ro /dev/mmcblk0p1 /mnt; ls -l /mnt; umount /mnt
+  ```
+- minicomの終了はCtrl-A、Xです。
+
+**SDカードから起動したい場合**(任意)
+- `LitexSystem/build_stock_vexriscv_smp/linux/sd/`の5つのファイル(`Image`、`rv32.dtb`、`rootfs.cpio`、`opensbi.bin`、`boot.json`)を、Macからカードのルートにコピーします。デモの`boot.json`は上書きされます。
+- そうすると、リセットのあと何も押さなくても、Linuxが自動で起動します。
+
+起動はうまくいきましたか(「It booted」)? それとも手順2.1に進みますか(「Start step 2.1」)?
+<!-- /answer -->
+
+## 311. 2026-11-26 01:06:44 JST
+
+```text
+It booted
+```
