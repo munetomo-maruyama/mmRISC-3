@@ -12340,3 +12340,31 @@ drwx------  1 taka  staff   8192 11月 25 22:21 .Spotlight-V100
 taka@Mac MMRISC-3 %
 </pasted_content id="6b8c">
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The card's contents are right. The stop is not the card's fault: it is where the BIOS first accesses the SD card.
+
+**The earlier explanation was wrong**
+- Section 5 said mmRISC-2's card stopped because it loads to addresses that are not RAM; that was wrong.
+- In the BIOS's source (`boot.c`), `boot.json` is read with no message. Once read, it prints `Copying demo.bin to 0x40000000 ...` for each file; any failure on the way prints an error line.
+- Neither appeared here, so it stops inside FatFs's mount or the read of `boot.json`. mmRISC-2's card stopped for the same reason.
+
+**Two candidate causes**
+- In LiteSDCard's driver, the waits for a command and a data transfer to complete (`sdcard_wait_cmd_done` / `sdcard_wait_data_done`) have no time limit; if either never completes, it stops there for ever.
+- First: the card's initialisation or a block read never completes (the SD clock, the card's power, the CMD or DAT lines).
+- Second: the DMA cannot write where the BIOS reads into (the BIOS's buffers are in the 8 KiB SRAM; with `--with-coherent-dma` the SD DMA goes through VexRiscv-SMP's coherent DMA port, which may reach only the main RAM).
+
+**The commands to tell them apart** (after the reset button and Q at "Press Q or ESC", at `litex>`): `sdcard_detect`, `sdcard_init`, `sdcard_read 0 0x40000000`, `sdcard_read 0`; reset before going on if one stops.
+
+Recorded in section 9 of `LitexSystem/docs/BRINGUP.md` and row 2.0 of STRATEGY, pushed to dev (commit 3a1b864). No file under Ref/.
+
+Will you try the four commands and paste the output ("Will paste")? If you close minicom, I can drive it from here ("You drive it").
+<!-- /answer -->
+
+## 306. 2026-11-25 23:07:24 JST
+
+```text
+You drive it
+```

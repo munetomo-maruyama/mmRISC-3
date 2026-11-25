@@ -6,6 +6,7 @@ Digilent Nexys Video(XC7A200T)上のLiteXのSoC。`Doc/STRATEGY_J.md`のフェ�
 | パス | 内容 |
 |---|---|
 | `scripts/build_stock.sh` | 手順2.0: LiteXのNexys Videoのターゲットそのまま(Rocket、100 MHz、DDR3-800、SDカード、Ethernet)をここで生成。VivadoはWindowsのVMで |
+| `scripts/nexys_video_target.py` | `build_stock.sh`が実行するターゲット: LiteXのものだが、SDカードのPHYにLiteSDCardのカードのリセットがない(`docs/BRINGUP_J.md` 10: そうしないとBIOSの`sdcard_init`が止まる)。`SD_CARD_RESET=1`で残す |
 | `scripts/build_nexys_video.bat` | Windows側の実行。tclの横にコピーされる |
 | `CPU=vexriscv_smp scripts/build_stock.sh` | 同じものをVexRiscv-SMP(RV32、100 MHz)で`build_stock_vexriscv_smp/`へ: このデバイスでRocketは100 MHzを閉じない(`docs/BRINGUP_J.md` 2) |
 | `scripts/program_nexys_video.bat` / `.tcl` | ビットストリームをJ12でFPGAへ(Vivadoのハードウェアマネージャ)。tclの横にコピーされる |

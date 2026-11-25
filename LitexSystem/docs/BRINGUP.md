@@ -213,3 +213,49 @@ Where it can hang in LiteSDCard's driver (`liblitesdcard/sdcard.c`): `sdcard_wai
 | `sdcard_init` | the initialisation: `Initialize SDCard: OK` / `Failed`, or a hang (case 1) |
 | `sdcard_read 0 0x40000000` | block 0 by DMA into the main RAM: a dump ending in `55 aa` |
 | `sdcard_read 0` | block 0 by DMA into the SRAM (the command's stack buffer): a hang here alone is case 2 |
+
+## 10. Step 2.0 on the board: the SD card's hang found: LiteSDCard's card reset against the BIOS's timing (2026-11-25)
+
+Driven from this VM (the author's minicom closed): the board programmed by `openFPGALoader`, the console by pyserial,
+with the BIOS's `mem_read` / `mem_write` on the SD core's CSRs (0xF000_4000) to run the card by hand.
+
+**What hangs: `sdcard_init`.** `sdcard_detect`: `SDCard inserted.`; `sdcard_init`: no answer in 240 s (more than
+any of its bounded loops should take), the board then answering again only after a new bitstream. Not case 2 of
+section 9: the DMA works into both memories (below).
+
+**By hand, every step of the initialisation works** (the PHY initialised, then each command's events read back):
+
+| Step | Result |
+|---|---|
+| CMD0, CMD8 (0x1AA) at 400 kHz | done; R7 `08 000001AA`: the card answers, a ver2.00 card |
+| CMD55 + ACMD41 (0x70FF8000) | the second ACMD41 `C0FF8000`: ready, CCS = 1 (SDHC); also with the clock at 25 MHz from CMD8 on, as the BIOS |
+| CMD2, CMD3, CMD9, CMD7, CMD16 (512) | done; CID `SMT02...`, RCA 0x13AB |
+| CMD6 (switch to SDR25, 64 bytes by DMA into the main RAM) | done, DMA done, the status `00 C8 80 01 ...` |
+| `sdcard_freq 25000000`, `sdcard_read 0 0x40002000` | the MBR (a FAT32 partition, type 0x0C, at LBA 8192 and a Linux one, 0x83), `55 AA` |
+| CMD55 + ACMD51 (SCR, 8 bytes by DMA) | `02 85 80 83 ...`: 1- and 4-bit buses |
+| CMD55 + ACMD6 (4-bit), the PHY at 4X, `sdcard_read 0 0x40004000` | the MBR again |
+| `sdcard_read 0` (into the SRAM, 0x1000_1CE0) | the MBR again: **the coherent DMA reaches the SRAM** |
+
+So the card, the pins, the PHY, the core and the DMA all work; what the BIOS does differently is its timing.
+
+**The cause.** LiteSDCard b0d2771 (2026-06-19, "phy: Reset SD card during initialization when available") gave
+`SDPHYInit` a `RESET` state, entered on each write of `phy_init_initialize` on boards with an `rst` pad (the Nexys
+Video's V20, the card's power switch): 4096 SD clocks with `card_reset` high (the card unpowered) and CMD / DAT
+driven high, about 10 ms at the 400 kHz of initialisation, then the 80 clocks of `INITIALIZE`. The PHY ORs every
+submodule's pad outputs, so a command sent meanwhile goes out as all ones, to an unpowered card. The BIOS's
+`sdcard_init()` (unchanged) writes `phy_init_initialize`, waits 1 ms (`busy_wait(1)`), sends CMD0 and CMD8: CMD8
+times out (the command timeout is 1 s: `cmd_timeout=10e-1` in `add_sdcard`), and the loop tries again up to 1000
+times, each try a new write of `phy_init_initialize`, so a new reset: **some 1000 × 1 s, 17 minutes, before
+`sdcard_init` gives up**; `sdcardboot` (FatFs's `disk_initialize`) likewise. By hand the UART's own pace put tens of
+milliseconds between the write and CMD0, so the reset was over.
+
+**Measured: `sdcard_init` let run to its end printed `Initialize SDCard: failed` after 1,003.3 s**: 1000 tries
+of the 1 s timeout plus the 3 ms of `busy_wait` in each, as computed: every CMD8 of the loop went into a reset.
+
+**The fix (mmRISC-3's side).** `scripts/nexys_video_target.py` runs LiteX's target with `SDPHYInit` built without the
+reset (`with_reset=False`): the state machine goes from `IDLE` to `INITIALIZE` as before b0d2771, `card_reset` stays
+0 (the `rst` pad low, the card powered from the configuration on). `build_stock.sh` now runs it (`SD_CARD_RESET=1`
+keeps the stock PHY). The VexRiscv-SMP SoC regenerated (LAN IPs as before): in the Verilog only the state machine's
+`IDLE` transition differs (`next_state = 2'd2`, not `1'd1`). It needs Vivado again; the last bitstream is kept as
+`digilent_nexys_video_sdreset.bit`. (A fix in the BIOS, waiting > 10 ms after `phy_init_initialize`, would be the
+upstream one; it is LiteX's tree, mmRISC-2's workspace, so not changed here.)

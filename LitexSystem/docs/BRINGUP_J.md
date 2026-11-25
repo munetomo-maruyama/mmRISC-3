@@ -110,3 +110,30 @@ LiteSDCardのドライバ(`liblitesdcard/sdcard.c`)で止まりうる所: `sdcar
 | `sdcard_init` | 初期化: `Initialize SDCard: OK` / `Failed`、または止まる(場合1) |
 | `sdcard_read 0 0x40000000` | ブロック0をDMAでメインRAMへ: `55 aa`で終わるダンプ |
 | `sdcard_read 0` | ブロック0をDMAでSRAMへ(コマンドのスタックのバッファ): ここだけで止まれば場合2 |
+
+## 10. ボードでの手順2.0: SDカードが止まる原因: LiteSDCardのカードのリセットとBIOSのタイミング(2026-11-25)
+
+このVMから操作した(作者のminicomを閉じてもらった): ボードは`openFPGALoader`で書き込み、コンソールはpyserialで。BIOSの`mem_read` / `mem_write`でSDのコアのCSR(0xF000_4000)を操作し、カードを手で動かした。
+
+**止まるのは`sdcard_init`。** `sdcard_detect`: `SDCard inserted.`。`sdcard_init`: 240秒答えがない(その制限つきのループのどれよりも長い)。その後ボードは新しいビットストリームでしか答えない。9節の場合2ではない: DMAは両方のメモリに書ける(下)。
+
+**手で行うと、初期化のどの手順も動く**(PHYを初期化し、各コマンドのイベントを読み返す):
+
+| 手順 | 結果 |
+|---|---|
+| 400 kHzでCMD0、CMD8(0x1AA) | 完了。R7 `08 000001AA`: カードは答える。ver2.00のカード |
+| CMD55 + ACMD41(0x70FF8000) | 2回目のACMD41が`C0FF8000`: 準備完了、CCS = 1(SDHC)。BIOSと同じくCMD8の後クロックを25 MHzにしても同じ |
+| CMD2、CMD3、CMD9、CMD7、CMD16(512) | 完了。CID `SMT02...`、RCA 0x13AB |
+| CMD6(SDR25へ切り替え、64バイトをDMAでメインRAMへ) | 完了、DMA完了、ステータス`00 C8 80 01 ...` |
+| `sdcard_freq 25000000`、`sdcard_read 0 0x40002000` | MBR(FAT32のパーティション、タイプ0x0C、LBA 8192から、とLinuxのもの0x83)、`55 AA` |
+| CMD55 + ACMD51(SCR、8バイトをDMAで) | `02 85 80 83 ...`: 1ビットと4ビットのバス |
+| CMD55 + ACMD6(4ビット)、PHYを4X、`sdcard_read 0 0x40004000` | 再びMBR |
+| `sdcard_read 0`(SRAMへ、0x1000_1CE0) | 再びMBR: **コヒーレントなDMAはSRAMに届く** |
+
+つまりカード、ピン、PHY、コア、DMAはすべて動く。BIOSが違うのはタイミング。
+
+**原因。** LiteSDCardのb0d2771(2026-06-19、「phy: Reset SD card during initialization when available」)は`SDPHYInit`に`RESET`状態を加えた。`rst`のパッドがあるボード(Nexys VideoのV20、カードの電源スイッチ)では`phy_init_initialize`を書くたびに入る: `card_reset`を1(カードの電源オフ)、CMD / DATを1に駆動して4096 SDクロック、初期化の400 kHzで約10 ms、その後`INITIALIZE`の80クロック。PHYは全サブモジュールのパッド出力のORを取るので、その間に送ったコマンドは全部1になって、電源のないカードへ出る。BIOSの`sdcard_init()`(変更なし)は`phy_init_initialize`を書き、1 ms待ち(`busy_wait(1)`)、CMD0とCMD8を送る: CMD8はタイムアウトし(コマンドのタイムアウトは1秒: `add_sdcard`の`cmd_timeout=10e-1`)、ループは最大1000回やり直す。毎回`phy_init_initialize`を書くので毎回新しいリセット: **約1000 × 1秒、17分たってから`sdcard_init`はあきらめる**。`sdcardboot`(FatFsの`disk_initialize`)も同じ。手で行ったときはUART自体の速さで書き込みとCMD0の間に数十msあったので、リセットは終わっていた。
+
+**測定: `sdcard_init`を最後まで走らせると、1,003.3秒後に`Initialize SDCard: failed`と出た**: 1秒のタイムアウトを1000回と、各回の`busy_wait`の3 ms、計算どおり: ループのどのCMD8もリセット中に出た。
+
+**対策(mmRISC-3の側)。** `scripts/nexys_video_target.py`はLiteXのターゲットを、`SDPHYInit`をリセットなし(`with_reset=False`)で作って実行する: 状態機械はb0d2771の前と同じく`IDLE`から`INITIALIZE`へ進み、`card_reset`は0のまま(`rst`のパッドは低、カードはコンフィギュレーションから給電)。`build_stock.sh`はこれを実行するようにした(`SD_CARD_RESET=1`で元のPHY)。VexRiscv-SMPのSoCを生成し直した(LANのIPは前と同じ): Verilogで違うのは状態機械の`IDLE`の遷移だけ(`next_state = 2'd2`、`1'd1`ではない)。Vivadoがもう一度要る。前のビットストリームは`digilent_nexys_video_sdreset.bit`として残した。(BIOSで`phy_init_initialize`の後10 msより長く待つのが上流での直し方だろう。それはLiteXのツリー、mmRISC-2のワークスペースなので、ここでは変えない。)

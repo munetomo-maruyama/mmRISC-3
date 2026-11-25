@@ -30,6 +30,10 @@
 #   the SD card's output registers in the I/O blocks (LitexSystem/docs of
 #   mmRISC-2, BRINGUP 13: CRC errors in Linux otherwise); physical
 #   optimisation after placement and routing (AggressiveExplore).
+# And one of mmRISC-3's own: the SD card PHY without LiteSDCard's card reset
+#   (nexys_video_target.py; BRINGUP 10: the BIOS's sdcard_init sends its
+#   commands into the reset and hangs for some 17 minutes). SD_CARD_RESET=1
+#   keeps the stock PHY.
 # Ethernet: the target has no DHCP option (Doc/BOARD.md 2), so the board is
 # ETH_IP (192.168.1.50) and the TFTP server REMOTE_IP (192.168.1.100), fixed
 # in the BIOS (its eth_local_ip / eth_remote_ip commands exist only with a
@@ -59,7 +63,7 @@ export PATH=/opt/riscv/bin:$PATH
 # left as it is
 export PYTHONPATH="$LITEX_WS/pythondata-cpu-rocket${PYTHONPATH:+:$PYTHONPATH}"
 
-python3 "$LITEX_WS/litex-boards/litex_boards/targets/digilent_nexys_video.py" \
+python3 "$HERE/nexys_video_target.py" \
     --build --no-compile-gateware \
     $CPUARGS \
     --sys-clk-freq "${SYS_CLK:-100e6}" \

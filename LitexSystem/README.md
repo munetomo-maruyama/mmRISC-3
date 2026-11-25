@@ -6,6 +6,7 @@ Japanese: `README_J.md`.
 | Path | What |
 |---|---|
 | `scripts/build_stock.sh` | Step 2.0: LiteX's own Nexys Video target as it is (Rocket, 100 MHz, DDR3-800, SD card, Ethernet), generated here; Vivado on the Windows VM |
+| `scripts/nexys_video_target.py` | The target as `build_stock.sh` runs it: LiteX's own, but the SD card PHY without LiteSDCard's card reset (`docs/BRINGUP.md` 10: the BIOS's `sdcard_init` hangs otherwise); `SD_CARD_RESET=1` keeps it |
 | `scripts/build_nexys_video.bat` | The Windows side's run, copied next to the tcl |
 | `CPU=vexriscv_smp scripts/build_stock.sh` | The same with VexRiscv-SMP (RV32, 100 MHz) into `build_stock_vexriscv_smp/`: Rocket does not close 100 MHz on this part (`docs/BRINGUP.md` 2) |
 | `scripts/program_nexys_video.bat` / `.tcl` | The bitstream into the FPGA over J12 (Vivado's hardware manager), copied next to the tcl |
