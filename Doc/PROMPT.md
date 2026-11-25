@@ -12521,3 +12521,98 @@ Go on to step 2.1 ("Start step 2.1")? mmRISC-2's LitexSystem moves into this rep
 ```text
 Start step 2.1
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The step 2.1 SoC is generated; Vivado is next.
+
+**What was made**
+- **`LitexSystem/cpu/mmrisc/`**: mmRISC-2's LiteX wrapper (`core.py`, the BIOS's `crt0.S` and headers) copied. Two changes: the CPU's RTL is read straight from mmRISC-2's repository (`MMRISC2_HOME`, default `../mmRISC-2`; unchanged since Rev.02), not copied; the debug port is off by default (its pins, switches and LEDs are still the Arty's; the Nexys Video's at step 2.4).
+- **`LitexSystem/scripts/build_soc.sh`**: generates LiteX's Nexys Video target (through the launcher without the SD reset, as step 2.0) with `--cpu-type mmrisc`, 50 MHz, `--l2-size 0`, into `LitexSystem/build/` (not in git); the tcl's paths made relative, mmRISC-2's RTL as `../../../../mmRISC-2/RTL/...`.
+
+**The generated SoC**
+- sys 50 MHz, mmRISC-2's map, main RAM 512 MiB at 0x8000_0000; the BIOS 23.4 KiB.
+- **The DDR3 runs at 4 × 50 MHz, DDR3-400**, below JEDEC's range: a trial for the BIOS's prompt only (BOARD.md option D); step 2.2 puts LiteX at 100 MHz and the CPU at 50 MHz through crossings.
+- No SD card or Ethernet until step 2.3; the BIOS goes to its prompt after the serial boot's timeout.
+
+**Next**: `LitexSystem\build\gateware\build_nexys_video.bat` on the Windows VM (longer than step 2.0, with mmRISC-2 in it); then I program it (`./LitexSystem/scripts/program_nexys_video.sh LitexSystem/build/gateware/digilent_nexys_video.bit`) and check the banner's `CPU: mmRISC-2 (RV64GC) @ 50MHz`, the DDR3's calibration at 400 MT/s and the `litex>` prompt.
+
+Recorded in section 13 of `LitexSystem/docs/BRINGUP.md`, the READMEs and STRATEGY 2.1, pushed to dev (commit 2a09ff0). No file under Ref/.
+
+Will you run `build_nexys_video.bat` in `LitexSystem\build\gateware` ("Will run it")?
+<!-- /answer -->
+
+## 313. 2026-11-26 01:55:34 JST
+
+```text
+合成が終わり、ボードにbitを書き込んだ。ターミナルの表示は以下のとおり。
+
+        
+
+<pasted_content id="6b8c">
+__   _ __      _  __
+       / /  (_) /____ | |/_/
+      / /__/ / __/ -_)>  <
+     /____/_/\__/\__/_/|_|
+   Build your hardware, easily!
+
+ (c) Copyright 2012-2026 Enjoy-Digital
+ (c) Copyright 2007-2015 M-Labs
+
+ BIOS built on Nov 26 2026 01:09:57
+ BIOS CRC passed (34228a18)
+
+ LiteX git sha1: 6d8a38cad
+
+--================ SoC =================--
+CPU:            mmRISC-2 (RV64GC) @ 50MHz
+BUS:            wishbone 32-bit data/32-bit addr
+CSR:            32-bit data big ordering
+ROM:            128.0KiB
+SRAM:           8.0KiB
+SDRAM:          512.0MiB 16-bit @ 400MT/s (CL-6 CWL-5)
+MAIN RAM:       512.0MiB
+
+--=========== Initialization ===========--
+Initializing SDRAM @0x80000000...
+Switching SDRAM to software control.
+Read leveling:
+  m0, b00: |00000000000000000000000000000000| delays: -
+  m0, b01: |00111111111111111111111111111111| delays: 16+-14
+  m0, b02: |00000000000000000000000000000000| delays: -
+  m0, b03: |00000000000000000000000000000000| delays: -
+  m0, b04: |00000000000000000000000000000000| delays: -
+  m0, b05: |00000000000000000000000000000000| delays: -
+  m0, b06: |00000000000000000000000000000000| delays: -
+  m0, b07: |00000000000000000000000000000000| delays: -
+  best: m0, b01 delays: 16+-14
+  m1, b00: |00000000000000000000000000000000| delays: -
+  m1, b01: |00111111111111111111111111111111| delays: 16+-14
+  m1, b02: |00000000000000000000000000000000| delays: -
+  m1, b03: |00000000000000000000000000000000| delays: -
+  m1, b04: |00000000000000000000000000000000| delays: -
+  m1, b05: |00000000000000000000000000000000| delays: -
+  m1, b06: |00000000000000000000000000000000| delays: -
+  m1, b07: |00000000000000000000000000000000| delays: -
+  best: m1, b01 delays: 16+-14
+Switching SDRAM to hardware control.
+Memtest at 0x80000000 (2.0MiB)...
+  Write: 0x80000000-0x80200000 2.0MiB     
+   Read: 0x80000000-0x80200000 2.0MiB     
+Memtest OK
+Memspeed at 0x80000000 (Sequential, 2.0MiB)...
+  Write speed: 52.6MiB/s
+   Read speed: 38.9MiB/s
+--================ Boot ================--
+Booting from serial...
+Press Q or ESC to abort boot completely.
+sL5DdSMmkekro
+             Timeout
+No boot medium found
+
+--============== Console ===============--
+
+litex>
+</pasted_content id="6b8c">
+```

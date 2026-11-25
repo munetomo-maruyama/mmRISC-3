@@ -346,3 +346,24 @@ a trial for the BIOS's prompt only; step 2.2 puts LiteX at 100 MHz and the CPU a
 **Next**: Vivado on the Windows VM (`LitexSystem\build\gateware\build_nexys_video.bat`), then the board
 (`program_nexys_video.sh LitexSystem/build/gateware/digilent_nexys_video.bit`): the banner, `CPU: mmRISC-2 (RV64GC)
 @ 50MHz`, the DDR3's calibration at 400 MT/s, the prompt.
+
+## 14. Step 2.1 on the board: mmRISC-2's BIOS prompt (2026-11-26)
+
+**Vivado (the author's run of section 13's SoC): met**: WNS +0.387 ns at 20 ns (sys, 78,032 endpoints), TNS 0, hold
++0.035 ns, every clock met; no critical warning. **45,954 LUTs (34.3 %)**, 25,949 FF, 94.5 BRAM tiles, 32 DSPs,
+0.824 W.
+
+**On the board** (the author programmed it; minicom on J13):
+
+- The banner: `CPU: mmRISC-2 (RV64GC) @ 50MHz`, `SDRAM: 512.0MiB 16-bit @ 400MT/s (CL-6 CWL-5)`, `MAIN RAM:
+  512.0MiB`, the BIOS of 2026-11-26 01:09:57.
+- **The DDR3 at 400 MT/s calibrates**: one window, bitslip 1 on both byte lanes, delays 16 ± 14 taps (30 of 32 good:
+  at 400 MT/s the bit time, 2.5 ns, is about all 32 taps of 78 ps). `Memtest OK` on 2 MiB at 0x8000_0000.
+- Memspeed: 52.6 MiB/s write, 38.9 MiB/s read (the BIOS's loop on mmRISC-2 at 50 MHz through its caches; VexRiscv's
+  at 100 MHz, section 5: 156.6 / 77.8).
+- The serial boot's `Timeout`, `No boot medium found` (no SD card or Ethernet in this SoC), **`litex>`**.
+
+**Gate of step 2.1 met: the LiteX BIOS's prompt on the board with mmRISC-2.** The DDR3 at DDR3-400 is outside
+JEDEC's range and worked on this board's part, as on the Arty (a trial only, `Doc/BOARD.md` 4 option D). **Next**:
+step 2.2, LiteX at 100 MHz (DDR3-800, as step 2.0) and the CPU at 50 MHz through crossings; its gate the memory test
+of all 512 MiB.

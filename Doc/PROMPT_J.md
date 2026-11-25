@@ -13034,3 +13034,106 @@ It booted
 ```text
 Start step 2.1
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+手順2.1のSoCを生成しました。次はVivadoです。
+
+**作ったもの**
+- **`LitexSystem/cpu/mmrisc/`**: mmRISC-2のLiteX用ラッパ(`core.py`と、BIOS用の`crt0.S`やヘッダ)をコピーしました。変えたのは次の2点です。
+  - CPUのRTLはコピーせず、mmRISC-2のリポジトリから直接読みます(`MMRISC2_HOME`、既定は`../mmRISC-2`)。RTLはRev.02から変わっていません。
+  - デバッグポートは既定でオフにしました。ピン、スイッチ、LEDの割り当てがArty用のままなので、Nexys Video用には手順2.4で直します。
+- **`LitexSystem/scripts/build_soc.sh`**: LiteXのNexys Videoのターゲット(手順2.0と同じく、SDのリセットを外す起動スクリプト経由)に、`--cpu-type mmrisc`、50 MHz、`--l2-size 0`を指定して生成します。出力先は`LitexSystem/build/`で、gitには入れません。tclの中のパスは相対パスに直してあり、mmRISC-2のRTLは`../../../../mmRISC-2/RTL/...`で参照します。
+
+**生成したSoC**
+- クロックはsys 50 MHz、メモリマップはmmRISC-2と同じで、メインRAMは0x8000_0000から512 MiBです。BIOSは23.4 KiBです。
+- **DDR3は4×50 MHz、つまりDDR3-400で動きます。** JEDECの範囲より下なので、今回はBIOSのプロンプトを出すための試行という位置づけです(BOARD.mdの案D)。手順2.2で、LiteXを100 MHz、CPUを50 MHzにしてクロックを乗せ換える構成に直します。
+- SDカードとEthernetは手順2.3まで入れていません。BIOSはシリアルブートのタイムアウトのあと、そのままプロンプトに進みます。
+
+**次の手順**
+1. WindowsのVMで、`LitexSystem\build\gateware\build_nexys_video.bat`を実行してください。mmRISC-2が入るので、手順2.0より時間がかかるはずです。
+2. 終わったら、こちらで書き込んで起動を確かめます。
+   ```bash
+   ./LitexSystem/scripts/program_nexys_video.sh LitexSystem/build/gateware/digilent_nexys_video.bit
+   ```
+   見るのは、バナーに`CPU: mmRISC-2 (RV64GC) @ 50MHz`と出ること、400 MT/sでのDDR3のキャリブレーション、`litex>`のプロンプトです。
+
+記録は`LitexSystem/docs/BRINGUP.md`の13節、README、STRATEGYの2.1の行です。dev(コミット2a09ff0)にpushしてあり、Ref/以下のファイルは含まれていません。
+
+`LitexSystem\build\gateware`で`build_nexys_video.bat`を実行していただけますか(「Will run it」)?
+<!-- /answer -->
+
+## 313. 2026-11-26 01:55:34 JST
+
+```text
+合成が終わり、ボードにbitを書き込んだ。ターミナルの表示は以下のとおり。
+
+        
+
+<pasted_content id="6b8c">
+__   _ __      _  __
+       / /  (_) /____ | |/_/
+      / /__/ / __/ -_)>  <
+     /____/_/\__/\__/_/|_|
+   Build your hardware, easily!
+
+ (c) Copyright 2012-2026 Enjoy-Digital
+ (c) Copyright 2007-2015 M-Labs
+
+ BIOS built on Nov 26 2026 01:09:57
+ BIOS CRC passed (34228a18)
+
+ LiteX git sha1: 6d8a38cad
+
+--================ SoC =================--
+CPU:            mmRISC-2 (RV64GC) @ 50MHz
+BUS:            wishbone 32-bit data/32-bit addr
+CSR:            32-bit data big ordering
+ROM:            128.0KiB
+SRAM:           8.0KiB
+SDRAM:          512.0MiB 16-bit @ 400MT/s (CL-6 CWL-5)
+MAIN RAM:       512.0MiB
+
+--=========== Initialization ===========--
+Initializing SDRAM @0x80000000...
+Switching SDRAM to software control.
+Read leveling:
+  m0, b00: |00000000000000000000000000000000| delays: -
+  m0, b01: |00111111111111111111111111111111| delays: 16+-14
+  m0, b02: |00000000000000000000000000000000| delays: -
+  m0, b03: |00000000000000000000000000000000| delays: -
+  m0, b04: |00000000000000000000000000000000| delays: -
+  m0, b05: |00000000000000000000000000000000| delays: -
+  m0, b06: |00000000000000000000000000000000| delays: -
+  m0, b07: |00000000000000000000000000000000| delays: -
+  best: m0, b01 delays: 16+-14
+  m1, b00: |00000000000000000000000000000000| delays: -
+  m1, b01: |00111111111111111111111111111111| delays: 16+-14
+  m1, b02: |00000000000000000000000000000000| delays: -
+  m1, b03: |00000000000000000000000000000000| delays: -
+  m1, b04: |00000000000000000000000000000000| delays: -
+  m1, b05: |00000000000000000000000000000000| delays: -
+  m1, b06: |00000000000000000000000000000000| delays: -
+  m1, b07: |00000000000000000000000000000000| delays: -
+  best: m1, b01 delays: 16+-14
+Switching SDRAM to hardware control.
+Memtest at 0x80000000 (2.0MiB)...
+  Write: 0x80000000-0x80200000 2.0MiB     
+   Read: 0x80000000-0x80200000 2.0MiB     
+Memtest OK
+Memspeed at 0x80000000 (Sequential, 2.0MiB)...
+  Write speed: 52.6MiB/s
+   Read speed: 38.9MiB/s
+--================ Boot ================--
+Booting from serial...
+Press Q or ESC to abort boot completely.
+sL5DdSMmkekro
+             Timeout
+No boot medium found
+
+--============== Console ===============--
+
+litex>
+</pasted_content id="6b8c">
+```

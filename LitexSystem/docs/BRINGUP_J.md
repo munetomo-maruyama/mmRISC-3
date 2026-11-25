@@ -193,3 +193,16 @@ LiteSDCardのドライバ(`liblitesdcard/sdcard.c`)で止まりうる所: `sdcar
 **生成したSoC**: MMCMはsys 50 MHz、sys4xとsys4x_dqs 200 MHz、IDELAYCTRL 200 MHz。mmRISC-2のマップ(ROM 0x1000_0000、SRAM 0x1100_0000、CSR 0x1200_0000、CLINT 0x0200_0000、PLIC 0x0C00_0000)、**メインRAM 0x8000_0000、512 MiB**。CPUのDMAバスを宣言(`CONFIG_CPU_HAS_DMA_BUS`)。メモリバスは64ビットからLiteDRAMの128へ。BIOSは23.4 KiB。**DDR3は4 × 50 MHz、DDR3-400で動く**(CL 6、CWL 5)。JEDECの範囲より下: `Doc/BOARD_J.md` 4の案D、BIOSのプロンプトのための試行だけ。手順2.2でLiteXを100 MHz、CPUを50 MHzにしてクロック乗せ換えでつなぐ。
 
 **次**: WindowsのVMでVivado(`LitexSystem\build\gateware\build_nexys_video.bat`)、その後ボード(`program_nexys_video.sh LitexSystem/build/gateware/digilent_nexys_video.bit`): バナー、`CPU: mmRISC-2 (RV64GC) @ 50MHz`、400 MT/sでのDDR3のキャリブレーション、プロンプト。
+
+## 14. ボードでの手順2.1: mmRISC-2でBIOSのプロンプト(2026-11-26)
+
+**Vivado(13節のSoCを作者が実行): 達成**: 20 nsでWNS +0.387 ns(sys、78,032エンドポイント)、TNS 0、ホールド+0.035 ns、全クロック達成。クリティカルワーニングなし。**45,954 LUT(34.3 %)**、25,949 FF、94.5 BRAMタイル、32 DSP、0.824 W。
+
+**ボードで**(作者が書き込み、J13でminicom):
+
+- バナー: `CPU: mmRISC-2 (RV64GC) @ 50MHz`、`SDRAM: 512.0MiB 16-bit @ 400MT/s (CL-6 CWL-5)`、`MAIN RAM: 512.0MiB`、2026-11-26 01:09:57のBIOS。
+- **400 MT/sでDDR3のキャリブレーションが通る**: 窓は1つ、両バイトレーンでbitslip 1、遅延16 ± 14タップ(32中30が良: 400 MT/sではビット時間2.5 nsが78 psのタップ32個ほぼ全部)。0x8000_0000の2 MiBで`Memtest OK`。
+- Memspeed: 書き込み52.6 MiB/s、読み出し38.9 MiB/s(50 MHzのmmRISC-2のキャッシュを通したBIOSのループ。100 MHzのVexRiscvでは5節: 156.6 / 77.8)。
+- シリアルブートの`Timeout`、`No boot medium found`(このSoCにSDカードもEthernetもない)、**`litex>`**。
+
+**手順2.1のゲート達成: mmRISC-2でボードにLiteX BIOSのプロンプト。** DDR3-400のDDR3はJEDECの範囲外で、Artyと同じくこのボードの部品で動いた(試行だけ、`Doc/BOARD_J.md` 4の案D)。**次**: 手順2.2、LiteXを100 MHz(手順2.0と同じDDR3-800)、CPUを50 MHzにしてクロック乗せ換えでつなぐ。ゲートは512 MiB全体のメモリテスト。
