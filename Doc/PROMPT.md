@@ -12368,3 +12368,53 @@ Will you try the four commands and paste the output ("Will paste")? If you close
 ```text
 You drive it
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The SD card's stop is explained and a fix is in; whether it works on the board is not checked yet.
+
+**The cause**
+- Since LiteSDCard's change of last June (b0d2771), each time the BIOS initialises the SD PHY, the card's power is cut for about 10 ms (V20 is the Nexys Video's card power switch), with the CMD line held at 1 meanwhile.
+- The BIOS's `sdcard_init` sends CMD0 and CMD8 1 ms after the PHY's initialisation, so CMD8 reaches an unpowered card and times out (1 s) every time; each retry cuts the power again, so all 1000 tries fail.
+- Let run to its end, `sdcard_init` printed **`Initialize SDCard: failed` after 1,003.3 s**, as the 1000 × 1 s predicted.
+
+**The hardware is fine**
+- Driving the SD registers with the BIOS's `mem_write`, every step of the initialisation works by hand: CMD8's answer, ACMD41 ready as SDHC, 25 MHz and the 4-bit bus, CMD6 and ACMD51 by DMA, block 0's MBR into both the main RAM and the SRAM.
+- Not candidate 2 (the DMA not reaching the SRAM). By hand the commands came slowly over the UART, so the power was back in time.
+
+**The fix** (inside mmRISC-3; LiteX's tree unchanged)
+- New `LitexSystem/scripts/nexys_video_target.py` runs LiteX's target without the power cut; `build_stock.sh` uses it (`SD_CARD_RESET=1` restores it).
+- The VexRiscv-SMP SoC regenerated with the LAN IPs; in the Verilog only one transition of the SD init state machine changed. The current bitstream is kept as `digilent_nexys_video_sdreset.bit`.
+- The proper fix is a BIOS wait longer than 10 ms, but that is LiteX's tree in mmRISC-2's workspace, so not changed here.
+
+**Next**: `build_nexys_video.bat` in `LitexSystem\build_stock_vexriscv_smp\gateware` on the Windows VM (about 8 minutes); then I can program it with `program_nexys_video.sh` and try `sdcardboot`.
+
+Recorded in section 10 of `LitexSystem/docs/BRINGUP.md`, the READMEs and STRATEGY 2.0, pushed to dev (commit 7ac3186). No file under Ref/.
+
+Will you run `build_nexys_video.bat` in `build_stock_vexriscv_smp\gateware` ("Will run it")?
+<!-- /answer -->
+
+## 307. 2026-11-26 00:15:10 JST
+
+```text
+Will run it
+```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Thank you. Once Vivado is done, I will program the new bitstream with `program_nexys_video.sh`, check the banner's IP is still 192.168.0.50, check `sdcard_init` answers `OK` at once at `litex>`, then check `sdcardboot` shows the demo's prompt after `Copying demo.bin ...`.
+
+Keep minicom closed. The card can stay as it is (`demo.bin` and `boot.json`).
+
+The prompt log (Doc/PROMPT.md) is updated but not committed; it goes in with the SD results.
+
+Will you tell me when Vivado is done ("Run finished")?
+<!-- /answer -->
+
+## 308. 2026-11-26 00:16:19 JST
+
+```text
+Run finished
+```

@@ -137,3 +137,17 @@ LiteSDCardのドライバ(`liblitesdcard/sdcard.c`)で止まりうる所: `sdcar
 **測定: `sdcard_init`を最後まで走らせると、1,003.3秒後に`Initialize SDCard: failed`と出た**: 1秒のタイムアウトを1000回と、各回の`busy_wait`の3 ms、計算どおり: ループのどのCMD8もリセット中に出た。
 
 **対策(mmRISC-3の側)。** `scripts/nexys_video_target.py`はLiteXのターゲットを、`SDPHYInit`をリセットなし(`with_reset=False`)で作って実行する: 状態機械はb0d2771の前と同じく`IDLE`から`INITIALIZE`へ進み、`card_reset`は0のまま(`rst`のパッドは低、カードはコンフィギュレーションから給電)。`build_stock.sh`はこれを実行するようにした(`SD_CARD_RESET=1`で元のPHY)。VexRiscv-SMPのSoCを生成し直した(LANのIPは前と同じ): Verilogで違うのは状態機械の`IDLE`の遷移だけ(`next_state = 2'd2`、`1'd1`ではない)。Vivadoがもう一度要る。前のビットストリームは`digilent_nexys_video_sdreset.bit`として残した。(BIOSで`phy_init_initialize`の後10 msより長く待つのが上流での直し方だろう。それはLiteXのツリー、mmRISC-2のワークスペースなので、ここでは変えない。)
+
+## 11. ボードでの手順2.0: SDカードから起動(2026-11-26)
+
+**Vivado(10節のSoCを作者が実行): 達成**: WNS +0.758 ns、TNS 0、ホールド+0.021 ns、全クロック達成。9,244 LUT、27.5 BRAMタイル、0.757 W(3節: 9,262 LUT、0.76 W。PHYのリセットのカウンタがなくなった)。2つのクリティカルワーニングは3節の実行と同じ。
+
+**ボードで**(このVMから書き込み、9節と同じデモのカード):
+
+- バナー: `Local IP: 192.168.0.50`。
+- `sdcard_detect`: `SDCard inserted.`。**`sdcard_init`: 0.1秒で`Initialize SDCard: OK`**(前は1,003秒で`failed`)。
+- `sdcard_read 0`(SRAMへ): MBR、`55 AA`。
+- **`sdcardboot`**: `Booting from boot.json...`、`Copying demo.bin to 0x40000000 (7072 bytes)...`、`Liftoff!`、デモのプロンプト。
+- **書き込みの後に何も押さないと**: シリアルブートの`Timeout`、次に`Booting from SDCard in SD-Mode...`、同じロードと`Liftoff!`: BIOSは自分でカードから起動する。
+
+**手順2.0のボードでの確認は、Linuxを除いて完了**: BIOS、DDR3-800(512 MiB全体)、UARTでのロード、EthernetでのTFTP、SDカード。**次**: 基準としてVexRiscv-SMPでLinux(linux-on-litex-vexriscvのイメージ、ダウンロードが要る)、または手順2.1。

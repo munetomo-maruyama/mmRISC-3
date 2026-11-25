@@ -259,3 +259,22 @@ keeps the stock PHY). The VexRiscv-SMP SoC regenerated (LAN IPs as before): in t
 `IDLE` transition differs (`next_state = 2'd2`, not `1'd1`). It needs Vivado again; the last bitstream is kept as
 `digilent_nexys_video_sdreset.bit`. (A fix in the BIOS, waiting > 10 ms after `phy_init_initialize`, would be the
 upstream one; it is LiteX's tree, mmRISC-2's workspace, so not changed here.)
+
+## 11. Step 2.0 on the board: the SD card boots (2026-11-26)
+
+**Vivado (the author's run of section 10's SoC): met**: WNS +0.758 ns, TNS 0, hold +0.021 ns, every clock met; 9,244
+LUTs, 27.5 BRAM tiles, 0.757 W (section 3: 9,262 LUTs, 0.76 W; the PHY's reset counter gone). The two critical
+warnings are the same as section 3's run.
+
+**On the board** (programmed from this VM, the demo's card as in section 9):
+
+- The banner: `Local IP: 192.168.0.50`.
+- `sdcard_detect`: `SDCard inserted.` **`sdcard_init`: `Initialize SDCard: OK` in 0.1 s** (1,003 s and `failed` before).
+- `sdcard_read 0` (into the SRAM): the MBR, `55 AA`.
+- **`sdcardboot`**: `Booting from boot.json...`, `Copying demo.bin to 0x40000000 (7072 bytes)...`, `Liftoff!`, the
+  demo's prompt.
+- **With nothing pressed after programming**: the serial boot's `Timeout`, then `Booting from SDCard in SD-Mode...`
+  and the same load and `Liftoff!`: the BIOS boots from the card by itself.
+
+**Step 2.0's board checks done** but Linux: the BIOS, DDR3-800 (all 512 MiB), the UART load, TFTP over Ethernet, the
+SD card. **Next**: Linux on VexRiscv-SMP as a reference (linux-on-litex-vexriscv's images, to download), or step 2.1.

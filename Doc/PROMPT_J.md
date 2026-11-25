@@ -12824,5 +12824,66 @@ You drive it
 <!-- answer -->
 **Claude Codeの回答**
 
-原因が分かり、対策も入れました。今は、確認のために走らせている`sdcard_init`が終わるのを待っています(23:56ごろの見込み)。終わったら結果を記録してコミットします。
+SDカードが止まる原因が分かり、対策も入れました。ボードで動くかどうかはまだ確かめていません。
+
+**原因**
+- 去年6月のLiteSDCardの変更(b0d2771)で、BIOSがSDのPHYを初期化するたびに、カードの電源が約10 ms切られるようになりました。Nexys VideoのV20はカードの電源スイッチなので、この動作が有効になります。その間はCMDの線も1に固定されます。
+- BIOSの`sdcard_init`は、PHYの初期化から1 msでCMD0とCMD8を送ります。そのためCMD8は電源の切れたカードに届き、毎回1秒のタイムアウトになります。
+- リトライのたびに電源がまた切られるので、1000回とも失敗します。
+- 実際に`sdcard_init`を最後まで走らせると、**1,003.3秒後に`Initialize SDCard: failed`**と出ました。1000回×1秒という見込みどおりです。
+
+**ハードウェアは正常**
+- BIOSの`mem_write`でSDのレジスタを直接操作して、初期化を手で一つずつ進めました。どの手順も通ります。
+  - CMD8に正しく応答し、ACMD41でSDHCとして準備完了になりました。
+  - 25 MHzでも4ビットのバスでも動きました。
+  - CMD6とACMD51はDMAでデータを返しました。
+  - ブロック0のMBRは、メインRAMにもSRAMにも読み込めました。
+- カード、ピン、PHY、コア、DMAはすべて動いています。前回の候補2(DMAがSRAMに届かない)ではありませんでした。手で操作したときはUART越しでコマンドの間隔が長く、電源が戻るのに十分な時間がありました。
+
+**対策**(mmRISC-3の中だけで、LiteXのツリーは変えていません)
+- 新しいスクリプト`LitexSystem/scripts/nexys_video_target.py`を足しました。カードの電源を切る動作を外してLiteXのターゲットを実行します。`build_stock.sh`はこれを使います(`SD_CARD_RESET=1`で元の動作に戻せます)。
+- VexRiscv-SMPのSoCは、LANのIPのまま生成し直しました。Verilogで変わったのは、SD初期化の状態機械の遷移1か所だけです。
+- 今のビットストリームは`digilent_nexys_video_sdreset.bit`として残してあります。
+- 本来の直し方は、BIOSの待ち時間を10 msより長くすることだと思います。ただしそれはmmRISC-2のワークスペースにあるLiteXのツリーなので、ここでは変えていません。
+
+**次の手順**
+1. WindowsのVMで、`LitexSystem\build_stock_vexriscv_smp\gateware`の`build_nexys_video.bat`を実行してください(約8分)。
+2. 終わったら、こちらで次のスクリプトで書き込み、`sdcardboot`を試せます。
+   ```bash
+   ./LitexSystem/scripts/program_nexys_video.sh
+   ```
+
+記録は`LitexSystem/docs/BRINGUP.md`の10節、READMEとSTRATEGYの2.0の行です。dev(コミット7ac3186)にpushしてあり、Ref/以下のファイルは含まれていません。
+
+`build_stock_vexriscv_smp\gateware`で`build_nexys_video.bat`を実行していただけますか(「Will run it」)?
 <!-- /answer -->
+
+## 307. 2026-11-26 00:15:10 JST
+
+```text
+Will run it
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+よろしくお願いします。
+
+Vivadoが終わったら、こちらで次の順に進めます。
+1. `program_nexys_video.sh`で新しいビットストリームを書き込みます。
+2. 起動のバナーで、IPが192.168.0.50のままであることを確かめます。
+3. `litex>`で`sdcard_init`を実行し、すぐに`OK`が返るか確かめます。
+4. `sdcardboot`で、`Copying demo.bin ...`のあとにデモのプロンプトが出るか確かめます。
+
+minicomは閉じたままにしておいてください。カードは今のまま(`demo.bin`と`boot.json`)で大丈夫です。
+
+プロンプトの記録(Doc/PROMPT.md)は更新しましたが、まだコミットしていません。SDの結果と一緒にコミットします。
+
+Vivadoが終わったら知らせていただけますか(「Run finished」)?
+<!-- /answer -->
+
+## 308. 2026-11-26 00:16:19 JST
+
+```text
+Run finished
+```
