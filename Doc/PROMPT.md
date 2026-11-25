@@ -12216,3 +12216,127 @@ helloc             - Hello C
 litex-demo-app>
 </pasted_content id="6b8c">
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The demo and netboot are fine. The SD card is not tested yet.
+
+**netboot: OK**
+- The banner shows `Local IP: 192.168.0.50`: the bitstream with the new IPs is loaded.
+- With `netboot vex.json`, `demo.bin`'s 7,072 bytes came from this VM (192.168.0.42), then `Liftoff!` and the demo's prompt.
+- So Ethernet and the TFTP path work.
+
+**SD card: not tested yet**
+- In the log, `sdcard_init` and `sdcardboot` were typed at the demo's prompt (`litex-demo-app>`).
+- The demo does not know these two commands, so it answered nothing and printed its next prompt.
+- Both are the BIOS's commands, typed at `litex>`.
+
+**How to redo the SD card** (only `demo.bin` and `boot.json` on the card)
+1. Put the card in J3.
+2. Open `/dev/ttyUSB0` with `litex_term` without `--kernel`, or with minicom.
+3. Reset the board (in the demo, type `reboot`).
+4. Either wait at "Press Q or ESC" without pressing anything (the serial boot times out and the BIOS goes on to the SD card by itself), or press Q and type `sdcardboot` at `litex>`.
+5. The demo's prompt after `Liftoff!` means success.
+
+Recorded in section 8 of `LitexSystem/docs/BRINGUP.md` and row 2.0 of STRATEGY, pushed to dev (commit 6e3ae28). No file under Ref/.
+
+Will you tell me how the SD card at `litex>` goes ("Will report")?
+<!-- /answer -->
+
+## 305. 2026-11-25 23:02:18 JST
+
+```text
+SDカード、下記で止まってしまう。
+        
+
+<pasted_content id="6b8c">
+__   _ __      _  __
+       / /  (_) /____ | |/_/
+      / /__/ / __/ -_)>  <
+     /____/_/\__/\__/_/|_|
+   Build your hardware, easily!
+
+ (c) Copyright 2012-2026 Enjoy-Digital
+ (c) Copyright 2007-2015 M-Labs
+
+ BIOS built on Nov 24 2026 23:09:14
+ BIOS CRC passed (db4eabaa)
+
+ LiteX git sha1: 6d8a38cad
+
+--================ SoC =================--
+CPU:            VexRiscv SMP-LINUX @ 100MHz
+BUS:            wishbone 32-bit data/32-bit addr
+CSR:            32-bit data big ordering
+ROM:            128.0KiB
+SRAM:           8.0KiB
+SDRAM:          512.0MiB 16-bit @ 800MT/s (CL-6 CWL-5)
+MAIN RAM:       512.0MiB
+
+--=========== Initialization ===========--
+Ethernet init...
+Local IP: 192.168.0.50
+Initializing SDRAM @0x40000000...
+Switching SDRAM to software control.
+Read leveling:
+  m0, b00: |00000000000000000000000000000000| delays: -
+  m0, b01: |10000000000000000000000000000000| delays: -
+  m0, b02: |00111111111111111000000000000000| delays: 09+-07
+  m0, b03: |00000000000000000001111111111111| delays: 25+-06
+  m0, b04: |00000000000000000000000000000000| delays: -
+  m0, b05: |00000000000000000000000000000000| delays: -
+  m0, b06: |00000000000000000000000000000000| delays: -
+  m0, b07: |00000000000000000000000000000000| delays: -
+  best: m0, b02 delays: 09+-07
+  m1, b00: |00000000000000000000000000000000| delays: -
+  m1, b01: |10000000000000000000000000000000| delays: -
+  m1, b02: |00111111111111111000000000000000| delays: 08+-06
+  m1, b03: |00000000000000000001111111111111| delays: 25+-06
+  m1, b04: |00000000000000000000000000000000| delays: -
+  m1, b05: |00000000000000000000000000000000| delays: -
+  m1, b06: |00000000000000000000000000000000| delays: -
+  m1, b07: |00000000000000000000000000000000| delays: -
+  best: m1, b02 delays: 08+-06
+Switching SDRAM to hardware control.
+Memtest at 0x40000000 (2.0MiB)...
+  Write: 0x40000000-0x40200000 2.0MiB     
+   Read: 0x40000000-0x40200000 2.0MiB     
+Memtest OK
+Memspeed at 0x40000000 (Sequential, 2.0MiB)...
+  Write speed: 156.6MiB/s
+   Read speed: 77.8MiB/s
+--================ Boot ================--
+Booting from serial...
+Press Q or ESC to abort boot completely.
+sL5DdSMmkekro
+             Cancelled
+
+--============== Console ===============--
+
+litex> sdcardboot
+Booting from SDCard in SD-Mode...
+Booting from boot.json...
+</pasted_content id="6b8c">
+
+●SDカードの中身はMacで見ると以下。
+
+<pasted_content id="6b8c">
+Last login: Tue Nov 17 14:44:50 on console
+taka@Mac ~ % cd /Volumes 
+taka@Mac /Volumes % ls
+Macintosh HD MMRISC-3     Recovery
+taka@Mac /Volumes % cd MMRISC-3 
+taka@Mac MMRISC-3 % ls
+boot.json demo.bin
+taka@Mac MMRISC-3 % ls -al
+total 96
+drwx------@ 1 taka  staff  16384 11月 25 22:22 .
+drwxr-xr-x  5 root  wheel    160 11月 25 23:00 ..
+drwx------  1 taka  staff   8192 11月 25 23:00 .fseventsd
+drwx------  1 taka  staff   8192 11月 25 22:21 .Spotlight-V100
+-rwx------  1 taka  staff     33 11月 24 23:09 boot.json
+-rwx------  1 taka  staff   7072 11月 24 23:09 demo.bin
+taka@Mac MMRISC-3 %
+</pasted_content id="6b8c">
+```

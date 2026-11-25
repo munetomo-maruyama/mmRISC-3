@@ -90,3 +90,23 @@ J12をこのVMにつないだ: `openFPGALoader -b nexysVideo`が3節のビット
 - **SDカード: まだ試していない。** `sdcard_init`と`sdcardboot`はデモのプロンプト`litex-demo-app>`で入力されたが、デモはこれらを知らない(何も答えない)。これらはBIOSのコマンドで、`litex>`で使う。もう一度: `demo.bin`と`boot.json`のカードをJ3に挿し、シリアルブートのタイムアウトを待つ(BIOSは自分でSDカードへ進む: 「Booting from SDCard in SD-Mode...」)か、Qを押して`litex>`で`sdcardboot`と入力する。
 
 **次**: `litex>`でSDカード。その後、基準としてVexRiscv-SMPでLinux(linux-on-litex-vexriscvのイメージ)。
+
+## 9. ボードでの手順2.0: SDカードはファイルをロードする前に止まる(2026-11-25)
+
+デモのカード(`boot.json` 33バイト、`demo.bin` 7,072バイト、Macから書き込み)で、`litex>`での`sdcardboot`は`Booting from SDCard in SD-Mode...`、`Booting from boot.json...`と出し、その後何も出ない: **5節と同じ止まり方**。
+
+**5節の説明は誤りだった。** BIOS(`boot.c`)では、`boot.json`自身はメッセージなしで読まれる(`fatfs_load_file(..., progress 0)`)。次にその各イメージが`Copying <file> to <addr> (<n> bytes)...`と出し、途中のどのエラーも1行出す(`filesystem mount failed`、`cannot open`、`invalid boot JSON`)。ここでは`Copying demo.bin`もエラーも出なかった: **BIOSはSDカードへの最初のアクセスの中で止まっている**(FatFsのマウント、または`boot.json`の読み出し)。`boot.json`のアドレスが使われるより前。5節が書いたようにカードのFATと`boot.json`を読んだのではない。mmRISC-2のカードも同じ理由で止まったのであり、そのロードアドレスのせいではない。
+
+LiteSDCardのドライバ(`liblitesdcard/sdcard.c`)で止まりうる所: `sdcard_wait_cmd_done()`と`sdcard_wait_data_done()`はコアのイベントを時間の制限なしにポーリングする(制限があるのはDMAの待ちだけで、1秒)。したがって次のどちらか:
+
+1. **コマンドかデータ転送が終わらない**(カードの初期化かブロックの読み出し: SDのクロック、`rst` V20でのカードの電源、CMD / DATの線)。
+2. **DMAがBIOSの読み込み先に書けない。** BIOSのバッファ(FatFsのセクタ、`boot_json_buffer`)は0x1000_0000の8 KiBのSRAMにある。`--with-coherent-dma`では、LiteSDCardの`block2mem`のDMAはVexRiscv-SMPのコヒーレントなDMAポートを通り(`soc.h`: `CONFIG_CPU_HAS_DMA_BUS`)、そこからはメインRAMにしか届かないかもしれない。DMAが止まるとデータの経路が詰まり、`sdcard_wait_data_done()`は永久に待つ。
+
+**確かめ方**(リセットボタンの後、「Press Q or ESC」でQを押して`litex>`で)、この順に:
+
+| コマンド | わかること |
+|---|---|
+| `sdcard_detect` | カード検出のピン(`inserted`) |
+| `sdcard_init` | 初期化: `Initialize SDCard: OK` / `Failed`、または止まる(場合1) |
+| `sdcard_read 0 0x40000000` | ブロック0をDMAでメインRAMへ: `55 aa`で終わるダンプ |
+| `sdcard_read 0` | ブロック0をDMAでSRAMへ(コマンドのスタックのバッファ): ここだけで止まれば場合2 |

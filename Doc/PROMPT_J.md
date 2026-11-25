@@ -12653,3 +12653,129 @@ helloc             - Hello C
 litex-demo-app>
 </pasted_content id="6b8c">
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+デモとnetbootは問題ありません。SDカードはまだ試せていません。
+
+**netboot: OK**
+- バナーに`Local IP: 192.168.0.50`と出ているので、IPを変えたビットストリームが載っています。
+- `netboot vex.json`で、このVM(192.168.0.42)から`demo.bin`の7,072バイトが届き、`Liftoff!`のあとデモのプロンプトが出ました。
+- これでEthernetとTFTPの経路が動くことが分かりました。
+
+**SDカード: まだ試せていない**
+- ログを見ると、`sdcard_init`と`sdcardboot`はデモのプロンプト(`litex-demo-app>`)で入力されています。
+- デモはこの2つのコマンドを知らないので、何も返さずに次のプロンプトを出しただけです。
+- どちらもBIOSのコマンドで、`litex>`で入力するものです。
+
+**SDカードのやり直し方**(カードには`demo.bin`と`boot.json`だけを入れます)
+1. カードをJ3に挿します。
+2. `--kernel`を付けずに`litex_term`かminicomで`/dev/ttyUSB0`を開きます。
+3. ボードをリセットします。デモの中なら`reboot`と入力します。
+4. 次のどちらかで起動します。
+   - 「Press Q or ESC」で何も押さずに待ちます。シリアルブートがタイムアウトすると、BIOSは自分でSDカードに進みます(「Booting from SDCard in SD-Mode...」)。
+   - Qを押し、`litex>`で`sdcardboot`と入力します。
+5. `Liftoff!`のあとにデモのプロンプトが出れば成功です。
+
+結果は`LitexSystem/docs/BRINGUP.md`の8節と、STRATEGYの2.0の行に記録しました。dev(コミット6e3ae28)にpushしてあり、Ref/以下のファイルは含まれていません。
+
+`litex>`でSDカードを試したら、結果を知らせていただけますか(「Will report」)?
+<!-- /answer -->
+
+## 305. 2026-11-25 23:02:18 JST
+
+```text
+SDカード、下記で止まってしまう。
+        
+
+<pasted_content id="6b8c">
+__   _ __      _  __
+       / /  (_) /____ | |/_/
+      / /__/ / __/ -_)>  <
+     /____/_/\__/\__/_/|_|
+   Build your hardware, easily!
+
+ (c) Copyright 2012-2026 Enjoy-Digital
+ (c) Copyright 2007-2015 M-Labs
+
+ BIOS built on Nov 24 2026 23:09:14
+ BIOS CRC passed (db4eabaa)
+
+ LiteX git sha1: 6d8a38cad
+
+--================ SoC =================--
+CPU:            VexRiscv SMP-LINUX @ 100MHz
+BUS:            wishbone 32-bit data/32-bit addr
+CSR:            32-bit data big ordering
+ROM:            128.0KiB
+SRAM:           8.0KiB
+SDRAM:          512.0MiB 16-bit @ 800MT/s (CL-6 CWL-5)
+MAIN RAM:       512.0MiB
+
+--=========== Initialization ===========--
+Ethernet init...
+Local IP: 192.168.0.50
+Initializing SDRAM @0x40000000...
+Switching SDRAM to software control.
+Read leveling:
+  m0, b00: |00000000000000000000000000000000| delays: -
+  m0, b01: |10000000000000000000000000000000| delays: -
+  m0, b02: |00111111111111111000000000000000| delays: 09+-07
+  m0, b03: |00000000000000000001111111111111| delays: 25+-06
+  m0, b04: |00000000000000000000000000000000| delays: -
+  m0, b05: |00000000000000000000000000000000| delays: -
+  m0, b06: |00000000000000000000000000000000| delays: -
+  m0, b07: |00000000000000000000000000000000| delays: -
+  best: m0, b02 delays: 09+-07
+  m1, b00: |00000000000000000000000000000000| delays: -
+  m1, b01: |10000000000000000000000000000000| delays: -
+  m1, b02: |00111111111111111000000000000000| delays: 08+-06
+  m1, b03: |00000000000000000001111111111111| delays: 25+-06
+  m1, b04: |00000000000000000000000000000000| delays: -
+  m1, b05: |00000000000000000000000000000000| delays: -
+  m1, b06: |00000000000000000000000000000000| delays: -
+  m1, b07: |00000000000000000000000000000000| delays: -
+  best: m1, b02 delays: 08+-06
+Switching SDRAM to hardware control.
+Memtest at 0x40000000 (2.0MiB)...
+  Write: 0x40000000-0x40200000 2.0MiB     
+   Read: 0x40000000-0x40200000 2.0MiB     
+Memtest OK
+Memspeed at 0x40000000 (Sequential, 2.0MiB)...
+  Write speed: 156.6MiB/s
+   Read speed: 77.8MiB/s
+--================ Boot ================--
+Booting from serial...
+Press Q or ESC to abort boot completely.
+sL5DdSMmkekro
+             Cancelled
+
+--============== Console ===============--
+
+litex> sdcardboot
+Booting from SDCard in SD-Mode...
+Booting from boot.json...
+</pasted_content id="6b8c">
+
+●SDカードの中身はMacで見ると以下。
+
+<pasted_content id="6b8c">
+Last login: Tue Nov 17 14:44:50 on console
+taka@Mac ~ % cd /Volumes 
+taka@Mac /Volumes % ls
+Macintosh HD MMRISC-3     Recovery
+taka@Mac /Volumes % cd MMRISC-3 
+taka@Mac MMRISC-3 % ls
+boot.json demo.bin
+taka@Mac MMRISC-3 % ls -al
+total 96
+drwx------@ 1 taka  staff  16384 11月 25 22:22 .
+drwxr-xr-x  5 root  wheel    160 11月 25 23:00 ..
+drwx------  1 taka  staff   8192 11月 25 23:00 .fseventsd
+drwx------  1 taka  staff   8192 11月 25 22:21 .Spotlight-V100
+-rwx------  1 taka  staff     33 11月 24 23:09 boot.json
+-rwx------  1 taka  staff   7072 11月 24 23:09 demo.bin
+taka@Mac MMRISC-3 %
+</pasted_content id="6b8c">
+```

@@ -182,3 +182,34 @@ The author's runs, with the regenerated SoC's bitstream (Vivado rerun; the banne
   itself: "Booting from SDCard in SD-Mode...") or press Q and type `sdcardboot` at `litex>`.
 
 **Next**: the SD card at `litex>`; then Linux on VexRiscv-SMP as a reference (linux-on-litex-vexriscv's images).
+
+## 9. Step 2.0 on the board: the SD card hangs before any file is loaded (2026-11-25)
+
+With the demo's card (`boot.json` 33 bytes, `demo.bin` 7,072 bytes, written from the Mac), `sdcardboot` at `litex>`
+printed `Booting from SDCard in SD-Mode...`, `Booting from boot.json...`, then nothing: **the same stop as section 5**.
+
+**Section 5's explanation was wrong.** In the BIOS (`boot.c`), `boot.json` itself is read with no message
+(`fatfs_load_file(..., progress 0)`); each image of it then prints `Copying <file> to <addr> (<n> bytes)...`, and
+every error on the way prints a line (`filesystem mount failed`, `cannot open`, `invalid boot JSON`). Here not even
+`Copying demo.bin` appeared, nor an error: **the BIOS hangs inside the SD card's first accesses** (FatFs's mount,
+or the read of `boot.json`), before any address of `boot.json` is used. It did not read the card's FAT and
+`boot.json`, as section 5 said; mmRISC-2's card stopped for the same reason, not for its load addresses.
+
+Where it can hang in LiteSDCard's driver (`liblitesdcard/sdcard.c`): `sdcard_wait_cmd_done()` and
+`sdcard_wait_data_done()` poll the core's events with no time limit (only the DMA's wait has one, 1 s). So either:
+
+1. **a command or a data transfer never completes** (the card's initialisation or a block read: the SD clock, the
+   card's power on `rst` V20, the CMD / DAT lines), or
+2. **the DMA cannot write where the BIOS reads into.** The BIOS's buffers (FatFs's sectors, `boot_json_buffer`) are
+   in the 8 KiB SRAM at 0x1000_0000; with `--with-coherent-dma`, LiteSDCard's `block2mem` DMA goes through
+   VexRiscv-SMP's coherent DMA port (`soc.h`: `CONFIG_CPU_HAS_DMA_BUS`), which may reach only the main RAM; a
+   stalled DMA would back up the data path and leave `sdcard_wait_data_done()` waiting for ever.
+
+**The check** (at `litex>`, after the reset button and Q at "Press Q or ESC"), in this order:
+
+| Command | Tells |
+|---|---|
+| `sdcard_detect` | the card-detect pin (`inserted`) |
+| `sdcard_init` | the initialisation: `Initialize SDCard: OK` / `Failed`, or a hang (case 1) |
+| `sdcard_read 0 0x40000000` | block 0 by DMA into the main RAM: a dump ending in `55 aa` |
+| `sdcard_read 0` | block 0 by DMA into the SRAM (the command's stack buffer): a hang here alone is case 2 |
