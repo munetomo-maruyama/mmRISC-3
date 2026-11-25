@@ -12887,3 +12887,34 @@ Vivadoが終わったら知らせていただけますか(「Run finished」)?
 ```text
 Run finished
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+SDカードから起動できるようになりました。
+
+**Vivadoの結果:** タイミングを満たしています(WNS +0.758 ns、ホールド+0.021 ns、全クロック)。LUTは9,244、消費電力は0.757 Wで、前回とほぼ同じです。クリティカルワーニングは2件で、前回と同じものです。
+
+**ボードでの確認**(こちらで書き込んで操作しました)
+- バナーのIPは192.168.0.50のままです。
+- `sdcard_init`は**0.1秒で`Initialize SDCard: OK`**を返しました。前は1,003秒かかって`failed`でした。
+- `sdcard_read 0`では、SRAMにMBR(末尾`55 aa`)を読み込めました。
+- **`sdcardboot`**で`Copying demo.bin to 0x40000000 (7072 bytes)...`、`Liftoff!`と出て、デモのプロンプトが出ました。
+- 書き込みのあと何も押さずに待つと、BIOSがシリアルブートのタイムアウトのあと自分でSDカードから起動し、同じくデモが立ち上がりました。
+
+これで手順2.0のボードでの確認は、Linuxを除いてすべて終わりました。BIOS、DDR3-800(512 MiB全体)、UARTでのロード、EthernetでのTFTP、SDカードです。
+
+記録は`LitexSystem/docs/BRINGUP.md`の11節とSTRATEGYの2.0の行です。dev(コミット004644c)にpushしてあり、Ref/以下のファイルは含まれていません。
+
+次の候補は2つです。
+- **Linux:** 基準としてVexRiscv-SMPでLinuxを動かします。linux-on-litex-vexriscvのイメージのダウンロードが要るので、そのときは改めて許可をお願いします。
+- **手順2.1:** mmRISC-2のLitexSystemをNexys Videoに載せる作業に進みます。
+
+次はLinuxを先に動かしますか(「Linux first」)、手順2.1に進みますか(「Go to step 2.1」)?
+<!-- /answer -->
+
+## 309. 2026-11-26 00:22:48 JST
+
+```text
+Linux first
+```

@@ -12,6 +12,7 @@ Digilent Nexys Video(XC7A200T)上のLiteXのSoC。`Doc/STRATEGY_J.md`のフェ�
 | `scripts/program_nexys_video.bat` / `.tcl` | ビットストリームをJ12でFPGAへ(Vivadoのハードウェアマネージャ)。tclの横にコピーされる |
 | `scripts/program_nexys_video.sh` | 同じことをこのLinuxのVMからopenFPGALoaderで(J12をVMにつなぐ) |
 | `scripts/build_demo.sh` | ビルドに合わせたLiteXのベアメタルのデモ。`<build>/demo/`に`boot.json`(SDカード)と`vex.json`(TFTP)と一緒に |
+| `scripts/build_linux_vexriscv.sh` | VexRiscv-SMPのSoC用のLinux: linux-on-litex-vexriscvのビルド済みイメージ(一度ダウンロード)にこのSoC自身のDTB。TFTPのフォルダ(`vexlinux/`)とSDカードのファイルとして(`docs/BRINGUP_J.md` 12) |
 | `build_stock/` | 出力(gitには入れない): `gateware/`(Verilog、XDC、tcl、ビットストリーム)、`software/bios/`、`csr.csv`、`csr.json` |
 | `docs/BRINGUP.md` | 立ち上げの記録(手順2.5のもの)、手順ごとの節 |
 

@@ -278,3 +278,43 @@ warnings are the same as section 3's run.
 
 **Step 2.0's board checks done** but Linux: the BIOS, DDR3-800 (all 512 MiB), the UART load, TFTP over Ethernet, the
 SD card. **Next**: Linux on VexRiscv-SMP as a reference (linux-on-litex-vexriscv's images, to download), or step 2.1.
+
+## 12. Step 2.0 on the board: Linux on VexRiscv-SMP (2026-11-26)
+
+**The images**: linux-on-litex-vexriscv's pre-built ones (its issue 164, `linux_2022_03_23.zip`, 5.4 MB, downloaded
+with the author's leave): Linux 5.14.0 (Buildroot 2021.08, GCC 10.3), Buildroot's `rootfs.cpio`, OpenSBI v0.8
+(`LiteX / VexRiscv-SMP` platform). The archive's `rv32.dtb` is not this SoC's (64 MiB, other interrupt numbers), so
+the device tree is generated from this SoC's `csr.json` (`litex_json2dts_linux`): 512 MiB, the UART at 0xF000_1000,
+`liteeth` (interrupt 3), `litex,mmc` (interrupt 4, 4-bit), PLIC at 0xF0C0_0000, CLINT at 0xF001_0000.
+`scripts/build_linux_vexriscv.sh` does it all (the download once) and puts the files in a TFTP folder `vexlinux/`
+(the server's `Image` and `boot.json` are mmRISC-2's) and in an SD card's set; it reproduces the booted files byte
+for byte. The author copied `vexlinux/` to `/srv/tftp` (sudo).
+
+**The boot** (programmed from this VM, `netboot vexlinux/boot.json` at `litex>`):
+
+- TFTP: `Image` 7,531,468 bytes, `rv32.dtb`, `rootfs.cpio` 3,781,632 bytes, `opensbi.bin`; `Liftoff!` at 0x40F0_0000.
+- OpenSBI v0.8: `Platform Name: LiteX / VexRiscv-SMP`, `Boot HART ISA: rv32imas`, firmware at 0x40F0_0000.
+- Linux: `Machine model: digilent_nexys_video`, memory 0x4000_0000 to 0x5FFF_FFFF, `Memory: 503476K/524288K
+  available`, SBI v0.2 (TIME, IPI, RFENCE, HSM), PLIC 32 interrupts, the timer at 100 MHz, 200 BogoMIPS, one CPU.
+- `liteeth f0002000.mac eth0: irq 2 slots: tx 2 rx 2`; `litex-mmc`: `mmc0: new SDHC card at address 13ab`,
+  `mmcblk0: mmc0:13ab SE032 28.8 GiB`, `p1 p2`, the card clocked at 25 MHz.
+- `Initramfs unpacking failed: invalid magic` is the 8 MiB initrd window past the 3.8 MB archive (the archive itself
+  unpacked: `/init` runs); the kernel line's `ip=` is ignored (no IP autoconfiguration in this kernel).
+- **`Welcome to Buildroot`, `buildroot login:` 81 s after `netboot`** (most of it TFTP); root logged in.
+
+**Checked at the shell**:
+
+| Command | Result |
+|---|---|
+| `uname -a` | `Linux buildroot 5.14.0 #1 SMP ... riscv32 GNU/Linux` |
+| `cat /proc/cpuinfo` | `isa: rv32i2p0_ma`, `mmu: sv32` |
+| `free` | 511,872 kB total, 501,592 kB free |
+| `ip addr add 192.168.0.50/24 dev eth0`, `ip link set eth0 up` | `UP,LOWER_UP`; an IPv6 address from the LAN's router too |
+| `ping -c 5 192.168.0.42` | 5 of 5, 8.5 to 45 ms |
+| `cat /proc/partitions` | `mmcblk0` 30,220,288 blocks, `p1` 512 MiB, `p2` 4.7 GiB |
+| `mount -o ro /dev/mmcblk0p1 /mnt` | `boot.json`, `demo.bin`; `demo.bin`'s md5 the same as the file it was copied from |
+| `cat /proc/interrupts` | `eth0` 29, `litex-mmc` 80, `riscv-timer` (the UART polled) |
+
+**Step 2.0 done**: LiteX's own target on the board with the BIOS, DDR3-800, the UART, TFTP, the SD card and Linux,
+the CPU VexRiscv-SMP (Rocket does not close 100 MHz on this part, section 2; Linux on Rocket waits for 2.2's
+crossing). One change from the stock target is needed: the SD card PHY without LiteSDCard's card reset (section 10).

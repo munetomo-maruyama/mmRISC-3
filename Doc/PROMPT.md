@@ -12418,3 +12418,32 @@ Will you tell me when Vivado is done ("Run finished")?
 ```text
 Run finished
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+The SD card boots now.
+
+**Vivado:** met (WNS +0.758 ns, hold +0.021 ns, every clock); 9,244 LUTs, 0.757 W, about as before; the two critical warnings the same as last time.
+
+**On the board** (programmed and driven from here)
+- The banner's IP is still 192.168.0.50.
+- `sdcard_init` answered **`Initialize SDCard: OK` in 0.1 s** (1,003 s and `failed` before).
+- `sdcard_read 0` read the MBR (ending `55 aa`) into the SRAM.
+- **`sdcardboot`** printed `Copying demo.bin to 0x40000000 (7072 bytes)...`, `Liftoff!`, and the demo's prompt.
+- With nothing pressed after programming, the BIOS booted from the SD card by itself after the serial boot's timeout, and the demo came up likewise.
+
+So step 2.0's board checks are all done but Linux: the BIOS, DDR3-800 (all 512 MiB), the UART load, TFTP over Ethernet, the SD card.
+
+Recorded in section 11 of `LitexSystem/docs/BRINGUP.md` and row 2.0 of STRATEGY, pushed to dev (commit 004644c). No file under Ref/.
+
+Two candidates next: **Linux** on VexRiscv-SMP as a reference (needs downloading linux-on-litex-vexriscv's images; I will ask then), or **step 2.1**, mmRISC-2's LitexSystem on the Nexys Video.
+
+Linux first ("Linux first"), or step 2.1 ("Go to step 2.1")?
+<!-- /answer -->
+
+## 309. 2026-11-26 00:22:48 JST
+
+```text
+Linux first
+```

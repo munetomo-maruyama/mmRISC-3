@@ -151,3 +151,31 @@ LiteSDCardのドライバ(`liblitesdcard/sdcard.c`)で止まりうる所: `sdcar
 - **書き込みの後に何も押さないと**: シリアルブートの`Timeout`、次に`Booting from SDCard in SD-Mode...`、同じロードと`Liftoff!`: BIOSは自分でカードから起動する。
 
 **手順2.0のボードでの確認は、Linuxを除いて完了**: BIOS、DDR3-800(512 MiB全体)、UARTでのロード、EthernetでのTFTP、SDカード。**次**: 基準としてVexRiscv-SMPでLinux(linux-on-litex-vexriscvのイメージ、ダウンロードが要る)、または手順2.1。
+
+## 12. ボードでの手順2.0: VexRiscv-SMPでLinux(2026-11-26)
+
+**イメージ**: linux-on-litex-vexriscvのビルド済みのもの(そのissue 164、`linux_2022_03_23.zip`、5.4 MB、作者の許可を得てダウンロード): Linux 5.14.0(Buildroot 2021.08、GCC 10.3)、Buildrootの`rootfs.cpio`、OpenSBI v0.8(`LiteX / VexRiscv-SMP`のプラットフォーム)。アーカイブの`rv32.dtb`はこのSoCのものではない(64 MiB、別の割り込み番号)ので、デバイスツリーはこのSoCの`csr.json`から生成する(`litex_json2dts_linux`): 512 MiB、UARTは0xF000_1000、`liteeth`(割り込み3)、`litex,mmc`(割り込み4、4ビット)、PLICは0xF0C0_0000、CLINTは0xF001_0000。`scripts/build_linux_vexriscv.sh`がすべてを行い(ダウンロードは一度)、ファイルをTFTPのフォルダ`vexlinux/`(サーバの`Image`と`boot.json`はmmRISC-2のもの)とSDカード用の一式に置く。起動したファイルをバイト単位で再現する。作者が`vexlinux/`を`/srv/tftp`へコピーした(sudo)。
+
+**起動**(このVMから書き込み、`litex>`で`netboot vexlinux/boot.json`):
+
+- TFTP: `Image` 7,531,468バイト、`rv32.dtb`、`rootfs.cpio` 3,781,632バイト、`opensbi.bin`。0x40F0_0000で`Liftoff!`。
+- OpenSBI v0.8: `Platform Name: LiteX / VexRiscv-SMP`、`Boot HART ISA: rv32imas`、ファームウェアは0x40F0_0000。
+- Linux: `Machine model: digilent_nexys_video`、メモリは0x4000_0000から0x5FFF_FFFF、`Memory: 503476K/524288K available`、SBI v0.2(TIME、IPI、RFENCE、HSM)、PLICの32割り込み、100 MHzのタイマ、200 BogoMIPS、CPU 1個。
+- `liteeth f0002000.mac eth0: irq 2 slots: tx 2 rx 2`。`litex-mmc`: `mmc0: new SDHC card at address 13ab`、`mmcblk0: mmc0:13ab SE032 28.8 GiB`、`p1 p2`、カードは25 MHz。
+- `Initramfs unpacking failed: invalid magic`は3.8 MBのアーカイブより先の8 MiBのinitrdの窓のこと(アーカイブ自体は展開された: `/init`が動く)。カーネルの行の`ip=`は無視される(このカーネルにIPの自動設定はない)。
+- **`netboot`から81秒で`Welcome to Buildroot`、`buildroot login:`**(大部分はTFTP)。rootでログイン。
+
+**シェルで確かめたこと**:
+
+| コマンド | 結果 |
+|---|---|
+| `uname -a` | `Linux buildroot 5.14.0 #1 SMP ... riscv32 GNU/Linux` |
+| `cat /proc/cpuinfo` | `isa: rv32i2p0_ma`、`mmu: sv32` |
+| `free` | 合計511,872 kB、空き501,592 kB |
+| `ip addr add 192.168.0.50/24 dev eth0`、`ip link set eth0 up` | `UP,LOWER_UP`。LANのルータからIPv6のアドレスも |
+| `ping -c 5 192.168.0.42` | 5回中5回、8.5から45 ms |
+| `cat /proc/partitions` | `mmcblk0` 30,220,288ブロック、`p1` 512 MiB、`p2` 4.7 GiB |
+| `mount -o ro /dev/mmcblk0p1 /mnt` | `boot.json`、`demo.bin`。`demo.bin`のmd5はコピー元のファイルと同じ |
+| `cat /proc/interrupts` | `eth0` 29、`litex-mmc` 80、`riscv-timer`(UARTはポーリング) |
+
+**手順2.0完了**: LiteXのターゲットそのままを、BIOS、DDR3-800、UART、TFTP、SDカード、Linuxでボードで動かした。CPUはVexRiscv-SMP(このデバイスでRocketは100 MHzを閉じない、2節。Rocket上のLinuxは2.2の乗せ換えを待つ)。元のターゲットからの変更が1つ要る: SDカードのPHYにLiteSDCardのカードのリセットを入れない(10節)。
