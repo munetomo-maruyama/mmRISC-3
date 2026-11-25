@@ -13018,3 +13018,19 @@ Linuxの起動を見るための準備はできています。FPGAには今の�
 ```text
 It booted
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+手元でも起動できて何よりです。これで手順2.0は完了です。
+
+手で起動できたことは`LitexSystem/docs/BRINGUP.md`の12節に追記しました。dev(コミット16d284e)にpushしてあり、Ref/以下のファイルは含まれていません。
+
+次は手順2.1に進みますか(「Start step 2.1」)? mmRISC-2のLitexSystemをこのリポジトリに移して、LiteXのNexys Videoのターゲットに、mmRISC-2をCPUとして50 MHzで載せます。
+<!-- /answer -->
+
+## 312. 2026-11-26 01:07:44 JST
+
+```text
+Start step 2.1
+```

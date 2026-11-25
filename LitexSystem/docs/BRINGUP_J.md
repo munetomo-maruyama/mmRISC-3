@@ -181,3 +181,15 @@ LiteSDCardのドライバ(`liblitesdcard/sdcard.c`)で止まりうる所: `sdcar
 **手順2.0完了**: LiteXのターゲットそのままを、BIOS、DDR3-800、UART、TFTP、SDカード、Linuxでボードで動かした。CPUはVexRiscv-SMP(このデバイスでRocketは100 MHzを閉じない、2節。Rocket上のLinuxは2.2の乗せ換えを待つ)。元のターゲットからの変更が1つ要る: SDカードのPHYにLiteSDCardのカードのリセットを入れない(10節)。
 
 作者が手でもう一度起動した(2026-11-26): `/dev/ttyUSB0`でminicom、CPU RESETボタン、「Press Q or ESC」でQ、`netboot vexlinux/boot.json`、Buildrootのログイン。
+
+## 13. 手順2.1: Nexys VideoにmmRISC-2、生成(2026-11-26)
+
+**内容**: LiteXのNexys Videoのターゲットそのまま(手順2.0と同じく`nexys_video_target.py`経由)に、**CPUとしてmmRISC-2**(Rev.02)、SoC全体を50 MHzで: このプロジェクト自身のCPUでのボードの最初の点灯。
+
+- `cpu/mmrisc/`: mmRISC-2のLiteXのラッパ(`core.py`とBIOSの`crt0.S`、`boot-helper.S`、ヘッダ)を`mmRISC-2/LitexSystem/cpu/mmrisc`からコピー。変更は2つ: RTLはコピーせずmmRISC-2のリポジトリから読む(`MMRISC2_HOME`、既定は`../mmRISC-2`。そのRTLはRev.02から変わっていない)。デバッグポートの既定は`none`(そのピン、スイッチ、LEDはArtyのもの。Nexys Videoのものは手順2.4で)。
+- `scripts/build_soc.sh`: `--cpu-type mmrisc --sys-clk-freq 50e6 --l2-size 0`、配置と配線の後にAggressiveExplore(mmRISC-2と同じ)、出力は`LitexSystem/build/`(gitには入れない)。tclのパスは相対(このリポジトリ、mmRISC-2のRTL: `../../../../mmRISC-2/RTL/...`)。Windows側の`build_nexys_video.bat`を横にコピー。
+- まだ入れないもの: SDカードとEthernet(手順2.3)、デバッグポート(2.4)。BIOSはシリアルブートのタイムアウトの後プロンプトへ行く。
+
+**生成したSoC**: MMCMはsys 50 MHz、sys4xとsys4x_dqs 200 MHz、IDELAYCTRL 200 MHz。mmRISC-2のマップ(ROM 0x1000_0000、SRAM 0x1100_0000、CSR 0x1200_0000、CLINT 0x0200_0000、PLIC 0x0C00_0000)、**メインRAM 0x8000_0000、512 MiB**。CPUのDMAバスを宣言(`CONFIG_CPU_HAS_DMA_BUS`)。メモリバスは64ビットからLiteDRAMの128へ。BIOSは23.4 KiB。**DDR3は4 × 50 MHz、DDR3-400で動く**(CL 6、CWL 5)。JEDECの範囲より下: `Doc/BOARD_J.md` 4の案D、BIOSのプロンプトのための試行だけ。手順2.2でLiteXを100 MHz、CPUを50 MHzにしてクロック乗せ換えでつなぐ。
+
+**次**: WindowsのVMでVivado(`LitexSystem\build\gateware\build_nexys_video.bat`)、その後ボード(`program_nexys_video.sh LitexSystem/build/gateware/digilent_nexys_video.bit`): バナー、`CPU: mmRISC-2 (RV64GC) @ 50MHz`、400 MT/sでのDDR3のキャリブレーション、プロンプト。

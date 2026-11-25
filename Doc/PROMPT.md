@@ -12505,3 +12505,19 @@ Did it boot ("It booted"), or go on to step 2.1 ("Start step 2.1")?
 ```text
 It booted
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Glad it booted for you too. Step 2.0 is done.
+
+Your own boot is noted in section 12 of `LitexSystem/docs/BRINGUP.md`, pushed to dev (commit 16d284e). No file under Ref/.
+
+Go on to step 2.1 ("Start step 2.1")? mmRISC-2's LitexSystem moves into this repository, with mmRISC-2 as the CPU at 50 MHz on LiteX's Nexys Video target.
+<!-- /answer -->
+
+## 312. 2026-11-26 01:07:44 JST
+
+```text
+Start step 2.1
+```

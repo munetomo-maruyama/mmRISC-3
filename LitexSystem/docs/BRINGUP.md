@@ -321,3 +321,28 @@ crossing). One change from the stock target is needed: the SD card PHY without L
 
 The author booted it again by hand (2026-11-26): minicom on `/dev/ttyUSB0`, the CPU RESET button, Q at "Press Q or
 ESC", `netboot vexlinux/boot.json`, Buildroot's login.
+
+## 13. Step 2.1: mmRISC-2 on the Nexys Video, generated (2026-11-26)
+
+**What**: LiteX's own Nexys Video target (through `nexys_video_target.py`, as step 2.0) with **mmRISC-2 as the CPU**
+(Rev.02), the whole SoC at 50 MHz: the first light of the board with the project's own CPU.
+
+- `cpu/mmrisc/`: mmRISC-2's LiteX wrapper (`core.py` and the BIOS's `crt0.S`, `boot-helper.S`, headers) copied from
+  `mmRISC-2/LitexSystem/cpu/mmrisc`. Two changes: the RTL is read from mmRISC-2's repository (`MMRISC2_HOME`, by
+  default `../mmRISC-2`; its RTL unchanged since Rev.02), not copied; the debug port defaults to `none` (its pins,
+  switches and LEDs are the Arty's; the Nexys Video's at step 2.4).
+- `scripts/build_soc.sh`: `--cpu-type mmrisc --sys-clk-freq 50e6 --l2-size 0`, AggressiveExplore after placement and
+  routing (as mmRISC-2's), out to `LitexSystem/build/` (not in git); the tcl's paths relative (to this repository,
+  mmRISC-2's RTL: `../../../../mmRISC-2/RTL/...`); the Windows side's `build_nexys_video.bat` copied beside it.
+- Not yet: the SD card and Ethernet (step 2.3), the debug port (2.4). The BIOS goes to its prompt after the serial
+  boot's timeout.
+
+**The generated SoC**: the MMCM gives sys 50 MHz, sys4x and sys4x_dqs 200 MHz, IDELAYCTRL 200 MHz; mmRISC-2's map
+(ROM 0x1000_0000, SRAM 0x1100_0000, CSRs 0x1200_0000, CLINT 0x0200_0000, PLIC 0x0C00_0000), **main RAM 0x8000_0000,
+512 MiB**; the CPU's DMA bus declared (`CONFIG_CPU_HAS_DMA_BUS`); the memory bus 64 bits to LiteDRAM's 128; the BIOS
+23.4 KiB. **The DDR3 runs at 4 × 50 MHz, DDR3-400** (CL 6, CWL 5), below JEDEC's range: option D of `Doc/BOARD.md` 4,
+a trial for the BIOS's prompt only; step 2.2 puts LiteX at 100 MHz and the CPU at 50 MHz through crossings.
+
+**Next**: Vivado on the Windows VM (`LitexSystem\build\gateware\build_nexys_video.bat`), then the board
+(`program_nexys_video.sh LitexSystem/build/gateware/digilent_nexys_video.bit`): the banner, `CPU: mmRISC-2 (RV64GC)
+@ 50MHz`, the DDR3's calibration at 400 MT/s, the prompt.

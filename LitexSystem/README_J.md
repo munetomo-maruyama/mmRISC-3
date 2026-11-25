@@ -13,6 +13,8 @@ Digilent Nexys Video(XC7A200T)上のLiteXのSoC。`Doc/STRATEGY_J.md`のフェ�
 | `scripts/program_nexys_video.sh` | 同じことをこのLinuxのVMからopenFPGALoaderで(J12をVMにつなぐ) |
 | `scripts/build_demo.sh` | ビルドに合わせたLiteXのベアメタルのデモ。`<build>/demo/`に`boot.json`(SDカード)と`vex.json`(TFTP)と一緒に |
 | `scripts/build_linux_vexriscv.sh` | VexRiscv-SMPのSoC用のLinux: linux-on-litex-vexriscvのビルド済みイメージ(一度ダウンロード)にこのSoC自身のDTB。TFTPのフォルダ(`vexlinux/`)とSDカードのファイルとして(`docs/BRINGUP_J.md` 12) |
+| `scripts/build_soc.sh` | 手順2.1: mmRISC-2(`cpu/mmrisc/`、RTLはmmRISC-2のリポジトリから)のSoCをLiteXのNexys Videoのターゲットに、SoC全体を50 MHzで`build/`へ。VivadoはWindowsのVMで(`docs/BRINGUP_J.md` 13) |
+| `cpu/mmrisc/` | mmRISC-2のLiteXのラッパ(mmRISC-2 Rev.02から): RTLは`MMRISC2_HOME`(既定は`../mmRISC-2`)から読む、デバッグポートは手順2.4までオフ |
 | `build_stock/` | 出力(gitには入れない): `gateware/`(Verilog、XDC、tcl、ビットストリーム)、`software/bios/`、`csr.csv`、`csr.json` |
 | `docs/BRINGUP.md` | 立ち上げの記録(手順2.5のもの)、手順ごとの節 |
 

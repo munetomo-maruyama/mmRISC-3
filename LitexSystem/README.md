@@ -13,6 +13,8 @@ Japanese: `README_J.md`.
 | `scripts/program_nexys_video.sh` | The same from this Linux VM with openFPGALoader (J12 connected to the VM) |
 | `scripts/build_demo.sh` | LiteX's bare-metal demo for a build, with `boot.json` (SD card) and `vex.json` (TFTP) in `<build>/demo/` |
 | `scripts/build_linux_vexriscv.sh` | Linux for the VexRiscv-SMP SoC: linux-on-litex-vexriscv's pre-built images (downloaded once) with the SoC's own DTB, as a TFTP folder (`vexlinux/`) and an SD card's files (`docs/BRINGUP.md` 12) |
+| `scripts/build_soc.sh` | Step 2.1: the SoC around mmRISC-2 (`cpu/mmrisc/`, its RTL from mmRISC-2's repository) on LiteX's Nexys Video target, the whole SoC at 50 MHz, into `build/`; Vivado on the Windows VM (`docs/BRINGUP.md` 13) |
+| `cpu/mmrisc/` | mmRISC-2's LiteX wrapper (from mmRISC-2 Rev.02): the RTL read from `MMRISC2_HOME` (default `../mmRISC-2`), the debug port off until step 2.4 |
 | `build_stock/` | The output (not in git): `gateware/` (Verilog, XDC, tcl, the bitstream), `software/bios/`, `csr.csv`, `csr.json` |
 | `docs/BRINGUP.md` | The bring-up record (step 2.5's), section by step |
 
