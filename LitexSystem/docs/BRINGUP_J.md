@@ -68,3 +68,15 @@
 5節の再試行は効かなかった: バッチのVivadoのhw_serverは20秒間ケーブルを挙げなかった(`ERROR: no JTAG cable found`)。一方でGUIはボードに書き込める。Windows側ではこれ以上追わない(GUIを代わりの手段として残す)。
 
 **代わりにこのVMから**: `scripts/program_nexys_video.sh`が`openFPGALoader -b nexysVideo <bit>`を実行する(`/usr/local/bin`にインストール済み、そのボードの一覧に`digilent_b`のケーブルで`nexysVideo`がある。Digilentのudevのルールもある)。J12のFT2232H(0403:6010)をParallelsでこのVMにつなぐ必要がある。J13のFT232R(0403:6001)はすでにつながっている(`/dev/ttyUSB0`、作者のminicom)。両方ここにあれば、書き込みとコンソールが一つの側にそろう。
+
+## 7. ボードでの手順2.0: Linuxから書き込み、512 MiBを試験(2026-11-25)
+
+J12をこのVMにつないだ: `openFPGALoader -b nexysVideo`が3節のビットストリームをFPGAにロードした(rc 0。J12のポートBは`/dev/ttyUSB1`、J13のUARTは`/dev/ttyUSB0`として見える)。**Linuxからの書き込みは動く**(`program_nexys_video.sh`)。コンソールはここから操作した(115,200のpyserial: 「Press Q or ESC」でQ、その後コマンド)。今回はJ3にカードなし。
+
+- キャリブレーションは5節のとおり(m0 bitslip 2、9 ± 7タップ。m1 8 ± 6)、2 MiBで`Memtest OK`。
+- **`mem_test 0x40000000 0x20000000`: 512 MiB全体で`Memtest OK`**(全体の書き込みの後に読み出し)。
+- `mem_speed 0x40000000 0x1000000`(16 MiB): 書き込み159.6 MiB/s、読み出し78.0 MiB/s。
+
+**このボードでDDR3-800のDDR3は良好。**(スクリプトはプロンプトを素の`litex>`として待ったが、BIOSはANSIのコードで色を付けるので、各コマンドの後に待ち時間いっぱい待った。今はコードを取り除く。)
+
+**次**: UARTでのデモ(`litex_term --kernel`)、デモのSDカード、生成し直したSoCのVivadoの実行の後にTFTP。

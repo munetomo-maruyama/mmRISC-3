@@ -149,3 +149,19 @@ found`), while the GUI programs the board. Not pursued further on the Windows si
 `/usr/local/bin`, its board list has `nexysVideo` on the `digilent_b` cable; the Digilent udev rules are there). J12's
 FT2232H (0403:6010) has to be connected to this VM in Parallels; J13's FT232R (0403:6001) already is
 (`/dev/ttyUSB0`, the author's minicom). With both here, programming and the console are on one side.
+
+## 7. Step 2.0 on the board: programmed from Linux, 512 MiB tested (2026-11-25)
+
+J12 connected to this VM: `openFPGALoader -b nexysVideo` loaded section 3's bitstream into the FPGA (rc 0; J12's port
+B appears as `/dev/ttyUSB1`, J13's UART as `/dev/ttyUSB0`). **Programming from Linux works** (`program_nexys_video.sh`).
+The console was driven from here (pyserial at 115,200: Q at "Press Q or ESC", then commands); no card in J3 this
+time.
+
+- Calibration as section 5 (m0 bitslip 2, 9 ± 7 taps; m1 8 ± 6), `Memtest OK` on 2 MiB.
+- **`mem_test 0x40000000 0x20000000`: `Memtest OK` on all 512 MiB** (write then read of the whole of it).
+- `mem_speed 0x40000000 0x1000000` (16 MiB): 159.6 MiB/s write, 78.0 MiB/s read.
+
+**The DDR3 at DDR3-800 is good on this board.** (The script waited for the prompt as plain `litex>`, but the BIOS
+colours it with ANSI codes, so it waited its full time after each command; it now strips them.)
+
+**Next**: the demo over the UART (`litex_term --kernel`), the demo's SD card, TFTP after the regenerated SoC's Vivado run.

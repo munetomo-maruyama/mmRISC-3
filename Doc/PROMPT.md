@@ -11938,3 +11938,41 @@ Could you paste the results of the next checks ("Will report")?
 ```text
 FPGAにGUIでは書き込めるが、スクリプトではエラーになる。 (program_nexys_video.bat's log: the retry loop ran, "ERROR: no JTAG cable found (J12 on this VM? the Vivado GUI's hardware manager closed?)")
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Even with the script fixed, the batch Vivado did not find the JTAG cable in 20 s of waiting. Since the GUI can program, I did not chase the Windows side further and prepared a way to program from the Linux VM instead. It is not tried yet (J12 is not connected to Ubuntu yet).
+
+**Found**
+- **UART:** J13's FT232R is already connected to this Ubuntu, with `/dev/ttyUSB0` open in minicom.
+- **The programming tool:** this VM has `openFPGALoader`. It supports the Nexys Video (`nexysVideo`), and the Digilent udev rules are there.
+- **What is missing:** J12 (USB-JTAG, FT2232H, 0403:6010) is still connected to the Windows side.
+
+**The new script:** `LitexSystem/scripts/program_nexys_video.sh` writes a bitstream into the FPGA with `openFPGALoader -b nexysVideo`; lost at power-off. The default is the VexRiscv-SMP bitstream. With J12 not connected, it says so and stops.
+
+**How to use**
+1. In Parallels' menu (Devices → USB), connect J12's Digilent device to Ubuntu.
+2. Run:
+   ```bash
+   ./LitexSystem/scripts/program_nexys_video.sh
+   ```
+
+Programming and the console are then both on the Linux side, and I can program from here too. If you close minicom, I can also read the UART's output and go on with the checks.
+
+Recorded in section 6 of `LitexSystem/docs/BRINGUP.md`, pushed to dev as commit fdaa410. No file under Ref/.
+
+Program from Linux with J12 connected to Ubuntu, or keep programming with the GUI ("Connected J12 to Ubuntu" or "Keep using the GUI")?
+<!-- /answer -->
+
+## 301. 2026-11-25 21:27:58 JST
+
+```text
+Connected J12 to Ubuntu
+```
+
+## 302. 2026-11-25 21:46:10 JST
+
+```text
+メモリテストのコマンドは送ることができたのかな？まだメモリテスト中なのかな？
+```

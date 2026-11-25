@@ -12361,3 +12361,47 @@ INFO: [Common 17-206] Exiting Vivado at Wed Nov 25 20:37:15 2026...
 PS Z:\Documents\CQ\RISCV\mmRISC\mmRISC-3\LitexSystem\build_stock_vexriscv_smp\gateware>
 </pasted_content id="6b8c">
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+スクリプトを直しても、バッチのVivadoは20秒待ってもJTAGケーブルを見つけられませんでした。GUIでは書き込めるので、Windows側の原因はこれ以上追わず、LinuxのVMから書き込む方法を用意しました。この方法はまだ試せていません(J12がまだUbuntuにつながっていないため)。
+
+**分かったこと**
+- **UART:** J13のFT232Rはすでにこのフィードバック用のUbuntuにつながっていて、`/dev/ttyUSB0`をminicomで開いていますね。
+- **書き込みの道具:** このVMには`openFPGALoader`が入っています。Nexys Video(`nexysVideo`)にも対応していて、Digilent用のudevルールもあります。
+- **足りないもの:** J12(USB-JTAG、FT2232H、0403:6010)がWindows側につながったままです。
+
+**新しいスクリプト:** `LitexSystem/scripts/program_nexys_video.sh`は、`openFPGALoader -b nexysVideo`でビットストリームをFPGAに書き込みます。電源を切ると消えます。既定はVexRiscv-SMPのビットストリームです。J12がつながっていないときは、その旨を表示して止まります。
+
+**使い方**
+1. Parallelsのメニュー(デバイス → USB)で、J12のDigilentのデバイスをUbuntuにつなぎます。
+2. 次を実行します。
+   ```bash
+   ./LitexSystem/scripts/program_nexys_video.sh
+   ```
+
+これで書き込みとコンソールがどちらもLinux側にそろいます。私がこちらから書き込むこともできるようになります。minicomを閉じていただければ、UARTの出力を読んで確認を進めることもできます。
+
+記録は`LitexSystem/docs/BRINGUP.md`の6節に書き、コミットfdaa410としてdevにpushしました。Ref/のファイルは0件です。
+
+J12をUbuntuにつないでLinuxから書き込みますか、それともGUIでの書き込みを続けますか(「Connected J12 to Ubuntu」か「Keep using the GUI」)?
+<!-- /answer -->
+
+## 301. 2026-11-25 21:27:58 JST
+
+```text
+Connected J12 to Ubuntu
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+書き込みとメモリテストが動いています(512 MiB全体の試験に数分かかります)。結果を待っています。
+<!-- /answer -->
+
+## 302. 2026-11-25 21:46:10 JST
+
+```text
+メモリテストのコマンドは送ることができたのかな？まだメモリテスト中なのかな？
+```
