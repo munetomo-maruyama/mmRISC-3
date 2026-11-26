@@ -517,3 +517,31 @@ buffers and the SD card's FIFOs), 1.112 W. The two critical warnings are LiteX's
 implementation (the table above).
 
 **Next**: the board: DHCP, `netboot mm2.json`, the SD card.
+
+## 21. Step 2.3 on the board: TFTP with DHCP and the SD card boot, step 2.3 done (2026-11-26)
+
+The author programmed section 20's bitstream and ran the BIOS over the UART:
+
+- The banner as step 2.2's; `Ethernet init...`, `Local IP: 192.168.1.50` (LiteX's default: the BIOS asks DHCP only
+  inside its boot sequence's network step, see below); DDR3-800 calibrated (bitslip 2, 9 ± 7 taps on both lanes).
+- **TFTP**: at `litex>`, `netboot mm2.json` first failed (`Network boot failed.`, still 192.168.1.50, not on the
+  server's network); **`eth_dhcp`: `Local IP: 192.168.0.10`**; then `netboot mm2.json`: `Copying mm2/demo.bin to
+  0x80000000... (5784 bytes)`, `Liftoff!`, the demo's prompt. The RGMII PHY runs at 1 Gb/s only, so the link is a
+  1 Gb/s link.
+- **The SD card** (the demo's `demo.bin` and `boot.json`, written from the Mac): `sdcard_init` OK, **`sdcardboot`**:
+  `Copying demo.bin to 0x80000000 (5784 bytes)`, `Liftoff!`, the demo's prompt.
+- **With nothing pressed after a reset**: the serial boot's `Timeout`, then `Booting from SDCard in SD-Mode...` and
+  the same load and `Liftoff!`: **the BIOS boots from the card by itself**.
+
+**Where DHCP runs**: LiteX's BIOS calls `dhcp_get_ip()` only in its network boot method (and in the `eth_dhcp`
+command), not at Ethernet's initialization, and the `netboot` command does not ask either. Q or ESC stops the boot
+sequence at the serial boot, before the network step, so at `litex>` the address is LiteX's default until `eth_dhcp`.
+The order at `litex>` is therefore `eth_dhcp`, then `netboot <json>` (mmRISC-2's notes on the Arty say the same).
+Without Q, with no card, the BIOS would ask DHCP itself and then netboot the server's `boot.json`.
+
+**An observation, open**: the BIOS's own Memspeed at the start gave 35.0 MiB/s write, 36.2 MiB/s read (step 2.2: 51.7
+/ 36.2): the write about a third lower with the same CPU, crossings and DDR3, only LiteEth and the SD card added.
+Not looked into here; step 2.5 measures DRAM latency through the crossing anyway.
+
+**Step 2.3 done**: the gate passed (the BIOS boots from the SD card; TFTP with DHCP). Next, step 2.4: JTAG / cJTAG
+on JA, the switches and LEDs (`Doc/BOARD.md` 7, 8).

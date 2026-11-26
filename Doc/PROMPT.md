@@ -13003,3 +13003,218 @@ Network boot failed.
 litex>
 </pasted_content id="6b8c">
 ```
+
+<!-- answer -->**Claude Code's answer**
+
+The netboot failure is because DHCP never ran: the board's address is still `Local IP: 192.168.1.50`, on another network from the server (192.168.0.42). My last procedure was wrong to say it takes an address by DHCP at start.
+
+**The cause**
+- This BIOS runs DHCP only in the automatic boot's network boot, not at initialization (`Ethernet init...`).
+- Q stops the whole boot at the serial boot stage, so it never reaches the network boot; DHCP did not run and LiteX's default 192.168.1.50 stayed.
+- The `netboot` command does no DHCP; it reads from the server with the current address.
+- The same on mmRISC-2's Arty: its notes give `eth_dhcp` → `netboot`.
+
+**The steps**: at `litex>`, `eth_dhcp`, then `netboot mm2.json`. `Local IP: 192.168.0.x` after `eth_dhcp` means DHCP worked. The server side is fine: `/srv/tftp/mm2/demo.bin` and `/srv/tftp/mm2.json` are there, the same as built. If it still fails, see whether `ping 192.168.0.42` reaches. The SD card as the last procedure.
+
+The prompt log had 322 and 323 mixed; put right and pushed to dev (commit 61d3def), no file under Ref/.
+
+Try `eth_dhcp`, then `netboot mm2.json`, at `litex>` ("Will try it")?
+<!-- /answer -->
+
+## 324. 2026-11-26 21:41:23 JST
+
+```text
+Pasting from the netboot failure on.
+
+<pasted_content id="6b8c">
+litex> netboot mm2.json                                                         
+Booting from network...                                                         
+Local IP: 192.168.1.50                                                          
+Remote IP: 192.168.0.42                                                         
+Booting from mm2.json (JSON)...                                                 
+Network boot failed.                                                            
+litex> eth_dhcp                                                                 
+Local IP: 192.168.0.10                                                          
+litex> netboot mm2.json                                                         
+Booting from network...                                                         
+Local IP: 192.168.0.10                                                          
+Remote IP: 192.168.0.42                                                         
+Booting from mm2.json (JSON)...                                                 
+Copying mm2/demo.bin to 0x80000000... (5784 bytes)                              
+Executing booted program at 0x80000000                                          
+                                                                                
+--============== Liftoff! ==============--                                      
+                                                                                
+LiteX minimal demo app built Nov 26 2026 20:21:58                               
+                                                                                
+Available commands:                                                             
+help               - Show this command                                          
+reboot             - Reboot CPU                                                 
+led                - Led demo                                                   
+donut              - Spinning Donut demo                                        
+helloc             - Hello C                                                    
+litex-demo-app>                                                                 
+        __   _ __      _  __                                                    
+       / /  (_) /____ | |/_/                                                    
+      / /__/ / __/ -_)>  <                                                      
+     /____/_/\__/\__/_/|_|                                                      
+   Build your hardware, easily!                                                 
+                                                                                
+ (c) Copyright 2012-2026 Enjoy-Digital                                          
+ (c) Copyright 2007-2015 M-Labs                                                 
+                                                                                
+ BIOS built on Nov 26 2026 20:21:40                                             
+ BIOS CRC passed (8e3f47d6)                                                     
+                                                                                
+ LiteX git sha1: 6d8a38cad                                                      
+                                                                                
+--================ SoC =================--                                      
+CPU:            mmRISC-2 (RV64GC, CPU 50MHz) @ 100MHz                           
+BUS:            wishbone 32-bit data/32-bit addr                                
+CSR:            32-bit data big ordering                                        
+ROM:            128.0KiB                                                        
+SRAM:           8.0KiB                                                          
+SDRAM:          512.0MiB 16-bit @ 800MT/s (CL-6 CWL-5)                          
+MAIN RAM:       512.0MiB                                                        
+                                                                                
+--=========== Initialization ===========--                                      
+Ethernet init...                                                                
+Local IP: 192.168.1.50                                                          
+Initializing SDRAM @0x80000000...                                               
+Switching SDRAM to software control.                                            
+Read leveling:                                                                  
+  m0, b00: |00000000000000000000000000000000| delays: -                         
+  m0, b01: |10000000000000000000000000000000| delays: -                         
+  m0, b02: |00111111111111111000000000000000| delays: 09+-07                    
+  m0, b03: |00000000000000000001111111111111| delays: 25+-06                    
+  m0, b04: |00000000000000000000000000000000| delays: -                         
+  m0, b05: |00000000000000000000000000000000| delays: -                         
+  m0, b06: |00000000000000000000000000000000| delays: -                         
+  m0, b07: |00000000000000000000000000000000| delays: -                         
+  best: m0, b02 delays: 09+-07                                                  
+  m1, b00: |00000000000000000000000000000000| delays: -                         
+  m1, b01: |10000000000000000000000000000000| delays: -                         
+  m1, b02: |00111111111111111000000000000000| delays: 09+-07                    
+  m1, b03: |00000000000000000001111111111111| delays: 25+-06                    
+  m1, b04: |00000000000000000000000000000000| delays: -                         
+  m1, b05: |00000000000000000000000000000000| delays: -                         
+  m1, b06: |00000000000000000000000000000000| delays: -                         
+  m1, b07: |00000000000000000000000000000000| delays: -                         
+  best: m1, b02 delays: 09+-07                                                  
+Switching SDRAM to hardware control.                                            
+Memtest at 0x80000000 (2.0MiB)...                                               
+  Write: 0x80000000-0x80200000 2.0MiB                                           
+   Read: 0x80000000-0x80200000 2.0MiB                                           
+Memtest OK                                                                      
+Memspeed at 0x80000000 (Sequential, 2.0MiB)...                                  
+  Write speed: 35.0MiB/s                                                        
+   Read speed: 36.2MiB/s                                                        
+--================ Boot ================--                                      
+Booting from serial...                                                          
+Press Q or ESC to abort boot completely.                                        
+sL5DdSMmkekro                                                                   
+             Cancelled                                                          
+                                                                                
+--============== Console ===============--                                      
+                                                                                
+litex> QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ
+Command not found                                                               
+litex> sdcard_init                                                              
+Initialize SDCard: OK                                                           
+litex> sdcardboot                                                               
+Booting from SDCard in SD-Mode...                                               
+Booting from boot.json...                                                       
+Copying demo.bin to 0x80000000 (5784 bytes)...                                  
+[########################################]                                      
+Executing booted program at 0x80000000                                          
+                                                                                
+--============== Liftoff! ==============--                                      
+                                                                                
+LiteX minimal demo app built Nov 26 2026 20:21:58                               
+                                                                                
+Available commands:                                                             
+help               - Show this command                                          
+reboot             - Reboot CPU                                                 
+led                - Led demo                                                   
+donut              - Spinning Donut demo                                        
+helloc             - Hello C                                                    
+litex-demo-app>                                                                 
+        __   _ __      _  __                                                    
+       / /  (_) /____ | |/_/                                                    
+      / /__/ / __/ -_)>  <                                                      
+     /____/_/\__/\__/_/|_|                                                      
+   Build your hardware, easily!                                                 
+                                                                                
+ (c) Copyright 2012-2026 Enjoy-Digital                                          
+ (c) Copyright 2007-2015 M-Labs                                                 
+                                                                                
+ BIOS built on Nov 26 2026 20:21:40                                             
+ BIOS CRC passed (8e3f47d6)                                                     
+                                                                                
+ LiteX git sha1: 6d8a38cad                                                      
+                                                                                
+--================ SoC =================--                                      
+CPU:            mmRISC-2 (RV64GC, CPU 50MHz) @ 100MHz                           
+BUS:            wishbone 32-bit data/32-bit addr                                
+CSR:            32-bit data big ordering                                        
+ROM:            128.0KiB                                                        
+SRAM:           8.0KiB                                                          
+SDRAM:          512.0MiB 16-bit @ 800MT/s (CL-6 CWL-5)                          
+MAIN RAM:       512.0MiB                                                        
+                                                                                
+--=========== Initialization ===========--                                      
+Ethernet init...                                                                
+Local IP: 192.168.1.50                                                          
+Initializing SDRAM @0x80000000...                                               
+Switching SDRAM to software control.                                            
+Read leveling:                                                                  
+  m0, b00: |00000000000000000000000000000000| delays: -                         
+  m0, b01: |10000000000000000000000000000000| delays: -                         
+  m0, b02: |00111111111111111000000000000000| delays: 09+-07                    
+  m0, b03: |00000000000000000001111111111111| delays: 25+-06                    
+  m0, b04: |00000000000000000000000000000000| delays: -                         
+  m0, b05: |00000000000000000000000000000000| delays: -                         
+  m0, b06: |00000000000000000000000000000000| delays: -                         
+  m0, b07: |00000000000000000000000000000000| delays: -                         
+  best: m0, b02 delays: 09+-07                                                  
+  m1, b00: |00000000000000000000000000000000| delays: -                         
+  m1, b01: |10000000000000000000000000000000| delays: -                         
+  m1, b02: |00111111111111111000000000000000| delays: 09+-07                    
+  m1, b03: |00000000000000000001111111111111| delays: 25+-06                    
+  m1, b04: |00000000000000000000000000000000| delays: -                         
+  m1, b05: |00000000000000000000000000000000| delays: -                         
+  m1, b06: |00000000000000000000000000000000| delays: -                         
+  m1, b07: |00000000000000000000000000000000| delays: -                         
+  best: m1, b02 delays: 09+-07                                                  
+Switching SDRAM to hardware control.                                            
+Memtest at 0x80000000 (2.0MiB)...                                               
+  Write: 0x80000000-0x80200000 2.0MiB                                           
+   Read: 0x80000000-0x80200000 2.0MiB                                           
+Memtest OK                                                                      
+Memspeed at 0x80000000 (Sequential, 2.0MiB)...                                  
+  Write speed: 35.0MiB/s                                                        
+   Read speed: 36.2MiB/s                                                        
+--================ Boot ================--                                      
+Booting from serial...                                                          
+Press Q or ESC to abort boot completely.                                        
+sL5DdSMmkekro                                                                   
+             Timeout                                                            
+Booting from SDCard in SD-Mode...                                               
+Booting from boot.json...                                                       
+Copying demo.bin to 0x80000000 (5784 bytes)...                                  
+[########################################]                                      
+Executing booted program at 0x80000000                                          
+                                                                                
+--============== Liftoff! ==============--                                      
+                                                                                
+LiteX minimal demo app built Nov 26 2026 20:21:58                               
+                                                                                
+Available commands:                                                             
+help               - Show this command                                          
+reboot             - Reboot CPU                                                 
+led                - Led demo                                                   
+donut              - Spinning Donut demo                                        
+helloc             - Hello C                                                    
+litex-demo-app>
+</pasted_content id="6b8c">
+```

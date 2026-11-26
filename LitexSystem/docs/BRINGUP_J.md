@@ -305,3 +305,18 @@ LUT 46,315(1回目48,085、手順2.1 45,954)、フリップフロップ26,740、
 最悪のパスはCPUの中のアドレス変換(`ma_size` → `mr_paddr`、20段)で、PLICではありません。4ソースのPLICは452 LUT(2ソースで405)。LUT 48,995(手順2.2: 46,315)、フリップフロップ29,000、BRAMタイル108.5(94.5。LiteEthのバッファとSDカードのFIFO)、1.112 W。2つのクリティカル警告はLiteX自身のもの(ネット`eth_rx_clk` / `eth_tx_clk`への`create_clock`。合成中はネットが未知、手順2.0の実行と同じ)。どちらのクロックも実装では時間解析されています(上の表)。
 
 **次**: ボードで: DHCP、`netboot mm2.json`、SDカード。
+
+## 21. 手順2.3をボードで: DHCPでのTFTPとSDカードからの起動、手順2.3完了(2026-11-26)
+
+著者が20節のビットストリームを書き込み、UARTでBIOSを動かしました。
+
+- バナーは手順2.2と同じ。`Ethernet init...`、`Local IP: 192.168.1.50`(LiteXの既定値。BIOSは起動シーケンスのネットワークの段階でだけDHCPを使います。下記)。DDR3-800のキャリブレーションが通る(両レーンともbitslip 2、9 ± 7タップ)。
+- **TFTP**: `litex>`で`netboot mm2.json`は最初失敗しました(`Network boot failed.`、192.168.1.50のままでサーバのネットワークにいない)。**`eth_dhcp`: `Local IP: 192.168.0.10`**。そのあと`netboot mm2.json`: `Copying mm2/demo.bin to 0x80000000... (5784 bytes)`、`Liftoff!`、デモのプロンプト。RGMIIのPHYは1 Gb/sだけで動くので、このリンクは1 Gb/sです。
+- **SDカード**(デモの`demo.bin`と`boot.json`をMacから書き込み): `sdcard_init` OK、**`sdcardboot`**: `Copying demo.bin to 0x80000000 (5784 bytes)`、`Liftoff!`、デモのプロンプト。
+- **リセット後に何も押さないと**: シリアルブートの`Timeout`のあと`Booting from SDCard in SD-Mode...`、同じロードと`Liftoff!`: **BIOSが自分でカードから起動します**。
+
+**DHCPが動く所**: LiteXのBIOSが`dhcp_get_ip()`を呼ぶのは、ネットワークブートの方法の中(と`eth_dhcp`コマンド)だけです。Ethernetの初期化では呼ばず、`netboot`コマンドも呼びません。QかESCは起動シーケンスをシリアルブートの段階で、ネットワークの段階の前に止めるので、`litex>`では`eth_dhcp`までアドレスはLiteXの既定値です。そのため`litex>`での順番は`eth_dhcp`、次に`netboot <json>`です(ArtyでのmmRISC-2の記録も同じ)。Qを押さずカードもなければ、BIOSは自分でDHCPを使い、サーバの`boot.json`をnetbootします。
+
+**未解決の観察**: 起動時のBIOS自身のMemspeedは書き込み35.0 MiB/s、読み出し36.2 MiB/s(手順2.2: 51.7 / 36.2)。CPU、乗せ換え、DDR3は同じで、加わったのはLiteEthとSDカードだけなのに、書き込みが約3分の1低くなっています。ここでは調べていません。手順2.5で乗せ換え経由のDRAMのレイテンシを測ります。
+
+**手順2.3完了**: ゲートを通過しました(BIOSがSDカードから起動、DHCPでTFTP)。次は手順2.4: JAのJTAG / cJTAG、スイッチとLED(`Doc/BOARD_J.md` 7、8)。
