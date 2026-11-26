@@ -367,3 +367,39 @@ a trial for the BIOS's prompt only; step 2.2 puts LiteX at 100 MHz and the CPU a
 JEDEC's range and worked on this board's part, as on the Arty (a trial only, `Doc/BOARD.md` 4 option D). **Next**:
 step 2.2, LiteX at 100 MHz (DDR3-800, as step 2.0) and the CPU at 50 MHz through crossings; its gate the memory test
 of all 512 MiB.
+
+## 15. Step 2.2: LiteX at 100 MHz, the CPU at 50 MHz through crossings, generated (2026-11-26)
+
+**What** (`Doc/BOARD.md` 4, option A): LiteX at its default 100 MHz on this board, so LiteDRAM runs the DDR3 at
+DDR3-800 as step 2.0, within JEDEC's range on every part the board may carry; mmRISC-2 at 50 MHz in a clock domain of
+its own; its three buses cross in its wrapper.
+
+**`cpu/mmrisc/core.py`**:
+
+- `--cpu-clk-freq` (`build_soc.sh`: `CPU_CLK`, default 50e6; `SYS_CLK` default 100e6). When it differs from sys,
+  `add_soc_components` adds a clock domain `mmrisc` to the CRG's MMCM (`create_clkout`, its reset from the MMCM's
+  lock as every LiteX domain); with equal clocks nothing crosses (`SYS_CLK=50e6 CPU_CLK=50e6` is step 2.1's SoC).
+- CPU_TOP's buses now have names of their own (`cpu_mem`, `cpu_mmio`, `cpu_dma`, in the CPU's domain) beside the ones
+  LiteX sees (`mem_axi`, `mmio_axil` → Wishbone, `dma_bus`, in sys), joined by LiteX's crossings: the memory bus by
+  `AXIClockDomainCrossing` (CPU → sys, then LiteX's 64 → 128-bit converter to LiteDRAM), the peripheral bus by
+  `AXILiteClockDomainCrossing` (CPU → sys, then `AXILite2Wishbone`), the DMA bus by `AXILiteClockDomainCrossing`
+  (sys → CPU). Each channel is an `AsyncFIFO` of 4 (gray pointers through `MultiReg`).
+- The interrupts (LiteX's event managers' levels) and LiteX's CPU reset (ctrl's `cpu_rst`, a level) through
+  `MultiReg` into the CPU's domain; the SoC reset (`soc_rst`) resets the MMCM, so every domain. CPU_TOP's `clk`,
+  `rst_n`, `rst_dbg_n` from the `mmrisc` domain.
+- `CLINT_TICK_DIV` from the CPU's clock (`cpu_clk / 500 kHz` = 100): `mtime` stays at 500 kHz.
+- The BIOS's banner prints sys's clock, so the CPU's name says its own: `mmRISC-2 (RV64GC, CPU 50MHz)`.
+
+**The generated SoC**: the MMCM (VCO 1,200 MHz) gives sys 100 MHz (÷12), sys4x and sys4x_dqs 400 MHz (÷3, the second
+at 90°), IDELAYCTRL 200 MHz (÷6), clk100 (÷12), **mmrisc 50 MHz (÷24)**: one MMCM, so the two clocks are related
+and Vivado times the FIFOs' data paths (10 ns), while the `MultiReg`s are false paths (LiteX's `mr_ff`
+constraint). `CONFIG_CLOCK_FREQUENCY` 100 MHz (the BIOS's timer and UART), the DDR3 at 800 MT/s (CL 6, CWL 5), the
+map unchanged. In the Verilog: CPU_TOP on `mmrisc_clk`, `rst_n = ~(mmrisc_rst | cpu_reset)`, `CLINT_TICK_DIV` 100,
+the interrupts through a `MultiReg`, 15 asynchronous FIFOs (the memory bus's 5 channels, the peripheral and DMA buses'
+5 each). Step 2.1's bitstream kept as `LitexSystem/build/digilent_nexys_video_step21.bit`.
+
+Not simulated as a whole (LiteX's crossings are its own, used as they are; the wiring checked in the Verilog); the
+gate is on the board.
+
+**Next**: Vivado, then the board: the banner, the DDR3 at 800 MT/s, then `mem_test 0x80000000 0x20000000` (the gate,
+all 512 MiB) and `mem_speed`.

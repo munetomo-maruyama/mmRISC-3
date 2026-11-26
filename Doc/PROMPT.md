@@ -12616,3 +12616,29 @@ No boot medium found
 litex>
 </pasted_content id="6b8c">
 ```
+
+<!-- answer -->
+**Claude Code's answer**
+
+Step 2.1's gate is met: mmRISC-2 brings up LiteX BIOS's `litex>` prompt on the board.
+
+**Vivado:** met at 20 ns (WNS +0.387 ns, hold +0.035 ns, every clock); no critical warning; 45,954 LUTs (34.3 %), 25,949 FF, 94.5 BRAM tiles, 32 DSPs, 0.824 W.
+
+**On the board**
+- The banner says `CPU: mmRISC-2 (RV64GC) @ 50MHz`, `SDRAM: 512.0MiB 16-bit @ 400MT/s`.
+- **The calibration passes at DDR3-400 too**: one window at bitslip 1 on both byte lanes, 16 ± 14 taps (30 of 32 good), wide since the bit time at 400 MT/s, 2.5 ns, is about 32 taps.
+- `Memtest OK` on 2 MiB; Memspeed 52.6 MiB/s write, 38.9 MiB/s read (the BIOS's loop on mmRISC-2 at 50 MHz through its caches).
+- With no SD card or Ethernet in it, `No boot medium found`, then `litex>`, as expected.
+
+DDR3-400 is outside JEDEC's range but worked on this board's part, as on the Arty; a trial only. The memory test of all 512 MiB comes at step 2.2 with the DDR3 back at its proper speed (minicom holds the UART now, so I have not touched it).
+
+Recorded in section 14 of `LitexSystem/docs/BRINGUP.md` and STRATEGY 2.1 (done), pushed to dev (commit b7bd6f8). No file under Ref/.
+
+Go on to step 2.2 ("Start step 2.2")? LiteX at 100 MHz (DDR3-800 as step 2.0), the CPU at 50 MHz, the memory, peripheral and DMA buses joined through clock crossings; its gate the memory test of all 512 MiB.
+<!-- /answer -->
+
+## 314. 2026-11-26 13:18:06 JST
+
+```text
+Start step 2.2
+```

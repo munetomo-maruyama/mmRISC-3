@@ -206,3 +206,21 @@ LiteSDCardのドライバ(`liblitesdcard/sdcard.c`)で止まりうる所: `sdcar
 - シリアルブートの`Timeout`、`No boot medium found`(このSoCにSDカードもEthernetもない)、**`litex>`**。
 
 **手順2.1のゲート達成: mmRISC-2でボードにLiteX BIOSのプロンプト。** DDR3-400のDDR3はJEDECの範囲外で、Artyと同じくこのボードの部品で動いた(試行だけ、`Doc/BOARD_J.md` 4の案D)。**次**: 手順2.2、LiteXを100 MHz(手順2.0と同じDDR3-800)、CPUを50 MHzにしてクロック乗せ換えでつなぐ。ゲートは512 MiB全体のメモリテスト。
+
+## 15. 手順2.2: LiteXは100 MHz、CPUは50 MHzでクロック乗せ換え、生成(2026-11-26)
+
+**内容**(`Doc/BOARD_J.md` 4、案A): LiteXをこのボードでの既定の100 MHzに。するとLiteDRAMはDDR3を手順2.0と同じDDR3-800で動かし、ボードに載りうるどの部品でもJEDECの範囲内。mmRISC-2は自分のクロックドメインで50 MHz。その3つのバスはラッパの中で乗せ換える。
+
+**`cpu/mmrisc/core.py`**:
+
+- `--cpu-clk-freq`(`build_soc.sh`: `CPU_CLK`、既定50e6。`SYS_CLK`の既定は100e6)。sysと違うとき、`add_soc_components`がCRGのMMCMにクロックドメイン`mmrisc`を加える(`create_clkout`、リセットはLiteXの他のドメインと同じくMMCMのロックから)。同じクロックなら何も乗せ換えない(`SYS_CLK=50e6 CPU_CLK=50e6`は手順2.1のSoC)。
+- CPU_TOPのバスに自分の名前を付けた(`cpu_mem`、`cpu_mmio`、`cpu_dma`、CPUのドメイン)。LiteXが見るもの(`mem_axi`、`mmio_axil` → Wishbone、`dma_bus`、sys)とはLiteXの乗せ換えでつなぐ: メモリバスは`AXIClockDomainCrossing`(CPU → sys、その後LiteXの64 → 128ビットの変換でLiteDRAMへ)、周辺バスは`AXILiteClockDomainCrossing`(CPU → sys、その後`AXILite2Wishbone`)、DMAバスは`AXILiteClockDomainCrossing`(sys → CPU)。各チャネルは深さ4の`AsyncFIFO`(グレイコードのポインタを`MultiReg`で)。
+- 割り込み(LiteXのイベントマネージャのレベル)とLiteXのCPUリセット(ctrlの`cpu_rst`、レベル)は`MultiReg`でCPUのドメインへ。SoCのリセット(`soc_rst`)はMMCMをリセットするので全ドメイン。CPU_TOPの`clk`、`rst_n`、`rst_dbg_n`は`mmrisc`ドメインから。
+- `CLINT_TICK_DIV`はCPUのクロックから(`cpu_clk / 500 kHz` = 100): `mtime`は500 kHzのまま。
+- BIOSのバナーはsysのクロックを表示するので、CPUの名前に自分のクロックを入れた: `mmRISC-2 (RV64GC, CPU 50MHz)`。
+
+**生成したSoC**: MMCM(VCO 1,200 MHz)はsys 100 MHz(÷12)、sys4xとsys4x_dqs 400 MHz(÷3、後者は90°)、IDELAYCTRL 200 MHz(÷6)、clk100(÷12)、**mmrisc 50 MHz(÷24)**を出す: MMCMは1つなので2つのクロックは関係があり、VivadoはFIFOのデータの経路を10 nsで調べる。`MultiReg`はフォールスパス(LiteXの`mr_ff`の制約)。`CONFIG_CLOCK_FREQUENCY`は100 MHz(BIOSのタイマとUART)、DDR3は800 MT/s(CL 6、CWL 5)、マップは同じ。Verilogで: CPU_TOPは`mmrisc_clk`、`rst_n = ~(mmrisc_rst | cpu_reset)`、`CLINT_TICK_DIV`は100、割り込みは`MultiReg`経由、非同期FIFOが15本(メモリバスの5チャネル、周辺バスとDMAバスの各5)。手順2.1のビットストリームは`LitexSystem/build/digilent_nexys_video_step21.bit`として残した。
+
+全体はシミュレーションしていない(LiteXの乗せ換えはLiteX自身のものをそのまま使う。配線はVerilogで確かめた)。ゲートはボードで。
+
+**次**: Vivado、その後ボード: バナー、800 MT/sのDDR3、次に`mem_test 0x80000000 0x20000000`(ゲート、512 MiB全体)と`mem_speed`。

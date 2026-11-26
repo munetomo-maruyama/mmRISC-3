@@ -13137,3 +13137,29 @@ No boot medium found
 litex>
 </pasted_content id="6b8c">
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+手順2.1のゲートを通りました。mmRISC-2で、ボードにLiteX BIOSの`litex>`プロンプトが出ています。
+
+**Vivadoの結果:** 20 nsでタイミングを満たしています(WNS +0.387 ns、ホールド+0.035 ns、全クロック)。クリティカルワーニングはありません。LUTは45,954(34.3 %)、FFは25,949、BRAMは94.5タイル、DSPは32、消費電力は0.824 Wです。
+
+**ボードでの表示**
+- バナーは`CPU: mmRISC-2 (RV64GC) @ 50MHz`、`SDRAM: 512.0MiB 16-bit @ 400MT/s`です。
+- **DDR3-400でもキャリブレーションが通りました。** 窓は両方のバイトレーンともbitslip 1にあり、16 ± 14タップ(32タップ中30が良)と広いです。400 MT/sではビット時間が2.5 nsで、タップ32個分にほぼ等しいためです。
+- 2 MiBの`Memtest OK`です。Memspeedは書き込み52.6 MiB/s、読み出し38.9 MiB/sでした(50 MHzのmmRISC-2がキャッシュ越しに回すBIOSのループの値です)。
+- SDカードもEthernetも入れていないので、`No boot medium found`と出たあと`litex>`に進みます。これは想定どおりです。
+
+DDR3-400はJEDECの範囲外ですが、Artyのときと同じく、このボードの部品では動きました。ただしこれは試行という扱いです。512 MiB全体のメモリテストは、DDR3を正規の速度に戻してから手順2.2で行います(UARTは今minicomが開いているので、こちらからは操作していません)。
+
+記録は`LitexSystem/docs/BRINGUP.md`の14節と、STRATEGYの2.1の行(完了)です。dev(コミットb7bd6f8)にpushしてあり、Ref/以下のファイルは含まれていません。
+
+次は手順2.2に進みますか(「Start step 2.2」)? LiteXを100 MHz(手順2.0と同じDDR3-800)、CPUを50 MHzにして、メモリ、周辺、DMAの各バスをクロック乗せ換えでつなぎます。ゲートは512 MiB全体のメモリテストです。
+<!-- /answer -->
+
+## 314. 2026-11-26 13:18:06 JST
+
+```text
+Start step 2.2
+```

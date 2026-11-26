@@ -6,7 +6,14 @@
 #     by default ../mmRISC-2 beside this one), not copied here;
 #   - the debug port defaults to "none": its pins, switches and status LEDs
 #     are the Arty's below, the Nexys Video's come at step 2.4
-#     (Doc/BOARD.md 7, 8).
+#     (Doc/BOARD.md 7, 8);
+#   - step 2.2: the CPU in a clock domain of its own, "mmrisc", at
+#     --cpu-clk-freq (50 MHz) from the CRG's MMCM, while LiteX runs at
+#     --sys-clk-freq (100 MHz: LiteDRAM's DDR3-800, Doc/BOARD.md 4 option A).
+#     Its three buses cross in this wrapper (add_soc_components): the memory
+#     bus through AXIClockDomainCrossing, the peripheral and DMA buses through
+#     AXILiteClockDomainCrossing, the interrupts through MultiReg. LiteX sees
+#     its buses in sys as before; with equal clocks nothing crosses.
 #
 # mmRISC-2 core support for the LiteX SoC.
 #
@@ -42,6 +49,8 @@ import os
 from migen import *
 
 from litex.gen import *
+
+from migen.genlib.cdc import MultiReg
 
 from litex.soc.interconnect import axi
 from litex.soc.interconnect import wishbone
@@ -140,11 +149,20 @@ class MMRISC(CPU):
             help="Debug port of mmRISC-2: PMOD JA (JTAG / cJTAG) or tied off.")
         cpu_group.add_argument("--cpu-l2-size", default=256 * 1024, type=int,
             help="L2 cache of mmRISC-2 in bytes (between its L1 caches and LiteDRAM), 0 for none.")
+        cpu_group.add_argument("--cpu-clk-freq", default=None, type=float,
+            help="Clock of mmRISC-2 (its own domain, buses crossed to sys); default: sys's.")
 
     @staticmethod
     def args_read(args):
         MMRISC.jtag    = args.cpu_jtag
         MMRISC.l2_size = args.cpu_l2_size
+        if args.cpu_clk_freq:
+            MMRISC.cpu_clk_freq = int(args.cpu_clk_freq)
+            # the BIOS's banner prints sys's clock: say the CPU's too
+            MMRISC.human_name   = "mmRISC-2 (RV64GC, CPU {:g}MHz)".format(args.cpu_clk_freq / 1e6)
+
+    # --cpu-clk-freq : None runs the CPU on sys, as on the Arty
+    cpu_clk_freq         = None
 
     # mtime counts one step every CLINT_TICK_DIV cycles, so at 50 MHz this
     # gives the 500 kHz timebase the working Rocket build uses. The device
@@ -200,6 +218,7 @@ class MMRISC(CPU):
         # numbering the device tree of the Rocket build uses.
         self.interrupt = Signal(self.num_irq - 1)
 
+        # The buses as LiteX sees them, in sys ...
         self.mem_axi    = mem_axi   = axi.AXIInterface(data_width=64, address_width=32, id_width=4)
         self.mmio_axil  = mmio_axil = axi.AXILiteInterface(data_width=64, address_width=32)
         self.mmio_wb    = mmio_wb   = wishbone.Interface(data_width=64,
@@ -216,6 +235,13 @@ class MMRISC(CPU):
         # data cache, and Linux read stale lines (docs/BRINGUP.md).
         self.dma_bus    = dma_axil  = axi.AXILiteInterface(data_width=64, address_width=32)
 
+        # ... and as CPU_TOP drives them, in the CPU's clock domain (the same
+        # as sys unless --cpu-clk-freq says otherwise; joined in
+        # add_soc_components, where sys's clock is known).
+        self.cpu_mem    = cpu_mem   = axi.AXIInterface(data_width=64, address_width=32, id_width=4)
+        self.cpu_mmio   = cpu_mmio  = axi.AXILiteInterface(data_width=64, address_width=32)
+        self.cpu_dma    = cpu_dma   = axi.AXILiteInterface(data_width=64, address_width=32)
+
         # # #
 
         # CPU_TOP carries 40 bit addresses; LiteX works in 32. Every address
@@ -228,10 +254,10 @@ class MMRISC(CPU):
         mmio_aw_40 = Signal(40)
         mmio_ar_40 = Signal(40)
         self.comb += [
-            mem_axi.aw.addr.eq(awaddr_40),
-            mem_axi.ar.addr.eq(araddr_40),
-            mmio_axil.aw.addr.eq(mmio_aw_40),
-            mmio_axil.ar.addr.eq(mmio_ar_40),
+            cpu_mem.aw.addr.eq(awaddr_40),
+            cpu_mem.ar.addr.eq(araddr_40),
+            cpu_mmio.aw.addr.eq(mmio_aw_40),
+            cpu_mmio.ar.addr.eq(mmio_ar_40),
         ]
 
         self.cpu_params = dict(
@@ -250,100 +276,98 @@ class MMRISC(CPU):
             # rst_n resets the CPU; nSRST of the debugger joins it in
             # add_jtag. rst_dbg_n keeps the debug module out of a reset of
             # the CPU alone, so the debugger stays connected over it.
-            i_clk       = ClockSignal("sys"),
-            i_rst_n     = ~(ResetSignal("sys") | self.reset),
-            i_rst_dbg_n = ~ResetSignal("sys"),
+            # (set in add_soc_components, in the CPU's clock domain)
             o_ndmreset  = Open(),
 
             # Interrupts: shifted up by one, PLIC source 0 does not exist.
-            i_ext_irq = Cat(C(0, 1), self.interrupt),
+            # (set in add_soc_components, synchronised to the CPU's clock)
 
             # Memory bus (AXI4).
-            o_m_axi4_awid    = mem_axi.aw.id,
+            o_m_axi4_awid    = cpu_mem.aw.id,
             o_m_axi4_awaddr  = awaddr_40,
-            o_m_axi4_awlen   = mem_axi.aw.len,
-            o_m_axi4_awsize  = mem_axi.aw.size,
-            o_m_axi4_awburst = mem_axi.aw.burst,
-            o_m_axi4_awlock  = mem_axi.aw.lock,
-            o_m_axi4_awcache = mem_axi.aw.cache,
-            o_m_axi4_awprot  = mem_axi.aw.prot,
-            o_m_axi4_awqos   = mem_axi.aw.qos,
-            o_m_axi4_awvalid = mem_axi.aw.valid,
-            i_m_axi4_awready = mem_axi.aw.ready,
+            o_m_axi4_awlen   = cpu_mem.aw.len,
+            o_m_axi4_awsize  = cpu_mem.aw.size,
+            o_m_axi4_awburst = cpu_mem.aw.burst,
+            o_m_axi4_awlock  = cpu_mem.aw.lock,
+            o_m_axi4_awcache = cpu_mem.aw.cache,
+            o_m_axi4_awprot  = cpu_mem.aw.prot,
+            o_m_axi4_awqos   = cpu_mem.aw.qos,
+            o_m_axi4_awvalid = cpu_mem.aw.valid,
+            i_m_axi4_awready = cpu_mem.aw.ready,
 
-            o_m_axi4_wdata   = mem_axi.w.data,
-            o_m_axi4_wstrb   = mem_axi.w.strb,
-            o_m_axi4_wlast   = mem_axi.w.last,
-            o_m_axi4_wvalid  = mem_axi.w.valid,
-            i_m_axi4_wready  = mem_axi.w.ready,
+            o_m_axi4_wdata   = cpu_mem.w.data,
+            o_m_axi4_wstrb   = cpu_mem.w.strb,
+            o_m_axi4_wlast   = cpu_mem.w.last,
+            o_m_axi4_wvalid  = cpu_mem.w.valid,
+            i_m_axi4_wready  = cpu_mem.w.ready,
 
-            i_m_axi4_bid     = mem_axi.b.id,
-            i_m_axi4_bresp   = mem_axi.b.resp,
-            i_m_axi4_bvalid  = mem_axi.b.valid,
-            o_m_axi4_bready  = mem_axi.b.ready,
+            i_m_axi4_bid     = cpu_mem.b.id,
+            i_m_axi4_bresp   = cpu_mem.b.resp,
+            i_m_axi4_bvalid  = cpu_mem.b.valid,
+            o_m_axi4_bready  = cpu_mem.b.ready,
 
-            o_m_axi4_arid    = mem_axi.ar.id,
+            o_m_axi4_arid    = cpu_mem.ar.id,
             o_m_axi4_araddr  = araddr_40,
-            o_m_axi4_arlen   = mem_axi.ar.len,
-            o_m_axi4_arsize  = mem_axi.ar.size,
-            o_m_axi4_arburst = mem_axi.ar.burst,
-            o_m_axi4_arlock  = mem_axi.ar.lock,
-            o_m_axi4_arcache = mem_axi.ar.cache,
-            o_m_axi4_arprot  = mem_axi.ar.prot,
-            o_m_axi4_arqos   = mem_axi.ar.qos,
-            o_m_axi4_arvalid = mem_axi.ar.valid,
-            i_m_axi4_arready = mem_axi.ar.ready,
+            o_m_axi4_arlen   = cpu_mem.ar.len,
+            o_m_axi4_arsize  = cpu_mem.ar.size,
+            o_m_axi4_arburst = cpu_mem.ar.burst,
+            o_m_axi4_arlock  = cpu_mem.ar.lock,
+            o_m_axi4_arcache = cpu_mem.ar.cache,
+            o_m_axi4_arprot  = cpu_mem.ar.prot,
+            o_m_axi4_arqos   = cpu_mem.ar.qos,
+            o_m_axi4_arvalid = cpu_mem.ar.valid,
+            i_m_axi4_arready = cpu_mem.ar.ready,
 
-            i_m_axi4_rid     = mem_axi.r.id,
-            i_m_axi4_rdata   = mem_axi.r.data,
-            i_m_axi4_rresp   = mem_axi.r.resp,
-            i_m_axi4_rlast   = mem_axi.r.last,
-            i_m_axi4_rvalid  = mem_axi.r.valid,
-            o_m_axi4_rready  = mem_axi.r.ready,
+            i_m_axi4_rid     = cpu_mem.r.id,
+            i_m_axi4_rdata   = cpu_mem.r.data,
+            i_m_axi4_rresp   = cpu_mem.r.resp,
+            i_m_axi4_rlast   = cpu_mem.r.last,
+            i_m_axi4_rvalid  = cpu_mem.r.valid,
+            o_m_axi4_rready  = cpu_mem.r.ready,
 
             # Peripheral bus (AXI4-Lite).
             o_m_axil_awaddr  = mmio_aw_40,
-            o_m_axil_awprot  = mmio_axil.aw.prot,
-            o_m_axil_awvalid = mmio_axil.aw.valid,
-            i_m_axil_awready = mmio_axil.aw.ready,
+            o_m_axil_awprot  = cpu_mmio.aw.prot,
+            o_m_axil_awvalid = cpu_mmio.aw.valid,
+            i_m_axil_awready = cpu_mmio.aw.ready,
 
-            o_m_axil_wdata   = mmio_axil.w.data,
-            o_m_axil_wstrb   = mmio_axil.w.strb,
-            o_m_axil_wvalid  = mmio_axil.w.valid,
-            i_m_axil_wready  = mmio_axil.w.ready,
+            o_m_axil_wdata   = cpu_mmio.w.data,
+            o_m_axil_wstrb   = cpu_mmio.w.strb,
+            o_m_axil_wvalid  = cpu_mmio.w.valid,
+            i_m_axil_wready  = cpu_mmio.w.ready,
 
-            i_m_axil_bresp   = mmio_axil.b.resp,
-            i_m_axil_bvalid  = mmio_axil.b.valid,
-            o_m_axil_bready  = mmio_axil.b.ready,
+            i_m_axil_bresp   = cpu_mmio.b.resp,
+            i_m_axil_bvalid  = cpu_mmio.b.valid,
+            o_m_axil_bready  = cpu_mmio.b.ready,
 
             o_m_axil_araddr  = mmio_ar_40,
-            o_m_axil_arprot  = mmio_axil.ar.prot,
-            o_m_axil_arvalid = mmio_axil.ar.valid,
-            i_m_axil_arready = mmio_axil.ar.ready,
+            o_m_axil_arprot  = cpu_mmio.ar.prot,
+            o_m_axil_arvalid = cpu_mmio.ar.valid,
+            i_m_axil_arready = cpu_mmio.ar.ready,
 
-            i_m_axil_rdata   = mmio_axil.r.data,
-            i_m_axil_rresp   = mmio_axil.r.resp,
-            i_m_axil_rvalid  = mmio_axil.r.valid,
-            o_m_axil_rready  = mmio_axil.r.ready,
+            i_m_axil_rdata   = cpu_mmio.r.data,
+            i_m_axil_rresp   = cpu_mmio.r.resp,
+            i_m_axil_rvalid  = cpu_mmio.r.valid,
+            o_m_axil_rready  = cpu_mmio.r.ready,
 
             # DMA bus (AXI4-Lite slave), 32 bit addresses made 40 bit.
-            i_s_dma_awaddr   = Cat(dma_axil.aw.addr, C(0, 8)),
-            i_s_dma_awvalid  = dma_axil.aw.valid,
-            o_s_dma_awready  = dma_axil.aw.ready,
-            i_s_dma_wdata    = dma_axil.w.data,
-            i_s_dma_wstrb    = dma_axil.w.strb,
-            i_s_dma_wvalid   = dma_axil.w.valid,
-            o_s_dma_wready   = dma_axil.w.ready,
-            o_s_dma_bresp    = dma_axil.b.resp,
-            o_s_dma_bvalid   = dma_axil.b.valid,
-            i_s_dma_bready   = dma_axil.b.ready,
-            i_s_dma_araddr   = Cat(dma_axil.ar.addr, C(0, 8)),
-            i_s_dma_arvalid  = dma_axil.ar.valid,
-            o_s_dma_arready  = dma_axil.ar.ready,
-            o_s_dma_rdata    = dma_axil.r.data,
-            o_s_dma_rresp    = dma_axil.r.resp,
-            o_s_dma_rvalid   = dma_axil.r.valid,
-            i_s_dma_rready   = dma_axil.r.ready,
+            i_s_dma_awaddr   = Cat(cpu_dma.aw.addr, C(0, 8)),
+            i_s_dma_awvalid  = cpu_dma.aw.valid,
+            o_s_dma_awready  = cpu_dma.aw.ready,
+            i_s_dma_wdata    = cpu_dma.w.data,
+            i_s_dma_wstrb    = cpu_dma.w.strb,
+            i_s_dma_wvalid   = cpu_dma.w.valid,
+            o_s_dma_wready   = cpu_dma.w.ready,
+            o_s_dma_bresp    = cpu_dma.b.resp,
+            o_s_dma_bvalid   = cpu_dma.b.valid,
+            i_s_dma_bready   = cpu_dma.b.ready,
+            i_s_dma_araddr   = Cat(cpu_dma.ar.addr, C(0, 8)),
+            i_s_dma_arvalid  = cpu_dma.ar.valid,
+            o_s_dma_arready  = cpu_dma.ar.ready,
+            o_s_dma_rdata    = cpu_dma.r.data,
+            o_s_dma_rresp    = cpu_dma.r.resp,
+            o_s_dma_rvalid   = cpu_dma.r.valid,
+            i_s_dma_rready   = cpu_dma.r.ready,
 
             # JTAG : tied off here, wired to PMOD JA by add_jtag.
             i_jtag_tck     = 0,
@@ -400,6 +424,7 @@ class MMRISC(CPU):
             ),
         ])
         pads     = platform.request("mmrisc_jtag")
+        self.jtag_srst_n = pads.srst_n
         sw_auth  = platform.request("user_sw", 2)
         sw_cjtag = platform.request("user_sw", 3)
         led0     = platform.request("rgb_led", 0)
@@ -426,7 +451,7 @@ class MMRISC(CPU):
         ]
 
         self.cpu_params.update(
-            i_rst_n        = ~(ResetSignal("sys") | self.reset) & pads.srst_n,
+            # (rst_n joined with nSRST in add_soc_components)
             i_jtag_tck     = tck,
             i_jtag_tms_i   = tms_i,
             o_jtag_tms_o   = tms_o,
@@ -495,6 +520,53 @@ class MMRISC(CPU):
             platform.add_source(os.path.join(RTL_DIR, src))
 
     def add_soc_components(self, soc):
+        # The CPU's clock domain (step 2.2): sys's, or one of its own from the
+        # CRG's MMCM with the three buses crossed. LiteX's crossings are its
+        # AsyncFIFOs; the two clocks come from one MMCM (100 and 50 MHz), so
+        # Vivado times the crossing paths as related, which they meet easily.
+        cd = "sys"
+        if self.cpu_clk_freq and self.cpu_clk_freq != soc.sys_clk_freq:
+            cd = "mmrisc"
+            soc.crg.cd_mmrisc = ClockDomain("mmrisc")
+            soc.crg.pll.create_clkout(soc.crg.cd_mmrisc, self.cpu_clk_freq)
+            soc.logger.info("mmRISC-2 in its own clock domain at {:g} MHz, sys at {:g} MHz.".format(
+                self.cpu_clk_freq / 1e6, soc.sys_clk_freq / 1e6))
+        cpu_clk_freq = self.cpu_clk_freq or soc.sys_clk_freq
+        self.cpu_cd  = cd
+        self.submodules += axi.AXIClockDomainCrossing(self.cpu_mem, self.mem_axi,
+            cd_from=cd, cd_to="sys")
+        self.submodules += axi.AXILiteClockDomainCrossing(self.cpu_mmio, self.mmio_axil,
+            cd_from=cd, cd_to="sys")
+        self.submodules += axi.AXILiteClockDomainCrossing(self.dma_bus, self.cpu_dma,
+            cd_from="sys", cd_to=cd)
+
+        # Reset: the domain's, and LiteX's CPU reset (ctrl's cpu_rst, a level)
+        # taken across; the SoC reset (soc_rst) resets the MMCM, so every
+        # domain. Interrupts: LiteX's event managers' levels, taken across.
+        cpu_reset = Signal()
+        ext_irq   = Signal(self.num_irq - 1)
+        if cd == "sys":
+            self.comb += [cpu_reset.eq(self.reset), ext_irq.eq(self.interrupt)]
+        else:
+            self.specials += [
+                MultiReg(self.reset,     cpu_reset, odomain=cd),
+                MultiReg(self.interrupt, ext_irq,   odomain=cd),
+            ]
+        rst_n = ~(ResetSignal(cd) | cpu_reset)
+        if getattr(self, "jtag_srst_n", None) is not None:
+            rst_n = rst_n & self.jtag_srst_n
+        # mtime at 500 kHz whatever the CPU's clock (the device tree's
+        # timebase-frequency)
+        tick_div = int(cpu_clk_freq // 500_000)
+        assert tick_div * 500_000 == cpu_clk_freq, "the CPU's clock must be a multiple of 500 kHz"
+        self.cpu_params.update(
+            i_clk            = ClockSignal(cd),
+            i_rst_n          = rst_n,
+            i_rst_dbg_n      = ~ResetSignal(cd),
+            i_ext_irq        = Cat(C(0, 1), ext_irq),
+            p_CLINT_TICK_DIV = tick_div,
+        )
+
         # The regions the privileged software needs to see. The CLINT and
         # the PLIC are inside the CPU, so nothing of LiteX answers there;
         # they are declared only so the map and the device tree agree.

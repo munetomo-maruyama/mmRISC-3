@@ -3,23 +3,28 @@
 # build_soc.sh : step 2.1, the LiteX SoC around mmRISC-2 on the Nexys Video
 #                (Doc/STRATEGY.md 2.1): LiteX's own target (as step 2.0,
 #                through nexys_video_target.py), the CPU mmRISC-2 (Rev.02,
-#                cpu/mmrisc/core.py, its RTL from mmRISC-2's repository),
-#                the whole SoC at 50 MHz
+#                cpu/mmrisc/core.py, its RTL from mmRISC-2's repository);
+#                step 2.2: LiteX at 100 MHz, the CPU at 50 MHz through
+#                crossings
 #
 #   ./LitexSystem/scripts/build_soc.sh [extra litex arguments]
+#   SYS_CLK=50e6 CPU_CLK=50e6 ./LitexSystem/scripts/build_soc.sh
+#                  step 2.1's SoC: everything at 50 MHz, the DDR3 at DDR3-400
 #
 # What comes out, in LitexSystem/build/ (not in git):
 #   gateware/digilent_nexys_video.v / .xdc / .tcl  the SoC and its Vivado script
 #   gateware/build_nexys_video.bat                 the Windows side's run
 #   software/bios/bios.bin, csr.json, csr.csv      the BIOS and the map
 #
-# Step 2.1 is the first light: the map is mmRISC-2's (ROM 0x1000_0000, SRAM
-# 0x1100_0000, CSRs 0x1200_0000, main RAM 0x8000_0000, 512 MiB here), and the
-# whole SoC runs at the CPU's 50 MHz, as on the Arty. LiteDRAM then runs the
-# DDR3 at 4 x 50 MHz, DDR3-400, below JEDEC's range (Doc/BOARD.md 4, option D,
-# a trial only): step 2.2 puts LiteX at 100 MHz and the CPU at 50 MHz
-# through crossings. Not yet here: the SD card and Ethernet (step 2.3), the
-# debug port on JA (step 2.4).
+# The map is mmRISC-2's (ROM 0x1000_0000, SRAM 0x1100_0000, CSRs 0x1200_0000,
+# main RAM 0x8000_0000, 512 MiB here). Step 2.1 ran the whole SoC at the CPU's
+# 50 MHz, as on the Arty, so LiteDRAM ran the DDR3 at 4 x 50 MHz, DDR3-400,
+# below JEDEC's range (Doc/BOARD.md 4, option D, a trial). Step 2.2 (the
+# default now): LiteX at SYS_CLK = 100 MHz, its default on this board (the
+# DDR3 at DDR3-800, as step 2.0), the CPU at CPU_CLK = 50 MHz in a clock
+# domain of its own from the same MMCM, its buses crossed in core.py
+# (Doc/BOARD.md 4, option A). Not yet here: the SD card and Ethernet (step
+# 2.3), the debug port on JA (step 2.4).
 #
 # As mmRISC-2's build_soc.sh (its comments say why): --l2-size 0 (the SoC
 # bus's L2, which this CPU never sees), physical optimisation after placement
@@ -48,7 +53,8 @@ cd "$LITEX_SYSTEM/cpu"
 python3 "$HERE/nexys_video_target.py" \
     --build --no-compile-gateware \
     --cpu-type mmrisc \
-    --sys-clk-freq 50e6 \
+    --sys-clk-freq "${SYS_CLK:-100e6}" \
+    --cpu-clk-freq "${CPU_CLK:-50e6}" \
     --l2-size 0 \
     --vivado-post-place-phys-opt-directive AggressiveExplore \
     --vivado-post-route-phys-opt-directive AggressiveExplore \
