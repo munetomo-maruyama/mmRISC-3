@@ -12900,6 +12900,12 @@ Check it yourself ("I'll test it myself"), or attach the board's USB to the VM f
 ```text
 I'll test it myself
 ```
+## 322. 2026-11-26 21:22:57 JST
+
+```text
+Try again
+```
+
 <!-- answer -->**Claude Code's answer**
 
 Understood. The steps on the board:
@@ -12913,58 +12919,6 @@ Understood. The steps on the board:
 **4. Report**: paste the terminal output; I record it in section 21 of `LitexSystem/docs/BRINGUP.md` and STRATEGY 2.3. If it passes, step 2.3 is done and step 2.4 (JTAG / cJTAG on JA, switches and LEDs) is next.
 
 The prompt log is pushed to dev (commit c1e2eb2), no file under Ref/.
-<!-- /answer -->
-
-## 322. 2026-11-26 21:22:57 JST
-
-```text
-もう一度試してください
-```
-
-<!-- answer -->
-**Claude Codeの回答**
-
-わかりました。ボードでの確認手順は次のとおりです。
-
-**1. 書き込みとBIOS**
-- Windows VM(J12)から書き込む場合は、`LitexSystem\build\gateware`で`program_nexys_video.bat`を実行します。
-- Linux VMから書き込む場合は、次を実行します。
-  ```bash
-  ./LitexSystem/scripts/program_nexys_video.sh LitexSystem/build/gateware/digilent_nexys_video.bit
-  ```
-- J13のUART(115200 bps)で、次の表示を確かめます。
-  - バナー: `mmRISC-2 (RV64GC, CPU 50MHz) @ 100MHz`、DDR3 800 MT/s
-  - Ethernetの初期化と、DHCPで取得したIPアドレス
-- Ethernetのケーブルはスイッチ(またはルータ)につないでおいてください。DHCPサーバが必要です。
-
-**2. TFTP**(ゲートの1つ目)
-- まず、Linux VMでデモをTFTPサーバに置きます(sudoのパスワードが必要です)。
-  ```bash
-  sudo mkdir -p /srv/tftp/mm2 && sudo cp LitexSystem/build/demo/demo.bin /srv/tftp/mm2/ && sudo cp LitexSystem/build/demo/mm2.json /srv/tftp/
-  ```
-- 自動起動の途中でQかESCを押して`litex>`を出し、次を実行します。
-  ```text
-  netboot mm2.json
-  ```
-- `mm2/demo.bin`が0x80000000に読み込まれ、`Liftoff!`のあとにデモのプロンプトが出れば合格です。デモの中で`help`や`donut`を試せます。
-
-**3. SDカード**(ゲートの2つ目)
-- カードのルートにある`demo.bin`と`boot.json`を、`LitexSystem/build/demo/`のもの(mmRISC-2用、0x80000000)に置き換えます。今入っているのはVexRiscv用(0x40000000)です。
-- 書き込みはMacから行ってください。VMから書き込むと、内容が元に戻ってしまったことがあります。
-- カードをJ3に挿してCPU RESETを押し、`litex>`で次を順に実行します。
-  ```text
-  sdcard_init
-  ```
-  ```text
-  sdcardboot
-  ```
-  `Copying demo.bin to 0x80000000`、`Liftoff!`、デモのプロンプトの順に出れば合格です。
-- 最後に、何も押さずにCPU RESETします。シリアルブートが`Timeout`になったあと、BIOSが自分でカードから起動することも確かめてください。
-
-**4. 報告**
-端末の表示を貼っていただければ、`LitexSystem/docs/BRINGUP.md`の21節とSTRATEGYの2.3の行に記録します。合格なら手順2.3は完了で、次は手順2.4(JAのJTAG/cJTAG、スイッチとLED)です。
-
-プロンプトのログはdevにpushしてあり(コミットc1e2eb2)、Ref/以下のファイルは含まれていません。
 <!-- /answer -->
 
 ## 323. 2026-11-26 21:33:53 JST
