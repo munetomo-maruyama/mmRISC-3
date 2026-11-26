@@ -238,3 +238,18 @@ LiteSDCardのドライバ(`liblitesdcard/sdcard.c`)で止まりうる所: `sdcar
 手順2.3ではSDカードとEthernetの線(2本)が加わります。mmRISC-2は自身のボードで、これらを含めて50 MHzで動いていました。
 
 **次**: もう一度Vivado、その後15節のとおりボードで確かめます。
+
+## 17. 手順2.2の2回目の実行: 達成(2026-11-26)
+
+使う割り込み線だけを乗せ換えるようにした結果(16節)、著者のVivadoの実行で**タイミングを満たしました**。クリティカル警告はありません。
+
+| クロック | セットアップWNS | ホールドWHS |
+| --- | --- | --- |
+| sys(`main_crg_clkout0`、100 MHz) | **+0.256 ns**(設計全体の最悪) | +0.068 ns |
+| CPU(`main_basesoc_clkout`、50 MHz) | +0.622 ns | +0.055 ns |
+| sys → CPU / CPU → sys | +5.877 / +6.685 ns | +0.051 / +0.025 ns |
+| IDELAYCTRL(200 MHz) / clk100 | +1.215 / +8.578 ns | |
+
+LUT 46,315(1回目48,085、手順2.1 45,954)、フリップフロップ26,740、BRAMタイル94.5、DSP 32、0.904 W。PLICは1,371から**405 LUT**になりました。ビットストリームは`LitexSystem/build/gateware/digilent_nexys_video.bit`です。
+
+**次**: ボードで(15節): バナー、800 MT/sのDDR3、`mem_test 0x80000000 0x20000000`、`mem_speed`。

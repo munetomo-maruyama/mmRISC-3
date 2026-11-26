@@ -12668,3 +12668,25 @@ Run `build_nexys_video.bat` in `LitexSystem\build\gateware` ("Will run it")?
 ```text
 Vivado synthesis finished, but WNS seems to be strongly negative.
 ```
+<!-- answer -->**Claude Code's answer**
+
+The strongly negative WNS came from the interrupt crossing. Fixed and regenerated; not yet through Vivado.
+
+**The report**: WNS −16.423 ns, 7,580 failing endpoints, all inside the CPU's own 50 MHz clock (the MMCM's CLKOUT5). sys (100 MHz) +0.342 ns and the crossings between the two clocks +6.07 ns met, so the crossings and LiteX are fine. The worst path, 46 levels (36.2 ns), from the PLIC's `threshold` through the priority choice over all sources and the interrupt request to `ex_exc_tval_r`. The same CPU met at +0.387 ns in step 2.1.
+
+**The cause**: this SoC uses 2 of the 31 interrupt lines (uart, timer0). In step 2.1 they were wired straight, so the other 29 were constant 0 and Vivado removed most of the PLIC's choice. Step 2.2 crossed all 31 with one `MultiReg`, whose flip-flops LiteX marks `dont_touch`: the 29 constants became live and the priority tree for 31 sources stayed.
+
+**The fix** (`LitexSystem/cpu/mmrisc/core.py`): only the lines LiteX drives cross, decided in `do_finalize` (LiteX connects the interrupts before it finalizes its submodules); the others are 0 as in step 2.1. In the regenerated Verilog `ext_irq[0]` and `[1]` come from `MultiReg`s and `[2]` to `[30]` are 0.
+
+Step 2.3 adds two lines (SD card, Ethernet); mmRISC-2 ran at 50 MHz with them on its own boards.
+
+Recorded in section 16 of `LitexSystem/docs/BRINGUP.md` (and the Japanese one) and STRATEGY 2.2; pushed to dev (commit 4602e67), no file under Ref/.
+
+Run `build_nexys_video.bat` in `LitexSystem\build\gateware` again ("Will run it")?
+<!-- /answer -->
+
+## 316. 2026-11-26 19:54:22 JST
+
+```text
+The Vivado run finished. The timing fix seems to have worked.
+```

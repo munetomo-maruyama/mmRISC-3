@@ -429,3 +429,19 @@ one clock domain. Regenerated: `ext_irq[0]` and `[1]` from two `MultiReg`s, `[2]
 Step 2.3 adds the SD card's and Ethernet's lines (two more), as mmRISC-2 had on its own boards at 50 MHz.
 
 **Next**: Vivado again, then the board as section 15.
+
+## 17. Step 2.2's second run: met (2026-11-26)
+
+With only the used interrupt lines crossed (section 16), the author's Vivado run **meets timing**, no critical warning:
+
+| Clock | Setup WNS | Hold WHS |
+| --- | --- | --- |
+| sys (`main_crg_clkout0`, 100 MHz) | **+0.256 ns** (the design's worst) | +0.068 ns |
+| the CPU (`main_basesoc_clkout`, 50 MHz) | +0.622 ns | +0.055 ns |
+| sys → CPU / CPU → sys | +5.877 / +6.685 ns | +0.051 / +0.025 ns |
+| IDELAYCTRL (200 MHz) / clk100 | +1.215 / +8.578 ns | |
+
+46,315 LUTs (first run 48,085, step 2.1 45,954), 26,740 flip-flops, 94.5 BRAM tiles, 32 DSPs, 0.904 W. The PLIC
+1,371 → **405 LUTs**. The bitstream is `LitexSystem/build/gateware/digilent_nexys_video.bit`.
+
+**Next**: the board (section 15): the banner, the DDR3 at 800 MT/s, `mem_test 0x80000000 0x20000000`, `mem_speed`.
