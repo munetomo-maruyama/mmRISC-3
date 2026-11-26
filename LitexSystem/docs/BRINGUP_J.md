@@ -224,3 +224,17 @@ LiteSDCardのドライバ(`liblitesdcard/sdcard.c`)で止まりうる所: `sdcar
 全体はシミュレーションしていない(LiteXの乗せ換えはLiteX自身のものをそのまま使う。配線はVerilogで確かめた)。ゲートはボードで。
 
 **次**: Vivado、その後ボード: バナー、800 MT/sのDDR3、次に`mem_test 0x80000000 0x20000000`(ゲート、512 MiB全体)と`mem_speed`。
+
+## 16. 手順2.2の最初の実行: CPUの中で−16.4 ns、割り込みの乗せ換えが原因(2026-11-26)
+
+**実行結果**(著者のVivado 2025.1): WNS **−16.423 ns**、TNS −15,629.8 ns、違反エンドポイント7,580。すべてCPU自身のクロック(`main_basesoc_clkout`、MMCMのCLKOUT5、50 MHz)の中です。ホールドは満たしています(+0.015 ns)。sys(`main_crg_clkout0`、100 MHz)は+0.342 ns、2つのクロックの間の乗せ換えは+6.072 / +6.667 ns、LiteXの非同期グループは+4.451 nsで満たしています。**乗せ換えとLiteXは問題なく、CPUが満たしていません**。LUTは48,085(手順2.1: 45,954)。
+
+**最悪のパス**: 46段(36.2 ns)。PLICの`threshold`レジスタから、ソース全体の優先度の選択(`u_plic/pending[...]_i_*`)を通り、`irq_s_ext`、CSRユニットの割り込み要求、`ex_exc_tval_r`へ。同じCPUが手順2.1では50 MHzを満たしていました(+0.387 ns)。
+
+**原因**: 手順2.1ではCPU_TOPの`ext_irq`をLiteXの割り込みベクタから直接つないでいました。このSoCが使うのはそのうち2本(uart 0、timer0 1)で、残り29本は定数0でした。そのためVivadoがそれらのソースとPLICの選択の大半を取り除いていました。手順2.2では31ビットのベクタ全体を1つの`MultiReg`で乗せ換えました。LiteXはそのフリップフロップに`async_reg, dont_touch`を付けます。そのため定数の29本が生きたフリップフロップになり、31ソース全体のPLICの木が残りました(PLICはLUT 1,371)。
+
+**修正**(`cpu/mmrisc/core.py`): 割り込みは`do_finalize`で1本ずつ、LiteXが駆動する線だけを乗せ換えます。LiteXの`SoC.finalize`はサブモジュールをfinalizeする前に割り込みをつなぐ(`_finalize_irq`)ので、CPUの`do_finalize`が動く時には`soc.irq.locs`は揃っています。使う線ごとに`MultiReg`を置き、ほかの線は1つのクロックドメインの時と同じく定数0にします。生成し直した結果: `ext_irq[0]`と`[1]`は2つの`MultiReg`から、`[2]`から`[30]`は0。Vivadoはまだです。
+
+手順2.3ではSDカードとEthernetの線(2本)が加わります。mmRISC-2は自身のボードで、これらを含めて50 MHzで動いていました。
+
+**次**: もう一度Vivado、その後15節のとおりボードで確かめます。

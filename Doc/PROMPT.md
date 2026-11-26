@@ -12642,3 +12642,29 @@ Go on to step 2.2 ("Start step 2.2")? LiteX at 100 MHz (DDR3-800 as step 2.0), t
 ```text
 Start step 2.2
 ```
+<!-- answer -->**Claude Code's answer**
+
+Step 2.2's SoC is generated: LiteX at 100 MHz (DDR3-800), mmRISC-2 at 50 MHz, joined by clock crossings. Vivado next.
+
+**Changes** (`LitexSystem/cpu/mmrisc/core.py`)
+- `--cpu-clk-freq`: when it differs from sys, a clock domain `mmrisc` at 50 MHz is added to the CRG's MMCM.
+- LiteX's crossings between CPU_TOP's buses and LiteX's: the memory bus by `AXIClockDomainCrossing` (CPU to sys), the peripheral bus by `AXILiteClockDomainCrossing` (CPU to sys, then to Wishbone), the DMA bus by `AXILiteClockDomainCrossing` (sys to CPU).
+- The interrupts and LiteX's CPU reset through `MultiReg` into the CPU's domain; the SoC reset resets the MMCM, so every domain.
+- `mtime` stays at 500 kHz (the divider from the CPU's clock).
+- The banner prints sys's clock (100 MHz), so the CPU's name carries its own (`mmRISC-2 (RV64GC, CPU 50MHz)`).
+- `build_soc.sh` defaults `SYS_CLK=100e6`, `CPU_CLK=50e6`; both 50e6 gives step 2.1's SoC.
+
+**Checked in the generated SoC**: the MMCM (VCO 1,200 MHz) gives sys 100, the DDR3's 400 and the CPU's 50 MHz (÷24), related clocks from one MMCM; the DDR3 at 800 MT/s; in the Verilog CPU_TOP on `mmrisc_clk`, the reset, the interrupts and 15 asynchronous FIFOs wired as intended. **Not simulated**: LiteX's own crossings used as they are, the wiring read in the Verilog; the check is on the board. Step 2.1's bitstream kept as `LitexSystem/build/digilent_nexys_video_step21.bit`.
+
+**Next**: run `LitexSystem\build\gateware\build_nexys_video.bat` on the Windows VM; then on the board the banner and calibration at 800 MT/s, `mem_test 0x80000000 0x20000000` (the gate, all 512 MiB) and `mem_speed`.
+
+Recorded in section 15 of `LitexSystem/docs/BRINGUP.md`, the READMEs and STRATEGY 2.2; pushed to dev (commit fbfd08b), no file under Ref/.
+
+Run `build_nexys_video.bat` in `LitexSystem\build\gateware` ("Will run it")?
+<!-- /answer -->
+
+## 315. 2026-11-26 14:38:19 JST
+
+```text
+Vivado synthesis finished, but WNS seems to be strongly negative.
+```

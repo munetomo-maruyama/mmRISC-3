@@ -403,3 +403,29 @@ gate is on the board.
 
 **Next**: Vivado, then the board: the banner, the DDR3 at 800 MT/s, then `mem_test 0x80000000 0x20000000` (the gate,
 all 512 MiB) and `mem_speed`.
+
+## 16. Step 2.2's first run: −16.4 ns inside the CPU, from the interrupt crossing (2026-11-26)
+
+**The run** (the author's Vivado 2025.1): WNS **−16.423 ns**, TNS −15,629.8 ns, 7,580 failing endpoints, all in the
+CPU's own clock (`main_basesoc_clkout`, the MMCM's CLKOUT5, 50 MHz); hold met (+0.015 ns). sys (`main_crg_clkout0`,
+100 MHz) met at +0.342 ns, the crossings between the two at +6.072 / +6.667 ns, LiteX's asynchronous group at
++4.451 ns: **the crossings and LiteX are fine; the CPU is not**. 48,085 LUTs (step 2.1: 45,954).
+
+**The worst path**: 46 levels (36.2 ns) from the PLIC's `threshold` register through its priority choice over the
+sources (`u_plic/pending[...]_i_*`) to `irq_s_ext`, the CSR unit's interrupt request and `ex_exc_tval_r`. The same CPU
+met 50 MHz in step 2.1 (+0.387 ns).
+
+**The cause**: step 2.1 drove CPU_TOP's `ext_irq` straight from LiteX's interrupt vector, of which this SoC uses two
+lines (uart 0, timer0 1); the other 29 were constant 0, so Vivado removed their sources and most of the PLIC's choice.
+Step 2.2 took the whole 31-bit vector across with one `MultiReg`, whose flip-flops LiteX marks
+`async_reg, dont_touch`: the 29 constant lines became live flip-flops, and the PLIC's tree for all 31 sources stayed
+(PLIC 1,371 LUTs).
+
+**The fix** (`cpu/mmrisc/core.py`): the interrupts cross line by line, in `do_finalize`, only the lines LiteX drives.
+LiteX's `SoC.finalize` connects the interrupts (`_finalize_irq`) before it finalizes its submodules, so `soc.irq.locs`
+is complete when the CPU's `do_finalize` runs. A `MultiReg` for each used line; every other line a constant 0, as in
+one clock domain. Regenerated: `ext_irq[0]` and `[1]` from two `MultiReg`s, `[2]` to `[30]` 0. Not yet through Vivado.
+
+Step 2.3 adds the SD card's and Ethernet's lines (two more), as mmRISC-2 had on its own boards at 50 MHz.
+
+**Next**: Vivado again, then the board as section 15.

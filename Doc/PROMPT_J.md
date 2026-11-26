@@ -13163,3 +13163,44 @@ DDR3-400はJEDECの範囲外ですが、Artyのときと同じく、このボー
 ```text
 Start step 2.2
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+手順2.2のSoCを生成しました。LiteXは100 MHz(DDR3-800)、mmRISC-2は50 MHzで動き、その間をクロック乗せ換えでつないでいます。次はVivadoです。
+
+**変更点**(`LitexSystem/cpu/mmrisc/core.py`)
+- `--cpu-clk-freq`を追加しました。sysのクロックと違う値なら、CRGのMMCMに50 MHzのクロックドメイン`mmrisc`を足します。
+- CPU_TOPのバスとLiteX側のバスの間に、LiteXの乗せ換え回路を入れました。
+  - メモリバス: `AXIClockDomainCrossing`(CPUからsysへ)
+  - 周辺バス: `AXILiteClockDomainCrossing`(CPUからsysへ、そのあとWishboneに変換)
+  - DMAバス: `AXILiteClockDomainCrossing`(sysからCPUへ)
+- 割り込みとLiteXのCPUリセットは、`MultiReg`でCPUのクロックドメインに乗せ換えます。SoC全体のリセットはMMCMごとかかるので、全ドメインがリセットされます。
+- `mtime`は、CPUのクロックから分周比を計算して500 kHzのままにしました。
+- BIOSのバナーにはsysのクロック(100 MHz)が表示されるので、CPUの名前にCPU自身のクロックを入れました(`mmRISC-2 (RV64GC, CPU 50MHz)`)。
+- `build_soc.sh`の既定は`SYS_CLK=100e6`、`CPU_CLK=50e6`です。両方を50e6にすると、手順2.1のSoCに戻ります。
+
+**生成したSoCで確かめたこと**
+- MMCMはVCO 1200 MHzから、sys 100 MHz、DDR3用の400 MHz、CPU用の50 MHz(÷24)を出します。同じMMCMから出るので、2つのクロックは同期した関係になります。
+- DDR3は800 MT/sです。
+- Verilogで、CPU_TOPが`mmrisc_clk`で動き、リセット、割り込み、15本の非同期FIFOが意図どおりにつながっていることを確かめました。
+- **シミュレーションはしていません。** 乗せ換え回路はLiteX自身のものをそのまま使い、配線はVerilogを読んで確かめただけです。動作の確認はボードで行います。
+- 手順2.1のビットストリームは、`LitexSystem/build/digilent_nexys_video_step21.bit`として残しました。
+
+**次の手順**
+1. WindowsのVMで、`LitexSystem\build\gateware\build_nexys_video.bat`を実行してください。
+2. 終わったら、ボードで次を確かめます。minicomを閉じてもらえれば、こちらで操作することもできます。
+   - バナーと、800 MT/sでのキャリブレーション
+   - `mem_test 0x80000000 0x20000000`(ゲートの512 MiB全体)
+   - `mem_speed`
+
+記録は`LitexSystem/docs/BRINGUP.md`の15節、README、STRATEGYの2.2の行です。dev(コミットfbfd08b)にpushしてあり、Ref/以下のファイルは含まれていません。
+
+`LitexSystem\build\gateware`で`build_nexys_video.bat`を実行していただけますか(「Will run it」)?
+<!-- /answer -->
+
+## 315. 2026-11-26 14:38:19 JST
+
+```text
+Vivado合成は終わったが、WNSが大きくマイナスのようだ。
+```

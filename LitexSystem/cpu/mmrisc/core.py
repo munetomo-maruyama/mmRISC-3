@@ -542,16 +542,16 @@ class MMRISC(CPU):
 
         # Reset: the domain's, and LiteX's CPU reset (ctrl's cpu_rst, a level)
         # taken across; the SoC reset (soc_rst) resets the MMCM, so every
-        # domain. Interrupts: LiteX's event managers' levels, taken across.
+        # domain. Interrupts: LiteX's event managers' levels, taken across in
+        # do_finalize, line by line, only the lines LiteX drives.
         cpu_reset = Signal()
         ext_irq   = Signal(self.num_irq - 1)
+        self.ext_irq  = ext_irq
+        self.irq_locs = soc.irq.locs
         if cd == "sys":
             self.comb += [cpu_reset.eq(self.reset), ext_irq.eq(self.interrupt)]
         else:
-            self.specials += [
-                MultiReg(self.reset,     cpu_reset, odomain=cd),
-                MultiReg(self.interrupt, ext_irq,   odomain=cd),
-            ]
+            self.specials += MultiReg(self.reset, cpu_reset, odomain=cd)
         rst_n = ~(ResetSignal(cd) | cpu_reset)
         if getattr(self, "jtag_srst_n", None) is not None:
             rst_n = rst_n & self.jtag_srst_n
@@ -606,4 +606,20 @@ class MMRISC(CPU):
 
     def do_finalize(self):
         assert hasattr(self, "reset_address")
+        # The interrupts into the CPU's own domain (step 2.2). LiteX connects
+        # them (SoC._finalize_irq) before it finalizes its submodules, so the
+        # lines it uses are known here. Only those get a MultiReg: its
+        # flip-flops are dont_touch, so a MultiReg on an unused line keeps
+        # a constant 0 alive, and the PLIC's priority tree for all 31
+        # sources with it; the first 100 / 50 MHz build missed 50 MHz by
+        # 16.4 ns that way (docs/BRINGUP.md 16). Unused lines stay 0, as in
+        # one clock domain, where Vivado removes their sources.
+        if self.cpu_cd != "sys":
+            used = sorted(set(loc for loc in self.irq_locs.values()
+                              if loc < len(self.interrupt)))
+            for i in range(len(self.interrupt)):
+                if i in used:
+                    self.specials += MultiReg(self.interrupt[i], self.ext_irq[i], odomain=self.cpu_cd)
+                else:
+                    self.comb += self.ext_irq[i].eq(0)
         self.specials += Instance("CPU_TOP", **self.cpu_params)
