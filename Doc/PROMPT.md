@@ -13218,3 +13218,27 @@ helloc             - Hello C
 litex-demo-app>
 </pasted_content id="6b8c">
 ```
+
+<!-- answer -->**Claude Code's answer**
+
+Step 2.3's gate is passed, and step 2.3 is done.
+
+**Checked on the board**
+- **TFTP**: `eth_dhcp` got `192.168.0.10`; then `netboot mm2.json` loaded `mm2/demo.bin` at 0x80000000, `Liftoff!` and the demo's prompt. This PHY runs at 1 Gb/s only, so the link is a 1 Gb/s link.
+- **SD card**: `sdcard_init` OK; `sdcardboot` loaded the demo from the card, `Liftoff!`.
+- **The automatic boot from the card**: with nothing pressed after a reset, the serial boot's `Timeout`, then the BIOS booted from the card by itself.
+
+**On DHCP**: at `litex>`, `eth_dhcp`, then `netboot <json>`. The BIOS runs DHCP only in the automatic boot's network step or by `eth_dhcp`; with Q the address stays LiteX's default. Written in BRINGUP.
+
+**Open**: the start's Memspeed write 35.0 MiB/s, a third below step 2.2's 51.7; the read unchanged at 36.2. CPU, crossings and DDR3 are as step 2.2, only LiteEth and the SD card added. Not looked into; step 2.5 measures DRAM latency through the crossing and could take it.
+
+Recorded in section 21 of `LitexSystem/docs/BRINGUP.md` (and the Japanese one) and STRATEGY 2.3 (done); pushed to dev (commit c97d724), no file under Ref/.
+
+Next is step 2.4 (JTAG / cJTAG on JA, switches and LEDs). Go on to step 2.4 ("Start step 2.4"), or look at the write speed first ("Write speed first")?
+<!-- /answer -->
+
+## 325. 2026-11-26 21:44:06 JST
+
+```text
+Write speed first
+```

@@ -545,3 +545,32 @@ Not looked into here; step 2.5 measures DRAM latency through the crossing anyway
 
 **Step 2.3 done**: the gate passed (the BIOS boots from the SD card; TFTP with DHCP). Next, step 2.4: JTAG / cJTAG
 on JA, the switches and LEDs (`Doc/BOARD.md` 7, 8).
+
+## 22. The BIOS's Memspeed write, 51.7 → 35.0 MiB/s: the uncached fetch from the ROM, not the DRAM (2026-11-26)
+
+**The question** (section 21): the BIOS's Memspeed write fell from 51.7 MiB/s (step 2.2) to 35.0 MiB/s (step 2.3), the
+read stayed at 36.2 MiB/s, with the same CPU, crossings and DDR3.
+
+**What mmRISC-2 does with LiteX's ROM**: everything below `MEM_BASE` (0x8000_0000) is uncached, and the I$ fetches
+from there one 64-bit word at a time over the peripheral bus (AXI4-Lite), without its arrays (mmRISC-2's
+`ICACHE.sv`, `CPU_CACHE_SPEC.md` 4: "to run LiteX's ROM"). The BIOS runs from the ROM at 0x1000_0000, so every 8-byte
+word of a loop is an uncached read through the CPU → sys crossing, `AXILite2Wishbone` and the ROM, every iteration.
+
+**The two BIOS builds** (step 2.2's regenerated for the comparison): `memspeed` is the same code, only placed
+elsewhere (0x1000_2BC8 / 0x1000_4320, the BIOS grew with LiteEth and the SD card). Its loops (four 8-byte accesses,
+`addi`, branch; 16 bytes) span:
+
+| Loop | Step 2.2 | Words | Step 2.3 | Words | Speed 2.2 → 2.3 (MiB/s) |
+| --- | --- | --- | --- | --- | --- |
+| Write | 0x…2C68–0x…2C77 | **2** | 0x…43AE–0x…43BD | **3** | 51.7 → 35.0 |
+| Read | 0x…2D12–0x…2D21 | 3 | 0x…4446–0x…4455 | 3 | 36.2 → 36.2 |
+
+The speed follows the number of fetched words, not the memory: the write loop of step 2.3 starts at a half-word
+(0x…AE) and spans three words where step 2.2's spanned two; 51.7 / 35.0 = 1.48, against 3 / 2. Every 3-word loop gives
+about 36 MiB/s, write or read. 32 bytes per iteration at 36.2 MiB/s are 42 CPU cycles, about **14 CPU cycles (28 sys
+cycles) per uncached fetch** from the ROM through the crossing; the DRAM's part hides under it.
+
+**So**: nothing got slower in the hardware. The BIOS's Memspeed on this CPU measures the instruction fetch from the
+ROM, not the DDR3, and moves with where the linker puts the loop. The DRAM's own throughput and latency need a
+program running from the main RAM, in the I$ (step 2.5: DRAM latency through the crossing). Not measured on the board
+for this section: the cause is read from the two builds' code and the speeds of section 18 and 21.

@@ -13867,3 +13867,34 @@ helloc             - Hello C
 litex-demo-app>
 </pasted_content id="6b8c">
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+手順2.3のゲートは合格で、手順2.3は完了です。
+
+**ボードで確かめたこと**
+- **TFTP**: `eth_dhcp`で`192.168.0.10`を取得しました。そのあと`netboot mm2.json`で`mm2/demo.bin`が0x80000000に読み込まれ、`Liftoff!`からデモのプロンプトまで出ました。このPHYは1 Gb/sでしか動かないので、つながったリンクは1 Gb/sです。
+- **SDカード**: `sdcard_init`はOKです。`sdcardboot`でカードからデモを読み込み、`Liftoff!`が出ました。
+- **カードからの自動起動**: リセット後に何も押さなければ、シリアルブートが`Timeout`になったあと、BIOSが自分でカードから起動しました。
+
+**DHCPの補足**
+- `litex>`から使うときは、`eth_dhcp`、`netboot <json>`の順に実行します。
+- BIOSがDHCPを動かすのは、自動起動のネットワークブートの段階か、`eth_dhcp`コマンドのときだけです。Qで起動を止めると、アドレスはLiteXの既定値のまま残ります。
+- これはBRINGUPに書いておきました。
+
+**未解決の点**
+- 起動時のMemspeedで、書き込みが35.0 MiB/sでした。手順2.2の51.7 MiB/sから約3分の1落ちています。読み出しは36.2 MiB/sで変わっていません。
+- CPU、クロックの乗せ換え、DDR3は手順2.2と同じで、加えたのはLiteEthとSDカードだけです。
+- まだ調べていません。手順2.5で乗せ換えを通したDRAMのレイテンシを測るので、そこで扱うこともできます。
+
+記録は`LitexSystem/docs/BRINGUP.md`の21節(日本語版も)と、STRATEGYの2.3の行(完了)です。devにpushしてあり(コミットc97d724)、Ref/以下のファイルは含まれていません。
+
+次は手順2.4(JAのJTAG/cJTAG、スイッチとLED)です。このまま手順2.4に進みますか(「Start step 2.4」)? それとも先に書き込み速度の低下を調べますか(「Write speed first」)?
+<!-- /answer -->
+
+## 325. 2026-11-26 21:44:06 JST
+
+```text
+Write speed first
+```
