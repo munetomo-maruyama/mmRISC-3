@@ -445,3 +445,21 @@ With only the used interrupt lines crossed (section 16), the author's Vivado run
 1,371 → **405 LUTs**. The bitstream is `LitexSystem/build/gateware/digilent_nexys_video.bit`.
 
 **Next**: the board (section 15): the banner, the DDR3 at 800 MT/s, `mem_test 0x80000000 0x20000000`, `mem_speed`.
+
+## 18. Step 2.2 on the board: all 512 MiB at DDR3-800 from the CPU at 50 MHz, step 2.2 done (2026-11-26)
+
+The author programmed section 17's bitstream and ran the BIOS over the UART:
+
+- The banner: `CPU: mmRISC-2 (RV64GC, CPU 50MHz) @ 100MHz`, `SDRAM: 512.0MiB 16-bit @ 800MT/s (CL-6 CWL-5)`.
+- Read leveling at 800 MT/s: bitslip 2 on both lanes, m0 9 ± 7 taps, m1 8 ± 6 taps (bitslip 3 also passes at 25 ± 6).
+- The BIOS's own `Memtest OK` (2 MiB); Memspeed 51.7 MiB/s write, 36.2 MiB/s read.
+- **`mem_test 0x80000000 0x20000000`: `Memtest OK` on all 512 MiB: the gate of step 2.2.**
+- `mem_speed 0x80000000 0x1000000` (16 MiB): 54.3 MiB/s write, 36.3 MiB/s read.
+- No SD card or Ethernet in this SoC, so `No boot medium found`, then `litex>`.
+
+The speeds stay close to step 2.1's (52.6 / 38.9 MiB/s at DDR3-400, all at 50 MHz): the BIOS's loop is bound by the
+CPU at 50 MHz, and the crossings add a few cycles to each miss (read −7 %). The DDR3 now runs within JEDEC's range
+(DDR3-800), as step 2.0's.
+
+**Step 2.2 done.** Next, step 2.3: the microSD card (J3) and Ethernet (RGMII, RTL8211E) on this SoC; its gate the
+BIOS booting from the SD card, and TFTP.

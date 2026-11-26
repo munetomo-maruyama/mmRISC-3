@@ -253,3 +253,18 @@ LiteSDCardのドライバ(`liblitesdcard/sdcard.c`)で止まりうる所: `sdcar
 LUT 46,315(1回目48,085、手順2.1 45,954)、フリップフロップ26,740、BRAMタイル94.5、DSP 32、0.904 W。PLICは1,371から**405 LUT**になりました。ビットストリームは`LitexSystem/build/gateware/digilent_nexys_video.bit`です。
 
 **次**: ボードで(15節): バナー、800 MT/sのDDR3、`mem_test 0x80000000 0x20000000`、`mem_speed`。
+
+## 18. 手順2.2をボードで: CPU 50 MHzからDDR3-800の512 MiB全体、手順2.2完了(2026-11-26)
+
+著者が17節のビットストリームを書き込み、UARTでBIOSを動かしました。
+
+- バナー: `CPU: mmRISC-2 (RV64GC, CPU 50MHz) @ 100MHz`、`SDRAM: 512.0MiB 16-bit @ 800MT/s (CL-6 CWL-5)`。
+- 800 MT/sでのリードレベリング: 両レーンともbitslip 2、m0は9 ± 7タップ、m1は8 ± 6タップ(bitslip 3も25 ± 6で通る)。
+- BIOS自身の`Memtest OK`(2 MiB)。Memspeedは書き込み51.7 MiB/s、読み出し36.2 MiB/s。
+- **`mem_test 0x80000000 0x20000000`: 512 MiB全体で`Memtest OK`。手順2.2のゲートです。**
+- `mem_speed 0x80000000 0x1000000`(16 MiB): 書き込み54.3 MiB/s、読み出し36.3 MiB/s。
+- このSoCにはSDカードもEthernetもないので、`No boot medium found`のあと`litex>`。
+
+速度は手順2.1(DDR3-400、全体50 MHzで52.6 / 38.9 MiB/s)とほぼ同じです。BIOSのループは50 MHzのCPUで律速され、乗せ換えがミスごとに数サイクルを足します(読み出し−7 %)。DDR3は手順2.0と同じく、JEDECの範囲内(DDR3-800)で動いています。
+
+**手順2.2完了。** 次は手順2.3: このSoCにmicroSDカード(J3)とEthernet(RGMII、RTL8211E)を加えます。ゲートはSDカードからのBIOSの起動とTFTPです。
