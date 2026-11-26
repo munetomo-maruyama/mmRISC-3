@@ -12690,3 +12690,28 @@ Run `build_nexys_video.bat` in `LitexSystem\build\gateware` again ("Will run it"
 ```text
 The Vivado run finished. The timing fix seems to have worked.
 ```
+<!-- answer -->**Claude Code's answer**
+
+Timing is met, with no critical warning.
+
+| Clock | Setup WNS | Hold WHS |
+| --- | --- | --- |
+| sys (100 MHz) | **+0.256 ns** (the design's worst) | +0.068 ns |
+| the CPU (50 MHz) | +0.622 ns | +0.055 ns |
+| sys → CPU / CPU → sys | +5.877 / +6.685 ns | +0.051 / +0.025 ns |
+
+- The CPU side went from −16.4 ns to +0.622 ns, and the PLIC from 1,371 to 405 LUTs: the interrupt fix worked.
+- 46,315 LUTs (step 2.1: 45,954), 94.5 BRAM tiles, 32 DSPs, 0.904 W.
+
+Recorded in section 17 of `LitexSystem/docs/BRINGUP.md` (and the Japanese one) and STRATEGY 2.2; pushed to dev (commit c68f87d), no file under Ref/.
+
+**The board check remains.** This Linux VM does not see the board's USB (`/dev/ttyUSB0`, JTAG) now. Once attached, I would program `digilent_nexys_video.bit`, check the banner (`mmRISC-2 (RV64GC, CPU 50MHz) @ 100MHz`) and the calibration at 800 MT/s, and run `mem_test 0x80000000 0x20000000` (the gate, all 512 MiB) and `mem_speed`.
+
+Attach the board's USB to the VM ("Attached, test it"), or check it yourself ("I'll test it myself")?
+<!-- /answer -->
+
+## 317. 2026-11-26 19:58:51 JST
+
+```text
+I'll test it myself
+```
