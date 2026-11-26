@@ -5,7 +5,8 @@
 #                through nexys_video_target.py), the CPU mmRISC-2 (Rev.02,
 #                cpu/mmrisc/core.py, its RTL from mmRISC-2's repository);
 #                step 2.2: LiteX at 100 MHz, the CPU at 50 MHz through
-#                crossings
+#                crossings; step 2.3: the microSD card (J3) and Ethernet
+#                (RGMII, RTL8211E) with DHCP
 #
 #   ./LitexSystem/scripts/build_soc.sh [extra litex arguments]
 #   SYS_CLK=50e6 CPU_CLK=50e6 ./LitexSystem/scripts/build_soc.sh
@@ -23,8 +24,13 @@
 # default now): LiteX at SYS_CLK = 100 MHz, its default on this board (the
 # DDR3 at DDR3-800, as step 2.0), the CPU at CPU_CLK = 50 MHz in a clock
 # domain of its own from the same MMCM, its buses crossed in core.py
-# (Doc/BOARD.md 4, option A). Not yet here: the SD card and Ethernet (step
-# 2.3), the debug port on JA (step 2.4).
+# (Doc/BOARD.md 4, option A). Step 2.3: --with-sdcard (the PHY without
+# LiteSDCard's card reset, nexys_video_target.py, BRINGUP 10; its registers
+# in the I/O blocks, as build_stock.sh and mmRISC-2), --with-ethernet
+# --eth-dhcp (nexys_video_target.py: the BIOS takes its address by DHCP; the
+# TFTP server is REMOTE_IP, default 192.168.0.42, changed at the litex>
+# prompt with eth_remote_ip). The SD card's DMA goes on the CPU's DMA bus
+# (core.py). Not yet here: the debug port on JA (step 2.4).
 #
 # As mmRISC-2's build_soc.sh (its comments say why): --l2-size 0 (the SoC
 # bus's L2, which this CPU never sees), physical optimisation after placement
@@ -55,6 +61,9 @@ python3 "$HERE/nexys_video_target.py" \
     --cpu-type mmrisc \
     --sys-clk-freq "${SYS_CLK:-100e6}" \
     --cpu-clk-freq "${CPU_CLK:-50e6}" \
+    --with-sdcard \
+    --with-ethernet --eth-dhcp \
+    --remote-ip "${REMOTE_IP:-192.168.0.42}" \
     --l2-size 0 \
     --vivado-post-place-phys-opt-directive AggressiveExplore \
     --vivado-post-route-phys-opt-directive AggressiveExplore \
@@ -77,6 +86,16 @@ for root in sorted({os.path.realpath(p) for p in sys.argv[2:]}, key=len, reverse
     print(f"  {n} absolute paths under {root} made relative")
 open(tcl, "w").write(text)
 PY
+fi
+XDC="$G/digilent_nexys_video.xdc"
+if [ -f "$XDC" ] && grep -q "sdcard_clk" "$XDC" && ! grep -q "IOB TRUE.*sdcard" "$XDC"; then
+    # (a newline first: LiteX's XDC ends without one)
+    cat >> "$XDC" <<'EOF2'
+
+# mmRISC-3 step 2.3: SD card PHY registers in the I/O blocks (build_soc.sh)
+set_property IOB TRUE [get_ports {sdcard_clk sdcard_cmd {sdcard_data[*]}}]
+EOF2
+    echo "  SD card registers put in the I/O blocks"
 fi
 cp "$HERE/build_nexys_video.bat" "$HERE/program_nexys_video.bat" "$HERE/program_nexys_video.tcl" "$G/"
 echo ""

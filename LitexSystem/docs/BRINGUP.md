@@ -463,3 +463,37 @@ CPU at 50 MHz, and the crossings add a few cycles to each miss (read −7 %). Th
 
 **Step 2.2 done.** Next, step 2.3: the microSD card (J3) and Ethernet (RGMII, RTL8211E) on this SoC; its gate the
 BIOS booting from the SD card, and TFTP.
+
+## 19. Step 2.3: the SD card and Ethernet on mmRISC-2's SoC, generated (2026-11-26)
+
+**What** (`Doc/STRATEGY.md` 2.3): step 2.2's SoC (LiteX 100 MHz, the CPU 50 MHz through crossings) with the microSD
+slot J3 and Ethernet (RGMII, RTL8211E); the gate: the BIOS boots from the SD card, and TFTP with DHCP.
+
+**`scripts/build_soc.sh`**: `--with-sdcard --with-ethernet --eth-dhcp --remote-ip ${REMOTE_IP:-192.168.0.42}`, and
+the SD card's output registers in the I/O blocks (the XDC line of `build_stock.sh` and mmRISC-2).
+
+**`scripts/nexys_video_target.py`**: `--eth-dhcp`, which LiteX's Nexys Video target lacks (`Doc/BOARD.md` 2): taken
+off the command line, it makes `add_ethernet` build with `with_dhcp=True` and no local IP, as the Arty's target
+(`--eth-dynamic-ip` alone fails on the target's default `eth_ip`). The SD card PHY stays without the card reset
+(section 10).
+
+**The generated SoC**:
+
+- Interrupts: uart 0, timer0 1, **ethmac 2, sdcard 3**; in the Verilog `ext_irq[0]` to `[3]` each from its own
+  `MultiReg`, `[4]` to `[30]` 0 (section 16's rule; the PLIC's tree grows from 2 to 4 sources).
+- `ETH_WITH_DHCP`, `ETH_DYNAMIC_IP`, `ETH_UDP_BROADCAST`; `REMOTEIP` 192.168.0.42; LiteEth's packet buffers at
+  0x3000_0000 (8 KiB, mmRISC-2's map), reached through the CPU's peripheral bus. The RGMII PHY runs at 1 Gb/s only
+  (125 MHz clocks, `eth_clocks_rx` 8 ns): a link that works is a 1 Gb/s link.
+- The SD card's two DMA masters (`sdcard_block2mem`, `sdcard_mem2block`) on the CPU's DMA bus, through the sys → CPU
+  crossing (`CONFIG_CPU_HAS_DMA_BUS`).
+- The BIOS 48.5 KiB (of 128 KiB).
+
+**The demo** for mmRISC-2's map: `build_demo.sh LitexSystem/build mm2` (a name now makes `<name>.json` for
+`<name>/demo.bin` on the TFTP server, whose `demo.bin` is VexRiscv's): `LitexSystem/build/demo/demo.bin` (RV64, at
+0x8000_0000), `boot.json` for the card, `mm2.json` for `netboot mm2.json`.
+
+Step 2.2's bitstream kept as `LitexSystem/build/digilent_nexys_video_step22.bit`.
+
+**Next**: Vivado; then on the board: DHCP's address in the BIOS, `netboot mm2.json` (the demo in the server's
+`mm2/`), the card with the demo's `demo.bin` and `boot.json` (written from the Mac), `sdcardboot` and the BIOS's own
+boot from the card.

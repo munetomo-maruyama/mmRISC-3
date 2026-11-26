@@ -268,3 +268,24 @@ LUT 46,315(1回目48,085、手順2.1 45,954)、フリップフロップ26,740、
 速度は手順2.1(DDR3-400、全体50 MHzで52.6 / 38.9 MiB/s)とほぼ同じです。BIOSのループは50 MHzのCPUで律速され、乗せ換えがミスごとに数サイクルを足します(読み出し−7 %)。DDR3は手順2.0と同じく、JEDECの範囲内(DDR3-800)で動いています。
 
 **手順2.2完了。** 次は手順2.3: このSoCにmicroSDカード(J3)とEthernet(RGMII、RTL8211E)を加えます。ゲートはSDカードからのBIOSの起動とTFTPです。
+
+## 19. 手順2.3: mmRISC-2のSoCにSDカードとEthernet、生成(2026-11-26)
+
+**内容**(`Doc/STRATEGY_J.md` 2.3): 手順2.2のSoC(LiteX 100 MHz、CPU 50 MHz、乗せ換え経由)にmicroSDのスロットJ3とEthernet(RGMII、RTL8211E)を加えます。ゲートは、BIOSがSDカードから起動することと、DHCPでのTFTPです。
+
+**`scripts/build_soc.sh`**: `--with-sdcard --with-ethernet --eth-dhcp --remote-ip ${REMOTE_IP:-192.168.0.42}`。SDカードの出力レジスタをI/Oブロックに置きます(`build_stock.sh`とmmRISC-2のXDCの行)。
+
+**`scripts/nexys_video_target.py`**: LiteXのNexys Videoのターゲットにない`--eth-dhcp`を加えました(`Doc/BOARD_J.md` 2)。コマンドラインから取り除き、`add_ethernet`を`with_dhcp=True`、固定のIPなしで作らせます。Artyのターゲットと同じです(`--eth-dynamic-ip`だけでは、ターゲットの既定の`eth_ip`のために失敗します)。SDカードのPHYは引き続きカードのリセットなしです(10節)。
+
+**生成したSoC**:
+
+- 割り込み: uart 0、timer0 1、**ethmac 2、sdcard 3**。Verilogで`ext_irq[0]`から`[3]`はそれぞれ自身の`MultiReg`から、`[4]`から`[30]`は0(16節の規則。PLICの木は2ソースから4ソースに)。
+- `ETH_WITH_DHCP`、`ETH_DYNAMIC_IP`、`ETH_UDP_BROADCAST`。`REMOTEIP`は192.168.0.42。LiteEthのパケットバッファは0x3000_0000(8 KiB、mmRISC-2のマップ)で、CPUの周辺バスから届きます。RGMIIのPHYは1 Gb/sだけで動きます(125 MHzのクロック、`eth_clocks_rx` 8 ns)。つまり動くリンクは1 Gb/sのリンクです。
+- SDカードの2つのDMAマスタ(`sdcard_block2mem`、`sdcard_mem2block`)はCPUのDMAバスに、sys → CPUの乗せ換えを通ります(`CONFIG_CPU_HAS_DMA_BUS`)。
+- BIOSは48.5 KiB(128 KiB中)。
+
+**mmRISC-2のマップ用のデモ**: `build_demo.sh LitexSystem/build mm2`(名前を付けると、TFTPサーバの`<name>/demo.bin`のための`<name>.json`を作ります。サーバの`demo.bin`はVexRiscvのもの): `LitexSystem/build/demo/demo.bin`(RV64、0x8000_0000)、カード用の`boot.json`、`netboot mm2.json`用の`mm2.json`。
+
+手順2.2のビットストリームは`LitexSystem/build/digilent_nexys_video_step22.bit`として残しました。
+
+**次**: Vivado。その後ボードで: BIOSでのDHCPのアドレス、`netboot mm2.json`(サーバの`mm2/`にデモ)、デモの`demo.bin`と`boot.json`を入れたカード(Macから書き込む)、`sdcardboot`とBIOS自身のカードからの起動。

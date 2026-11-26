@@ -13391,3 +13391,30 @@ Memspeed at 0x80000000 (Sequential, 16.0MiB)...
 litex>
 </pasted_content id="6b8c">
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+512 MiB全体の`mem_test`で`Memtest OK`が出ているので、手順2.2のゲートは合格です。手順2.2は完了です。
+
+**ボードで確かめたこと**
+- バナーは`mmRISC-2 (RV64GC, CPU 50MHz) @ 100MHz`、`512.0MiB 16-bit @ 800MT/s (CL-6 CWL-5)`で、意図どおりです。
+- DDR3は800 MT/sでキャリブレーションが通りました(両レーンともbitslip 2、9 ± 7タップと8 ± 6タップ)。DDR3は手順2.0と同じく、JEDECの範囲内で動いています。
+- `mem_speed`は書き込み54.3 MiB/s、読み出し36.3 MiB/sでした。手順2.1(DDR3-400、全体50 MHz)の52.6 / 38.9 MiB/sとほぼ同じです。
+  - BIOSのこのループは50 MHzのCPUで速さが決まるので、DDR3を速くしても伸びません。
+  - 読み出しが7 %遅いのは、クロック乗せ換えでミスのたびに数サイクル余計にかかるためと見ています。
+
+これで、CPUのクロックをLiteX(100 MHz)から切り離せました。今後はDDR3の速度を気にせずにCPUのクロックを決められます。
+
+記録は`LitexSystem/docs/BRINGUP.md`の18節(日本語版も)と、STRATEGYの2.2の行(完了)です。devにpushしてあり(コミットff29131)、Ref/以下のファイルは含まれていません。
+
+次は手順2.3で、このSoCにmicroSDカード(J3)とEthernet(RGMII、RTL8211E)を加えます。ゲートは、SDカードからBIOSが起動することと、TFTPが動くことです。
+
+手順2.3に進みますか(「Start step 2.3」)?
+<!-- /answer -->
+
+## 319. 2026-11-26 20:19:57 JST
+
+```text
+Start step 2.3
+```

@@ -13,6 +13,12 @@
 # does sdcardboot (LitexSystem/docs/BRINGUP.md 10). Here the PHY is built
 # without that reset, as before b0d2771: the rst pad held low, the card powered
 # from the configuration on. SD_CARD_RESET=1 keeps the stock PHY.
+#
+# --eth-dhcp (step 2.3): the target has --eth-dynamic-ip but no --eth-dhcp,
+# and passes its eth_ip (default 192.168.1.50) with either, which LiteX
+# refuses (Doc/BOARD.md 2). With --eth-dhcp, taken off the command line here,
+# add_ethernet gets with_dhcp=True and no local IP, as the Arty's target
+# does: the BIOS asks for its address by DHCP before netboot.
 #---------------------------------------------------------------------------
 import os, runpy, sys
 
@@ -23,6 +29,16 @@ if os.environ.get("SD_CARD_RESET") != "1":
         _init(self, sdpads_layout, with_reset=False)
     phy.SDPHYInit.__init__ = _init_no_reset
     print("nexys_video_target.py: the SD card PHY without the card reset (rst held low)")
+
+if "--eth-dhcp" in sys.argv:
+    sys.argv.remove("--eth-dhcp")
+    from litex.soc.integration.soc import LiteXSoC
+    _add_ethernet = LiteXSoC.add_ethernet
+    def _add_ethernet_dhcp(self, *args, **kwargs):
+        kwargs.update(with_dhcp=True, dynamic_ip=True, local_ip=None)
+        return _add_ethernet(self, *args, **kwargs)
+    LiteXSoC.add_ethernet = _add_ethernet_dhcp
+    print("nexys_video_target.py: Ethernet with DHCP (no fixed local IP)")
 
 import litex_boards.targets.digilent_nexys_video as target
 sys.argv[0] = target.__file__

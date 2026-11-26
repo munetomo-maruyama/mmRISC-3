@@ -12815,3 +12815,26 @@ Memspeed at 0x80000000 (Sequential, 16.0MiB)...
 litex>
 </pasted_content id="6b8c">
 ```
+<!-- answer -->**Claude Code's answer**
+
+`Memtest OK` on all 512 MiB: step 2.2's gate is passed, and step 2.2 is done.
+
+**Checked on the board**
+- The banner `mmRISC-2 (RV64GC, CPU 50MHz) @ 100MHz`, `512.0MiB 16-bit @ 800MT/s (CL-6 CWL-5)`, as intended.
+- DDR3 calibrated at 800 MT/s (bitslip 2 on both lanes, 9 ± 7 and 8 ± 6 taps): within JEDEC's range, as step 2.0.
+- `mem_speed` 54.3 MiB/s write, 36.3 MiB/s read, close to step 2.1's 52.6 / 38.9 MiB/s (DDR3-400, all at 50 MHz): this BIOS loop is bound by the CPU at 50 MHz, so a faster DDR3 does not raise it; the read's 7 % is, I think, the few cycles the crossing adds to each miss.
+
+The CPU's clock is now apart from LiteX's (100 MHz): it can be chosen without regard to the DDR3's speed.
+
+Recorded in section 18 of `LitexSystem/docs/BRINGUP.md` (and the Japanese one) and STRATEGY 2.2 (done); pushed to dev (commit ff29131), no file under Ref/.
+
+Next, step 2.3: the microSD card (J3) and Ethernet (RGMII, RTL8211E) on this SoC; its gate the BIOS booting from the SD card, and TFTP.
+
+Go on to step 2.3 ("Start step 2.3")?
+<!-- /answer -->
+
+## 319. 2026-11-26 20:19:57 JST
+
+```text
+Start step 2.3
+```
