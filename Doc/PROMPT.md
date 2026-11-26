@@ -13242,3 +13242,37 @@ Next is step 2.4 (JTAG / cJTAG on JA, switches and LEDs). Go on to step 2.4 ("St
 ```text
 Write speed first
 ```
+
+<!-- answer -->**Claude Code's answer**
+
+The write speed drop is not the DRAM or the hardware getting slower: the BIOS's `memspeed` loop moved, and reads its instructions from the ROM more times.
+
+**Why**
+- The BIOS runs from LiteX's ROM at 0x1000_0000.
+- mmRISC-2 does not cache instructions below 0x8000_0000; it reads them 8 bytes at a time over the peripheral bus, now through the clock crossing each time.
+- So `memspeed`'s loops run as fast as the number of 8-byte words they span allows; the DRAM's speed hides behind it.
+
+**The two BIOS builds compared** (step 2.2's SoC regenerated into the scratch folder): `memspeed` is the same code, only at another address (the BIOS grew with LiteEth and the SD card).
+
+| Loop | Step 2.2 | Words | Step 2.3 | Words | Speed (MiB/s) |
+| --- | --- | --- | --- | --- | --- |
+| Write | 0x…2C68–0x…2C77 | **2** | 0x…43AE–0x…43BD | **3** | 51.7 → 35.0 |
+| Read | 0x…2D12–0x…2D21 | 3 | 0x…4446–0x…4455 | 3 | 36.2 → 36.2 |
+
+- Step 2.3's write loop starts at a 2-byte boundary (0x…AE), so it spans 3 words and reads the ROM 1.5 times as often as step 2.2's; the speeds' ratio 51.7 / 35.0 = 1.48 matches.
+- A 3-word loop gives about 36 MiB/s, write or read; back-calculated, one word from the ROM takes about 14 CPU cycles.
+
+**Note**
+- This is derived from the code and the speeds measured so far; no extra measurement on the board.
+- On this CPU the BIOS's `mem_speed` cannot measure the DDR3. DRAM's own throughput and latency need a program in the main RAM running from the cache; that is step 2.5 (DRAM latency through the crossing).
+
+Recorded in section 22 of `LitexSystem/docs/BRINGUP.md` (and the Japanese one) and STRATEGY 2.3; pushed to dev (commit 334b2f9), no file under Ref/.
+
+Go on to step 2.4 (JTAG / cJTAG on JA, switches and LEDs) ("Start step 2.4")?
+<!-- /answer -->
+
+## 326. 2026-11-26 21:48:23 JST
+
+```text
+Start step 2.4
+```

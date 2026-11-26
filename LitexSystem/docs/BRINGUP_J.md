@@ -337,3 +337,28 @@ LUT 46,315(1回目48,085、手順2.1 45,954)、フリップフロップ26,740、
 速度はメモリではなく、フェッチするワードの数に従っています。手順2.3の書き込みループはハーフワード(0x…AE)から始まり、手順2.2では2ワードだったところが3ワードにまたがります。51.7 / 35.0 = 1.48で、3 / 2に対応します。3ワードのループは書き込みでも読み出しでも約36 MiB/sです。1回32バイトを36.2 MiB/sで回すと42 CPUサイクルで、乗せ換えを通したROMからのキャッシュしないフェッチ1回が**約14 CPUサイクル(28 sysサイクル)**です。DRAMの分はその下に隠れています。
 
 **結論**: ハードウェアは何も遅くなっていません。このCPUでのBIOSのMemspeedは、DDR3ではなくROMからの命令フェッチを測っていて、リンカがループを置く場所で変わります。DRAM自身のスループットとレイテンシには、メインRAMからI$で動くプログラムが要ります(手順2.5: 乗せ換え経由のDRAMのレイテンシ)。この節のためにボードでは測っていません。原因は2つのビルドのコードと、18節と21節の速度から読み取ったものです。
+
+## 23. 手順2.4: Pmod JAのデバッグポート、スイッチとLED、生成(2026-11-26)
+
+**内容**(`Doc/STRATEGY_J.md` 2.4、`Doc/BOARD_J.md` 7、8): mmRISC-2のJTAG / cJTAGのデバッグポートを、Artyと同じくNexys VideoのPmod JAに出します。ゲートは、4つの組み合わせ(JTAG / cJTAG × 認証なし / あり)で`jtag_check.tcl`がPASSすることです。
+
+**`cpu/mmrisc/core.py`**(`add_jtag`):
+
+- Pmodの位置はどちらのボードでも同じ(LiteXのプラットフォームの`pmoda:0`から`pmoda:5`)なので、ケーブルとmmRISC-2のOpenOCDの設定は変わりません: JA1 TCK/TCKC AB22、JA2 TDI AB21、JA3 TDO AB20、JA4 TMS/TMSC AB18、JA7 nTRST Y21、JA8 nSRST AA21。LVCMOS33、バンク14(3.3 V、SDカードとUARTと同じ)、プルとキーパはArtyと同じ。
+- 状態のLED: Artyでは従来どおり減光したRGB LED。プラットフォームに`rgb_led`がない場合(Nexys Video)は、**LD0 halted、LD1 running、LD2 dmactive、LD3 cJTAG online**(100 Ω、2.5 V、減光なし)。
+- JTAGのクロック(TCK、TMSC、100 ns)はsysとだけ非同期にしていました。デバッグモジュールはCPU自身のクロックでコアとつながり、それはsysとは兄弟のMMCMの出力なので(手順2.2)、**`mmrisc`とも非同期**にしました(`set_clock_groups`)。
+
+**`scripts/nexys_video_target.py`**:
+
+- **スイッチとボタンはLVCMOS12**(Digilentのマスタ XDC。VADJはボードの抵抗で1.2 V、`SET_VADJ`はそのまま): プラットフォームのLVCMOS25では、上げたSW2 / SW3をLowと読みます(`Doc/BOARD_J.md` 10、懸念9)。`user_btn` 5(G4、DDR3の1.5 VバンクにあるCPU RESETのピン)はそのまま。
+- **LEDチェイサーは残りのLEDに**: ターゲットの`request_all("user_led")`は番号0から順に要求するので、LD0-LD3がCPUのものになると1つも見つけられません。`request_remaining`でLD4-LD7を渡します(Verilogのポートは`user_led`、`user_led_1`から`_3`、V15、W16、W15、Y13)。
+
+**`scripts/build_soc.sh`**: `--cpu-jtag pmoda`。**`scripts/jtag_check.tcl`**: mmRISC-2のものに、このSoCの識別子("LiteX SoC on Nexys Video ..."、Artyと同じ0x1200_2000)も受け付けるようにしたもの。mmRISC-2の設定(`mmRISC-2/FPGA/ARTY_A7_100T/openocd/ft2232h_jtag.cfg`、`ft2232h_cjtag.cfg`)で動かします。これらは外付けのFT2232Hを説明文字列("Dual RS232")で選び、ボード自身のUSB-JTAGは選びません。
+
+**生成したSoCで**: CPU_TOPの`cjtag_en`は`user_sw3`(G22)、`dbg_auth_en`は`user_sw2`(G21)から、どちらもLVCMOS12。`rst_n = ~(mmrisc_rst | cpu_reset) & mmrisc_jtag_srst_n`、`rst_dbg_n = ~mmrisc_rst`。`user_led0`から`3`は`dbg_halted`、`dbg_running`、`dbg_dmactive`、`cjtag_online`から。LEDチェイサーはLD4-LD7。`jtag_tck`と`jtag_tmsc`は100 nsで、`sys_clk`、`mmrisc_clk`、お互いとのクロックグループ。両方に`CLOCK_DEDICATED_ROUTE FALSE`。手順2.3のビットストリームは`LitexSystem/build/digilent_nexys_video_step23.bit`として残しました。
+
+**次**: Vivado。その後ボードで(FT2232HをArtyと同じくJAに配線、そのUSBをLinuxのVMへ。`LitexSystem/`から):
+
+1. SW3下、SW2下: `openocd -f ../../mmRISC-2/FPGA/ARTY_A7_100T/openocd/ft2232h_jtag.cfg -f scripts/jtag_check.tcl`(`AUTH_KEY=none`でも)。BIOSが動いている間はLD1、停止中はLD0が点灯。
+2. SW2上(OpenOCDを起動する前に): 同じく、設定が正しいキーを書き込む。間違ったキーが拒否されること(`AUTH_KEY=0x12345678`: `examination failed`)。
+3. SW3上(LD3点灯): `ft2232h_cjtag.cfg`(4線 → 2線のアダプタ経由)、SW2下と上。

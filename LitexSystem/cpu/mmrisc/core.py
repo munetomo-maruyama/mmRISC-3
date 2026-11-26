@@ -132,9 +132,10 @@ class MMRISC(CPU):
     # External interrupt lines of the PLIC.
     num_irq              = 32
 
-    # --cpu-jtag : where the debug port goes. "pmoda" puts it on PMOD JA of
-    # the Arty, "none" ties it off.
-    jtag                 = "none"     # mmRISC-3: "pmoda" is the Arty's until step 2.4
+    # --cpu-jtag : where the debug port goes. "pmoda" puts it on PMOD JA
+    # (the Arty's or the Nexys Video's, the same positions), "none" ties it
+    # off.
+    jtag                 = "none"
     # the key of the authentication (SW2 up), as in FPGA/ARTY_A7_100T
     auth_key             = 0xbeefcafe
     # --cpu-l2-size : the L2 cache inside the CPU (RTL/CPU/CPU_L2), bytes;
@@ -396,21 +397,28 @@ class MMRISC(CPU):
         self.add_sources(platform)
 
     # JTAG / cJTAG on PMOD JA, the pins, pulls and clock constraints of
-    # FPGA/ARTY_A7_100T (TOP.xdc, TOP_impl.xdc):
+    # FPGA/ARTY_A7_100T (TOP.xdc, TOP_impl.xdc). The same Pmod positions on
+    # both boards (pmoda:0-5 in LiteX's platforms), so the cable and the
+    # OpenOCD configurations are the same (Arty / Nexys Video pins):
     #
-    #   JA1 G13 TCK/TCKC   pull-up                a clock on a general pin
-    #   JA2 B11 TDI        pull-up
-    #   JA3 A11 TDO        pull-up                driven only while shifting
-    #   JA4 D12 TMS/TMSC   keeper                 both sides drive it in cJTAG
-    #   JA7 D13 nTRST      pull-up                resets the TAP
-    #   JA8 B18 nSRST      pull-up                resets the CPU (not LiteX)
-    #   SW3 A10            cJTAG enable           SW2 C10  authentication
+    #   JA1 G13 / AB22  TCK/TCKC   pull-up      a clock on a general pin
+    #   JA2 B11 / AB21  TDI        pull-up
+    #   JA3 A11 / AB20  TDO        pull-up      driven only while shifting
+    #   JA4 D12 / AB18  TMS/TMSC   keeper       both sides drive it in cJTAG
+    #   JA7 D13 / Y21   nTRST      pull-up      resets the TAP
+    #   JA8 B18 / AA21  nSRST      pull-up      resets the CPU (not LiteX)
+    #   SW3 A10 / G22   cJTAG enable            SW2 C10 / G21  authentication
     #
-    # The LEDs LD4-LD7 of the bring-up design are the LED chaser of LiteX
-    # here, and its CSR stays where the device tree and fw_jump.bin expect
-    # it, so the status goes to the RGB LEDs instead, dimmed:
+    # The status LEDs. On the Arty, LD4-LD7 are LiteX's LED chaser, whose CSR
+    # stays where the device tree and fw_jump.bin expect it, so the status
+    # goes to the RGB LEDs, dimmed:
     #
     #   LD0 red halted, green running   LD1 blue dmactive   LD2 green cJTAG online
+    #
+    # On the Nexys Video (no RGB LEDs; mmRISC-3 Doc/BOARD.md 8), LD0-LD3 as
+    # they are, LD4-LD7 left to the LED chaser (nexys_video_target.py):
+    #
+    #   LD0 halted   LD1 running   LD2 dmactive   LD3 cJTAG online
     def add_jtag(self, platform):
         platform.add_extension([
             ("mmrisc_jtag", 0,
@@ -427,9 +435,7 @@ class MMRISC(CPU):
         self.jtag_srst_n = pads.srst_n
         sw_auth  = platform.request("user_sw", 2)
         sw_cjtag = platform.request("user_sw", 3)
-        led0     = platform.request("rgb_led", 0)
-        led1     = platform.request("rgb_led", 1)
-        led2     = platform.request("rgb_led", 2)
+        rgb      = any(r[0] == "rgb_led" for r in platform.constraint_manager.available)
 
         tck    = Signal()
         tms_i  = Signal()
@@ -469,22 +475,39 @@ class MMRISC(CPU):
             o_dbg_dmactive = dmactive,
         )
 
-        # the RGB LEDs are blinding at full current: on one cycle in 16
-        dim = Signal(4)
-        on  = Signal()
-        self.sync += dim.eq(dim + 1)
-        self.comb += [
-            on.eq(dim == 0),
-            led0.r.eq(halted   & on),
-            led0.g.eq(running  & on),
-            led0.b.eq(0),
-            led1.r.eq(0),
-            led1.g.eq(0),
-            led1.b.eq(dmactive & on),
-            led2.r.eq(0),
-            led2.g.eq(online   & on),
-            led2.b.eq(0),
-        ]
+        if rgb:
+            # the Arty: the RGB LEDs are blinding at full current, on one
+            # cycle in 16
+            led0 = platform.request("rgb_led", 0)
+            led1 = platform.request("rgb_led", 1)
+            led2 = platform.request("rgb_led", 2)
+            dim = Signal(4)
+            on  = Signal()
+            self.sync += dim.eq(dim + 1)
+            self.comb += [
+                on.eq(dim == 0),
+                led0.r.eq(halted   & on),
+                led0.g.eq(running  & on),
+                led0.b.eq(0),
+                led1.r.eq(0),
+                led1.g.eq(0),
+                led1.b.eq(dmactive & on),
+                led2.r.eq(0),
+                led2.g.eq(online   & on),
+                led2.b.eq(0),
+            ]
+        else:
+            # the Nexys Video: LD0-LD3 (100 ohm, 2.5 V) as they are
+            leds = [platform.request("user_led", i) for i in range(4)]
+            self.comb += [
+                leds[0].eq(halted),
+                leds[1].eq(running),
+                leds[2].eq(dmactive),
+                leds[3].eq(online),
+            ]
+            platform.add_platform_command(
+                "set_false_path -to [get_ports {{{l0} {l1} {l2} {l3}}}]",
+                l0=leds[0], l1=leds[1], l2=leds[2], l3=leds[3])
 
         # TCK/TCKC and TMSC (the escape detector of cJTAG) are clocks, on
         # pins that are not clock capable; both are asynchronous to sys.
@@ -584,6 +607,12 @@ class MMRISC(CPU):
         # writes these after the create_clock commands, as they have to be.
         if getattr(self, "jtag_clk_pads", None) and hasattr(soc, "crg"):
             soc.platform.add_false_path_constraints(soc.crg.cd_sys.clk, *self.jtag_clk_pads)
+            # and against the CPU's own clock (step 2.4), where the debug
+            # module meets the core: an MMCM sibling of sys, not a clock
+            # generated from sys's net, so not in sys's groups above
+            if cd != "sys":
+                for pad in self.jtag_clk_pads:
+                    soc.platform.add_false_path_constraints(soc.crg.cd_mmrisc.clk, pad)
 
         soc.add_config("CPU_COUNT", 1)
         soc.add_config("CPU_ISA",   self.get_arch(self.variant))

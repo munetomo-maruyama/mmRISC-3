@@ -574,3 +574,48 @@ cycles) per uncached fetch** from the ROM through the crossing; the DRAM's part 
 ROM, not the DDR3, and moves with where the linker puts the loop. The DRAM's own throughput and latency need a
 program running from the main RAM, in the I$ (step 2.5: DRAM latency through the crossing). Not measured on the board
 for this section: the cause is read from the two builds' code and the speeds of section 18 and 21.
+
+## 23. Step 2.4: the debug port on Pmod JA, switches and LEDs, generated (2026-11-26)
+
+**What** (`Doc/STRATEGY.md` 2.4, `Doc/BOARD.md` 7, 8): mmRISC-2's JTAG / cJTAG debug port as on the Arty, on the
+Nexys Video's Pmod JA; the gate: `jtag_check.tcl` PASS in the 4 combinations (JTAG / cJTAG × without / with
+authentication).
+
+**`cpu/mmrisc/core.py`** (`add_jtag`):
+
+- The same Pmod positions on both boards (`pmoda:0` to `pmoda:5` in LiteX's platforms), so the cable and mmRISC-2's
+  OpenOCD configurations do not change: JA1 TCK/TCKC AB22, JA2 TDI AB21, JA3 TDO AB20, JA4 TMS/TMSC AB18, JA7 nTRST
+  Y21, JA8 nSRST AA21; LVCMOS33, bank 14 (3.3 V, with the SD card and the UART), pulls and keeper as on the Arty.
+- The status LEDs: on the Arty the dimmed RGB LEDs as before; where the platform has no `rgb_led` (the Nexys Video),
+  **LD0 halted, LD1 running, LD2 dmactive, LD3 cJTAG online** (100 Ω, 2.5 V, undimmed).
+- The JTAG clocks (TCK, TMSC; 100 ns) were asynchronous to sys only; the debug module meets the core in the CPU's own
+  clock, an MMCM sibling of sys (step 2.2), so now **also asynchronous to `mmrisc`** (`set_clock_groups`).
+
+**`scripts/nexys_video_target.py`**:
+
+- **Switches and buttons LVCMOS12** (Digilent's master XDC; VADJ is 1.2 V by the board's resistors, `SET_VADJ` left
+  alone): the platform's LVCMOS25 would read SW2 / SW3 up as low (`Doc/BOARD.md` 10, concern 9). `user_btn` 5 (G4, CPU
+  RESET's pin in the DDR3's 1.5 V bank) is left as it is.
+- **The LED chaser on the LEDs left**: the target's `request_all("user_led")` asks by index from 0 and would find none
+  once LD0-LD3 are the CPU's; `request_remaining` gives LD4-LD7 (ports `user_led`, `user_led_1` to `_3` in the
+  Verilog, on V15, W16, W15, Y13).
+
+**`scripts/build_soc.sh`**: `--cpu-jtag pmoda`. **`scripts/jtag_check.tcl`**: mmRISC-2's, with this SoC's identifier
+("LiteX SoC on Nexys Video ...", at 0x1200_2000 as on the Arty) accepted too; run with mmRISC-2's configurations
+(`mmRISC-2/FPGA/ARTY_A7_100T/openocd/ft2232h_jtag.cfg`, `ft2232h_cjtag.cfg`), which pick the external FT2232H by its
+description ("Dual RS232"), not the board's own USB-JTAG.
+
+**In the generated SoC**: CPU_TOP's `cjtag_en` from `user_sw3` (G22), `dbg_auth_en` from `user_sw2` (G21), both
+LVCMOS12; `rst_n = ~(mmrisc_rst | cpu_reset) & mmrisc_jtag_srst_n`, `rst_dbg_n = ~mmrisc_rst`; `user_led0` to `3` from
+`dbg_halted`, `dbg_running`, `dbg_dmactive`, `cjtag_online`; the LED chaser on LD4-LD7; `jtag_tck` and `jtag_tmsc` at
+100 ns in clock groups against `sys_clk`, `mmrisc_clk` and each other; `CLOCK_DEDICATED_ROUTE FALSE` on both. Step
+2.3's bitstream kept as `LitexSystem/build/digilent_nexys_video_step23.bit`.
+
+**Next**: Vivado; then on the board (the FT2232H wired to JA as on the Arty, its USB passed to the Linux VM; from
+`LitexSystem/`):
+
+1. SW3 down, SW2 down: `openocd -f ../../mmRISC-2/FPGA/ARTY_A7_100T/openocd/ft2232h_jtag.cfg -f scripts/jtag_check.tcl`
+   (`AUTH_KEY=none` too); LD1 on while the BIOS runs, LD0 while halted.
+2. SW2 up (before OpenOCD starts): the same, the configuration writing the right key; and a wrong key rejected
+   (`AUTH_KEY=0x12345678`: `examination failed`).
+3. SW3 up (LD3 on): `ft2232h_cjtag.cfg` (through the 4-wire → 2-wire adapter), SW2 down and up.

@@ -6,7 +6,8 @@
 #                cpu/mmrisc/core.py, its RTL from mmRISC-2's repository);
 #                step 2.2: LiteX at 100 MHz, the CPU at 50 MHz through
 #                crossings; step 2.3: the microSD card (J3) and Ethernet
-#                (RGMII, RTL8211E) with DHCP
+#                (RGMII, RTL8211E) with DHCP; step 2.4: the debug port
+#                on Pmod JA
 #
 #   ./LitexSystem/scripts/build_soc.sh [extra litex arguments]
 #   SYS_CLK=50e6 CPU_CLK=50e6 ./LitexSystem/scripts/build_soc.sh
@@ -30,7 +31,9 @@
 # --eth-dhcp (nexys_video_target.py: the BIOS takes its address by DHCP; the
 # TFTP server is REMOTE_IP, default 192.168.0.42, changed at the litex>
 # prompt with eth_remote_ip). The SD card's DMA goes on the CPU's DMA bus
-# (core.py). Not yet here: the debug port on JA (step 2.4).
+# (core.py). Step 2.4: --cpu-jtag pmoda, the debug port (JTAG / cJTAG) on
+# Pmod JA, SW3 cJTAG, SW2 authentication, LD0-LD3 its status, LD4-LD7 the
+# LED chaser (core.py add_jtag, nexys_video_target.py; Doc/BOARD.md 7, 8).
 #
 # As mmRISC-2's build_soc.sh (its comments say why): --l2-size 0 (the SoC
 # bus's L2, which this CPU never sees), physical optimisation after placement
@@ -64,6 +67,7 @@ python3 "$HERE/nexys_video_target.py" \
     --with-sdcard \
     --with-ethernet --eth-dhcp \
     --remote-ip "${REMOTE_IP:-192.168.0.42}" \
+    --cpu-jtag pmoda \
     --l2-size 0 \
     --vivado-post-place-phys-opt-directive AggressiveExplore \
     --vivado-post-route-phys-opt-directive AggressiveExplore \
