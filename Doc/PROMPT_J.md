@@ -13418,3 +13418,50 @@ litex>
 ```text
 Start step 2.3
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+手順2.3のSoCを生成しました。手順2.2のSoCに、microSDカード(J3)とEthernet(RGMII)を加えたものです。次はVivadoです。
+
+**変更点**
+- `LitexSystem/scripts/build_soc.sh`に、SDカードとEthernetを加えました。
+  - オプションは`--with-sdcard --with-ethernet --eth-dhcp`です。TFTPサーバの既定は192.168.0.42です(`REMOTE_IP`で変えられます)。
+  - SDカードの出力レジスタは、手順2.0と同じくI/Oブロックに置きます。
+- `LitexSystem/scripts/nexys_video_target.py`に、`--eth-dhcp`を加えました。
+  - LiteXのNexys Videoターゲットにはこのオプションがありません。そこで、Artyのターゲットと同じく、固定IPなしでDHCPを使うようにしました。
+  - SDカードのPHYは、引き続きカードのリセットなしです。
+- `LitexSystem/scripts/build_demo.sh`に、名前の引数を加えました。
+  - `build_demo.sh LitexSystem/build mm2`で、TFTPサーバの`mm2/demo.bin`を指す`mm2.json`ができます。
+  - サーバにある`demo.bin`はVexRiscv用なので、上書きしないように分けました。
+
+**生成したSoCで確かめたこと**
+- 割り込みは、uartが0、timer0が1、ethmacが2、sdcardが3です。4本とも、それぞれ自分の`MultiReg`を通ります。残りの27本は0です。PLICの選択回路は2ソースから4ソースに増えます。
+- 次の定数が入っています。
+  - DHCPの設定(`ETH_WITH_DHCP`など)と、サーバのアドレス192.168.0.42
+  - LiteEthのバッファの配置(0x3000_0000、mmRISC-2のマップ)
+  - SDカードのDMAがCPUのDMAバスに乗る設定
+- このPHYは1 Gb/sでしか動きません。リンクがつながれば1 Gb/sです。
+- デモ(`LitexSystem/build/demo/`)は、0x8000_0000から動くRV64のプログラムとして作られています。
+- 手順2.2のビットストリームは、`LitexSystem/build/digilent_nexys_video_step22.bit`として残しました。
+- **ボード全体のシミュレーションはしていません。** 確かめたのは、生成されたVerilogと定数だけです。
+
+**Vivadoの後のボードでの確認**(ゲート)
+1. BIOSが起動時にDHCPでアドレスを取ることを確かめます。
+2. TFTPです。デモをサーバに置くにはsudoが要ります。
+   ```bash
+   sudo mkdir -p /srv/tftp/mm2 && sudo cp LitexSystem/build/demo/demo.bin /srv/tftp/mm2/ && sudo cp LitexSystem/build/demo/mm2.json /srv/tftp/
+   ```
+   そのあと、`litex>`で`netboot mm2.json`を実行します。
+3. SDカードです。カードの`demo.bin`と`boot.json`を、`LitexSystem/build/demo/`のものに置き換えます。今入っているのはVexRiscv用です。VMから書き込んだ内容は戻ってしまったことがあるので、Macから書き込んでください。そのあと`sdcardboot`を実行し、BIOSが自分でカードから起動することも確かめます。
+
+記録は`LitexSystem/docs/BRINGUP.md`の19節(日本語版も)、README、STRATEGYの2.3の行です。devにpushしてあり(コミット0bcc807)、Ref/以下のファイルは含まれていません。
+
+`LitexSystem\build\gateware`で`build_nexys_video.bat`を実行していただけますか(「Will run it」)?
+<!-- /answer -->
+
+## 320. 2026-11-26 21:10:02 JST
+
+```text
+Vivadoの合成完了した。
+```

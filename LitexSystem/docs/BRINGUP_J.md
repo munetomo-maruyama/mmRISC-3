@@ -289,3 +289,19 @@ LUT 46,315(1回目48,085、手順2.1 45,954)、フリップフロップ26,740、
 手順2.2のビットストリームは`LitexSystem/build/digilent_nexys_video_step22.bit`として残しました。
 
 **次**: Vivado。その後ボードで: BIOSでのDHCPのアドレス、`netboot mm2.json`(サーバの`mm2/`にデモ)、デモの`demo.bin`と`boot.json`を入れたカード(Macから書き込む)、`sdcardboot`とBIOS自身のカードからの起動。
+
+## 20. 手順2.3のVivadoの実行: 達成(2026-11-26)
+
+著者が19節のSoCを実行し、**タイミングを満たしました**。
+
+| クロック | セットアップWNS | ホールドWHS |
+| --- | --- | --- |
+| CPU(50 MHz) | **+0.117 ns**(設計全体の最悪) | +0.055 ns |
+| sys(100 MHz) | +0.455 ns | +0.059 ns |
+| sys → CPU / CPU → sys | +5.715 / +6.558 ns | +0.045 / +0.017 ns |
+| Ethernet RX / TX(125 MHz) | +1.262 / +0.851 ns | +0.096 / +0.117 ns |
+| IDELAYCTRL(200 MHz) / clk100 | +1.215 / +8.135 ns | |
+
+最悪のパスはCPUの中のアドレス変換(`ma_size` → `mr_paddr`、20段)で、PLICではありません。4ソースのPLICは452 LUT(2ソースで405)。LUT 48,995(手順2.2: 46,315)、フリップフロップ29,000、BRAMタイル108.5(94.5。LiteEthのバッファとSDカードのFIFO)、1.112 W。2つのクリティカル警告はLiteX自身のもの(ネット`eth_rx_clk` / `eth_tx_clk`への`create_clock`。合成中はネットが未知、手順2.0の実行と同じ)。どちらのクロックも実装では時間解析されています(上の表)。
+
+**次**: ボードで: DHCP、`netboot mm2.json`、SDカード。

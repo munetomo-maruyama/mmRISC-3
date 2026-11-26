@@ -12838,3 +12838,35 @@ Go on to step 2.3 ("Start step 2.3")?
 ```text
 Start step 2.3
 ```
+<!-- answer -->**Claude Code's answer**
+
+Step 2.3's SoC is generated: step 2.2's with the microSD card (J3) and Ethernet (RGMII). Vivado next.
+
+**Changes**
+- `LitexSystem/scripts/build_soc.sh`: `--with-sdcard --with-ethernet --eth-dhcp`, the TFTP server 192.168.0.42 by default (`REMOTE_IP`); the SD card's output registers in the I/O blocks, as step 2.0.
+- `LitexSystem/scripts/nexys_video_target.py`: `--eth-dhcp`, which LiteX's Nexys Video target lacks: DHCP with no fixed IP, as the Arty's target. The SD card PHY stays without the card reset.
+- `LitexSystem/scripts/build_demo.sh`: a name argument; `build_demo.sh LitexSystem/build mm2` makes `mm2.json` pointing at `mm2/demo.bin` on the TFTP server, apart from the server's VexRiscv `demo.bin`.
+
+**Checked in the generated SoC**
+- Interrupts uart 0, timer0 1, ethmac 2, sdcard 3, each through its own `MultiReg`; the other 27 are 0. The PLIC's choice grows from 2 to 4 sources.
+- The DHCP constants (`ETH_WITH_DHCP` and so on), the server 192.168.0.42, LiteEth's buffers at 0x3000_0000 (mmRISC-2's map), the SD card's DMA on the CPU's DMA bus.
+- The PHY runs at 1 Gb/s only: a link that works is a 1 Gb/s link.
+- The demo (`LitexSystem/build/demo/`) is an RV64 program running from 0x8000_0000.
+- Step 2.2's bitstream kept as `LitexSystem/build/digilent_nexys_video_step22.bit`.
+- **The whole board is not simulated**; only the generated Verilog and constants were checked.
+
+**On the board after Vivado** (the gate)
+1. The BIOS takes an address by DHCP at start.
+2. TFTP: the demo onto the server needs sudo (`sudo mkdir -p /srv/tftp/mm2 && sudo cp LitexSystem/build/demo/demo.bin /srv/tftp/mm2/ && sudo cp LitexSystem/build/demo/mm2.json /srv/tftp/`), then `netboot mm2.json` at `litex>`.
+3. SD card: replace the card's `demo.bin` and `boot.json` (VexRiscv's now) with `LitexSystem/build/demo/`'s, written from the Mac (writes from the VM have been undone before); then `sdcardboot`, and the BIOS booting from the card by itself.
+
+Recorded in section 19 of `LitexSystem/docs/BRINGUP.md` (and the Japanese one), the READMEs and STRATEGY 2.3; pushed to dev (commit 0bcc807), no file under Ref/.
+
+Run `build_nexys_video.bat` in `LitexSystem\build\gateware` ("Will run it")?
+<!-- /answer -->
+
+## 320. 2026-11-26 21:10:02 JST
+
+```text
+Vivado synthesis finished.
+```

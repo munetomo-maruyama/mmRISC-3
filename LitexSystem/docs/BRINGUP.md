@@ -497,3 +497,23 @@ Step 2.2's bitstream kept as `LitexSystem/build/digilent_nexys_video_step22.bit`
 **Next**: Vivado; then on the board: DHCP's address in the BIOS, `netboot mm2.json` (the demo in the server's
 `mm2/`), the card with the demo's `demo.bin` and `boot.json` (written from the Mac), `sdcardboot` and the BIOS's own
 boot from the card.
+
+## 20. Step 2.3's Vivado run: met (2026-11-26)
+
+The author's run of section 19's SoC **meets timing**:
+
+| Clock | Setup WNS | Hold WHS |
+| --- | --- | --- |
+| the CPU (50 MHz) | **+0.117 ns** (the design's worst) | +0.055 ns |
+| sys (100 MHz) | +0.455 ns | +0.059 ns |
+| sys → CPU / CPU → sys | +5.715 / +6.558 ns | +0.045 / +0.017 ns |
+| Ethernet RX / TX (125 MHz) | +1.262 / +0.851 ns | +0.096 / +0.117 ns |
+| IDELAYCTRL (200 MHz) / clk100 | +1.215 / +8.135 ns | |
+
+The worst path is inside the CPU, its address translation (`ma_size` → `mr_paddr`, 20 levels), not the PLIC: four
+sources cost 452 LUTs (two, 405). 48,995 LUTs (step 2.2: 46,315), 29,000 flip-flops, 108.5 BRAM tiles (94.5; LiteEth's
+buffers and the SD card's FIFOs), 1.112 W. The two critical warnings are LiteX's own (`create_clock` on the nets
+`eth_rx_clk` / `eth_tx_clk`, unknown during synthesis, as in step 2.0's runs); both clocks are timed in
+implementation (the table above).
+
+**Next**: the board: DHCP, `netboot mm2.json`, the SD card.
