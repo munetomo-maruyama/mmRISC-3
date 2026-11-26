@@ -13465,3 +13465,42 @@ Start step 2.3
 ```text
 Vivadoの合成完了した。
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+Vivadoの結果を確認しました。タイミングは満たしています。
+
+| クロック | セットアップWNS | ホールドWHS |
+| --- | --- | --- |
+| CPU(50 MHz) | **+0.117 ns**(設計全体で最悪) | +0.055 ns |
+| sys(100 MHz) | +0.455 ns | +0.059 ns |
+| sys → CPU / CPU → sys | +5.715 / +6.558 ns | +0.045 / +0.017 ns |
+| Ethernet RX / TX(125 MHz) | +1.262 / +0.851 ns | +0.096 / +0.117 ns |
+
+- 最悪のパスはCPU内部のアドレス変換(20段)で、PLICではありません。割り込みのソースが4本になっても、PLICは452 LUT(2本のときは405)で収まっています。
+- LUTは48,995、BRAMタイルは108.5(LiteEthのバッファとSDカードのFIFOで14増)、消費電力は1.112 Wです。
+- クリティカル警告が2件ありますが、LiteX側のものです。合成中はまだ存在しないEthernetのクロックのネットに`create_clock`をかけているためで、手順2.0でも出ていました。実装ではどちらのクロックもタイミング解析されています(上の表)。
+
+記録は`LitexSystem/docs/BRINGUP.md`の20節(日本語版も)と、STRATEGYの2.3の行です。devにpushしてあり(コミット14282ed)、Ref/以下のファイルは含まれていません。
+
+**ボードでの確認(ゲート)**
+1. ビットストリームを書き込み、BIOSのバナーとDHCPでアドレスを取るところを確かめます。
+2. TFTPです。
+   - デモをサーバに置きます(sudoが要ります)。
+     ```bash
+     sudo mkdir -p /srv/tftp/mm2 && sudo cp LitexSystem/build/demo/demo.bin /srv/tftp/mm2/ && sudo cp LitexSystem/build/demo/mm2.json /srv/tftp/
+     ```
+   - `litex>`で`netboot mm2.json`を実行し、デモのプロンプトが出れば合格です。
+3. SDカードです。
+   - カードの`demo.bin`と`boot.json`を、`LitexSystem/build/demo/`のものに置き換えます。今入っているのはVexRiscv用です。Macから書き込んでください。
+   - `sdcardboot`を実行します。そのあとリセットして、BIOSが自分でカードから起動することも確かめます。
+
+ご自身で確認されますか(「I'll test it myself」)? それともボードのUSBをVMにつないで、こちらで行いますか(「Attached, test it」)?
+<!-- /answer -->
+
+## 321. 2026-11-26 21:14:59 JST
+
+```text
+I'll test it myself
+```

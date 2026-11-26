@@ -12870,3 +12870,33 @@ Run `build_nexys_video.bat` in `LitexSystem\build\gateware` ("Will run it")?
 ```text
 Vivado synthesis finished.
 ```
+<!-- answer -->**Claude Code's answer**
+
+Timing is met.
+
+| Clock | Setup WNS | Hold WHS |
+| --- | --- | --- |
+| the CPU (50 MHz) | **+0.117 ns** (the design's worst) | +0.055 ns |
+| sys (100 MHz) | +0.455 ns | +0.059 ns |
+| sys → CPU / CPU → sys | +5.715 / +6.558 ns | +0.045 / +0.017 ns |
+| Ethernet RX / TX (125 MHz) | +1.262 / +0.851 ns | +0.096 / +0.117 ns |
+
+- The worst path is the CPU's address translation (20 levels), not the PLIC: with 4 sources the PLIC is 452 LUTs (405 with 2).
+- 48,995 LUTs, 108.5 BRAM tiles (14 more: LiteEth's buffers and the SD card's FIFOs), 1.112 W.
+- The two critical warnings are LiteX's: `create_clock` on Ethernet clock nets that do not exist yet during synthesis, as in step 2.0; both clocks are timed in implementation (the table).
+
+Recorded in section 20 of `LitexSystem/docs/BRINGUP.md` (and the Japanese one) and STRATEGY 2.3; pushed to dev (commit 14282ed), no file under Ref/.
+
+**The board checks (the gate)**
+1. Program, check the BIOS banner and the DHCP address.
+2. TFTP: put the demo on the server (`sudo mkdir -p /srv/tftp/mm2 && sudo cp LitexSystem/build/demo/demo.bin /srv/tftp/mm2/ && sudo cp LitexSystem/build/demo/mm2.json /srv/tftp/`), then `netboot mm2.json` at `litex>`; the demo's prompt passes.
+3. SD card: replace the card's `demo.bin` and `boot.json` (VexRiscv's now) with `LitexSystem/build/demo/`'s, from the Mac; `sdcardboot`, then a reset to see the BIOS boot from the card by itself.
+
+Check it yourself ("I'll test it myself"), or attach the board's USB to the VM for me ("Attached, test it")?
+<!-- /answer -->
+
+## 321. 2026-11-26 21:14:59 JST
+
+```text
+I'll test it myself
+```
