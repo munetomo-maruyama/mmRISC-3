@@ -13504,3 +13504,138 @@ Vivadoの結果を確認しました。タイミングは満たしています�
 ```text
 I'll test it myself
 ```
+
+## 322. 2026-11-26 21:22:57 JST
+
+```text
+もう一度試してください
+```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+わかりました。ボードでの確認手順は次のとおりです。
+
+**1. 書き込みとBIOS**
+- Windows VM(J12)から書き込む場合は、`LitexSystem\build\gateware`で`program_nexys_video.bat`を実行します。
+- Linux VMから書き込む場合は、次を実行します。
+  ```bash
+  ./LitexSystem/scripts/program_nexys_video.sh LitexSystem/build/gateware/digilent_nexys_video.bit
+  ```
+- J13のUART(115200 bps)で、次の表示を確かめます。
+  - バナー: `mmRISC-2 (RV64GC, CPU 50MHz) @ 100MHz`、DDR3 800 MT/s
+  - Ethernetの初期化と、DHCPで取得したIPアドレス
+- Ethernetのケーブルはスイッチ(またはルータ)につないでおいてください。DHCPサーバが必要です。
+
+**2. TFTP**(ゲートの1つ目)
+- まず、Linux VMでデモをTFTPサーバに置きます(sudoのパスワードが必要です)。
+  ```bash
+  sudo mkdir -p /srv/tftp/mm2 && sudo cp LitexSystem/build/demo/demo.bin /srv/tftp/mm2/ && sudo cp LitexSystem/build/demo/mm2.json /srv/tftp/
+  ```
+- 自動起動の途中でQかESCを押して`litex>`を出し、次を実行します。
+  ```text
+  netboot mm2.json
+  ```
+- `mm2/demo.bin`が0x80000000に読み込まれ、`Liftoff!`のあとにデモのプロンプトが出れば合格です。デモの中で`help`や`donut`を試せます。
+
+**3. SDカード**(ゲートの2つ目)
+- カードのルートにある`demo.bin`と`boot.json`を、`LitexSystem/build/demo/`のもの(mmRISC-2用、0x80000000)に置き換えます。今入っているのはVexRiscv用(0x40000000)です。
+- 書き込みはMacから行ってください。VMから書き込むと、内容が元に戻ってしまったことがあります。
+- カードをJ3に挿してCPU RESETを押し、`litex>`で次を順に実行します。
+  ```text
+  sdcard_init
+  ```
+  ```text
+  sdcardboot
+  ```
+  `Copying demo.bin to 0x80000000`、`Liftoff!`、デモのプロンプトの順に出れば合格です。
+- 最後に、何も押さずにCPU RESETします。シリアルブートが`Timeout`になったあと、BIOSが自分でカードから起動することも確かめてください。
+
+**4. 報告**
+端末の表示を貼っていただければ、`LitexSystem/docs/BRINGUP.md`の21節とSTRATEGYの2.3の行に記録します。合格なら手順2.3は完了で、次は手順2.4(JAのJTAG/cJTAG、スイッチとLED)です。
+
+プロンプトのログはdevにpushしてあり(コミットc1e2eb2)、Ref/以下のファイルは含まれていません。
+<!-- /answer -->
+
+## 323. 2026-11-26 21:33:53 JST
+
+```text
+netbootでエラーになる。
+
+        
+
+<pasted_content id="6b8c">
+__   _ __      _  __                                                    
+       / /  (_) /____ | |/_/                                                    
+      / /__/ / __/ -_)>  <                                                      
+     /____/_/\__/\__/_/|_|                                                      
+   Build your hardware, easily!                                                 
+                                                                                
+ (c) Copyright 2012-2026 Enjoy-Digital                                          
+ (c) Copyright 2007-2015 M-Labs                                                 
+                                                                                
+ BIOS built on Nov 26 2026 20:21:40                                             
+ BIOS CRC passed (8e3f47d6)                                                     
+                                                                                
+ LiteX git sha1: 6d8a38cad                                                      
+                                                                                
+--================ SoC =================--                                      
+CPU:            mmRISC-2 (RV64GC, CPU 50MHz) @ 100MHz                           
+BUS:            wishbone 32-bit data/32-bit addr                                
+CSR:            32-bit data big ordering                                        
+ROM:            128.0KiB                                                        
+SRAM:           8.0KiB                                                          
+SDRAM:          512.0MiB 16-bit @ 800MT/s (CL-6 CWL-5)                          
+MAIN RAM:       512.0MiB                                                        
+                                                                                
+--=========== Initialization ===========--                                      
+Ethernet init...                                                                
+Local IP: 192.168.1.50                                                          
+Initializing SDRAM @0x80000000...                                               
+Switching SDRAM to software control.                                            
+Read leveling:                                                                  
+  m0, b00: |00000000000000000000000000000000| delays: -                         
+  m0, b01: |10000000000000000000000000000000| delays: -                         
+  m0, b02: |00111111111111111000000000000000| delays: 09+-07                    
+  m0, b03: |00000000000000000001111111111111| delays: 25+-06                    
+  m0, b04: |00000000000000000000000000000000| delays: -                         
+  m0, b05: |00000000000000000000000000000000| delays: -                         
+  m0, b06: |00000000000000000000000000000000| delays: -                         
+  m0, b07: |00000000000000000000000000000000| delays: -                         
+  best: m0, b02 delays: 09+-07                                                  
+  m1, b00: |00000000000000000000000000000000| delays: -                         
+  m1, b01: |10000000000000000000000000000000| delays: -                         
+  m1, b02: |00111111111111111000000000000000| delays: 09+-07                    
+  m1, b03: |00000000000000000001111111111111| delays: 25+-06                    
+  m1, b04: |00000000000000000000000000000000| delays: -                         
+  m1, b05: |00000000000000000000000000000000| delays: -                         
+  m1, b06: |00000000000000000000000000000000| delays: -                         
+  m1, b07: |00000000000000000000000000000000| delays: -                         
+  best: m1, b02 delays: 09+-07                                                  
+Switching SDRAM to hardware control.                                            
+Memtest at 0x80000000 (2.0MiB)...                                               
+  Write: 0x80000000-0x80200000 2.0MiB                                           
+   Read: 0x80000000-0x80200000 2.0MiB                                           
+Memtest OK                                                                      
+Memspeed at 0x80000000 (Sequential, 2.0MiB)...                                  
+  Write speed: 35.0MiB/s                                                        
+   Read speed: 36.2MiB/s                                                        
+--================ Boot ================--                                      
+Booting from serial...                                                          
+Press Q or ESC to abort boot completely.                                        
+sL5DdSMmkekro                                                                   
+             Cancelled                                                          
+                                                                                
+--============== Console ===============--                                      
+                                                                                
+litex>                                                                         Q
+Command not found                                                               
+litex> netboot mm2.json                                                         
+Booting from network...                                                         
+Local IP: 192.168.1.50                                                          
+Remote IP: 192.168.0.42                                                         
+Booting from mm2.json (JSON)...                                                 
+Network boot failed.                                                            
+litex>
+</pasted_content id="6b8c">
+```
