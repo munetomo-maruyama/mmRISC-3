@@ -13301,3 +13301,21 @@ Run `build_nexys_video.bat` in `LitexSystem\build\gateware` ("Will run it")?
 ```text
 Will run it
 ```
+
+<!-- answer -->**Claude Code's answer**
+
+Thank you. Tell me when the Vivado run is done.
+
+**What I check after it**
+- The timing report, above all whether the JTAG clocks' constraints (TCK / TMSC, 100 ns) take effect.
+- No critical warning around `CLOCK_DEDICATED_ROUTE`.
+- If the report is fine, I give the board checks (`jtag_check.tcl` in the 4 cases) again.
+
+The prompt log is pushed to dev (commit 795d5d9), no file under Ref/.
+<!-- /answer -->
+
+## 328. 2026-11-28 01:40:52 JST
+
+```text
+Vivado synthesis finished.
+```

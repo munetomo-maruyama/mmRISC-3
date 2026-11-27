@@ -362,3 +362,20 @@ LUT 46,315(1回目48,085、手順2.1 45,954)、フリップフロップ26,740、
 1. SW3下、SW2下: `openocd -f ../../mmRISC-2/FPGA/ARTY_A7_100T/openocd/ft2232h_jtag.cfg -f scripts/jtag_check.tcl`(`AUTH_KEY=none`でも)。BIOSが動いている間はLD1、停止中はLD0が点灯。
 2. SW2上(OpenOCDを起動する前に): 同じく、設定が正しいキーを書き込む。間違ったキーが拒否されること(`AUTH_KEY=0x12345678`: `examination failed`)。
 3. SW3上(LD3点灯): `ft2232h_cjtag.cfg`(4線 → 2線のアダプタ経由)、SW2下と上。
+
+## 24. 手順2.4のVivadoの実行: 達成(2026-11-28)
+
+著者が23節のSoCを実行し、**タイミングを満たしました**。
+
+| クロック | セットアップWNS | ホールドWHS |
+| --- | --- | --- |
+| CPU(50 MHz) | **+0.129 ns**(設計全体の最悪) | +0.037 ns |
+| sys(100 MHz) | +0.138 ns | +0.024 ns |
+| sys → CPU / CPU → sys | +6.173 / +6.715 ns | +0.016 / **+0.007 ns**(最悪のホールド) |
+| Ethernet RX / TX(125 MHz) | +0.729 / +0.267 ns | +0.070 / +0.156 ns |
+| JTAG TCK / TMSC(10 MHz) | +40.861 / +96.600 ns | +0.117 / +0.816 ns |
+| IDELAYCTRL(200 MHz) / clk100 | +1.215 / +8.594 ns | |
+
+JTAGのクロックとsysやCPUのクロックの間のパスは、時間解析されていません(23節のクロックグループ)。TCKの+40.9 nsは半周期のパスです(TDOは立ち下がりエッジ)。`CLOCK_DEDICATED_ROUTE FALSE`は両方のJTAGのネットに効いています(TMSCのものはVivadoが親のネットに移す。INFO)。LUT 50,683(手順2.3: 48,995。デバッグモジュール、TAP、cJTAG)、フリップフロップ30,497、BRAMタイル108.5、1.072 W。2つのクリティカル警告は、20節と同じくLiteX自身のもの(合成中のネット`eth_rx_clk` / `eth_tx_clk`への`create_clock`)。
+
+**次**: ボードで: 4つの組み合わせで`jtag_check.tcl`(23節)。

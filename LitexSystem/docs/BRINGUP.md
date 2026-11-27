@@ -619,3 +619,24 @@ LVCMOS12; `rst_n = ~(mmrisc_rst | cpu_reset) & mmrisc_jtag_srst_n`, `rst_dbg_n =
 2. SW2 up (before OpenOCD starts): the same, the configuration writing the right key; and a wrong key rejected
    (`AUTH_KEY=0x12345678`: `examination failed`).
 3. SW3 up (LD3 on): `ft2232h_cjtag.cfg` (through the 4-wire → 2-wire adapter), SW2 down and up.
+
+## 24. Step 2.4's Vivado run: met (2026-11-28)
+
+The author's run of section 23's SoC **meets timing**:
+
+| Clock | Setup WNS | Hold WHS |
+| --- | --- | --- |
+| the CPU (50 MHz) | **+0.129 ns** (the design's worst) | +0.037 ns |
+| sys (100 MHz) | +0.138 ns | +0.024 ns |
+| sys → CPU / CPU → sys | +6.173 / +6.715 ns | +0.016 / **+0.007 ns** (the worst hold) |
+| Ethernet RX / TX (125 MHz) | +0.729 / +0.267 ns | +0.070 / +0.156 ns |
+| JTAG TCK / TMSC (10 MHz) | +40.861 / +96.600 ns | +0.117 / +0.816 ns |
+| IDELAYCTRL (200 MHz) / clk100 | +1.215 / +8.594 ns | |
+
+No path is timed between the JTAG clocks and sys or the CPU's clock (the clock groups of section 23); TCK's +40.9 ns
+are its half-period paths (TDO on the falling edge). `CLOCK_DEDICATED_ROUTE FALSE` taken on both JTAG nets (Vivado
+moves the TMSC one to its parent net, an INFO). 50,683 LUTs (step 2.3: 48,995; the debug module, the TAP, cJTAG),
+30,497 flip-flops, 108.5 BRAM tiles, 1.072 W. The two critical warnings are LiteX's own (`create_clock` on the nets
+`eth_rx_clk` / `eth_tx_clk` during synthesis), as in section 20.
+
+**Next**: the board: `jtag_check.tcl` in the 4 combinations (section 23).

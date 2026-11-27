@@ -13990,3 +13990,22 @@ openocd -f ../../mmRISC-2/FPGA/ARTY_A7_100T/openocd/ft2232h_jtag.cfg -f scripts/
 ```text
 Will run it
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+よろしくお願いします。Vivadoの実行が終わったら教えてください。
+
+**終わった後にこちらで見ること**
+- タイミングのレポートを読みます。特にJTAGのクロック(TCK/TMSC、100 ns)の制約が効いているかを確かめます。
+- `CLOCK_DEDICATED_ROUTE`まわりのクリティカル警告が出ていないかも確かめます。
+- レポートが問題なければ、ボードでの確認(4通りの`jtag_check.tcl`)の手順を改めてお伝えします。
+
+プロンプトのログはdevにpushしてあり(コミット795d5d9)、Ref/以下のファイルは含まれていません。
+<!-- /answer -->
+
+## 328. 2026-11-28 01:40:52 JST
+
+```text
+Vivadoの合成完了した。
+```
