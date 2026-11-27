@@ -399,3 +399,5 @@ JTAGのクロックとsysやCPUのクロックの間のパスは、時間解析�
 | 4 | SW3上、SW2上 | 同じ | PASS |
 
 CPUが動いている間はLD1、停止中はLD0、デバッグモジュールが動作中はLD2が点灯します。OpenOCDは結果のあとも動き続けます(次のケースの前にCtrl-Cで終了)。任意、nSRSTなしで: `telnet localhost 4444`で`reset halt`を実行すると、CPUはBIOSの最初の命令の前で止まり(`ndmreset`経由)、`resume`でBIOSが再び動きます。
+
+**デバッグ用のアダプタをつないだままの書き込み**(同日に追記): J12のFT2232H("Digilent USB Device")とデバッグポートの外付けFT2232H("Dual RS232")は同じ0403:6010で、`openFPGALoader -b nexysVideo`は最初に見つけたものを使います。`scripts/program_nexys_video.sh`は、sysfsの製品名でJ12を選び、そのUSBのバス番号とデバイス番号を渡すようにしました(`--busdev-num`)。FTDIのシリアル番号は使えません。libftdiが、シリアル番号を持たない外付けFT2232Hで止まるためです("unable to fetch serial number")。3つのFTDIデバイスをこのVMにつないだ状態で、J12経由の`--detect`がXC7A200T(IDCODE 0x3636093)を見つけます。

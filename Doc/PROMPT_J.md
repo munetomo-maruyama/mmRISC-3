@@ -14050,3 +14050,51 @@ Vivadoの結果を確認しました。タイミングは満たしています�
 ```text
 使っているJTAGアダプタはnSRSTがないので、その点を考慮してほしい。確認作業は自分でやるので手順を教えてほしい。、
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+nSRSTのないアダプタ用に、このボード専用のOpenOCD設定を2つ作りました。以下が確認手順です。
+
+**nSRSTがないことへの対応**
+- ハードウェアは変更不要です。JA8(nSRST)は開放のままにしてください。FPGA側でプルアップしているので、CPUにリセットはかかりません。
+- mmRISC-2の設定はnSRSTを駆動する前提なので、そのままでは使えません。そこで新しい設定(`LitexSystem/openocd/nexys_jtag.cfg`、`nexys_cjtag.cfg`)を作りました。
+  - リセット線を使わない設定(`reset_config none`)にし、nSRST用のピンは入力のまま、何も出さないようにしました。
+  - それ以外(アダプタの選び方、速度、認証の鍵など)はmmRISC-2と同じです。
+- OpenOCDの`reset halt`は、デバッグモジュール経由のリセット(`ndmreset`)になります。mmRISC-2ではこれもnSRSTと同じく、CPUだけをリセットします。なお、`jtag_check.tcl`はリセットを使いません。
+- 2つの設定は、このVMにつながっているFT2232HでOpenOCDに読み込めることを確かめました。スキャン結果はすべて1でしたが、これはボードがまだ手順2.4のビットストリームになっていないか、配線されていないためです。
+
+**確認手順**
+1. 手順2.4のビットストリーム(`LitexSystem/build/gateware/digilent_nexys_video.bit`)を書き込みます。
+2. FT2232HをArtyと同じ配線でJAにつなぎます(JA8は開放)。BIOSの`litex>`かデモが動いている状態にします。
+3. `LitexSystem/`で、次の5つを順に行います。
+   - **ケース1**: SW3下、SW2下で実行し、`JTAG CHECK RESULT : PASS`が出ること。
+     ```bash
+     openocd -f openocd/nexys_jtag.cfg -f scripts/jtag_check.tcl
+     ```
+   - **ケース2**: SW2を上げてから、同じコマンドを実行します。設定が正しい鍵を書くので、PASSになるはずです。
+   - **ケース2a**: SW2上のまま、間違った鍵で実行します。`Debugger is not authenticated ... (dmstatus=0x3)`と`examination failed`が出れば正常です。
+     ```bash
+     AUTH_KEY=0x12345678 openocd -f openocd/nexys_jtag.cfg
+     ```
+   - **ケース3**: SW3を上げ(LD3が点灯)、SW2下で、4線→2線アダプタを通して実行し、PASSが出ること。
+     ```bash
+     openocd -f openocd/nexys_cjtag.cfg -f scripts/jtag_check.tcl
+     ```
+   - **ケース4**: SW3上、SW2上で、ケース3と同じコマンドを実行し、PASSが出ること。
+- スイッチは、OpenOCDを起動する前に切り替えてください。
+- OpenOCDは結果を出したあとも動き続けるので、次のケースの前にCtrl-Cで止めてください。
+- LEDは、CPUが動いている間はLD1、止まっている間はLD0が点灯します。デバッグモジュールが動いている間はLD2も点灯します。
+- 余裕があれば、`telnet localhost 4444`で`reset halt`を実行すると、BIOSの最初の命令の前で止まります。`resume`でBIOSが再び動けば、nSRSTなしのリセットも動いています。
+
+**次**
+4つのケースがPASSすればゲート合格です。結果を貼っていただければ、`LitexSystem/docs/BRINGUP.md`の26節とSTRATEGYの2.4の行に記録します。
+
+手順は`LitexSystem/docs/BRINGUP.md`の25節(日本語版も)にも書きました。devにpushしてあり(コミット02eaca5)、Ref/以下のファイルは含まれていません。
+<!-- /answer -->
+
+## 330. 2026-11-28 01:59:55 JST
+
+```text
+Ubuntuからのbitの書き込み方法は？
+```

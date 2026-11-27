@@ -672,3 +672,10 @@ wired).
 LD1 is on while the CPU runs, LD0 while halted, LD2 with the debug module active. Each OpenOCD stays running after its
 result (Ctrl-C to end it before the next case). Optional, without nSRST: `reset halt` in `telnet localhost 4444`
 stops the CPU before the BIOS's first instruction (through `ndmreset`), `resume` restarts the BIOS.
+
+**Programming with the debug adapter attached** (added the same day): J12's FT2232H ("Digilent USB Device") and the
+debug port's external FT2232H ("Dual RS232") have the same 0403:6010, and `openFPGALoader -b nexysVideo` takes the
+first it finds. `scripts/program_nexys_video.sh` now picks J12 by its product name in sysfs and passes its USB bus and
+device numbers (`--busdev-num`); the FTDI serial cannot be used, as libftdi stops at the external FT2232H, which has
+none ("unable to fetch serial number"). With all three FTDI devices on this VM, `--detect` through J12 sees the
+XC7A200T (IDCODE 0x3636093).

@@ -13349,3 +13349,27 @@ Check it yourself ("I'll test it myself"), or attach the FT2232H and the board's
 ```text
 The JTAG adapter I use has no nSRST, so please take that into account. I will do the checks myself, so please tell me the procedure.
 ```
+
+<!-- answer -->**Claude Code's answer**
+
+I made two OpenOCD configurations for this board, for an adapter without nSRST. The checks:
+
+**Without nSRST**
+- No hardware change: leave JA8 (nSRST) open. The FPGA pulls it up, so the CPU is not reset.
+- mmRISC-2's configurations drive nSRST, so new ones (`LitexSystem/openocd/nexys_jtag.cfg`, `nexys_cjtag.cfg`): no reset line (`reset_config none`), the nSRST pin left an input, driving nothing; the rest (choosing the adapter, speed, the authentication key) as mmRISC-2's.
+- OpenOCD's `reset halt` goes through the debug module's reset (`ndmreset`), which in mmRISC-2 resets only the CPU, as nSRST does. `jtag_check.tcl` uses no reset.
+- Both load into OpenOCD with the FT2232H attached to this VM; the scan read all ones, as the board is not yet on step 2.4's bitstream or not wired.
+
+**The checks**
+1. Program step 2.4's bitstream (`LitexSystem/build/gateware/digilent_nexys_video.bit`).
+2. The FT2232H on JA with the Arty's wiring (JA8 open), the BIOS at `litex>` or the demo running.
+3. From `LitexSystem/`, five cases: (1) SW3 down, SW2 down, `openocd -f openocd/nexys_jtag.cfg -f scripts/jtag_check.tcl` gives `JTAG CHECK RESULT : PASS`; (2) SW2 up, the same command, PASS (the configuration writes the right key); (2a) SW2 up, `AUTH_KEY=0x12345678 openocd -f openocd/nexys_jtag.cfg`, `Debugger is not authenticated ... (dmstatus=0x3)` and `examination failed`; (3) SW3 up (LD3 on), SW2 down, `openocd -f openocd/nexys_cjtag.cfg -f scripts/jtag_check.tcl` through the 4-wire → 2-wire adapter, PASS; (4) SW3 up, SW2 up, the same, PASS. Switches before starting OpenOCD; Ctrl-C between cases; LD1 while running, LD0 while halted, LD2 with the debug module active. Optionally `reset halt` in `telnet localhost 4444` stops before the BIOS's first instruction, `resume` restarts it.
+
+All four PASS is the gate; paste the results and I record them in section 26 of `LitexSystem/docs/BRINGUP.md` and STRATEGY 2.4. The procedure is in section 25 (and the Japanese one); pushed to dev (commit 02eaca5), no file under Ref/.
+<!-- /answer -->
+
+## 330. 2026-11-28 01:59:55 JST
+
+```text
+How do I program the bit from Ubuntu?
+```
