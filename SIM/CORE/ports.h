@@ -243,10 +243,11 @@ private:
 
 class Axi4Mem {
 public:
-    // mlat > 0: the board's memory (step 1.7 H3, Plan/OOC.md 29.58): a read's first beat mlat to mlat + 20 cycles
-    // after its address, the beats then one a cycle; a write's answer mlat / 2 to mlat / 2 + 10 after its last
-    // beat; the readies up, no stalls. 0: the tests' memory, below.
-    Axi4Mem(Memory& m, uint64_t seed, int mlat = 0) : m(m), rng(seed), mlat(mlat) {}
+    // mlat > 0: the board's memory (step 1.7 H3, Plan/OOC.md 29.58): a read's first beat mlat to mlat + mspread
+    // cycles after its address, the beats then one a cycle; a write's answer mlat / 2 to mlat / 2 + mspread / 2
+    // after its last beat; the readies up, no stalls. mspread 20 as before; step 2.5 measured the board
+    // (LitexSystem/docs/BRINGUP.md 27): 16 to 21 at the L2's port (-mlat 16 -mspread 5). 0: the tests' memory, below.
+    Axi4Mem(Memory& m, uint64_t seed, int mlat = 0, int mspread = 20) : m(m), rng(seed), mlat(mlat), mspread(mspread) {}
     // the inputs of this cycle (call once, before the core's evaluation)
     void drive() {
         if (mlat > 0) {
@@ -279,14 +280,14 @@ public:
             m.write64(x.addr + 8 * x.beat, wdata, wstrb);
             if (++x.beat > x.len) {
                 Burst y = x; wq.pop_front();
-                y.at = mlat > 0 ? cyc + mlat / 2 + (long)(rng() % 11) : cyc + 1 + (long)(rng() % 6);
+                y.at = mlat > 0 ? cyc + mlat / 2 + (long)(rng() % (mspread / 2 + 1)) : cyc + 1 + (long)(rng() % 6);
                 bq.push_back(y);
             }
         }
         if (rvalid && rready && ++rq.front().beat > rq.front().len) rq.pop_front();
         if (bvalid && bready) bq.pop_front();
         if (arvalid && arready) {
-            rq.push_back(Burst{araddr, arlen, 0, mlat > 0 ? cyc + mlat + (long)(rng() % 21) : cyc + 3 + (long)(rng() % 14)});
+            rq.push_back(Burst{araddr, arlen, 0, mlat > 0 ? cyc + mlat + (long)(rng() % (mspread + 1)) : cyc + 3 + (long)(rng() % 14)});
             reads++;
         }
         if (awvalid && awready) { wq.push_back(Burst{awaddr, awlen, 0, 0}); writes++; }
@@ -301,7 +302,7 @@ private:
     std::deque<Burst> rq, wq, bq;
     long cyc = 0;
     int stall = 0;
-    int mlat;
+    int mlat, mspread;
 };
 
 class AxiLite {

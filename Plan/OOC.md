@@ -6695,3 +6695,21 @@ All in the front end and the issue queue, untouched since V3, within the 0.3 ns 
 ### 29.106 The six stale core mutations retargeted (2026-11-24)
 
 Six of `mutate_core.py`'s 340 mutations had matched no text in the RTL since step 1.8 L1 (CBO.ZERO's `cbx`, `cbo` and `szl` written into their lines) and J1 (`trg` in D2's exception), so they had reported `NOT APPLIED` and tested nothing. Each now names its line as it is, with the same fault: **61** ECALL not an exception and **62** an FP instruction that traps not illegal (D2's `d2[j].exc`, now with `trg` and `cbx`); **147** an AMO without an SQ entry and **220** an FP store without one (D2's `d2[j].st`, now with `cbo`); **164** a younger load forwarding from an undecided AMO or SC (`OOO_LSU4`'s `f_cv`, now with `!szl`); **262** a store writing its entry in the load's E not seen by the search (`e_om`, now over two lines with CBO.ZERO's line compare). **6 of 6 detected**; all 340 now apply to the RTL.
+
+### 29.107 The board's memory latency into `tb_core`'s model (step 2.5, 2026-11-28)
+
+Step 2.5 measured the memory on the Nexys Video with mmRISC-2 (`LitexSystem/docs/BRINGUP.md` 27): a pointer chase from
+the main RAM (`LitexSystem/software/dramlat`) costs 2.12 cycles a load in the D$, 11.00 in the L2, 32.2 in the DRAM
+(random lines) and 27.9 (lines in order): a DRAM miss adds 21.2 / 16.9 cycles over an L2 hit, through the crossing (50 /
+100 MHz), LiteDRAM and DDR3-800. 29.58's `-mlat 25` (the first beat 25 to 45 cycles after the address) came from
+mmRISC-2 on the Arty, with no crossing.
+
+The same chase on `OOO_CPU` (`SIM/CORE/lat`): D$ 2.0, L2 hit 42.15 a D$ miss, 2 MB 42.66 + the model's mean (57.66 at
+`-mlat 5`, 77.50 at 25): memory adds the model's mean + 0.5 over an L2 hit. **`Axi4Mem` gains `-mspread s`** (the first
+beat `-mlat` to `-mlat` + s, a write's answer `-mlat` / 2 to `-mlat` / 2 + s / 2; 20 by default: every run before
+draws the same numbers), and **`run_coremark.sh` runs the board's memory at `-mlat 16 -mspread 5`** (16 to 21, the
+chase 19.0 over an L2 hit against the board's 16.9 to 21.2). CoreMark's timed window on it: g14-o2 1,213,063 →
+1,212,298 cycles, **8.244 → 8.249 CoreMark/MHz**; g13-o2 1,276,322 → 1,275,571. `run_coremark.sh` PASS.
+
+**Open**: `OOO_CPU`'s D$ miss that hits the L2 costs about 42 cycles a dependent load, against mmRISC-2's 11 on the
+board with the same L2 (a DRAM miss about 61 against 32). CoreMark does not see it; code that misses the D$ would.

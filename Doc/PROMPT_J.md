@@ -14126,3 +14126,46 @@ Ubuntuからは、リポジトリのトップで次のスクリプトを実行�
 ```text
 ケース1、2、2a、3、4ともOKだった。telnetでのreset halt, resume, step, reg pcなども動作確認できた。
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+手順2.4のゲートは合格で、手順2.4は完了です。
+
+**結果**
+
+| ケース | スイッチ | 結果 |
+| --- | --- | --- |
+| 1 | SW3下(JTAG)、SW2下 | **PASS** |
+| 2 | SW3下、SW2上(認証あり) | **PASS** |
+| 2a | SW3下、SW2上、間違った鍵 | 期待どおり拒否 |
+| 3 | SW3上(cJTAG)、SW2下 | **PASS** |
+| 4 | SW3上、SW2上 | **PASS** |
+
+- telnetからの`reset halt`、`resume`、`step`、`reg pc`も動いています。nSRSTのないアダプタでも、デバッグモジュール経由のリセット(`ndmreset`)でCPUを止めたり再開したりできることが確かめられました。
+
+**ここまでの到達点**
+mmRISC-2のLiteX SoCが、Artyと同じ機能でNexys Video上で動くようになりました。
+- BIOS
+- DDR3-800の512 MiB
+- SDカードからの起動
+- DHCPとTFTPを使うEthernet
+- JTAG/cJTAGのデバッグポート
+
+LiteXは100 MHz、CPUは50 MHzで、その間はクロックの乗せ換えでつないでいます。
+
+記録は`LitexSystem/docs/BRINGUP.md`の26節(日本語版も)と、STRATEGYの2.4の行(完了)です。devにpushしてあり(コミットa8c7b68)、Ref/以下のファイルは含まれていません。
+
+**次は手順2.5です**
+- これまでの立ち上げを記録としてまとめます。
+- 乗せ換えを通したDRAMのレイテンシを測ります。22節で分かったとおり、BIOSの`mem_speed`ではDDR3を測れないので、メインRAMに置いてキャッシュから動くプログラムで測ります。
+- 測った値は、シミュレーションのメモリモデルに反映します。
+
+手順2.5に進みますか(「Start step 2.5」)?
+<!-- /answer -->
+
+## 332. 2026-11-28 02:23:11 JST
+
+```text
+Start step 2.5
+```

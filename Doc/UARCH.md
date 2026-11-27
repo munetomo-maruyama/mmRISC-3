@@ -41,7 +41,7 @@ core with its caches, in lock-step with Spike, meeting 20 ns out of context. The
 | Translation | Sv39 for loads and stores since step 1.8 V1 (`Plan/OOC.md` 29.87), for fetch since V2 (29.88: an ITLB, `OOO_DTLB3` in `OOO_FRONT`, read at F0; one walker for both sides): `OOO_PTW` (mmRISC-2's walker, the tables read through the D$'s miss handler, Svade), `OOO_DTLB3` a load port (32 sets × 2 ways, the permissions checked at the lookup, no ASID: flushed by SFENCE.VMA or a change of satp) |
 | PMP | 8 entries (TOR, NA4, NAPOT, a 4-byte grain) checked since step 1.8 P1 (`Plan/OOC.md` 29.89): each LSU port at M, the fetch's block at F0 word by word, the walker's entries (sharing the fetch's checker) |
 | Not yet | debug: **step 1.8** (the renamed FPU done: U, 29.82 to 29.86) |
-| CoreMark/MHz | **8.244** (`-O2`, GCC 14, Zba / Zbb / Zbs / Zbc, the timed part on `OOO_CPU` with the board's memory latency); 7.835 with GCC 13 (`SIM/CORE/results/coremark.txt`) |
+| CoreMark/MHz | **8.249** (`-O2`, GCC 14, Zba / Zbb / Zbs / Zbc, the timed part on `OOO_CPU` with the board's memory latency as measured at step 2.5; 8.244 with the earlier estimate); 7.835 with GCC 13 (`SIM/CORE/results/coremark.txt`) |
 | Resources | **80,345 LUTs** (60 % of 133,800; 13,902 of them LUT RAM), 19,942 flip-flops, **284.5 block RAM tiles** (of 365), 26 DSP |
 | Timing | **WNS +0.027 ns, hold +0.028 ns** at 20 ns (`Plan/OOC.md` 29.79, with the interrupts; E1c's +0.470 ns, 78,156 LUTs, 29.75) |
 

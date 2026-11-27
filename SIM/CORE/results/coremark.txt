@@ -3,9 +3,9 @@ g14-o2-zbsc.elf              PASS  exit 0  3146593 insns  3146593 uops  1252283 
     PMU: slots 62.7 % retiring, 5.1 % bad speculation, 10.3 % front end, 21.9 % back end (ROB 5413, queues 188585, LQ / SQ 56202, registers 22596, checkpoints 54353 cycles); head waits 141725 memory 16356 other, ROB empty 26952; walks 0 fetch 0 LSU; fills I$ 0 D$ 76; L2 0 reads 0 misses
     4989 restores (mispredicted branches and jalr), 537 replays, I$ 0 / 875220 missed, D$ 76 lines filled (55 asked by loads, 49 by stores), 0 evicted, uncached 502 reads 503 writes
     the timed window (start_time to stop_time): 1211530 cycles
-g14-sflto-zbsc.elf           PASS  exit 0  2837136 insns  2837136 uops  1176125 cycles  IPC 2.412
-    PMU: slots 60.2 % retiring, 7.5 % bad speculation, 7.2 % front end, 25.1 % back end (ROB 2841, queues 208142, LQ / SQ 56397, registers 14482, checkpoints 56130 cycles); head waits 143787 memory 19093 other, ROB empty 32425; walks 0 fetch 0 LSU; fills I$ 0 D$ 75; L2 0 reads 0 misses
-    6581 restores (mispredicted branches and jalr), 674 replays, I$ 0 / 677759 missed, D$ 75 lines filled (48 asked by loads, 49 by stores), 0 evicted, uncached 631 reads 632 writes
+g14-sflto-zbsc.elf           PASS  exit 0  2837136 insns  2837136 uops  1176128 cycles  IPC 2.412
+    PMU: slots 60.2 % retiring, 7.5 % bad speculation, 7.2 % front end, 25.1 % back end (ROB 2842, queues 208142, LQ / SQ 56397, registers 14482, checkpoints 56130 cycles); head waits 143790 memory 19093 other, ROB empty 32425; walks 0 fetch 0 LSU; fills I$ 0 D$ 75; L2 0 reads 0 misses
+    6581 restores (mispredicted branches and jalr), 674 replays, I$ 0 / 677762 missed, D$ 75 lines filled (48 asked by loads, 49 by stores), 0 evicted, uncached 631 reads 632 writes
 g13-o2-zb.elf                PASS  exit 0  3214086 insns  3214086 uops  1314344 cycles  IPC 2.445
     PMU: slots 61.1 % retiring, 5.4 % bad speculation, 10.4 % front end, 23.1 % back end (ROB 5490, queues 220883, LQ / SQ 52734, registers 16625, checkpoints 61917 cycles); head waits 142360 memory 21304 other, ROB empty 31925; walks 0 fetch 0 LSU; fills I$ 0 D$ 76; L2 0 reads 0 misses
     5502 restores (mispredicted branches and jalr), 605 replays, I$ 0 / 871713 missed, D$ 76 lines filled (52 asked by loads, 48 by stores), 0 evicted, uncached 491 reads 492 writes
@@ -16,26 +16,26 @@ g14-o2-zbsc.elf              PASS  exit 0  3146593 insns  3146593 uops  1257872 
     PMU: slots 62.4 % retiring, 5.2 % bad speculation, 10.5 % front end, 21.9 % back end (ROB 5615, queues 188567, LQ / SQ 56803, registers 22654, checkpoints 54249 cycles); head waits 142329 memory 16324 other, ROB empty 32062; walks 0 fetch 0 LSU; fills I$ 147 D$ 77; L2 224 reads 216 misses
     4959 restores (mispredicted branches and jalr), 536 replays, I$ 147 / 872148 missed, memory 216 line reads 0 line writes, uncached 502 reads 503 writes
     the timed window (start_time to stop_time): 1211996 cycles
-g14-sflto-zbsc.elf           PASS  exit 0  2837136 insns  2837136 uops  1186792 cycles  IPC 2.391
-    PMU: slots 59.7 % retiring, 7.8 % bad speculation, 7.7 % front end, 24.9 % back end (ROB 2989, queues 207625, LQ / SQ 57043, registers 14448, checkpoints 56090 cycles); head waits 145545 memory 19420 other, ROB empty 40776; walks 0 fetch 0 LSU; fills I$ 382 D$ 75; L2 457 reads 453 misses
-    6620 restores (mispredicted branches and jalr), 674 replays, I$ 382 / 677649 missed, memory 453 line reads 0 line writes, uncached 631 reads 632 writes
+g14-sflto-zbsc.elf           PASS  exit 0  2837136 insns  2837136 uops  1186732 cycles  IPC 2.391
+    PMU: slots 59.7 % retiring, 7.7 % bad speculation, 7.7 % front end, 24.9 % back end (ROB 3032, queues 207629, LQ / SQ 57044, registers 14448, checkpoints 56076 cycles); head waits 145220 memory 19435 other, ROB empty 41027; walks 0 fetch 0 LSU; fills I$ 384 D$ 75; L2 459 reads 455 misses
+    6590 restores (mispredicted branches and jalr), 674 replays, I$ 384 / 677490 missed, memory 455 line reads 0 line writes, uncached 631 reads 632 writes
 g13-o2-zb.elf                PASS  exit 0  3214086 insns  3214086 uops  1320328 cycles  IPC 2.434
     PMU: slots 60.8 % retiring, 5.6 % bad speculation, 10.6 % front end, 23.1 % back end (ROB 5535, queues 220911, LQ / SQ 53097, registers 16607, checkpoints 62237 cycles); head waits 143117 memory 21321 other, ROB empty 36875; walks 0 fetch 0 LSU; fills I$ 144 D$ 74; L2 218 reads 210 misses
     5583 restores (mispredicted branches and jalr), 611 replays, I$ 144 / 871553 missed, memory 210 line reads 0 line writes, uncached 491 reads 492 writes
     the timed window (start_time to stop_time): 1275299 cycles
 tb_core: 3 files, 0 failures: PASS
-== OOO_CPU, the real caches, the board's memory (-mlat 25: 25 to 45 cycles)
-g14-o2-zbsc.elf              PASS  exit 0  3146593 insns  3146593 uops  1262833 cycles  IPC 2.492
-    PMU: slots 62.2 % retiring, 5.4 % bad speculation, 10.6 % front end, 21.8 % back end (ROB 5734, queues 188533, LQ / SQ 57776, registers 22654, checkpoints 54254 cycles); head waits 143150 memory 16337 other, ROB empty 36186; walks 0 fetch 0 LSU; fills I$ 147 D$ 77; L2 224 reads 216 misses
-    4964 restores (mispredicted branches and jalr), 537 replays, I$ 147 / 872333 missed, memory 216 line reads 0 line writes, uncached 502 reads 503 writes
-    the timed window (start_time to stop_time): 1213063 cycles
-g14-sflto-zbsc.elf           PASS  exit 0  2837136 insns  2837136 uops  1197110 cycles  IPC 2.370
-    PMU: slots 59.2 % retiring, 8.1 % bad speculation, 8.0 % front end, 24.7 % back end (ROB 3259, queues 207571, LQ / SQ 57925, registers 14448, checkpoints 56091 cycles); head waits 146421 memory 19461 other, ROB empty 50172; walks 0 fetch 0 LSU; fills I$ 382 D$ 75; L2 457 reads 453 misses
-    6635 restores (mispredicted branches and jalr), 674 replays, I$ 382 / 677790 missed, memory 453 line reads 0 line writes, uncached 631 reads 632 writes
-g13-o2-zb.elf                PASS  exit 0  3214086 insns  3214086 uops  1325105 cycles  IPC 2.426
-    PMU: slots 60.6 % retiring, 5.8 % bad speculation, 10.6 % front end, 23.0 % back end (ROB 5647, queues 220908, LQ / SQ 53957, registers 16607, checkpoints 62242 cycles); head waits 143810 memory 21326 other, ROB empty 40952; walks 0 fetch 0 LSU; fills I$ 143 D$ 74; L2 217 reads 210 misses
-    5594 restores (mispredicted branches and jalr), 612 replays, I$ 143 / 871796 missed, memory 210 line reads 0 line writes, uncached 491 reads 492 writes
-    the timed window (start_time to stop_time): 1276322 cycles
+== OOO_CPU, the real caches, the board's memory (-mlat 16 -mspread 5: 16 to 21 cycles)
+g14-o2-zbsc.elf              PASS  exit 0  3146593 insns  3146593 uops  1259267 cycles  IPC 2.499
+    PMU: slots 62.4 % retiring, 5.2 % bad speculation, 10.5 % front end, 21.9 % back end (ROB 5627, queues 188569, LQ / SQ 57049, registers 22654, checkpoints 54253 cycles); head waits 142532 memory 16324 other, ROB empty 33255; walks 0 fetch 0 LSU; fills I$ 147 D$ 77; L2 224 reads 216 misses
+    4961 restores (mispredicted branches and jalr), 536 replays, I$ 147 / 872189 missed, memory 216 line reads 0 line writes, uncached 502 reads 503 writes
+    the timed window (start_time to stop_time): 1212298 cycles
+g14-sflto-zbsc.elf           PASS  exit 0  2837136 insns  2837136 uops  1189635 cycles  IPC 2.385
+    PMU: slots 59.5 % retiring, 7.9 % bad speculation, 7.8 % front end, 24.8 % back end (ROB 3001, queues 207604, LQ / SQ 57258, registers 14448, checkpoints 56091 cycles); head waits 145596 memory 19440 other, ROB empty 43546; walks 0 fetch 0 LSU; fills I$ 382 D$ 75; L2 457 reads 453 misses
+    6613 restores (mispredicted branches and jalr), 674 replays, I$ 382 / 677560 missed, memory 453 line reads 0 line writes, uncached 631 reads 632 writes
+g13-o2-zb.elf                PASS  exit 0  3214086 insns  3214086 uops  1321790 cycles  IPC 2.432
+    PMU: slots 60.7 % retiring, 5.6 % bad speculation, 10.6 % front end, 23.1 % back end (ROB 5583, queues 220914, LQ / SQ 53373, registers 16607, checkpoints 62240 cycles); head waits 143464 memory 21331 other, ROB empty 37975; walks 0 fetch 0 LSU; fills I$ 143 D$ 74; L2 217 reads 210 misses
+    5587 restores (mispredicted branches and jalr), 611 replays, I$ 143 / 871789 missed, memory 210 line reads 0 line writes, uncached 491 reads 492 writes
+    the timed window (start_time to stop_time): 1275571 cycles
 tb_core: 3 files, 0 failures: PASS
 == OOO_CORE, misses at random (seed 1)
 g14-o2-zbsc.elf              PASS  exit 0  3146593 insns  3146593 uops  1525089 cycles  IPC 2.063

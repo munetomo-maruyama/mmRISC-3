@@ -8,8 +8,10 @@
 # OOO_CORE with no I$ miss and every D$ load a hit (the model's caches: its
 # cycles are what Plan/model's are compared with), OOO_CPU with the real
 # caches (the I$, the D$, the L2: step 1.7 H3, Plan/OOC.md 29.58) on the
-# tests' memory (3 to 16 cycles) and on the board's (-mlat 25: the first
-# beat 25 to 45 cycles after the address; gate S1-B's number), and OOO_CORE
+# tests' memory (3 to 16 cycles) and on the board's (-mlat 16 -mspread 5:
+# the first beat 16 to 21 cycles after the address, measured on the Nexys
+# Video at step 2.5, LitexSystem/docs/BRINGUP.md 27; 25 to 45 before, from
+# mmRISC-2 on the Arty; gate S1-B's number), and OOO_CORE
 # with misses at random (2 seeds: 8 % I$ misses and 80 % D$ hits; 30 % D$
 # hits) for the recoveries. Fusion is off (B5).
 #---------------------------------------------------------------------------
@@ -26,7 +28,7 @@ mkdir -p obj/cm
 ./obj/core/VOOO_CORE $O -miss 0 -dhit 100 $E > obj/cm/ideal.txt 2>&1 &
 if [ "$CPU" = 1 ]; then
     ./obj/cpu/VOOO_CPU $O $E > obj/cm/cpu.txt 2>&1 &
-    ./obj/cpu/VOOO_CPU $O -mlat 25 $E > obj/cm/board.txt 2>&1 &
+    ./obj/cpu/VOOO_CPU $O -mlat 16 -mspread 5 $E > obj/cm/board.txt 2>&1 &
 else
     echo "(OOO_CPU: left out, CPU=0)" > obj/cm/cpu.txt; echo "(OOO_CPU: left out, CPU=0)" > obj/cm/board.txt
 fi
@@ -36,7 +38,7 @@ wait
 {
 echo "== OOO_CORE, no I\$ miss, every D\$ load a hit";  cat obj/cm/ideal.txt
 echo "== OOO_CPU, the real caches (I\$, D\$, L2), the tests' memory (3 to 16 cycles)"; cat obj/cm/cpu.txt
-echo "== OOO_CPU, the real caches, the board's memory (-mlat 25: 25 to 45 cycles)"; cat obj/cm/board.txt
+echo "== OOO_CPU, the real caches, the board's memory (-mlat 16 -mspread 5: 16 to 21 cycles)"; cat obj/cm/board.txt
 echo "== OOO_CORE, misses at random (seed 1)";         cat obj/cm/rand1.txt
 echo "== OOO_CORE, misses at random (seed 2, 30 % D\$ hits)"; cat obj/cm/rand2.txt
 } > results/coremark.txt

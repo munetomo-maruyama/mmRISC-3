@@ -700,3 +700,60 @@ authentication). mmRISC-2's LiteX SoC is now on the Nexys Video as on the Arty (
 Ethernet with DHCP and TFTP, the debug port), LiteX at 100 MHz and the CPU at 50 MHz through crossings. Next, step 2.5:
 the bring-up record, and DRAM latency measured through the crossing (a program in the main RAM, section 22), fed back
 to the simulation's memory model.
+
+## 27. Step 2.5: the DRAM latency through the crossing, measured, and the simulation's memory model (2026-11-28)
+
+**Why a program of its own**: the BIOS's `mem_speed` measures the uncached fetch from the ROM, not the DRAM (section
+22). **`software/dramlat/dramlat.c`** runs from the main RAM (its code in the I$), every timed loop in asm with its
+values in registers (the stack and data are in LiteX's SRAM, uncached), interrupts off while timing:
+
+- **Pointer chase**: one 8-byte load at the start of each 64-byte line, each load's address the previous load's data,
+  so the loads go one at a time and the cycles of one are its latency; the lines in a random single cycle (Sattolo)
+  over 4 KB to 64 MB, and in address order over 16 and 64 MB (the DRAM's rows hit).
+- **Throughput**: 16 MB read with 8 loads a line, written with 8 stores a line.
+- The cycles are the CPU's (`rdcycle`), checked against LiteX's timer0: 10,000,053 CPU cycles in 20,000,104 sys
+  cycles, 50 MHz against 100 MHz.
+
+`scripts/build_dramlat.sh` builds it against the build's BIOS (as LiteX's demo); `scripts/run_dramlat.py` loads it by
+the BIOS's serial boot over J13 (from `litex>`, or `reboot` from LiteX's demo) and prints its output. Run from this
+VM on step 2.4's bitstream (mmRISC-2 at 50 MHz, LiteX at 100 MHz, DDR3-800), twice, the same to the hundredth:
+
+| Chase (random) | 4-16 KB | 32 KB | 64 KB | 128-256 KB | 384 KB-64 MB | linear 16 / 64 MB |
+| --- | --- | --- | --- | --- | --- | --- |
+| Cycles / load | **2.12** (D$ hit) | 9.12 | 10.84 | **11.00** (L2 hit) | **31.90-32.17** (DRAM) | **27.92** |
+
+Throughput: read 54.6 MiB/s (55.9 cycles a line), write 62.5 MiB/s (48.9 cycles a line). mmRISC-2's D$ is 16 KB
+and its L2 256 KB; a cyclic walk over more than a cache misses it nearly every time (pseudo-LRU), hence the steps.
+
+**So, on the board**: a load that misses the L2 costs **21.2 cycles more** than one that hits it with the lines in
+random order (a DRAM row miss nearly every time), **16.9 more** in address order (row hits): the crossing (50 → 100
+MHz and back), LiteDRAM and the DDR3 at 800 MT/s together, at the CPU's 50 MHz.
+
+**Against the simulation's model.** `tb_core`'s `Axi4Mem` (behind `OOO_CPU`'s L2) gave a read's first beat
+`-mlat` to `-mlat` + 20 cycles after its address; `run_coremark.sh` used `-mlat 25` (25 to 45), from mmRISC-2 on the
+Arty with no crossing ("30 to 50 cycles for an L1 fill through the L2", Plan/OOC 29.58). The same chase on
+`OOO_CPU` (`SIM/CORE/lat/`: `gen_chase.py` writes it as assembly, `run_lat.sh` runs it; 64 KB in the D$ of 128 KB,
+256 KB in the L2 of 512 KB, 2 MB past it):
+
+| `OOO_CPU`, tb_core | 64 KB | 256 KB (L2 hits) | 2 MB, `-mlat 5` | 2 MB, `-mlat 25` | 2 MB, `-mlat 16 -mspread 5` |
+| --- | --- | --- | --- | --- | --- |
+| Cycles / load | 2.0 | 42.15 (per D$ miss) | 57.66 | 77.50 | 61.15 |
+
+(256 KB: the timed pass had 3,140 D$ misses, all L2 hits, and 956 hits: (134,256 − 956 × 2.0) / 3,140.) The 2 MB
+cost moves one for one with the model (42.66 + the model's mean), so in the simulation memory adds **the model's
+mean + 0.5** over an L2 hit (the L2 is mmRISC-2's in both). The board's 16.9 to 21.2 thus asks for a mean of 16.4 to
+20.7 at the L2's port, against the 35 used, and a spread of about 4, against 20.
+
+**The model now**: `-mspread s` (new; the first beat `-mlat` to `-mlat` + s, a write's answer `-mlat` / 2 to
+`-mlat` / 2 + s / 2; 20 by default, so every run before is unchanged: the same random draws); `run_coremark.sh` uses
+**`-mlat 16 -mspread 5`** (16 to 21, mean 18.5): the chase then gives 19.0 more over an L2 hit, between the board's
+16.9 and 21.2. CoreMark on the board's memory: g14-o2's timed window 1,213,063 → **1,212,298 cycles, 8.244 → 8.249
+CoreMark/MHz** (g13-o2 1,276,322 → 1,275,571); CoreMark's misses are a few hundred line reads, so the model barely
+shows. `run_coremark.sh` PASS (5 runs); its other runs unchanged in their timed windows (g14-sflto's total cycles,
+which follow the earlier programs of the same run, moved since `results/coremark.txt` was last written at K1, not by
+this).
+
+**An observation on `OOO_CPU`, open**: in the simulation, a load that misses `OOO_CPU`'s D$ and hits the L2 costs
+**about 42 cycles**, against mmRISC-2's 11 on the board with the same L2; a DRAM miss about 61 (board's model) against
+32. CoreMark does not see it (its data stays in the D$), but code that misses the D$ often would (Linux, memcpy over
+large buffers). Not looked into here.

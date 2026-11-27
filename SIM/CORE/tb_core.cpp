@@ -3,7 +3,7 @@
 // Verilator, fetching through ICacheModel from the bench's Memory, its
 // commit trace in lock-step with Spike at every instruction (bench.h).
 //
-//   tb_core [-seed <n>] [-miss <%>] [-dhit <%>] [-mlat <cycles>] [-exit <symbol>] [-max <cycles>] [-v]
+//   tb_core [-seed <n>] [-miss <%>] [-dhit <%>] [-mlat <cycles>] [-mspread <cycles>] [-exit <symbol>] [-max <cycles>] [-v]
 //           [-restores-out <file>] [-restores-ref <file> -restores-max <x>] [-replays-max <n>] [-exit0] <elf> ...
 //
 // The D$: OOO_LSU3's, with DMissModel (ports.h) as its miss handler (step 1.3
@@ -33,8 +33,10 @@
 // OOO_CPU (build_core.sh cpu, step 1.7 H3, Plan/OOC.md 29.58) has its own I$, the
 // arbiter and the L2: ICacheModel is not used (-miss means nothing), the memory
 // model (Axi4Mem) is behind the L2. -mlat n: the memory as the board's (the first
-// beat of a read n to n + 20 cycles after its address, a write's answer n / 2 to
-// n / 2 + 10 after its last beat, the readies up); 0 (the default): 3 to 16 cycles
+// beat of a read n to n + s cycles after its address, a write's answer n / 2 to
+// n / 2 + s / 2 after its last beat, the readies up; s is -mspread, 20 by default;
+// step 2.5 measured the board: -mlat 16 -mspread 5, LitexSystem/docs/BRINGUP.md 27);
+// 0 (the default): 3 to 16 cycles
 // with random readies and stalls, for the tests. After the exit the memory is
 // compared with the program's, with the L2's dirty lines over it and the D$'s over
 // those (the D$ written back, step 1.7b W2, Plan/OOC.md 29.62).
@@ -98,7 +100,7 @@ static uint64_t tpc(uint64_t h) { return (uint64_t)(((int64_t)(h << 1) << (64 - 
 #include <fstream>
 
 struct Opts {
-    uint64_t seed = 1; int miss = 8, dhit = 80, mlat = 0; std::string exit_sym; uint64_t max = 20000000; bool verbose = false;
+    uint64_t seed = 1; int miss = 8, dhit = 80, mlat = 0, mspread = 20; std::string exit_sym; uint64_t max = 20000000; bool verbose = false;
     std::string rs_out; std::map<std::string, long> rs_ref; double rs_max = 0;
     long rp_max = -1;                   // -replays-max: fail a run with more replays
     bool exit0 = false;                 // -exit0: fail a run whose exit code is not 0
@@ -175,7 +177,7 @@ static bool run(const Opts& o, const std::string& elf)
     Bench b(cfg);
     ICacheModel ic(b.mem(), o.seed * 7 + 1, o.miss);
 #ifdef CPU_TOP
-    Axi4Mem ax(b.mem(), o.seed * 13 + 5, o.mlat);
+    Axi4Mem ax(b.mem(), o.seed * 13 + 5, o.mlat, o.mspread);
     long ic_reqs = 0, ic_misses = 0, ic_fills = 0;      // (OOO_ICACHE's, from its registers; a miss that may not be fetched
                                                         //  is answered with zeros, not filled)
     AxiLite al(b.mem(), o.seed * 17 + 3);
@@ -625,6 +627,7 @@ int main(int argc, char** argv)
         else if (a == "-miss" && i + 1 < argc) o.miss = atoi(argv[++i]);
         else if (a == "-dhit" && i + 1 < argc) o.dhit = atoi(argv[++i]);
         else if (a == "-mlat" && i + 1 < argc) o.mlat = atoi(argv[++i]);
+        else if (a == "-mspread" && i + 1 < argc) o.mspread = atoi(argv[++i]);
         else if (a == "-exit" && i + 1 < argc) o.exit_sym = argv[++i];
         else if (a == "-max" && i + 1 < argc) o.max = strtoull(argv[++i], nullptr, 0);
         else if (a == "-v") o.verbose = true;

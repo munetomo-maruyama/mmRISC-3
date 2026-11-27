@@ -13397,3 +13397,32 @@ The fix is added to section 25 and pushed to dev (commit 8d3ac37), no file under
 ```text
 Cases 1, 2, 2a, 3 and 4 were all OK. reset halt, resume, step, reg pc and so on over telnet also worked.
 ```
+
+<!-- answer -->**Claude Code's answer**
+
+Step 2.4's gate is passed, and step 2.4 is done.
+
+| Case | Switches | Result |
+| --- | --- | --- |
+| 1 | SW3 down (JTAG), SW2 down | **PASS** |
+| 2 | SW3 down, SW2 up (authentication) | **PASS** |
+| 2a | SW3 down, SW2 up, a wrong key | rejected, as expected |
+| 3 | SW3 up (cJTAG), SW2 down | **PASS** |
+| 4 | SW3 up, SW2 up | **PASS** |
+
+- `reset halt`, `resume`, `step` and `reg pc` from telnet work too: with an adapter without nSRST, the debug module's reset (`ndmreset`) stops and restarts the CPU.
+
+**Where this stands**: mmRISC-2's LiteX SoC now runs on the Nexys Video with the Arty's functions: the BIOS, DDR3-800's 512 MiB, booting from the SD card, Ethernet with DHCP and TFTP, the JTAG / cJTAG debug port. LiteX at 100 MHz, the CPU at 50 MHz, joined by clock crossings.
+
+Recorded in section 26 of `LitexSystem/docs/BRINGUP.md` (and the Japanese one) and STRATEGY 2.4 (done); pushed to dev (commit a8c7b68), no file under Ref/.
+
+**Next, step 2.5**: the bring-up written up as a record; the DRAM latency measured through the crossing, by a program in the main RAM running from the cache (section 22: the BIOS's `mem_speed` cannot measure the DDR3); the values fed back to the simulation's memory model.
+
+Go on to step 2.5 ("Start step 2.5")?
+<!-- /answer -->
+
+## 332. 2026-11-28 02:23:11 JST
+
+```text
+Start step 2.5
+```

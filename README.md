@@ -33,7 +33,7 @@ its caches; its specification is [`Doc/UARCH.md`](Doc/UARCH.md) section A:
 | Prediction | uBTB 96, TAGE-M per 32-byte block, BTB 256, RAS 16, FTQ 32 |
 | Caches | I$ 128 KB and D$ 128 KB (8 ways each; the D$ write back, 2 load ports), L2 512 KB |
 | ISA so far | RV64IMAC + Zba / Zbb / Zbc / Zbs / Zicond / Zicsr / Zifencei / Zicntr, M / S / U modes |
-| CoreMark/MHz | **8.244** (`-O2`, the timed part, with the board's memory latency; the working target 8.0 met) |
+| CoreMark/MHz | **8.249** (`-O2`, the timed part, with the board's memory latency as measured at step 2.5; 8.244 with the earlier estimate; the working target 8.0 met) |
 | Resources, timing | 80,345 LUTs (60 %), 284.5 block RAM tiles (78 %); WNS +0.027 ns at 20 ns (with the interrupts, step 1.8 I2, 2026-11-16) |
 
 **Next, step 1.8**: interrupts, the MMU (Sv39), the FPU, debug and the PMU, then Linux in simulation (gate S1-C); then the board
