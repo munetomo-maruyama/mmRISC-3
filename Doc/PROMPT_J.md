@@ -14009,3 +14009,44 @@ Will run it
 ```text
 Vivadoの合成完了した。
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+Vivadoの結果を確認しました。タイミングは満たしています。
+
+| クロック | セットアップWNS | ホールドWHS |
+| --- | --- | --- |
+| CPU(50 MHz) | **+0.129 ns**(設計全体で最悪) | +0.037 ns |
+| sys(100 MHz) | +0.138 ns | +0.024 ns |
+| sys → CPU / CPU → sys | +6.173 / +6.715 ns | +0.016 / **+0.007 ns**(ホールドで最悪) |
+| Ethernet RX / TX | +0.729 / +0.267 ns | +0.070 / +0.156 ns |
+| JTAG TCK / TMSC(10 MHz) | +40.861 / +96.600 ns | +0.117 / +0.816 ns |
+
+- JTAGのクロックと、sysやCPUのクロックをまたぐパスは、意図どおりタイミング解析の対象外になっています。TCKの+40.9 nsは、TDOを立ち下がりで出す半周期のパスです。
+- JTAGの2本のクロック配線には、`CLOCK_DEDICATED_ROUTE FALSE`が効いています。
+- LUTは50,683(手順2.3より約1,700増、デバッグモジュール・TAP・cJTAGの分)、消費電力は1.072 Wです。
+- クリティカル警告は2件で、手順2.3と同じLiteX側のEthernetのクロック制約によるものです。
+
+記録は`LitexSystem/docs/BRINGUP.md`の24節(日本語版も)と、STRATEGYの2.4の行です。devにpushしてあり(コミット4127ebe)、Ref/以下のファイルは含まれていません。
+
+**ボードでの確認(ゲート)**
+1. ビットストリームを書き込みます。外付けのFT2232HをArtyのときと同じくJAに配線し、そのUSBをLinux VMにつなぎます。
+2. `LitexSystem/`で次を実行します。BIOSが動いている間はLD1が点灯し、停止中はLD0が点灯するはずです。
+   ```bash
+   openocd -f ../../mmRISC-2/FPGA/ARTY_A7_100T/openocd/ft2232h_jtag.cfg -f scripts/jtag_check.tcl
+   ```
+3. 次の4通りすべてで`JTAG CHECK RESULT : PASS`が出れば合格です。
+   - SW3下(4線JTAG)、SW2下(認証なし)
+   - SW3下、SW2上(認証あり)。SW2はOpenOCDを起動する前に上げてください。あわせて、`AUTH_KEY=0x12345678`のような間違った鍵で`examination failed`になることも確かめます。
+   - SW3上(2線cJTAG、LD3が点灯)、SW2下。設定ファイルは`ft2232h_cjtag.cfg`で、4線→2線のアダプタを通します。
+   - SW3上、SW2上
+
+ご自身で確認されますか(「I'll test it myself」)? それともFT2232HとボードのUSBをVMにつないで、こちらで行いますか(「Attached, test it」)?
+<!-- /answer -->
+
+## 329. 2026-11-28 01:46:57 JST
+
+```text
+使っているJTAGアダプタはnSRSTがないので、その点を考慮してほしい。確認作業は自分でやるので手順を教えてほしい。、
+```

@@ -3,14 +3,14 @@
 #                  (mmRISC-2's LitexSystem/scripts/jtag_check.tcl, for the
 #                  Nexys Video's SoC too: step 2.4, LitexSystem/docs/BRINGUP.md)
 #
-#   O=../../mmRISC-2/FPGA/ARTY_A7_100T/openocd
-#   openocd -f $O/ft2232h_jtag.cfg  -f scripts/jtag_check.tcl
-#   openocd -f $O/ft2232h_cjtag.cfg -f scripts/jtag_check.tcl
+#   openocd -f openocd/nexys_jtag.cfg  -f scripts/jtag_check.tcl   (SW3 down)
+#   openocd -f openocd/nexys_cjtag.cfg -f scripts/jtag_check.tcl   (SW3 up)
 #
-# (from mmRISC-3's LitexSystem/; the cable and the configurations are
-# mmRISC-2's: the same Pmod JA positions on both boards). The configurations
-# pick the external FT2232H by its description ("Dual RS232"), not the Nexys
-# Video's own USB-JTAG (J12, "Digilent USB Device").
+# (from mmRISC-3's LitexSystem/). The configurations are mmRISC-2's for an
+# adapter without nSRST (reset_config none; the same Pmod JA positions on
+# both boards); they pick the external FT2232H by its description ("Dual
+# RS232"), not the Nexys Video's own USB-JTAG (J12, "Digilent USB Device").
+# With nSRST: mmRISC-2's FPGA/ARTY_A7_100T/openocd/ft2232h_*.cfg.
 #
 # It can run whatever the CPU is doing -- the BIOS
 # prompt, Linux at the shell -- and leaves it running as it found it: it

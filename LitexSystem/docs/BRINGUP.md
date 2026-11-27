@@ -640,3 +640,35 @@ moves the TMSC one to its parent net, an INFO). 50,683 LUTs (step 2.3: 48,995; t
 `eth_rx_clk` / `eth_tx_clk` during synthesis), as in section 20.
 
 **Next**: the board: `jtag_check.tcl` in the 4 combinations (section 23).
+
+## 25. Step 2.4: OpenOCD for an adapter without nSRST, and the board procedure (2026-11-28)
+
+**The author's adapter has no nSRST.** mmRISC-2's configurations drive it: `ft2232h_jtag.cfg` has
+`reset_config trst_and_srst` with nSRST on ACBUS1 (open drain), `ft2232h_cjtag.cfg` `reset_config srst_only`.
+
+**What the hardware needs**: nothing. JA8 (AA21, nSRST) has the FPGA's pull-up (section 23), so left open it holds
+the CPU out of reset; JA7 (nTRST) likewise, and OpenOCD resets the TAP through TMS anyway.
+
+**`openocd/nexys_jtag.cfg`, `openocd/nexys_cjtag.cfg`** (new, this board's): mmRISC-2's two configurations with
+`reset_config none`, no nSRST signal and ACBUS1 left an input (the 4-wire one keeps ACBUS0, nTRST, driven high,
+released, so a cable that has it changes nothing); the rest as mmRISC-2's (the FT2232H by "Dual RS232", 1 MHz, the
+IDCODE 0x26D6D001, system bus access, physical addresses, the key 0xBEEFCAFE or `AUTH_KEY`). OpenOCD's `reset` /
+`reset halt` then reset the CPU through the debug module's `ndmreset`, which in mmRISC-2 resets only the CPU, as nSRST
+does (mmRISC-2's `LitexSystem/docs/JTAG.md` 2); `jtag_check.tcl` uses no reset at all. Both parsed by this VM's
+riscv-openocd with the FT2232H attached (the scan read all ones: the board not yet on step 2.4's bitstream or not
+wired).
+
+**The board procedure** (from `LitexSystem/`; the FT2232H on JA as the Arty's wiring, JA8 open; the BIOS at
+`litex>` or the demo running):
+
+| Case | Switches | Command | Expected |
+| --- | --- | --- | --- |
+| 1 | SW3 down, SW2 down | `openocd -f openocd/nexys_jtag.cfg -f scripts/jtag_check.tcl` | `JTAG CHECK RESULT : PASS` |
+| 2 | SW3 down, SW2 up (before OpenOCD starts) | the same | PASS (the configuration writes the key) |
+| 2a | SW3 down, SW2 up | `AUTH_KEY=0x12345678 openocd -f openocd/nexys_jtag.cfg` | `Debugger is not authenticated ... (dmstatus=0x3)`, `examination failed` |
+| 3 | SW3 up (LD3 on), SW2 down | `openocd -f openocd/nexys_cjtag.cfg -f scripts/jtag_check.tcl` (through the 4-wire → 2-wire adapter) | PASS |
+| 4 | SW3 up, SW2 up | the same | PASS |
+
+LD1 is on while the CPU runs, LD0 while halted, LD2 with the debug module active. Each OpenOCD stays running after its
+result (Ctrl-C to end it before the next case). Optional, without nSRST: `reset halt` in `telnet localhost 4444`
+stops the CPU before the BIOS's first instruction (through `ndmreset`), `resume` restarts the BIOS.

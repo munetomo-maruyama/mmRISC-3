@@ -379,3 +379,23 @@ LUT 46,315(1回目48,085、手順2.1 45,954)、フリップフロップ26,740、
 JTAGのクロックとsysやCPUのクロックの間のパスは、時間解析されていません(23節のクロックグループ)。TCKの+40.9 nsは半周期のパスです(TDOは立ち下がりエッジ)。`CLOCK_DEDICATED_ROUTE FALSE`は両方のJTAGのネットに効いています(TMSCのものはVivadoが親のネットに移す。INFO)。LUT 50,683(手順2.3: 48,995。デバッグモジュール、TAP、cJTAG)、フリップフロップ30,497、BRAMタイル108.5、1.072 W。2つのクリティカル警告は、20節と同じくLiteX自身のもの(合成中のネット`eth_rx_clk` / `eth_tx_clk`への`create_clock`)。
 
 **次**: ボードで: 4つの組み合わせで`jtag_check.tcl`(23節)。
+
+## 25. 手順2.4: nSRSTのないアダプタ用のOpenOCDとボードでの手順(2026-11-28)
+
+**著者のアダプタにはnSRSTがありません。** mmRISC-2の設定はそれを駆動します: `ft2232h_jtag.cfg`は`reset_config trst_and_srst`でnSRSTはACBUS1(オープンドレイン)、`ft2232h_cjtag.cfg`は`reset_config srst_only`。
+
+**ハードウェアに必要なこと**: ありません。JA8(AA21、nSRST)にはFPGAのプルアップがあるので(23節)、開放のままでCPUはリセットされません。JA7(nTRST)も同じで、OpenOCDはいずれにしてもTMSでTAPをリセットします。
+
+**`openocd/nexys_jtag.cfg`、`openocd/nexys_cjtag.cfg`**(新規、このボード用): mmRISC-2の2つの設定を`reset_config none`にし、nSRSTの信号をなくしてACBUS1を入力のままにしたもの(4線のものはACBUS0のnTRSTを解除のHighで駆動したままなので、nTRSTのあるケーブルでも何も変わりません)。そのほかはmmRISC-2と同じ(FT2232Hは"Dual RS232"で選択、1 MHz、IDCODE 0x26D6D001、システムバスのアクセス、物理アドレス、鍵0xBEEFCAFEか`AUTH_KEY`)。OpenOCDの`reset` / `reset halt`は、デバッグモジュールの`ndmreset`でCPUをリセットします。mmRISC-2ではこれはnSRSTと同じくCPUだけをリセットします(mmRISC-2の`LitexSystem/docs/JTAG_J.md` 2)。`jtag_check.tcl`はリセットを使いません。どちらの設定も、FT2232HをつないだこのVMのriscv-openocdで読み込めました(スキャンはすべて1: ボードがまだ手順2.4のビットストリームでないか、未配線)。
+
+**ボードでの手順**(`LitexSystem/`から。FT2232HはArtyと同じ配線でJAに、JA8は開放。BIOSが`litex>`か、デモが動いている状態で):
+
+| ケース | スイッチ | コマンド | 期待 |
+| --- | --- | --- | --- |
+| 1 | SW3下、SW2下 | `openocd -f openocd/nexys_jtag.cfg -f scripts/jtag_check.tcl` | `JTAG CHECK RESULT : PASS` |
+| 2 | SW3下、SW2上(OpenOCDの起動前に) | 同じ | PASS(設定が鍵を書く) |
+| 2a | SW3下、SW2上 | `AUTH_KEY=0x12345678 openocd -f openocd/nexys_jtag.cfg` | `Debugger is not authenticated ... (dmstatus=0x3)`、`examination failed` |
+| 3 | SW3上(LD3点灯)、SW2下 | `openocd -f openocd/nexys_cjtag.cfg -f scripts/jtag_check.tcl`(4線 → 2線のアダプタ経由) | PASS |
+| 4 | SW3上、SW2上 | 同じ | PASS |
+
+CPUが動いている間はLD1、停止中はLD0、デバッグモジュールが動作中はLD2が点灯します。OpenOCDは結果のあとも動き続けます(次のケースの前にCtrl-Cで終了)。任意、nSRSTなしで: `telnet localhost 4444`で`reset halt`を実行すると、CPUはBIOSの最初の命令の前で止まり(`ndmreset`経由)、`resume`でBIOSが再び動きます。

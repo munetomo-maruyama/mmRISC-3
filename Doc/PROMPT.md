@@ -13319,3 +13319,33 @@ The prompt log is pushed to dev (commit 795d5d9), no file under Ref/.
 ```text
 Vivado synthesis finished.
 ```
+
+<!-- answer -->**Claude Code's answer**
+
+Timing is met.
+
+| Clock | Setup WNS | Hold WHS |
+| --- | --- | --- |
+| the CPU (50 MHz) | **+0.129 ns** (the design's worst) | +0.037 ns |
+| sys (100 MHz) | +0.138 ns | +0.024 ns |
+| sys → CPU / CPU → sys | +6.173 / +6.715 ns | +0.016 / **+0.007 ns** (the worst hold) |
+| Ethernet RX / TX | +0.729 / +0.267 ns | +0.070 / +0.156 ns |
+| JTAG TCK / TMSC (10 MHz) | +40.861 / +96.600 ns | +0.117 / +0.816 ns |
+
+- No path between the JTAG clocks and sys or the CPU's clock is timed, as intended; TCK's +40.9 ns are its half-period paths (TDO on the falling edge).
+- `CLOCK_DEDICATED_ROUTE FALSE` takes effect on both JTAG clock nets.
+- 50,683 LUTs (about 1,700 more than step 2.3: the debug module, TAP, cJTAG), 1.072 W.
+- Two critical warnings, LiteX's Ethernet clock constraints as in step 2.3.
+
+Recorded in section 24 of `LitexSystem/docs/BRINGUP.md` (and the Japanese one) and STRATEGY 2.4; pushed to dev (commit 4127ebe), no file under Ref/.
+
+**The board checks (the gate)**: program; the external FT2232H wired to JA as on the Arty, its USB to the Linux VM; from `LitexSystem/`, `openocd -f ../../mmRISC-2/FPGA/ARTY_A7_100T/openocd/ft2232h_jtag.cfg -f scripts/jtag_check.tcl` (LD1 on while the BIOS runs, LD0 while halted). `JTAG CHECK RESULT : PASS` in all 4 passes: SW3 down (4-wire JTAG) with SW2 down (no authentication); SW3 down with SW2 up (raised before OpenOCD starts; and a wrong key such as `AUTH_KEY=0x12345678` gives `examination failed`); SW3 up (2-wire cJTAG, LD3 on; `ft2232h_cjtag.cfg` through the 4-wire → 2-wire adapter) with SW2 down; SW3 up with SW2 up.
+
+Check it yourself ("I'll test it myself"), or attach the FT2232H and the board's USB to the VM for me ("Attached, test it")?
+<!-- /answer -->
+
+## 329. 2026-11-28 01:46:57 JST
+
+```text
+The JTAG adapter I use has no nSRST, so please take that into account. I will do the checks myself, so please tell me the procedure.
+```
