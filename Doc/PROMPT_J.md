@@ -14098,3 +14098,31 @@ nSRSTのないアダプタ用に、このボード専用のOpenOCD設定を2つ�
 ```text
 Ubuntuからのbitの書き込み方法は？
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+Ubuntuからは、リポジトリのトップで次のスクリプトを実行すれば書き込めます。中では`openFPGALoader`を使っています。
+```bash
+./LitexSystem/scripts/program_nexys_video.sh LitexSystem/build/gateware/digilent_nexys_video.bit
+```
+- 書き込みはJ12(PROG、ボード上のUSB-JTAG)経由です。J12のUSBをUbuntuのVMにつないでおいてください。今はつながっています。
+- 電源を切ると消えます。そのたびに書き込み直してください。
+- 書き込みが終わると、J13のUARTにBIOSの起動表示が出ます。
+
+**スクリプトを1か所直しました**
+- J12のFT2232Hと、デバッグ用の外付けFT2232Hは、同じUSBのID(0403:6010)を持っています。今はどちらもこのVMにつながっているので、これまでのスクリプトでは`openFPGALoader`が外付けの方を選んでしまうおそれがありました。
+- そこで、製品名が"Digilent USB Device"のもの(J12)を探して、そのUSBのバス番号とデバイス番号で指定するようにしました。
+- シリアル番号での指定も試しましたが、外付けのFT2232Hにはシリアル番号がないため、そこでエラーになり使えませんでした。
+- 直したあと、J12経由の読み出し(`--detect`)でXC7A200Tが見えることを確かめました。書き込みはしていないので、ボードの中身は変わっていません。
+
+書き込んだら、前回の手順(`LitexSystem/docs/BRINGUP.md`の25節)どおり、`LitexSystem/`で`openocd -f openocd/nexys_jtag.cfg -f scripts/jtag_check.tcl`から始めてください。
+
+この修正は25節に追記し、devにpushしてあります(コミット8d3ac37)。Ref/以下のファイルは含まれていません。
+<!-- /answer -->
+
+## 331. 2026-11-28 02:21:41 JST
+
+```text
+ケース1、2、2a、3、4ともOKだった。telnetでのreset halt, resume, step, reg pcなども動作確認できた。
+```

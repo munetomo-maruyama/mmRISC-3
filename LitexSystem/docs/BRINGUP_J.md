@@ -401,3 +401,19 @@ JTAGのクロックとsysやCPUのクロックの間のパスは、時間解析�
 CPUが動いている間はLD1、停止中はLD0、デバッグモジュールが動作中はLD2が点灯します。OpenOCDは結果のあとも動き続けます(次のケースの前にCtrl-Cで終了)。任意、nSRSTなしで: `telnet localhost 4444`で`reset halt`を実行すると、CPUはBIOSの最初の命令の前で止まり(`ndmreset`経由)、`resume`でBIOSが再び動きます。
 
 **デバッグ用のアダプタをつないだままの書き込み**(同日に追記): J12のFT2232H("Digilent USB Device")とデバッグポートの外付けFT2232H("Dual RS232")は同じ0403:6010で、`openFPGALoader -b nexysVideo`は最初に見つけたものを使います。`scripts/program_nexys_video.sh`は、sysfsの製品名でJ12を選び、そのUSBのバス番号とデバイス番号を渡すようにしました(`--busdev-num`)。FTDIのシリアル番号は使えません。libftdiが、シリアル番号を持たない外付けFT2232Hで止まるためです("unable to fetch serial number")。3つのFTDIデバイスをこのVMにつないだ状態で、J12経由の`--detect`がXC7A200T(IDCODE 0x3636093)を見つけます。
+
+## 26. 手順2.4をボードで: 4つの組み合わせすべてでデバッグポート、手順2.4完了(2026-11-28)
+
+著者がこのVMから24節のビットストリームを書き込み(`program_nexys_video.sh`、J12は名前で選択、25節)、FT2232HをJAにつなぎ、JA8(nSRST)を開放して、`openocd/nexys_jtag.cfg` / `nexys_cjtag.cfg`で25節のケースを実行しました。
+
+| ケース | スイッチ | 結果 |
+| --- | --- | --- |
+| 1 | SW3下(JTAG)、SW2下 | **PASS** |
+| 2 | SW3下、SW2上(認証) | **PASS** |
+| 2a | SW3下、SW2上、間違った鍵 | 期待どおり拒否 |
+| 3 | SW3上(cJTAG)、SW2下 | **PASS** |
+| 4 | SW3上、SW2上 | **PASS** |
+
+さらに`telnet localhost 4444`で手で: `reset halt`(`ndmreset`経由、nSRSTなし)、`resume`、`step`、`reg pc`が動作しました。
+
+**手順2.4完了**: ゲートを通過しました(JTAG / cJTAG × 認証なし / ありの4つの組み合わせで`jtag_check.tcl`がPASS)。mmRISC-2のLiteXのSoCは、Artyと同じくNexys Videoで動いています(BIOS、DDR3-800の512 MiB、SDカード、DHCPとTFTPのEthernet、デバッグポート)。LiteXは100 MHz、CPUは50 MHzで乗せ換え経由です。次は手順2.5: 立ち上げの記録と、乗せ換え経由のDRAMのレイテンシの測定(メインRAMのプログラムで、22節)、その結果をシミュレーションのメモリモデルに反映。

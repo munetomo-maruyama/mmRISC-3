@@ -679,3 +679,24 @@ first it finds. `scripts/program_nexys_video.sh` now picks J12 by its product na
 device numbers (`--busdev-num`); the FTDI serial cannot be used, as libftdi stops at the external FT2232H, which has
 none ("unable to fetch serial number"). With all three FTDI devices on this VM, `--detect` through J12 sees the
 XC7A200T (IDCODE 0x3636093).
+
+## 26. Step 2.4 on the board: the debug port in all 4 combinations, step 2.4 done (2026-11-28)
+
+The author programmed section 24's bitstream from this VM (`program_nexys_video.sh`, J12 picked by name, section 25)
+and ran section 25's cases with the FT2232H on JA, JA8 (nSRST) open, `openocd/nexys_jtag.cfg` / `nexys_cjtag.cfg`:
+
+| Case | Switches | Result |
+| --- | --- | --- |
+| 1 | SW3 down (JTAG), SW2 down | **PASS** |
+| 2 | SW3 down, SW2 up (authentication) | **PASS** |
+| 2a | SW3 down, SW2 up, a wrong key | rejected, as expected |
+| 3 | SW3 up (cJTAG), SW2 down | **PASS** |
+| 4 | SW3 up, SW2 up | **PASS** |
+
+And by hand in `telnet localhost 4444`: `reset halt` (through `ndmreset`, no nSRST), `resume`, `step`, `reg pc` work.
+
+**Step 2.4 done**: the gate passed (`jtag_check.tcl` PASS in the 4 combinations of JTAG / cJTAG × without / with
+authentication). mmRISC-2's LiteX SoC is now on the Nexys Video as on the Arty (BIOS, DDR3-800 512 MiB, SD card,
+Ethernet with DHCP and TFTP, the debug port), LiteX at 100 MHz and the CPU at 50 MHz through crossings. Next, step 2.5:
+the bring-up record, and DRAM latency measured through the crossing (a program in the main RAM, section 22), fed back
+to the simulation's memory model.

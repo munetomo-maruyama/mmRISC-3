@@ -13373,3 +13373,27 @@ All four PASS is the gate; paste the results and I record them in section 26 of 
 ```text
 How do I program the bit from Ubuntu?
 ```
+
+<!-- answer -->**Claude Code's answer**
+
+From Ubuntu, run this script at the top of the repository; it uses `openFPGALoader`: `./LitexSystem/scripts/program_nexys_video.sh LitexSystem/build/gateware/digilent_nexys_video.bit`.
+- It programs through J12 (PROG, the board's own USB-JTAG); J12's USB must be on the Ubuntu VM (it is now).
+- Volatile: program again after each power-off.
+- When done, the BIOS's start appears on J13's UART.
+
+**One fix to the script**
+- J12's FT2232H and the external debug FT2232H have the same USB ID (0403:6010). Both are on this VM now, so the old script could have had `openFPGALoader` choose the external one.
+- So it looks for the product name "Digilent USB Device" (J12) and gives its USB bus and device numbers.
+- Choosing by serial number was tried too, but the external FT2232H has none, and that stopped it with an error.
+- After the fix, a read through J12 (`--detect`) sees the XC7A200T. Nothing was programmed, so the board is unchanged.
+
+After programming, start with `openocd -f openocd/nexys_jtag.cfg -f scripts/jtag_check.tcl` in `LitexSystem/` as the last procedure (section 25 of `LitexSystem/docs/BRINGUP.md`).
+
+The fix is added to section 25 and pushed to dev (commit 8d3ac37), no file under Ref/.
+<!-- /answer -->
+
+## 331. 2026-11-28 02:21:41 JST
+
+```text
+Cases 1, 2, 2a, 3 and 4 were all OK. reset halt, resume, step, reg pc and so on over telnet also worked.
+```
