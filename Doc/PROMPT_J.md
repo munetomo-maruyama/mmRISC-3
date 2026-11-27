@@ -13934,3 +13934,59 @@ Write speed first
 ```text
 Start step 2.4
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+手順2.4のSoCを生成しました。mmRISC-2のJTAG/cJTAGデバッグポートを、Nexys VideoのPmod JAに出しています。次はVivadoです。
+
+**変更点**
+- **`LitexSystem/cpu/mmrisc/core.py`**(`add_jtag`)
+  - Pmodのピン位置はArtyと同じなので、mmRISC-2のケーブルとOpenOCDの設定がそのまま使えます。
+
+    | 信号 | ピン | 信号 | ピン |
+    | --- | --- | --- | --- |
+    | JA1 TCK | AB22 | JA2 TDI | AB21 |
+    | JA3 TDO | AB20 | JA4 TMS | AB18 |
+    | JA7 nTRST | Y21 | JA8 nSRST | AA21 |
+
+    電圧はバンク14の3.3 Vです。
+  - 状態表示のLEDです。Nexys VideoにはRGB LEDがないので、LD0〜LD3を使います。LD0が停止中、LD1が実行中、LD2がdmactive、LD3がcJTAGオンラインです。Artyでは従来どおりRGB LEDを使います。
+  - JTAGのクロック(TCK、TMSC)は、これまでsysのクロックに対してだけ非同期として扱っていました。デバッグモジュールはCPUのクロックで動くので、CPUのクロックに対しても非同期として扱うようにしました。
+- **`LitexSystem/scripts/nexys_video_target.py`**
+  - スイッチとボタンの入力規格をLVCMOS12にしました。これらは1.2 V(VADJ)で動いています。LiteXの既定のLVCMOS25のままだと、スイッチを上げてもLowと読まれてしまいます。
+  - LiteXのLEDチェイサーは、LED 0番から順に取ろうとします。LD0〜LD3を先にCPUが使うと、1つも取れずにエラーになります。そこで、残っているLD4〜LD7を使うようにしました。
+- **`LitexSystem/scripts/build_soc.sh`**: `--cpu-jtag pmoda`を加えました。
+- **`LitexSystem/scripts/jtag_check.tcl`**: mmRISC-2のスクリプトを、このSoCの識別子("LiteX SoC on Nexys Video")も受け付けるようにしたものです。
+
+**生成したSoCで確かめたこと**
+- 生成したVerilogとXDCで、次がつながっていることを確かめました。
+  - スイッチ: SW3(G22)がcJTAGの切り替え、SW2(G21)が認証の切り替え
+  - リセット: nSRSTがCPUのリセットに入る
+  - LED: LD0〜LD3がデバッグの状態、LD4〜LD7がLEDチェイサー
+  - JTAGのクロック: 制約が入っている
+- ピンのバンクと電圧は、Digilentのマスタ XDCと一致しています(JAはバンク14の3.3 V、LEDはバンク13の2.5 V、スイッチはバンク16の1.2 V)。
+- 手順2.3のビットストリームは、`LitexSystem/build/digilent_nexys_video_step23.bit`として残しました。
+- シミュレーションはしていません。
+
+**Vivadoの後のボードでの確認(ゲート)**
+外付けのFT2232HをArtyのときと同じくJAに配線し、そのUSBをLinux VMにつないでください。OpenOCDの設定は、外付けのFT2232Hを名前("Dual RS232")で選ぶので、ボード自身のUSB-JTAGを誤って使うことはありません。`LitexSystem/`で次を実行します。
+```bash
+openocd -f ../../mmRISC-2/FPGA/ARTY_A7_100T/openocd/ft2232h_jtag.cfg -f scripts/jtag_check.tcl
+```
+- 次の4通りすべてで`JTAG CHECK RESULT : PASS`が出ればゲート合格です。
+  - SW3下(4線JTAG)で、SW2(認証)の下と上
+  - SW3上(2線cJTAG、`ft2232h_cjtag.cfg`、アダプタ経由)で、SW2の下と上
+- SW2は、OpenOCDを起動する前に上げておいてください。
+- あわせて、間違った鍵が拒否されることも確かめます。
+
+記録は`LitexSystem/docs/BRINGUP.md`の23節(日本語版も)、README、STRATEGYの2.4の行です。devにpushしてあり(コミットe2ed34c)、Ref/以下のファイルは含まれていません。
+
+`LitexSystem\build\gateware`で`build_nexys_video.bat`を実行していただけますか(「Will run it」)?
+<!-- /answer -->
+
+## 327. 2026-11-28 01:38:25 JST
+
+```text
+Will run it
+```

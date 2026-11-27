@@ -13276,3 +13276,28 @@ Go on to step 2.4 (JTAG / cJTAG on JA, switches and LEDs) ("Start step 2.4")?
 ```text
 Start step 2.4
 ```
+
+<!-- answer -->**Claude Code's answer**
+
+Step 2.4's SoC is generated: mmRISC-2's JTAG / cJTAG debug port on the Nexys Video's Pmod JA. Vivado next.
+
+**Changes**
+- **`LitexSystem/cpu/mmrisc/core.py`** (`add_jtag`): the Pmod positions are the Arty's, so mmRISC-2's cable and OpenOCD configurations work as they are (JA1 TCK AB22, JA2 TDI AB21, JA3 TDO AB20, JA4 TMS AB18, JA7 nTRST Y21, JA8 nSRST AA21; 3.3 V in bank 14). The status LEDs: no RGB LEDs on the Nexys Video, so LD0 halted, LD1 running, LD2 dmactive, LD3 cJTAG online; the Arty keeps its RGB LEDs. The JTAG clocks (TCK, TMSC), asynchronous to sys only so far, are now asynchronous to the CPU's clock too, where the debug module runs.
+- **`LitexSystem/scripts/nexys_video_target.py`**: the switches and buttons LVCMOS12 (they run at 1.2 V, VADJ; LiteX's default LVCMOS25 would read a raised switch as low). LiteX's LED chaser takes LEDs from 0 up and would find none with LD0-LD3 taken by the CPU, so it takes the LD4-LD7 left.
+- **`LitexSystem/scripts/build_soc.sh`**: `--cpu-jtag pmoda`.
+- **`LitexSystem/scripts/jtag_check.tcl`**: mmRISC-2's script, accepting this SoC's identifier ("LiteX SoC on Nexys Video") too.
+
+**Checked in the generated SoC**: in the Verilog and XDC, SW3 (G22) switching cJTAG, SW2 (G21) authentication, nSRST into the CPU's reset, LD0-LD3 the debug status, LD4-LD7 the LED chaser, the JTAG clocks' constraints. The pins' banks and voltages match Digilent's master XDC (JA bank 14 at 3.3 V, LEDs bank 13 at 2.5 V, switches bank 16 at 1.2 V). Step 2.3's bitstream kept as `LitexSystem/build/digilent_nexys_video_step23.bit`. Not simulated.
+
+**On the board after Vivado (the gate)**: the external FT2232H wired to JA as on the Arty, its USB to the Linux VM (the configurations choose it by name, "Dual RS232", not the board's own USB-JTAG); from `LitexSystem/`, `openocd -f ../../mmRISC-2/FPGA/ARTY_A7_100T/openocd/ft2232h_jtag.cfg -f scripts/jtag_check.tcl`. `JTAG CHECK RESULT : PASS` in all 4 cases passes: SW3 down (4-wire JTAG) with SW2 (authentication) down and up, SW3 up (2-wire cJTAG, `ft2232h_cjtag.cfg`, through the adapter) with SW2 down and up. SW2 up before OpenOCD starts; a wrong key rejected as well.
+
+Recorded in section 23 of `LitexSystem/docs/BRINGUP.md` (and the Japanese one), the READMEs and STRATEGY 2.4; pushed to dev (commit e2ed34c), no file under Ref/.
+
+Run `build_nexys_video.bat` in `LitexSystem\build\gateware` ("Will run it")?
+<!-- /answer -->
+
+## 327. 2026-11-28 01:38:25 JST
+
+```text
+Will run it
+```
