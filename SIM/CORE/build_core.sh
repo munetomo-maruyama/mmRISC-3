@@ -12,6 +12,8 @@
 #   L2KB=<n>                    OOO_CPU's L2 of n KB (512 by default; mutate_core.py
 #                               takes 4: most accesses miss it, so memory's stalls
 #                               reach the D$ and its dirty lines go on to memory)
+#   PROBE=<file.sv>             an SV file of bind statements added to OOO_CPU's build
+#                               (lat/probe.sv: a D$ miss cycle by cycle, Plan/OOC.md 29.108)
 # OOO_CPU's CLINT steps mtime every cycle here (CLINT_TICK_DIV 1; 100 on the board, step 1.8 I1)
 #
 # Verilator from scratch every time (the shared folder keeps file times to
@@ -29,7 +31,7 @@ FP=${FPU_RTL:-$(cd ../../RTL/CPU/FPU && pwd)}
 if [ "$1" = cpu ]; then
     L2KB=${L2KB:-512}
     TOP=OOO_CPU; O=${OBJ:-$HERE/obj/cpu}; DEF="+define+DCACHE_SIM_UC -GL2_SIZE=$((L2KB * 1024)) -GCLINT_TICK_DIV=1 $HERE/tb_cpu.vlt $HERE/tb_core.vlt"; CDEF="-DCPU_TOP -DL2_SETS=$((L2KB * 4))"
-    XSRC="$R/OOO_DMISS2/OOO_DMISS2.sv $R/OOO_ICACHE/OOO_ICACHE.sv $R/OOO_MARB/OOO_MARB.sv $CA/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv $CA/CPU_L2/L2_TAG_ARRAY.sv $CA/CPU_L2/CPU_L2.sv $MM/CPU_CLINT/CPU_CLINT.sv $MM/CPU_PLIC/CPU_PLIC.sv $MM/CPU_MMIO/CPU_MMIO.sv $R/OOO_CPU/OOO_CPU.sv"
+    XSRC="$R/OOO_DMISS2/OOO_DMISS2.sv $R/OOO_ICACHE/OOO_ICACHE.sv $R/OOO_MARB/OOO_MARB.sv $CA/CACHE_DATA_ARRAY/CACHE_DATA_ARRAY.sv $CA/CPU_L2/L2_TAG_ARRAY.sv $CA/CPU_L2/CPU_L2.sv $MM/CPU_CLINT/CPU_CLINT.sv $MM/CPU_PLIC/CPU_PLIC.sv $MM/CPU_MMIO/CPU_MMIO.sv $R/OOO_CPU/OOO_CPU.sv ${PROBE:+$HERE/$PROBE}"
 else
     TOP=OOO_CORE; O=${OBJ:-$HERE/obj/core}; DEF="$HERE/tb_core.vlt"; CDEF=""; XSRC=""
 fi

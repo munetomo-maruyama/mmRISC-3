@@ -23,7 +23,7 @@ riscv-arch-test and riscv-tests' -p- programs (CSRs, traps, the MDU) on both.
 | `tb_core.cpp` | B2: `OOO_CORE` under Verilator on the bench, in lock-step; the branches' resolution checked against their instructions |
 | `build_core.sh` / `run_core.sh` | Build it (`obj/core`, `obj/cpu`); run B2's, B3's and B4's programs → `results/core.txt`, `results/core_restores.txt` |
 | `run_coremark.sh` | CoreMark (Plan/trace's three builds) on both tops in lock-step → `results/coremark.txt`; `OOO_CPU` on the board's memory with `-mlat 16 -mspread 5` (measured at step 2.5) |
-| `lat/` | `gen_chase.py`, `run_lat.sh`: the pointer chase of `LitexSystem/software/dramlat` on `OOO_CPU` for `-mlat` values, the memory model's calibration against the board (step 2.5, `LitexSystem/docs/BRINGUP.md` 27) |
+| `lat/` | `gen_chase.py`, `run_lat.sh`: the pointer chase of `LitexSystem/software/dramlat` on `OOO_CPU` for `-mlat` values, the memory model's calibration against the board (step 2.5, `LitexSystem/docs/BRINGUP.md` 27); `gen_chase.py <KB> stream`: 8 independent loads a line (the read throughput); `probe.sv`: a D$ miss printed cycle by cycle, bound into `OOO_LSU4` and `OOO_DMISS2` (`PROBE=lat/probe.sv OBJ=<dir> ./build_core.sh cpu`, then `+plo=<cycle> +phi=<cycle>`; `Plan/OOC.md` 29.108) |
 | `mutate_core.py` | Bug injection into the core's glue → `results/mutate_core.txt` |
 | `b2/` | B2's and B3's programs: `gen_b2.py` (random ALU programs; branches, loops, calls, jumps; loads and stores), `link.ld`, `build.sh` → `b2/work` |
 | `b3/` | B3's riscv-tests on an environment without CSRs (`env/riscv_test.h`), the console test `htif.S`, `build.sh` → `b3/work` |

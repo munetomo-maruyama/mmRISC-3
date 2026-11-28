@@ -756,4 +756,6 @@ this).
 **An observation on `OOO_CPU`, open**: in the simulation, a load that misses `OOO_CPU`'s D$ and hits the L2 costs
 **about 42 cycles**, against mmRISC-2's 11 on the board with the same L2; a DRAM miss about 61 (board's model) against
 32. CoreMark does not see it (its data stays in the D$), but code that misses the D$ often would (Linux, memcpy over
-large buffers). Not looked into here.
+large buffers). Looked into in `Plan/OOC.md` 29.108: each D$ miss of a load replays at its commit (a flush and
+refetch, about 13 of the 43 cycles), and port 1's misses go round through port 0 (6); a sequential read from the
+DRAM gives 41.4 MiB/s in the simulation against mmRISC-2's 54.6 here; options A to D there.

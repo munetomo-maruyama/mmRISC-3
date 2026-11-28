@@ -19,7 +19,7 @@
 | `tb_core.cpp` | B2: ベンチの上のVerilatorの`OOO_CORE`、lock-step。分岐の解決をその命令と照合 |
 | `build_core.sh` / `run_core.sh` | それを作る(`obj/core`、`obj/cpu`)。B2、B3、B4のプログラムを走らせる → `results/core.txt`、`results/core_restores.txt` |
 | `run_coremark.sh` | CoreMark(Plan/traceの3つのビルド)を両方のトップでlock-stepで → `results/coremark.txt`。`OOO_CPU`のボードのメモリは`-mlat 16 -mspread 5`(手順2.5で実測) |
-| `lat/` | `gen_chase.py`、`run_lat.sh`: `LitexSystem/software/dramlat`のポインタチェイスを`-mlat`の値ごとに`OOO_CPU`で。メモリモデルをボードに合わせる(手順2.5、`LitexSystem/docs/BRINGUP_J.md` 27) |
+| `lat/` | `gen_chase.py`、`run_lat.sh`: `LitexSystem/software/dramlat`のポインタチェイスを`-mlat`の値ごとに`OOO_CPU`で。メモリモデルをボードに合わせる(手順2.5、`LitexSystem/docs/BRINGUP_J.md` 27)。`gen_chase.py <KB> stream`: 1ラインに独立した8ロード(読み出しのスループット)。`probe.sv`: D$ミスをサイクルごとに表示、`OOO_LSU4`と`OOO_DMISS2`へbind(`PROBE=lat/probe.sv OBJ=<dir> ./build_core.sh cpu`のあと`+plo=<cycle> +phi=<cycle>`。`Plan/OOC_J.md` 29.108) |
 | `mutate_core.py` | コアのつなぎへのバグ注入 → `results/mutate_core.txt` |
 | `b2/` | B2とB3のプログラム: `gen_b2.py`(ランダムなALUプログラム。分岐、ループ、call、ジャンプ。ロードとストア)、`link.ld`、`build.sh` → `b2/work` |
 | `b3/` | CSRのない環境(`env/riscv_test.h`)の上のB3のriscv-tests、コンソールのテスト`htif.S`、`build.sh` → `b3/work` |

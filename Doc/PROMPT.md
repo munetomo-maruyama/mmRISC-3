@@ -13426,3 +13426,39 @@ Go on to step 2.5 ("Start step 2.5")?
 ```text
 Start step 2.5
 ```
+
+<!-- answer -->**Claude Code's answer**
+
+Step 2.5 is done: the DRAM's latency measured on the board, and the simulation's memory model set to it.
+
+**Measured on the board** (mmRISC-2, CPU 50 MHz, LiteX 100 MHz, DDR3-800)
+- The BIOS's `mem_speed` cannot measure the DRAM (section 22), so a program in the main RAM running from the cache, `LitexSystem/software/dramlat`, measures it: a pointer chase, each load's address the previous load's data, so the loads go one at a time and each one's cycles are its latency.
+- Run from this VM, loaded by the BIOS's serial boot (`scripts/run_dramlat.py`); twice, the same to the second decimal.
+
+| Range | D$ hit (4–16 KB) | L2 hit (128–256 KB) | DRAM (random) | DRAM (in address order) |
+| --- | --- | --- | --- | --- |
+| Cycles a load | 2.12 | 11.00 | 32.2 | 27.9 |
+
+- The DRAM costs 21.2 cycles over an L2 hit in random order, 16.9 in address order (DDR3's open row). This includes the clock crossing, LiteDRAM and the DDR3.
+- Throughput: read 54.6 MiB/s, write 62.5 MiB/s.
+
+**Fed back to the simulation**
+- The model was `-mlat 25` (the DRAM's first data 25–45 cycles after the address), from an estimate for the Arty without a crossing.
+- The same chase on the simulated OOO_CPU: one cycle more on the model's mean gives one cycle more on the result, so the model maps directly onto the board.
+- A new option `-mspread` (the spread), and `run_coremark.sh` now `-mlat 16 -mspread 5` (16–21 cycles): the DRAM then adds 19.0, between the board's 16.9 and 21.2.
+- `-mspread` defaults to 20, as before: earlier runs are unchanged.
+- CoreMark/MHz 8.244 -> **8.249** (CoreMark runs almost all in the caches). `run_coremark.sh` PASS.
+
+**Found on the way, not looked into yet**
+In the simulated OOO_CPU, a load that misses the D$ and hits the L2 takes about 42 cycles; mmRISC-2 with the same L2 takes 11 on the board, about 4 times less. To the DRAM, about 61 (mmRISC-2 32). Not in CoreMark, but it should matter for code that misses the D$ (Linux, a large memcpy).
+
+Recorded in section 27 of `LitexSystem/docs/BRINGUP.md`, 29.107 of `Plan/OOC.md` (both with Japanese versions), STRATEGY's 2.5 row, README and UARCH; pushed to dev (commit 78fd9f8), no file under Ref/.
+
+Look into this 42-cycle L2 hit before step 2.6 (mmRISC-3 in place) ("Look into it"), or go on to step 2.6 ("Start step 2.6")?
+<!-- /answer -->
+
+## 333. 2026-11-28 18:06:21 JST
+
+```text
+Look into it
+```

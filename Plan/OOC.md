@@ -6713,3 +6713,59 @@ chase 19.0 over an L2 hit against the board's 16.9 to 21.2). CoreMark's timed wi
 
 **Open**: `OOO_CPU`'s D$ miss that hits the L2 costs about 42 cycles a dependent load, against mmRISC-2's 11 on the
 board with the same L2 (a DRAM miss about 61 against 32). CoreMark does not see it; code that misses the D$ would.
+
+### 29.108 Where `OOO_CPU`'s 42 cycles of an L2 hit go (2026-11-28)
+
+29.107 left open that a dependent load missing `OOO_CPU`'s D$ and hitting the L2 costs about 42 cycles, against
+mmRISC-2's 11 on the board. Followed cycle by cycle with `SIM/CORE/lat/probe.sv` (bind statements into `OOO_LSU4` and
+`OOO_DMISS2`, no change to the RTL; `PROBE=lat/probe.sv ./build_core.sh cpu`), on the 256 KB chase at `-mlat 16
+-mspread 5`. One miss, from the flush of the load before it to its own (cycles 300,047 to 300,090), **43 cycles**:
+
+| From | To | Cycles | What |
+| --- | --- | --- | --- |
+| the flush (the load before replayed at its commit) | the load's issue on port 1 | 10 | fetched again, decoded, renamed, dispatched, issued |
+| issue on port 1 | its try on port 0 | 6 | only port 0 asks for a line: a port 1 miss waits and is tried again there (OOO_LSU4's header) |
+| try on port 0 | `miss_valid` | 3 | the try's RR, E, M, W |
+| `miss_valid` | AR taken by the L2 | 4 | `OOO_DMISS2`: S_IDLE, S_LOOK, S_INV, S_AR |
+| AR | first beat | 2 | the L2's hit (CPU_L2: accept, compare) |
+| first beat | 8th beat | 7 | the whole line, one beat a cycle |
+| 8th beat | `fill_done` | 2 | S_TAG, S_DONE: the tag valid |
+| `fill_done` | the try in RR | 3 | the event, the try chosen |
+| the try | its completion | 3 | E, M, W: now a hit |
+| completion | commit | 2 | the ROB |
+| commit | the flush | 1 | `cmp_ld_rp`: the load ran more than once |
+
+**The cause**: the replay. `OOO_LSU4` wakes a load's dependents at its issue + 2 whatever the hit, and has no cancel
+(OOO_LSU4's header, 29.7): every load that ran more than once (`cmp_ld_rp = w_try`, any try: a miss, a port 1 miss, a
+store's data waited for, a device) flushes everything after it at its commit and fetches it again. So a D$ miss costs
+the line plus about 13 cycles of flush and refill (10 + 2 + 1), and only one miss is in flight: the next load, though
+already issued, is flushed with the rest and asks for its line only after the flush. Of the 43, the L2 itself is 11 (AR
+to `fill_done`, mmRISC-2's 11 with its own D$), the replay 13, port 1's way round 6, the miss handler's and the try's
+handshakes 13.
+
+**Independent loads too** (`gen_chase.py <KB> stream`: 8 loads a line in address order, dramlat's read): 256 KB **42.7
+cycles a line** (3,774 replays for 4,096 lines), 2 MB **73.7 cycles a line** (32,640 replays for 32,768 lines): 64 B /
+73.7 cycles at 50 MHz = **41.4 MiB/s, against mmRISC-2's 54.6 on the board** (55.85 cycles a line, in order, BRINGUP
+27). Each line's first miss replays, so lines never overlap.
+
+**Linux** (SIM/LINUX's boot to `poweroff`, `-v -mlat 16 -mspread 5`): 141,567,692 cycles, 135,240,211 instructions,
+IPC 0.955; **820,849 replays**, D$ fills 611,247, I$ fills 855,181, L2 1,466,428 reads with 659,367 misses; the ROB's head
+waits for memory 44.8M cycles (31.7 %), ROB empty 29.2M (20.6 %); bad speculation 27.8 % of the slots (1,972,493
+restores and the replays). The replays' flush and refill alone, at about 13 cycles each, are about 10.7M cycles (7.5 %);
+the miss path behind them (port 1's way round, the whole line before the try) adds to the 31.7 %. CoreMark has 536
+replays in 1.21M cycles (about 0.6 %), so it does not see this.
+
+**Options** (none taken; the LUTs are the question: 29.105 estimates the chip about 4.4k over the ceiling, to be
+measured at step 2.6):
+- **A, the miss path, the replay kept**: a port 1 miss asks for its line itself or is tried at once without the round
+  (−6); the try at the beat of the word asked for, not after the 8th (early restart; −7 for word 0, the chase's and a
+  stream's first; the beats come from the line base, so a later word saves less); `OOO_DMISS2`'s S_LOOK and S_INV
+  folded (−1 to −2). An L2 hit 43 → about 28, a DRAM miss 61 → about 46. A few hundred LUTs; port 1's M → the miss
+  request is the timing risk OOO_LSU4's header names.
+- **B, fewer replays**: replay only a load whose dependents can have taken its wrong value. Needs a cancel of the
+  wakeup at issue + 2, or a miss predictor whose loads wake their dependents only at completion (as an atomic's
+  `at_wk_*`), with the busy bit kept; the issue queue's wakeup-select loop is the critical part at 20 ns (29.105's
+  third path). Large.
+- **C, misses that overlap**: `OOO_DMISS2` and `CPU_L2` one transaction at a time; several fills in flight for a stream.
+  Large; worth it only with B.
+- **D, as it is**: CoreMark/MHz first (STRATEGY), 8.249 unchanged; noted for Linux's speed.
