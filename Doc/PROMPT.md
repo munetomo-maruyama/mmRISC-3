@@ -13514,3 +13514,43 @@ Go on to step 2.6 ("Start step 2.6"), or take option A first ("Do option A now")
 ```text
 Start step 2.6
 ```
+
+<!-- answer -->**Claude Code's answer**
+
+Step 2.6 is generated up to just before Vivado: the SoC with mmRISC-3 is built, and in simulation its BIOS starts to `litex>` and answers `help`. Vivado for the whole chip and the board check are still to do.
+
+**What was made**
+- **`RTL/CPU/TOP/CPU_TOP.sv`** (new): one top with `OOO_CPU`, the debug logic `DBG_TOP`, the start after reset and a DMA port for the SD card. `OOO_CPU` itself is unchanged.
+  - The DMA shares the debugger's memory port with the debug module and goes through the D$: data only in the D$ is read right, and what the DMA writes the core sees at once (the idea of mmRISC-2's `DMA_CACHE`).
+  - Checked: the DMA bench `SIM/TOP/run_top.sh` PASS; OpenOCD's 50 checks through `CPU_TOP` PASS with and without authentication.
+- **`LitexSystem/cpu/mmrisc3/`** (new): mmRISC-3's LiteX wrapper. The clock crossings, interrupts and Pmod JA debug port as mmRISC-2's; mmRISC-2's wrapper is kept.
+- **`build_soc.sh`**: with `CPU=mmrisc3`, the mmRISC-3 SoC into `LitexSystem/build3/`.
+- **OpenOCD's configurations** and `jtag_check.tcl` pass with either mmRISC-2 or mmRISC-3 (the IDCODE and misa differ).
+
+**A problem found on the way, fixed**
+- The first simulation stopped without printing anything.
+  - mmRISC-3's I$ caches every fetch, so the ROM's instructions come on the memory bus too.
+  - The core reads ahead wherever a prediction points. Here it fetched address 0, and LiteX's bus, with nothing at that address, held it until its timeout (1M cycles).
+- The fix splits the memory bus by address in three: main RAM to LiteDRAM, the ROM's range to the SoC bus, anything else to a new error-answer block that answers at once.
+- So a read-ahead can neither hang nor read I/O by mistake.
+
+**Checked in simulation**
+- LiteX's own simulator needs a library (libevent) not on this VM, so LiteX only generates the Verilog, run by a small harness (`LitexSystem/sim/run_sim.sh`).
+- Result: `litex>` at cycle 3.39M; the memory test OK; `help`'s list printed and `litex>` again.
+
+Recorded in section 28 of `LitexSystem/docs/BRINGUP.md`, 29.109 of `Plan/OOC.md` (both with Japanese versions), STRATEGY's 2.6 row and the READMEs; the top README's stale status updated too. Pushed to dev (commit 6db078c), no file under Ref/.
+
+**Next, the author's**
+- On the Windows VM, `build_nexys_video.bat` in `LitexSystem\build3\gateware\`.
+- The whole chip's LUTs can be measured here for the first time: about 112k of 133,800 (84 %) estimated, about 4.4k above the ceiling estimated from the Arty (107.7k).
+- The CPU alone meets 20 ns (+0.035 ns); the whole chip's placement may change that.
+- Then `program_nexys_video.sh LitexSystem/build3/gateware/digilent_nexys_video.bit` and the BIOS at J13's terminal: gate S2.
+
+Run Vivado on `build3` ("Will run it")?
+<!-- /answer -->
+
+## 335. 2026-11-28 21:00:33 JST
+
+```text
+Vivado has run. Is it short of resources?
+```

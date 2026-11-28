@@ -469,3 +469,13 @@ CPUが動いている間はLD1、停止中はLD0、デバッグモジュール�
 **生成**: `CPU=mmrisc3 ./LitexSystem/scripts/build_soc.sh`(新規: `CPU=mmrisc3`で`LitexSystem/build3/`へ。既定の`CPU=mmrisc`はこれまでどおりmmRISC-2を`build/`へ): BIOSは48.6 KB、SoCの残りは手順2.4と同じ(SDカード、DHCP付きEthernet、デバッグポート、100 / 50 MHz)。
 
 **次(作者)**: WindowsのVMでVivado、`LitexSystem\build3\gateware\build_nexys_video.bat`。チップ全体のLUTをここで初めて測ります: アウトオブコンテキストで`OOO_CPU` 105,963、`DBG_TOP` 836(`Plan/OOC_J.md` 29.105)、LiteXのSoCは約5.3k(29.105の見積もり、Artyから)なので、133,800のうち約112k(84 %)、Artyから見積もった上限107.7kを約4.4k超えます。タイミング: CPUはアウトオブコンテキストで20 nsを満たしました(+0.035 ns)が、チップ全体の配置で動くかもしれません。その後ボードで(ゲートS2): `program_nexys_video.sh LitexSystem/build3/gateware/digilent_nexys_video.bit`でビットストリームを入れ、J13の端末でBIOS。
+
+## 29. 手順2.6の最初のVivado実行: チップには収まる。TMSピンのDRCで停止(2026-11-28)
+
+**リソース不足ではありません。** 合成は完了しました(18分): **LUT 114,778(134,600の85.3 %。ロジック97,297 + LUT RAMとシフトレジスタ17,481)、FF 35,247(13.1 %)、ブロックRAMタイル313(365の85.8 %。RAMB36 293 + RAMB18 40)、DSP 42**。そのうち`CPU_TOP`が108,113(`OOO_CPU`は107,158で、アウトオブコンテキストの合成後107,332、`Plan/OOC_J.md` 29.105。残りは起動、調停、`DBG_TOP`)、LiteXのSoCが6,665。アウトオブコンテキストでは合成から配線後までにLUTが1,369減ったので、配線後は約113.4k(84 %)の見込みです。合成後のタイミングの見積もり: WNS +0.383 ns、ホールド +0.015 ns、違反なし(配置前なので目安)。
+
+**止まった理由**: `opt_design`のDRC、**MDRV-1: ネット`mmrisc_jtag_tms_iobuf/IO`に2つのドライバ**、IOBUFのOBUFTと`mmrisc_jtag_tms_inst/O`。合成のタイミングレポートで正体がわかります: 合成がTMSのピン(`mmrisc_jtag_tms`)とIOBUFのIOピンの間に入れた**LUT1**です。このピンは双方向で、LiteXは周期制約を付けた信号をすべて`dont_touch`にします。TMSCのクロック(cJTAGのエスケープ検出、23節)はピンに制約していたので、双方向ポートに`dont_touch`が付き、合成はポートのネットをバッファして残しました。手順2.4のmmRISC-2の実行は、同じピン、同じ制約、同じXDCとスクリプトで、そこにLUT1はありませんでした(その合成は別の判断をした)。mmRISC-3のRTLにこのピンを駆動するものはありません。
+
+**修正**(`cpu/mmrisc3/core.py`): TMSCのクロックを、ピンではなくIOBUFの入力側のネット(`tms_i`、エスケープ検出のクロックになるネット)に付けます。TCKはこれまでどおりピンに(入力なので)。作り直したSoC: 双方向ポートに`dont_touch`はなく、`create_clock -name jtag_tmsc ... [get_nets main_basesoc_mmrisc3_mmrisc3_tms_i]`、sysとCPUのクロックとのクロックグループもそのネットを指します。`cpu/mmrisc`(mmRISC-2)は変えていません。
+
+**次(作者)**: もう一度Vivado、`LitexSystem\build3\gateware\build_nexys_video.bat`(最初の実行のログとレポートはリポジトリの外に残してあります。上書きされるため)。

@@ -820,3 +820,28 @@ chip's LUTs are measured for the first time here: `OOO_CPU` 105,963 and `DBG_TOP
 above the ceiling of 107.7k estimated from the Arty. Timing: the CPU met 20 ns out
 of context (+0.035 ns), which a whole-chip placement may move. Then on the board (gate S2): the bitstream by
 `program_nexys_video.sh LitexSystem/build3/gateware/digilent_nexys_video.bit`, the BIOS at J13's terminal.
+
+## 29. Step 2.6's first Vivado run: the chip fits; stopped at a DRC on the TMS pad (2026-11-28)
+
+**Not a lack of resources.** Synthesis finished (18 minutes): **114,778 LUTs (85.3 % of 134,600; 97,297 logic + 17,481
+LUT RAM and shift registers), 35,247 FF (13.1 %), 313 block RAM tiles (85.8 % of 365; 293 RAMB36 + 40 RAMB18), 42
+DSP**. `CPU_TOP` 108,113 of them (`OOO_CPU` 107,158 against 107,332 after synthesis out of context, `Plan/OOC.md`
+29.105; the start, the arbiter and `DBG_TOP` the rest), LiteX's SoC 6,665. Out of context the LUTs went down by
+1,369 from synthesis to the routed design, so about 113.4k (84 %) are expected after routing. The timing estimate after
+synthesis: WNS +0.383 ns, hold +0.015 ns, no failing endpoint (before placement: a guess).
+
+**What stopped it**: `opt_design`'s DRC, **MDRV-1: the net `mmrisc_jtag_tms_iobuf/IO` has two drivers**, the IOBUF's
+OBUFT and `mmrisc_jtag_tms_inst/O`. The synthesis timing report shows what that is: a **LUT1** that synthesis put
+between the TMS pad (`mmrisc_jtag_tms`) and the IOBUF's IO pin. The pad is an inout, and LiteX marks every signal given
+a period constraint `dont_touch`; the TMSC clock (cJTAG's escape detector, section 23) was constrained on the pad, so
+the inout port carried `dont_touch`, and synthesis kept the port's net by buffering it. mmRISC-2's run of step 2.4,
+with the same pad, the same constraint and the same XDC and script, had no LUT1 there (its synthesis decided
+otherwise); nothing in mmRISC-3's RTL drives the pad.
+
+**The fix** (`cpu/mmrisc3/core.py`): TMSC's clock on the IOBUF's input net (`tms_i`, the net that clocks the escape
+detector) instead of the pad; TCK stays on its pad (an input, as before). The regenerated SoC: the inout port has no
+`dont_touch`, `create_clock -name jtag_tmsc ... [get_nets main_basesoc_mmrisc3_mmrisc3_tms_i]`, and the clock groups
+against sys and the CPU's clock name that net. `cpu/mmrisc` (mmRISC-2) unchanged.
+
+**Next, the author's**: Vivado again, `LitexSystem\build3\gateware\build_nexys_video.bat` (the first run's log and
+reports are kept outside the repository; they are overwritten).

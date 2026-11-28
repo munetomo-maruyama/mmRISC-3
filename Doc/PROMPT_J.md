@@ -14259,3 +14259,17 @@ RTLは変えずに、追跡用のコード`probe.sv`をLSU(`OOO_LSU4`)とミス�
 ```text
 Start step 2.6
 ```
+
+<!-- answer -->
+**Claude Codeの回答**
+
+これは、PASSしたBIOSシミュレーション(`litex>`は339万サイクル目)を見張っていたモニターの時間切れで、これが最後の1つでした。
+
+`build3`のVivado実行をお願いできますか(「Will run it」)?
+<!-- /answer -->
+
+## 335. 2026-11-28 21:00:33 JST
+
+```text
+Vivado実行した。リソース不足か？
+```

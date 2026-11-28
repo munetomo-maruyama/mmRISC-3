@@ -436,9 +436,15 @@ class MMRISC3(CPU):
                 "set_false_path -to [get_ports {{{l0} {l1} {l2} {l3}}}]",
                 l0=leds[0], l1=leds[1], l2=leds[2], l3=leds[3])
 
+        # TCK on its pad, as cpu/mmrisc; TMSC on the IOBUF's input net, not on
+        # its pad: LiteX marks a constrained signal dont_touch, and on the
+        # inout pad that made the first Vivado run of step 2.6 put a LUT1
+        # between the pad and the IOBUF (two drivers on the pad's net, DRC
+        # MDRV-1; docs/BRINGUP.md 29). mmRISC-2's run, the same constraint, had
+        # none.
         platform.add_period_constraint(pads.tck, 100.0, name="jtag_tck")
-        platform.add_period_constraint(pads.tms, 100.0, name="jtag_tmsc")
-        self.jtag_clk_pads = [pads.tck, pads.tms]
+        platform.add_period_constraint(tms_i, 100.0, name="jtag_tmsc")
+        self.jtag_clk_pads = [pads.tck, tms_i]
         platform.add_platform_command(
             "set_false_path -from [get_ports {{{trst_n} {srst_n} {sw2} {sw3}}}]",
             trst_n=pads.trst_n, srst_n=pads.srst_n, sw2=sw_auth, sw3=sw_cjtag)
