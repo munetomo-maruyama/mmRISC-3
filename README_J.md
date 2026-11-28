@@ -31,12 +31,13 @@ Pmod JA の JTAG / cJTAG も使う。周辺回路は LiteX から持ってきて
 | コア | アウトオブオーダ、フェッチ 32 バイト、デコード / リネーム / ディスパッチ / コミット 4、**6 発行**(ALU 4 + ロード / ストアポート 2)、ROB 48、発行キュー 24(統合)、LQ / SQ 16、物理レジスタ 80、チェックポイント 12、ロードユース 2、ストア分割 |
 | 予測 | uBTB 96、32 バイトのブロックごとの TAGE-M、BTB 256、RAS 16、FTQ 32 |
 | キャッシュ | I$ 128 KB と D$ 128 KB(どちらも 8 ウェイ。D$ はライトバック、ロードポート 2)、L2 512 KB |
-| 今の ISA | RV64IMAC + Zba / Zbb / Zbc / Zbs / Zicond / Zicsr / Zifencei / Zicntr、M / S / U モード |
+| ISA | RV64GC(IMAFDC)+ Zba / Zbb / Zbc / Zbs / Zicond / Zicboz / Zicsr / Zifencei / Zicntr / Zihpm / Sscofpmf / Sstc / Smcntrpmf、M / S / U モード、Sv39、PMP、デバッグ(JTAG / cJTAG) |
 | CoreMark/MHz | **8.249**(`-O2`、計測区間、手順2.5で実測したボードのメモリのレイテンシで。以前の見積もりでは8.244。作業上の目標 8.0 を満たす) |
-| 資源、タイミング | LUT 80,345(60 %)、ブロック RAM タイル 284.5(78 %)。20 ns で WNS +0.027 ns(割り込み込み、手順1.8 I2、2026-11-16) |
+| 資源、タイミング | LUT 105,963(79 %)、ブロック RAM タイル 284.5(78 %)。20 ns で WNS +0.035 ns(手順1.8の終わりの`OOO_CPU`、アウトオブコンテキスト、2026-11-24) |
 
-**次は手順 1.8**: 割り込み、MMU(Sv39)、FPU、デバッグ、PMU、そしてシミュレーションで Linux(関門 S1-C)。その後 LiteX でボードへ
-(手順 2)、その上で Linux(手順 3)。作業の順序は [`Doc/STRATEGY_J.md`](Doc/STRATEGY_J.md) 5 章、ここまでの手順は
+**今は手順 2.6**: Nexys Video の LiteX の SoC に mmRISC-3(`RTL/CPU/TOP`、`LitexSystem/cpu/mmrisc3`。BIOS はシミュレーションで
+動く)、チップ全体を Vivado で、そしてボードで BIOS(関門 S2)。その後その上で Linux(手順 3)。手順 1.8(割り込み、Sv39、FPU、
+デバッグ、PMU、シミュレーションで Linux: 関門 S1-C)は完了。作業の順序は [`Doc/STRATEGY_J.md`](Doc/STRATEGY_J.md) 5 章、ここまでの手順は
 [`Plan/OOC_J.md`](Plan/OOC_J.md) 29 にある。
 
 途中の経緯: 対象を Arty A7-100T から Nexys Video に変え(2026-11-02)、100 MHz をやめて 50 MHz で幅を広げた(2026-11-05)。

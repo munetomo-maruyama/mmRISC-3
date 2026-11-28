@@ -32,12 +32,13 @@ its caches; its specification is [`Doc/UARCH.md`](Doc/UARCH.md) section A:
 | Core | out of order, fetch 32 bytes, decode / rename / dispatch / commit 4, **6 issues** (4 ALUs + 2 load / store ports), ROB 48, issue queue 24 (unified), LQ / SQ 16, 80 physical registers, 12 checkpoints, load-use 2, stores split |
 | Prediction | uBTB 96, TAGE-M per 32-byte block, BTB 256, RAS 16, FTQ 32 |
 | Caches | I$ 128 KB and D$ 128 KB (8 ways each; the D$ write back, 2 load ports), L2 512 KB |
-| ISA so far | RV64IMAC + Zba / Zbb / Zbc / Zbs / Zicond / Zicsr / Zifencei / Zicntr, M / S / U modes |
+| ISA | RV64GC (IMAFDC) + Zba / Zbb / Zbc / Zbs / Zicond / Zicboz / Zicsr / Zifencei / Zicntr / Zihpm / Sscofpmf / Sstc / Smcntrpmf, M / S / U modes, Sv39, PMP, debug (JTAG / cJTAG) |
 | CoreMark/MHz | **8.249** (`-O2`, the timed part, with the board's memory latency as measured at step 2.5; 8.244 with the earlier estimate; the working target 8.0 met) |
-| Resources, timing | 80,345 LUTs (60 %), 284.5 block RAM tiles (78 %); WNS +0.027 ns at 20 ns (with the interrupts, step 1.8 I2, 2026-11-16) |
+| Resources, timing | 105,963 LUTs (79 %), 284.5 block RAM tiles (78 %); WNS +0.035 ns at 20 ns (`OOO_CPU` out of context at the end of step 1.8, 2026-11-24) |
 
-**Next, step 1.8**: interrupts, the MMU (Sv39), the FPU, debug and the PMU, then Linux in simulation (gate S1-C); then the board
-with LiteX (step 2) and Linux on it (step 3). The work order is [`Doc/STRATEGY.md`](Doc/STRATEGY.md) section 5; the steps so far
+**Now, step 2.6**: mmRISC-3 in the LiteX SoC on the Nexys Video (`RTL/CPU/TOP`, `LitexSystem/cpu/mmrisc3`; the BIOS runs in
+simulation), the whole chip in Vivado, then the BIOS on the board (gate S2); then Linux on it (step 3). Step 1.8 (interrupts,
+Sv39, the FPU, debug, the PMU, Linux in simulation: gate S1-C) is done. The work order is [`Doc/STRATEGY.md`](Doc/STRATEGY.md) section 5; the steps so far
 are in [`Plan/OOC.md`](Plan/OOC.md) 29.
 
 On the way: the target moved from the Arty A7-100T to the Nexys Video (2026-11-02), and 100 MHz was given up for 50 MHz with a

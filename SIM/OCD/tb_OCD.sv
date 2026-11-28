@@ -69,6 +69,7 @@ module tb_OCD;
     logic [63:0] bm_wdata, bm_rdata;
     logic [2:0]  bm_err;
     wire         tdo, tdo_oe;
+`ifndef VIA_CPU_TOP
     /* verilator lint_off PINCONNECTEMPTY */
     DBG_TOP #(.ADDR_WIDTH(PAW)) u_dbg
         (.clk(clk), .rst_dbg_n(rst_dbg_n), .rst_n(rst_sys_n), .rst_bus_n(rst_bus_n), .ndmreset(ndmreset),
@@ -83,6 +84,7 @@ module tb_OCD;
          .bm_req(bm_req), .bm_wr(bm_wr), .bm_addr(bm_addr), .bm_size(bm_size), .bm_wdata(bm_wdata),
          .bm_ack(bm_ack), .bm_rdata(bm_rdata), .bm_err(bm_err));
     /* verilator lint_on PINCONNECTEMPTY */
+`endif
 
     // ---- the core
     logic [3:0]     awid, arid;
@@ -97,6 +99,7 @@ module tb_OCD;
     logic [63:0]    l_wdata, l_rdata;
     logic [7:0]     l_wstrb;
     logic [1:0]     l_bresp, l_rresp;
+`ifndef VIA_CPU_TOP
     OOO_CPU #(.VA(VA), .PAW(PAW)) u_cpu
         (.clk(clk), .rst_n(rst_bus_n), .boot(boot), .boot_pc((VA-1)'(64'h8000_0000 >> 1)), .irq_src('0),
          .hart_haltreq(haltreq), .hart_resumereq(resumereq), .hart_resethaltreq(resethaltreq),
@@ -117,6 +120,35 @@ module tb_OCD;
          .m_axil_bvalid(l_bvalid), .m_axil_bready(l_bready), .m_axil_araddr(l_araddr), .m_axil_arvalid(l_arvalid),
          .m_axil_arready(l_arready), .m_axil_rdata(l_rdata), .m_axil_rresp(l_rresp), .m_axil_rvalid(l_rvalid),
          .m_axil_rready(l_rready));
+`else
+    // VIA_CPU_TOP (step 2.6, run_ocd.sh top): the same through RTL/CPU/TOP's CPU_TOP, which joins
+    // the two as above, starts the hart itself, and puts the DM's memory accesses through its
+    // arbiter with the DMA port (idle here)
+    assign rst_bus_n = rst_sys_n;           // (only for the start above, not used here)
+    /* verilator lint_off PINCONNECTEMPTY */
+    CPU_TOP #(.VA(VA), .PAW(PAW), .RESET_VECTOR(64'h8000_0000)) u_top
+        (.clk(clk), .rst_dbg_n(rst_dbg_n), .rst_n(rst_sys_n), .ndmreset(ndmreset), .irq_src('0),
+         .jtag_tck(jtag_tck), .jtag_tms_i(jtag_tms), .jtag_tms_o(), .jtag_tms_oe(), .jtag_tdi(jtag_tdi),
+         .jtag_tdo(tdo), .jtag_tdo_oe(tdo_oe), .jtag_trst_n(jtag_trst_n), .cjtag_en(1'b0), .cjtag_online(),
+         .dbg_auth_en(auth), .dbg_auth_key(32'hbeefcafe), .dbg_halted(), .dbg_running(), .dbg_dmactive(),
+         .m_axi4_awid(awid), .m_axi4_awaddr(awaddr), .m_axi4_awlen(awlen), .m_axi4_awsize(awsize),
+         .m_axi4_awburst(awburst), .m_axi4_awvalid(awvalid), .m_axi4_awready(awready), .m_axi4_wdata(wdata),
+         .m_axi4_wstrb(wstrb), .m_axi4_wlast(wlast), .m_axi4_wvalid(wvalid), .m_axi4_wready(wready),
+         .m_axi4_bresp(bresp), .m_axi4_bvalid(bvalid), .m_axi4_bready(bready), .m_axi4_arid(arid),
+         .m_axi4_araddr(araddr), .m_axi4_arlen(arlen), .m_axi4_arsize(arsize), .m_axi4_arburst(arburst),
+         .m_axi4_arvalid(arvalid), .m_axi4_arready(arready), .m_axi4_rdata(rdata), .m_axi4_rresp(rresp),
+         .m_axi4_rlast(rlast), .m_axi4_rvalid(rvalid), .m_axi4_rready(rready),
+         .m_axil_awaddr(l_awaddr), .m_axil_awvalid(l_awvalid), .m_axil_awready(l_awready), .m_axil_wdata(l_wdata),
+         .m_axil_wstrb(l_wstrb), .m_axil_wvalid(l_wvalid), .m_axil_wready(l_wready), .m_axil_bresp(l_bresp),
+         .m_axil_bvalid(l_bvalid), .m_axil_bready(l_bready), .m_axil_araddr(l_araddr), .m_axil_arvalid(l_arvalid),
+         .m_axil_arready(l_arready), .m_axil_rdata(l_rdata), .m_axil_rresp(l_rresp), .m_axil_rvalid(l_rvalid),
+         .m_axil_rready(l_rready),
+         .s_dma_awaddr('0), .s_dma_awvalid(1'b0), .s_dma_awready(), .s_dma_wdata('0), .s_dma_wstrb('0),
+         .s_dma_wvalid(1'b0), .s_dma_wready(), .s_dma_bresp(), .s_dma_bvalid(), .s_dma_bready(1'b0),
+         .s_dma_araddr('0), .s_dma_arvalid(1'b0), .s_dma_arready(), .s_dma_rdata(), .s_dma_rresp(),
+         .s_dma_rvalid(), .s_dma_rready(1'b0));
+    /* verilator lint_on PINCONNECTEMPTY */
+`endif
 
     // ---- the RAMs (they keep their contents over a system reset: rst_dbg_n)
     /* verilator lint_off PINCONNECTEMPTY */

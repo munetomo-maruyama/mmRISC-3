@@ -447,3 +447,25 @@ CPUが動いている間はLD1、停止中はLD0、デバッグモジュール�
 **今のモデル**: `-mspread s`(新規。最初のビートは`-mlat`から`-mlat` + s、書き込みの応答は`-mlat` / 2から`-mlat` / 2 + s / 2。既定は20なので、これまでの実行はすべて同じ乱数で変わりません)。`run_coremark.sh`は**`-mlat 16 -mspread 5`**(16から21、平均18.5)を使います: チェイスはL2ヒットに対して19.0多くなり、ボードの16.9と21.2の間です。ボードのメモリでのCoreMark: g14-o2の計測区間1,213,063 → **1,212,298サイクル、8.244 → 8.249 CoreMark/MHz**(g13-o2 1,276,322 → 1,275,571)。CoreMarkのミスはラインの読み出し数百回なので、モデルはほとんど効きません。`run_coremark.sh` PASS(5実行)。ほかの実行の計測区間は変わりません(g14-sflto の総サイクルは同じ実行の前のプログラムに依存し、`results/coremark.txt`を最後に書いたK1以降に動いたもので、今回の変更によるものではありません)。
 
 **`OOO_CPU`についての未解決の観察**: シミュレーションで、`OOO_CPU`のD$をミスしてL2にヒットするロードは**約42サイクル**かかります。同じL2でボードのmmRISC-2は11です。DRAMのミスは約61(ボードのモデル)で、mmRISC-2は32です。CoreMarkには出ません(データがD$に収まる)が、D$をよくミスするコード(Linux、大きなバッファのmemcpy)には出るはずです。`Plan/OOC_J.md` 29.108で調べました: ロードのD$ミスは毎回コミット時にリプレイし(フラッシュとフェッチし直し、43サイクルのうち約13)、ポート1のミスはポート0を回ります(6)。DRAMからのアドレス順の読み出しはシミュレーションで41.4 MiB/s、ここでのmmRISC-2は54.6。選択肢A〜Dはそちらに。
+
+## 28. 手順2.6: mmRISC-2の代わりにmmRISC-3を生成、シミュレーションでBIOS(2026-11-28)
+
+**CPUを1つのブロックに: `RTL/CPU/TOP/CPU_TOP.sv`**(新規。`RTL/CPU/TOP/README_J.md`): `OOO_CPU`と`DBG_TOP`(`SIM/OCD`のベンチと同じつなぎ方)、起動(リセットの数サイクル後に`OOO_CPU`を`RESET_VECTOR`からboot。それまでDMにはハートが使えないと見せる)、そしてLiteXのDMAマスタ(SDカード)のための**DMAポート**。DMAポートはAXI4-Liteスレーブで、`OOO_CPU`のバスマスタポート(`OOO_DMISS2`のデバッガポート)を通るので、D$経由でメモリを読み書きし、コアともL2とも一貫しています(mmRISC-2の`DMA_CACHE`と同じ)。1度に1アクセスで、DMのAccess MemoryとSBAと共用(DMが優先)。書き込みはストローブで8、4、2、1バイトの整列した部分に分けます。`CPU_TOP`は`verilator -Wall`で警告なし(DMAアドレスの下位3ビットと、`rst_bus_n`をレベルとして使う点の2つは抑止)。
+
+- `SIM/TOP/run_top.sh`(新規): DMAポートとD$: コアがD$でダーティにした語をDMAで読む、コアがD$のラインで見る2回の分割書き込み、ストローブなしの書き込み、デバイスの語、SLVERR: **PASS**。
+- `SIM/OCD/run_ocd.sh top`(新しいモード): OpenOCDの50項目を`CPU_TOP`経由で(その起動、その調停): **認証あり/なしともPASS**。これまでのモードも変わらずPASS。
+
+**LiteXのラッパー: `cpu/mmrisc3/`**(新規、`--cpu-type mmrisc3`。`cpu/mmrisc`はmmRISC-2用に残す)。`cpu/mmrisc`と同じ点: CPUは自分のドメインで50 MHz、3つのバスを乗せ換え(`AXIClockDomainCrossing`、`AXILiteClockDomainCrossing` × 2)、`MultiReg`を通すのはLiteXが使う割り込み線だけ(16節)、デバッグポートはPmod JAでLD0〜LD3に状態(23節)、メモリマップ(ROM 0x1000_0000、SRAM 0x1100_0000、CSR 0x1200_0000、メインRAM 0x8000_0000)。新しい点:
+
+- **ROMからのフェッチはメモリバスを通ります。** `OOO_ICACHE`はフェッチするものをすべてキャッシュする(ヘッダに「メモリの外のブートROMはSoCを待つ」)ので、ROMのラインもL2のAXI4に出ます。sys側で乗せ換えの後、バスをアドレスで分けます(`AXIDecoder`): メインRAMはLiteDRAMへ(`memory_buses`)、**ROMの領域**はSoCバスへ(`AXI2Wishbone`、Wishboneマスタ`mmrisc3_fetch`)、**それ以外は`AXIErrorSlave`へ**(`core.py`に新規: すぐにDECERR)。mmRISC-2はROMをキャッシュせず、周辺バスで1語ずつフェッチしていました(1語約14 CPUサイクル、22節)。mmRISC-3はI$とL2にキャッシュします。
+- **エラースレーブを置いた理由**: 最初のシミュレーションは何も表示しませんでした。トレースでは、BIOSが`litex_startup_init`の戻りまで来たところで、フロントエンドが0番地を投機的にフェッチし(戻りの`ld ra`がSRAMから返る前の予測)、そのラインがSoCバスに出て、0を受け持つスレーブがないため、バスはタイムアウト(100万サイクル)まで保持し、1度に1ミスのI$はそれを待っていました。アウトオブオーダーのコアは予測が指す所ならどこでもフェッチします。投機的なフェッチは、止まってもいけないし、デバイスを読んでもいけません(読むと副作用のあるCSR)。分けたので、SoCバスからフェッチするのはROMだけで、残りはすぐに応答します(I$もL2もエラー応答のラインは保持しない)。
+- D$のキャッシュ可能なメモリは`OOO_CPU`の`[0x8000_0000, 0x1_0000_0000)`。それ以外(SRAM、CSR、Ethernetのバッファ、ROMの読み出し専用データ)はmmRISC-2と同じく周辺バスで、キャッシュしません。
+- BIOSのヘッダはmmRISC-2のもの(`fence.i`がD$をL2へ書き戻してI$を無効にする。L2はCPUの中にあり、DMAはD$を通るので、フラッシュはこれで足ります)。
+- デバイスツリー用の設定: I$とD$は128 KB、8ウェイ、64バイトのライン。TLBは64エントリ、2ウェイ。
+- OpenOCD(`openocd/nexys_jtag.cfg`、`nexys_cjtag.cfg`)は両方のIDCODE(mmRISC-2 0x26d6d001、mmRISC-3 0x36d6d001)を受け付け、`scripts/jtag_check.tcl`は両方のmisa(mmRISC-3はBを含む: 0x800000000014112f)を受け付けます。
+
+**シミュレーションでBIOS: `sim/run_sim.sh`**(新規)。LiteXの`litex_sim`は自分のモジュールにlibeventが必要で、このVMにはありません。そこでLiteXにはシミュレーション用SoC(同じ`cpu/mmrisc3`、SDRAMモデル付きのLiteDRAM、ストリームとしてのUART。クロック1つで乗せ換えなし)の生成だけをさせ、`sim/sim_main.cpp`(新規)がクロックを与えてUARTを表示し、最初の`litex>`でコマンドを打ち、次の`litex>`で終わります。mmRISC-3でのBIOS: バナー(`CPU: mmRISC-3 (RV64GC)`)、BIOSのCRC通過(ROMを周辺バスで読む)、LiteDRAMの初期化、**Memtest OK**(シミュレーションでは0x8000_0000の8 KB: 書いて、`fence.i`でフラッシュして、読み返す)、シリアルブートの待ち、**339万1,565サイクル目に`litex>`**。`help`を打つと一覧が表示され、417万7,047サイクル目に再び`litex>`: **PASS**(毎秒約4万サイクル、2分以内)。
+
+**生成**: `CPU=mmrisc3 ./LitexSystem/scripts/build_soc.sh`(新規: `CPU=mmrisc3`で`LitexSystem/build3/`へ。既定の`CPU=mmrisc`はこれまでどおりmmRISC-2を`build/`へ): BIOSは48.6 KB、SoCの残りは手順2.4と同じ(SDカード、DHCP付きEthernet、デバッグポート、100 / 50 MHz)。
+
+**次(作者)**: WindowsのVMでVivado、`LitexSystem\build3\gateware\build_nexys_video.bat`。チップ全体のLUTをここで初めて測ります: アウトオブコンテキストで`OOO_CPU` 105,963、`DBG_TOP` 836(`Plan/OOC_J.md` 29.105)、LiteXのSoCは約5.3k(29.105の見積もり、Artyから)なので、133,800のうち約112k(84 %)、Artyから見積もった上限107.7kを約4.4k超えます。タイミング: CPUはアウトオブコンテキストで20 nsを満たしました(+0.035 ns)が、チップ全体の配置で動くかもしれません。その後ボードで(ゲートS2): `program_nexys_video.sh LitexSystem/build3/gateware/digilent_nexys_video.bit`でビットストリームを入れ、J13の端末でBIOS。

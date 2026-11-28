@@ -27,6 +27,10 @@ dcsr)、両方のバスで全サイズのメモリ、256語のブロック、`lo
 dcsr.cause 2)、ストアとロードのウォッチポイント(ハートが止まったときアクセスはされていない。ストアのラインはD$で
 ダーティなまま読む)、自由実行と停止、`reset halt`(最初の命令の前)。
 
+`./run_ocd.sh top`(手順2.6)は、同じことを`RTL/CPU/TOP`の`CPU_TOP`経由で行う。`CPU_TOP`は`tb_OCD`と同じように`DBG_TOP`と
+`OOO_CPU`をつなぎ、ハートを自分で起動し、DMのメモリアクセスをDMAポート(ここでは使わない)との調停に通す: **認証あり/
+なしとも50項目中50**(2026-11-28)。
+
 mmRISC-2のものからの変更: misa(0x800000000014112f)、IDCODE(0x36d6d001)、FPRの読み返し、そしてリセット: ライトバックの
 キャッシュはメモリがまだ持っていないものを失う(`RTL/CPU/DBG/README_J.md`)ので、メモリは`reset halt`をまたいで
 保つ代わりに、その後で書いて読む。`Unable to insert program into progbuf`の行は、コアにないCSR(vlenb、mtopi)を

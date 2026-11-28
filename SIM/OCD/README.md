@@ -28,6 +28,10 @@ and CSRs (misa, mhartid, dpc, dcsr), memory by every size on both buses, a block
 access not done when the hart halts; the store's line read while it is dirty in the D$), a free run and a halt, and
 `reset halt` (before the first instruction).
 
+`./run_ocd.sh top` (step 2.6) runs the same through `RTL/CPU/TOP`'s `CPU_TOP`, which joins `DBG_TOP` and `OOO_CPU`
+as `tb_OCD` does, starts the hart itself and puts the DM's memory accesses through its arbiter with the DMA port
+(idle here): **50 of 50 with and without authentication** (2026-11-28).
+
 Changed from mmRISC-2's: misa (0x800000000014112f), IDCODE (0x36d6d001), an FPR read back, and the reset: the
 write-back caches lose what memory does not have yet (`RTL/CPU/DBG/README.md`), so memory is written and read after
 `reset halt` instead of kept over it. The `Unable to insert program into progbuf` lines are OpenOCD probing CSRs

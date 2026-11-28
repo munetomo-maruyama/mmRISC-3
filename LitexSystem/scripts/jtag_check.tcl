@@ -1,7 +1,8 @@
 #---------------------------------------------------------------------------
 # jtag_check.tcl : the debug port of the LiteX SoC, on the board
 #                  (mmRISC-2's LitexSystem/scripts/jtag_check.tcl, for the
-#                  Nexys Video's SoC too: step 2.4, LitexSystem/docs/BRINGUP.md)
+#                  Nexys Video's SoC too: step 2.4, LitexSystem/docs/BRINGUP.md;
+#                  with mmRISC-3 too, step 2.6: its misa has B)
 #
 #   openocd -f openocd/nexys_jtag.cfg  -f scripts/jtag_check.tcl   (SW3 down)
 #   openocd -f openocd/nexys_cjtag.cfg -f scripts/jtag_check.tcl   (SW3 up)
@@ -42,7 +43,10 @@ echo "dcsr    = $dcsr (cause [expr {($dcsr >> 6) & 7}], privilege [lindex {U S ?
 echo "mstatus = [regval mstatus]"
 echo "satp    = [regval satp]"
 
-chk "misa" "0x800000000014112d" [regval misa]
+# misa: mmRISC-2's RV64IMAFDC + S, U; mmRISC-3's with B too (step 2.6)
+set misa [regval misa]
+if {$misa eq "0x800000000014112f"} { echo "(mmRISC-3)" } else { echo "(mmRISC-2)" }
+if {$misa ne "0x800000000014112f"} { chk "misa" "0x800000000014112d" $misa } else { chk "misa" "0x800000000014112f" $misa }
 chk "dcsr.xdebugver" "4" [expr {($dcsr >> 28) & 15}]
 
 # The identifier of the SoC, one character per 32 bit word in the CSR space:

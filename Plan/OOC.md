@@ -6769,3 +6769,19 @@ measured at step 2.6):
 - **C, misses that overlap**: `OOO_DMISS2` and `CPU_L2` one transaction at a time; several fills in flight for a stream.
   Large; worth it only with B.
 - **D, as it is**: CoreMark/MHz first (STRATEGY), 8.249 unchanged; noted for Linux's speed.
+
+### 29.109 `CPU_TOP`: `OOO_CPU` as a SoC's CPU (step 2.6, 2026-11-28)
+
+Step 2.6 puts mmRISC-3 into the LiteX SoC of steps 2.1 to 2.5 (`LitexSystem/docs/BRINGUP.md` 28). The RTL it needed
+around `OOO_CPU`, **`RTL/CPU/TOP/CPU_TOP.sv`** (new): `OOO_CPU` with `DBG_TOP`, the start (boot at `RESET_VECTOR`), and
+a **DMA port** (AXI4-Lite slave) on `OOO_CPU`'s bus master port, shared with the DM: the SoC's DMA goes through
+`OOO_DMISS2`'s debugger port, so through the D$, coherent with the core and the L2 (one access at a time; a write cut by
+its strobes into aligned pieces). No change to `OOO_CPU`. `SIM/TOP/run_top.sh` PASS (a dirty D$ word read by DMA,
+pieces written by DMA seen by the core, a device, SLVERR); `SIM/OCD/run_ocd.sh top` 50 + 50 PASS.
+
+**Seen on the way, a property of the core the SoC must allow for**: `OOO_ICACHE` caches every fetch, so a boot ROM's
+lines come on the L2's memory bus, and the front end fetches speculatively wherever a prediction points (the first
+simulation of the BIOS fetched address 0 before a return's `ld ra` came back, and LiteX's bus held the address no
+slave decodes until its timeout). The SoC routes only the ROM's region from the memory bus and answers the rest with
+DECERR at once (`cpu/mmrisc3`'s `AXIErrorSlave`); a beat with an error answer leaves no line in the I$ or the L2.
+With that the BIOS runs in simulation to `litex>` (Memtest OK, `help` answered).

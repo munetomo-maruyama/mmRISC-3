@@ -13462,3 +13462,55 @@ Look into this 42-cycle L2 hit before step 2.6 (mmRISC-3 in place) ("Look into i
 ```text
 Look into it
 ```
+
+<!-- answer -->**Claude Code's answer**
+
+The main cause of the 42-cycle L2 hit is the "replay at commit" that every load missing the D$ makes: at its commit it throws away everything after it and starts again from fetch. The L2 itself is not slow.
+
+**One miss (43 cycles), broken down**
+Without changing the RTL, a tracing file `probe.sv` is bound into the LSU (`OOO_LSU4`) and the miss handler (`OOO_DMISS2`), and the 256 KB chase followed cycle by cycle.
+
+| Stretch | Cycles |
+| --- | --- |
+| The load before replayed (the pipeline thrown away) → this load's issue | 10 |
+| Missed on port 1 → tried again on port 0 (only port 0 asks for a line) | 6 |
+| The try → the miss request → the L2's read begins | 3 + 4 |
+| The L2's answer: first data 2, the whole line's 8 beats waited for 7, taken 2 | 11 |
+| The try → completion → commit → replay | 3 + 3 + 2 + 1 |
+
+- The L2 itself is 11 cycles, about mmRISC-2's.
+- The replay costs 13, port 1's way round 6, the handshakes 13.
+- A load's dependents are woken 2 cycles after its issue without looking at the hit, and nothing cancels that. So a load that ran more than once always replays at its commit. The next load is thrown away with the rest, so misses are only ever handled one at a time.
+
+**Independent loads, the same**
+- Reading in address order costs 42.7 cycles a line from the L2, 73.7 from the DRAM.
+- That is **41.4 MiB/s**, below mmRISC-2's 54.6 MiB/s measured on the board.
+
+**On Linux's boot** (simulation, the memory model set to the board)
+- 141.6M cycles, IPC 0.955.
+- **820k replays**; their restarts alone use about 7.5 % of all cycles.
+- The ROB's head waits for memory 31.7 % of the time.
+- CoreMark has only 536 replays (about 0.6 %), so 8.249 is unchanged.
+
+**Options to improve it** (none started)
+- **A**: the replay kept, the miss path shortened.
+  - port 1's misses no longer go round through port 0 (−6)
+  - the try as soon as the word asked for arrives (early restart, −7)
+  - one state less in the miss handler (−1 to −2)
+  - An L2 hit then about 28 cycles instead of 43, a DRAM miss about 46 instead of 61. A few hundred LUTs more.
+- **B**: replay only when needed. Needs a cancel of the issue queue's wakeup, or a miss predictor, and touches the tightest loop at 20 ns. Large.
+- **C**: several misses at once. Large, and of little use without B.
+- **D**: as it is (CoreMark/MHz first, as the strategy says).
+
+The whole chip's LUTs are already expected about 4.4k over the ceiling, and the real number can only be measured at step 2.6. So step 2.6 first, to see the margin in LUTs and timing, then A, seems the better order.
+
+Recorded in `Plan/OOC.md` 29.108 (with the Japanese version), BRINGUP 27, STRATEGY 2.5. The tracing `SIM/CORE/lat/probe.sv`, `build_core.sh`'s `PROBE=` option and `gen_chase.py`'s stream mode are in the repository. Pushed to dev (commit c4f3cf7), no file under Ref/.
+
+Go on to step 2.6 ("Start step 2.6"), or take option A first ("Do option A now")?
+<!-- /answer -->
+
+## 334. 2026-11-28 19:56:21 JST
+
+```text
+Start step 2.6
+```

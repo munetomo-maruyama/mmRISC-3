@@ -12,6 +12,10 @@
 #   ./LitexSystem/scripts/build_soc.sh [extra litex arguments]
 #   SYS_CLK=50e6 CPU_CLK=50e6 ./LitexSystem/scripts/build_soc.sh
 #                  step 2.1's SoC: everything at 50 MHz, the DDR3 at DDR3-400
+#   CPU=mmrisc3 ./LitexSystem/scripts/build_soc.sh
+#                  step 2.6: mmRISC-3 (cpu/mmrisc3, RTL/CPU/TOP's CPU_TOP) in place
+#                  of mmRISC-2, the rest as step 2.4, into LitexSystem/build3/
+#                  (CPU=mmrisc, the default: mmRISC-2 into LitexSystem/build/)
 #
 # What comes out, in LitexSystem/build/ (not in git):
 #   gateware/digilent_nexys_video.v / .xdc / .tcl  the SoC and its Vivado script
@@ -50,18 +54,23 @@ MMRISC2_HOME=${MMRISC2_HOME:-$(cd "$REPO/../mmRISC-2" 2>/dev/null && pwd)}
 export MMRISC2_HOME
 LITEX_WS="$LITEX_HOME/litex_ws"
 VENV="$LITEX_HOME/.venv"
-BUILD="$LITEX_SYSTEM/build"
+CPU=${CPU:-mmrisc}
+case "$CPU" in
+    mmrisc)  BUILD="$LITEX_SYSTEM/build" ;;
+    mmrisc3) BUILD="$LITEX_SYSTEM/build3" ;;
+    *) echo "CPU=$CPU: mmrisc (mmRISC-2) or mmrisc3 (mmRISC-3)"; exit 1 ;;
+esac
 
 [ -d "$VENV" ]                 || { echo "no venv at $VENV (mmRISC-2/LitexSystem/scripts/setup_litex.sh)"; exit 1; }
 [ -d "$LITEX_WS" ]             || { echo "no LiteX workspace at $LITEX_WS"; exit 1; }
-[ -d "$MMRISC2_HOME/RTL/CPU" ] || { echo "no mmRISC-2 RTL at $MMRISC2_HOME/RTL"; exit 1; }
+[ "$CPU" = mmrisc3 ] || [ -d "$MMRISC2_HOME/RTL/CPU" ] || { echo "no mmRISC-2 RTL at $MMRISC2_HOME/RTL"; exit 1; }
 source "$VENV/bin/activate"
 export PATH=/opt/riscv/bin:$PATH
 
 cd "$LITEX_SYSTEM/cpu"
 python3 "$HERE/nexys_video_target.py" \
     --build --no-compile-gateware \
-    --cpu-type mmrisc \
+    --cpu-type "$CPU" \
     --sys-clk-freq "${SYS_CLK:-100e6}" \
     --cpu-clk-freq "${CPU_CLK:-50e6}" \
     --with-sdcard \

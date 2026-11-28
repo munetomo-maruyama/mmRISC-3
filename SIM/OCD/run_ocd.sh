@@ -5,6 +5,8 @@
 #   ./run_ocd.sh          build tb_OCD, run it with OpenOCD (test_ocd.tcl), then again with
 #                         authentication on (AUTH=1); PASS when both pass
 #   ./run_ocd.sh build    the build alone
+#   ./run_ocd.sh top      the same through RTL/CPU/TOP's CPU_TOP (step 2.6: its arbiter between the DM's
+#                         memory accesses and the DMA port, its start of the hart); "top build" builds only
 #   OPENOCD=<path>        OpenOCD (riscv-openocd; default: openocd)
 #   PORT=<n>              remote_bitbang's port (44853)
 #
@@ -17,8 +19,10 @@ R=$(cd ../../RTL/CPU/OOO && pwd); C=$(cd ../../RTL/CPU/CORE && pwd); CA=$(cd ../
 MM=$(cd ../../RTL/CPU/MMIO && pwd); FP=$(cd ../../RTL/CPU/FPU && pwd); D=$(cd ../../RTL/CPU/DBG && pwd)
 OPENOCD=${OPENOCD:-openocd}
 PORT=${PORT:-44853}
+VIA=""
+if [ "$1" = top ]; then VIA="+define+VIA_CPU_TOP $(cd ../../RTL/CPU/TOP && pwd)/CPU_TOP.sv"; shift; fi
 rm -rf obj; mkdir -p obj
-verilator --binary --timing -j 0 -O2 --top-module tb_OCD --Mdir obj -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT \
+verilator --binary --timing -j 0 -O2 --top-module tb_OCD --Mdir obj -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT $VIA \
     $D/DBG_CDC/DBG_CDC.sv $D/DBG_CJTAG/DBG_CJTAG.sv $D/DBG_DTM/DBG_DTM.sv $D/DBG_DM/DBG_DM.sv $D/DBG_TOP/DBG_TOP.sv \
     $R/OOO_UBTB2/OOO_UBTB2.sv $R/OOO_FDEC2/OOO_FDEC2.sv $R/OOO_TAGE2/OOO_TAGE2.sv $R/OOO_BTB/OOO_BTB.sv $R/OOO_RAS/OOO_RAS.sv \
     $R/OOO_FETCH2/OOO_FETCH2.sv $R/OOO_FTQ/OOO_FTQ.sv $R/OOO_FERS/OOO_FERS.sv $R/OOO_FBUF3/OOO_FBUF3.sv \

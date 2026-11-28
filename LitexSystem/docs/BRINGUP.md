@@ -759,3 +759,64 @@ this).
 large buffers). Looked into in `Plan/OOC.md` 29.108: each D$ miss of a load replays at its commit (a flush and
 refetch, about 13 of the 43 cycles), and port 1's misses go round through port 0 (6); a sequential read from the
 DRAM gives 41.4 MiB/s in the simulation against mmRISC-2's 54.6 here; options A to D there.
+
+## 28. Step 2.6: mmRISC-3 in place of mmRISC-2, generated; the BIOS in simulation (2026-11-28)
+
+**The CPU as one block: `RTL/CPU/TOP/CPU_TOP.sv`** (new; `RTL/CPU/TOP/README.md`): `OOO_CPU` with `DBG_TOP` (as
+`SIM/OCD`'s bench joins them), the start (`OOO_CPU`'s boot at `RESET_VECTOR` a few cycles after its reset; the hart
+unavailable to the DM until then), and **a DMA port** for LiteX's DMA masters (the SD card): an AXI4-Lite slave that
+goes through `OOO_CPU`'s bus master port (`OOO_DMISS2`'s debugger port), so it reads and writes memory through the
+D$, coherent with the core and the L2, as mmRISC-2's `DMA_CACHE` did; one access at a time, shared with the DM's
+Access Memory and SBA (the DM first). A write is cut by its strobes into aligned pieces of 8, 4, 2, 1 bytes.
+`verilator -Wall` clean on `CPU_TOP` (two waivers: the DMA addresses' low 3 bits, `rst_bus_n` used as a level).
+
+- `SIM/TOP/run_top.sh` (new): the DMA port against the D$: a word the core left dirty in the D$ read by DMA, two
+  writes in pieces seen by the core in its D$ line, a write with no strobe, a device word, SLVERR: **PASS**.
+- `SIM/OCD/run_ocd.sh top` (new mode): OpenOCD's 50 checks through `CPU_TOP` (its start, its arbiter): **PASS with
+  and without authentication**; the old mode as before (PASS).
+
+**The LiteX wrapper: `cpu/mmrisc3/`** (new, `--cpu-type mmrisc3`; `cpu/mmrisc` stays for mmRISC-2). As
+`cpu/mmrisc`: the CPU at 50 MHz in its own domain, the three buses crossed (`AXIClockDomainCrossing`,
+`AXILiteClockDomainCrossing` × 2), only the interrupt lines LiteX drives through `MultiReg` (16), the debug port on
+Pmod JA with LD0-LD3 (23), the map (ROM 0x1000_0000, SRAM 0x1100_0000, CSRs 0x1200_0000, main RAM 0x8000_0000).
+What is new:
+
+- **The fetch from the ROM goes over the memory bus.** `OOO_ICACHE` caches every fetch (its header: "a boot ROM
+  outside memory waits for the SoC"), so the L2's AXI4 carries the ROM's lines too. In sys, after the crossing, the bus
+  is split by address (`AXIDecoder`): main RAM to LiteDRAM (`memory_buses`), **the ROM's region** onto the SoC bus
+  (`AXI2Wishbone`, a Wishbone master `mmrisc3_fetch`), **anything else to `AXIErrorSlave`** (new in `core.py`:
+  DECERR at once). mmRISC-2 fetched the ROM uncached, a word at a time on the peripheral bus (about 14 CPU cycles a
+  word, 22); mmRISC-3 caches it in the I$ and the L2.
+- **Why the error slave**: the first simulation printed nothing. Its trace: the BIOS reached `litex_startup_init`'s
+  return, the front end fetched address 0 speculatively (a prediction, before the return's `ld ra` came back from the
+  SRAM), the line went onto the SoC bus, where no slave decodes 0, and the bus held it until its timeout (1M cycles)
+  while the I$, one miss at a time, waited. An out-of-order core fetches from wherever a prediction points; a
+  speculative fetch must neither hang nor read a device (a CSR with a side effect on read). With the split, only the
+  ROM is fetched from the SoC bus, and the rest answers at once (the I$ and the L2 keep no line with an error answer).
+- The D$'s cacheable memory is `OOO_CPU`'s `[0x8000_0000, 0x1_0000_0000)`; the rest (SRAM, CSRs, Ethernet buffers,
+  the ROM's read-only data) goes on the peripheral bus, uncached, as on mmRISC-2.
+- The BIOS's headers are mmRISC-2's (`fence.i` writes the D$ back into the L2 and invalidates the I$, all a flush
+  needs here: the L2 is the CPU's and the DMA goes through the D$).
+- The configuration for the device tree: I$ and D$ 128 KB, 8 ways, 64-byte lines; TLBs 64 entries, 2 ways.
+- OpenOCD (`openocd/nexys_jtag.cfg`, `nexys_cjtag.cfg`) accepts both IDCODEs (mmRISC-2 0x26d6d001, mmRISC-3
+  0x36d6d001); `scripts/jtag_check.tcl` both misa values (mmRISC-3's has B: 0x800000000014112f).
+
+**The BIOS in simulation: `sim/run_sim.sh`** (new). LiteX's `litex_sim` needs libevent for its own modules, not on
+this VM; so LiteX only generates its simulation SoC (the same `cpu/mmrisc3`, LiteDRAM with its SDRAM model, the
+UART as a stream; one clock, no crossing), and `sim/sim_main.cpp` (new) clocks it and prints the UART, types a
+command at the first `litex>` and ends at the next. The BIOS on mmRISC-3: the banner (`CPU: mmRISC-3 (RV64GC)`), the
+BIOS's CRC passed (its ROM read through the peripheral bus), LiteDRAM initialized, **Memtest OK** (8 KB at 0x8000_0000
+in simulation: written, flushed by `fence.i`, read back), the serial boot's wait, **`litex>` at cycle 3,391,565**;
+`help` typed and its list printed, `litex>` again at cycle 4,177,047: **PASS** (about 40k cycles a second, under 2
+minutes).
+
+**Generated**: `CPU=mmrisc3 ./LitexSystem/scripts/build_soc.sh` (new: `CPU=mmrisc3`, into `LitexSystem/build3/`;
+`CPU=mmrisc`, the default, mmRISC-2 into `build/` as before): the BIOS 48.6 KB, the rest of the SoC as step 2.4 (SD
+card, Ethernet with DHCP, the debug port, 100 / 50 MHz).
+
+**Next, the author's**: Vivado on the Windows VM, `LitexSystem\build3\gateware\build_nexys_video.bat`. The whole
+chip's LUTs are measured for the first time here: `OOO_CPU` 105,963 and `DBG_TOP` 836 out of context (`Plan/OOC.md`
+29.105), LiteX's SoC about 5.3k (29.105's estimate, from the Arty), so about 112k of 133,800 (84 %), about 4.4k
+above the ceiling of 107.7k estimated from the Arty. Timing: the CPU met 20 ns out
+of context (+0.035 ns), which a whole-chip placement may move. Then on the board (gate S2): the bitstream by
+`program_nexys_video.sh LitexSystem/build3/gateware/digilent_nexys_video.bit`, the BIOS at J13's terminal.
